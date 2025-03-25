@@ -9,7 +9,7 @@ def make_reservation(request):
     reservation_form = ReservationForm()
     customer_form = CustomerForm()
     context = {'customer':customer_form, 'reservation':ReservationForm}
-    if request.method =='POST':
+    if request.method =='post':
         customer_form = CustomerForm(request.POST)
         reservation_form = ReservationForm(request.POST)
 

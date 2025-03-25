@@ -11,7 +11,9 @@ class Reservation(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     pasenger_count = models.PositiveIntegerField()
     luggage_count = models.IntegerField(default=3)
-    special_requests = models.TextField(null=True, blank=True)
+    special_requests = models.TextField(null=True, blank=True, help_text='Any Special Requests, Carseats, Booster Seats')
+    pickup_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    pickup_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
     def __str__(self):
         return str(self.id)
