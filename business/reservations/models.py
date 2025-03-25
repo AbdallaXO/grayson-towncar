@@ -19,6 +19,9 @@ class Reservation(models.Model):
 
 
 class Customer(models.Model):
+    """
+    A simple customer model
+    """
     name = models.CharField(max_length=100)
     email = models.EmailField(max_length=100)
     zipcode = models.CharField(max_length=10)

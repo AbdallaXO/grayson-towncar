@@ -1,0 +1,12 @@
+{% extends "main.html" %}
+{% block content %}
+  <h1>Make A Reservation</h1>
+  <div class="container">
+    <form action="" method="post">
+      {% csrf_token %}
+      {{ customer }}
+      {{ reservation }}
+      <input type="submit" value="Submit">
+    </form>
+  </div>
+{% endblock content %}
