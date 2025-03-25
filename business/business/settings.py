@@ -37,7 +37,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'reservations.apps.ReservationsConfig'
+    'reservations.apps.ReservationsConfig',
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [
