@@ -297,3 +297,7 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.navbar{
+  background-color: #1a1a1a !important;
+}
