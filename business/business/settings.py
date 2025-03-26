@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'reservations.apps.ReservationsConfig',
+    'users.apps.UsersConfig',
     'widget_tweaks',
 ]
 
