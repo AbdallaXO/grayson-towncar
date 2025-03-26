@@ -1,0 +1,13 @@
+{% extends "main.html" %}
+{% block content %}
+  {% if not user.is_authenticated %}
+    <form method="POST">
+      {% csrf_token %}
+      <input type="text" name="username">
+      <input type="password" name="password">
+      <input type="submit" value="Log in">
+    </form>
+  {% else %}
+    <h2>Register</h2>
+  {% endif %}
+{% endblock content %}
