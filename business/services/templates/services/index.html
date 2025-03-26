@@ -1,0 +1,59 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block content %}
+  <!-- Hero Section: Luxury Transportation -->
+  <section class="hero-section text-white py-5">
+    <div class="container text-start">
+      <h1 class="display-4 mb-4">Luxury Transportation, Stress-Free Travel</h1>
+      <p class="lead">
+        Arrive in style with our professional chauffeurs and premium vehicles. Enjoy complimentary family-friendly services—from grocery stops to car seats—as we take you around Orlando, Disney, and beyond.
+      </p>
+      <a href="#book-now" class="btn btn-primary btn-lg mt-3">Book Your Ride</a>
+    </div>
+  </section>
+
+  <!-- Business Hours Section -->
+  <section class="hero-section text-white py-4">
+    <div class="container text-start">
+      <h1 class="display-4 mb-1">Business Hours</h1>
+      <p class="lead">Every Day, 6 AM – 11 PM</p>
+    </div>
+  </section>
+
+  <!-- Why Grayson Section -->
+  <section class="hero-section text-white py-4">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-7 text-start">
+          <h1 class="display-4 mb-3">Why Grayson?</h1>
+          <ul class="lead">
+            <li>
+              <strong>Reliability:</strong> We guarantee punctual pick-ups and drop-offs, every single time.
+            </li>
+            <li>
+              <strong>Family-Focused:</strong> Complimentary grocery stops, child car seats, and extras to make traveling with family easier.
+            </li>
+            <li>
+              <strong>Professional Chauffeurs:</strong> Courteous, knowledgeable drivers committed to your comfort and safety.
+            </li>
+            <li>
+              <strong>Premium Fleet:</strong> Choose from a wide range of clean, modern vehicles for a luxurious ride.
+            </li>
+            <li>
+              <strong>Local Expertise:</strong> Benefit from our deep knowledge of Orlando's top attractions, hotels, and routes.
+            </li>
+          </ul>
+        </div>
+
+        <div class="col-lg-5 mt-4 mt-lg-0 text-center">
+          <img src="{% static 'images/suburban.png' %}"
+               alt="Luxury Suburban Vehicle"
+               class="img-fluid rounded shadow-lg">
+          <img src="{% static 'images/towncar.jpg' %}"
+               alt="Luxury Suburban Vehicle"
+               class="img-fluid rounded shadow-lg">
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock content %}

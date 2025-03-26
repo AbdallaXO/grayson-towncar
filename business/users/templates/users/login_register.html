@@ -1,13 +1,36 @@
 {% extends "main.html" %}
 {% block content %}
-  {% if not user.is_authenticated %}
-    <form method="POST">
-      {% csrf_token %}
-      <input type="text" name="username">
-      <input type="password" name="password">
-      <input type="submit" value="Log in">
-    </form>
-  {% else %}
-    <h2>Register</h2>
-  {% endif %}
+  <div class="container mt-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            {% if not user.is_authenticated %}
+              <h4 class="mb-4 text-center">Login</h4>
+              <form method="POST">
+                {% csrf_token %}
+                <div class="mb-3">
+                  <input type="text"
+                         class="form-control"
+                         name="username"
+                         placeholder="Username">
+                </div>
+                <div class="mb-3">
+                  <input type="password"
+                         class="form-control"
+                         name="password"
+                         placeholder="Password">
+                </div>
+                <div class="d-grid">
+                  <button type="submit" class="btn btn-primary">Log in</button>
+                </div>
+              </form>
+            {% else %}
+              <h4 class="mb-4 text-center">Register</h4>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock content %}

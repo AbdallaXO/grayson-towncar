@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'reservations.apps.ReservationsConfig',
     'users.apps.UsersConfig',
     'widget_tweaks',
+    'services'
 ]
 
 MIDDLEWARE = [
