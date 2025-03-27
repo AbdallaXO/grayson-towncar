@@ -1,3 +1,3 @@
 from django.urls import path
-
-urlpatterns = [path("", name="rates")]
+from . import views
+urlpatterns = [path("", views.blog ,name="blog")]
