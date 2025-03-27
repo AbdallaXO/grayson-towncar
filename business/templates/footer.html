@@ -1,83 +1,87 @@
-<footer class="footer">
-    <div class="footer-container">
-        <div class="footer-info">
-            <div class="footer-logo">
-                Grayson <span>Towncar</span>
-            </div>
-            <div class="footer-contact">
-                <p>123 Luxury Drive, Suite 500</p>
-                <p>New York, NY 10001</p>
-                <p>info@graysontowncar.com</p>
-                <p>+1 (212) 555-0123</p>
-            </div>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet" />
+{% load static %}
+
+<footer class="bg-dark text-light py-5">
+  <div class="container">
+    <div class="row g-4">
+      <!-- Company Info -->
+      <div class="col-lg-4 col-md-6">
+        <h5 class="mb-4">About Grayson Towncar</h5>
+        <p class="mb-4">Grayson Towncar provides premium Orlando transportation services specializing in Disney World, Universal Studios, and Port Canaveral transfers. Our reliable luxury fleet ensures your family vacation starts with stress-free travel between MCO Airport, cruise terminals, and Orlando's world-class theme parks.</p>
+        <div class="social-links">
+          <a href="#" class="social-icon bg-primary"><i class="fab fa-facebook-f"></i></a>
+          <a href="#" class="social-icon bg-info"><i class="fab fa-twitter"></i></a>
+          <a href="#" class="social-icon bg-danger"><i class="fab fa-instagram"></i></a>
+          <a href="#" class="social-icon bg-primary"><i class="fab fa-linkedin-in"></i></a>
         </div>
-        <div class="footer-nav">
-            <h4>Navigation</h4>
-            <ul>
-                <li>
-                    <a href="#">Home</a>
-                </li>
-                <li>
-                    <a href="#">Services</a>
-                </li>
-                <li>
-                    <a href="#">Fleet</a>
-                </li>
-                <li>
-                    <a href="#">About Us</a>
-                </li>
-                <li>
-                    <a href="#">Contact</a>
-                </li>
-            </ul>
-        </div>
-        <div class="footer-social">
-            <h4>Connect With Us</h4>
-            <ul>
-                <li>
-                    <a href="https://www.instagram.com/graysontowncar">
-                        <div class="social-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg"
-                                 width="18"
-                                 height="18"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round">
-                                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                            </svg>
-                        </div>
-                        Instagram
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <div class="social-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg"
-                                 width="18"
-                                 height="18"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round">
-                                <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-                                <rect x="2" y="9" width="4" height="12"></rect>
-                                <circle cx="4" cy="4" r="2"></circle>
-                            </svg>
-                        </div>
-                        LinkedIn
-                    </a>
-                </li>
-            </ul>
-        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="col-lg-2 col-md-6">
+        <h5 class="mb-4">Quick Links</h5>
+        <ul class="list-unstyled">
+          <li class="mb-2">
+            <a href="#" class="footer-link">Home</a>
+          </li>
+          <li class="mb-2">
+            <a href="#" class="footer-link">About</a>
+          </li>
+          <li class="mb-2">
+            <a href="#" class="footer-link">Services</a>
+          </li>
+          <li class="mb-2">
+            <a href="#" class="footer-link">Portfolio</a>
+          </li>
+          <li class="mb-2">
+            <a href="#" class="footer-link">Contact</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Services -->
+      <div class="col-lg-2 col-md-6">
+        <h5 class="mb-4">Services</h5>
+        <ul class="list-unstyled">
+          <li class="mb-2">
+            <a href="#" class="footer-link">Airport Transfers</a>
+          </li>
+          <li class="mb-2">
+            <a href="#" class="footer-link">Hotel Transfers</a>
+          </li>
+          <li class="mb-2">
+            <a href="#" class="footer-link">Cruise Transfers</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Contact Info -->
+      <div class="col-lg-4 col-md-6">
+        <h5 class="mb-4">Contact Info</h5>
+        <ul class="list-unstyled">
+          <li class="mb-3">
+            <i class="fas fa-map-marker-alt me-2"></i>
+            123 Business Street, New York, NY 10001
+          </li>
+          <li class="mb-3">
+            <i class="fas fa-phone me-2"></i>
+            <a href="tel:+1234567890" class="footer-link">+1 (234) 567-890</a>
+          </li>
+          <li class="mb-3">
+            <i class="fas fa-envelope me-2"></i>
+            <a href="mailto:contact@graysontowncar.com" class="footer-link">contact@graysontowncar.com</a>
+          </li>
+        </ul>
+      </div>
     </div>
-    <div class="footer-bottom">
-        <p>@ {% now "Y" %} Grayson Towncar. All rights reserved.</p>
+
+    <!-- Copyright -->
+    <div class="row mt-5">
+      <div class="col-12">
+        <hr class="mb-4" />
+        <div class="text-center">
+          <p class="mb-0">&copy; 2025 Grayson Towncar. All rights reserved.</p>
+        </div>
+      </div>
     </div>
+  </div>
 </footer>
