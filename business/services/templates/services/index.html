@@ -1,59 +1,152 @@
 {% extends 'main.html' %}
+
 {% load static %}
 {% block content %}
-  <!-- Hero Section: Luxury Transportation -->
-  <section class="hero-section text-white py-5">
-    <div class="container text-start">
-      <h1 class="display-4 mb-4">Luxury Transportation, Stress-Free Travel</h1>
-      <p class="lead">
-        Arrive in style with our professional chauffeurs and premium vehicles. Enjoy complimentary family-friendly services—from grocery stops to car seats—as we take you around Orlando, Disney, and beyond.
-      </p>
-      <a href="#book-now" class="btn btn-primary btn-lg mt-3">Book Your Ride</a>
-    </div>
-  </section>
+  {% include 'navbar.html' %}
 
-  <!-- Business Hours Section -->
-  <section class="hero-section text-white py-4">
-    <div class="container text-start">
-      <h1 class="display-4 mb-1">Business Hours</h1>
-      <p class="lead">Every Day, 6 AM – 11 PM</p>
-    </div>
-  </section>
-
-  <!-- Why Grayson Section -->
-  <section class="hero-section text-white py-4">
-    <div class="container">
-      <div class="row align-items-center">
-        <div class="col-lg-7 text-start">
-          <h1 class="display-4 mb-3">Why Grayson?</h1>
-          <ul class="lead">
-            <li>
-              <strong>Reliability:</strong> We guarantee punctual pick-ups and drop-offs, every single time.
-            </li>
-            <li>
-              <strong>Family-Focused:</strong> Complimentary grocery stops, child car seats, and extras to make traveling with family easier.
-            </li>
-            <li>
-              <strong>Professional Chauffeurs:</strong> Courteous, knowledgeable drivers committed to your comfort and safety.
-            </li>
-            <li>
-              <strong>Premium Fleet:</strong> Choose from a wide range of clean, modern vehicles for a luxurious ride.
-            </li>
-            <li>
-              <strong>Local Expertise:</strong> Benefit from our deep knowledge of Orlando's top attractions, hotels, and routes.
-            </li>
-          </ul>
+  <section class="py-5" id="features">
+    <div class="container px-5 my-5">
+      <div class="row gx-5">
+        <div class="col-lg-4 mb-5 mb-lg-0">
+          <h2 class="fw-bolder mb-0">Luxury Family Transportation in Orlando</h2>
+          <p class="lead mt-3">Professional, comfortable, and safe rides available 24/7 for your entire family.</p>
         </div>
-
-        <div class="col-lg-5 mt-4 mt-lg-0 text-center">
-          <img src="{% static 'images/suburban.png' %}"
-               alt="Luxury Suburban Vehicle"
-               class="img-fluid rounded shadow-lg">
-          <img src="{% static 'images/towncar.jpg' %}"
-               alt="Luxury Suburban Vehicle"
-               class="img-fluid rounded shadow-lg">
+        <div class="col-lg-8">
+          <div class="row gx-5 row-cols-1 row-cols-md-2">
+            <div class="col mb-5 h-100">
+              <div class="feature bg-dark bg-gradient text-white rounded-3 mb-3">
+                <i class="bi bi-airplane"></i>
+              </div>
+              <h2 class="h5">Airport Transfers</h2>
+              <p class="mb-0">Private luxury transportation to and from Orlando International Airport with complimentary meet and greet service. We'll help with your luggage and ensure a smooth start to your vacation.</p>
+            </div>
+            <div class="col mb-5 h-100">
+              <div class="feature bg-dark bg-gradient text-white rounded-3 mb-3">
+                <i class="bi bi-stars"></i>
+              </div>
+              <h2 class="h5">Theme Park Transportation</h2>
+              <p class="mb-0">Reliable rides to Disney World, Universal Studios, and all Orlando attractions. Skip the parking hassles and arrive refreshed for your family adventure.</p>
+            </div>
+            <div class="col mb-5 mb-md-0 h-100">
+              <div class="feature bg-dark bg-gradient text-white rounded-3 mb-3">
+                <i class="bi bi-water"></i>
+              </div>
+              <h2 class="h5">Cruise Terminal Shuttles</h2>
+              <p class="mb-0">Comfortable transportation to Port Canaveral for your cruise departure. We ensure you arrive on time with all your luggage safely handled.</p>
+            </div>
+            <div class="col h-100">
+              <div class="feature bg-dark bg-gradient text-white rounded-3 mb-3">
+                <i class="bi bi-cart"></i>
+              </div>
+              <h2 class="h5">Complimentary Grocery Stops</h2>
+              <p class="mb-0">Convenient stop at Publix grocery stores included with your ride. Stock up your vacation rental with everything you need without the hassle.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
-{% endblock content %}
+
+  <section class="py-5 bg-light" id="additional-services">
+    <div class="container px-5 my-5">
+      <h2 class="fw-bolder mb-4 text-center">Family-Friendly Features</h2>
+      <div class="row gx-5 row-cols-1 row-cols-md-3">
+        <div class="col mb-5 h-100">
+          <div class="card h-100 shadow border-0">
+            <div class="card-body p-4">
+              <div class="badge bg-dark bg-gradient rounded-pill mb-2">Safety First</div>
+              <h5 class="card-title mb-3">Child Car Seats Available</h5>
+              <p class="card-text mb-0">Car seats and booster seats for children of all ages. Your family's safety is our top priority during all transportation.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col mb-5 h-100">
+          <div class="card h-100 shadow border-0">
+            <div class="card-body p-4">
+              <div class="badge bg-dark bg-gradient rounded-pill mb-2">Premium Service</div>
+              <h5 class="card-title mb-3">Professional Drivers</h5>
+              <p class="card-text mb-0">Experienced, courteous drivers who know Orlando well. Enjoy a stress-free journey with our background-checked professionals.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col mb-5 h-100">
+          <div class="card h-100 shadow border-0">
+            <div class="card-body p-4">
+              <div class="badge bg-dark bg-gradient rounded-pill mb-2">Convenience</div>
+              <h5 class="card-title mb-3">24/7 Service</h5>
+              <p class="card-text mb-0">Available whenever you need us, day or night. Early morning flight or late-night arrival? We've got you covered anytime.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5" id="service-areas">
+    <div class="container px-5 my-5">
+      <div class="row gx-5 justify-content-center">
+        <div class="col-lg-8 col-xl-6">
+          <div class="text-center">
+            <h2 class="fw-bolder">Service Areas</h2>
+            <p class="lead fw-normal text-muted mb-5">Covering all your transportation needs throughout Greater Orlando</p>
+          </div>
+        </div>
+      </div>
+      <div class="row gx-5">
+        <div class="col-lg-4 mb-5">
+          <div class="card h-100 shadow border-0">
+            <img class="card-img-top" src="{% static 'images/disney.jpg' %}" alt="Disney World" />
+            <div class="card-body p-4">
+              <h5 class="card-title mb-3">Disney Area</h5>
+              <p class="card-text mb-0">Transportation to all Disney properties including Magic Kingdom, Epcot, Hollywood Studios, Animal Kingdom, and Disney Springs.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4 mb-5">
+          <div class="card h-100 shadow border-0">
+            <img class="card-img-top" src="{% static 'images/universal.jpg' %}" alt="Universal Studios" />
+            <div class="card-body p-4">
+              <h5 class="card-title mb-3">Universal Area</h5>
+              <p class="card-text mb-0">Rides to Universal Studios, Islands of Adventure, Volcano Bay, and CityWalk for all your Universal adventures.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4 mb-5">
+          <div class="card h-100 shadow border-0">
+            <img class="card-img-top" src="{% static 'images/port.png' %}" alt="Orlando" />
+            <div class="card-body p-4">
+              <h5 class="card-title mb-3">Port Canaveral</h5>
+              <p class="card-text mb-0">Service to International Drive, SeaWorld, Discovery Cove, outlet malls, and all Orlando hotels and vacation rentals.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5 bg-light" id="booking">
+    <div class="container px-5 my-5">
+      <div class="text-center mb-5">
+        <h2 class="fw-bolder">Ready to Book Your Ride?</h2>
+        <p class="lead mb-0">Experience the Grayson Towncar difference for your Orlando vacation transportation</p>
+      </div>
+      <div class="row gx-5 justify-content-center">
+        <div class="col-lg-6">
+          <div class="card border-0 h-100">
+            <div class="card-body p-4 p-lg-5">
+              <div class="d-flex">
+                <div class="ms-4">
+                  <p class="mb-1">Contact us 24/7 for quotes and reservations:</p>
+                  <div class="mb-4 font-weight-bold h5">
+                    <i class="bi bi-telephone-fill me-2"></i> [Your Phone Number]
+                  </div>
+                  <a href="#" class="btn btn-primary btn-lg px-4 me-sm-3">Book Online Now</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
