@@ -7,4 +7,4 @@ def index(request):
 
 
 def faqs(request):
-    return render(request, 'reservations/faqs.html')
+    return render(request, "reservations/faqs.html")

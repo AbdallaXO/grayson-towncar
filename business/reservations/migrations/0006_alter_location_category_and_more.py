@@ -5,30 +5,48 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0005_location_vehicle_remove_reservation_customer_and_more'),
+        ("reservations", "0005_location_vehicle_remove_reservation_customer_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='location',
-            name='category',
-            field=models.CharField(choices=[('mco', 'Orlando International Airport (MCO)'), ('sanford', 'Sanford International Airport (SFB)'), ('disney', 'All WDW Disney Property And Parks'), ('port', 'Port Canaveral'), ('universal', 'All Universal Studios Properties'), ('hotel', 'Hotel Transfer'), ('custom', 'Custom Location')], max_length=20),
+            model_name="location",
+            name="category",
+            field=models.CharField(
+                choices=[
+                    ("mco", "Orlando International Airport (MCO)"),
+                    ("sanford", "Sanford International Airport (SFB)"),
+                    ("disney", "All WDW Disney Property And Parks"),
+                    ("port", "Port Canaveral"),
+                    ("universal", "All Universal Studios Properties"),
+                    ("hotel", "Hotel Transfer"),
+                    ("custom", "Custom Location"),
+                ],
+                max_length=20,
+            ),
         ),
         migrations.AlterField(
-            model_name='reservation',
-            name='children_count',
+            model_name="reservation",
+            name="children_count",
             field=models.PositiveIntegerField(blank=True, default=0),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='dropoff_location',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='dropoff_routes', to='reservations.location'),
+            model_name="route",
+            name="dropoff_location",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="dropoff_routes",
+                to="reservations.location",
+            ),
         ),
         migrations.AlterField(
-            model_name='route',
-            name='pickup_location',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pickup_routes', to='reservations.location'),
+            model_name="route",
+            name="pickup_location",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="pickup_routes",
+                to="reservations.location",
+            ),
         ),
     ]

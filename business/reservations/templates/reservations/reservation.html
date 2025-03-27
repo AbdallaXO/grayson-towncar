@@ -1,30 +1,30 @@
 {% extends "main.html" %}
 {% block content %}
-  <div class="container bg-dark text-light my-5 p-4 rounded shadow">
-    <h1 class="display-2 text-center">Reservation Form</h1>
-    <form method="POST">
-      {% csrf_token %}
-      {% comment %} Customer Information Section  {% endcomment %}
-      <h3 class="display-6 pt-5">Customer Information</h3>
-      <div class="row">
-        {% for field in customer %}
-          <div class="col-md-6 mb-3">
-            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-          </div>
-        {% endfor %}
-      </div>
-      {% comment %} Reservation Information Section {% endcomment %}
-      <div class="display-6 mt-3">Reservation Details</div>
-      <div class="row">
-        {% for field in reservation %}
-          <div class="col-md-6 mt-3">
-            <label for="{{ field.id_for_lbel }}">{{ field.label }}</label>
-            {{ field }}
-          </div>
-        {% endfor %}
-      </div>
-      <input type="submit" value="Submit" class="btn btn-secondary btn-lg mt-4 ">
-    </form>
-  </div>
+    <div class="container bg-dark text-light my-5 p-4 rounded shadow">
+        <h1 class="display-2 text-center">Reservation Form</h1>
+        <form method="POST">
+            {% csrf_token %}
+            {% comment %} Customer Information Section  {% endcomment %}
+            <h3 class="display-6 pt-5">Customer Information</h3>
+            <div class="row">
+                {% for field in customer %}
+                    <div class="col-md-6 mb-3">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                {% endfor %}
+            </div>
+            {% comment %} Reservation Information Section {% endcomment %}
+            <div class="display-6 mt-3">Reservation Details</div>
+            <div class="row">
+                {% for field in reservation %}
+                    <div class="col-md-6 mt-3">
+                        <label for="{{ field.id_for_lbel }}">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                {% endfor %}
+            </div>
+            <input type="submit" value="Submit" class="btn btn-secondary btn-lg mt-4 ">
+        </form>
+    </div>
 {% endblock content %}
