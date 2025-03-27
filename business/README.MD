@@ -7,7 +7,7 @@
 
 > Grayson Towncar is a web-based platform offering private, family-friendly transportation services in Orlando, Florida, catering to tourists visiting Disney, Universal, and Port Canaveral. 
 
-### ✨ [Demo](www.graysontowncar.com)
+### ✨ [Demo](https://www.graysontowncar.com)
 
 ## Install
 
@@ -16,6 +16,8 @@ pip install -r requirements.txt
 ```
 
 ## Usage
+
+```sh
 # Apply database migrations
 python manage.py migrate
 
@@ -24,20 +26,17 @@ python manage.py createsuperuser
 
 # Start the development server
 python manage.py runserver
-
-```sh
-# Apply database migrations
 ```
 
 ## Run tests
 
 ```sh
-python manage.py migrate
+python manage.py test
 ```
 
 ## Author
 
-👤 **Abdalla & Rayyan **
+👤 **Abdalla & Rayyan**
 
 * Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
 * Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee)
