@@ -2,10 +2,12 @@ from django.shortcuts import render, get_object_or_404
 from .models import Blog
 
 def blog(request):
-    blogs = Blog.objects.all()
-    return render(request, 'blog/index.html', {'blogs':blogs})
+    latest = Blog.objects.latest('created')
+    blogs = Blog.objects.all().order_by('created')
+    return render(request, 'blog/index.html', {'blogs':blogs, 'latest_post':latest})
 
 
-def blog_post_detail(request, slug):
+def blog_post(request, slug):
     post = get_object_or_404(Blog, slug=slug)
-    return render(request, 'blog/post_detail.html', {'post': post})
+    return render(request, 'blog/blog-post.html', {'post': post})
+
