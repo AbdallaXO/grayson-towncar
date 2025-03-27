@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("reservations", "0003_rename_arrival_date_reservation_pickup_date_and_more"),
     ]

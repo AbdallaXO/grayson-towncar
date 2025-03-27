@@ -37,11 +37,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'reservations.apps.ReservationsConfig',
-    'users.apps.UsersConfig',
-    'widget_tweaks',
-    'services',
-    'rates',
+    "reservations.apps.ReservationsConfig",
+    "users.apps.UsersConfig",
+    "widget_tweaks",
+    "services",
+    "rates",
+    "blog",
 ]
 
 MIDDLEWARE = [
@@ -59,7 +60,7 @@ ROOT_URLCONF = "business.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'templates'],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -122,12 +123,10 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
-MEDIA_URL = '/images/'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static'
-]
-MEDIA_ROOT = BASE_DIR / 'static/images'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = "/images/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_ROOT = BASE_DIR / "static/images"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

@@ -1,36 +1,79 @@
 from django import forms
-from .models import Reservation, Customer
-
-
-class CustomerForm(forms.ModelForm):
-    class Meta:
-        model = Customer
-        fields = '__all__'
-    def __init__(self, *args, **kwargs):
-        super(CustomerForm, self).__init__(*args, **kwargs)
-        for name, field in self.fields.items():
-            field.widget.attrs.update({'class':'form-control'})
-        
-
+from .models import Reservation, Vehicle, Location
 
 class ReservationForm(forms.ModelForm):
-    pickup_location = forms.CharField(required=True)
-    dropoff_location = forms.CharField(required=True)
+    """
+    Form for creating a transportation reservation
+    """
+    vehicle_type = forms.ModelChoiceField(
+        queryset=Vehicle.objects.filter(available=True),
+        label="Vehicle Type"
+    )
+    
+    pickup_location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(
+            category__in=['mco', 'sanford', 'disney', 'port', 'universal', 'hotel', 'custom']
+        ),
+        label="Pickup Location"
+    )
+    
+    dropoff_location = forms.ModelChoiceField(
+        queryset=Location.objects.filter(
+            category__in=['mco', 'sanford', 'disney', 'port', 'universal', 'hotel', 'custom']
+        ),
+        label="Dropoff Location"
+    )
     
     class Meta:
         model = Reservation
-        fields = ['pickup_location', 'dropoff_location', 'pickup_date', 'pickup_time', 'luggage_count', 'pasenger_count', 'special_requests']
-        widgets = {
-            'pickup_date': forms.DateInput(attrs={'type':'date', 'class':'form-control rounded-3 shadow-sm'}),
-            'pickup_time': forms.TimeInput(attrs={'type':'time', 'class':'form-control rounded-3 shadow-sm'})
-        }
-
-    def __init__(self, *args, **kwargs):
-        super(ReservationForm, self).__init__(*args, **kwargs)
-        for name, field in self.fields.items():
-            field.widget.attrs.update({'class':'form-control'})
-        self.fields['special_requests'].widget.attrs.update({'placeholder':'Any Special Requests e.g carseats, booster seats, grocery store surprise etc.',})
-        self.fields['pickup_location'].widget.attrs.update({'id': 'pickup-location', 'placeholder': 'Enter pickup address'})
-        self.fields['dropoff_location'].widget.attrs.update({'id': 'dropoff-location', 'placeholder': 'Enter dropoff address'})
-    
-  
+        fields = [
+            'guest_name', 
+            'guest_email', 
+            'guest_phone',
+            'pickup_date', 
+            'pickup_time',
+            'vehicle_type',
+            'pickup_location', 
+            'dropoff_location',
+            'passenger_count', 
+            'children_count',
+            'carseat_needed', 
+            'carseat_type',
+            'luggage_count',
+            'airline', 
+            'flight_number',
+            'special_requests'
+        ]
+        
+    def clean(self):
+        """
+        Custom validation
+        """
+        cleaned_data = super().clean()
+        
+        # Validate vehicle capacity
+        vehicle = cleaned_data.get('vehicle_type')
+        passenger_count = cleaned_data.get('passenger_count')
+        
+        if vehicle and passenger_count:
+            if passenger_count > vehicle.capacity:
+                raise forms.ValidationError(
+                    f"Selected vehicle can only accommodate {vehicle.capacity} passengers."
+                )
+        
+        # Validate car seat requirements
+        children_count = cleaned_data.get('children_count', 0)
+        carseat_needed = cleaned_data.get('carseat_needed')
+        carseat_type = cleaned_data.get('carseat_type')
+        
+        if children_count > 0 and not carseat_needed:
+            raise forms.ValidationError(
+                "Car seat is required when traveling with children."
+            )
+        
+        if carseat_needed and not carseat_type:
+            raise forms.ValidationError(
+                "Please specify the type of car seat needed."
+            )
+        
+        return cleaned_data
