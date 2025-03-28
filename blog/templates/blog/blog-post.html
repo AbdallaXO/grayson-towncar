@@ -1,0 +1,80 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block content %}
+  <section class="py-5">
+    <div class="container px-5 my-5">
+      <div class="row gx-5">
+        <div class="col-lg-3">
+          <div class="d-flex align-items-center mt-lg-5 mb-4">
+            {% if post.user.profile_image %}
+              <img class="img-fluid rounded-circle" src="{{ post.user.profile_image.url }}" alt="{{ post.user.first_name }}" />
+            {% else %}
+              <img class="img-fluid rounded-circle" src="{% static 'images/default_profile.png' %}" alt="{{ post.user.first_name }}" />
+            {% endif %}
+            <div class="ms-3">
+              <div class="fw-bold">{{ post.user.first_name }}</div>
+              <div class="text-muted">{{ post.user.bio|default:'Author' }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-9">
+          <!-- Post content -->
+          <article>
+            <!-- Post header -->
+            <header class="mb-4">
+              <!-- Post title -->
+              <h1 class="fw-bolder mb-1">{{ post.title|title }}</h1>
+              <!-- Post meta content -->
+              <div class="text-muted fst-italic mb-2">{{ post.created|date:'F j, Y' }}</div>
+              <!-- Post categories -->
+              {% if post.categories.all %}
+                {% for category in post.categories.all %}
+                  <a class="badge bg-secondary text-decoration-none link-light" href="#">{{ category.name }}</a>
+                {% endfor %}
+              {% endif %}
+            </header>
+            <!-- Preview image figure -->
+            {% if post.image %}
+              <figure class="mb-4">
+                <img class="img-fluid rounded" src="{{ post.image.url }}" alt="{{ post.title }}" />
+              </figure>
+            {% endif %}
+            <!-- Post content -->
+            <section class="mb-5">{{ post.content|safe|linebreaks }}</section>
+          </article>
+          <!-- Comments section -->
+          {% if comments %}
+            <section class="mb-5">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h2 class="h4 fw-bolder mb-4">Comments</h2>
+                  {% for comment in comments %}
+                    <div class="d-flex mb-4">
+                      <div class="flex-shrink-0">
+                        <img class="rounded-circle" src="{% static 'images/default_profile.png' %}" alt="{{ comment.user.first_name }}" width="50" height="50" />
+                      </div>
+                      <div class="ms-3">
+                        <div class="fw-bold">{{ comment.user.first_name }}</div>
+                        <div class="text-muted small mb-2">{{ comment.created|date:'F j, Y' }}</div>
+                        {{ comment.content }}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </section>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+{% block head_extra %}
+  <meta name="description" content="{{ post.content|truncatewords:25|striptags }}" />
+  <meta property="og:title" content="{{ post.title }}" />
+  <meta property="og:description" content="{{ post.content|truncatewords:25|striptags }}" />
+  {% if post.image %}
+    <meta property="og:image" content="{{ request.build_absolute_uri }}{{ post.image.url }}" />
+  {% endif %}
+  <meta name="twitter:card" content="summary_large_image" />
+{% endblock %}
