@@ -12,6 +12,9 @@
 ## Install
 
 ```sh
+git clone https://github.com/AbdallaXO/grayson-towncar.git
+cd grayson-towncar
+
 pip install -r requirements.txt
 ```
 
