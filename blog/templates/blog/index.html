@@ -23,7 +23,9 @@
               <div class="col-lg-6 col-xl-7">
                 <img class="bg-featured-blog img-fluid"
                      src="{{ latest_post.image.url }}"
-                     alt="{{ latest_post.title }}" />
+                     alt="{{ latest_post.title }}"
+                     width="550px"
+                     height="400px" />
               </div>
             </div>
           </div>
@@ -66,9 +68,7 @@
         {% for blog in blogs %}
           <article class="col-lg-4 mb-5">
             <div class="card h-100 shadow border-0">
-              <img class="card-img-top"
-                   src="{{ blog.image.url }}"
-                   alt="{{ blog.title }}" />
+              <img class="card-img-top" src="{{ blog.image.url }}" alt="{{ blog.title }}" / width="350px" height="350px">
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">News</div>
                 <a class="text-decoration-none link-dark stretched-link"
@@ -81,7 +81,7 @@
                 <div class="d-flex align-items-end justify-content-between">
                   <div class="d-flex align-items-center">
                     <img class="rounded-circle me-3"
-                         src="{% static 'images/default_profile.png' %}"
+                         src="{% static 'images/default-profile.png' %}"
                          alt="Profile of {{ blog.user.first_name }}"
                          width="40"
                          height="40" />
@@ -104,7 +104,7 @@
       </div>
     </div>
   </section>
-{% endblock %}
+{% endblock content %}
 {% comment %} {% block head_extra %}
   <meta name="description" content="Explore our collection of featured stories and latest news on our company blog." />
   <meta property="og:title" content="Company Blog - Featured Stories" />

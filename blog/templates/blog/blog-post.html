@@ -1,4 +1,4 @@
-{% extends 'main.html' %}
+{% extends "main.html" %}
 {% load static %}
 {% block content %}
   <section class="py-5">
@@ -54,7 +54,7 @@
       </div>
     </div>
   </section>
-{% endblock %}
+{% endblock content %}
 {% block head_extra %}
   <meta name="description"
         content="{{ post.content|truncatewords:25|striptags }}" />
@@ -66,4 +66,4 @@
           content="{{ request.build_absolute_uri }}{{ post.image.url }}" />
   {% endif %}
   <meta name="twitter:card" content="summary_large_image" />
-{% endblock %}
+{% endblock head_extra %}
