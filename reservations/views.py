@@ -8,3 +8,5 @@ def index(request):
 
 def faqs(request):
     return render(request, "reservations/faqs.html")
+
+
