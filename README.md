@@ -13,7 +13,7 @@
 
 ## Author
 
-👤 **Abdalla & Rayyan**
+👤 **Abdalla & Rayyan & Hushm**
 
 * Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
 * Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee) & [@HushmKun](https://github.com/HushmKun)
