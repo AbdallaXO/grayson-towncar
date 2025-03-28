@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
+
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -25,7 +26,7 @@ load_dotenv()
 SECRET_KEY = "django-insecure-g87((!bltauc5e=93+36&kd1#c&tb7t5ew4oq0&y2=)2g)ssh9"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == '1'
+DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "1"
 
 ALLOWED_HOSTS = []
 
@@ -46,7 +47,7 @@ INSTALLED_APPS = [
     "rates",
     "blog",
     "stripe",
-    'import_export',
+    "import_export",
 ]
 
 MIDDLEWARE = [
@@ -132,8 +133,8 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', '')
-STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

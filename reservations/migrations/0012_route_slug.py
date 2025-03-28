@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0011_rate'),
+        ("reservations", "0011_rate"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='route',
-            name='slug',
+            model_name="route",
+            name="slug",
             field=models.SlugField(blank=True, max_length=100, null=True),
         ),
     ]

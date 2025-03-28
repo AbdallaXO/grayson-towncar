@@ -3,7 +3,6 @@ from django.contrib.auth.models import User
 from django.utils.text import slugify
 
 
-
 # Create your models here
 class Reservation(models.Model):
     """
@@ -119,6 +118,7 @@ class Route(models.Model):
 
     def __str__(self):
         return self.name
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
@@ -136,7 +136,6 @@ class Rate(models.Model):
 
     class Meta:
         unique_together = ("vehicle", "route")
-    
 
     def __str__(self):
         return f"{self.vehicle} - {self.route}"
