@@ -1,8 +1,7 @@
 <h2>You're booking a {{ vehicle.get_vehicle_type_display }} to {{ route }} ({{ trip_type|title }})</h2>
 <p>Price: ${{ base_price }}</p>
-
 <form method="post">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit" class="btn btn-success">Proceed to Payment</button>
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-success">Proceed to Payment</button>
 </form>
