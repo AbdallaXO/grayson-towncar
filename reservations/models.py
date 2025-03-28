@@ -62,7 +62,8 @@ class Rate(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE)
     route = models.ForeignKey(Route, on_delete=models.CASCADE)
     oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
-    oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
+    roundtrip_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+   
     
     class Meta:
         unique_together = ("vehicle", "route")
@@ -115,12 +116,13 @@ class Reservation(models.Model):
     ]
 
     # User and Guest Info
+    email = models.EmailField()
+    phone_number = models.CharField(max_length=20)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='reservations')
     # Reservation Details
     pickup_date = models.DateField()
     pickup_time = models.TimeField()
-    pickup_location = models.CharField(max_length=255)
-    dropoff_location = models.CharField(max_length=255)
+    route = models.ForeignKey(Route, on_delete=models.PROTECT)
     vehicle_type = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True)
     driver = models.ForeignKey(Driver, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -186,7 +188,7 @@ class FlightInformation(models.Model):
     flight_number = models.CharField(max_length=50)
     date = models.DateField()
     time = models.TimeField()
-    #TODO
+    
 
     def __str__(self):
         return f"{self.airline} {self.flight_number}"
