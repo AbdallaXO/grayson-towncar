@@ -2,8 +2,94 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+# Create your models here
+class Reservation(models.Model):
+    """
+    Reservation Model, Has  Choice of One Way/Roundtrip
+    Linked to a Customer Model & a Route and a Vehicle Type as ManyToOne, Since 1 one customer and 1 route and 1 vehicle can have many reservations.
+    """
+
+    CARSEAT_CHOICES = [
+        ("booster", "Booster Seat"),
+        ("rear_facing", "Rear-Facing Car Seat"),
+        ("forward_facing", "Forward-Facing Car Seat"),
+    ]
+    TRIP_CHOICES = [
+        ("one_way", "One Way"),
+        ("round_trip", "Round Trip"),
+    ]
+    trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
+    # Customer Information
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50, blank=True)
+    email = models.EmailField()
+    phone_number = models.CharField(max_length=20)
+    zipcode = models.CharField(max_length=20)
+
+    #Trip Information
+    route = models.ForeignKey("Route", on_delete=models.PROTECT)
+    vehicle = models.ForeignKey("Vehicle", on_delete=models.PROTECT)
+    passenger_count = models.PositiveIntegerField(default=1)
+    luggage_count = models.PositiveIntegerField(default=1)
+    #Trip First Leg- can add
+    pickup_date = models.DateField()
+    pickup_time = models.TimeField()
+    pickup_location = models.CharField(max_length=255)
+    dropoff_location = models.CharField(max_length=255)
+    has_children = models.BooleanField(default=False)
+
+    # (for round trip only)
+    return_date = models.DateField(blank=True, null=True)
+    return_time = models.TimeField(blank=True, null=True)
+    return_pickup_location = models.CharField(max_length=255, blank=True)
+    return_dropoff_location = models.CharField(max_length=255, blank=True)
+
+    #Special Requests
+    carseat_type = models.CharField(
+        max_length=20, choices=CARSEAT_CHOICES, blank=True, null=True
+    )
+    store_stop = models.BooleanField(default=False)
+    special_requests = models.TextField(blank=True)
+
+    #Reservation Price Details + Linking Stripe payment_ID
+    base_price = models.DecimalField(max_digits=10, decimal_places=2)
+    additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    payemnt_status = models.CharField(max_length=20, default='PENDING')
+    stripe_payment_id = models.CharField(max_length=100, blank=True)
+
+    def save(self, *args, **kwargs):
+        """
+        Automatically Calculate total_price
+        """
+        self.total_price = self.base_price + self.additional_charges
+        super().save(*args, **kwargs)
+
+
+
+class FlightInformation(models.Model):
+    reservation = models.ForeignKey(
+        "Reservation", on_delete=models.CASCADE, related_name="flights"
+    )
+    FLIGHT_TYPE_CHOICES = [
+        ("arrival", "Arrival"),
+        ("departure", "Departure"),
+    ]
+    flight_type = models.CharField(max_length=10, choices=FLIGHT_TYPE_CHOICES)
+
+    airline = models.CharField(max_length=50)
+    flight_number = models.CharField(max_length=50)
+    date = models.DateField()
+    time = models.TimeField()
+
+    def __str__(self):
+        return f"{self.get_flight_type_display()}: {self.airline} {self.flight_number}"
+
+
 class Vehicle(models.Model):
-    """Model representing different transportation vehicles and their properties."""
+    """
+    a Model for choosing a vehicle/capacity
+    """
 
     VEHICLE_TYPES = [
         ("towncar", "Towncar"),
@@ -13,202 +99,16 @@ class Vehicle(models.Model):
     ]
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)
     capacity = models.PositiveIntegerField()
+    luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
-    available = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.get_vehicle_type_display()} (Capacity: {self.capacity})"
-
-
-class Location(models.Model):
-    """Model representing pickup and dropoff locations."""
-
-    LOCATION_CATEGORIES = [
-        ("mco", "Orlando International Airport (MCO)"),
-        ("sanford", "Sanford International Airport (SFB)"),
-        ("disney", "All WDW Disney Property And Parks"),
-        ("port", "Port Canaveral"),
-        ("universal", "All Universal Studios Properties"),
-        ("hotel", "Hotel Transfer"),
-        ("custom", "Custom Location"),
-    ]
-    category = models.CharField(max_length=20, choices=LOCATION_CATEGORIES)
-    location = models.CharField(max_length=255, blank=True)
-
-    def __str__(self):
-        return f"{self.get_category_display()} - {self.location}"
 
 
 class Route(models.Model):
-    """Model representing a transportation route between two locations."""
-
-    pickup_location = models.ForeignKey(
-        Location, related_name="pickup_routes", on_delete=models.CASCADE
-    )
-    dropoff_location = models.ForeignKey(
-        Location, related_name="dropoff_routes", on_delete=models.CASCADE
-    )
-
-    class Meta:
-        unique_together = ("pickup_location", "dropoff_location")
-
-    def __str__(self):
-        return f"{self.pickup_location} - {self.dropoff_location}"
-
-
-class Rate(models.Model):
-    """Model for pricing different vehicle types on specific routes."""
-
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE)
-    route = models.ForeignKey(Route, on_delete=models.CASCADE)
-    oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
-    roundtrip_price = models.DecimalField(
-        max_digits=10, decimal_places=2, null=True, blank=True
-    )
-
-    class Meta:
-        unique_together = ("vehicle", "route")
-
-    def __str__(self):
-        return f"{self.vehicle} for {self.route}:"
-
-
-class Customer(models.Model):
-    user = models.OneToOneField(User, null=True, blank=True, on_delete=models.CASCADE)
-    first_name = models.CharField(max_length=50)
-    last_name = models.CharField(max_length=50, null=True, blank=True)
-    email = models.EmailField()
-    phone_number = models.CharField(max_length=20)
-    created = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.first_name
-
-
-class Driver(models.Model):
-    """Model representing transportation drivers."""
-
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    phone = models.CharField(max_length=20)
-    license_number = models.CharField(max_length=50)
-    available = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.user.get_full_name()}"
-
-
-class Reservation(models.Model):
-    """Model for customer transportation reservations."""
-
-    STATUS_CHOICES = [
-        ("PENDING", "Pending"),
-        ("CONFIRMED", "Confirmed"),
-        ("IN_PROGRESS", "In Progress"),
-        ("COMPLETED", "Completed"),
-        ("CANCELLED", "Cancelled"),
-    ]
-
-    CARSEAT_TYPES = [
-        ("booster", "Booster Seat"),
-        ("rf", "Rear Facing Carseat"),
-        ("ff", "Forward Facing Carseat"),
-    ]
-
-    # User and Guest Info
-    email = models.EmailField()
-    phone_number = models.CharField(max_length=20)
-    customer = models.ForeignKey(
-        Customer, on_delete=models.PROTECT, related_name="reservations"
-    )
-    # Reservation Details
-    pickup_date = models.DateField()
-    pickup_time = models.TimeField()
-    route = models.ForeignKey(Route, on_delete=models.PROTECT)
-    vehicle_type = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True)
-    driver = models.ForeignKey(Driver, on_delete=models.SET_NULL, null=True, blank=True)
-
-    # Passenger Details
-    passenger_count = models.PositiveIntegerField()
-    children_count = models.PositiveIntegerField(
-        default=0, blank=True
-    )  # Fixed from PositiveBigIntegerField
-    carseat_needed = models.BooleanField(default=False)
-    carseat_type = models.CharField(
-        max_length=20,
-        choices=CARSEAT_TYPES,
-        null=True,
-        blank=True,
-    )
-    # Trip Details
-    luggage_count = models.PositiveIntegerField(default=0)
-    special_requests = models.TextField(blank=True)
-
-    # Status and Timestamps
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    # Payment Info
-    base_price = models.DecimalField(max_digits=10, decimal_places=2)
-    additional_charges = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00
-    )
-    total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_status = models.CharField(max_length=20, default="PENDING")
-    stripe_payment_id = models.CharField(max_length=100, blank=True)
-
-    def __str__(self):
-        return f"Reservation - {self.customer.first_name}"
-
-    def save(self, *args, **kwargs):
-        # Calculate total price
-        self.total_price = self.base_price + self.additional_charges
-        super().save(*args, **kwargs)
-
-
-class Payment(models.Model):
-    """Model for tracking payments associated with reservations."""
-
-    reservation = models.OneToOneField(Reservation, on_delete=models.CASCADE)
-    stripe_payment_id = models.CharField(max_length=100)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=20)
-    payment_method = models.CharField(max_length=20)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Payment for {self.reservation}"
-
-
-class FlightInformation(models.Model):
     """
-    Model For Storing Flight Information of a Reservation.
+    Model for Route for Example  ( Disney Property <--> MCO )
     """
 
-    reservation = models.ForeignKey(
-        Reservation, on_delete=models.CASCADE, related_name="flights"
-    )
-    airline = models.CharField(max_length=50)
-    flight_number = models.CharField(max_length=50)
-    date = models.DateField()
-    time = models.TimeField()
+    name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
-        return f"{self.airline} {self.flight_number}"
-
-
-class SavedCard(models.Model):
-    """Model for storing customer payment method information."""
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    stripe_customer_id = models.CharField(max_length=100)
-    stripe_payment_method_id = models.CharField(max_length=100)
-    card_last4 = models.CharField(max_length=4)
-    card_brand = models.CharField(max_length=20)
-    card_exp_month = models.IntegerField()
-    card_exp_year = models.IntegerField()
-    is_default = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.card_brand} ending in {self.card_last4}"
+        return self.name
