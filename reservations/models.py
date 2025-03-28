@@ -26,12 +26,12 @@ class Reservation(models.Model):
     phone_number = models.CharField(max_length=20)
     zipcode = models.CharField(max_length=20)
 
-    #Trip Information
+    # Trip Information
     route = models.ForeignKey("Route", on_delete=models.PROTECT)
     vehicle = models.ForeignKey("Vehicle", on_delete=models.PROTECT)
     passenger_count = models.PositiveIntegerField(default=1)
     luggage_count = models.PositiveIntegerField(default=1)
-    #Trip First Leg- can add
+    # Trip First Leg- can add
     pickup_date = models.DateField()
     pickup_time = models.TimeField()
     pickup_location = models.CharField(max_length=255)
@@ -44,18 +44,20 @@ class Reservation(models.Model):
     return_pickup_location = models.CharField(max_length=255, blank=True)
     return_dropoff_location = models.CharField(max_length=255, blank=True)
 
-    #Special Requests
+    # Special Requests
     carseat_type = models.CharField(
         max_length=20, choices=CARSEAT_CHOICES, blank=True, null=True
     )
     store_stop = models.BooleanField(default=False)
     special_requests = models.TextField(blank=True)
 
-    #Reservation Price Details + Linking Stripe payment_ID
+    # Reservation Price Details + Linking Stripe payment_ID
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
-    additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    additional_charges = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    payemnt_status = models.CharField(max_length=20, default='PENDING')
+    payemnt_status = models.CharField(max_length=20, default="PENDING")
     stripe_payment_id = models.CharField(max_length=100, blank=True)
 
     def save(self, *args, **kwargs):
@@ -64,7 +66,6 @@ class Reservation(models.Model):
         """
         self.total_price = self.base_price + self.additional_charges
         super().save(*args, **kwargs)
-
 
 
 class FlightInformation(models.Model):
