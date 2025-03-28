@@ -1,10 +1,13 @@
 from django import forms
+from .models import Reservation
+
 
 class ReservationForm(forms.ModelForm):
     """
     This represents a reservation form that is displayed to the user, as a roundtrip
     Can have conditionals to only render the oneway or roundtrip.
     """
+
     class Meta:
         model = Reservation
         fields = [
