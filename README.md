@@ -11,6 +11,13 @@
 
 ## Install
 
+## Author
+
+👤 **Abdalla & Rayyan**
+
+* Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
+* Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee)
+
 ```sh
 git clone https://github.com/AbdallaXO/grayson-towncar.git
 cd grayson-towncar
@@ -36,10 +43,3 @@ python manage.py runserver
 ```sh
 python manage.py test
 ```
-
-## Author
-
-👤 **Abdalla & Rayyan**
-
-* Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
-* Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee)
