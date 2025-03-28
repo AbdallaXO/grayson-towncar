@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def index(request):
     return render(request, "reservations/index.html")
 
-
+#Testing Doc Strings on Abdi's Branch
 class BookRideView(View):
     """
     This Function Renders/Handles reservations
