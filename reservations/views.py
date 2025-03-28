@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def index(request):
     return render(request, "reservations/index.html")
 
-#Testing Doc Strings on Abdi's Branch Abdi
+
 class BookRideView(View):
     """
     This Function Renders/Handles reservations
@@ -57,7 +57,7 @@ class BookRideView(View):
     def get(self, request):
         """Handles GET requests for the booking form"""
         # Pull Values from the URL .com/?vhicle=....
-        
+
         data = self._get_reservation_date(request)
 
         if not data:

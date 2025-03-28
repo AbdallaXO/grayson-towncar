@@ -1,9 +1,8 @@
 <!-- yourapp/templates/admin/base_site.html -->
 {% extends 'admin/base_site.html' %}
-
 {% block extrastyle %}
-  {{ block.super }}
-  <style>
+    {{ block.super }}
+    <style>
     :root {
       --primary: #2b6a94;
       --secondary: #5296c2;
@@ -53,13 +52,11 @@
       padding: 8px;
       margin: 0;
     }
-  </style>
+    </style>
 {% endblock %}
-
-{% block title %}
-  {{ title }} | Transportation Management System
-{% endblock %}
-
+{% block title %}{{ title }} | Transportation Management System{% endblock %}
 {% block branding %}
-  <h1 id="site-name"><a href="{% url 'admin:index' %}">Transportation Management System</a></h1>
+    <h1 id="site-name">
+        <a href="{% url 'admin:index' %}">Transportation Management System</a>
+    </h1>
 {% endblock %}
