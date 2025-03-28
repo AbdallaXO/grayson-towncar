@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+from dotenv import load_dotenv
 from pathlib import Path
 import os
 
@@ -20,11 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
+load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-g87((!bltauc5e=93+36&kd1#c&tb7t5ew4oq0&y2=)2g)ssh9"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == '1'
 
 ALLOWED_HOSTS = []
 
@@ -131,8 +132,8 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STRIPE_PUBLIC_KEY = "pk_test_51R6ae8R0WxX20o0RwPoxUa7caKOzetjcZLcgjTx2PgMzjbdSkack8CqNLmC3gtNnyxcSmP3YUKGgCgZh09mAfN2n00anz8AAc5"
-STRIPE_SECRET_KEY = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
+STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', '')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
