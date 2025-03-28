@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "rates",
     "blog",
     "stripe",
+    'import_export',
 ]
 
 MIDDLEWARE = [
@@ -130,8 +131,8 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STRIPE_PUBLIC_KEY = 'pk_test_51R6ae8R0WxX20o0RwPoxUa7caKOzetjcZLcgjTx2PgMzjbdSkack8CqNLmC3gtNnyxcSmP3YUKGgCgZh09mAfN2n00anz8AAc5'
-STRIPE_SECRET_KEY = 'sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0'
+STRIPE_PUBLIC_KEY = "pk_test_51R6ae8R0WxX20o0RwPoxUa7caKOzetjcZLcgjTx2PgMzjbdSkack8CqNLmC3gtNnyxcSmP3YUKGgCgZh09mAfN2n00anz8AAc5"
+STRIPE_SECRET_KEY = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
