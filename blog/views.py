@@ -15,4 +15,3 @@ def blog(request):
 def blog_post(request, slug):
     post = get_object_or_404(Blog, slug=slug)
     return render(request, "blog/blog-post.html", {"post": post})
-
