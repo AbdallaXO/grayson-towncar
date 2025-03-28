@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "services",
     "rates",
     "blog",
+    "stripe",
 ]
 
 MIDDLEWARE = [

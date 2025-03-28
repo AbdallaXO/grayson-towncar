@@ -58,18 +58,33 @@ class Route(models.Model):
 
 class Rate(models.Model):
     """Model for pricing different vehicle types on specific routes."""
-
+    
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE)
     route = models.ForeignKey(Route, on_delete=models.CASCADE)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-
+    oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
+    oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
+    
     class Meta:
         unique_together = ("vehicle", "route")
 
     def __str__(self):
-        return f"{self.vehicle} for {self.route}: ${self.price}"
+        return f"{self.vehicle} for {self.route}:"
 
 
+
+class Customer(models.Model):
+    user  = models.OneToOneField(User, null=True, blank=True, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=50)
+    last_name = models.CharField(max_length=50, null=True, blank=True)
+    email = models.EmailField()
+    phone_number = models.CharField(max_length=20)
+    created = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.first_name
+    
+    
+    
 class Driver(models.Model):
     """Model representing transportation drivers."""
 
@@ -100,11 +115,7 @@ class Reservation(models.Model):
     ]
 
     # User and Guest Info
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    guest_name = models.CharField(max_length=100)
-    guest_email = models.EmailField()
-    guest_phone = models.CharField(max_length=20)
-
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='reservations')
     # Reservation Details
     pickup_date = models.DateField()
     pickup_time = models.TimeField()
@@ -125,11 +136,8 @@ class Reservation(models.Model):
         null=True,
         blank=True,
     )
-
     # Trip Details
     luggage_count = models.PositiveIntegerField(default=0)
-    airline = models.CharField(max_length=20, null=True, blank=True)
-    flight_number = models.CharField(max_length=20, blank=True)
     special_requests = models.TextField(blank=True)
 
     # Status and Timestamps
@@ -147,7 +155,7 @@ class Reservation(models.Model):
     stripe_payment_id = models.CharField(max_length=100, blank=True)
 
     def __str__(self):
-        return f"Reservation - {self.guest_name}"
+        return f"Reservation - {self.customer.first_name}"
 
     def save(self, *args, **kwargs):
         # Calculate total price
@@ -169,6 +177,20 @@ class Payment(models.Model):
         return f"Payment for {self.reservation}"
 
 
+class FlightInformation(models.Model):
+    """
+    Model For Storing Flight Information of a Reservation.
+    """
+    reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name='flights')
+    airline = models.CharField(max_length=50)
+    flight_number = models.CharField(max_length=50)
+    date = models.DateField()
+    time = models.TimeField()
+    #TODO
+
+    def __str__(self):
+        return f"{self.airline} {self.flight_number}"
+
 class SavedCard(models.Model):
     """Model for storing customer payment method information."""
 
@@ -184,3 +206,4 @@ class SavedCard(models.Model):
 
     def __str__(self):
         return f"{self.card_brand} ending in {self.card_last4}"
+
