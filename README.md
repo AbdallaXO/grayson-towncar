@@ -50,8 +50,13 @@ python manage.py runserver
 ## Branch Creation & Setup
 
 ```sh
+# Create new branch name
 git branch <new-branch-name>
+
+# Switch to newly created branch
 git switch <new-branch-name>
+
+# Set upstream branch to main
 git push --set-upstream origin <new-branch-name>
 
 ```
