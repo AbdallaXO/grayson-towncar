@@ -28,10 +28,16 @@
 ## Install
 
 ```sh
+# Clone repo locally
 git clone https://github.com/AbdallaXO/grayson-towncar.git
 cd grayson-towncar
 
+# Run necessary commands
+pip install python-dotenv
 pip install -r requirements.txt
+pip install Django==4.2.20
+pip install django-widget-tweaks
+pip install django-import-export
 ```
 
 ## Usage
