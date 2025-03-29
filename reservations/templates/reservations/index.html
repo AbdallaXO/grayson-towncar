@@ -13,7 +13,7 @@
               <p class="lead fw-normal text-white-50 mb-4">Luxury transportation from Orlando International Airport (MCO) to Disney Resorts, Universal Hotels, and International Drive accommodations. Professional service with complimentary car seats and grocery stops.</p>
               <p class="text-white-50 mb-4">Rated 5 stars by over 300 happy families!</p>
               <div class="d-grid gap-3 d-sm-flex justify-content-sm-center justify-content-xl-start">
-                <a class="btn btn-primary btn-lg px-4 me-sm-3" href="#fleet">Book Now</a>
+                <a class="btn btn-primary btn-lg px-4 me-sm-3" href="{% url 'rates' %}">Book Now</a>
                 <a class="btn btn-outline-light btn-lg px-4" href="#contact">Contact Us</a>
               </div>
             </div>
@@ -24,7 +24,6 @@
         </div>
       </div>
     </header>
-
     <!-- Services Highlights Section -->
     <section class="py-5">
       <div class="container px-5 my-5">
@@ -70,7 +69,6 @@
         </div>
       </div>
     </section>
-
     <!-- Testimonial section -->
     <section class="py-5 bg-light" id="testimonials">
       <div class="container px-5 my-5">
@@ -105,7 +103,6 @@
         </div>
       </div>
     </section>
-
     <!-- Our Fleet Section -->
     <section class="py-5" id="fleet">
       <div class="container px-5 my-5">
@@ -145,7 +142,6 @@
               </div>
             </div>
           </div>
-
           <!-- Luxury SUV -->
           <div class="col mb-5">
             <div class="card h-100 shadow border-0 hover-elevate">
@@ -177,7 +173,6 @@
               </div>
             </div>
           </div>
-
           <!-- Passenger Van -->
           <div class="col mb-5">
             <div class="card h-100 shadow border-0 hover-elevate">
@@ -212,7 +207,6 @@
         </div>
       </div>
     </section>
-
     <!-- Complimentary Services Section -->
     <section class="py-5 bg-light" id="services">
       <div class="container px-5 my-5">
@@ -233,7 +227,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div class="col-md-6 mb-4">
                     <div class="d-flex">
                       <div class="feature bg-primary bg-gradient text-white rounded-3 me-3 d-inline-flex p-2">
@@ -245,7 +238,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div class="col-md-6 mb-4">
                     <div class="d-flex">
                       <div class="feature bg-primary bg-gradient text-white rounded-3 me-3 d-inline-flex p-2">
@@ -257,7 +249,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div class="col-md-6 mb-4">
                     <div class="d-flex">
                       <div class="feature bg-primary bg-gradient text-white rounded-3 me-3 d-inline-flex p-2">
@@ -269,7 +260,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div class="col-md-6 mb-4">
                     <div class="d-flex">
                       <div class="feature bg-primary bg-gradient text-white rounded-3 me-3 d-inline-flex p-2">
@@ -281,7 +271,6 @@
                       </div>
                     </div>
                   </div>
-
                   <div class="col-md-6 mb-4">
                     <div class="d-flex">
                       <div class="feature bg-primary bg-gradient text-white rounded-3 me-3 d-inline-flex p-2">
@@ -295,7 +284,7 @@
                   </div>
                 </div>
                 <div class="text-center mt-4">
-                  <a href="#booking" class="btn btn-primary btn-lg px-4">Book Your Orlando Airport Transfer</a>
+                  <a href="{% url 'rates' %}" class="btn btn-primary btn-lg px-4">Book Your Orlando Airport Transfer</a>
                 </div>
               </div>
             </div>
@@ -303,11 +292,9 @@
         </div>
       </div>
     </section>
-
     <!-- Call to Action Section -->
     {% include 'call-to-action.html' %}
   </main>
-
   <!-- Add structured data for SEO -->
   <script type="application/ld+json">
     {
@@ -371,7 +358,6 @@
       ]
     }
     </script>
-
   <!-- Custom CSS for hover effects -->
   <style>
       .hover-elevate {
