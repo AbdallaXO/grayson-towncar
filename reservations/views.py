@@ -4,12 +4,16 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
 from .models import Vehicle, Route, Reservation, Rate
-
-
+from .forms import ReservationForm
 
 # Create your views here.
 def index(request):
     return render(request, "reservations/index.html")
+
+def reservation_form(request):
+    form = ReservationForm()
+    return render(request, 'reservations/book_form.html', {'form':form})
+    
 
 
 def about_us(request):
