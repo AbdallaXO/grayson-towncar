@@ -16,21 +16,13 @@
 
 ## Authors
 
-👤 **Abdalla **
+👤 **Abdalla** [@AbdallaXO](https://github.com/AbdallaXO)
 
-* Github: [@AbdallaXO](https://github.com/AbdallaXO)
+👤 **Rayyan** [@RVorajee](https://github.com/RVorajee)
 
-👤 **Rayyan **
+👤 **Hushm** [@HushmKun](https://github.com/HushmKun)
 
-* Github: [@RVorajee](https://github.com/RVorajee)
-
-👤 **Hushm **
-
-* Github: [@HushmKun](https://github.com/HushmKun)
-
-👤 **Anna **
-
-* Github: [@annadelnegro](https://github.com/annadelnegro)
+👤 **Anna** [@annadelnegro](https://github.com/annadelnegro)
 
 
 ## Install
