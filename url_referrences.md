@@ -14,7 +14,7 @@ This reference shows how to use Django's `{% url %}` tags along with the actual 
 | Services        | `/services/`              | `{% url 'services' %}`                        |
 | Rates           | `/rates/`                 | `{% url 'rates' %}`                           |
 | FAQs            | `/faqs/`                  | `{% url 'faqs' %}`                            |
-| Book a Ride     | `/book/{queryparameter}`  | `{% url 'book-ride' %}`                      |
+| Book a Ride     | `/book/{queryparameter}`  | `{% url 'reserve' %}`                      |
 | About Us        | `/about/`                 | `{% url 'about-us' %}`                       |
 | Blog List       | `/blog/`                  | `{% url 'blog-list' %}`                      |
 | Blog Post       | `/blog/post/<slug>/`      | `{% url 'blog-post' slug=post.slug %}`       |
@@ -29,7 +29,7 @@ This reference shows how to use Django's `{% url %}` tags along with the actual 
 <a href="{% url 'services' %}">Services</a>
 <a href="{% url 'rates' %}">Rates</a>
 <a href="{% url 'faqs' %}">FAQs</a>
-<a href="{% url 'book-ride' %}">Book Now</a>
+<a href="{% url 'reserve' %}">Book Now</a>
 <a href="{% url 'about-us' %}">About</a>
 <a href="{% url 'blog-list' %}">Blog</a>
 ```
