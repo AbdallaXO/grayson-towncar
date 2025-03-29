@@ -9,14 +9,14 @@
 
 ### ✨ [Demo](https://graysontowncar.com)
 
-## Install
-
-## Author
+## Authors
 
 👤 **Abdalla & Rayyan & Hushm**
 
 * Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
 * Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee) & [@HushmKun](https://github.com/HushmKun)
+
+## Install
 
 ```sh
 git clone https://github.com/AbdallaXO/grayson-towncar.git
