@@ -4,9 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
 from .models import Vehicle, Route, Reservation, Rate
-from .forms import ReservationForm
 
-logger = logging.getLogger(__name__)
 
 
 # Create your views here.
