@@ -112,6 +112,8 @@ class BookRideView(View):
             },
         )
 
-
+def about_us(request):
+    return render(request, 'reservations/about.html')
+    
 def faqs(request):
     return render(request, "reservations/faqs.html")
