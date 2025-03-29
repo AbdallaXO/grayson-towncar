@@ -12,7 +12,7 @@ The goal is to provide **reliable, comfortable transportation** for airport trav
 
 ---
 
-## 🧠 Business Model (Real Talk)
+## 🧠 Business Model
 
 Grayson Towncar is structured as a **dispatcher-first business**. Our main role is:
 - Attracting bookings (via website, SEO, referrals, social media)
