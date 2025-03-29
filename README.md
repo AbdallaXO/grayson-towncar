@@ -7,7 +7,7 @@
 
 > Grayson Towncar is a web-based platform offering private, family-friendly transportation services in Orlando, Florida, catering to tourists visiting Disney, Universal, and Port Canaveral. 
 
-### ✨ [Demo](https://www.graysontowncar.com)
+### ✨ [Demo](https://graysontowncar.com)
 
 ## Install
 
