@@ -9,12 +9,29 @@
 
 ### ✨ [Demo](https://graysontowncar.com)
 
+## Socials
+* Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
+* Instagram: [@graysontowncar](https://instagram.com/graysontowncar)
+* Facebook: [Grayson Towncar](https://www.facebook.com/profile.php?id=61574468855996)
+
 ## Authors
 
-👤 **Abdalla & Rayyan & Hushm**
+👤 **Abdalla **
 
-* Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
-* Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee) & [@HushmKun](https://github.com/HushmKun)
+* Github: [@AbdallaXO](https://github.com/AbdallaXO)
+
+👤 **Rayyan **
+
+* Github: [@RVorajee](https://github.com/RVorajee)
+
+👤 **Hushm **
+
+* Github: [@HushmKun](https://github.com/HushmKun)
+
+👤 **Anna **
+
+* Github: [@annadelnegro](https://github.com/annadelnegro)
+
 
 ## Install
 
@@ -36,6 +53,15 @@ python manage.py createsuperuser
 
 # Start the development server
 python manage.py runserver
+```
+
+## Branch Creation & Setup
+
+```sh
+git branch <new-branch-name>
+git switch <new-branch-name>
+git push --set-upstream origin <new-branch-name>
+
 ```
 
 ## Run tests
