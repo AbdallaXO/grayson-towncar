@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.text import slugify
+from .constants import CARSEAT_CHOICES, FLIGHT_TYPE_CHOICES, TRIP_CHOICES, VEHICLE_TYPES
 
 
 # Create your models here
@@ -9,16 +10,6 @@ class Reservation(models.Model):
     Reservation Model, Has  Choice of One Way/Roundtrip
     Linked to a Customer Model & a Route and a Vehicle Type as ManyToOne, Since 1 one customer and 1 route and 1 vehicle can have many reservations.
     """
-
-    CARSEAT_CHOICES = [
-        ("booster", "Booster Seat"),
-        ("rear_facing", "Rear-Facing Car Seat"),
-        ("forward_facing", "Forward-Facing Car Seat"),
-    ]
-    TRIP_CHOICES = [
-        ("one_way", "One Way"),
-        ("round_trip", "Round Trip"),
-    ]
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
     # Customer Information
     first_name = models.CharField(max_length=50)
@@ -73,10 +64,7 @@ class FlightInformation(models.Model):
     reservation = models.ForeignKey(
         "Reservation", on_delete=models.CASCADE, related_name="flights"
     )
-    FLIGHT_TYPE_CHOICES = [
-        ("arrival", "Arrival"),
-        ("departure", "Departure"),
-    ]
+
     flight_type = models.CharField(max_length=10, choices=FLIGHT_TYPE_CHOICES)
 
     airline = models.CharField(max_length=50)
@@ -92,13 +80,6 @@ class Vehicle(models.Model):
     """
     a Model for choosing a vehicle/capacity
     """
-
-    VEHICLE_TYPES = [
-        ("towncar", "Towncar"),
-        ("suv", "SUV"),
-        ("mini_van", "Mini Van"),
-        ("van", "Van"),
-    ]
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
@@ -112,7 +93,6 @@ class Route(models.Model):
     """
     Model for Route for Example  ( Disney Property <--> MCO )
     """
-
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, blank=True, null=True)
 
