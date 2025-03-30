@@ -18,7 +18,8 @@
     </p>
     <form method="post">
       {% csrf_token %}
-      {{ form|crispy }}
+      {{ customer_form|crispy }}
+      {{ reservation_form|crispy }}
       <button type="submit" class="btn btn-success">Continue to Payment</button>
     </form>
   </div>
