@@ -7,22 +7,37 @@
 
 > Grayson Towncar is a web-based platform offering private, family-friendly transportation services in Orlando, Florida, catering to tourists visiting Disney, Universal, and Port Canaveral. 
 
-### ✨ [Demo](https://www.graysontowncar.com)
+### ✨ [Demo](https://graysontowncar.com)
+
+## Socials
+* Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
+* Instagram: [@graysontowncar](https://instagram.com/graysontowncar)
+* Facebook: [Grayson Towncar](https://www.facebook.com/profile.php?id=61574468855996)
+
+## Authors
+
+👤 **Abdalla** [@AbdallaXO](https://github.com/AbdallaXO)
+
+👤 **Rayyan** [@RVorajee](https://github.com/RVorajee)
+
+👤 **Hushm** [@HushmKun](https://github.com/HushmKun)
+
+👤 **Anna** [@annadelnegro](https://github.com/annadelnegro)
+
 
 ## Install
 
-## Author
-
-👤 **Abdalla & Rayyan**
-
-* Twitter: [@graysontowncar](https://twitter.com/graysontowncar)
-* Github: [@AbdallaXO](https://github.com/AbdallaXO) & [@RVorajee](https://github.com/RVorajee)
-
 ```sh
+# Clone repo locally
 git clone https://github.com/AbdallaXO/grayson-towncar.git
 cd grayson-towncar
 
+# Run necessary commands
+pip install python-dotenv
 pip install -r requirements.txt
+pip install Django==4.2.20
+pip install django-widget-tweaks
+pip install django-import-export
 ```
 
 ## Usage
@@ -36,6 +51,20 @@ python manage.py createsuperuser
 
 # Start the development server
 python manage.py runserver
+```
+
+## Branch Creation & Setup
+
+```sh
+# Create new branch name
+git branch <new-branch-name>
+
+# Switch to newly created branch
+git switch <new-branch-name>
+
+# Set upstream branch to main
+git push --set-upstream origin <new-branch-name>
+
 ```
 
 ## Run tests
