@@ -23,7 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-g87((!bltauc5e=93+36&kd1#c&tb7t5ew4oq0&y2=)2g)ssh9"
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY", "tgvhbjbvfdr5^asuiklfugulvb#$%^YHBNKI&tgvhbjbvfdr5^"
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "False") == "1"
@@ -48,6 +50,8 @@ INSTALLED_APPS = [
     "blog",
     "stripe",
     "import_export",
+    "crispy_forms",
+    "crispy_bootstrap5",
 ]
 
 MIDDLEWARE = [
@@ -140,3 +144,7 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+
+CRISPY_TEMPLATE_PACK = "bootstrap5"
