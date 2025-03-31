@@ -17,6 +17,7 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Directory that contains content such as templates media and static & DB
 CONTENT_DIR = BASE_DIR / 'content'
 
 # Quick-start development settings - unsuitable for production
@@ -60,7 +61,7 @@ OUR_APPS = [
     "blog",
     "stripe",
 ]
-
+# Instead of a big list of all the apps seperated them by categories and combined them here
 INSTALLED_APPS =  NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 
 MIDDLEWARE = [
