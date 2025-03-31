@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
 from .models import Reservation
+from rates.models import Vehicle, Route
 from .forms import ReservationForm, CustomerForm
 
 # Create your views here.
@@ -14,14 +15,14 @@ def index(request):
 
     
 def reservation_form(request):
-    vehicle = request.GET.get('vehicle')
-    route = request.GET.get('route')
-    trip_type = request.GET.get('trip')
-    vehicle = Vehicle.objects.get(vehicle_type = vehicle)
-    route = Route.objects.get(pk=route)
+    # vehicle = request.GET.get('vehicle')
+    # route = request.GET.get('route')
+    # trip_type = request.GET.get('trip')
+    # vehicle = Vehicle.objects.get(vehicle_type = vehicle)
+    # route = Route.objects.get(pk=route)
     
-    trip = Reservation.objects.get(trip_type='round_trip')
-    print(vehicle, route, trip)
+    # trip = Reservation.objects.get(trip_type='round_trip')
+    # print(vehicle, route, trip)
     reservation_form = ReservationForm()
     customer_form = CustomerForm()
     context = {

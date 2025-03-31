@@ -29,7 +29,7 @@
               <div class="card shadow border-0" style="max-width: 250px; margin: 0 auto">
                 <img class="card-img-top"
                      src="{% static 'images/towncar.jpg' %}"
-                     alt="Executive Sedan" />
+                     alt="Towncar" />
                 <div class="card-body p-3 text-center">
                   <h5 class="fw-bold mb-2">Towncar</h5>
                   <p class="mb-0 small">4 Passengers - 4 Suitcases</p>
@@ -75,7 +75,7 @@
           <!-- Towncar Rates -->
           <div class="card shadow border-0 mb-5">
             <div class="card-header py-3 bg-dark text-white text-center">
-              <h4 class="mb-0">Executive Sedan Rates</h4>
+              <h4 class="mb-0">Towncar Rates</h4>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">
@@ -89,39 +89,47 @@
                   </thead>
                   <tbody>
                     <tr>
-                      <td>All WDW Disney Property Resorts</td>
+                      <td>MCO ⇄ All WDW Disney Property Resorts</td>
                       <td class="text-center">
-                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=2&trip=one_way" class="btn btn-sm btn-success">Book Now</a>
+                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=2&trip=one_way"
+    class="btn btn-sm btn-success">Book Now</a>
                       </td>
                       <td class="text-center">
-                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=3&trip=round_trip" class="btn btn-sm btn-success">Book Now</a>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Universal Studios Area Hotels</td>
-                      <td class="text-center">
-                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=mco-universal-area&trip=one_way" class="btn btn-sm btn-success">Book Now</a>
-                      </td>
-                      <td class="text-center">
-                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=mco-universal-area&trip=round_trip" class="btn btn-sm btn-success">Book Now</a>
+                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=3&trip=round_trip"
+    class="btn btn-sm btn-success">Book Now</a>
                       </td>
                     </tr>
                     <tr>
-                      <td>International Drive Hotels</td>
+                      <td>MCO ⇄ Universal Studios Area Hotels</td>
                       <td class="text-center">
-                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=3&trip=one_way" class="btn btn-sm btn-success">Book Now</a>
+                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=mco-universal-area&trip=one_way"
+    class="btn btn-sm btn-success">Book Now</a>
                       </td>
                       <td class="text-center">
-                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=3&trip=round_trip" class="btn btn-sm btn-success">Book Now</a>
+                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=mco-universal-area&trip=round_trip"
+    class="btn btn-sm btn-success">Book Now</a>
                       </td>
                     </tr>
                     <tr>
-                      <td>Disney Springs Hotels</td>
+                      <td>MCO ⇄ International Drive Hotels</td>
                       <td class="text-center">
-                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=4&trip=one_way" class="btn btn-sm btn-success">Book Now</a>
+                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=3&trip=one_way"
+    class="btn btn-sm btn-success">Book Now</a>
                       </td>
                       <td class="text-center">
-                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=4&trip=round_trip" class="btn btn-sm btn-success">Book Now</a>
+                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=3&trip=round_trip"
+    class="btn btn-sm btn-success">Book Now</a>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>MCO ⇄ Disney Springs Hotel</td>
+                      <td class="text-center">
+                        $ 95.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=4&trip=one_way"
+    class="btn btn-sm btn-success">Book Now</a>
+                      </td>
+                      <td class="text-center">
+                        $ 190.00 - <a href="{% url 'reserve' %}?vehicle=towncar&route=4&trip=round_trip"
+    class="btn btn-sm btn-success">Book Now</a>
                       </td>
                     </tr>
                     <tr>
@@ -423,7 +431,7 @@
                   <thead class="bg-light">
                     <tr>
                       <th>Port Canaveral (From Orlando Airport)</th>
-                      <th class="text-center">Executive Sedan</th>
+                      <th class="text-center">Towncar</th>
                       <th class="text-center">SUV</th>
                       <th class="text-center">Mini Van</th>
                       <th class="text-center">Passenger Van</th>
