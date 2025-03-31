@@ -4,21 +4,11 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
 from .models import Vehicle, Route, Reservation, Rate
-<<<<<<< HEAD
-from .forms import ReservationForm
-
-=======
 from .forms import ReservationForm, CustomerForm
->>>>>>> abdi
 # Create your views here.
 def index(request):
     return render(request, "reservations/index.html")
 
-<<<<<<< HEAD
-def reservation_form(request):
-    form = ReservationForm()
-    return render(request, 'reservations/book_form.html', {'form':form})
-=======
 
 
     
@@ -38,7 +28,6 @@ def reservation_form(request):
         'customer_form': customer_form,
     }
     return render(request, 'reservations/book_form.html', context)
->>>>>>> abdi
     
 
 
