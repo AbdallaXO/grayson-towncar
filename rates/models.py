@@ -53,7 +53,7 @@ class Rate(models.Model):
     Associates a specific Vehicle with a specific Route, defining
     one-way and round-trip prices for that combination.
     """
-    vehicle = models.ForeignKey("Vehicle", on_delete=models.CASCADE)
+    vehicle = models.ForeignKey("Vehicle", on_delete=models.CASCADE, related_name='rates')
     route = models.ForeignKey("Route", on_delete=models.CASCADE)
     oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
     round_trip_price = models.DecimalField(max_digits=10, decimal_places=2)
