@@ -17,11 +17,13 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+CONTENT_DIR = BASE_DIR / 'content'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 load_dotenv()
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "tgvhbjbvfdr5^asuiklfugulvb#$%^YHBNKI&tgvhbjbvfdr5^"
@@ -35,26 +37,31 @@ ALLOWED_HOSTS = []
 
 # Application definition
 
-INSTALLED_APPS = [
+NATIVE_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "reservations.apps.ReservationsConfig",
-    "users.apps.UsersConfig",
+]
+THIRD_PARTY_APPS = [
     "widget_tweaks",
-    "services",
-    "rates",
-    "blog",
-    "stripe",
     "import_export",
     "crispy_forms",
     "crispy_bootstrap5",
     "debug_toolbar",
-    
 ]
+OUR_APPS = [
+    "reservations", 
+    "users",               
+    "services",
+    "rates",
+    "blog",
+    "stripe",
+]
+
+INSTALLED_APPS =  NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -65,7 +72,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-
 ]
 
 ROOT_URLCONF = "business.urls"
@@ -73,7 +79,7 @@ ROOT_URLCONF = "business.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [CONTENT_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -95,7 +101,7 @@ WSGI_APPLICATION = "business.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": CONTENT_DIR / "db.sqlite3",
     }
 }
 
@@ -137,9 +143,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 MEDIA_URL = "/media/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS= [CONTENT_DIR / "static"]
+MEDIA_ROOT = CONTENT_DIR / 'media'
+STATIC_ROOT = CONTENT_DIR / "staticfiles"
 
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -154,7 +160,5 @@ CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 INTERNAL_IPS = [
-    # ...
     "127.0.0.1",
-    # ...
 ]

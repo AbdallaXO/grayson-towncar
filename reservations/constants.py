@@ -11,9 +11,3 @@ FLIGHT_TYPE_CHOICES = [
         ("arrival", "Arrival"),
         ("departure", "Departure"),
     ]
-VEHICLE_TYPES = [
-        ("towncar", "Towncar"),
-        ("suv", "SUV"),
-        ("mini_van", "Mini Van"),
-        ("van", "Van"),
-    ]
