@@ -195,8 +195,3 @@ button:hover .arrow:before {
     justify-content: center;
     margin-top: 1rem;
 }
-
-#login-form,
-#register-form {
-    transition: all 0.3s ease-in-out;
-}
