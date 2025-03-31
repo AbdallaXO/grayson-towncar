@@ -9,7 +9,6 @@ def index(request):
     if you choose to book it will forward you to a view in reservations /book""" 
     rates = Rate.objects.select_related('vehicle', 'route').distinct().all()
     vehicles = Vehicle.objects.all()
-    print(vehicles[0].rates)
     context = {
         "rates": rates,
         "vehicles": vehicles
