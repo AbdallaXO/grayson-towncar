@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
 from .models import Reservation
+from rates.models import Vehicle, Route
 from .forms import ReservationForm, CustomerForm
 
 
