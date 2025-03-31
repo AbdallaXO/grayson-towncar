@@ -7,13 +7,14 @@ class Vehicle(models.Model):
     Specifies details about a vehicle, such as its type, passenger capacity,
     and luggage capacity. Can be related to a Reservation or used for pricing via Rate.
     """
+
     VEHICLE_TYPES = [
         ("towncar", "Towncar"),
         ("suv", "SUV"),
         ("mini_van", "Mini Van"),
         ("van", "Van"),
     ]
-    
+
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
@@ -30,6 +31,7 @@ class Route(models.Model):
     """
     Defines a specific route (e.g., 'Disney Property <--> MCO').
     """
+
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, blank=True, null=True)
 
@@ -53,6 +55,7 @@ class Rate(models.Model):
     Associates a specific Vehicle with a specific Route, defining
     one-way and round-trip prices for that combination.
     """
+
     vehicle = models.ForeignKey("Vehicle", on_delete=models.CASCADE)
     route = models.ForeignKey("Route", on_delete=models.CASCADE)
     oneway_price = models.DecimalField(max_digits=10, decimal_places=2)

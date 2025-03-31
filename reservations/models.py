@@ -8,6 +8,7 @@ class Customer(models.Model):
     Stores basic customer information, including name, contact details, and
     reservation history. It is related to the Reservation model via a ForeignKey.
     """
+
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50, blank=True)
     email = models.EmailField()
@@ -41,15 +42,20 @@ class Reservation(models.Model):
     Represents a core reservation in the system. It keeps track of trip details,
     pricing, and ties a customer, route, and vehicle together.
     """
+
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     route = models.ForeignKey("rates.Route", on_delete=models.PROTECT)
-    vehicle = models.ForeignKey("rates.Vehicle", on_delete=models.PROTECT) # when a reservation is created
+    vehicle = models.ForeignKey(
+        "rates.Vehicle", on_delete=models.PROTECT
+    )  # when a reservation is created
 
     passenger_count = models.PositiveIntegerField(default=1)
     has_children = models.BooleanField(default=False)
     luggage_count = models.PositiveIntegerField(default=1)
-    carseat_type = models.CharField(max_length=20, choices=CARSEAT_CHOICES, blank=True, null=True)
+    carseat_type = models.CharField(
+        max_length=20, choices=CARSEAT_CHOICES, blank=True, null=True
+    )
 
     # Special Requests
     store_stop = models.BooleanField(default=False)
@@ -57,11 +63,17 @@ class Reservation(models.Model):
 
     # Price and Payment Details
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
-    additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    additional_charges = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_status = models.CharField(max_length=20, default="PENDING")  # corrected field name
+    payment_status = models.CharField(
+        max_length=20, default="PENDING"
+    )  # corrected field name
     stripe_payment_id = models.CharField(max_length=100, blank=True)
-    status = models.CharField(max_length=20, choices=[('pending', 'pending')], default='PENDING')
+    status = models.CharField(
+        max_length=20, choices=[("pending", "pending")], default="PENDING"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -84,13 +96,16 @@ class Reservation(models.Model):
 class Leg(models.Model):
     """
     Represents an individual leg of a trip within a Reservation.
-    For example, a single pickup/dropoff or a one-way airport transfer. 
+    For example, a single pickup/dropoff or a one-way airport transfer.
     Multiple legs can be tied to a single Reservation.
     """
+
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
     )
-    flight_information = models.OneToOneField('Flight', on_delete=models.CASCADE, null=True, blank=True)
+    flight_information = models.OneToOneField(
+        "Flight", on_delete=models.CASCADE, null=True, blank=True
+    )
     pickup_date = models.DateField()
     pickup_time = models.TimeField()
     pickup_location = models.CharField(max_length=255)
@@ -108,6 +123,7 @@ class Flight(models.Model):
     Stores specific flight details, including airline, flight number, date, and time.
     Ties into a Leg model via a OneToOneField.
     """
+
     flight_type = models.CharField(max_length=10, choices=FLIGHT_TYPE_CHOICES)
     airline = models.CharField(max_length=50)
     flight_number = models.CharField(max_length=50)
