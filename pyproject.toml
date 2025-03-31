@@ -1,0 +1,16 @@
+[project]
+name = "grayson-towncar"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "crispy-bootstrap5>=2024.10",
+    "django==5.1.4",
+    "django-crispy-forms>=2.3",
+    "django-debug-toolbar>=5.1.0",
+    "django-import-export>=4.3.7",
+    "django-widget-tweaks>=1.5.0",
+    "pillow>=11.1.0",
+    "python-dotenv>=1.1.0",
+]
