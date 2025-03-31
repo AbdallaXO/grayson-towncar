@@ -1,5 +1,4 @@
 from django.db import models
-from django.contrib.auth.models import User
 from .constants import CARSEAT_CHOICES, FLIGHT_TYPE_CHOICES, TRIP_CHOICES
 
 

@@ -20,11 +20,22 @@ class Vehicle(models.Model):
     luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
 
+    #? Idea 
+    # boosters = models.PositiveIntegerField()
+    # carseats = models.PositiveIntegerField()
+
     def __str__(self):
         """
         Returns the vehicle type in uppercase (e.g., 'SUV', 'VAN').
         """
-        return str(self.vehicle_type.upper())
+        return str(self.vehicle_type.title())
+
+
+class Location(models.Model):
+    name = models.CharField(max_length=70)
+
+    def __str__(self):
+        return self.name
 
 
 class Route(models.Model):
@@ -32,22 +43,34 @@ class Route(models.Model):
     Defines a specific route (e.g., 'Disney Property <--> MCO').
     """
 
-    name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(max_length=100, blank=True, null=True)
+    origin = models.ForeignKey(
+        "Location", related_name="origin", on_delete=models.CASCADE
+    )
+    destination = models.ForeignKey(
+        "Location", related_name="destination", on_delete=models.CASCADE
+    )
+    slug = models.SlugField(max_length=200, blank=True, null=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = (
+            "origin",
+            "destination",
+        )  # Ensure unique origin-destination pairs
 
     def save(self, *args, **kwargs):
         """
         Automatically generates a slug based on the route name if not provided.
         """
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = slugify(f"{self.origin} to {self.destination}")
         super().save(*args, **kwargs)
 
     def __str__(self):
         """
         Returns the route name.
         """
-        return self.name
+        return f"{self.origin.name} <--> {self.destination.name}"
 
 
 class Rate(models.Model):
@@ -69,3 +92,6 @@ class Rate(models.Model):
         Returns a combination of Vehicle and Route for pricing details.
         """
         return f"{self.vehicle} - {self.route}"
+
+    # def get_absolute_url(self):
+    #     return reverse("Test_detail", kwargs={"pk": self.pk})

@@ -11,21 +11,23 @@
           </div>
           <!-- Vehicle Options -->
           <div class="row gx-4 mb-5">
+            {% for vehicle in vehicles %}
             <div class="col-md-3 mb-4">
               <div class="card shadow border-0 h-100 pt-3"
-                   style="max-width: 250px;
-                          margin: 0 auto">
-                <img class="card-img-top pt-3"
-                     src="{% static 'images/suburban.png' %}"
-                     alt="SUV" />
-                <div class="card-body p-3 text-center">
-                  <h5 class="fw-bold mt-4">SUV</h5>
-                  <p class="mb-0 small">6 Passengers - 6 Suitcases</p>
-                  <p class="mb-0 small">2 Booster Seats - 1 Car Seat</p>
-                </div>
+              style="max-width: 250px;
+              margin: 0 auto">
+              <img class="card-img-top pt-3"
+              src="{% static 'images/suburban.png' %}"
+              alt="SUV" />
+              <div class="card-body p-3 text-center">
+                <h5 class="fw-bold mt-4">{{ vehicle.get_vehicle_type_display }}</h5>
+                <p class="mb-0 small">{{vehicle.capacity }} Passengers - {{ vehicle.luggage_capacity }} Suitcases</p>
+                <p class="mb-0 small">2 Booster Seats - 1 Car Seat</p>
               </div>
             </div>
-            <div class="col-md-3 mb-4">
+          </div>
+          {% endfor %}
+            {% comment %} <div class="col-md-3 mb-4">
               <div class="card shadow border-0" style="max-width: 250px; margin: 0 auto">
                 <img class="card-img-top"
                      src="{% static 'images/towncar.jpg' %}"
@@ -37,6 +39,7 @@
                 </div>
               </div>
             </div>
+
             <div class="col-md-3 mb-4">
               <div class="card shadow border-0" style="max-width: 250px; margin: 0 auto">
                 <img class="card-img-top"
@@ -49,6 +52,7 @@
                 </div>
               </div>
             </div>
+
             <div class="col-md-3 mb-4">
               <div class="card shadow border-0" style="max-width: 250px; margin: 0 auto">
                 <img class="card-img-top"
@@ -60,9 +64,10 @@
                   <p class="mb-0 small">1 Booster Seat - 1 Car Seat</p>
                 </div>
               </div>
-            </div>
+            </div> {% endcomment %}
           </div>
           <!-- Important Information -->
+
           <!-- Custom Transportation Solutions -->
           <div class="alert alert-secondary text-center p-3 mb-5">
             <strong>Don't See Your Route Listed?</strong>
