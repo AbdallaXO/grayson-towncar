@@ -2,3 +2,6 @@ Django==5.1.4
 django-widget-tweaks
 pillow
 django-import-export
+crispy-bootstrap5
+django-crispy-forms
+django-debug-toolbar
