@@ -19,10 +19,10 @@ def reservation_form(request):
     # route = request.GET.get('route')
     # trip_type = request.GET.get('trip')
     # vehicle = Vehicle.objects.get(vehicle_type = vehicle)
-    # route = Route.objects.get(pk=route)
-    
+    # route = Route.objects.get(pk=route) 
     # trip = Reservation.objects.get(trip_type='round_trip')
     # print(vehicle, route, trip)
+    
     reservation_form = ReservationForm()
     customer_form = CustomerForm()
     context = {
