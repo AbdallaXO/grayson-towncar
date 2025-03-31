@@ -8,8 +8,12 @@ class ReservationForm(forms.ModelForm):
     class Meta:
         model = Reservation
         fields = '__all__'
+
+class CustomerReservationForm(forms.ModelForm):
+    class Meta:
+        ...
     
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     for visible in self.visible_fields():
-    #         visible.field.widget.attrs['class'] = 'my-custom-class'
+# def __init__(self, *args, **kwargs):
+#     super().__init__(*args, **kwargs)
+#     for visible in self.visible_fields():
+#         visible.field.widget.attrs['class'] = 'my-custom-class'
