@@ -7,8 +7,7 @@ from .models import Rate, Vehicle
 def index(request):
     """a View that returns a table of Vehicles and their prices matching Oneway or Roundtrip,
     if you choose to book it will forward you to a view in reservations /book"""
-    return render(request, "rates/index.html")
-    if you choose to book it will forward you to a view in reservations /book"""  
+  
     rates = Rate.objects.select_related('vehicle', 'route').distinct().all()
     vehicles = Vehicle.objects.all()
     context = {
