@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from reservations.models import Route, Rate, Reservation, Vehicle
+from reservations.models import *
 
 
 # Create your views here.d

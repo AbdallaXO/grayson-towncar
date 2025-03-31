@@ -1,6 +1,6 @@
 from django.views import View
 from django.shortcuts import render, redirect, get_object_or_404
-from reservations.models import Vehicle, Rate, Route, Reservation
+# from reservations.models import Vehicle, Rate, Route, Reservation
 
 
 # Create your views here.

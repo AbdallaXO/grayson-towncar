@@ -3,8 +3,9 @@ from django.views import View
 from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
-from .models import Vehicle, Route, Reservation, Rate
+from .models import Reservation
 from .forms import ReservationForm, CustomerForm
+
 # Create your views here.
 def index(request):
     return render(request, "reservations/index.html")
