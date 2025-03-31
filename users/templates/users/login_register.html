@@ -2,7 +2,7 @@
 {% block content %}
     {% include 'navbar.html' %}
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/login.css' %}">
+    <link rel="stylesheet" href="{% static 'css/login_register.css' %}">
 
     <div class="container mt-5">
         <div class="row justify-content-center">
@@ -13,7 +13,7 @@
                         <form class="form" method="POST">
                             {% csrf_token %}
                             <div class="input-group">
-                                <label for="username">Username</label>
+                                <label for="username">Email</label>
                                 <input type="text" name="username" id="username" placeholder="">
                             </div>
                             <div class="input-group">
@@ -23,11 +23,17 @@
                                     <a rel="noopener noreferrer" href="#">Forgot Password?</a>
                                 </div>
                             </div>
-                            <button class="sign" type="submit">Sign in</button>
+                            <div class="button-wrapper">
+                                <button> Log In
+                                    <div class="arrow-wrapper">
+                                        <div class="arrow"></div>
+                                    </div>
+                                </button>
+                            </div>
                         </form>
                         <div class="social-message">
                             <div class="line"></div>
-                            <p class="message">Use Google</p>
+                            <p class="message">Use Google Instead</p>
                             <div class="line"></div>
                         </div>
                         <div class="social-icons">
@@ -47,3 +53,5 @@
         </div>
     </div>
 {% endblock %}
+
+{% block newsletter %}{% endblock %}
