@@ -2,24 +2,25 @@
 {% load crispy_forms_tags %}
 {% load static %}
 {% block content %}
-  <div class="container my-5">
-    <h2 class="mb-4">Book Your Ride</h2>
-    <p>
-      <strong>Vehicle:</strong>
-    </p>
-    <p>
-      <strong>Route:</strong>
-    </p>
-    <p>
-      <strong>Trip Type:</strong>
-    </p>
-    <p>
-      <strong>Base Price:</strong>
-    </p>
-    <form method="post">
-      {% csrf_token %}
-      {{ form|crispy }}
-      <button type="submit" class="btn btn-success">Continue to Payment</button>
-    </form>
-  </div>
+    <div class="container my-5">
+        <h2 class="mb-4">Book Your Ride</h2>
+        <p>
+            <strong>Vehicle:</strong>
+        </p>
+        <p>
+            <strong>Route:</strong>
+        </p>
+        <p>
+            <strong>Trip Type:</strong>
+        </p>
+        <p>
+            <strong>Base Price:</strong>
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            {{ customer_form|crispy }}
+            {{ reservation_form|crispy }}
+            <button type="submit" class="btn btn-success">Continue to Payment</button>
+        </form>
+    </div>
 {% endblock %}
