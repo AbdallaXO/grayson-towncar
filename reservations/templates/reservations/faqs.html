@@ -1,6 +1,7 @@
-{% extends 'main.html' %}
+{% extends "main.html" %}
 {% load static %}
 {% block content %}
+<div class="py-5">
     <section class="py-2 bg-light">
         <div class="container px-4 py-2">
             <!-- Modern Hero Section with Gradient -->
@@ -195,12 +196,7 @@
                                          aria-labelledby="headingDisney"
                                          data-bs-parent="#accordionTransportation">
                                         <div class="accordion-body">
-                                            <div class="alert alert-primary d-flex align-items-center" role="alert">
-                                                <i class="bi bi-info-circle-fill me-2"></i>
-                                                <div>
-                                                    <strong>Yes, we specialize in Disney resort and theme park transportation!</strong> Our family-friendly rides are perfect for getting to and from all Disney properties in Orlando. We offer flexible scheduling to accommodate park opening and closing times, allowing you to maximize your Disney experience without transportation worries.
-                                                </div>
-                                            </div>
+                                            <p>Yes, we specialize in Disney resort and theme park transportation!</strong> Our family-friendly rides are perfect for getting to and from all Disney properties in Orlando. We offer flexible scheduling to accommodate park opening and closing times, allowing you to maximize your Disney experience without transportation worries.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -220,12 +216,7 @@
                                          aria-labelledby="headingCruise"
                                          data-bs-parent="#accordionTransportation">
                                         <div class="accordion-body">
-                                            <div class="alert alert-primary d-flex align-items-center" role="alert">
-                                                <i class="bi bi-info-circle-fill me-2"></i>
-                                                <div>
-                                                    <strong>Our Port Canaveral shuttle service provides luxury transportation</strong> between Orlando and your cruise ship. We'll pick you up from your Orlando hotel or the airport and transport you directly to the cruise terminal. For returning cruises, we'll meet you at the port and take you to your Orlando destination. All services include luggage handling and comfortable, spacious vehicles perfect for families.
-                                                </div>
-                                            </div>
+                                            <p>Our Port Canaveral shuttle service provides luxury transportation</strong> between Orlando and your cruise ship. We'll pick you up from your Orlando hotel or the airport and transport you directly to the cruise terminal. For returning cruises, we'll meet you at the port and take you to your Orlando destination. All services include luggage handling and comfortable, spacious vehicles perfect for families.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -606,4 +597,5 @@
       }
     }
     </style>
+</div>
 {% endblock %}
