@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Customer, Reservation, Leg, Flight, Vehicle, Route, Rate
+    Customer, Reservation, Leg, Flight
 )
 
 class LegInline(admin.TabularInline):
@@ -92,42 +92,3 @@ class FlightAdmin(admin.ModelAdmin):
     ordering = ('-date', '-time')
 
 
-@admin.register(Vehicle)
-class VehicleAdmin(admin.ModelAdmin):
-    """
-    Admin panel configuration for the Vehicle model.
-    """
-    list_display = (
-        'id', 'vehicle_type', 'capacity',
-        'luggage_capacity'
-    )
-    search_fields = ('vehicle_type',)
-    list_filter = ('vehicle_type',)
-
-
-@admin.register(Route)
-class RouteAdmin(admin.ModelAdmin):
-    """
-    Admin panel configuration for the Route model.
-    """
-    list_display = ('id', 'name', 'slug')
-    search_fields = ('name',)
-    prepopulated_fields = {'slug': ('name',)}
-    ordering = ('name',)
-
-
-@admin.register(Rate)
-class RateAdmin(admin.ModelAdmin):
-    """
-    Admin panel configuration for the Rate model.
-    Associates a vehicle with a route, defining one-way and round-trip prices.
-    """
-    list_display = (
-        'id', 'vehicle', 'route', 'oneway_price',
-        'round_trip_price'
-    )
-    search_fields = (
-        'vehicle__vehicle_type', 'route__name',
-    )
-    list_filter = ('vehicle', 'route')
-    ordering = ('vehicle', 'route')

@@ -53,10 +53,10 @@ THIRD_PARTY_APPS = [
     "debug_toolbar",
 ]
 OUR_APPS = [
+    "rates",
     "reservations", 
     "users",               
     "services",
-    "rates",
     "blog",
     "stripe",
 ]
