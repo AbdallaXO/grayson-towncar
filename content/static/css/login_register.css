@@ -39,7 +39,7 @@
     outline: 0;
     background-color: rgb(255, 255, 255);
     padding: 0.75rem 1rem;
-    color: rgba(243, 244, 246, 1);
+    color: rgb(69 69 69);
 }
 
 .input-group input:focus {
@@ -126,6 +126,7 @@
     font-size: 0.75rem;
     line-height: 1rem;
     color: rgba(156, 163, 175, 1);
+    margin-top: 20px;
 }
 
 
@@ -193,4 +194,9 @@ button:hover .arrow:before {
     display: flex;
     justify-content: center;
     margin-top: 1rem;
+}
+
+#login-form,
+#register-form {
+    transition: all 0.3s ease-in-out;
 }
