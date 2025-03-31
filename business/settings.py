@@ -17,7 +17,7 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-CONTENT_DIR = BASE_DIR / 'content'
+CONTENT_DIR = BASE_DIR / "content"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -54,14 +54,14 @@ THIRD_PARTY_APPS = [
 ]
 OUR_APPS = [
     "rates",
-    "reservations", 
-    "users",               
+    "reservations",
+    "users",
     "services",
     "blog",
     "stripe",
 ]
 
-INSTALLED_APPS =  NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
+INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -143,8 +143,8 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 MEDIA_URL = "/media/"
-STATICFILES_DIRS= [CONTENT_DIR / "static"]
-MEDIA_ROOT = CONTENT_DIR / 'media'
+STATICFILES_DIRS = [CONTENT_DIR / "static"]
+MEDIA_ROOT = CONTENT_DIR / "media"
 STATIC_ROOT = CONTENT_DIR / "staticfiles"
 
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")

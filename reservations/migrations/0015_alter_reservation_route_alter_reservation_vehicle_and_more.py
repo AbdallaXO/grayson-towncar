@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("rates", "0001_initial"),
         ("reservations", "0014_alter_reservation_customer"),

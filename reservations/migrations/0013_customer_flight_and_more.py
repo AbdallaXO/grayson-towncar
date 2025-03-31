@@ -6,129 +6,182 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0012_route_slug'),
+        ("reservations", "0012_route_slug"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Customer',
+            name="Customer",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('first_name', models.CharField(max_length=50)),
-                ('last_name', models.CharField(blank=True, max_length=50)),
-                ('email', models.EmailField(max_length=254)),
-                ('phone_number', models.CharField(max_length=20)),
-                ('zipcode', models.CharField(max_length=20)),
-                ('is_returning', models.BooleanField(default=False)),
-                ('reservation_count', models.PositiveIntegerField(default=0)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("first_name", models.CharField(max_length=50)),
+                ("last_name", models.CharField(blank=True, max_length=50)),
+                ("email", models.EmailField(max_length=254)),
+                ("phone_number", models.CharField(max_length=20)),
+                ("zipcode", models.CharField(max_length=20)),
+                ("is_returning", models.BooleanField(default=False)),
+                ("reservation_count", models.PositiveIntegerField(default=0)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Flight',
+            name="Flight",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('flight_type', models.CharField(choices=[('arrival', 'Arrival'), ('departure', 'Departure')], max_length=10)),
-                ('airline', models.CharField(max_length=50)),
-                ('flight_number', models.CharField(max_length=50)),
-                ('date', models.DateField()),
-                ('time', models.TimeField()),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "flight_type",
+                    models.CharField(
+                        choices=[("arrival", "Arrival"), ("departure", "Departure")],
+                        max_length=10,
+                    ),
+                ),
+                ("airline", models.CharField(max_length=50)),
+                ("flight_number", models.CharField(max_length=50)),
+                ("date", models.DateField()),
+                ("time", models.TimeField()),
             ],
         ),
         migrations.RenameField(
-            model_name='reservation',
-            old_name='payemnt_status',
-            new_name='payment_status',
+            model_name="reservation",
+            old_name="payemnt_status",
+            new_name="payment_status",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='dropoff_location',
+            model_name="reservation",
+            name="dropoff_location",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='email',
+            model_name="reservation",
+            name="email",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='first_name',
+            model_name="reservation",
+            name="first_name",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='last_name',
+            model_name="reservation",
+            name="last_name",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='phone_number',
+            model_name="reservation",
+            name="phone_number",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='pickup_date',
+            model_name="reservation",
+            name="pickup_date",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='pickup_location',
+            model_name="reservation",
+            name="pickup_location",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='pickup_time',
+            model_name="reservation",
+            name="pickup_time",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='return_date',
+            model_name="reservation",
+            name="return_date",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='return_dropoff_location',
+            model_name="reservation",
+            name="return_dropoff_location",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='return_pickup_location',
+            model_name="reservation",
+            name="return_pickup_location",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='return_time',
+            model_name="reservation",
+            name="return_time",
         ),
         migrations.RemoveField(
-            model_name='reservation',
-            name='zipcode',
+            model_name="reservation",
+            name="zipcode",
         ),
         migrations.AddField(
-            model_name='reservation',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now),
+            model_name="reservation",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, default=django.utils.timezone.now
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='reservation',
-            name='status',
-            field=models.CharField(choices=[('pending', 'pending')], default='PENDING', max_length=20),
+            model_name="reservation",
+            name="status",
+            field=models.CharField(
+                choices=[("pending", "pending")], default="PENDING", max_length=20
+            ),
         ),
         migrations.AddField(
-            model_name='reservation',
-            name='updated_at',
+            model_name="reservation",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True),
         ),
         migrations.AddField(
-            model_name='reservation',
-            name='customer',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to='reservations.customer'),
+            model_name="reservation",
+            name="customer",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                to="reservations.customer",
+            ),
         ),
         migrations.CreateModel(
-            name='Leg',
+            name="Leg",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('pickup_date', models.DateField()),
-                ('pickup_time', models.TimeField()),
-                ('pickup_location', models.CharField(max_length=255)),
-                ('dropoff_location', models.CharField(max_length=255)),
-                ('flight_information', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='reservations.flight')),
-                ('reservation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='legs', to='reservations.reservation')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("pickup_date", models.DateField()),
+                ("pickup_time", models.TimeField()),
+                ("pickup_location", models.CharField(max_length=255)),
+                ("dropoff_location", models.CharField(max_length=255)),
+                (
+                    "flight_information",
+                    models.OneToOneField(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="reservations.flight",
+                    ),
+                ),
+                (
+                    "reservation",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="legs",
+                        to="reservations.reservation",
+                    ),
+                ),
             ],
         ),
         migrations.DeleteModel(
-            name='FlightInformation',
+            name="FlightInformation",
         ),
     ]

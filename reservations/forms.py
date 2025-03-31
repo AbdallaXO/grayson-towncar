@@ -1,14 +1,18 @@
 from django import forms
 from .models import Reservation, Customer
+
+
 class CustomerForm(forms.ModelForm):
     class Meta:
         model = Customer
-        fields = '__all__'
+        fields = "__all__"
+
+
 class ReservationForm(forms.ModelForm):
     class Meta:
         model = Reservation
-        fields = '__all__'
-    
+        fields = "__all__"
+
     # def __init__(self, *args, **kwargs):
     #     super().__init__(*args, **kwargs)
     #     for visible in self.visible_fields():
