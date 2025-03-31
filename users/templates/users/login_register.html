@@ -8,7 +8,9 @@
         <div class="row justify-content-center">
             <div class="col-md-6 col-lg-4">
                 <div class="form-container">
-                    {% if not user.is_authenticated %}
+
+                    <!-- Login Form -->
+                    <div id="login-form">
                         <p class="title">Welcome Back!</p>
                         <form class="form" method="POST">
                             {% csrf_token %}
@@ -43,15 +45,91 @@
                                 </svg>
                         </div>
                         <p class="signup">Don't have an account?
-                            <a rel="noopener noreferrer" href="#" >Sign up</a>
+                            <a href="#" onclick="showRegister()">Sign up</a>
                         </p>
-                    {% else %}
-                        <p class="title">Register</p>
-                    {% endif %}
+                    </div>
+
+                    <!-- Register Form (Initially Hidden) -->
+                    <div id="register-form" style="display: none;">
+                        <p class="title">Create Account</p>
+                        <form class="form" method="POST">
+                            {% csrf_token %}
+                            <div class="input-group">
+                                <label for="name">Name</label>
+                                <input type="text" name="name" id="name" placeholder="Enter your name" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="email">Email</label>
+                                <input type="email" name="email" id="email" placeholder="Enter your email" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="password">Password</label>
+                                <input 
+                                    type="password" 
+                                    name="password" 
+                                    id="reg-password" 
+                                    placeholder="Enter your password" 
+                                    required
+                                    minlength="8" 
+                                    pattern="(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}" 
+                                    title="Password must be at least 8 characters long and contain at least one letter, one number, and one special character." 
+                                >
+                            </div>
+                            <div class="input-group">
+                                <label for="confirm_password">Confirm Password</label>
+                                <input 
+                                    type="password" 
+                                    name="confirm_password" 
+                                    id="confirm_password" 
+                                    placeholder="Confirm your password" 
+                                    required 
+                                    minlength="8"
+                                >
+                            </div>
+                            <div class="button-wrapper">
+                                <button type="submit">Register
+                                    <div class="arrow-wrapper">
+                                        <div class="arrow"></div>
+                                    </div>
+                                </button>
+                            </div>
+                        </form>
+                        <p class="signup">Already have an account?
+                            <a href="#" onclick="showLogin()">Log in</a>
+                        </p>
+                    </div>
+
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        function showRegister() {
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('register-form').style.display = 'block';
+        }
+
+        function showLogin() {
+            document.getElementById('register-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+        }
+
+        function checkPasswords() {
+        var password = document.getElementById("reg-password");
+        var confirmPassword = document.getElementById("confirm_password");
+
+        if (password.value !== confirmPassword.value) {
+            confirmPassword.setCustomValidity("Passwords don't match");
+        } else {
+            confirmPassword.setCustomValidity("");
+        }
+    }
+
+    document.getElementById("reg-password").addEventListener("input", checkPasswords);
+    document.getElementById("confirm_password").addEventListener("input", checkPasswords);
+
+    </script>
 {% endblock %}
 
 {% block newsletter %}{% endblock %}
