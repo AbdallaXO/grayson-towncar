@@ -71,11 +71,11 @@ class Command(BaseCommand):
 
         routes = [
             Route(
-                origin=locations.filter(pk=item[0]).first(), 
-                destination=locations.filter(pk=item[1]).first()
-                ) 
+                origin=locations.filter(pk=item[0]).first(),
+                destination=locations.filter(pk=item[1]).first(),
+            )
             for item in routes_list
-            ]
+        ]
         self.stdout.write("> Creating Routes")
         for route in routes:
             self.stdout.write(f">>> Creating {str(route)}")
@@ -84,19 +84,19 @@ class Command(BaseCommand):
     def load_rates(self):
         vehicles = Vehicle.objects.all()
         routes = Route.objects.all()
-        prices_one = [50,60,70,80,90,100]
-        prices_two = [110,120,130,140,150]
+        prices_one = [50, 60, 70, 80, 90, 100]
+        prices_two = [110, 120, 130, 140, 150]
         self.stdout.write("> Creating Rates")
         for vehicle in vehicles:
-            for route in routes: 
+            for route in routes:
                 rate = Rate(
                     vehicle=vehicle,
                     route=route,
-                    oneway_price= choice(prices_one),
-                    round_trip_price= choice(prices_two)
+                    oneway_price=choice(prices_one),
+                    round_trip_price=choice(prices_two),
                 )
                 self.stdout.write(
-                    f">>> Creating Rate with vehicle {vehicle}, Route {route}," 
+                    f">>> Creating Rate with vehicle {vehicle}, Route {route},"
                     f"Oneway={rate.oneway_price} , Round Trip={rate.round_trip_price}"
                 )
                 rate.save()
@@ -108,5 +108,3 @@ class Command(BaseCommand):
         self.load_routes()
         self.load_rates()
         self.stdout.write("> Finished seeding database.")
-
-

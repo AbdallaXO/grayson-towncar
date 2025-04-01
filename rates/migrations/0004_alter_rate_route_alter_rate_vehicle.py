@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("rates", "0003_alter_rate_route_alter_rate_vehicle"),
     ]

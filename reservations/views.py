@@ -1,12 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.views import View
-from django.contrib import messages
-from django.http import HttpResponseBadRequest
-import logging
-from .models import Reservation
 from rates.models import Vehicle, Route, Rate
 from .forms import ReservationForm, CustomerForm
-from django.contrib import messages
+from . utils import *
 
 
 # Create your views here.
@@ -16,22 +11,10 @@ def index(request):
 
 
 def reservation_form(request, pk):
-    """Returns a Reservation Form accessed by a pk = to a an existing rate thats associated with
-    a vehicle/route/trip_type or a 404 page, then trip_type is determined by an extra
-    parameter passed in the url as ?round= ow for oneway rt for roundrip"""
-    rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
-    trip_type = request.GET.get("round")
-    if trip_type == "ow":
-        price = rate.oneway_price
-        trip_type = "One Way"
-    elif trip_type == "rt":
-        price = rate.round_trip_price
-        trip_type = "Round Trip"
-    else:
-        #! FIX ERROR MESSAGE.
-        messages.error(request, f"{trip_type} Is not a Valid URL")
-        return redirect("rates")
+    """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
 
+    rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
+    trip_type, price = get_form_details(request, rate)
     reservation_form = ReservationForm()
     customer_form = CustomerForm()
     context = {

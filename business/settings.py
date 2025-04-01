@@ -18,7 +18,7 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Directory that contains content such as templates media and static & DB
-CONTENT_DIR = BASE_DIR / 'content'
+CONTENT_DIR = BASE_DIR / "content"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -62,7 +62,7 @@ OUR_APPS = [
     "stripe",
 ]
 # Instead of a big list of all the apps seperated them by categories and combined them here
-INSTALLED_APPS =  NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
+INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
