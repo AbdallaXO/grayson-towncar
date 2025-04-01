@@ -1,5 +1,6 @@
 from django.contrib import messages
-from django.shortcuts import  redirect
+from django.shortcuts import redirect
+
 
 def get_form_details(request, rate):
     """returns a trip type and returns a price based on the trip_type, if trip_type not valid

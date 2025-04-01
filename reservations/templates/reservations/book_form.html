@@ -21,6 +21,8 @@
         {% csrf_token %}
         {{ customer_form|crispy }}
         {{ reservation_form|crispy }}
+        {{ flight_form | crispy }}
+        {{ leg_form | crispy }}
         <button type="submit" class="btn btn-success">Continue to Payment</button>
       </div>
     </form>

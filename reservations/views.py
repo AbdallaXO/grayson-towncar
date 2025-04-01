@@ -1,8 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from rates.models import Vehicle, Route, Rate
-from .forms import ReservationForm, CustomerForm
-from . utils import *
-
+from .forms import ReservationForm, CustomerForm, LegForm, FlightForm
+from .utils import *
 
 
 # Create your views here.
@@ -13,14 +12,17 @@ def index(request):
 
 def reservation_form(request, pk):
     """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
-
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
     reservation_form = ReservationForm()
     customer_form = CustomerForm()
+    leg_form = LegForm()
+    flight_form = FlightForm()
     context = {
         "reservation_form": reservation_form,
         "customer_form": customer_form,
+        "flight_form": flight_form,
+        "leg_form": leg_form,
         "trip": rate,
         "price": price,
         "trip_type": trip_type,
