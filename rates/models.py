@@ -20,7 +20,7 @@ class Vehicle(models.Model):
     luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
 
-    #? Idea 
+    # ? Idea
     # boosters = models.PositiveIntegerField()
     # carseats = models.PositiveIntegerField()
 
@@ -70,7 +70,7 @@ class Route(models.Model):
         """
         Returns the route name.
         """
-        return f"{self.origin.name} <--> {self.destination.name}"
+        return f"{self.origin.name} ⇄ {self.destination.name}"
 
 
 class Rate(models.Model):
@@ -78,7 +78,10 @@ class Rate(models.Model):
     Associates a specific Vehicle with a specific Route, defining
     one-way and round-trip prices for that combination.
     """
-    vehicle = models.ForeignKey("Vehicle", on_delete=models.CASCADE, related_name='rates')
+
+    vehicle = models.ForeignKey(
+        "Vehicle", on_delete=models.CASCADE, related_name="rates"
+    )
     route = models.ForeignKey("Route", on_delete=models.CASCADE)
     oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
     round_trip_price = models.DecimalField(max_digits=10, decimal_places=2)
