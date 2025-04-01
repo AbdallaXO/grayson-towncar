@@ -4,41 +4,42 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest
 import logging
 from .models import Reservation
-from rates.models import Vehicle, Route , Rate
+from rates.models import Vehicle, Route, Rate
 from .forms import ReservationForm, CustomerForm
 from django.contrib import messages
 
 
 # Create your views here.
 def index(request):
+    """Returns the Landing Page"""
     return render(request, "reservations/index.html")
 
 
 def reservation_form(request, pk):
-    rate = get_object_or_404(Rate.objects.select_related('route', 'vehicle'),pk=pk)
-    trip_type = request.GET.get('round')
-    print(str(trip_type))
-    if trip_type == 'ow':
+    """Returns a Reservation Form accessed by a pk = to a an existing rate thats associated with
+    a vehicle/route/trip_type or a 404 page, then trip_type is determined by an extra
+    parameter passed in the url as ?round= ow for oneway rt for roundrip"""
+    rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
+    trip_type = request.GET.get("round")
+    if trip_type == "ow":
         price = rate.oneway_price
-        trip_type = 'One Way'
-    elif trip_type == 'rt':
+        trip_type = "One Way"
+    elif trip_type == "rt":
         price = rate.round_trip_price
-        trip_type = 'Round Trip'
+        trip_type = "Round Trip"
     else:
-        messages.error(request , f"{trip_type} Is not a Valid URL")
         #! FIX ERROR MESSAGE.
-        return redirect('rates')
-    
-   
-        
+        messages.error(request, f"{trip_type} Is not a Valid URL")
+        return redirect("rates")
+
     reservation_form = ReservationForm()
     customer_form = CustomerForm()
     context = {
         "reservation_form": reservation_form,
         "customer_form": customer_form,
-        "trip":rate,
-        "price":price,
-        "trip_type":trip_type,
+        "trip": rate,
+        "price": price,
+        "trip_type": trip_type,
     }
     return render(request, "reservations/book_form.html", context)
 

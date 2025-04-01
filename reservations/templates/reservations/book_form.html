@@ -17,10 +17,12 @@
       <strong>Base Price: ${{ price }}</strong>
     </p>
     <form method="post">
-      {% csrf_token %}
-      {{ customer_form|crispy }}
-      {{ reservation_form|crispy }}
-      <button type="submit" class="btn btn-success">Continue to Payment</button>
+      <div class="form-group">
+        {% csrf_token %}
+        {{ customer_form|crispy }}
+        {{ reservation_form|crispy }}
+        <button type="submit" class="btn btn-success">Continue to Payment</button>
+      </div>
     </form>
   </div>
 {% endblock %}
