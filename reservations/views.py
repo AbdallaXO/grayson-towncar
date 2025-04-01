@@ -4,6 +4,7 @@ from .forms import ReservationForm, CustomerForm
 from . utils import *
 
 
+
 # Create your views here.
 def index(request):
     """Returns the Landing Page"""
