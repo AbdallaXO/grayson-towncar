@@ -1,7 +1,5 @@
 from django import forms
 from .models import Reservation, Customer, Leg, Flight
-from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Submit
 
 
 class CustomerForm(forms.ModelForm):
@@ -28,13 +26,13 @@ class ReservationForm(forms.ModelForm):
             "luggage_count": "Luggage Count",
             "carseat_type": "Carseat Choices",
         }  #! what if need more than 1 carseat? TODO
-    def clean_passenger_count(self):
-        data = self.cleaned_data['passenger_count']
+    # def clean_passenger_count(self):
+    #     data = self.cleaned_data['passenger_count']
 
-        vehicle_capacity = self.initial.get('vehicle').capacity
-        if data > vehicle_capacity:
-            raise forms.ValidationError(f"Maximum Capacity for this Vehicle is {vehicle_capacity}")
-        return data
+    #     vehicle_capacity = self.initial.get('vehicle').capacity
+    #     if data > vehicle_capacity:
+    #         raise forms.ValidationError(f"Maximum Capacity for this Vehicle is {vehicle_capacity}")
+    #     return data
 
 class FlightForm(forms.ModelForm):
     class Meta:

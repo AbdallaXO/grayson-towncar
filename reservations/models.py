@@ -77,7 +77,7 @@ class Reservation(models.Model):
         """
         Ensures total_price is always base_price + additional_charges before saving.
         """
-        self.total_price = self.base_price + self.additional_charges
+        self.total_price = int(self.base_price) + int(self.additional_charges)
         super().save(*args, **kwargs)
 
     def __str__(self):
