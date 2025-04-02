@@ -25,6 +25,7 @@ class Customer(models.Model):
         Automatically increments the reservation_count if this customer is being saved.
         (Note: This approach increments on every save call if self.created_at is set.)
         """
+
     def __str__(self):
         """
         Returns the customer's first name for easy identification.
@@ -72,13 +73,6 @@ class Reservation(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        """
-        Ensures total_price is always base_price + additional_charges before saving.
-        """
-        self.total_price = int(self.base_price) + int(self.additional_charges)
-        super().save(*args, **kwargs)
 
     def __str__(self):
         """
