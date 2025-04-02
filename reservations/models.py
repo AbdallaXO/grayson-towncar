@@ -25,10 +25,6 @@ class Customer(models.Model):
         Automatically increments the reservation_count if this customer is being saved.
         (Note: This approach increments on every save call if self.created_at is set.)
         """
-        if self.created_at:
-            self.reservation_count += 1
-        super().save(*args, **kwargs)
-
     def __str__(self):
         """
         Returns the customer's first name for easy identification.
