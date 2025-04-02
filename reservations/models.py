@@ -20,12 +20,6 @@ class Customer(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def save(self, *args, **kwargs):
-        """
-        Automatically increments the reservation_count if this customer is being saved.
-        (Note: This approach increments on every save call if self.created_at is set.)
-        """
-
     def __str__(self):
         """
         Returns the customer's first name for easy identification.
@@ -116,8 +110,6 @@ class Flight(models.Model):
     flight_type = models.CharField(max_length=10, choices=FLIGHT_TYPE_CHOICES)
     airline = models.CharField(max_length=50)
     flight_number = models.CharField(max_length=50)
-    date = models.DateField()
-    time = models.TimeField()
 
     def __str__(self):
         """

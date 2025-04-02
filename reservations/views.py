@@ -17,37 +17,54 @@ def reservation_form(request, pk):
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
 
-    leg_count = 1 if trip_type == "one_way" else 2
-
     if request.method == "POST":
         customer_form = CustomerForm(request.POST)
         reservation_form = ReservationForm(request.POST)
         flight_form = FlightForm(request.POST)
-
-        # handle leg forms with prefixes to seperate them
-        leg_forms = []
-        for i in range(leg_count):
-            prefix = f"leg-{i}"
-            leg_forms.append(LegForm(request.POST, prefix=prefix))
-
-        # validate if necessery forms are valid
-        customer_valid = customer_form.is_valid()
-        reservation_valid = reservation_form.is_valid()
-        legs_valid = all(leg_form.is_valid() for leg_form in leg_forms)
-
-        if customer_valid and reservation_valid and legs_valid:
+        leg_form = LegForm(request.POST)
+        if (
+            reservation_form.is_valid()
+            and customer_form.is_valid()
+            and leg_form.is_valid()
+        ):
             customer = customer_form.save()
             reservation = reservation_form.save(commit=False)
             reservation.customer = customer
+            reservation.trip_type = trip_type
+            reservation.route = rate.route
+            reservation.vehicle = rate.vehicle
             reservation.total_price = price
             reservation.base_price = price
-            reservation.route = rate.route
-            reservation.trip_type = trip_type
+            reservation.save()
 
-            # Save Legs
-            for i, leg_form in enumerate(leg_forms):
-                leg = leg_form.save(commit=False)
-                leg.reservation = reservation
+            flight = flight_form.save()
+
+            leg = leg_form.save(commit=False)
+            leg.reservation = reservation
+            leg.flight_information = flight
+            leg.save()
+
+        return redirect("home")
+
+    else:
+        customer_form = CustomerForm()
+        reservation_form = ReservationForm(
+            initial={
+                "vehicle": rate.vehicle,
+                "base_price": price,
+                "total_price": price,
+                "route": rate.route,
+            }
+        )
+        flight_form = FlightForm()
+        leg_form = LegForm()
+    context = {
+        "customer_form": customer_form,
+        "reservation_form": reservation_form,
+        "flight_form": flight_form,
+        "leg_form": leg_form,
+    }
+    return render(request, "reservations/book_form.html", context)
 
 
 def about_us(request):

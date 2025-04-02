@@ -2,22 +2,21 @@
 {% load static %}
 {% load crispy_forms_tags %}
 {% block content %}
-    <h1>Hello</h1>
-    <div class="container">
-        <h1>Book Your Trip</h1>
-        <p>Trip Type: {{ trip_type }}</p>
-        <p>Price: ${{ price }}</p>
-        <form method="POST">
-            {% csrf_token %}
-            <h2>Customer Info</h2>
-            {{ customer_form | crispy }}
-            <h3>Reservation Info</h3>
-            {{ reservation_form|crispy }}
-            <h3>Trip Leg(s)</h3>
-            {% comment %} {{ leg_form.management_form }} {% endcomment %}
-            {{ flight_form|crispy }}
-            {{ leg_form|crispy }}
-            <button type="submit">Submit Reservation</button>
-        </form>
-    </div>
+  <h1>Hello</h1>
+  <div class="container">
+    <h1>Book Your Trip</h1>
+    <p>Trip Type: {{ trip_type }}</p>
+    <p>Price: ${{ price }}</p>
+    <form method="POST">
+      {% csrf_token %}
+      <h2>Customer Info</h2>
+      {{ customer_form | crispy }}
+      <h3>Reservation Info</h3>
+      {{ reservation_form|crispy }}
+      <h3>Trip Leg(s)</h3>
+      {{ flight_form|crispy }}
+      {{ leg_form|crispy }}
+      <button type="submit">Submit Reservation</button>
+    </form>
+  </div>
 {% endblock content %}
