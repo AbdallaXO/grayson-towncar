@@ -20,8 +20,12 @@ def reservation_form(request, pk):
     if request.method == "POST":
         customer_form = CustomerForm(request.POST)
         reservation_form = ReservationForm(request.POST)
-        flight1_form = FlightForm(request.POST, prefix='flight1')
-        flight2_form = FlightForm(request.POST, prefix='flight2') if trip_type == 'round_trip' else None
+        flight1_form = FlightForm(request.POST, prefix="flight1")
+        flight2_form = (
+            FlightForm(request.POST, prefix="flight2")
+            if trip_type == "round_trip"
+            else None
+        )
         leg1_form = LegForm(request.POST, prefix="leg1")
         leg2_form = (
             LegForm(request.POST, prefix="leg2") if trip_type == "round_trip" else None
@@ -69,18 +73,22 @@ def reservation_form(request, pk):
                 "route": rate.route,
             }
         )
-        flight_form = FlightForm()
+        flight1_form = FlightForm(prefix='flight1')
         leg1_form = LegForm(prefix="leg1")
+        #conditional forms if its a roundtrip
+        flight2_form = FlightForm(prefix='flight2') if trip_type == "round_trip" else None
         leg2_form = LegForm(prefix="leg2") if trip_type == "round_trip" else None
     context = {
         "customer_form": customer_form,
         "reservation_form": reservation_form,
-        "flight_form": flight_form,
+        "flight1_form": flight1_form,
+        "flight2_form":flight2_form,
         "leg1_form": leg1_form,
         "leg2_form": leg2_form,
         "route": rate.route,
         "price": price,
-        "trip_type": trip_type.replace('_', ' '),
+        "trip_type": trip_type.replace("_", " "),
+        "vehicle":rate.vehicle,
     }
     return render(request, "reservations/book_form.html", context)
 
