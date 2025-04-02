@@ -1,29 +1,288 @@
 {% extends "main.html" %}
 {% load static %}
-{% load crispy_forms_tags %}
 {% block content %}
-  <h1>Hello</h1>
-  <div class="container">
-    <h1>Book Your Trip</h1>
-    <p>Trip Type: {{ trip_type|title }}</p>
-    <p>Price: ${{ price }}</p>
-    <form method="POST">
-      {% csrf_token %}
-      <h2>Customer Info</h2>
-      {{ customer_form | crispy }}
-      <h3>Reservation Info</h3>
-      {{ reservation_form|crispy }}
-      <h3>Route: This Cn be going to or From</h3>
-      <p>{{ route }}</p>
-      <h3>Trip Leg(s)</h3>
-      {{ flight_form|crispy }}
-      {{ leg1_form|crispy }}
 
-      {% if leg2_form %}
-        <h3>Return Information</h3>
-        {{ leg2_form|crispy }}
-      {% endif %}
-      <button type="submit">Submit Reservation</button>
-    </form>
+  <div class="container my-5">
+    <div class="row">
+      <div class="col-lg-8 mx-auto">
+        <!-- Header Section -->
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h1 class="card-title mb-3 text-center">Booking Details</h1>
+            <h5 class="text-primary mb-0 lh-lg">{{ trip_type|title }} {{ vehicle }} Reservation</h5>
+            <h6 class='text-primary mb-0 fs-10 lh-6'>{{ route }}</h6>
+          </div>
+        </div>
+
+        <form method="POST" class="needs-validation" novalidate>
+          {% csrf_token %}
+
+          <!-- Customer Information Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-person-circle me-2"></i>Contact Information
+              </h4>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  {{ customer_form.first_name.label_tag }}
+                  {{ customer_form.first_name }}
+                </div>
+                <div class="col-md-6">
+                  {{ customer_form.last_name.label_tag }}
+                  {{ customer_form.last_name }}
+                </div>
+                <div class="col-md-6">
+                  {{ customer_form.email.label_tag }}
+                  {{ customer_form.email }}
+                </div>
+                <div class="col-md-6">
+                  {{ customer_form.phone_number.label_tag }}
+                  {{ customer_form.phone_number }}
+                </div>
+                <div class="col-md-6">
+                  {{ customer_form.zipcode.label_tag }}
+                  {{ customer_form.zipcode }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reservation Details Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-clipboard-check me-2"></i>Reservation Details
+              </h4>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  {{ reservation_form.passenger_count.label_tag }}
+                  {{ reservation_form.passenger_count }}
+                </div>
+                <div class="col-md-4">
+                  {{ reservation_form.luggage_count.label_tag }}
+                  {{ reservation_form.luggage_count }}
+                </div>
+                <div class="col-md-4">
+                  <div class="form-check mt-4">
+                    {{ reservation_form.has_children }}
+                    {{ reservation_form.has_children.label_tag }}
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  {{ reservation_form.carseat_type.label_tag }}
+                  {{ reservation_form.carseat_type }}
+                </div>
+                <div class="col-md-6">
+                  <div class="form-check mt-4">
+                    {{ reservation_form.store_stop }}
+                    {{ reservation_form.store_stop.label_tag }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Route Information Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-map me-2"></i>Route
+              </h4>
+            </div>
+            <div class="card-body">
+              <p class="mb-0">{{ route }}</p>
+            </div>
+          </div>
+
+          <!-- Departure Details Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-car-front me-2"></i>
+                {% if trip_type == 'one way' %}
+                  Ride Details
+                {% else %}
+                  First Ride Details
+                {% endif %}
+              </h4>
+            </div>
+            <div class="card-body">
+              <!-- Flight Info Accordion -->
+              <div class="accordion mb-3" id="departureFlightAccordion">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="departureFlightHeading">
+                    <button class="accordion-button collapsed"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#departureFlightCollapse"
+                            aria-expanded="false"
+                            aria-controls="departureFlightCollapse">Flight Information</button>
+                  </h2>
+                  <div id="departureFlightCollapse"
+                       class="accordion-collapse collapse"
+                       aria-labelledby="departureFlightHeading"
+                       data-bs-parent="#departureFlightAccordion">
+                    <div class="accordion-body">
+                      <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                      </div>
+                      <div class="row g-3">
+                        <div class="col-md-6">
+                          {{ flight1_form.airline.label_tag }}
+                          {{ flight1_form.airline }}
+                        </div>
+                        <div class="col-md-6">
+                          {{ flight1_form.flight_number.label_tag }}
+                          {{ flight1_form.flight_number }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pickup Info -->
+              <h5 class="border-bottom pb-2 mb-3">Pickup Information</h5>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  {{ leg1_form.pickup_date.label_tag }}
+                  {{ leg1_form.pickup_date }}
+                </div>
+                <div class="col-md-6">
+                  {{ leg1_form.pickup_time.label_tag }}
+                  {{ leg1_form.pickup_time }}
+                </div>
+                <div class="col-md-6">
+                  {{ leg1_form.pickup_location.label_tag }}
+                  {{ leg1_form.pickup_location }}
+                </div>
+                <div class="col-md-6">
+                  {{ leg1_form.dropoff_location.label_tag }}
+                  {{ leg1_form.dropoff_location }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Return Details Card (Conditional) -->
+          {% if leg2_form %}
+            <div class="card shadow-sm mb-4">
+              <div class="card-header bg-light">
+                <h4 class="mb-0">
+                  <i class="bi bi-car-front me-2"></i>Second Ride Details
+                </h4>
+              </div>
+              <div class="card-body">
+                <!-- Return Flight Info Accordion -->
+                <div class="accordion mb-3" id="returnFlightAccordion">
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="returnFlightHeading">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#returnFlightCollapse"
+                              aria-expanded="false"
+                              aria-controls="returnFlightCollapse">Return Flight Information</button>
+                    </h2>
+                    <div id="returnFlightCollapse"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="returnFlightHeading"
+                         data-bs-parent="#returnFlightAccordion">
+                      <div class="accordion-body">
+                        <div class="alert alert-info mb-3">
+                          <i class="bi bi-info-circle-fill me-2"></i>
+                          <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                        </div>
+                        <div class="row g-3">
+                          <div class="col-md-6">
+                            {{ flight2_form.airline.label_tag }}
+                            {{ flight2_form.airline }}
+                          </div>
+                          <div class="col-md-6">
+                            {{ flight2_form.flight_number.label_tag }}
+                            {{ flight2_form.flight_number }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Return Pickup Info -->
+                <h5 class="border-bottom pb-2 mb-3">Return Pickup Information</h5>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    {{ leg2_form.pickup_date.label_tag }}
+                    {{ leg2_form.pickup_date }}
+                  </div>
+                  <div class="col-md-6">
+                    {{ leg2_form.pickup_time.label_tag }}
+                    {{ leg2_form.pickup_time }}
+                  </div>
+                  <div class="col-md-6">
+                    {{ leg2_form.pickup_location.label_tag }}
+                    {{ leg2_form.pickup_location }}
+                  </div>
+                  <div class="col-md-6">
+                    {{ leg2_form.dropoff_location.label_tag }}
+                    {{ leg2_form.dropoff_location }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- Special Requests Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-chat-left-text me-2"></i>Special Requests
+              </h4>
+            </div>
+            <div class="card-body">
+              {{ reservation_form.special_requests.label_tag }}
+              {{ reservation_form.special_requests }}
+              <small class="text-muted">Optional. We'll do our best to accommodate.</small>
+            </div>
+          </div>
+
+          <!-- Price Information Card -->
+          <div class="card shadow-sm mb-4 border-success">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-tag-fill me-2"></i>Price Information
+              </h4>
+            </div>
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-md-6">
+                  <h4 class="text-success mb-0">${{ price }}</h4>
+                </div>
+                <div class="col-md-3">
+                  <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle me-1"></i>Price includes all fees & taxes.
+                    Driver gratuity recommended in cash or can be added to your credit card.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg shadow">
+              <i class="bi bi-check-circle me-2"></i>Submit Reservation
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
+
 {% endblock content %}
