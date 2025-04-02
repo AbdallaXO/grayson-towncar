@@ -1,56 +1,52 @@
+# reservations/forms.py
+
 from django import forms
 from .models import Reservation, Customer, Leg, Flight
+from .constants import CARSEAT_CHOICES, TRIP_CHOICES
 
 
 class CustomerForm(forms.ModelForm):
-    """A Form that contians all the customers informations such as
-    first_name last_name etc..."""
+    """Form for customer information"""
 
     class Meta:
         model = Customer
-        fields = "__all__"
-        exclude = ["is_returning", "reservation_count"]
-        labels = {"first_name": "First Name", "last_name": "Last Name"}
+        fields = ["first_name", "last_name", "email", "phone_number", "zipcode"]
 
 
 class ReservationForm(forms.ModelForm):
-    """A Form that contains everything related to a reservation such as rates/routes/trip_types"""
+    """Form for reservation details"""
 
     class Meta:
         model = Reservation
-        fields = ['passenger_count', 'has_children', 'luggage_count', 'carseat_type', 'store_stop', 'special_requests']
-        labels = {
-            "passenger_count": "Number Of Passengers",
-            "has_children": "Children",
-            "carseat_type": "Carseat Type",
-            "luggage_count": "Luggage Count",
-            "carseat_type": "Carseat Choices",
-        }  #! what if need more than 1 carseat? TODO
-    # def clean_passenger_count(self):
-    #     data = self.cleaned_data['passenger_count']
-
-    #     vehicle_capacity = self.initial.get('vehicle').capacity
-    #     if data > vehicle_capacity:
-    #         raise forms.ValidationError(f"Maximum Capacity for this Vehicle is {vehicle_capacity}")
-    #     return data
-
-class FlightForm(forms.ModelForm):
-    class Meta:
-        model = Flight
-        fields = "__all__"
-        exclude = ["date", "time"]
+        fields = [
+            "passenger_count",
+            "luggage_count",
+            "has_children",
+            "carseat_type",
+            "store_stop",
+            "special_requests",
+        ]
 
 
 class LegForm(forms.ModelForm):
+    """Form for trip leg details"""
+
     class Meta:
         model = Leg
-        fields = "__all__"
-        exclude = ["reservation", "flight_information"]
+        fields = ["pickup_date", "pickup_time", "pickup_location", "dropoff_location"]
         widgets = {
-            "pickup_date": forms.DateInput(
-                attrs={"class": "form-control", "type": "date"}
-            ),
-            "pickup_time": forms.TimeInput(
-                attrs={"class": "form-control", "type": "time"}
-            ),
+            "pickup_date": forms.DateInput(attrs={"type": "date"}),
+            "pickup_time": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+
+class FlightForm(forms.ModelForm):
+    """Form for flight information"""
+
+    class Meta:
+        model = Flight
+        fields = ["airline", "flight_number", "date", "time"]
+        widgets = {
+            "date": forms.DateInput(attrs={"type": "date"}),
+            "time": forms.TimeInput(attrs={"type": "time"}),
         }
