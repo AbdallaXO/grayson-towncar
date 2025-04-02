@@ -20,19 +20,7 @@ class ReservationForm(forms.ModelForm):
 
     class Meta:
         model = Reservation
-        exclude = (
-            "base_price",
-            "payment_status",
-            "stripe_payment_id",
-            "status",
-            "additional_charges",
-            "trip_type",
-            "customer",
-            "route",
-            "vehicle",
-            "total_price",
-            "special_requests",
-        )
+        fields = ['passenger_count', 'has_children', 'luggage_count', 'carseat_type', 'store_stop', 'special_requests']
         labels = {
             "passenger_count": "Number Of Passengers",
             "has_children": "Children",
@@ -40,14 +28,13 @@ class ReservationForm(forms.ModelForm):
             "luggage_count": "Luggage Count",
             "carseat_type": "Carseat Choices",
         }  #! what if need more than 1 carseat? TODO
+    def clean_passenger_count(self):
+        data = self.cleaned_data['passenger_count']
 
-    # def __init__(self, *args, **kwargs):
-    #     super().__init__(*args, **kwargs)
-    #     if self.fields['special_requests'] is not None:
-    #         self.fields["special_requests"].widget.attrs.update(
-    #         {"placeholder": "Any Special Requests E.G store stop, surprise for someone"}
-    #         )
-
+        vehicle_capacity = self.initial.get('vehicle').capacity
+        if data > vehicle_capacity:
+            raise forms.ValidationError(f"Maximum Capacity for this Vehicle is {vehicle_capacity}")
+        return data
 
 class FlightForm(forms.ModelForm):
     class Meta:

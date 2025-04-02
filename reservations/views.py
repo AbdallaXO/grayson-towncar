@@ -14,18 +14,21 @@ def reservation_form(request, pk):
     """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
-    reservation_form = ReservationForm()
-    customer_form = CustomerForm()
-    leg_form = LegForm()
-    flight_form = FlightForm()
-    context = {
-        "reservation_form": reservation_form,
-        "customer_form": customer_form,
-        "flight_form": flight_form,
-        "leg_form": leg_form,
-        "trip": rate,
-        "price": price,
-        "trip_type": trip_type,
+    if request.method == 'POST':
+        reservation_form = ReservationForm(request.POST)
+        customer_form = CustomerForm(request.POST)
+        flight_form = FlightForm(request.POST)
+        leg_form = LegForm(request.POST)
+    else:
+
+        context = {
+            "reservation_form": reservation_form,
+            "customer_form": customer_form,
+            "flight_form": flight_form,
+            "leg_form": leg_form,
+            "trip": rate,
+            "price": price,
+            "trip_type": trip_type,
     }
     return render(request, "reservations/book_form.html", context)
 
