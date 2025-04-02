@@ -5,7 +5,7 @@
   <h1>Hello</h1>
   <div class="container">
     <h1>Book Your Trip</h1>
-    <p>Trip Type: {{ trip_type }}</p>
+    <p>Trip Type: {{ trip_type|title }}</p>
     <p>Price: ${{ price }}</p>
     <form method="POST">
       {% csrf_token %}
@@ -13,9 +13,16 @@
       {{ customer_form | crispy }}
       <h3>Reservation Info</h3>
       {{ reservation_form|crispy }}
+      <h3>Route: This Cn be going to or From</h3>
+      <p>{{ route }}</p>
       <h3>Trip Leg(s)</h3>
       {{ flight_form|crispy }}
-      {{ leg_form|crispy }}
+      {{ leg1_form|crispy }}
+
+      {% if leg2_form %}
+        <h3>Return Information</h3>
+        {{ leg2_form|crispy }}
+      {% endif %}
       <button type="submit">Submit Reservation</button>
     </form>
   </div>

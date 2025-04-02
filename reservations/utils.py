@@ -11,7 +11,7 @@ def get_form_details(request, rate):
         trip_type = "one_way"
     elif trip_type == "rt":
         price = rate.round_trip_price
-        trip_type = "Round Trip"
+        trip_type = "round_trip"
     else:
         #! FIX ERROR MESSAGE.
         messages.error(request, f"{trip_type} Is not a Valid URL")

@@ -20,13 +20,20 @@ def reservation_form(request, pk):
     if request.method == "POST":
         customer_form = CustomerForm(request.POST)
         reservation_form = ReservationForm(request.POST)
-        flight_form = FlightForm(request.POST)
-        leg_form = LegForm(request.POST)
-        if (
+        flight1_form = FlightForm(request.POST, prefix='flight1')
+        flight2_form = FlightForm(request.POST, prefix='flight2') if trip_type == 'round_trip' else None
+        leg1_form = LegForm(request.POST, prefix="leg1")
+        leg2_form = (
+            LegForm(request.POST, prefix="leg2") if trip_type == "round_trip" else None
+        )
+        # we validate all forms, and validate leg2 form only  if the trip_type is not = one_way
+        forms_valid = (
             reservation_form.is_valid()
             and customer_form.is_valid()
-            and leg_form.is_valid()
-        ):
+            and leg1_form.is_valid()
+            and (trip_type == "one_way" or leg2_form.is_valid())
+        )
+        if forms_valid:
             customer = customer_form.save()
             reservation = reservation_form.save(commit=False)
             reservation.customer = customer
@@ -37,12 +44,18 @@ def reservation_form(request, pk):
             reservation.base_price = price
             reservation.save()
 
-            flight = flight_form.save()
+            flight1 = flight1_form.save()
 
-            leg = leg_form.save(commit=False)
-            leg.reservation = reservation
-            leg.flight_information = flight
-            leg.save()
+            leg1 = leg1_form.save(commit=False)
+            leg1.reservation = reservation
+            leg1.flight_information = flight1
+            leg1.save()
+            if trip_type == "round_trip":
+                flight2 = flight2_form.save()
+                leg2 = leg2_form.save(commit=False)
+                leg2.reservation = reservation
+                leg2.flight_information = flight2
+                leg2.save()
 
         return redirect("home")
 
@@ -57,12 +70,17 @@ def reservation_form(request, pk):
             }
         )
         flight_form = FlightForm()
-        leg_form = LegForm()
+        leg1_form = LegForm(prefix="leg1")
+        leg2_form = LegForm(prefix="leg2") if trip_type == "round_trip" else None
     context = {
         "customer_form": customer_form,
         "reservation_form": reservation_form,
         "flight_form": flight_form,
-        "leg_form": leg_form,
+        "leg1_form": leg1_form,
+        "leg2_form": leg2_form,
+        "route": rate.route,
+        "price": price,
+        "trip_type": trip_type.replace('_', ' '),
     }
     return render(request, "reservations/book_form.html", context)
 
