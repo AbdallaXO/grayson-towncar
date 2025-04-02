@@ -45,8 +45,5 @@ class FlightForm(forms.ModelForm):
 
     class Meta:
         model = Flight
-        fields = ["airline", "flight_number", "date", "time"]
-        widgets = {
-            "date": forms.DateInput(attrs={"type": "date"}),
-            "time": forms.TimeInput(attrs={"type": "time"}),
-        }
+        fields = ["airline", "flight_number"]
+        

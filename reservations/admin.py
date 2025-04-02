@@ -101,7 +101,6 @@ class FlightAdmin(admin.ModelAdmin):
     Admin panel configuration for the Flight model.
     """
 
-    list_display = ("id", "flight_type", "airline", "flight_number", "date", "time")
+    list_display = ("id", "flight_type", "airline", "flight_number")
     search_fields = ("airline", "flight_number")
-    list_filter = ("flight_type", "date")
-    ordering = ("-date", "-time")
+    list_filter = ("flight_type",)
