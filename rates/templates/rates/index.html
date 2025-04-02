@@ -50,19 +50,23 @@
               {% endfor %}
             </div>
 
-            <div class="alert alert-secondary text-center p-4 mb-5">
-              <h5 class="mb-3">Don't See Your Route Listed?</h5>
-              <p class="mb-3">We accommodate all transportation needs throughout Central Florida.</p>
-              <div class="d-flex justify-content-center align-items-center">
-                <a href="tel:407-123-4567" class="btn btn-outline-primary me-3">
-                  <i class="bi bi-telephone-fill me-2"></i>407-123-4567
-                </a>
-                <a href="mailto:info@graysontowncar.com"
-                   class="btn btn-outline-secondary">
-                  <i class="bi bi-envelope-fill me-2"></i>Contact Us
-                </a>
+              <div class="gtc-container">
+                <div class="gtc-header">
+                  <div class="gtc-icon-circle">&#33;</div>
+                  <h5 class="gtc-title">Don't See Your Route Listed?</h5>
+                </div>
+                <p class="gtc-message">
+                  Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
+                </p>
+                <div class="gtc-actions">
+                  <div class="gtc-action-box">
+                    <span>&#128241 XXX-XXX-XXXX</span>
+                  </div>
+                  <div class="gtc-action-box">
+                    <a href="mailto:info@example.com">&#128236 reservations@graysontowncar.com</a>
+                  </div>
+                </div>
               </div>
-            </div>
 
             <!-- Vehicle Rates -->
             {% for vehicle in vehicles %}
@@ -88,14 +92,14 @@
                               <div class="d-flex align-items-center justify-content-center">
                                 <span class="me-2">$ {{ v.oneway_price }}</span>
                                 <a href="{% url 'reserve' v.id %}?round=ow"
-                                   class="btn btn-sm btn-success">Book Now</a>
+                                   class="btn btn-sm custom-blue-button">Book Now</a>
                               </div>
                             </td>
                             <td class="text-center">
                               <div class="d-flex align-items-center justify-content-center">
                                 <span class="me-2">$ {{ v.round_trip_price }}</span>
                                 <a href="{% url 'reserve' v.id %}?round=rt"
-                                   class="btn btn-sm btn-success">Book Now</a>
+                                   class="btn btn-sm custom-blue-button">Book Now</a>
                               </div>
                             </td>
                           </tr>
@@ -111,30 +115,35 @@
       </div>
     </section>
 
-    <!-- Additional Information -->
-    <section class="container my-5">
-      <div class="card shadow border-0">
-        <div class="card-body p-4">
-          <h4 class="fw-bold mb-3">All Rates Include:</h4>
-          <ul class="list-unstyled">
-            <li class="mb-2">
-              <i class="bi bi-check-circle-fill text-success me-2"></i>Free meet and greet at MCO
-            </li>
-            <li class="mb-2">
-              <i class="bi bi-check-circle-fill text-success me-2"></i>Complimentary car seats and booster seats
-            </li>
-            <li class="mb-2">
-              <i class="bi bi-check-circle-fill text-success me-2"></i>Free 30-minute grocery stop
-            </li>
-            <li class="mb-2">
-              <i class="bi bi-check-circle-fill text-success me-2"></i>All tolls, taxes, and gratuities included
-            </li>
-            <li class="mb-2">
-              <i class="bi bi-check-circle-fill text-success me-2"></i>Professional, licensed and insured drivers
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
+<section class="container my-5">
+  <div class="card shadow border-0">
+    <div class="card-body p-4">
+      <h4 class="fw-bold mb-3 text-center">All Rates Include</h4>
+      <ul class="list-unstyled">
+          <li class="mb-2 d-flex align-items-start">
+            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+            <span class="hover-underline-text">Free meet and greet at MCO</span>
+          </li>
+          <li class="mb-2 d-flex align-items-start">
+            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+            <span class="hover-underline-text">Complimentary car seats and booster seats</span>
+          </li>
+          <li class="mb-2 d-flex align-items-start">
+            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+            <span class="hover-underline-text">Free 30-minute grocery stop</span>
+          </li>
+          <li class="mb-2 d-flex align-items-start">
+            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+            <span class="hover-underline-text">All tolls, taxes, and gratuities included</span>
+          </li>
+          <li class="mb-2 d-flex align-items-start">
+            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+            <span class="hover-underline-text">Professional, licensed and insured drivers</span>
+          </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
   </div>
 {% endblock %}
