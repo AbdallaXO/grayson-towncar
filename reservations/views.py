@@ -112,5 +112,6 @@ def about_us(request):
 def faqs(request):
     return render(request, "reservations/faqs.html")
 
+
 def contact(request):
     return render(request, "reservations/contact_us.html")
