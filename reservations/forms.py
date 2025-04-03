@@ -63,8 +63,9 @@ class ReservationForm(forms.ModelForm):
                 }
             ),
         }
-        help_texts = {'special_requests':"Optional. We’ll do our best to accommodate. "}
-
+        help_texts = {
+            "special_requests": "Optional. We’ll do our best to accommodate. "
+        }
 
 
 class LegForm(forms.ModelForm):
@@ -75,11 +76,20 @@ class LegForm(forms.ModelForm):
         fields = ["pickup_date", "pickup_time", "pickup_location", "dropoff_location"]
         widgets = {
             "pickup_date": forms.DateInput(
-                attrs={"type": "date", "class": "form-control", 'autocomplete':'off'}
+                attrs={"type": "date", "class": "form-control", "autocomplete": "off"}
             ),
-            "pickup_time": forms.TimeInput(attrs={"type": "time", 'class':'form-control', 'autocomplete':'off'}),
-            "pickup_location": forms.TextInput(attrs={"class": "form-control", 'placeholder':'e.g. MCO Airport'}),
-            "dropoff_location": forms.TextInput(attrs={"class": "form-control", 'placeholder':'e.g Disney All Star Music'}),
+            "pickup_time": forms.TimeInput(
+                attrs={"type": "time", "class": "form-control", "autocomplete": "off"}
+            ),
+            "pickup_location": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. MCO Airport"}
+            ),
+            "dropoff_location": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "e.g Disney All Star Music",
+                }
+            ),
         }
 
 
@@ -89,5 +99,7 @@ class FlightForm(forms.ModelForm):
     class Meta:
         model = Flight
         fields = ["airline", "flight_number"]
-        widgets = {'airline':forms.TextInput(attrs={'class':'form-control'}),
-                   'flight_number':forms.TextInput(attrs={'class':'form-control'})}
+        widgets = {
+            "airline": forms.TextInput(attrs={"class": "form-control"}),
+            "flight_number": forms.TextInput(attrs={"class": "form-control"}),
+        }

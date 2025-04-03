@@ -14,6 +14,13 @@
           </div>
         </div>
 
+        {% if form.errors %}
+          <div class="alert alert-danger mb-4">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Please correct the errors below.</strong>
+          </div>
+        {% endif %}
+
         <form method="POST" class="needs-validation" novalidate>
           {% csrf_token %}
 
@@ -29,22 +36,47 @@
                 <div class="col-md-6">
                   {{ customer_form.first_name.label_tag }}
                   {{ customer_form.first_name }}
+                  {% if customer_form.first_name.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in customer_form.first_name.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ customer_form.last_name.label_tag }}
                   {{ customer_form.last_name }}
+                  {% if customer_form.last_name.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in customer_form.last_name.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ customer_form.email.label_tag }}
                   {{ customer_form.email }}
+                  {% if customer_form.email.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in customer_form.email.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ customer_form.phone_number.label_tag }}
                   {{ customer_form.phone_number }}
+                  {% if customer_form.phone_number.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in customer_form.phone_number.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ customer_form.zipcode.label_tag }}
                   {{ customer_form.zipcode }}
+                  {% if customer_form.zipcode.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in customer_form.zipcode.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
               </div>
             </div>
@@ -62,25 +94,50 @@
                 <div class="col-md-4">
                   {{ reservation_form.passenger_count.label_tag }}
                   {{ reservation_form.passenger_count }}
+                  {% if reservation_form.passenger_count.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-4">
                   {{ reservation_form.luggage_count.label_tag }}
                   {{ reservation_form.luggage_count }}
+                  {% if reservation_form.luggage_count.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-4">
                   <div class="form-check mt-4">
                     {{ reservation_form.has_children }}
                     {{ reservation_form.has_children.label_tag }}
+                    {% if reservation_form.has_children.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.has_children.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                 </div>
                 <div class="col-md-6">
                   {{ reservation_form.carseat_type.label_tag }}
                   {{ reservation_form.carseat_type }}
+                  {% if reservation_form.carseat_type.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.carseat_type.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   <div class="form-check mt-4">
                     {{ reservation_form.store_stop }}
                     {{ reservation_form.store_stop.label_tag }}
+                    {% if reservation_form.store_stop.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                 </div>
               </div>
@@ -136,10 +193,20 @@
                         <div class="col-md-6">
                           {{ flight1_form.airline.label_tag }}
                           {{ flight1_form.airline }}
+                          {% if flight1_form.airline.errors %}
+                            <div class="invalid-feedback d-block">
+                              {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
                         </div>
                         <div class="col-md-6">
                           {{ flight1_form.flight_number.label_tag }}
                           {{ flight1_form.flight_number }}
+                          {% if flight1_form.flight_number.errors %}
+                            <div class="invalid-feedback d-block">
+                              {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
                         </div>
                       </div>
                     </div>
@@ -153,18 +220,38 @@
                 <div class="col-md-6">
                   {{ leg1_form.pickup_date.label_tag }}
                   {{ leg1_form.pickup_date }}
+                  {% if leg1_form.pickup_date.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ leg1_form.pickup_time.label_tag }}
                   {{ leg1_form.pickup_time }}
+                  {% if leg1_form.pickup_time.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg1_form.pickup_time.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ leg1_form.pickup_location.label_tag }}
                   {{ leg1_form.pickup_location }}
+                  {% if leg1_form.pickup_location.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="col-md-6">
                   {{ leg1_form.dropoff_location.label_tag }}
                   {{ leg1_form.dropoff_location }}
+                  {% if leg1_form.dropoff_location.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
               </div>
             </div>
@@ -203,10 +290,20 @@
                           <div class="col-md-6">
                             {{ flight2_form.airline.label_tag }}
                             {{ flight2_form.airline }}
+                            {% if flight2_form.airline.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
                           </div>
                           <div class="col-md-6">
                             {{ flight2_form.flight_number.label_tag }}
                             {{ flight2_form.flight_number }}
+                            {% if flight2_form.flight_number.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
                           </div>
                         </div>
                       </div>
@@ -220,18 +317,38 @@
                   <div class="col-md-6">
                     {{ leg2_form.pickup_date.label_tag }}
                     {{ leg2_form.pickup_date }}
+                    {% if leg2_form.pickup_date.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                   <div class="col-md-6">
                     {{ leg2_form.pickup_time.label_tag }}
                     {{ leg2_form.pickup_time }}
+                    {% if leg2_form.pickup_time.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg2_form.pickup_time.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                   <div class="col-md-6">
                     {{ leg2_form.pickup_location.label_tag }}
                     {{ leg2_form.pickup_location }}
+                    {% if leg2_form.pickup_location.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                   <div class="col-md-6">
                     {{ leg2_form.dropoff_location.label_tag }}
                     {{ leg2_form.dropoff_location }}
+                    {% if leg2_form.dropoff_location.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
                 </div>
               </div>
@@ -248,9 +365,28 @@
             <div class="card-body">
               {{ reservation_form.special_requests.label_tag }}
               {{ reservation_form.special_requests }}
+              {% if reservation_form.special_requests.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
               <small class="text-muted">Optional. We'll do our best to accommodate.</small>
             </div>
           </div>
+
+          <!-- Non-field errors -->
+          {% if form.non_field_errors %}
+            <div class="card shadow-sm mb-4 border-danger">
+              <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                  <i class="bi bi-exclamation-circle me-2"></i>Form Errors
+                </h4>
+              </div>
+              <div class="card-body">
+                {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
+              </div>
+            </div>
+          {% endif %}
 
           <!-- Price Information Card -->
           <div class="card shadow-sm mb-4 border-success">
@@ -264,7 +400,7 @@
                 <div class="col-md-6">
                   <h4 class="text-success mb-0">${{ price }}</h4>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                   <p class="text-muted mb-0">
                     <i class="bi bi-info-circle me-1"></i>Price includes all fees & taxes.
                     Driver gratuity recommended in cash or can be added to your credit card.
