@@ -5,3 +5,5 @@ django-import-export
 crispy-bootstrap5
 django-crispy-forms
 django-debug-toolbar
+dotenv
+stripe
