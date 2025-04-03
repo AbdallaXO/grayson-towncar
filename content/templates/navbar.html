@@ -36,6 +36,9 @@
         <li class="nav-item">
           <a class="nav-link" href="{% url 'blog-list' %}">Blog</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'contact' %}">Contact Us</a>
+        </li>
         {% if request.user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="{% url 'logout' %}">Log out</a>
