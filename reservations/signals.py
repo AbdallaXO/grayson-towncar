@@ -4,6 +4,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 import logging
 from reservations.models import Reservation
+from .email import send_reservation_confirmation
+
 
 logger = logging.getLogger(__name__)  # Get a logger instance
 
@@ -14,12 +16,7 @@ def reservationCreated(sender, instance, created, **kwargs):
     message = f"Hello {reservation.customer.first_name} Thank you for Choosing Grayson Towncar!"
     if created:
         try:
-            send_mail(
-                subject,
-                message,
-                'info@graysontowncar.com',
-                [reservation.customer.email],
-            )
+            send_reservation_confirmation(instance)
             logger.info(f"Email sent successfully to {reservation.customer.email}")
         except Exception as e:
             logger.error(f"Error sending email to {reservation.customer.email}: {e}")

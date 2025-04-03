@@ -1,0 +1,9 @@
+Hi {{ name }},
+
+Your reservation is confirmed!
+
+Reservation ID: {{ reservation_id }}
+Reservation Type: {{ type }}
+Date Reservation Was Made: {{ date }}
+
+Thank you for choosing Grayson Towncar.
