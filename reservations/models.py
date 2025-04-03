@@ -1,6 +1,6 @@
 from django.db import models
 from .constants import CARSEAT_CHOICES, FLIGHT_TYPE_CHOICES, TRIP_CHOICES
-
+from django.db.models.signals import post_save
 
 class Customer(models.Model):
     """
@@ -117,3 +117,6 @@ class Flight(models.Model):
         and flight number for quick reference.
         """
         return f"{self.get_flight_type_display()} - {self.airline} {self.flight_number}"
+
+
+

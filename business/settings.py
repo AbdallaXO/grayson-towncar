@@ -55,7 +55,7 @@ THIRD_PARTY_APPS = [
 ]
 OUR_APPS = [
     "rates",
-    "reservations",
+    'reservations.apps.ReservationsConfig',
     "users",
     "services",
     "blog",
@@ -140,7 +140,13 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
-
+DEBUG = os.getenv('DJANGO_DEBUG', '0') == '1'
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 STATIC_URL = "static/"
 MEDIA_URL = "/media/"
