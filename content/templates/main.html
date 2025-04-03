@@ -10,18 +10,73 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
     <link href="{% static 'css/styles.css' %}" rel="stylesheet" />
     <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+    <style>
+      .notification-wrapper {
+        position: fixed;
+        top: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 9999;
+        width: auto;
+      }
+      .notification {
+        background-color: white;
+        color: #212529;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-radius: 4px;
+        padding: 12px 24px;
+        width: 350px;
+        text-align: center;
+        font-size: 16px;
+        opacity: 1;
+        transition: opacity 0.3s ease;
+      }
+      .notification.success {
+        border-left: 4px solid #28a745;
+      }
+      .notification.danger {
+        border-left: 4px solid #dc3545;
+      }
+      .notification.warning {
+        border-left: 4px solid #ffc107;
+      }
+      .notification.info {
+        border-left: 4px solid #17a2b8;
+      }
+    </style>
   </head>
   <body>
     {% include 'navbar.html' %}
+    
     {% if messages %}
-      <div class="mb-4">
-        {% for message in messages %}
-          <div class="alert alert-{{ message.extra_tags }}">{{ message }}</div>
-        {% endfor %}
+    <div class="notification-wrapper">
+      {% for message in messages %}
+      <div class="notification {{ message.extra_tags }}">
+        {{ message }}
       </div>
+      {% endfor %}
+    </div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          const notifications = document.querySelectorAll('.notification');
+          notifications.forEach(function(notification) {
+            notification.style.opacity = '0';
+          });
+          
+          // Remove from DOM after transition completes
+          setTimeout(function() {
+            const wrapper = document.querySelector('.notification-wrapper');
+            if (wrapper) {
+              wrapper.remove();
+            }
+          }, 300);
+        }, 1000);
+      });
+    </script>
     {% endif %}
+    
     {% block content %}
-
     {% endblock %}
 
     {% block newsletter %}
