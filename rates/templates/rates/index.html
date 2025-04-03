@@ -7,12 +7,6 @@
       <div class="container px-4 px-lg-5 my-5">
         <div class="row gx-4 gx-lg-5 justify-content-center">
           <div class="col-12 col-lg-10">
-            {% if messages %}
-              <div class="mb-4">
-                {% for message in messages %}<div class="alert alert-{{ message.tags }}">{{ message }}</div>{% endfor %}
-              </div>
-            {% endif %}
-
             <div class="text-center mb-5">
               <h2 class="fw-bolder">Our Vehicle Options</h2>
               <p class="lead fw-normal text-muted">Choose the perfect vehicle for your Orlando transportation needs</p>
@@ -24,9 +18,7 @@
                 <div class="col mb-4">
                   <div class="card shadow border-0 h-100">
                     <div class="card-img-container position-relative">
-                      <img class="card-img-top p-3"
-                           src="{{ vehicle.image.url }}"
-                           alt="{{ vehicle.get_vehicle_type_display }}" />
+                      <img class="card-img-top p-3" src="{{ vehicle.image.url }}" alt="{{ vehicle.get_vehicle_type_display }}" />
                     </div>
                     <div class="card-body text-center">
                       <h5 class="card-title fw-bold mb-3">{{ vehicle.get_vehicle_type_display }}</h5>
@@ -53,30 +45,22 @@
             <div class="card shadow border-0 mb-5">
               <div class="card-body p-4">
                 <div class="d-flex flex-column flex-md-row align-items-center mb-3">
-                  <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 mb-3 mb-md-0"
-                       style="width: 40px;
+                  <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 mb-3 mb-md-0" style="width: 40px;
                               height: 40px">
                     <i class="bi bi-exclamation-lg"></i>
                   </div>
                   <h5 class="fw-bold mb-0">Don't See Your Route Listed?</h5>
                 </div>
-                <p class="mb-4">
-                  Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
-                </p>
+                <p class="mb-4">Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.</p>
                 <div class="row g-3">
                   <div class="col-12 col-md-6">
                     <div class="d-grid">
-                      <a href="tel:XXX-XXX-XXXX" class="btn btn-outline-secondary py-2">
-                        <i class="bi bi-telephone me-2"></i> XXX-XXX-XXXX
-                      </a>
+                      <a href="tel:XXX-XXX-XXXX" class="btn btn-outline-secondary py-2"><i class="bi bi-telephone me-2"></i> XXX-XXX-XXXX</a>
                     </div>
                   </div>
                   <div class="col-12 col-md-6">
                     <div class="d-grid">
-                      <a href="mailto:reservations@graysontowncar.com"
-                         class="btn btn-outline-secondary py-2">
-                        <i class="bi bi-envelope me-2"></i> reservations@graysontowncar.com
-                      </a>
+                      <a href="mailto:reservations@graysontowncar.com" class="btn btn-outline-secondary py-2"><i class="bi bi-envelope me-2"></i> reservations@graysontowncar.com</a>
                     </div>
                   </div>
                 </div>
@@ -110,15 +94,13 @@
                                     <td class="text-center">
                                       <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
                                         <span class="fw-medium">$ {{ v.oneway_price }}</span>
-                                        <a href="{% url 'reserve' v.id %}?round=ow"
-                                           class="btn btn-sm custom-blue-button">Book Now</a>
+                                        <a href="{% url 'reserve' v.id %}?round=ow" class="btn btn-sm custom-blue-button">Book Now</a>
                                       </div>
                                     </td>
                                     <td class="text-center">
                                       <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
                                         <span class="fw-medium">$ {{ v.round_trip_price }}</span>
-                                        <a href="{% url 'reserve' v.id %}?round=rt"
-                                           class="btn btn-sm custom-blue-button">Book Now</a>
+                                        <a href="{% url 'reserve' v.id %}?round=rt" class="btn btn-sm custom-blue-button">Book Now</a>
                                       </div>
                                     </td>
                                   </tr>
@@ -163,7 +145,6 @@
                 </div>
               </div>
             </section>
-
           </div>
         </div>
       </div>

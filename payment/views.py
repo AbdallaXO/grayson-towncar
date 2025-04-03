@@ -1,9 +1,9 @@
 from django.shortcuts import render
-import stripe
 from django.conf import settings
 from django.shortcuts import get_object_or_404, redirect
 from reservations.models import Reservation
 from django.urls import reverse
+import stripe
 
 stripe.api_key = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
 
@@ -22,7 +22,7 @@ def create_checkout_session(request, reservation_id):
                     "currency": "usd",
                     "unit_amount": int(reservation.total_price * 100),
                     "product_data": {
-                        "name": f"{reservation.vehicle} {reservation.trip_type} Reservation",
+                        "name": f"{reservation.vehicle} {reservation.trip_type.replace('_', ' ').title()} Reservation",
                         "description": f" Route: {reservation.route}",
                     },
                 },
