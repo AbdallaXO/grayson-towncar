@@ -59,5 +59,5 @@ def logoutUser(request):
     messages.success(request, "You Have Been Logged Out!")
     return redirect("login")
 
-def member(request):
-    return render(request, "users/become_member.html")
+def partner(request):
+    return render(request, "users/become_partner.html")
