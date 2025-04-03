@@ -4,9 +4,9 @@
 {% block content %}
   <div class="py-5">
     <section class="py-5 bg-light">
-      <div class="container px-5 my-5">
-        <div class="row gx-5 justify-content-center">
-          <div class="col-lg-10">
+      <div class="container px-4 px-lg-5 my-5">
+        <div class="row gx-4 gx-lg-5 justify-content-center">
+          <div class="col-12 col-lg-10">
             {% if messages %}
               <div class="mb-4">
                 {% for message in messages %}<div class="alert alert-{{ message.tags }}">{{ message }}</div>{% endfor %}
@@ -19,9 +19,9 @@
             </div>
 
             <!-- Vehicle Options -->
-            <div class="row gx-4 mb-5">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-5">
               {% for vehicle in vehicles %}
-                <div class="col-md-3 mb-4">
+                <div class="col mb-4">
                   <div class="card shadow border-0 h-100">
                     <div class="card-img-container position-relative">
                       <img class="card-img-top p-3"
@@ -50,27 +50,42 @@
               {% endfor %}
             </div>
 
-              <div class="gtc-container">
-                <div class="gtc-header">
-                  <div class="gtc-icon-circle">&#33;</div>
-                  <h5 class="gtc-title">Don't See Your Route Listed?</h5>
+            <div class="card shadow border-0 mb-5">
+              <div class="card-body p-4">
+                <div class="d-flex flex-column flex-md-row align-items-center mb-3">
+                  <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 mb-3 mb-md-0"
+                       style="width: 40px;
+                              height: 40px">
+                    <i class="bi bi-exclamation-lg"></i>
+                  </div>
+                  <h5 class="fw-bold mb-0">Don't See Your Route Listed?</h5>
                 </div>
-                <p class="gtc-message">
+                <p class="mb-4">
                   Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
                 </p>
-                <div class="gtc-actions">
-                  <div class="gtc-action-box">
-                    <span>&#128241 XXX-XXX-XXXX</span>
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <div class="d-grid">
+                      <a href="tel:XXX-XXX-XXXX" class="btn btn-outline-secondary py-2">
+                        <i class="bi bi-telephone me-2"></i> XXX-XXX-XXXX
+                      </a>
+                    </div>
                   </div>
-                  <div class="gtc-action-box">
-                    <a href="mailto:info@example.com">&#128236 reservations@graysontowncar.com</a>
+                  <div class="col-12 col-md-6">
+                    <div class="d-grid">
+                      <a href="mailto:reservations@graysontowncar.com"
+                         class="btn btn-outline-secondary py-2">
+                        <i class="bi bi-envelope me-2"></i> reservations@graysontowncar.com
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
 
             <!-- Vehicle Rates Section -->
-            <section class="py-5">
-              <div class="container">
+            <section class="py-4">
+              <div class="container p-0">
                 <div class="row">
                   <div class="col-12">
                     {% for vehicle in vehicles %}
@@ -91,17 +106,17 @@
                               <tbody>
                                 {% for v in vehicle.rates.all %}
                                   <tr>
-                                    <td>{{ v.route }}</td>
+                                    <td class="align-middle">{{ v.route }}</td>
                                     <td class="text-center">
-                                      <div class="d-flex align-items-center justify-content-center flex-column flex-sm-row">
-                                        <span class="me-sm-2 mb-1 mb-sm-0">$ {{ v.oneway_price }}</span>
+                                      <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
+                                        <span class="fw-medium">$ {{ v.oneway_price }}</span>
                                         <a href="{% url 'reserve' v.id %}?round=ow"
                                            class="btn btn-sm custom-blue-button">Book Now</a>
                                       </div>
                                     </td>
                                     <td class="text-center">
-                                      <div class="d-flex align-items-center justify-content-center flex-column flex-sm-row">
-                                        <span class="me-sm-2 mb-1 mb-sm-0">$ {{ v.round_trip_price }}</span>
+                                      <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
+                                        <span class="fw-medium">$ {{ v.round_trip_price }}</span>
                                         <a href="{% url 'reserve' v.id %}?round=rt"
                                            class="btn btn-sm custom-blue-button">Book Now</a>
                                       </div>
@@ -119,35 +134,39 @@
               </div>
             </section>
 
-<section class="container my-5">
-  <div class="card shadow border-0">
-    <div class="card-body p-4">
-      <h4 class="fw-bold mb-3 text-center">All Rates Include</h4>
-      <ul class="list-unstyled">
-          <li class="mb-2 d-flex align-items-start">
-            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
-            <span class="hover-underline-text">Free meet and greet at MCO</span>
-          </li>
-          <li class="mb-2 d-flex align-items-start">
-            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
-            <span class="hover-underline-text">Complimentary car seats and booster seats</span>
-          </li>
-          <li class="mb-2 d-flex align-items-start">
-            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
-            <span class="hover-underline-text">Free 30-minute grocery stop</span>
-          </li>
-          <li class="mb-2 d-flex align-items-start">
-            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
-            <span class="hover-underline-text">All tolls, taxes, and gratuities included</span>
-          </li>
-          <li class="mb-2 d-flex align-items-start">
-            <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
-            <span class="hover-underline-text">Professional, licensed and insured drivers</span>
-          </li>
-      </ul>
-    </div>
-  </div>
-</section>
+            <section class="container my-5 p-0">
+              <div class="card shadow border-0">
+                <div class="card-body p-4">
+                  <h4 class="fw-bold mb-3 text-center">All Rates Include</h4>
+                  <ul class="list-unstyled">
+                    <li class="mb-2 d-flex align-items-start">
+                      <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                      <span class="hover-underline-text">Free meet and greet at MCO</span>
+                    </li>
+                    <li class="mb-2 d-flex align-items-start">
+                      <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                      <span class="hover-underline-text">Complimentary car seats and booster seats</span>
+                    </li>
+                    <li class="mb-2 d-flex align-items-start">
+                      <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                      <span class="hover-underline-text">Free 30-minute grocery stop</span>
+                    </li>
+                    <li class="mb-2 d-flex align-items-start">
+                      <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                      <span class="hover-underline-text">All tolls, taxes, and gratuities included</span>
+                    </li>
+                    <li class="mb-2 d-flex align-items-start">
+                      <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                      <span class="hover-underline-text">Professional, licensed and insured drivers</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </section>
 
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 {% endblock %}
