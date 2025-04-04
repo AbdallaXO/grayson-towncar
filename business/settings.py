@@ -178,4 +178,11 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 CSRF_TRUSTED_ORIGINS = [
     'https://grayson-towncar-production.up.railway.app/',
+    'http://grayson-towncar-production.up.railway.app/',
+    'https://*.up.railway.app/',
+    'http://*.up.railway.app/',
+    'https://*.railway.app/',
+    'http://*.railway.app/',
+    'https://*.app/',
+    'http://*.app/',
 ]
