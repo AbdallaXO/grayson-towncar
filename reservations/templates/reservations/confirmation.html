@@ -1,22 +1,186 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grayson Towncar Reservation Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #d9d9d9;
+        }
+
+        .header img {
+            max-width: 200px;
+            height: auto;
+        }
+
+        .content {
+            padding: 20px 0;
+        }
+
+        .reservation-details {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .leg {
+            border-left: 3px solid #486581;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 2px solid #d9d9d9;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: #486581;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        h2 {
+            color: #486581;
+        }
+
+        .contact {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+  </head>
   <body>
-    <h2>Thanks, {{ name }}!</h2>
-    <p>Your ride is confirmed ✅</p>
-    <ul>
-      <li>
-        <strong>Reservation ID:</strong> {{ reservation_id }}
-      </li>
-      <li>
-        <strong>Pickup:</strong> {{ pickup }}
-      </li>
-      <li>
-        <strong>Dropoff:</strong> {{ dropoff }}
-      </li>
-      <li>
-        <strong>Date:</strong> {{ date }}
-      </li>
-    </ul>
-    <p>We’ll see you soon!</p>
+    <div class="container">
+      <div class="header">
+        <img src="/api/placeholder/200/80" alt="Grayson Towncar Logo" />
+        <h1>Reservation Confirmation</h1>
+      </div>
+
+      <div class="content">
+        <p>Dear {{ first_name }},</p>
+
+        <p>
+          Thank you for choosing Grayson Towncar for your transportation needs. Your reservation has been confirmed and the details are provided below:
+        </p>
+
+        <div class="reservation-details">
+          <h2>Reservation Details</h2>
+          <p>
+            <strong>Confirmation #:</strong> {{ reservation_id }}
+          </p>
+          <p>
+            <strong>Passenger Name:</strong> {{ full_name }}
+          </p>
+          <p>
+            <strong>Booking Date:</strong> {{ date|date:"F j, Y" }}
+          </p>
+          <p>
+            <strong>Trip Type:</strong> {{ type }}
+          </p>
+
+          <h3>Trip Itinerary</h3>
+          {% for leg in legs %}
+            <div class="leg">
+              <p>
+                <strong>Leg {{ forloop.counter }}:</strong>
+              </p>
+              <p>
+                <strong>Date:</strong> {{ leg.pickup_date|date:"F j, Y" }}
+              </p>
+              <p>
+                <strong>Pickup Time:</strong> {{ leg.pickup_time|time:"g:i A" }}
+              </p>
+              <p>
+                <strong>Pickup Location:</strong> {{ leg.pickup_location }}
+              </p>
+              <p>
+                <strong>Destination:</strong> {{ leg.dropoff_location }}
+              </p>
+              {% if leg.flight_info %}
+                <p>
+                  <strong>Flight Info:</strong> {{ leg.flight_info }}
+                </p>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+
+        <p>Your chauffeur will be there at the scheduled time to provide you with excellent service.</p>
+
+        {% for leg in legs %}
+          {% if "airport" in leg.pickup_location|lower %}
+            <div class="airport-instructions">
+              <h3>Airport Pickup Information</h3>
+              <p>
+                <strong>Our airport service includes:</strong>
+              </p>
+              <ul style="list-style-type: none; padding-left: 0;">
+                <li>✓ Flight tracking for any delays or early arrivals</li>
+                <li>✓ Driver will meet you inside at the baggage claim area</li>
+                <li>✓ Text message notification when your plane lands</li>
+                <li>✓ Assistance with your luggage from baggage claim to the car</li>
+              </ul>
+              <p>
+                <strong>Important:</strong> If your flight number changes, please contact us immediately at (407) 494-1043.
+              </p>
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {% comment %} <p>To manage your reservation, please click the button below:</p>
+        <div style="text-align: center;">
+          <a href="https://graysontowncar.com/my-reservations/{{ reservation_id }}" class="button">Manage Reservation</a>
+        </div> {% endcomment %}
+
+        <div class="contact">
+          <h3>Need assistance?</h3>
+          <p>Contact our customer service team at:</p>
+          <p>Email: reservations@graysontowncar.com</p>
+          <p>Phone: (407) 494-1043</p>
+          <p>
+            Website: <a href="https://www.graysontowncar.com">www.graysontowncar.com</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p>Thank you for choosing Grayson Towncar.</p>
+        <p>©Grayson Towncar. All rights reserved.</p>
+        <p>1234 Main Street, Suite 500, Anytown, CA 12345</p>
+        <p>
+          <small>You can reply directly to this email if you have any questions or need to make changes to your reservation.</small>
+        </p>
+      </div>
+    </div>
   </body>
 </html>
