@@ -1,521 +1,758 @@
 {% extends "main.html" %}
 {% load static %}
 {% block content %}
-  <section class="py-2 bg-light">
-    <div class="container px-4 py-2">
-      <!-- Modern Hero Section with Gradient -->
-      <div class="rounded-4 p-5 mb-3 text-center bg-gradient"
-           style="background: linear-gradient(135deg, #4158D0, #C850C0)">
-        <div class="py-5">
-          <h1 class="display-4 fw-bold text-dark mb-2">Frequently Asked Questions</h1>
-          <p class="lead text-dark mb-2 mx-auto" style="max-width: 700px;">
-            Everything you need to know about our luxury family transportation services in Orlando
-          </p>
+    <section class="py-2 bg-light">
+      <div class="container px-4 py-2">
+        <!-- Modern Hero Section with Gradient -->
+        <div class="rounded-4 p-5 mb-3 text-center bg-gradient"
+             style="background: linear-gradient(135deg, #4158D0, #C850C0)">
+          <div class="py-5">
+            <h1 class="display-4 fw-bold text-dark mb-2">Frequently Asked Questions</h1>
+            <p class="lead text-dark mb-2 mx-auto" style="max-width: 700px;">
+              Everything you need to know about our luxury family transportation services in Orlando
+            </p>
+          </div>
         </div>
-      </div>
-      <!-- FAQ Nav Pills -->
-      <ul class="nav nav-pills mb-5 justify-content-center gap-2"
-          id="faqTab"
-          role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active px-4 py-2"
-                  id="transportation-tab"
-                  data-bs-toggle="pill"
-                  data-bs-target="#transportation"
-                  type="button"
-                  role="tab"
-                  aria-selected="true">
-            <i class="bi bi-luggage-fill me-2"></i>Transportation
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link px-4 py-2"
-                  id="policies-tab"
-                  data-bs-toggle="pill"
-                  data-bs-target="#policies"
-                  type="button"
-                  role="tab"
-                  aria-selected="false">
-            <i class="bi bi-clipboard-check me-2"></i>Policies
-          </button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link px-4 py-2"
-                  id="vehicles-tab"
-                  data-bs-toggle="pill"
-                  data-bs-target="#vehicles"
-                  type="button"
-                  role="tab"
-                  aria-selected="false">
-            <i class="bi bi-car-front-fill me-2"></i>Vehicles
-          </button>
-        </li>
-      </ul>
-      <div class="row gx-5">
-        <div class="col-xl-8">
-          <!-- Tab Content -->
-          <div class="tab-content" id="faqTabContent">
-            <!-- Transportation Tab -->
-            <div class="tab-pane fade show active"
-                 id="transportation"
-                 role="tabpanel"
-                 aria-labelledby="transportation-tab">
-              <div class="d-flex align-items-center mb-4">
-                <span class="display-6 text-primary me-3"><i class="bi bi-luggage-fill"></i></span>
-                <h2 class="fw-bold mb-0">Airport & Transportation Services</h2>
+        <!-- FAQ Nav Pills -->
+        <ul class="nav nav-pills mb-5 justify-content-center gap-2"
+            id="faqTab"
+            role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active px-4 py-2"
+                    id="transportation-tab"
+                    data-bs-toggle="pill"
+                    data-bs-target="#transportation"
+                    type="button"
+                    role="tab"
+                    aria-selected="true">
+              <i class="bi bi-luggage-fill me-2"></i>Transportation
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link px-4 py-2"
+                    id="policies-tab"
+                    data-bs-toggle="pill"
+                    data-bs-target="#policies"
+                    type="button"
+                    role="tab"
+                    aria-selected="false">
+              <i class="bi bi-clipboard-check me-2"></i>Policies
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link px-4 py-2"
+                    id="vehicles-tab"
+                    data-bs-toggle="pill"
+                    data-bs-target="#vehicles"
+                    type="button"
+                    role="tab"
+                    aria-selected="false">
+              <i class="bi bi-car-front-fill me-2"></i>Vehicles
+            </button>
+          </li>
+        </ul>
+        <div class="row gx-5">
+          <div class="col-xl-8">
+            <!-- Tab Content -->
+            <div class="tab-content" id="faqTabContent">
+              <!-- Transportation Tab -->
+              <div class="tab-pane fade show active"
+                   id="transportation"
+                   role="tabpanel"
+                   aria-labelledby="transportation-tab">
+                <div class="d-flex align-items-center mb-4">
+                  <span class="display-6 text-primary me-3"><i class="bi bi-luggage-fill"></i></span>
+                  <h2 class="fw-bold mb-0">Airport & Transportation Services</h2>
+                </div>
+                <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
+                     id="accordionTransportation">
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingAirportPickup">
+                      <button class="accordion-button rounded-top-4"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseAirportPickup"
+                              aria-expanded="true"
+                              aria-controls="collapseAirportPickup">
+                        <i class="bi bi-person-check me-3 text-primary"></i>How does the Orlando airport pickup process work?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse show"
+                         id="collapseAirportPickup"
+                         aria-labelledby="headingAirportPickup"
+                         data-bs-parent="#accordionTransportation">
+                      <div class="accordion-body">
+                        <div class="card border-0 bg-light mb-3">
+                          <div class="card-body">
+                            <p class="card-text">Our premium Orlando airport transfer service includes:</p>
+                          </div>
+                        </div>
+                        <div class="row g-4 mb-3">
+                          <div class="col-md-6">
+                            <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
+                              <div class="d-flex mb-2">
+                                <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">1</span>
+                                <h5 class="fw-bold">Meet & Greet Service</h5>
+                              </div>
+                              <p class="text-muted mb-0">Your driver will meet you at baggage claim holding a sign with your name.</p>
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
+                              <div class="d-flex mb-2">
+                                <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">2</span>
+                                <h5 class="fw-bold">Direct Communication</h5>
+                              </div>
+                              <p class="text-muted mb-0">Your driver will contact you upon your arrival.</p>
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
+                              <div class="d-flex mb-2">
+                                <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">3</span>
+                                <h5 class="fw-bold">Flight Tracking</h5>
+                              </div>
+                              <p class="text-muted mb-0">We monitor your flight for any delays or early arrivals.</p>
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
+                              <div class="d-flex mb-2">
+                                <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">4</span>
+                                <h5 class="fw-bold">No Extra Waiting Fees</h5>
+                              </div>
+                              <p class="text-muted mb-0">
+                                If your flight is delayed, we'll adjust your pickup time accordingly at no additional cost.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <p>Our luxury family transportation ensures a stress-free start to your Orlando vacation.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingAirportDeparture">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseAirportDeparture"
+                              aria-expanded="false"
+                              aria-controls="collapseAirportDeparture">
+                        <i class="bi bi-clock-history me-3 text-primary"></i>When should I schedule my airport departure pickup?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseAirportDeparture"
+                         aria-labelledby="headingAirportDeparture"
+                         data-bs-parent="#accordionTransportation">
+                      <div class="accordion-body">
+                        <p>For a seamless Orlando airport transfer experience, we recommend scheduling your pickup:</p>
+                        <div class="row g-3 mb-3">
+                          <div class="col-md-6">
+                            <div class="card h-100 border-primary-subtle">
+                              <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                  <span class="fs-3 me-3 text-primary"><i class="bi bi-airplane"></i></span>
+                                  <h5 class="card-title fw-bold mb-0">Domestic Flights</h5>
+                                </div>
+                                <p class="card-text">2.5 hours before your scheduled departure time</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="col-md-6">
+                            <div class="card h-100 border-primary-subtle">
+                              <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                  <span class="fs-3 me-3 text-primary"><i class="bi bi-globe"></i></span>
+                                  <h5 class="card-title fw-bold mb-0">International Flights</h5>
+                                </div>
+                                <p class="card-text">3 hours before your scheduled departure time</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <p class="mb-0">
+                          Our luxury transportation service ensures you'll arrive with plenty of time for check-in and security procedures.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Other transportation accordion items - simplified for brevity -->
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingDisney">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseDisney"
+                              aria-expanded="false"
+                              aria-controls="collapseDisney">
+                        <i class="bi bi-stars me-3 text-primary"></i>Do you provide transportation to Disney parks and resorts?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseDisney"
+                         aria-labelledby="headingDisney"
+                         data-bs-parent="#accordionTransportation">
+                      <div class="accordion-body">
+                        <p>
+                          Yes, we specialize in Disney resort and theme park transportation!</strong> Our family-friendly rides are perfect for getting to and from all Disney properties in Orlando. We offer flexible scheduling to accommodate park opening and closing times, allowing you to maximize your Disney experience without transportation worries.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingCruise">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseCruise"
+                              aria-expanded="false"
+                              aria-controls="collapseCruise">
+                        <i class="bi bi-water me-3 text-primary"></i>How does your cruise port shuttle service work?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseCruise"
+                         aria-labelledby="headingCruise"
+                         data-bs-parent="#accordionTransportation">
+                      <div class="accordion-body">
+                        <p>
+                          Our Port Canaveral shuttle service provides luxury transportation</strong> between Orlando and your cruise ship. We'll pick you up from your Orlando hotel or the airport and transport you directly to the cruise terminal. For returning cruises, we'll meet you at the port and take you to your Orlando destination. All services include luggage handling and comfortable, spacious vehicles perfect for families.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
-                   id="accordionTransportation">
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingAirportPickup">
-                    <button class="accordion-button rounded-top-4"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseAirportPickup"
-                            aria-expanded="true"
-                            aria-controls="collapseAirportPickup">
-                      <i class="bi bi-person-check me-3 text-primary"></i>How does the Orlando airport pickup process work?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse show"
-                       id="collapseAirportPickup"
-                       aria-labelledby="headingAirportPickup"
-                       data-bs-parent="#accordionTransportation">
-                    <div class="accordion-body">
-                      <div class="card border-0 bg-light mb-3">
-                        <div class="card-body">
-                          <p class="card-text">Our premium Orlando airport transfer service includes:</p>
+              <!-- Policies Tab -->
+              <div class="tab-pane fade"
+                   id="policies"
+                   role="tabpanel"
+                   aria-labelledby="policies-tab">
+                <div class="d-flex align-items-center mb-4">
+                  <span class="display-6 text-primary me-3"><i class="bi bi-clipboard-check"></i></span>
+                  <h2 class="fw-bold mb-0">Policies & Requirements</h2>
+                </div>
+                <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
+                     id="accordionPolicies">
+                  <!-- Booking policy -->
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingBooking">
+                      <button class="accordion-button rounded-top-4"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseBooking"
+                              aria-expanded="true"
+                              aria-controls="collapseBooking">
+                        <i class="bi bi-calendar-check me-3 text-primary"></i>How do I book my reservation?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse show"
+                         id="collapseBooking"
+                         aria-labelledby="headingBooking"
+                         data-bs-parent="#accordionPolicies">
+                      <div class="accordion-body">
+                        <div class="card border-0 bg-light mb-3">
+                          <div class="card-body">
+                            <p>
+                              <strong>Booking your luxury Orlando transportation is simple.</strong> You can book online through our secure reservation system or call us at <strong>(XXX) XXX-XXXX</strong>. We're available 24/7 to assist with your transportation needs.
+                            </p>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-3">
+                              <a href="#" class="btn btn-primary px-4 py-2"><i class="bi bi-car-front me-2"></i>Book Online Now</a>
+                              <a href="tel:+1XXXXXXXXX" class="btn btn-outline-primary px-4 py-2"><i class="bi bi-telephone me-2"></i>Call to Book</a>
+                            </div>
+                          </div>
+                        </div>
+                        <p class="mb-0">
+                          When booking, please provide your flight details (for airport transfers), number of passengers, luggage information, and whether you require car seats.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Other policy items - simplified for brevity -->
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingCancellation">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseCancellation"
+                              aria-expanded="false"
+                              aria-controls="collapseCancellation">
+                        <i class="bi bi-x-circle me-3 text-primary"></i>What is your cancellation policy?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseCancellation"
+                         aria-labelledby="headingCancellation"
+                         data-bs-parent="#accordionPolicies">
+                      <div class="accordion-body">
+                        <p>
+                          <strong>Our cancellation policy for Orlando airport transfers and other services:</strong>
+                        </p>
+                        <div class="table-responsive">
+                          <table class="table table-striped">
+                            <thead class="table-light">
+                              <tr>
+                                <th>Timeframe</th>
+                                <th>Refund</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td>48+ hours notice</td>
+                                <td>
+                                  <span class="badge bg-success">Full refund</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>24-48 hours notice</td>
+                                <td>
+                                  <span class="badge bg-warning text-dark">50% refund</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Less than 24 hours</td>
+                                <td>
+                                  <span class="badge bg-danger">No refund</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td>Airline cancellations</td>
+                                <td>
+                                  <span class="badge bg-info">Exceptions made</span>
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <p class="fst-italic mb-0">Please contact us as soon as possible if your plans change.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- More policy items would follow... simplified for brevity -->
+                </div>
+              </div>
+              <!-- Vehicles Tab -->
+              <div class="tab-pane fade"
+                   id="vehicles"
+                   role="tabpanel"
+                   aria-labelledby="vehicles-tab">
+                <div class="d-flex align-items-center mb-4">
+                  <span class="display-6 text-primary me-3"><i class="bi bi-car-front-fill"></i></span>
+                  <h2 class="fw-bold mb-0">Vehicles & Services</h2>
+                </div>
+                <div class="p-4 mb-4 bg-light rounded-4">
+                  <div class="row align-items-center">
+                    <div class="col-lg-6 mb-4 mb-lg-0">
+                      <h4 class="fw-bold mb-3">Our Luxury Fleet</h4>
+                      <p>
+                        Experience Orlando in comfort and style with our meticulously maintained, late-model fleet. All vehicles are fully licensed and insured for your safety.
+                      </p>
+                      <a href="{% url 'rates' %}" class="btn btn-primary">View Our Fleet</a>
+                    </div>
+                    <div class="col-lg-6">
+                      <div class="row g-4">
+                        <div class="col-6">
+                          <img src="{% static 'images/towncar.png' %}"
+                               class="img-fluid rounded-4 shadow-sm"
+                               alt="Towncar " />
+                        </div>
+                        <div class="col-6">
+                          <img src="{% static 'images/suburban.png' %}"
+                               class="img-fluid rounded-4 shadow-sm"
+                               alt="SUV" />
+                        </div>
+                        <div class="col-6">
+                          <img src="{% static 'images/van.png' %}"
+                               class="img-fluid rounded-4 shadow-sm"
+                               alt="Passenger Van" />
+                        </div>
+                        <div class="col-6">
+                          <img src="{% static 'images/minivan.png' %}"
+                               class="img-fluid rounded-4 shadow-sm"
+                               alt="Minibus" />
                         </div>
                       </div>
-                      <div class="row g-4 mb-3">
-                        <div class="col-md-6">
-                          <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">1</span>
-                              <h5 class="fw-bold">Meet & Greet Service</h5>
+                    </div>
+                  </div>
+                </div>
+                <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
+                     id="accordionVehicles">
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingVehicleTypes">
+                      <button class="accordion-button rounded-top-4"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseVehicleTypes"
+                              aria-expanded="true"
+                              aria-controls="collapseVehicleTypes">
+                        <i class="bi bi-car-front-fill me-3 text-primary"></i>What types of vehicles do you offer?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse show"
+                         id="collapseVehicleTypes"
+                         aria-labelledby="headingVehicleTypes"
+                         data-bs-parent="#accordionVehicles">
+                      <div class="accordion-body">
+                        <p>
+                          <strong>Our luxury transportation fleet includes:</strong>
+                        </p>
+                        <div class="row g-4">
+                          <div class="col-md-4">
+                            <div class="card h-100 text-center">
+                              <div class="card-body">
+                                <div class="py-3 mb-3 text-primary">
+                                  <i class="bi bi-1-circle-fill display-4"></i>
+                                </div>
+                                <h5 class="card-title fw-bold">Towncars</h5>
+                                <ul class="list-unstyled">
+                                  <li>1-4 passengers</li>
+                                  <li>Moderate luggage</li>
+                                  <li>Premium comfort</li>
+                                </ul>
+                              </div>
                             </div>
-                            <p class="text-muted mb-0">Your driver will meet you at baggage claim holding a sign with your name.</p>
+                          </div>
+                          <div class="col-md-4">
+                            <div class="card h-100 text-center">
+                              <div class="card-body">
+                                <div class="py-3 mb-3 text-primary">
+                                  <i class="bi bi-2-circle-fill display-4"></i>
+                                </div>
+                                <h5 class="card-title fw-bold">Luxury SUVs</h5>
+                                <ul class="list-unstyled">
+                                  <li>4-6 passengers</li>
+                                  <li>Ample luggage space</li>
+                                  <li>Extra legroom</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="col-md-4">
+                            <div class="card h-100 text-center">
+                              <div class="card-body">
+                                <div class="py-3 mb-3 text-primary">
+                                  <i class="bi bi-3-circle-fill display-4"></i>
+                                </div>
+                                <h5 class="card-title fw-bold">Passenger Vans</h5>
+                                <ul class="list-unstyled">
+                                  <li>Up to 10 passengers</li>
+                                  <li>Extensive luggage space</li>
+                                  <li>Perfect for groups</li>
+                                </ul>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div class="col-md-6">
-                          <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">2</span>
-                              <h5 class="fw-bold">Direct Communication</h5>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Child Car Seats Question -->
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingCarSeats">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseCarSeats"
+                              aria-expanded="false"
+                              aria-controls="collapseCarSeats">
+                        <i class="bi bi-emoji-smile me-3 text-primary"></i>Are your vehicles equipped with car seats or booster seats for children?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseCarSeats"
+                         aria-labelledby="headingCarSeats"
+                         data-bs-parent="#accordionVehicles">
+                      <div class="accordion-body">
+                        <div class="card border-0 bg-light mb-3">
+                          <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                              <span class="fs-4 me-3 text-primary"><i class="bi bi-check-circle-fill"></i></span>
+                              <h5 class="fw-bold mb-0">Child Safety Is Our Priority</h5>
                             </div>
-                            <p class="text-muted mb-0">Your driver will contact you upon your arrival.</p>
-                          </div>
-                        </div>
-                        <div class="col-md-6">
-                          <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">3</span>
-                              <h5 class="fw-bold">Flight Tracking</h5>
-                            </div>
-                            <p class="text-muted mb-0">We monitor your flight for any delays or early arrivals.</p>
-                          </div>
-                        </div>
-                        <div class="col-md-6">
-                          <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">4</span>
-                              <h5 class="fw-bold">No Extra Waiting Fees</h5>
-                            </div>
-                            <p class="text-muted mb-0">
-                              If your flight is delayed, we'll adjust your pickup time accordingly at no additional cost.
+                            <p>
+                              Yes, we provide complimentary car seats and booster seats for children of all ages. Our car seats are <strong>included in the price</strong> of your transportation service at no additional cost, ensuring both convenience and safety for your family travel.
                             </p>
                           </div>
                         </div>
-                      </div>
-                      <p>Our luxury family transportation ensures a stress-free start to your Orlando vacation.</p>
-                    </div>
-                  </div>
-                </div>
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingAirportDeparture">
-                    <button class="accordion-button collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseAirportDeparture"
-                            aria-expanded="false"
-                            aria-controls="collapseAirportDeparture">
-                      <i class="bi bi-clock-history me-3 text-primary"></i>When should I schedule my airport departure pickup?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse"
-                       id="collapseAirportDeparture"
-                       aria-labelledby="headingAirportDeparture"
-                       data-bs-parent="#accordionTransportation">
-                    <div class="accordion-body">
-                      <p>For a seamless Orlando airport transfer experience, we recommend scheduling your pickup:</p>
-                      <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                          <div class="card h-100 border-primary-subtle">
-                            <div class="card-body">
-                              <div class="d-flex align-items-center mb-2">
-                                <span class="fs-3 me-3 text-primary"><i class="bi bi-airplane"></i></span>
-                                <h5 class="card-title fw-bold mb-0">Domestic Flights</h5>
-                              </div>
-                              <p class="card-text">2.5 hours before your scheduled departure time</p>
+                        <div class="row g-3">
+                          <div class="col-md-6">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
+                              <h6 class="fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>Infant Seats</h6>
+                              <p class="text-muted mb-0 small">Rear-facing seats suitable for babies weighing 5-22 pounds</p>
                             </div>
                           </div>
-                        </div>
-                        <div class="col-md-6">
-                          <div class="card h-100 border-primary-subtle">
-                            <div class="card-body">
-                              <div class="d-flex align-items-center mb-2">
-                                <span class="fs-3 me-3 text-primary"><i class="bi bi-globe"></i></span>
-                                <h5 class="card-title fw-bold mb-0">International Flights</h5>
-                              </div>
-                              <p class="card-text">3 hours before your scheduled departure time</p>
+                          <div class="col-md-6">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
+                              <h6 class="fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>Convertible Seats</h6>
+                              <p class="text-muted mb-0 small">For toddlers weighing 20-65 pounds</p>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                      <p class="mb-0">
-                        Our luxury transportation service ensures you'll arrive with plenty of time for check-in and security procedures.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <!-- Other transportation accordion items - simplified for brevity -->
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingDisney">
-                    <button class="accordion-button collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseDisney"
-                            aria-expanded="false"
-                            aria-controls="collapseDisney">
-                      <i class="bi bi-stars me-3 text-primary"></i>Do you provide transportation to Disney parks and resorts?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse"
-                       id="collapseDisney"
-                       aria-labelledby="headingDisney"
-                       data-bs-parent="#accordionTransportation">
-                    <div class="accordion-body">
-                      <p>
-                        Yes, we specialize in Disney resort and theme park transportation!</strong> Our family-friendly rides are perfect for getting to and from all Disney properties in Orlando. We offer flexible scheduling to accommodate park opening and closing times, allowing you to maximize your Disney experience without transportation worries.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingCruise">
-                    <button class="accordion-button collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseCruise"
-                            aria-expanded="false"
-                            aria-controls="collapseCruise">
-                      <i class="bi bi-water me-3 text-primary"></i>How does your cruise port shuttle service work?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse"
-                       id="collapseCruise"
-                       aria-labelledby="headingCruise"
-                       data-bs-parent="#accordionTransportation">
-                    <div class="accordion-body">
-                      <p>
-                        Our Port Canaveral shuttle service provides luxury transportation</strong> between Orlando and your cruise ship. We'll pick you up from your Orlando hotel or the airport and transport you directly to the cruise terminal. For returning cruises, we'll meet you at the port and take you to your Orlando destination. All services include luggage handling and comfortable, spacious vehicles perfect for families.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- Policies Tab -->
-            <div class="tab-pane fade"
-                 id="policies"
-                 role="tabpanel"
-                 aria-labelledby="policies-tab">
-              <div class="d-flex align-items-center mb-4">
-                <span class="display-6 text-primary me-3"><i class="bi bi-clipboard-check"></i></span>
-                <h2 class="fw-bold mb-0">Policies & Requirements</h2>
-              </div>
-              <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
-                   id="accordionPolicies">
-                <!-- Booking policy -->
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingBooking">
-                    <button class="accordion-button rounded-top-4"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseBooking"
-                            aria-expanded="true"
-                            aria-controls="collapseBooking">
-                      <i class="bi bi-calendar-check me-3 text-primary"></i>How do I book my reservation?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse show"
-                       id="collapseBooking"
-                       aria-labelledby="headingBooking"
-                       data-bs-parent="#accordionPolicies">
-                    <div class="accordion-body">
-                      <div class="card border-0 bg-light mb-3">
-                        <div class="card-body">
-                          <p>
-                            <strong>Booking your luxury Orlando transportation is simple.</strong> You can book online through our secure reservation system or call us at <strong>(XXX) XXX-XXXX</strong>. We're available 24/7 to assist with your transportation needs.
-                          </p>
-                          <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-3">
-                            <a href="{% url "rates" %}" class="btn btn-primary px-4 py-2"><i class="bi bi-car-front me-2"></i>Book Online Now</a>
-                            <a href="tel:+1XXXXXXXXX" class="btn btn-outline-primary px-4 py-2"><i class="bi bi-telephone me-2"></i>Call to Book</a>
-                          </div>
-                        </div>
-                      </div>
-                      <p class="mb-0">
-                        When booking, please provide your flight details (for airport transfers), number of passengers, luggage information, and whether you require car seats.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <!-- Other policy items - simplified for brevity -->
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingCancellation">
-                    <button class="accordion-button collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseCancellation"
-                            aria-expanded="false"
-                            aria-controls="collapseCancellation">
-                      <i class="bi bi-x-circle me-3 text-primary"></i>What is your cancellation policy?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse"
-                       id="collapseCancellation"
-                       aria-labelledby="headingCancellation"
-                       data-bs-parent="#accordionPolicies">
-                    <div class="accordion-body">
-                      <p>
-                        <strong>Our cancellation policy for Orlando airport transfers and other services:</strong>
-                      </p>
-                      <div class="table-responsive">
-                        <table class="table table-striped">
-                          <thead class="table-light">
-                            <tr>
-                              <th>Timeframe</th>
-                              <th>Refund</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td>48+ hours notice</td>
-                              <td>
-                                <span class="badge bg-success">Full refund</span>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>24-48 hours notice</td>
-                              <td>
-                                <span class="badge bg-warning text-dark">50% refund</span>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>Less than 24 hours</td>
-                              <td>
-                                <span class="badge bg-danger">No refund</span>
-                              </td>
-                            </tr>
-                            <tr>
-                              <td>Airline cancellations</td>
-                              <td>
-                                <span class="badge bg-info">Exceptions made</span>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                      <p class="fst-italic mb-0">Please contact us as soon as possible if your plans change.</p>
-                    </div>
-                  </div>
-                </div>
-                <!-- More policy items would follow... simplified for brevity -->
-              </div>
-            </div>
-            <!-- Vehicles Tab -->
-            <div class="tab-pane fade"
-                 id="vehicles"
-                 role="tabpanel"
-                 aria-labelledby="vehicles-tab">
-              <div class="d-flex align-items-center mb-4">
-                <span class="display-6 text-primary me-3"><i class="bi bi-car-front-fill"></i></span>
-                <h2 class="fw-bold mb-0">Vehicles & Services</h2>
-              </div>
-              <div class="p-4 mb-4 bg-light rounded-4">
-                <div class="row align-items-center">
-                  <div class="col-lg-6 mb-4 mb-lg-0">
-                    <h4 class="fw-bold mb-3">Our Luxury Fleet</h4>
-                    <p>
-                      Experience Orlando in comfort and style with our meticulously maintained, late-model fleet. All vehicles are fully licensed and insured for your safety.
-                    </p>
-                    <a href="{% url 'rates' %}" class="btn btn-primary">View Our Fleet</a>
-                  </div>
-                  <div class="col-lg-6">
-                    <div class="row g-4">
-                      <div class="col-6">
-                        <img src="{% static 'images/towncar.png' %}"
-                             class="img-fluid rounded-4 shadow-sm"
-                             alt="Towncar " />
-                      </div>
-                      <div class="col-6">
-                        <img src="{% static 'images/suburban.png' %}"
-                             class="img-fluid rounded-4 shadow-sm"
-                             alt="SUV" />
-                      </div>
-                      <div class="col-6">
-                        <img src="{% static 'images/van.png' %}"
-                             class="img-fluid rounded-4 shadow-sm"
-                             alt="Passenger Van" />
-                      </div>
-                      <div class="col-6">
-                        <img src="{% static 'images/minivan.png' %}"
-                             class="img-fluid rounded-4 shadow-sm"
-                             alt="Minibus" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
-                   id="accordionVehicles">
-                <div class="accordion-item">
-                  <h3 class="accordion-header" id="headingVehicleTypes">
-                    <button class="accordion-button rounded-top-4"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#collapseVehicleTypes"
-                            aria-expanded="true"
-                            aria-controls="collapseVehicleTypes">
-                      <i class="bi bi-car-front-fill me-3 text-primary"></i>What types of vehicles do you offer?
-                    </button>
-                  </h3>
-                  <div class="accordion-collapse collapse show"
-                       id="collapseVehicleTypes"
-                       aria-labelledby="headingVehicleTypes"
-                       data-bs-parent="#accordionVehicles">
-                    <div class="accordion-body">
-                      <p>
-                        <strong>Our luxury transportation fleet includes:</strong>
-                      </p>
-                      <div class="row g-4">
-                        <div class="col-md-4">
-                          <div class="card h-100 text-center">
-                            <div class="card-body">
-                              <div class="py-3 mb-3 text-primary">
-                                <i class="bi bi-1-circle-fill display-4"></i>
-                              </div>
-                              <h5 class="card-title fw-bold">Towncars</h5>
-                              <ul class="list-unstyled">
-                                <li>1-4 passengers</li>
-                                <li>Moderate luggage</li>
-                                <li>Premium comfort</li>
-                              </ul>
+                          <div class="col-md-6">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
+                              <h6 class="fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>Booster Seats</h6>
+                              <p class="text-muted mb-0 small">For children 4+ years old, 40-100 pounds</p>
                             </div>
                           </div>
-                        </div>
-                        <div class="col-md-4">
-                          <div class="card h-100 text-center">
-                            <div class="card-body">
-                              <div class="py-3 mb-3 text-primary">
-                                <i class="bi bi-2-circle-fill display-4"></i>
-                              </div>
-                              <h5 class="card-title fw-bold">Luxury SUVs</h5>
-                              <ul class="list-unstyled">
-                                <li>4-6 passengers</li>
-                                <li>Ample luggage space</li>
-                                <li>Extra legroom</li>
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                        <div class="col-md-4">
-                          <div class="card h-100 text-center">
-                            <div class="card-body">
-                              <div class="py-3 mb-3 text-primary">
-                                <i class="bi bi-3-circle-fill display-4"></i>
-                              </div>
-                              <h5 class="card-title fw-bold">Passenger Vans</h5>
-                              <ul class="list-unstyled">
-                                <li>Up to 10 passengers</li>
-                                <li>Extensive luggage space</li>
-                                <li>Perfect for groups</li>
-                              </ul>
+                          <div class="col-md-6">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
+                              <h6 class="fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>Professional Installation</h6>
+                              <p class="text-muted mb-0 small">Our drivers are trained in proper car seat installation</p>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <!-- Other vehicle items - simplified for brevity -->
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-xl-4">
-          <!-- Contact Card -->
-          <div class="card border-0 rounded-4 shadow-sm mb-4"
-               style="top: 2rem;
-                      z-index: 1">
-            <div class="card-body p-4 p-xl-5">
-              <div class="text-center mb-4">
-                <span class="icon-circle bg-primary-subtle text-primary mb-3"><i class="bi bi-headset display-6"></i></span>
-                <h4 class="fw-bold">Need Help?</h4>
-                <p class="text-muted">Our team is here to answer all your questions</p>
-              </div>
-              <div class="d-grid gap-3 mb-4">
-                <a href="tel:+1XXXXXXXXX" class="btn btn-primary py-3"><i class="bi bi-telephone me-2"></i>Call Us</a>
-                <a href="mailto:info@graysontowncar.com"
-                   class="btn btn-outline-primary py-3"><i class="bi bi-envelope me-2"></i>Email Support</a>
-              </div>
-              <hr class="my-4" />
-              <div class="text-center">
-                <h5 class="fw-bold mb-3">Follow us for updates</h5>
-                <div class="d-flex justify-content-center gap-3">
-                  <a href="#" class="social-icon bg-primary-subtle text-primary"><i class="bi bi-facebook"></i></a>
-                  <a href="https://www.instagram.com/graysontowncar/"
-                     class="social-icon bg-primary-subtle text-primary"
-                     target='_blank'><i class="bi bi-instagram"></i></a>
-                  <a href="#" class="social-icon bg-primary-subtle text-primary"><i class="bi bi-twitter"></i></a>
-                  <a href="#" class="social-icon bg-primary-subtle text-primary"><i class="bi bi-linkedin"></i></a>
+                  <!-- Choose Right Vehicle Question -->
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingChooseVehicle">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseChooseVehicle"
+                              aria-expanded="false"
+                              aria-controls="collapseChooseVehicle">
+                        <i class="bi bi-question-circle me-3 text-primary"></i>How do I choose the right vehicle for my trip?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseChooseVehicle"
+                         aria-labelledby="headingChooseVehicle"
+                         data-bs-parent="#accordionVehicles">
+                      <div class="accordion-body">
+                        <p>
+                          When booking, you'll see vehicle options based on your party size and luggage. Our online reservation system will automatically recommend the most suitable vehicle options for your specific needs.
+                        </p>
+                        <div class="card border-0 bg-light p-3 mb-3">
+                          <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                              <span class="fs-4 me-3 text-primary"><i class="bi bi-lightbulb-fill"></i></span>
+                              <h5 class="fw-bold mb-0">We're Here to Help</h5>
+                            </div>
+                            <p class="mb-0">
+                              Not sure which vehicle is right for you? Our team is always available to provide personalized recommendations based on your group size, luggage amount, and special requirements. Just give us a call or send us a message!
+                            </p>
+                          </div>
+                        </div>
+                        <div class="row g-3">
+                          <div class="col-md-4">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm text-center">
+                              <div class="py-2 mb-2 text-primary">
+                                <i class="bi bi-people fs-3"></i>
+                              </div>
+                              <h6 class="fw-bold">Consider Group Size</h6>
+                              <p class="text-muted small mb-0">Total number of passengers including children</p>
+                            </div>
+                          </div>
+                          <div class="col-md-4">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm text-center">
+                              <div class="py-2 mb-2 text-primary">
+                                <i class="bi bi-luggage fs-3"></i>
+                              </div>
+                              <h6 class="fw-bold">Luggage Amount</h6>
+                              <p class="text-muted small mb-0">Number and size of bags, strollers, etc.</p>
+                            </div>
+                          </div>
+                          <div class="col-md-4">
+                            <div class="h-100 p-3 bg-white rounded-4 shadow-sm text-center">
+                              <div class="py-2 mb-2 text-primary">
+                                <i class="bi bi-clock fs-3"></i>
+                              </div>
+                              <h6 class="fw-bold">Trip Duration</h6>
+                              <p class="text-muted small mb-0">Longer rides may benefit from more space</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Fleet Pictures Question -->
+                  <div class="accordion-item">
+                    <h3 class="accordion-header" id="headingFleetPictures">
+                      <button class="accordion-button collapsed"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseFleetPictures"
+                              aria-expanded="false"
+                              aria-controls="collapseFleetPictures">
+                        <i class="bi bi-camera me-3 text-primary"></i>Can I see pictures of the fleet?
+                      </button>
+                    </h3>
+                    <div class="accordion-collapse collapse"
+                         id="collapseFleetPictures"
+                         aria-labelledby="headingFleetPictures"
+                         data-bs-parent="#accordionVehicles">
+                      <div class="accordion-body">
+                        <div class="card mb-4 border-0 shadow-sm">
+                          <div class="card-body">
+                            <div class="row align-items-center">
+                              <div class="col-md-7">
+                                <h5 class="fw-bold mb-3">View Our Luxury Fleet</h5>
+                                <p>
+                                  Our <a href="{% url 'rates' %}" class="text-decoration-none">Reservations page</a> features professional photos of our vehicle types, giving you a clear view of what to expect for your Grayson Towncar transportation experience.
+                                </p>
+                                <div class="d-grid gap-2 d-md-block">
+                                </div>
+                              </div>
+                              <div class="col-md-5 mt-3 mt-md-0">
+                                <img src="{% static 'images/towncar.png' %}" class="img-fluid rounded-4" alt="Luxury Town Car">
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div class="card bg-light border-0">
+                          <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                              <span class="fs-5 me-3 text-primary"><i class="bi bi-instagram"></i></span>
+                              <h5 class="fw-bold mb-0">Follow Us For Real-Life Photos</h5>
+                            </div>
+                            <p>
+                              For more candid and real-life photos of our vehicles in action around Orlando, follow us on our social media channels! We regularly post pictures of our fleet at popular destinations and behind-the-scenes content.
+                            </p>
+                            <div class="d-flex gap-3 mt-3">
+                              <a href="https://www.facebook.com/profile.php?id=61574468855996" target="_blank" class="btn btn-outline-primary">
+                                <i class="bi bi-facebook me-2"></i>Facebook
+                              </a>
+                              <a href="https://www.instagram.com/graysontowncar" target="_blank" class="btn btn-outline-primary">
+                                <i class="bi bi-instagram me-2"></i>Instagram
+                              </a>
+                              <a href="https://x.com/GraysonTowncar" target="_blank" class="btn btn-outline-primary">
+                                <i class="bi bi-twitter me-2"></i>Twitter
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          <!-- Quick Links Card -->
-          <div class="card border-0 rounded-4 shadow-sm mt-5">
-            <div class="card-body p-4">
-              <h5 class="fw-bold mb-3">Quick Links</h5>
-              <div class="list-group list-group-flush">
-                <a href="{% url 'rates' %}"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-calendar-check me-3 text-primary"></i>Make a Reservation</a>
-                <a href="#"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-calculator me-3 text-primary"></i>Get a Price Quote</a>
-                <a href="{% url 'services' %}#service-areas"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-map me-3 text-primary"></i>Service Areas</a>
-                <a href="#"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-award me-3 text-primary"></i>About Our Company (Link Later)</a>
-                <a href="#"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-star me-3 text-primary"></i>Customer Reviews</a>
+          <div class="col-xl-4">
+            <!-- Contact Card -->
+            <div class="card border-0 rounded-4 shadow-sm mb-4"
+                 style="top: 2rem;
+                        z-index: 1">
+              <div class="card-body p-4 p-xl-5">
+                <div class="text-center mb-4">
+                  <span class="icon-circle bg-primary-subtle text-primary mb-3"><i class="bi bi-headset display-6"></i></span>
+                  <h4 class="fw-bold">Need Help?</h4>
+                  <p class="text-muted">Our team is here to answer all your questions</p>
+                </div>
+                <div class="d-grid gap-3 mb-4">
+              <!-- Call Us Button with Accordion -->
+                  <div class="accordion accordion-flush" id="callUsAccordion">
+                    <div class="accordion-item">
+                      <button class="btn btn-primary py-3 w-100" 
+                              type="button" 
+                              data-bs-toggle="collapse" 
+                              data-bs-target="#collapsePhone" 
+                              aria-expanded="false" 
+                              aria-controls="collapsePhone">
+                        <i class="bi bi-telephone me-2"></i>Call Us
+                      </button>
+                      <div id="collapsePhone" class="accordion-collapse collapse mt-2" data-bs-parent="#callUsAccordion">
+                        <div class="card">
+                          <div class="card-body text-center">
+                            <p class="mb-0"><strong>(XXX) XXX-XXXX</strong></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Email Support Button with Accordion -->
+                  <div class="accordion accordion-flush" id="emailAccordion">
+                    <div class="accordion-item">
+                      <button class="btn email-support-btn py-3 w-100" 
+                              type="button" 
+                              data-bs-toggle="collapse" 
+                              data-bs-target="#collapseEmail" 
+                              aria-expanded="false" 
+                              aria-controls="collapseEmail">
+                        <i class="bi bi-envelope me-2"></i>Email Support
+                      </button>
+                      <div id="collapseEmail" class="accordion-collapse collapse mt-2" data-bs-parent="#emailAccordion">
+                        <div class="card">
+                          <div class="card-body text-center">
+                            <p class="mb-0"><strong>info@graysontowncar.com</strong></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <hr class="my-4" />
+                <div class="text-center">
+                  <h5 class="fw-bold mb-3">Follow us for updates</h5>
+                  <div class="d-flex justify-content-center gap-3">
+                    <a href="https://www.facebook.com/profile.php?id=61574468855996" target="_blank" class="social-icon bg-primary-subtle text-primary"><i class="bi bi-facebook"></i></a>
+                    <a href="https://www.instagram.com/graysontowncar" target="_blank" class="social-icon bg-primary-subtle text-primary"><i class="bi bi-instagram"></i></a>
+                    <a href="https://x.com/GraysonTowncar" target="_blank" class="social-icon bg-primary-subtle text-primary"><i class="bi bi-twitter"></i></a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Quick Links Card -->
+            <div class="card border-0 rounded-4 shadow-sm mt-5">
+              <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Quick Actions</h5>
+                <div class="list-group list-group-flush">
+                  <a href="{% url 'rates' %}"
+                     class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-calendar-check me-3 text-primary"></i>Make a Reservation</a>
+                  <a href={% url 'contact' %}
+                     class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-calculator me-3 text-primary"></i>Get a Price Quote</a>
+                  <a href={% url 'services' %}
+                     class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-map me-3 text-primary"></i>Service Areas</a>
+                  <a href={% url 'about-us' %}
+                     class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-award me-3 text-primary"></i>About Us</a>
+                  <a href="#"
+                     class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-star me-3 text-primary"></i>Customer Reviews</a>
+                  <a href={% url 'partner' %}
+                     class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-people me-3 text-primary"></i>Become a Partner</a>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
-  <!-- CSS for additional styling -->
-  <style>
-      :root {
-          --bs-primary: #4158d0;
-          --bs-primary-rgb: 65, 88, 208;
-          --bs-primary-dark: #2a3d9d;
-      }
+    </section>
+    <!-- CSS for additional styling -->
+    <style>
+        :root {
+            --bs-primary: #4158d0;
+            --bs-primary-rgb: 65, 88, 208;
+            --bs-primary-dark: #2a3d9d;
+        }
 
-      .bg-primary-subtle {
-          background-color: rgba(var(--bs-primary-rgb), 0.1) !important;
-      }
+        .email-support-btn {
+            color: #fff;
+            background-color: var(--bs-primary);
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 400;
+            text-align: center;
+            vertical-align: middle;
+            user-select: none;
+            transition: background-color 0.15s ease-in-out;
+        }
+        
+        .email-support-btn:hover, 
+        .email-support-btn:focus, 
+        .email-support-btn:active {
+            color: #fff !important;
+            background-color: var(--bs-primary-dark) !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        .bg-primary-subtle {
+            background-color: rgba(var(--bs-primary-rgb), 0.1) !important;
+        }
 
       .border-primary-subtle {
           border: 1px solid rgba(var(--bs-primary-rgb), 0.3) !important;

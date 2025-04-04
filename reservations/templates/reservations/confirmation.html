@@ -82,12 +82,12 @@
   <body>
     <div class="container">
       <div class="header">
-        <img src="/api/placeholder/200/80" alt="Grayson Towncar Logo" />
+        <img src="https://dummyjson.com/image/50" alt="Grayson Towncar Logo" />
         <h1>Reservation Confirmation</h1>
       </div>
 
       <div class="content">
-        <p>Dear {{ first_name }},</p>
+        <p>Dear {{ reservation.customer.first_name }},</p>
 
         <p>
           Thank you for choosing Grayson Towncar for your transportation needs. Your reservation has been confirmed and the details are provided below:
@@ -96,16 +96,16 @@
         <div class="reservation-details">
           <h2>Reservation Details</h2>
           <p>
-            <strong>Confirmation #:</strong> {{ reservation_id }}
+            <strong>Reservation #:</strong> {{ reservation.id }}
           </p>
           <p>
-            <strong>Passenger Name:</strong> {{ full_name }}
+            <strong>Passenger Name:</strong> {{ reservation.customer.get_full_name }}
           </p>
           <p>
             <strong>Booking Date:</strong> {{ date|date:"F j, Y" }}
           </p>
           <p>
-            <strong>Trip Type:</strong> {{ type }}
+            <strong>Trip Type:</strong> {{ reservation.get_trip_type_display }}
           </p>
 
           <h3>Trip Itinerary</h3>
