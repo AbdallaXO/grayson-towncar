@@ -70,7 +70,7 @@ def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpRespons
                     leg2.flight_information = None
                 leg2.save()
 
-            return redirect("checkout_session", reservation_id=reservation.id)
+            return redirect("create_checkout_session", reservation_id=reservation.id)
 
     else:
         customer_form = CustomerForm()

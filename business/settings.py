@@ -33,6 +33,7 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
+ALLOWED_HOSTS = ['127.0.0.1', 'grayson-towncar-production.up.railway.app']
 ALLOWED_HOSTS = ['grayson-towncar-production.up.railway.app', 'localhost', '127.0.0.1']
 
 
@@ -67,6 +68,7 @@ INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware", 
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -140,6 +142,8 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 
 STATIC_URL = "static/"
 MEDIA_URL = "/media/"
@@ -178,4 +182,11 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 
 CSRF_TRUSTED_ORIGINS = [
     'https://grayson-towncar-production.up.railway.app/',
+    'http://grayson-towncar-production.up.railway.app/',
+    'https://*.up.railway.app/',
+    'http://*.up.railway.app/',
+    'https://*.railway.app/',
+    'http://*.railway.app/',
+    'https://*.app/',
+    'http://*.app/',
 ]
