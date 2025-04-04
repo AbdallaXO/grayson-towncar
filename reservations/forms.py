@@ -3,6 +3,7 @@
 from django import forms
 from .models import Reservation, Customer, Leg, Flight
 from .constants import CARSEAT_CHOICES, TRIP_CHOICES
+from django.utils.timezone import now
 
 
 class CustomerForm(forms.ModelForm):
@@ -91,6 +92,11 @@ class LegForm(forms.ModelForm):
                 }
             ),
         }
+    def clean_pickup_time(self):
+        pickup_time = self.cleaned_data.get('pickup_time')
+        if pickup_time < now:
+            raise forms.ValidationError('Pick up time cannot be now or in the past.')
+        return pickup_time
 
 
 class FlightForm(forms.ModelForm):

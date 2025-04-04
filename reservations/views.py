@@ -1,11 +1,8 @@
 from django.http.response import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
-
-
 from django.shortcuts import render, get_object_or_404
 from rates.models import Vehicle, Rate
 from .forms import ReservationForm, CustomerForm, LegForm, FlightForm
 from .utils import *
-from django.forms import inlineformset_factory
 from .models import Reservation, Leg, Customer
 
 
@@ -78,6 +75,7 @@ def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpRespons
     else:
         customer_form = CustomerForm()
         reservation_form = ReservationForm(
+            rate,
             initial={
                 "vehicle": rate.vehicle,
                 "base_price": price,
@@ -91,7 +89,6 @@ def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpRespons
         flight2_form = (
             FlightForm(prefix="flight2") if trip_type == "round_trip" else None
         )
-
         leg2_form = LegForm(prefix="leg2") if trip_type == "round_trip" else None
 
     context = {
