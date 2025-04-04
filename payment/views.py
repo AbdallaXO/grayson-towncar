@@ -10,31 +10,77 @@ from django.http import JsonResponse
 stripe.api_key = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
 
 def create_checkout_session(request, reservation_id):
-    # Retrieve the specific reservation
     reservation = get_object_or_404(Reservation, pk=reservation_id)
     customer = reservation.customer
+
     if not customer.stripe_customer_id:
         stripe_customer = stripe.Customer.create(
             email=customer.email,
-            metadata={'reservation_id':reservation.id},
+            metadata={'reservation': reservation.id},
         )
         customer.stripe_customer_id = stripe_customer.id
         customer.save()
     else:
         stripe_customer = stripe.Customer.retrieve(customer.stripe_customer_id)
-        
-    setup_intent = stripe.SetupIntent.create(
-        customer=stripe_customer.id,
-        automatic_payment_methods={'enabled':True},
+    setup_intent = stripe.SetupIntent(
+        customer = stripe_customer.id
     )
-    return JsonResponse({'client_secret': setup_intent.client_secret})
 
-    
-        
-def save_card_page(request, reservation_id):
-    return render(request, "save_card.html", {"reservation_id": reservation_id})
-    
+    print(f"Stripe Customer : {stripe_customer}")
 
+    if request.method == 'POST':
+        action = request.POST.get('action')
 
-def cancel(request):
-    return render(request, 'stripe/failed.html')
+        if action == 'pay_now':
+            try:
+                checkout_session = stripe.checkout.Session.create(
+                    customer=stripe_customer.id,
+                    line_items=[{
+                        'price_data': {
+                            'currency': 'usd',
+                            'product_data': {
+                                'name': f'Reservation #{reservation.id}',
+                            },
+                            'unit_amount': int(reservation.total_price * 100),
+                        },
+                        'quantity': 1,
+                    }],
+                    mode='payment',
+                    success_url=request.build_absolute_uri('/'),
+                    cancel_url=request.build_absolute_uri('/rates/'),
+                )
+            except Exception as e:
+                return str(e)
+            
+
+            return redirect(checkout_session.url, code=303)
+        elif action=="save_card":
+            return redirect('save_card_checkout', reservation_id=reservation.id)
+
+    return render(request, "stripe/payment.html", {"reservation": reservation})
+
+def save_card(request, reservation_id):
+    reservation = get_object_or_404(Reservation, id=reservation_id)
+    customer = reservation.customer
+
+    if not customer.stripe_customer_id:
+        stripe_customer = stripe.Customer.create(
+            email=customer.email,
+            metadata={'reservation_id':reservation.id}
+        ),
+        customer.stripe_customer_id = stripe_customer.id
+        customer.save()
+    else:
+        stripe_customer = stripe.Customer.retrieve(customer.stripe_customer_id)
+    checkout_session = stripe.checkout.Session.create(
+        customer = stripe_customer.id,
+        payment_method_types=['card'],
+        mode='setup',
+        success_url=request.build_absolute_uri('/'),
+        cancel_url=request.build_absolute_uri('/rates/'),
+    )
+
+    return redirect(checkout_session.url, code=303)
+
+def stripe_webhook(request):
+    ...
