@@ -20,3 +20,4 @@ tablib==3.8.0
 typing-extensions==4.13.0
 tzdata==2025.2
 urllib3==2.3.0
+whitenoise
