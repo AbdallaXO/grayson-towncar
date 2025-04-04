@@ -1,9 +1,51 @@
-Hi {{ name }},
+GRAYSON TOWNCAR
+RESERVATION CONFIRMATION
 
-Your reservation is confirmed!
+Dear {{ first_name }},
 
-Reservation ID: {{ reservation_id }}
-Reservation Type: {{ type }}
-Date Reservation Was Made: {{ date }}
+Thank you for choosing Grayson Towncar for your transportation needs. Your reservation has been confirmed and the details are provided below:
+
+RESERVATION DETAILS
+------------------
+Confirmation #: {{ reservation_id }}
+Passenger Name: {{ full_name }}
+Booking Date: {{ date|date:"F j, Y" }}
+Trip Type: {{ type }}
+
+TRIP ITINERARY:
+{% for leg in legs %}
+LEG {{ forloop.counter }}:
+Date: {{ leg.pickup_date|date:"F j, Y" }}
+Pickup Time: {{ leg.pickup_time|time:"g:i A" }}
+Pickup Location: {{ leg.pickup_location }}
+Destination: {{ leg.dropoff_location }}
+{% if leg.flight_info %}Flight Info: {{ leg.flight_info }}{% endif %}
+
+{% endfor %}
+
+A chauffeur will be there at the scheduled time to provide you with excellent service.
+
+{% for leg in legs %}
+{% if "airport" in leg.pickup_location|lower  or "mco" in leg.pickup_location|lower%}
+AIRPORT PICKUP INFORMATION:
+- We track your flight for any delays or early arrivals
+- Our driver will meet you inside at the baggage claim area and have a sign with your name on it
+- You will receive a text message when your plane lands and 24 hours prior to the pickup
+- If your flight number changes, please contact us immediately at (407) 494-1043
+{% endif %}
+{% endfor %}
+
+To manage your reservation, please visit:
+https://graysontowncar.com/my-reservations/{{ reservation_id }}
+
+NEED ASSISTANCE?
+---------------
+Contact our customer service team at:
+Email: reservations@graysontowncar.com
+Phone: (407) 494-1043
+Website: www.graysontowncar.com
 
 Thank you for choosing Grayson Towncar.
+©  Grayson Towncar. All rights reserved.
+
+You can reply directly to this email if you have any questions or need to make changes to your reservation.

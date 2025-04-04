@@ -5,21 +5,23 @@ def send_reservation_confirmation(reservation):
     """This Reservation is Called in the Signal
     When a Reservation is created with the reservation Object
     Renders a nicely formatted HTML and emails a Confirmation"""
-    
+    full_name = f"{reservation.customer.first_name.title()} {reservation.customer.last_name.title()}"
     context = {
-        'name':reservation.customer.first_name + reservation.customer.last_name,
+        'first_name':reservation.customer.first_name,
+        'full_name':full_name,
         'reservation_id':reservation.id,
+        "legs":reservation.legs.all(),
         'type':reservation.trip_type,
         'date':reservation.created_at,
         
     }
     
-    subject = "Your Grayson Towncar Reservation is Confirmed"
-    from_email = 'info@graysontowncar.com'
+    subject = f"Hello {reservation.customer.first_name} Your Grayson Towncar Reservation is Confirmed"
+    from_email = 'reservations@graysontowncar.com'
     to = [reservation.customer.email]
     
     text_content = render_to_string('reservations/confirmation.txt', context)
-    html_content = render_to_string('reservations/confirmation.txt', context)
+    html_content = render_to_string('reservations/confirmation.html', context)
     
     msg = EmailMultiAlternatives(subject, text_content, from_email, to)
     msg.attach_alternative(html_content, "text/html")

@@ -16,7 +16,7 @@ def reservationCreated(sender, instance, created, **kwargs):
     message = f"Hello {reservation.customer.first_name} Thank you for Choosing Grayson Towncar!"
     if created:
         try:
-            send_reservation_confirmation(instance)
-            logger.info(f"Email sent successfully to {reservation.customer.email}")
+                send_reservation_confirmation(instance)
+                logger.info(f"Email sent successfully to {reservation.customer.email}")
         except Exception as e:
-            logger.error(f"Error sending email to {reservation.customer.email}: {e}")
+                logger.error(f"Error sending email to {reservation.customer.email}: {e}")
