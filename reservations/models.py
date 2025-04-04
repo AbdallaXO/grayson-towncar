@@ -1,6 +1,6 @@
 from typing import override
 from django.db import models
-from .constants import CARSEAT_CHOICES, FLIGHT_TYPE_CHOICES, TRIP_CHOICES
+from .constants import CARSEAT_CHOICES, FLIGHT_TYPE_CHOICES, TRIP_CHOICES,RESERVTION_STATUS
 from django.db.models.signals import post_save
 
 class Customer(models.Model):
@@ -26,6 +26,9 @@ class Customer(models.Model):
         Returns the customer's first name for easy identification.
         """
         return self.first_name
+    
+    def get_full_name(self):
+        return self.first_name + " " + self.last_name
 
 
 class Reservation(models.Model):
@@ -56,12 +59,10 @@ class Reservation(models.Model):
     )
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
 
-    payment_status = models.CharField(
-        max_length=20, default="PENDING"
-    )  # corrected field name
-    stripe_payment_id = models.CharField(max_length=100, blank=True)
+    payment = models.OneToOneField("payment.UserPayment", on_delete=models.PROTECT, null=True)
+
     status = models.CharField(
-        max_length=20, choices=[("pending", "pending")], default="PENDING"
+        max_length=20, choices=RESERVTION_STATUS, default="pending"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

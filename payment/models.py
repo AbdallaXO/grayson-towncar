@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 
 
 # Create your models here.
+
 class UserPayment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     stripe_customer_id = models.CharField(max_length=255)
@@ -10,3 +11,7 @@ class UserPayment(models.Model):
     stripe_product_id = models.CharField(max_length=255)
     product_name = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    status=models.CharField(max_length=50,choices=[
+        ('unpaid','Pending'), 
+        ('paid','Paid')
+        ])
