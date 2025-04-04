@@ -33,7 +33,7 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 
-ALLOWED_HOSTS = ['127.0.0.1','grayson-towncar-production.up.railway.app']
+ALLOWED_HOSTS = ['grayson-towncar-production.up.railway.app']
 
 
 # Application definition
@@ -52,7 +52,6 @@ THIRD_PARTY_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     "debug_toolbar",
-    "rangefilter",
 ]
 OUR_APPS = [
     "rates",
