@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Save Card for Later</title>
+    <script src="https://js.stripe.com/v3/"></script>
+  </head>
+  <body>
+    <h2>Save Card for Later</h2>
+
+    <form id="card-form">
+      <div id="card-element" style="margin-bottom: 1em;"></div>
+      <button type="submit">Save Card</button>
+    </form>
+
+    <div id="card-message" style="margin-top: 1em;"></div>
+
+    <script>
+        const stripe = Stripe("{{ stripe_publishable_key }}"); // Make sure this is defined!
+        const elements = stripe.elements();
+        const card = elements.create("card");
+        card.mount("#card-element"); // This renders the input field
+
+        const form = document.getElementById("card-form");
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const {
+                setupIntent,
+                error
+            } = await stripe.confirmCardSetup(
+                "{{ client_secret }}", {
+                    payment_method: {
+                        card: card
+                    }
+                }
+            );
+
+            const message = document.getElementById("card-message");
+            if (error) {
+                message.textContent = error.message;
+            } else {
+                message.textContent = "✅ Card saved successfully!";
+                console.log("Saved payment method:", setupIntent.payment_method);
+            }
+        });
+    </script>
+  </body>
+</html>

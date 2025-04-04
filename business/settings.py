@@ -31,7 +31,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "2"
+DEBUG = True
 
 ALLOWED_HOSTS = ['127.0.0.1', 'grayson-towncar-production.up.railway.app']
 ALLOWED_HOSTS = ['grayson-towncar-production.up.railway.app', 'localhost', '127.0.0.1']
