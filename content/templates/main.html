@@ -15,15 +15,18 @@
   <body>
     {% include 'navbar.html' %}
     
-    {% if messages %}
-    <div class="notification-wrapper">
-      {% for message in messages %}
-      <div class="notification {{ message.extra_tags }}">
-        {{ message }}
+    <!--making alert messages optional for other pages by wrapping it in a messages block-->
+    {% block messages %}
+      {% if messages %}
+      <div class="notification-wrapper">
+        {% for message in messages %}
+        <div class="notification {{ message.extra_tags }}">
+          {{ message }}
+        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
-    {% endif %}
+      {% endif %}
+    {% endblock %}
     
     {% block content %}
     {% endblock %}

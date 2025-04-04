@@ -1,6 +1,7 @@
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django import forms
+from .models import PartnerForm
 
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
@@ -35,3 +36,12 @@ class CustomUserCreationForm(UserCreationForm):
         }
         for field, placeholder in placeholders.items():
             self.fields[field].widget.attrs.update({'placeholder': placeholder})
+
+class PartnerFormSubmission(forms.ModelForm):
+    class Meta:
+        model = PartnerForm
+        fields = [
+            'name', 'email', 'phone_number', 'preferred_contact',
+            'agency_name', 'agency_website', 'referral_source',
+            'additional_info'
+        ]
