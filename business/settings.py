@@ -31,7 +31,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "2"
 
 ALLOWED_HOSTS = ['grayson-towncar-production.up.railway.app']
 
@@ -132,7 +132,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Amercica/New_York"
 
 USE_I18N = True
 
@@ -143,12 +143,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-
-STATIC_URL = "static/"
-MEDIA_URL = "/media/"
-STATICFILES_DIRS = [CONTENT_DIR / "static"]
-MEDIA_ROOT = CONTENT_DIR / "media"
 STATIC_ROOT = CONTENT_DIR / "staticfiles"
+STATIC_URL = "static/"
+
+STATICFILES_DIRS = [CONTENT_DIR / "static"]
+
+MEDIA_ROOT = CONTENT_DIR / "media"
+MEDIA_URL = "/media/"
 
 # Stripe Settings 
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
@@ -160,9 +161,7 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Crispy forms settings
-
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Django Toolbar 
