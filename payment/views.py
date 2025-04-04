@@ -22,8 +22,8 @@ def create_checkout_session(request, reservation_id):
                     "currency": "usd",
                     "unit_amount": int(reservation.total_price * 100),
                     "product_data": {
-                        "name": f"{reservation.vehicle} {reservation.trip_type.replace('_', ' ').title()} Reservation",
-                        "description": f" Route: {reservation.route}",
+                        "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', ' ').title()} Reservation",
+                        "description": f" Route: {reservation.rate.route}",
                     },
                 },
                 "quantity": 1,
