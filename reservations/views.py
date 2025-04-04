@@ -1,3 +1,6 @@
+from django.http.response import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
+
+
 from django.shortcuts import render, get_object_or_404
 from rates.models import Vehicle, Rate
 from .forms import ReservationForm, CustomerForm, LegForm, FlightForm
@@ -12,7 +15,7 @@ def index(request):
     return render(request, "reservations/index.html")
 
 
-def reservation_form(request, pk):
+def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpResponseRedirect | HttpResponse :
     """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
@@ -30,6 +33,7 @@ def reservation_form(request, pk):
         leg2_form = (
             LegForm(request.POST, prefix="leg2") if trip_type == "round_trip" else None
         )
+
         customer_valid = customer_form.is_valid()
         reservation_valid = reservation_form.is_valid()
         leg1_valid = leg1_form.is_valid()
@@ -37,15 +41,14 @@ def reservation_form(request, pk):
         flight1_valid = flight1_form.is_valid()
         flight2_valid = trip_type == "one_way" or flight2_form.is_valid()
         forms_valid = customer_valid and reservation_valid and leg1_valid and leg2_valid
+
         # we validate all forms, and validate leg2 form only  if the trip_type is not = one_way
         if forms_valid:
             customer = customer_form.save()
             reservation = reservation_form.save(commit=False)
             reservation.customer = customer
             reservation.trip_type = trip_type
-            reservation.route = rate.route
-            reservation.vehicle = rate.vehicle
-            reservation.total_price = price
+            reservation.rate = rate
             reservation.base_price = price
             reservation.save()
 
@@ -73,7 +76,7 @@ def reservation_form(request, pk):
             return redirect("checkout_session", reservation_id=reservation.id)
 
     else:
-        customer_form = CustomerForm(request.POST or None)
+        customer_form = CustomerForm()
         reservation_form = ReservationForm(
             initial={
                 "vehicle": rate.vehicle,
@@ -90,6 +93,7 @@ def reservation_form(request, pk):
         )
 
         leg2_form = LegForm(prefix="leg2") if trip_type == "round_trip" else None
+
     context = {
         "customer_form": customer_form,
         "reservation_form": reservation_form,

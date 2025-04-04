@@ -4,7 +4,7 @@ from . import views
 
 urlpatterns = [
     path(
-        "/checkout<reservation_id>",
+        "checkout/<reservation_id>",
         views.create_checkout_session,
         name="checkout_session",
     ),

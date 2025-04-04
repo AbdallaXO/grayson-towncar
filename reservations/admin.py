@@ -48,7 +48,6 @@ class ReservationAdmin(admin.ModelAdmin):
         "id",
         "customer",
         "trip_type",
-        "vehicle",
         "base_price",
         "additional_charges",
         "total_price",
