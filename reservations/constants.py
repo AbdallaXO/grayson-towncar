@@ -11,3 +11,8 @@ FLIGHT_TYPE_CHOICES = [
     ("arrival", "Arrival"),
     ("departure", "Departure"),
 ]
+RESERVTION_STATUS = [
+    ("pending","Pending"),
+    ("canceled","Canceled"),
+    ("confirmed","Confirmed"),
+]

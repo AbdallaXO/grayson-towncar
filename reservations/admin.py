@@ -51,7 +51,7 @@ class ReservationAdmin(admin.ModelAdmin):
         "base_price",
         "additional_charges",
         "total_price",
-        "payment_status",
+        # "payment_status",
         "status",
         "created_at",
     )
