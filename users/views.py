@@ -4,11 +4,14 @@ from django.shortcuts import redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from .forms import CustomUserCreationForm
+from .forms import CustomUserCreationForm, PartnerFormSubmission
 
 
 def index(request):
     return render(request, "users/profiles.html")
+
+def partner(request):
+    return render(request, "users/become_partner.html")
 
 
 def registerUser(request):
@@ -60,4 +63,25 @@ def logoutUser(request):
     return redirect("login")
 
 def partner(request):
-    return render(request, "users/become_partner.html")
+    if request.method == 'POST':
+        # create dict that renders data from html
+        form_data = {
+            'name': request.POST.get('name'),
+            'email': request.POST.get('email'),
+            'phone_number': request.POST.get('phone'),
+            'preferred_contact': request.POST.get('contactMethod'),
+            'agency_name': request.POST.get('agencyName'),
+            'agency_website': request.POST.get('agencyWebsite') or None,
+            'referral_source': request.POST.get('referralSource'),
+            'additional_info': request.POST.get('additionalInfo') or None,
+        }
+        form = PartnerFormSubmission(form_data)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your partnership request has been submitted successfully!')
+            return redirect('partner')
+        else:
+            messages.error(request, 'Please correct errors below.')
+    else:
+        form = PartnerFormSubmission()
+    return render(request, 'users/become_partner.html', {'form': form})
