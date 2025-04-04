@@ -75,7 +75,6 @@ def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpRespons
     else:
         customer_form = CustomerForm()
         reservation_form = ReservationForm(
-            rate,
             initial={
                 "vehicle": rate.vehicle,
                 "base_price": price,

@@ -1,10 +1,8 @@
 # reservations/forms.py
 
-from typing import override
 from django import forms
 from .models import Reservation, Customer, Leg, Flight
 from .constants import CARSEAT_CHOICES, TRIP_CHOICES
-from django.utils.timezone import now
 
 
 class CustomerForm(forms.ModelForm):
@@ -52,7 +50,7 @@ class ReservationForm(forms.ModelForm):
                 attrs={"class": "form-control", "min": 1, "max": 10}
             ),
             "luggage_count": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "max": 12}
+                attrs={"class": "form-control", "min": 0, "max": "12"}
             ),
             "has_children": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "carseat_type": forms.Select(attrs={"class": "form-select"}),
@@ -69,12 +67,6 @@ class ReservationForm(forms.ModelForm):
             "special_requests": "Optional. We’ll do our best to accommodate. "
         }
 
-    @override
-    def is_valid(self):
-
-        inital = super().is_valid()
-        
-        return inital
 
 class LegForm(forms.ModelForm):
     """Form for trip leg details"""
@@ -99,11 +91,6 @@ class LegForm(forms.ModelForm):
                 }
             ),
         }
-    def clean_pickup_time(self):
-        pickup_time = self.cleaned_data.get('pickup_time')
-        if pickup_time < now:
-            raise forms.ValidationError('Pick up time cannot be now or in the past.')
-        return pickup_time
 
 
 class FlightForm(forms.ModelForm):
