@@ -3,6 +3,113 @@
 {% block content %}
 
 <!-- Become a Partner -->
+<section class="py-5 bg-light">
+  <div class="container px-5 my-5">
+    <div class="text-center mb-5">
+      <h1 class="fw-bolder">Become a Grayson Towncar Partner</h1>
+      <p class="lead fw-normal text-muted">Join our network of preferred travel agents and offer your clients exceptional transportation in Orlando.</p>
+    </div>
+    
+    <div class="row gx-5 justify-content-center">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow rounded-3">
+          <div class="card-body p-4 p-sm-5">
+            <form>
+              <!-- Personal Information -->
+              <h4 class="mb-4">Contact Information</h4>
+              
+              <div class="row mb-3">
+                <div class="col-12">
+                  <label for="name" class="form-label">Full Name <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="name" required>
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-md-6 mb-3 mb-md-0">
+                  <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                  <input type="email" class="form-control" id="email" required>
+                </div>
+                <div class="col-md-6">
+                  <label for="phone" class="form-label">Phone Number <span class="text-danger">*</span></label>
+                  <input type="tel" class="form-control" id="phone" required>
+                </div>
+              </div>
+              
+              <div class="mb-4">
+                <label class="form-label">Preferred Method of Contact <span class="text-danger">*</span></label>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="contactMethod" id="contactEmail" value="email" checked>
+                  <label class="form-check-label" for="contactEmail">
+                    Email
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="contactMethod" id="contactPhone" value="phone">
+                  <label class="form-check-label" for="contactPhone">
+                    Phone Call
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="contactMethod" id="contactText" value="text">
+                  <label class="form-check-label" for="contactText">
+                    Text Message
+                  </label>
+                </div>
+              </div>
+              
+              <!-- Agency Information -->
+              <h4 class="mb-4">Agency Information</h4>
+              
+              <div class="row mb-3">
+                <div class="col-12">
+                  <label for="agencyName" class="form-label">Agency Name <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="agencyName" required>
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-12">
+                  <label for="agencyWebsite" class="form-label">Agency Website (Optional)</label>
+                  <input type="url" class="form-control" id="agencyWebsite">
+                </div>
+              </div>
+              
+              <div class="row mb-3">
+                <div class="col-12">
+                  <label for="referralSource" class="form-label">How did you hear about us? <span class="text-danger">*</span></label>
+                  <select class="form-select" id="referralSource" required>
+                    <option value="" selected disabled>Please select an option</option>
+                    <option value="google">Google Search</option>
+                    <option value="social">Social Media</option>
+                    <option value="referral">Referral from another Agent</option>
+                    <option value="client">Client Recommendation</option>
+                    <option value="conference">Industry Conference</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="row mb-4">
+                <div class="col-12">
+                  <label for="additionalInfo" class="form-label">Additional Information</label>
+                  <textarea class="form-control" id="additionalInfo" rows="3" placeholder="Tell us about your business, typical clients, or ask any questions you might have."></textarea>
+                </div>
+              </div>
+              
+            <div class="d-grid gap-2">
+                <a href="#" class="btn btn-primary btn-lg fw-bold" role="button">Submit Partnership Request</a>
+            </div>
 
+            <div class="small text-muted mt-3 text-center">
+                By submitting this form, you'll be joining our network of preferred travel partners. We'll contact you soon.
+            </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 {% endblock %}
