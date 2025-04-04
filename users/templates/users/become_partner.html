@@ -1,5 +1,10 @@
 {% extends 'main.html' %}
 {% load static %}
+
+<!-- hiding alert for partner form since not needed but preventing from affecting other pages -->
+{% block messages %}
+{% endblock %}
+
 {% block content %}
 
 <!-- Become a Partner -->
@@ -14,25 +19,38 @@
       <div class="col-lg-8">
         <div class="card border-0 shadow rounded-3">
           <div class="card-body p-4 p-sm-5">
-            <form>
+
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'success' %}success{% elif message.tags == 'error' %}danger{% else %}info{% endif %} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <form method="post" action="{% url 'partner' %}">
+            {% csrf_token %}
               <!-- Personal Information -->
               <h4 class="mb-4">Contact Information</h4>
               
               <div class="row mb-3">
                 <div class="col-12">
                   <label for="name" class="form-label">Full Name <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="name" required>
+                  <input type="text" class="form-control" id="name" name="name" required>
                 </div>
               </div>
               
               <div class="row mb-3">
                 <div class="col-md-6 mb-3 mb-md-0">
                   <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
-                  <input type="email" class="form-control" id="email" required>
+                  <input type="email" class="form-control" id="email" name="email" required>
                 </div>
                 <div class="col-md-6">
                   <label for="phone" class="form-label">Phone Number <span class="text-danger">*</span></label>
-                  <input type="tel" class="form-control" id="phone" required>
+                  <input type="tel" class="form-control" id="phone" name="phone" required>
                 </div>
               </div>
               
@@ -64,21 +82,21 @@
               <div class="row mb-3">
                 <div class="col-12">
                   <label for="agencyName" class="form-label">Agency Name <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="agencyName" required>
+                  <input type="text" class="form-control" id="agencyName" name="agencyName" required>
                 </div>
               </div>
               
               <div class="row mb-3">
                 <div class="col-12">
                   <label for="agencyWebsite" class="form-label">Agency Website (Optional)</label>
-                  <input type="url" class="form-control" id="agencyWebsite">
+                  <input type="url" class="form-control" id="agencyWebsite" name="agencyWebsite">
                 </div>
               </div>
               
               <div class="row mb-3">
                 <div class="col-12">
                   <label for="referralSource" class="form-label">How did you hear about us? <span class="text-danger">*</span></label>
-                  <select class="form-select" id="referralSource" required>
+                  <select class="form-select" id="referralSource" name="referralSource" required>
                     <option value="" selected disabled>Please select an option</option>
                     <option value="google">Google Search</option>
                     <option value="social">Social Media</option>
@@ -93,12 +111,12 @@
               <div class="row mb-4">
                 <div class="col-12">
                   <label for="additionalInfo" class="form-label">Additional Information</label>
-                  <textarea class="form-control" id="additionalInfo" rows="3" placeholder="Tell us about your business, typical clients, or ask any questions you might have."></textarea>
+                  <textarea class="form-control" id="additionalInfo" name="additionalInfo" rows="3" placeholder="Tell us about your business, typical clients, or ask any questions you might have."></textarea>
                 </div>
               </div>
               
-            <div class="d-grid gap-2">
-                <a href="#" class="btn btn-primary btn-lg fw-bold" role="button">Submit Partnership Request</a>
+             <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary btn-lg fw-bold">Submit Partnership Request</button>
             </div>
 
             <div class="small text-muted mt-3 text-center">

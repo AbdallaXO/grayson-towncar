@@ -15,3 +15,29 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.user.email
+
+class PartnerForm(models.Model):
+    CONTACT_METHODS = [
+        ('email', 'Email'),
+        ('phone', 'Phone Call'),
+        ('text', 'Text Message'),
+    ]
+    REFERRAL_SOURCES = [
+        ('google', 'Google Search'),
+        ('social', 'Social Media'),
+        ('referral', 'Referral from another Agent'),
+        ('client', 'Client Recommendation'),
+        ('conference', 'Industry Conference'),
+        ('other', 'Other')
+    ]
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone_number = models.CharField(max_length=15)
+    preferred_contact = models.CharField(max_length=10, choices=CONTACT_METHODS, default='email')
+    agency_name = models.CharField(max_length=200)
+    agency_website = models.CharField(max_length=200, blank=True, null=True)
+    referral_source = models.CharField(max_length=60, choices=REFERRAL_SOURCES, default='other')
+    additional_info = models.TextField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.agency_name}"
