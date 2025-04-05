@@ -68,27 +68,13 @@ def logoutUser(request):
 
 
 def partner(request):
-    if request.method == "POST":
-        # create dict that renders data from html
-        form_data = {
-            "name": request.POST.get("name"),
-            "email": request.POST.get("email"),
-            "phone_number": request.POST.get("phone"),
-            "preferred_contact": request.POST.get("contactMethod"),
-            "agency_name": request.POST.get("agencyName"),
-            "agency_website": request.POST.get("agencyWebsite") or None,
-            "referral_source": request.POST.get("referralSource"),
-            "additional_info": request.POST.get("additionalInfo") or None,
-        }
-        form = PartnerFormSubmission(form_data)
+    if request.method == 'POST':
+        form = PartnerFormSubmission(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(
-                request, "Your partnership request has been submitted successfully!"
-            )
-            return redirect("partner")
-        else:
-            messages.error(request, "Please correct errors below.")
+            messages.success(request, 'Your partnership request has been submitted! We will contact you shortly.')
+            return redirect('partner')
     else:
         form = PartnerFormSubmission()
-    return render(request, "users/become_partner.html", {"form": form})
+    context = {'form':form}
+    return render(request, "users/become_partner.html", context)
