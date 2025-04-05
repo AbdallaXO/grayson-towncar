@@ -180,3 +180,4 @@ cython_debug/
 
 # # Media File Uploads
 # content/media/
+.DS_Store
