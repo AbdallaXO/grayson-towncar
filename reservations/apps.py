@@ -6,4 +6,4 @@ class ReservationsConfig(AppConfig):
     name = "reservations"
 
     def ready(self):
-        pass  # Import signals here
+       import reservations.signals

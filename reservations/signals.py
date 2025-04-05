@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)  # Get a logger instance
 @receiver(post_save, sender=Reservation)
 def reservationCreated(sender, instance, created, **kwargs):
     reservation = instance
-
     if created:
         try:
             send_reservation_confirmation(instance)
