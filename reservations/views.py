@@ -1,9 +1,10 @@
 from django.http.response import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from rates.models import Vehicle, Rate
-from .forms import ReservationForm, CustomerForm, LegForm, FlightForm
+from .forms import ReservationForm, CustomerForm, LegForm, FlightForm, ContactUsFormSubmission
 from .utils import *
 from .models import Reservation, Leg, Customer
+from django.contrib import messages
 
 
 # Create your views here.
@@ -114,4 +115,13 @@ def faqs(request):
 
 
 def contact(request):
-    return render(request, "reservations/contact_us.html")
+    if request.method == 'POST':
+        form = ContactUsFormSubmission(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your quote request has been submitted! We will contact you shortly.')
+            return redirect('contact')
+    else:
+        form = ContactUsFormSubmission()
+    context = {'form':form}
+    return render(request, 'reservations/contact.html', context)
