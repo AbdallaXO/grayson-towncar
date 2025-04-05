@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0003_reservation_payment'),
+        ("reservations", "0003_reservation_payment"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='customer',
-            name='stripe_customer_id',
+            model_name="customer",
+            name="stripe_customer_id",
             field=models.CharField(blank=True, max_length=255, null=True),
         ),
     ]

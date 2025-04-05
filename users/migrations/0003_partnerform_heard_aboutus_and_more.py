@@ -4,20 +4,38 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0002_partnerform'),
+        ("users", "0002_partnerform"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='partnerform',
-            name='heard_aboutus',
-            field=models.CharField(choices=[('google', 'Google Search'), ('social_media', 'Social Media'), ('referral', 'Referral from another Agent'), ('client', 'Client Recommendation'), ('conference', 'Industry Conference'), ('other', 'Other')], default='other', max_length=60),
+            model_name="partnerform",
+            name="heard_aboutus",
+            field=models.CharField(
+                choices=[
+                    ("google", "Google Search"),
+                    ("social_media", "Social Media"),
+                    ("referral", "Referral from another Agent"),
+                    ("client", "Client Recommendation"),
+                    ("conference", "Industry Conference"),
+                    ("other", "Other"),
+                ],
+                default="other",
+                max_length=60,
+            ),
         ),
         migrations.AlterField(
-            model_name='partnerform',
-            name='preferred_contact',
-            field=models.CharField(choices=[('email', 'Email'), ('phone', 'Phone Call'), ('text', 'Text Message')], default='email', max_length=10),
+            model_name="partnerform",
+            name="preferred_contact",
+            field=models.CharField(
+                choices=[
+                    ("email", "Email"),
+                    ("phone", "Phone Call"),
+                    ("text", "Text Message"),
+                ],
+                default="email",
+                max_length=10,
+            ),
         ),
     ]

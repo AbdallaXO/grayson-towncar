@@ -12,7 +12,7 @@ FLIGHT_TYPE_CHOICES = [
     ("departure", "Departure"),
 ]
 RESERVTION_STATUS = [
-    ("pending","Pending"),
-    ("canceled","Canceled"),
-    ("confirmed","Confirmed"),
+    ("pending", "Pending"),
+    ("canceled", "Canceled"),
+    ("confirmed", "Confirmed"),
 ]
