@@ -207,47 +207,33 @@
               </h4>
             </div>
             <div class="card-body">
-              <!-- Flight Info Accordion -->
-              <div class="accordion mb-3" id="departureFlightAccordion">
-                <div class="accordion-item">
-                  <h2 class="accordion-header" id="departureFlightHeading">
-                    <button class="accordion-button collapsed"
-                            type="button"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#departureFlightCollapse"
-                            aria-expanded="false"
-                            aria-controls="departureFlightCollapse">Flight Information</button>
-                  </h2>
-                  <div id="departureFlightCollapse"
-                       class="accordion-collapse collapse"
-                       aria-labelledby="departureFlightHeading"
-                       data-bs-parent="#departureFlightAccordion">
-                    <div class="accordion-body">
-                      <div class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle-fill me-2"></i>
-                        <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+              <!-- Flight Info Section (Always Visible) -->
+              <div class="mb-3">
+                <h5 class="border-bottom pb-2 mb-3">Flight Information</h5>
+                
+                <div class="alert alert-info mb-3">
+                  <i class="bi bi-info-circle-fill me-2"></i>
+                  <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                </div>
+                
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    {{ flight1_form.airline.label_tag }}
+                    {{ flight1_form.airline }}
+                    {% if flight1_form.airline.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
                       </div>
-                      <div class="row g-3">
-                        <div class="col-md-6">
-                          {{ flight1_form.airline.label_tag }}
-                          {{ flight1_form.airline }}
-                          {% if flight1_form.airline.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                          {{ flight1_form.flight_number.label_tag }}
-                          {{ flight1_form.flight_number }}
-                          {% if flight1_form.flight_number.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    {{ flight1_form.flight_number.label_tag }}
+                    {{ flight1_form.flight_number }}
+                    {% if flight1_form.flight_number.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
                       </div>
-                    </div>
+                    {% endif %}
                   </div>
                 </div>
               </div>
@@ -304,47 +290,33 @@
                 </h4>
               </div>
               <div class="card-body">
-                <!-- Return Flight Info Accordion -->
-                <div class="accordion mb-3" id="returnFlightAccordion">
-                  <div class="accordion-item">
-                    <h2 class="accordion-header" id="returnFlightHeading">
-                      <button class="accordion-button collapsed"
-                              type="button"
-                              data-bs-toggle="collapse"
-                              data-bs-target="#returnFlightCollapse"
-                              aria-expanded="false"
-                              aria-controls="returnFlightCollapse">Return Flight Information</button>
-                    </h2>
-                    <div id="returnFlightCollapse"
-                         class="accordion-collapse collapse"
-                         aria-labelledby="returnFlightHeading"
-                         data-bs-parent="#returnFlightAccordion">
-                      <div class="accordion-body">
-                        <div class="alert alert-info mb-3">
-                          <i class="bi bi-info-circle-fill me-2"></i>
-                          <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                <!-- Return Flight Info Section (Always Visible) -->
+                <div class="mb-3">
+                  <h5 class="border-bottom pb-2 mb-3">Return Flight Information</h5>
+                  
+                  <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                  </div>
+                  
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      {{ flight2_form.airline.label_tag }}
+                      {{ flight2_form.airline }}
+                      {% if flight2_form.airline.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
                         </div>
-                        <div class="row g-3">
-                          <div class="col-md-6">
-                            {{ flight2_form.airline.label_tag }}
-                            {{ flight2_form.airline }}
-                            {% if flight2_form.airline.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                          <div class="col-md-6">
-                            {{ flight2_form.flight_number.label_tag }}
-                            {{ flight2_form.flight_number }}
-                            {% if flight2_form.flight_number.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
+                      {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      {{ flight2_form.flight_number.label_tag }}
+                      {{ flight2_form.flight_number }}
+                      {% if flight2_form.flight_number.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
                         </div>
-                      </div>
+                      {% endif %}
                     </div>
                   </div>
                 </div>
