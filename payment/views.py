@@ -4,9 +4,10 @@ import stripe.error
 from reservations.models import Reservation
 from logging import Logger
 from .utils import get_or_create_stripe_customer
+from django.conf import settings
 
 # Ensure you're using environment variables in production
-stripe.api_key = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 def create_checkout_session(request, reservation_id):
