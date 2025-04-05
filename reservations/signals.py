@@ -13,6 +13,7 @@ def reservationCreated(sender, instance, created, **kwargs):
     reservation = instance
     if created:
         try:
+            reservation.refresh_from_db()
             send_reservation_confirmation(instance)
             logger.info(f"Email sent successfully to {reservation.customer.email}")
         except Exception as e:
