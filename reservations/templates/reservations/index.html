@@ -1,6 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
 {% block content %}
+<link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
   <main class="flex-shrink-0">
     <header class="bg-dark py-5">
       <div class="container px-5">
@@ -391,35 +392,4 @@
           }]
       }
   </script>
-  <!-- Custom CSS for hover effects -->
-  <style>
-      .hover-elevate {
-          transition: transform 0.3s ease-in-out;
-      }
-
-      .hover-elevate:hover {
-          transform: translateY(-5px);
-      }
-
-      #fleet .card-img-top {
-          height: 200px;
-          object-fit: cover;
-          object-position: center;
-      }
-
-      #fleet .row>div:nth-child(2) .card-img-top {
-          object-fit: contain;
-          padding: 1px;
-      }
-
-      #fleet .row>div:nth-child(3) .card-img-top {
-          object-fit: contain;
-          padding: 1px;
-      }
-
-      #fleet .row>div:nth-child(1) .card-img-top {
-          object-fit: contain;
-          padding: 0px;
-      }
-  </style>
 {% endblock content %}

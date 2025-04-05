@@ -21,6 +21,15 @@
     object-position: center;
 }
 
+.bg-featured-blog {
+    height: 100%;
+    width: 100%;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 15rem;
+}
+
 .socials-container {
     width: fit-content;
     height: fit-content;
