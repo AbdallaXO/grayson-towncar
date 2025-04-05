@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .webhook import stripe_webhook
+from . import webhook
 
 urlpatterns = [
     path(
@@ -13,5 +13,5 @@ urlpatterns = [
         views.save_card,
         name="save_card_checkout",
     ),
-    path("stripe/webhook/", views.stripe_webhook, name="stripe_webhook"),
+    path("stripe/webhook/", webhook.stripe_webhook, name="stripe_webhook"),
 ]
