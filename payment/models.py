@@ -12,7 +12,6 @@ class Payment(models.Model):
     # Session tracking
     stripe_checkout_id = models.CharField(max_length=255, blank=True)
     stripe_payment_intent_id = models.CharField(max_length=255, blank=True)
-
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_mode = models.CharField(
         max_length=20,

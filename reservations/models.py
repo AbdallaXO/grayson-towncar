@@ -21,11 +21,16 @@ class Customer(models.Model):
     zipcode = models.CharField(max_length=20)
     # For future reference
     is_returning = models.BooleanField(default=False)
-    reservation_count = models.PositiveIntegerField(default=0)
-
+    reservation_count = models.PositiveIntegerField(default=0) 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Stripe Related Data and for future dashboard implementation
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True)
+    card_brand = models.CharField(max_length=50,blank=True)
+    card_last4 = models.CharField(max_length=4, blank=True)
+    card_exp_month = models.IntegerField(null=True, blank=True)
+    card_exp_year = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
         """
