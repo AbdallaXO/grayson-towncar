@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, Reservation, Leg, Flight
+from .models import Customer, Reservation, Leg, Flight, ContactUsForm
 
 
 class LegInline(admin.TabularInline):
@@ -103,3 +103,5 @@ class FlightAdmin(admin.ModelAdmin):
     list_display = ("id", "flight_type", "airline", "flight_number")
     search_fields = ("airline", "flight_number")
     list_filter = ("flight_type",)
+
+admin.site.register(ContactUsForm)

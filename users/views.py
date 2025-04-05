@@ -10,9 +10,6 @@ from .forms import CustomUserCreationForm, PartnerFormSubmission
 def index(request):
     return render(request, "users/profiles.html")
 
-def partner(request):
-    return render(request, "users/become_partner.html")
-
 
 def registerUser(request):
     form = CustomUserCreationForm()

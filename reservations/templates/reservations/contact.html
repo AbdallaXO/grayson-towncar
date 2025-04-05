@@ -1,7 +1,8 @@
-{% extends 'main.html' %}
+{% extends "main.html" %}
 {% load static %}
-{% block content %}
+{% load crispy_forms_tags %}
 
+{% block content %}
 <!-- Contact Section -->
 <section class="contact-section py-5" style="background-color: #f9f9f9;">
     <div class="container">
@@ -59,54 +60,55 @@
                 <div class="card border-0 shadow-sm" style="background-color: #f8f9fa; background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%);">
                     <div class="card-body p-5">
                         <h3 class="h4 mb-4">Request a Personalized Quote</h3>
-                        <form id="quoteForm">
+                        <form method="POST">
+                            {% csrf_token %}
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label for="firstName" class="form-label">First Name</label>
-                                    <input type="text" class="form-control" id="firstName" required>
+                                    {{ form.first_name|as_crispy_field }}
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label for="lastName" class="form-label">Last Name</label>
-                                    <input type="text" class="form-control" id="lastName" required>
+                                    {{ form.last_name|as_crispy_field }}
                                 </div>
                             </div>
                             
                             <div class="mb-3">
-                                <label for="email" class="form-label">Email</label>
-                                <input type="email" class="form-control" id="email" required>
+                                {{ form.email|as_crispy_field }}
                             </div>
                             
                             <div class="mb-3">
-                                <label for="phone" class="form-label">Phone Number</label>
-                                <input type="tel" class="form-control" id="phone">
+                                {{ form.phone_number|as_crispy_field }}
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label">Preferred Method of Communication</label>
+                                <label class="form-label">Preferred Method of Communication*</label>
                                 <div class="d-flex flex-wrap">
+                                    {% if 'contact_method' in form.fields %}
+                                        {{ form.contact_method|as_crispy_field }}
+                                    {% else %}
                                     <div class="form-check me-4">
-                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferPhone">
+                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferPhone" value="phone">
                                         <label class="form-check-label" for="preferPhone">Phone Call</label>
                                     </div>
                                     <div class="form-check me-4">
-                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferText">
+                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferText" value="text">
                                         <label class="form-check-label" for="preferText">Text Message</label>
                                     </div>
                                     <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferEmail">
+                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferEmail" value="email">
                                         <label class="form-check-label" for="preferEmail">Email</label>
                                     </div>
+                                    {% endif %}
                                 </div>
                             </div>
                             
                             <div class="mb-4">
-                                <label for="tripDetails" class="form-label d-flex align-items-center">
-                                    About Your Trip
+                                <div class="d-flex align-items-center mb-2">
+                                    <label for="id_about" class="form-label mb-0">About Your Trip</label>
                                     <button type="button" class="btn btn-sm ms-2 p-0" data-bs-toggle="tooltip" data-bs-placement="top" title="Please provide details about your desired trip so we can create a personalized quote. We'll get back to you shortly.">
                                         <i class="bi bi-info-circle text-primary"></i>
                                     </button>
-                                </label>
-                                <textarea class="form-control" id="tripDetails" rows="5" placeholder="Tell us about your dream destination, travel dates, number of travelers, and any special requirements..."></textarea>
+                                </div>
+                                {{ form.about }}
                             </div>
                             
                             <button type="submit" class="btn btn-primary btn-lg d-block mx-auto">Request Quote</button>
@@ -118,27 +120,17 @@
     </div>
 </section>
 
-<!-- CSS for Bootstrap Icons and Montserrat font (add this to your head section or include the CDN) -->
+<!-- CSS for Bootstrap Icons and Montserrat font -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
 
 <!-- Optional JavaScript -->
 <script>
-    // Initialize tooltips
     document.addEventListener('DOMContentLoaded', function() {
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
     });
-
-    // Simple form validation
-    document.getElementById('quoteForm').addEventListener('submit', function(event) {
-        event.preventDefault();
-        // You can add AJAX submission here
-        alert('Your quote request has been submitted! We will contact you shortly.');
-        this.reset();
-    });
 </script>
-
 {% endblock %}
