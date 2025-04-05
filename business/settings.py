@@ -191,3 +191,5 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.app/",
     "http://*.app/",
 ]
+
+STRIPE_WEBHOOK_SECRET=os.environ.get('STRIPE_WEBHOOK_SECRET', '')
