@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("payment", "0008_payment_remove_userpayment_user"),
         ("reservations", "0005_alter_reservation_payment"),

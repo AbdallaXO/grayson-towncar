@@ -4,11 +4,9 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0005_alter_reservation_payment'),
-        ('reservations', '0008_contactusform_contact_method'),
+        ("reservations", "0005_alter_reservation_payment"),
+        ("reservations", "0008_contactusform_contact_method"),
     ]
 
-    operations = [
-    ]
+    operations = []
