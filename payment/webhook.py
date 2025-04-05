@@ -12,7 +12,6 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 def stripe_webhook(request):
     # strip sends a post request with the event as raw bytes in the body
     payload = request.body
-    # stripes signature/authentication
     signature = request.META.get("HTTP_STRIPE_SIGNATURE")
 
     try:
