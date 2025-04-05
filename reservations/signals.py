@@ -8,13 +8,13 @@ from .email import send_reservation_confirmation
 logger = logging.getLogger(__name__)  # Get a logger instance
 
 
-@receiver(post_save, sender=Reservation)
-def reservationCreated(sender, instance, created, **kwargs):
-    reservation = instance
-    if created:
-        try:
-            reservation.refresh_from_db()
-            send_reservation_confirmation(instance)
-            logger.info(f"Email sent successfully to {reservation.customer.email}")
-        except Exception as e:
-            logger.error(f"Error sending email to {reservation.customer.email}: {e}")
+# @receiver(post_save, sender=Reservation)
+# def reservationCreated(sender, instance, created, **kwargs):
+#     reservation = instance
+#     if created:
+#         try:
+#             reservation.refresh_from_db()
+#             send_reservation_confirmation(instance)
+#             logger.info(f"Email sent successfully to {reservation.customer.email}")
+#         except Exception as e:
+#             logger.error(f"Error sending email to {reservation.customer.email}: {e}")

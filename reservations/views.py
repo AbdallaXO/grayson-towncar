@@ -10,6 +10,7 @@ from .forms import (
 )
 from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms
 from django.contrib import messages
+from . email import send_reservation_confirmation
 
 
 # Create your views here.
@@ -66,6 +67,9 @@ def reservation_form(
                 else:
                     leg2.flight_information = None
                 leg2.save()
+            send_reservation_confirmation(reservation)
+                
+
 
             return redirect("create_checkout_session", reservation_id=reservation.id)
 

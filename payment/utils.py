@@ -24,7 +24,7 @@ def get_or_create_stripe_customer(reservation):
 
 
 from django.utils import timezone
-import stripe
+# import stripe
 
 
 def save_card_to_customer(customer_id: str, payment_method_id: str):
