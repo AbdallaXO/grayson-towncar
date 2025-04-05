@@ -2,7 +2,6 @@ import stripe
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from reservations.models import Customer
 from .utils import save_card_to_customer
 
 

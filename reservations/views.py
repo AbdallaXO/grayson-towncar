@@ -6,13 +6,9 @@ from django.http.response import (
 from django.shortcuts import render, get_object_or_404, redirect
 from rates.models import Rate
 from .forms import (
-    ReservationForm,
-    CustomerForm,
-    LegForm,
-    FlightForm,
     ContactUsFormSubmission,
 )
-from .utils import _initalize_form, get_form_details, returns_post_form
+from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms
 from django.contrib import messages
 
 
@@ -28,7 +24,6 @@ def reservation_form(
     """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
-    print(request.user)
 
     if request.method == "POST":
         (
@@ -39,14 +34,8 @@ def reservation_form(
             flight2_form,
             leg2_form,
         ) = returns_post_form(request, trip_type)
-        customer_valid = customer_form.is_valid()
-        reservation_valid = reservation_form.is_valid()
-        leg1_valid = leg1_form.is_valid()
-        leg2_valid = trip_type == "one_way" or leg2_form.is_valid()
-        flight1_valid = flight1_form.is_valid()
-        flight2_valid = trip_type == "one_way" or flight2_form.is_valid()
-        forms_valid = customer_valid and reservation_valid and leg1_valid and leg2_valid
-
+        
+        forms_valid = validate_forms(customer_form, reservation_form, flight1_form, leg1_form, flight2_form, leg2_form, trip_type)
         # we validate all forms, and validate leg2 form only  if the trip_type is not = one_way
         if forms_valid:
             customer = customer_form.save()
@@ -60,7 +49,7 @@ def reservation_form(
             leg1 = leg1_form.save(commit=False)
             leg1.reservation = reservation
 
-            if flight1_valid and any(flight1_form.cleaned_data.values()):
+            if flight1_form and any(flight1_form.cleaned_data.values()):
                 flight1 = flight1_form.save()
                 leg1.flight_information = flight1
             else:
@@ -71,7 +60,7 @@ def reservation_form(
                 leg2 = leg2_form.save(commit=False)
                 leg2.reservation = reservation
 
-                if flight2_valid and any(flight2_form.cleaned_data.values()):
+                if flight2_form and any(flight2_form.cleaned_data.values()):
                     flight2 = flight2_form.save()
                     leg2.flight_information = flight2
                 else:

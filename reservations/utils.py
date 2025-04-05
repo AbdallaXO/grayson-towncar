@@ -5,7 +5,6 @@ from .forms import (
     CustomerForm,
     LegForm,
     FlightForm,
-    ContactUsFormSubmission,
 )
 
 
@@ -54,7 +53,7 @@ def _initalize_form(trip_type, rate, price):
     )
 
 
-def returns_post_form(request):
+def returns_post_form(request, trip_type):
     """Returns Forms with Posted Data, just to Avoid Redundancy of repeating everything in the view
     returns customer,reservatiom,flight1,leg1, flight 2 and leg 2 if trip_type == 2, else oneway"""
     customer_form = CustomerForm(request.POST)
@@ -77,3 +76,35 @@ def returns_post_form(request):
         flight2_form,
         leg2_form,
     )
+
+
+def validate_forms(
+    customer_form, reservation_form, flight1_form, leg1_form, flight2_form, leg2_form, trip_type
+):
+    """Validated all the submitted forms based on trip_type
+    received forms for customer, reservation, flight1, leg1, flight2 if round_trip, leg2 if round_trip
+    returns true if all forms are valid 
+    if trip_type is oneway will always return true for oneway+ roundtrip"""
+    customer_valid = customer_form.is_valid()
+    reservation_valid = reservation_form.is_valid()
+    flight1_valid = flight1_form.is_valid()
+    leg1_valid = leg1_form.is_valid()
+
+    if trip_type != "round_trip":
+        leg2_valid = True
+        flight2_valid = True
+    else:
+        leg2_valid = leg2_form.is_valid()
+        flight2_valid = flight2_form.is_valid()
+    forms_valid = all(
+        [
+            customer_valid,
+            reservation_valid,
+            flight1_valid,
+            leg1_valid,
+            flight2_valid,
+            leg2_valid,
+        ]
+    )
+
+    return forms_valid 

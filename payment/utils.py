@@ -1,10 +1,6 @@
 import stripe
-from django.shortcuts import render, redirect, get_object_or_404
 import stripe.error
-from reservations.models import Reservation
-from logging import Logger
 from reservations.models import Customer
-from django.utils.timezone import now
 
 
 def get_or_create_stripe_customer(reservation):
@@ -28,7 +24,6 @@ def get_or_create_stripe_customer(reservation):
 
 
 from django.utils import timezone
-from reservations.models import Customer
 import stripe
 
 

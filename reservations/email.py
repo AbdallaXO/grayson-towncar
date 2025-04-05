@@ -26,5 +26,5 @@ def send_reservation_confirmation(reservation):
         msg = EmailMultiAlternatives(subject, text_content, from_email, to)
         msg.attach_alternative(html_content, "text/html")
         msg.send()
-    except Exception as e:
+    except Exception:
         pass
