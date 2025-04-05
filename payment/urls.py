@@ -13,4 +13,6 @@ urlpatterns = [
         name="save_card_checkout",
     ),
     path("stripe/webhook/", webhook.stripe_webhook, name="stripe_webhook"),
+    path('success/', views.payment_success, name='payment_success'),
+    path('failure/', views.fai, name='payment_cancel'),
 ]

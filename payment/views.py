@@ -5,6 +5,7 @@ from reservations.models import Reservation
 from logging import Logger
 from .utils import get_or_create_stripe_customer
 from django.conf import settings
+from django.urls import reverse
 
 # Ensure you're using environment variables in production
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -52,6 +53,8 @@ def create_checkout_session(request, reservation_id):
 
 
 def save_card(request, reservation_id):
+    success_url = request.build_absolute_uri(reverse('payment_success'))
+    cancel_url = request.build_absolute_uri(reverse('payment_cancel'))
     reservation = get_object_or_404(Reservation, id=reservation_id)
     stripe_customer = get_or_create_stripe_customer(reservation)
     try:
@@ -59,8 +62,8 @@ def save_card(request, reservation_id):
             customer=stripe_customer.id,
             payment_method_types=["card"],
             mode="setup",
-            success_url=...,
-            cancel_url=...,
+            success_url=success_url,
+            cancel_url=cancel_url,
         )
     except stripe.error.StripeError as e:
         return render(request, "stripe/error.html", {"error": e})
@@ -68,7 +71,11 @@ def save_card(request, reservation_id):
     return redirect(checkout_session.url, code=303)
 
 
-def payment_success(request): ...
+def payment_success(request): 
+    return render(request, 'stripe/success.html')
 
 
-def payement_error(request): ...
+def payment_cancel(request):
+    return render(request, 'stripe/cancel.html')
+
+    
