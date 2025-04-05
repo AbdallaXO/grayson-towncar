@@ -19,9 +19,9 @@ class UserProfile(models.Model):
 
 class PartnerForm(models.Model):
     CONTACT_METHODS = [
-        ("email", "Email"),
-        ("phone", "Phone Call"),
-        ("text", "Text Message"),
+        ('email', 'Email'),
+        ('phone', 'Phone Call'),
+        ('text', 'Text Message'),
     ]
     REFERRAL_SOURCES = [
         ("google", "Google Search"),
@@ -46,3 +46,4 @@ class PartnerForm(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.agency_name}"
+

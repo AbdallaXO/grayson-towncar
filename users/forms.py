@@ -53,3 +53,52 @@ class PartnerFormSubmission(forms.ModelForm):
             "referral_source",
             "additional_info",
         ]
+        widgets = {
+            'name': forms.TextInput(attrs={
+                'class': 'form-control', 
+                'id': 'name', 
+                'placeholder': 'Full Name'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control', 
+                'id': 'email', 
+                'placeholder': 'Your Email'
+            }),
+            'phone_number': forms.TextInput(attrs={
+                'class': 'form-control', 
+                'id': 'phone', 
+                'placeholder': 'Your Phone Number'
+            }),
+            'preferred_contact': forms.RadioSelect(attrs={
+                'class': 'form-check-input',
+            }),
+            'agency_name': forms.TextInput(attrs={
+                'class': 'form-control', 
+                'id': 'agency-name', 
+                'placeholder': 'Agency Name'
+            }),
+            'agency_website': forms.TextInput(attrs={
+                'class': 'form-control', 
+                'id': 'agency-website', 
+                'placeholder': 'Agency Website'
+            }),
+            'referral_source': forms.RadioSelect(attrs={
+                'class': 'form-check-input',
+            }),
+            'additional_info': forms.Textarea(attrs={
+                'class': 'form-control', 
+                'id': 'additional-info', 
+                'rows': '5',
+                'placeholder': 'Tell us about your business, typical clients, or ask us any questions you might have.'
+            }),
+        }
+        labels = {
+            'name': 'Full Name',
+            'email': 'Email',
+            'phone_number': 'Phone Number',
+            'preferred_contact': 'Preferred Contact Method',
+            'agency_name': 'Agency Name',
+            'agency_website': 'Agency Website',
+            'referral_source': 'How Did You Hear About Us?',
+            'additional_info': 'Additional Information',
+        }
