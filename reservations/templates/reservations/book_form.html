@@ -2,6 +2,44 @@
 {% load static %}
 {% block content %}
 
+<script>
+  function initAutocomplete() {
+    const legCount = 2; // Adjust if you support more than 2 legs
+
+    for (let i = 1; i <= legCount; i++) {
+      const pickupFieldList = document.getElementsByName(`leg${i}-pickup_location`);
+      const dropoffFieldList = document.getElementsByName(`leg${i}-dropoff_location`);
+
+      const pickupField = pickupFieldList[0];
+      const dropoffField = dropoffFieldList[0];
+
+      if (pickupField) {
+        new google.maps.places.Autocomplete(pickupField, {
+          componentRestrictions: { country: ["us"] },
+          fields: ["address_components", "geometry"],
+          types: ["address"]
+        });
+      }
+
+      if (dropoffField) {
+        new google.maps.places.Autocomplete(dropoffField, {
+          componentRestrictions: { country: ["us"] },
+          fields: ["address_components", "geometry"],
+          types: ["address"]
+        });
+      }
+    }
+  }
+
+  window.addEventListener("load", function () {
+    if (window.google) {
+      initAutocomplete();
+    }
+  });
+</script>
+
+  
+
   <div class="container my-5">
     <div class="row">
       <div class="col-lg-8 mx-auto">
@@ -421,4 +459,13 @@
     </div>
   </div>
 
+{% comment %} <!-- Google Maps API  {% endcomment %}
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCW3-pZS4qxmIlEILTbPH3P8mEolrfXkuY&libraries=places"
+  async
+  defer
+></script>
+
+{% comment %} autocomplete from google api   {% endcomment %}
+<script src="{% static 'js/maps_autocomplete.js' %}"></script>
 {% endblock content %}
