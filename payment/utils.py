@@ -1,6 +1,7 @@
 import stripe
 import stripe.error
 from reservations.models import Customer
+from django.utils import timezone
 
 
 def get_or_create_stripe_customer(reservation):
@@ -23,8 +24,7 @@ def get_or_create_stripe_customer(reservation):
     return stripe_customer
 
 
-from django.utils import timezone
-# import stripe
+
 
 
 def save_card_to_customer(customer_id: str, payment_method_id: str):
