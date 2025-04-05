@@ -1,9 +1,9 @@
 from django.contrib import admin
-from .models import UserPayment
+from .models import Payment
 
 # Register your models here.
 
-@admin.register(UserPayment)
+
+@admin.register(Payment)
 class UserPaymentAdmin(admin.ModelAdmin):
     pass
-    

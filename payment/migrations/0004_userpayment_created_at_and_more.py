@@ -5,31 +5,36 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('payment', '0003_alter_userpayment_status'),
+        ("payment", "0003_alter_userpayment_status"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='userpayment',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, default=django.utils.timezone.now),
+            model_name="userpayment",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, default=django.utils.timezone.now
+            ),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='userpayment',
-            name='stripe_payment_method_id',
+            model_name="userpayment",
+            name="stripe_payment_method_id",
             field=models.CharField(blank=True, max_length=255, null=True),
         ),
         migrations.AddField(
-            model_name='userpayment',
-            name='updated_at',
+            model_name="userpayment",
+            name="updated_at",
             field=models.DateTimeField(auto_now=True),
         ),
         migrations.AlterField(
-            model_name='userpayment',
-            name='status',
-            field=models.CharField(choices=[('unpaid', 'Pending'), ('paid', 'Paid')], default='unpaid', max_length=50),
+            model_name="userpayment",
+            name="status",
+            field=models.CharField(
+                choices=[("unpaid", "Pending"), ("paid", "Paid")],
+                default="unpaid",
+                max_length=50,
+            ),
         ),
     ]

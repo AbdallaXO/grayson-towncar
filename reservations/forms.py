@@ -2,7 +2,6 @@
 
 from django import forms
 from .models import Reservation, Customer, Leg, Flight
-from .constants import CARSEAT_CHOICES, TRIP_CHOICES
 
 
 class CustomerForm(forms.ModelForm):

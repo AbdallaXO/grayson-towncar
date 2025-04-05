@@ -5,71 +5,174 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('payment', '0005_remove_userpayment_created_at_and_more'),
-        ('rates', '0004_alter_rate_route_alter_rate_vehicle'),
+        ("payment", "0005_remove_userpayment_created_at_and_more"),
+        ("rates", "0004_alter_rate_route_alter_rate_vehicle"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Customer',
+            name="Customer",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('first_name', models.CharField(max_length=50)),
-                ('last_name', models.CharField(blank=True, max_length=50)),
-                ('email', models.EmailField(max_length=254)),
-                ('phone_number', models.CharField(max_length=20)),
-                ('zipcode', models.CharField(max_length=20)),
-                ('is_returning', models.BooleanField(default=False)),
-                ('reservation_count', models.PositiveIntegerField(default=0)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("first_name", models.CharField(max_length=50)),
+                ("last_name", models.CharField(blank=True, max_length=50)),
+                ("email", models.EmailField(max_length=254)),
+                ("phone_number", models.CharField(max_length=20)),
+                ("zipcode", models.CharField(max_length=20)),
+                ("is_returning", models.BooleanField(default=False)),
+                ("reservation_count", models.PositiveIntegerField(default=0)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Flight',
+            name="Flight",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('flight_type', models.CharField(choices=[('arrival', 'Arrival'), ('departure', 'Departure')], max_length=10)),
-                ('airline', models.CharField(max_length=50)),
-                ('flight_number', models.CharField(max_length=50)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "flight_type",
+                    models.CharField(
+                        choices=[("arrival", "Arrival"), ("departure", "Departure")],
+                        max_length=10,
+                    ),
+                ),
+                ("airline", models.CharField(max_length=50)),
+                ("flight_number", models.CharField(max_length=50)),
             ],
         ),
         migrations.CreateModel(
-            name='Reservation',
+            name="Reservation",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('trip_type', models.CharField(choices=[('one_way', 'One Way'), ('round_trip', 'Round Trip')], max_length=20)),
-                ('passenger_count', models.PositiveIntegerField(default=1)),
-                ('has_children', models.BooleanField(default=False)),
-                ('luggage_count', models.PositiveIntegerField(default=1)),
-                ('carseat_type', models.CharField(blank=True, choices=[('booster', 'Booster Seat'), ('rear_facing', 'Rear-Facing Car Seat'), ('forward_facing', 'Forward-Facing Car Seat')], max_length=20, null=True)),
-                ('store_stop', models.BooleanField(default=False)),
-                ('special_requests', models.TextField(blank=True)),
-                ('base_price', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('additional_charges', models.DecimalField(decimal_places=2, default=0, max_digits=10)),
-                ('total_price', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('status', models.CharField(choices=[('pending', 'Pending'), ('canceled', 'Canceled'), ('confirmed', 'Confirmed')], default='pending', max_length=20)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('customer', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='reservations.customer')),
-                ('payment', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to='payment.userpayment')),
-                ('rate', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='rates.rate')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "trip_type",
+                    models.CharField(
+                        choices=[("one_way", "One Way"), ("round_trip", "Round Trip")],
+                        max_length=20,
+                    ),
+                ),
+                ("passenger_count", models.PositiveIntegerField(default=1)),
+                ("has_children", models.BooleanField(default=False)),
+                ("luggage_count", models.PositiveIntegerField(default=1)),
+                (
+                    "carseat_type",
+                    models.CharField(
+                        blank=True,
+                        choices=[
+                            ("booster", "Booster Seat"),
+                            ("rear_facing", "Rear-Facing Car Seat"),
+                            ("forward_facing", "Forward-Facing Car Seat"),
+                        ],
+                        max_length=20,
+                        null=True,
+                    ),
+                ),
+                ("store_stop", models.BooleanField(default=False)),
+                ("special_requests", models.TextField(blank=True)),
+                ("base_price", models.DecimalField(decimal_places=2, max_digits=10)),
+                (
+                    "additional_charges",
+                    models.DecimalField(decimal_places=2, default=0, max_digits=10),
+                ),
+                ("total_price", models.DecimalField(decimal_places=2, max_digits=10)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("pending", "Pending"),
+                            ("canceled", "Canceled"),
+                            ("confirmed", "Confirmed"),
+                        ],
+                        default="pending",
+                        max_length=20,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "customer",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="reservations.customer",
+                    ),
+                ),
+                (
+                    "payment",
+                    models.OneToOneField(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="payment.userpayment",
+                    ),
+                ),
+                (
+                    "rate",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT, to="rates.rate"
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Leg',
+            name="Leg",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('pickup_date', models.DateField()),
-                ('pickup_time', models.TimeField()),
-                ('pickup_location', models.CharField(max_length=255)),
-                ('dropoff_location', models.CharField(max_length=255)),
-                ('flight_information', models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='reservations.flight')),
-                ('reservation', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='legs', to='reservations.reservation')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("pickup_date", models.DateField()),
+                ("pickup_time", models.TimeField()),
+                ("pickup_location", models.CharField(max_length=255)),
+                ("dropoff_location", models.CharField(max_length=255)),
+                (
+                    "flight_information",
+                    models.OneToOneField(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="reservations.flight",
+                    ),
+                ),
+                (
+                    "reservation",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="legs",
+                        to="reservations.reservation",
+                    ),
+                ),
             ],
         ),
     ]

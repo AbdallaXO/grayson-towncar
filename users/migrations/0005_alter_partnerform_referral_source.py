@@ -4,15 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0004_rename_heard_aboutus_partnerform_referral_source'),
+        ("users", "0004_rename_heard_aboutus_partnerform_referral_source"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='partnerform',
-            name='referral_source',
-            field=models.CharField(choices=[('google', 'Google Search'), ('social', 'Social Media'), ('referral', 'Referral from another Agent'), ('client', 'Client Recommendation'), ('conference', 'Industry Conference'), ('other', 'Other')], default='other', max_length=60),
+            model_name="partnerform",
+            name="referral_source",
+            field=models.CharField(
+                choices=[
+                    ("google", "Google Search"),
+                    ("social", "Social Media"),
+                    ("referral", "Referral from another Agent"),
+                    ("client", "Client Recommendation"),
+                    ("conference", "Industry Conference"),
+                    ("other", "Other"),
+                ],
+                default="other",
+                max_length=60,
+            ),
         ),
     ]

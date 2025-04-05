@@ -4,27 +4,28 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('payment', '0004_userpayment_created_at_and_more'),
+        ("payment", "0004_userpayment_created_at_and_more"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='userpayment',
-            name='created_at',
+            model_name="userpayment",
+            name="created_at",
         ),
         migrations.RemoveField(
-            model_name='userpayment',
-            name='stripe_payment_method_id',
+            model_name="userpayment",
+            name="stripe_payment_method_id",
         ),
         migrations.RemoveField(
-            model_name='userpayment',
-            name='updated_at',
+            model_name="userpayment",
+            name="updated_at",
         ),
         migrations.AlterField(
-            model_name='userpayment',
-            name='status',
-            field=models.CharField(choices=[('unpaid', 'Pending'), ('paid', 'Paid')], max_length=50),
+            model_name="userpayment",
+            name="status",
+            field=models.CharField(
+                choices=[("unpaid", "Pending"), ("paid", "Paid")], max_length=50
+            ),
         ),
     ]
