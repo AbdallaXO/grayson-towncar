@@ -41,6 +41,10 @@ def create_checkout_session(request, reservation_id):
                     mode="payment",
                     success_url=request.build_absolute_uri("/"),
                     cancel_url=request.build_absolute_uri("/rates/"),
+                    metadata={
+                        "reservation_id": reservation.id,
+                        "mode": "pay_now",
+                    },
                 )
             except stripe.error.StripeError as e:
                 return render(request, "stripe/error.html", {"error": e})
@@ -53,8 +57,8 @@ def create_checkout_session(request, reservation_id):
 
 
 def save_card(request, reservation_id):
-    success_url = request.build_absolute_uri(reverse('payment_success'))
-    cancel_url = request.build_absolute_uri(reverse('payment_cancel'))
+    success_url = request.build_absolute_uri(reverse("payment_success"))
+    cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
     reservation = get_object_or_404(Reservation, id=reservation_id)
     stripe_customer = get_or_create_stripe_customer(reservation)
     try:
@@ -64,6 +68,7 @@ def save_card(request, reservation_id):
             mode="setup",
             success_url=success_url,
             cancel_url=cancel_url,
+            metadata={"reservation_id": reservation.id, "mode": "save_card"},
         )
     except stripe.error.StripeError as e:
         return render(request, "stripe/error.html", {"error": e})
@@ -71,11 +76,9 @@ def save_card(request, reservation_id):
     return redirect(checkout_session.url, code=303)
 
 
-def payment_success(request): 
-    return render(request, 'stripe/success.html')
+def payment_success(request):
+    return render(request, "stripe/success.html")
 
 
 def payment_cancel(request):
-    return render(request, 'stripe/cancel.html')
-
-    
+    return render(request, "stripe/cancel.html")

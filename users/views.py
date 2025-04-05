@@ -68,13 +68,16 @@ def logoutUser(request):
 
 
 def partner(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         form = PartnerFormSubmission(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Your partnership request has been submitted! We will contact you shortly.')
-            return redirect('partner')
+            messages.success(
+                request,
+                "Your partnership request has been submitted! We will contact you shortly.",
+            )
+            return redirect("partner")
     else:
         form = PartnerFormSubmission()
-    context = {'form':form}
+    context = {"form": form}
     return render(request, "users/become_partner.html", context)

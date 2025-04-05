@@ -3,44 +3,43 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from reservations.models import Customer
-from django.utils.timezone import now
+from .utils import save_card_to_customer
+
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 @csrf_exempt
 def stripe_webhook(request):
-
+    # strip sends a post request with the event as raw bytes in the body
     payload = request.body
+    # stripes signature/authentication
     signature = request.META.get("HTTP_STRIPE_SIGNATURE")
 
     try:
-        # Json that contains everything about the event
+        # we construct an event, pass the payload signature and our secret webhook,if everything is valid we get a verified event object
         event = stripe.Webhook.construct_event(
             payload, signature, settings.STRIPE_WEBHOOK_SECRET
         )
     except (ValueError, stripe.error.SignatureVerificationError):
         return HttpResponse(status=400)
-
     if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"] # gives access to id customer mode, set up etc..
+        session = event["data"][
+            "object"
+        ]  # gives access to stripe custoemr, session mode, setupintent
 
-        if session.get("mode") == "setup": # checking if customer  paying now or later
-            customer_id = session.get("customer") #customer id
-            setup_intent_id = session.get("setup_intent") # saves card here
+        if (
+            session.get("mode") == "setup"
+        ):  # checking if customer  paying now or later setup=later, payment=now
+            customer_id = session.get("customer")  # customer id
+            setup_intent_id = session.get(
+                "setup_intent"
+            )  # setup_intent points to the card
 
             if customer_id and setup_intent_id:
-                setup_intent = stripe.SetupIntent.retrieve(setup_intent_id)
+                setup_intent = stripe.SetupIntent.retrieve(
+                    setup_intent_id
+                )  # setup_intent points to the card customer is using
                 payment_method_id = setup_intent.payment_method
 
-                stripe.PaymentMethod.attach(payment_method_id, customer=customer_id)
-
-                try:
-                    customer = Customer.objects.get(stripe_customer_id=customer_id)
-                    customer.stripe_payment_method_id = payment_method_id
-                    customer.card_saved_at = now()
-                    customer.save()
-                except Customer.DoesNotExist:
-                    pass
-
-    return HttpResponse(status=200)
+                save_card_to_customer(customer_id, payment_method_id)
