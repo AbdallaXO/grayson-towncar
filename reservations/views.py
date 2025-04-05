@@ -12,7 +12,7 @@ from .forms import (
     FlightForm,
     ContactUsFormSubmission,
 )
-from .utils import *
+from .utils import _initalize_form, get_form_details, returns_post_form
 from django.contrib import messages
 
 
@@ -31,19 +31,14 @@ def reservation_form(
     print(request.user)
 
     if request.method == "POST":
-        customer_form = CustomerForm(request.POST)
-        reservation_form = ReservationForm(request.POST)
-        flight1_form = FlightForm(request.POST, prefix="flight1")
-        flight2_form = (
-            FlightForm(request.POST, prefix="flight2")
-            if trip_type == "round_trip"
-            else None
-        )
-        leg1_form = LegForm(request.POST, prefix="leg1")
-        leg2_form = (
-            LegForm(request.POST, prefix="leg2") if trip_type == "round_trip" else None
-        )
-
+        (
+            customer_form,
+            reservation_form,
+            flight1_form,
+            leg1_form,
+            flight2_form,
+            leg2_form,
+        ) = returns_post_form(request, trip_type)
         customer_valid = customer_form.is_valid()
         reservation_valid = reservation_form.is_valid()
         leg1_valid = leg1_form.is_valid()
@@ -86,22 +81,14 @@ def reservation_form(
             return redirect("create_checkout_session", reservation_id=reservation.id)
 
     else:
-        customer_form = CustomerForm()
-        reservation_form = ReservationForm(
-            initial={
-                "vehicle": rate.vehicle,
-                "base_price": price,
-                "total_price": price,
-                "route": rate.route,
-            },
-        )
-        flight1_form = FlightForm(prefix="flight1")
-        leg1_form = LegForm(prefix="leg1")
-        # conditional forms if its a roundtrip
-        flight2_form = (
-            FlightForm(prefix="flight2") if trip_type == "round_trip" else None
-        )
-        leg2_form = LegForm(prefix="leg2") if trip_type == "round_trip" else None
+        (
+            customer_form,
+            reservation_form,
+            flight1_form,
+            leg1_form,
+            flight2_form,
+            leg2_form,
+        ) = _initalize_form(trip_type, rate, price)
 
     context = {
         "customer_form": customer_form,
