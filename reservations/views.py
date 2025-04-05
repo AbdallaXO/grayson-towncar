@@ -5,7 +5,13 @@ from django.http.response import (
 )
 from django.shortcuts import render, get_object_or_404, redirect
 from rates.models import Rate
-from .forms import ReservationForm, CustomerForm, LegForm, FlightForm, ContactUsFormSubmission
+from .forms import (
+    ReservationForm,
+    CustomerForm,
+    LegForm,
+    FlightForm,
+    ContactUsFormSubmission,
+)
 from .utils import *
 from django.contrib import messages
 
@@ -22,6 +28,7 @@ def reservation_form(
     """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
+    print(request.user)
 
     if request.method == "POST":
         customer_form = CustomerForm(request.POST)
@@ -120,13 +127,16 @@ def faqs(request):
 
 
 def contact(request):
-    if request.method == 'POST':
+    if request.method == "POST":
         form = ContactUsFormSubmission(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Your quote request has been submitted! We will contact you shortly.')
-            return redirect('contact')
+            messages.success(
+                request,
+                "Your quote request has been submitted! We will contact you shortly.",
+            )
+            return redirect("contact")
     else:
         form = ContactUsFormSubmission()
-    context = {'form':form}
-    return render(request, 'reservations/contact.html', context)
+    context = {"form": form}
+    return render(request, "reservations/contact.html", context)

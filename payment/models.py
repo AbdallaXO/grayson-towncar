@@ -5,7 +5,7 @@ from django.db import models
 
 
 class Payment(models.Model):
-        # Customer and payment method tracking
+    # Customer and payment method tracking
     stripe_customer_id = models.CharField(max_length=255, blank=True)
     stripe_payment_method_id = models.CharField(max_length=255, blank=True)
 

@@ -4,15 +4,22 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0007_contactusform'),
+        ("reservations", "0007_contactusform"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contactusform',
-            name='contact_method',
-            field=models.CharField(choices=[('email', 'Email'), ('phone', 'Phone Call'), ('text', 'Text Message')], default='email', max_length=10),
+            model_name="contactusform",
+            name="contact_method",
+            field=models.CharField(
+                choices=[
+                    ("email", "Email"),
+                    ("phone", "Phone Call"),
+                    ("text", "Text Message"),
+                ],
+                default="email",
+                max_length=10,
+            ),
         ),
     ]
