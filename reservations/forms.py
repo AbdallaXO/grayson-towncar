@@ -3,7 +3,6 @@
 from django import forms
 from .models import Reservation, Customer, Leg, Flight, ContactUsForm
 from django.utils import timezone
-from django.core.exceptions import ValidationError
 
 
 class CustomerForm(forms.ModelForm):

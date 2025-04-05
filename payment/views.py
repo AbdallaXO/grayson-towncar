@@ -2,7 +2,6 @@ import stripe
 from django.shortcuts import render, redirect, get_object_or_404
 import stripe.error
 from reservations.models import Reservation
-from logging import Logger
 from .utils import get_or_create_stripe_customer
 from django.conf import settings
 from django.urls import reverse
@@ -20,6 +19,7 @@ def create_checkout_session(request, reservation_id):
     stripe_customer = get_or_create_stripe_customer(reservation)
 
     if request.method == "POST":
+        #this will determine if its pay_now or save_card
         action = request.POST.get("action")
         # if user is pre-paying
         if action == "pay_now":
@@ -31,7 +31,7 @@ def create_checkout_session(request, reservation_id):
                             "price_data": {
                                 "currency": "usd",
                                 "product_data": {
-                                    "name": f"Reservation #{reservation.id}",
+                                    "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Res ID#{reservation.id}",
                                 },
                                 "unit_amount": int(reservation.total_price * 100),
                             },
@@ -39,11 +39,14 @@ def create_checkout_session(request, reservation_id):
                         }
                     ],
                     mode="payment",
-                    success_url=request.build_absolute_uri("/"),
-                    cancel_url=request.build_absolute_uri("/rates/"),
+                    success_url=request.build_absolute_uri(reverse('payment_success')),
+                    cancel_url=request.build_absolute_uri(reverse('payment_cancel')),
                     metadata={
                         "reservation_id": reservation.id,
                         "mode": "pay_now",
+                        "route":f"Roundtrip Between {reservation.rate.route}",
+                        "vehicle":{reservation.rate.vehicle},
+                        
                     },
                 )
             except stripe.error.StripeError as e:
