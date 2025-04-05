@@ -104,4 +104,5 @@ class FlightAdmin(admin.ModelAdmin):
     search_fields = ("airline", "flight_number")
     list_filter = ("flight_type",)
 
+
 admin.site.register(ContactUsForm)

@@ -103,48 +103,66 @@ class FlightForm(forms.ModelForm):
             "flight_number": forms.TextInput(attrs={"class": "form-control"}),
         }
 
+
 class ContactUsFormSubmission(forms.ModelForm):
     class Meta:
         model = ContactUsForm
         fields = [
-            'first_name', 'last_name', 'phone_number', 'email', 'contact_method', 'about'
+            "first_name",
+            "last_name",
+            "phone_number",
+            "email",
+            "contact_method",
+            "about",
         ]
         widgets = {
-            'first_name': forms.TextInput(attrs={
-                'class': 'form-control', 
-                'id': 'firstName', 
-                'placeholder': 'First Name'
-            }),
-            'last_name': forms.TextInput(attrs={
-                'class': 'form-control', 
-                'id': 'lastName', 
-                'placeholder': 'Last Name'
-            }),
-            'email': forms.EmailInput(attrs={
-                'class': 'form-control', 
-                'id': 'email', 
-                'placeholder': 'Your Email'
-            }),
-            'phone_number': forms.TextInput(attrs={
-                'class': 'form-control', 
-                'id': 'phone', 
-                'placeholder': 'Your Phone Number'
-            }),
-            'contact_method': forms.RadioSelect(attrs={
-                'class': 'form-check-input',
-            }),
-            'about': forms.Textarea(attrs={
-                'class': 'form-control', 
-                'id': 'tripDetails', 
-                'rows': '5',
-                'placeholder': 'Tell us about your dream destination, travel dates, number of travelers, and any special requirements...'
-            }),
+            "first_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "firstName",
+                    "placeholder": "First Name",
+                }
+            ),
+            "last_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "lastName",
+                    "placeholder": "Last Name",
+                }
+            ),
+            "email": forms.EmailInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "email",
+                    "placeholder": "Your Email",
+                }
+            ),
+            "phone_number": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "phone",
+                    "placeholder": "Your Phone Number",
+                }
+            ),
+            "contact_method": forms.RadioSelect(
+                attrs={
+                    "class": "form-check-input",
+                }
+            ),
+            "about": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "id": "tripDetails",
+                    "rows": "5",
+                    "placeholder": "Tell us about your dream destination, travel dates, number of travelers, and any special requirements...",
+                }
+            ),
         }
         labels = {
-            'first_name': 'First Name',
-            'last_name': 'Last Name',
-            'email': 'Email',
-            'phone_number': 'Phone Number',
-            'contact_method': '',
-            'about': 'About Your Trip',
+            "first_name": "First Name",
+            "last_name": "Last Name",
+            "email": "Email",
+            "phone_number": "Phone Number",
+            "contact_method": "",
+            "about": "About Your Trip",
         }

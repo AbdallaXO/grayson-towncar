@@ -1,32 +1,25 @@
 import stripe
 from django.shortcuts import render, redirect, get_object_or_404
+import stripe.error
 from reservations.models import Reservation
-
+from logging import Logger
+from .utils import get_or_create_stripe_customer
 
 # Ensure you're using environment variables in production
 stripe.api_key = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
 
 
 def create_checkout_session(request, reservation_id):
+    """
+    Creates a Checkout Session for a User and a stripe customer object
+    and gives user the option to pay now or later then takes payment here or re-directs user
+    to save_card if they decide to save card for later"""
     reservation = get_object_or_404(Reservation, pk=reservation_id)
-    customer = reservation.customer
-
-    if not customer.stripe_customer_id:
-        stripe_customer = stripe.Customer.create(
-            email=customer.email,
-            metadata={"reservation": reservation.id},
-        )
-        customer.stripe_customer_id = stripe_customer.id
-        customer.save()
-    else:
-        stripe_customer = stripe.Customer.retrieve(customer.stripe_customer_id)
-    setup_intent = stripe.SetupIntent(customer=stripe_customer.id)
-
-    print(f"Stripe Customer : {stripe_customer}")
+    stripe_customer = get_or_create_stripe_customer(reservation)
 
     if request.method == "POST":
         action = request.POST.get("action")
-
+        # if user is pre-paying
         if action == "pay_now":
             try:
                 checkout_session = stripe.checkout.Session.create(
@@ -47,8 +40,8 @@ def create_checkout_session(request, reservation_id):
                     success_url=request.build_absolute_uri("/"),
                     cancel_url=request.build_absolute_uri("/rates/"),
                 )
-            except Exception as e:
-                return str(e)
+            except stripe.error.StripeError as e:
+                return render(request, "stripe/error.html", {"error": e})
 
             return redirect(checkout_session.url, code=303)
         elif action == "save_card":
@@ -59,27 +52,22 @@ def create_checkout_session(request, reservation_id):
 
 def save_card(request, reservation_id):
     reservation = get_object_or_404(Reservation, id=reservation_id)
-    customer = reservation.customer
-
-    if not customer.stripe_customer_id:
-        stripe_customer = (
-            stripe.Customer.create(
-                email=customer.email, metadata={"reservation_id": reservation.id}
-            ),
+    stripe_customer = get_or_create_stripe_customer(reservation)
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            customer=stripe_customer.id,
+            payment_method_types=["card"],
+            mode="setup",
+            success_url=...,
+            cancel_url=...,
         )
-        customer.stripe_customer_id = stripe_customer.id
-        customer.save()
-    else:
-        stripe_customer = stripe.Customer.retrieve(customer.stripe_customer_id)
-    checkout_session = stripe.checkout.Session.create(
-        customer=stripe_customer.id,
-        payment_method_types=["card"],
-        mode="setup",
-        success_url=request.build_absolute_uri("/"),
-        cancel_url=request.build_absolute_uri("/rates/"),
-    )
+    except stripe.error.StripeError as e:
+        return render(request, "stripe/error.html", {"error": e})
 
     return redirect(checkout_session.url, code=303)
 
 
-def stripe_webhook(request): ...
+def payment_success(request): ...
+
+
+def payement_error(request): ...
