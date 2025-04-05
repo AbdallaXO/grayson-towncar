@@ -69,7 +69,6 @@ class ReservationForm(forms.ModelForm):
         }
 
 
-
 class LegForm(forms.ModelForm):
     """Form for trip leg details"""
 
@@ -93,10 +92,11 @@ class LegForm(forms.ModelForm):
                 }
             ),
         }
+
     def clean_pickup_date(self):
-        date = self.cleaned_data['pickup_date']
+        date = self.cleaned_data["pickup_date"]
         if date < timezone.now().date():
-            raise forms.ValidationError('Pick Up Date Cannot Be In The Past')
+            raise forms.ValidationError("Pick Up Date Cannot Be In The Past")
         return date
 
 
