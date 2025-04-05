@@ -56,11 +56,11 @@ cover/
 *.pot
 
 # Django stuff:
-*.log
-local_settings.py
-db.sqlite3*
-db.sqlite3
-db.sqlite3-journal
+# *.log
+# local_settings.py
+# db.sqlite3*
+# db.sqlite3
+# db.sqlite3-journal
 
 # Flask stuff:
 instance/
@@ -178,5 +178,5 @@ cython_debug/
 # Visual Studio Code config
 .vscode/
 
-# Media File Uploads
-content/media/
+# # Media File Uploads
+# content/media/

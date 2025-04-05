@@ -1,9 +1,12 @@
-from django.http.response import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
+from django.http.response import (
+    HttpResponse,
+    HttpResponsePermanentRedirect,
+    HttpResponseRedirect,
+)
 from django.shortcuts import render, get_object_or_404, redirect
-from rates.models import Vehicle, Rate
+from rates.models import Rate
 from .forms import ReservationForm, CustomerForm, LegForm, FlightForm, ContactUsFormSubmission
 from .utils import *
-from .models import Reservation, Leg, Customer
 from django.contrib import messages
 
 
@@ -13,7 +16,9 @@ def index(request):
     return render(request, "reservations/index.html")
 
 
-def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpResponseRedirect | HttpResponse :
+def reservation_form(
+    request, pk
+) -> HttpResponsePermanentRedirect | HttpResponseRedirect | HttpResponse:
     """Returns a Reservation Form either oneway or roundtrip with a car type & rate & route or 404"""
     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
     trip_type, price = get_form_details(request, rate)
@@ -71,7 +76,7 @@ def reservation_form(request, pk) -> HttpResponsePermanentRedirect | HttpRespons
                     leg2.flight_information = None
                 leg2.save()
 
-            return redirect("checkout_session", reservation_id=reservation.id)
+            return redirect("create_checkout_session", reservation_id=reservation.id)
 
     else:
         customer_form = CustomerForm()

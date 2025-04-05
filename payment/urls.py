@@ -1,13 +1,16 @@
 from django.urls import path
 from . import views
 
-
 urlpatterns = [
     path(
-        "checkout/<reservation_id>",
+        "create-checkout-session/<int:reservation_id>/",
         views.create_checkout_session,
-        name="checkout_session",
+        name="create_checkout_session",
     ),
-    path("thank-you/", views.thank_you, name="thank_you"),
-    path("error/", views.cancel, name="cancel"),
+    path(
+        "save-card-checkout/<int:reservation_id>/",
+        views.save_card,
+        name="save_card_checkout",
+    ),
+    path("stripe/webhook/", views.stripe_webhook, name="stripe_webhook"),
 ]

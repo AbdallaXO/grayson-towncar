@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Choose Payment Option</title>
+  </head>
+  <body>
+    <h1>Reservation #{{ reservation.id }}</h1>
+    <p>Total: ${{ reservation.total_price }}</p>
+
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" name="action" value="pay_now">💳 Pay Now</button>
+      <button type="submit" name="action" value="save_card">🔐 Save Card, Pay Later</button>
+    </form>
+  </body>
+</html>

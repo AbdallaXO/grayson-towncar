@@ -1,7 +1,12 @@
 from typing import override
 from django.db import models
-from .constants import CARSEAT_CHOICES, FLIGHT_TYPE_CHOICES, TRIP_CHOICES,RESERVTION_STATUS
-from django.db.models.signals import post_save
+from .constants import (
+    CARSEAT_CHOICES,
+    FLIGHT_TYPE_CHOICES,
+    TRIP_CHOICES,
+    RESERVTION_STATUS,
+)
+
 
 class Customer(models.Model):
     """
@@ -20,13 +25,14 @@ class Customer(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    stripe_customer_id = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
         """
         Returns the customer's first name for easy identification.
         """
         return self.first_name
-    
+
     def get_full_name(self):
         return self.first_name + " " + self.last_name
 
@@ -39,7 +45,6 @@ class Reservation(models.Model):
 
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
-
     rate = models.ForeignKey("rates.Rate", on_delete=models.PROTECT)
     passenger_count = models.PositiveIntegerField(default=1)
     has_children = models.BooleanField(default=False)
@@ -54,12 +59,12 @@ class Reservation(models.Model):
 
     # Price and Payment Details
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
-    additional_charges = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0
-    )
+    additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
 
-    payment = models.OneToOneField("payment.UserPayment", on_delete=models.PROTECT, null=True, blank=True) 
+    payment = models.OneToOneField(
+        "payment.Payment", on_delete=models.PROTECT, null=True, blank=True
+    )
 
     status = models.CharField(
         max_length=20, choices=RESERVTION_STATUS, default="pending"
@@ -67,11 +72,24 @@ class Reservation(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     @override
-    def save(self, *args, force_insert=False, force_update=False, using=None, update_fields=None):
-        self.total_price = self.base_price #+ self.additional_charges
-        return super().save(*args, force_insert=force_insert, force_update=force_update, using=using, update_fields=update_fields)
+    def save(
+        self,
+        *args,
+        force_insert=False,
+        force_update=False,
+        using=None,
+        update_fields=None,
+    ):
+        self.total_price = self.base_price  # + self.additional_charges
+        return super().save(
+            *args,
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
     def __str__(self):
         """

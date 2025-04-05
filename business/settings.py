@@ -31,9 +31,10 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+DEBUG = True
 
-ALLOWED_HOSTS = ['grayson-towncar-production.up.railway.app', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ["127.0.0.1", "grayson-towncar-production.up.railway.app"]
+ALLOWED_HOSTS = ["grayson-towncar-production.up.railway.app", "localhost", "127.0.0.1"]
 
 
 # Application definition
@@ -55,7 +56,7 @@ THIRD_PARTY_APPS = [
 ]
 OUR_APPS = [
     "rates",
-    'reservations.apps.ReservationsConfig',
+    "reservations.apps.ReservationsConfig",
     "users",
     "services",
     "blog",
@@ -67,6 +68,7 @@ INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -131,7 +133,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "America/New_York"
 
 USE_I18N = True
 
@@ -140,14 +142,17 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-STATIC_URL = "static/"
-MEDIA_URL = "/media/"
-STATICFILES_DIRS = [CONTENT_DIR / "static"]
-MEDIA_ROOT = CONTENT_DIR / "media"
 STATIC_ROOT = CONTENT_DIR / "staticfiles"
+STATIC_URL = "static/"
 
-# Stripe Settings 
+STATICFILES_DIRS = [CONTENT_DIR / "static"]
+
+MEDIA_ROOT = CONTENT_DIR / "media"
+MEDIA_URL = "/media/"
+
+# Stripe Settings
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 
@@ -157,25 +162,32 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Crispy forms settings
-
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
-# Django Toolbar 
+# Django Toolbar
 INTERNAL_IPS = [
     "127.0.0.1",
 ]
 
 # EMAIL Settings
-# 
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+#
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://grayson-towncar-production.up.railway.app/',
+    "https://grayson-towncar-production.up.railway.app/",
+    "http://grayson-towncar-production.up.railway.app/",
+    "https://*.up.railway.app/",
+    "http://*.up.railway.app/",
+    "https://*.railway.app/",
+    "http://*.railway.app/",
+    "https://*.app/",
+    "http://*.app/",
 ]

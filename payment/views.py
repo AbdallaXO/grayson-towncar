@@ -1,44 +1,85 @@
-from django.shortcuts import render
-from django.conf import settings
-from django.shortcuts import get_object_or_404, redirect
-from reservations.models import Reservation
-from django.urls import reverse
 import stripe
+from django.shortcuts import render, redirect, get_object_or_404
+from reservations.models import Reservation
 
+
+# Ensure you're using environment variables in production
 stripe.api_key = "sk_test_51R6ae8R0WxX20o0RNVnNeZNS1ndfJJX6fgNT7jElFtCHPoZX0f6669sZsDSaHE02aKOfBg3GFlNZw4eplDRcLDLw009YcMaEK0"
 
 
-# Create your views here.
 def create_checkout_session(request, reservation_id):
-    # get the reservation user just submitted
     reservation = get_object_or_404(Reservation, pk=reservation_id)
+    customer = reservation.customer
 
-    session = stripe.checkout.Session.create(
+    if not customer.stripe_customer_id:
+        stripe_customer = stripe.Customer.create(
+            email=customer.email,
+            metadata={"reservation": reservation.id},
+        )
+        customer.stripe_customer_id = stripe_customer.id
+        customer.save()
+    else:
+        stripe_customer = stripe.Customer.retrieve(customer.stripe_customer_id)
+    setup_intent = stripe.SetupIntent(customer=stripe_customer.id)
+
+    print(f"Stripe Customer : {stripe_customer}")
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+
+        if action == "pay_now":
+            try:
+                checkout_session = stripe.checkout.Session.create(
+                    customer=stripe_customer.id,
+                    line_items=[
+                        {
+                            "price_data": {
+                                "currency": "usd",
+                                "product_data": {
+                                    "name": f"Reservation #{reservation.id}",
+                                },
+                                "unit_amount": int(reservation.total_price * 100),
+                            },
+                            "quantity": 1,
+                        }
+                    ],
+                    mode="payment",
+                    success_url=request.build_absolute_uri("/"),
+                    cancel_url=request.build_absolute_uri("/rates/"),
+                )
+            except Exception as e:
+                return str(e)
+
+            return redirect(checkout_session.url, code=303)
+        elif action == "save_card":
+            return redirect("save_card_checkout", reservation_id=reservation.id)
+
+    return render(request, "stripe/payment.html", {"reservation": reservation})
+
+
+def save_card(request, reservation_id):
+    reservation = get_object_or_404(Reservation, id=reservation_id)
+    customer = reservation.customer
+
+    if not customer.stripe_customer_id:
+        stripe_customer = (
+            stripe.Customer.create(
+                email=customer.email, metadata={"reservation_id": reservation.id}
+            ),
+        )
+        customer.stripe_customer_id = stripe_customer.id
+        customer.save()
+    else:
+        stripe_customer = stripe.Customer.retrieve(customer.stripe_customer_id)
+    checkout_session = stripe.checkout.Session.create(
+        customer=stripe_customer.id,
         payment_method_types=["card"],
-        mode="payment",  # One Time Payment , can be instead subscription for an example
-        line_items=[
-            {
-                "price_data": {
-                    "currency": "usd",
-                    "unit_amount": int(reservation.total_price * 100),
-                    "product_data": {
-                        "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', ' ').title()} Reservation",
-                        "description": f" Route: {reservation.rate.route}",
-                    },
-                },
-                "quantity": 1,
-            }
-        ],
-        success_url=request.build_absolute_uri("/thank-you/"),
-        cancel_url=request.build_absolute_uri(reverse("cancel")),
-        metadata={"reservation_id": reservation.id},
+        mode="setup",
+        success_url=request.build_absolute_uri("/"),
+        cancel_url=request.build_absolute_uri("/rates/"),
     )
-    return redirect(session.url, code=303)
+
+    return redirect(checkout_session.url, code=303)
 
 
-def thank_you(request):
-    return render(request, "stripe/thank_you.html")
-
-
-def cancel(request):
-    return render(request, "stripe/failed.html")
+def stripe_webhook(request): ...
