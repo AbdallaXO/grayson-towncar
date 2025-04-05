@@ -96,7 +96,7 @@ class LegForm(forms.ModelForm):
     def clean_pickup_date(self):
         date = self.cleaned_data['pickup_date']
         if date < timezone.now().date():
-            raise forms.ValidationError('Le jour de ramassage ne peut pas être dans le passé')
+            raise forms.ValidationError('Pick Up Date Cannot Be In The Past')
         return date
 
 
