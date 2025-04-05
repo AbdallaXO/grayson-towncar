@@ -1,3 +1,22 @@
+function preventEnterExceptOnSpecialRequests(formSelector = "form") {
+    const form = document.querySelector(formSelector);
+    if (!form) return;
+
+    form.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+            const target = e.target;
+            // Check both id and name attributes to be safe
+            const isAllowedField =
+                target.id === "special_Requests" ||
+                target.name === "special_requests";
+
+            if (!isAllowedField) {
+                e.preventDefault();
+            }
+        }
+    });
+}
+
 function initAutocomplete() {
     const legCount = 2; // since we only support round_trips
 
@@ -30,4 +49,5 @@ window.addEventListener("load", function () {
     if (window.google) {
         initAutocomplete();
     }
+    preventEnterExceptOnSpecialRequests("#reservation_form");
 });
