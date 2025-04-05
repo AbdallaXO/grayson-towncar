@@ -2,6 +2,8 @@
 
 from django import forms
 from .models import Reservation, Customer, Leg, Flight, ContactUsForm
+from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 
 class CustomerForm(forms.ModelForm):
@@ -67,6 +69,7 @@ class ReservationForm(forms.ModelForm):
         }
 
 
+
 class LegForm(forms.ModelForm):
     """Form for trip leg details"""
 
@@ -90,6 +93,11 @@ class LegForm(forms.ModelForm):
                 }
             ),
         }
+    def clean_pickup_date(self):
+        date = self.cleaned_data['pickup_date']
+        if date < timezone.now().date():
+            raise forms.ValidationError('Le jour de ramassage ne peut pas être dans le passé')
+        return date
 
 
 class FlightForm(forms.ModelForm):
