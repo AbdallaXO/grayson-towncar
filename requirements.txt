@@ -27,3 +27,4 @@ python-dotenv
 uvicorn
 django-environ
 psycopg
+typing

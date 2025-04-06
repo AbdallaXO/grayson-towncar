@@ -1,4 +1,3 @@
-from typing import override
 from django.db import models
 from .constants import (
     CARSEAT_CHOICES,
