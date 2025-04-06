@@ -1,42 +1,62 @@
 {% extends 'main.html' %}
 {% load static %}
+
+{% block head_extra %}
+  <!-- Preload critical resources -->
+  <link rel="preload"
+        href="{% static 'css/homepage-elements.css' %}"
+        as="style">
+  <link rel="preload"
+        href="{% static 'fonts/bootstrap-icons.woff2' %}"
+        as="font"
+        type="font/woff2"
+        crossorigin>
+{% endblock %}
+
 {% block content %}
+  <!-- preload critical assets to improve page speed -->
+  <link rel="preload" href="{% static 'images/suburban.webp' %}" as="image" />
+
   <link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
   <main class="flex-shrink-0">
+
     <!-- Hero Section -->
-    <section class="hero bg-dark py-5">
-      <div class="container px-5">
-        <div class="row gx-5 align-items-center justify-content-center">
-          <div class="col-lg-8 col-xl-7 col-xxl-6">
-            <div class="my-5 text-center text-xl-start">
-              <h1 class="display-5 fw-light text-white mb-3">
-                <span class="display-1 text-light">Grayson</span> Towncar
-              </h1>
-              <h2 class="h3 fw-normal text-white mb-3">Orlando Airport Transportation to Hotels</h2>
-              <p class="lead fw-normal text-white-50 mb-4">
-                Luxury transportation from Orlando International Airport (MCO) to Disney Resorts, Universal Hotels, and International Drive accommodations. Professional service with complimentary car seats and grocery stops.
-              </p>
-              <p class="text-white-50 mb-4">Rated 5 stars by over 300 happy families!</p>
-              <div class="d-grid gap-3 d-sm-flex justify-content-sm-center justify-content-xl-start">
-                <a class="btn btn-primary btn-lg px-4 me-sm-3"
-                   href="{% url 'rates' %}"
-                   aria-label="Book Now">Book Now</a>
-                <a class="btn btn-outline-light btn-lg px-4"
-                   href="{% url 'contact' %}"
-                   aria-label="Contact Us">Contact Us</a>
-              </div>
-            </div>
-          </div>
-          <div class="col-xl-5 col-xxl-6 d-none d-xl-block text-center">
-            <img class="img-fluid rounded-3 my-5"
-                 src="{% static 'images/suburban.webp' %}"
-                 alt="Luxury SUV for Orlando Airport Transportation"
-                 width="600"
-                 height="400" />
+<section class="hero bg-dark py-4">
+  <div class="container px-4">
+    <div class="row gx-4 align-items-center justify-content-center">
+      <div class="col-lg-7 col-xl-6">
+        <div class="my-4 text-center text-xl-start">
+          <h1 class="fw-light text-white mb-2">
+            <span class="fs-2 text-light">Grayson Towncar </span>
+          </h1>
+          <h2 class="h4 fw-normal text-white mb-2">Orlando Airport Transportation</h2>
+          <!-- Simplified description for faster loading -->
+          <p class="text-white-50 mb-3">
+            Luxury transportation to Orlando attractions, hotels, MCO, Port Canaveral, and more! We offer 24/7 professional service with complimentary car seats for your travel experience. 
+          </p>
+          <div class="d-grid gap-2 d-sm-flex justify-content-sm-center justify-content-xl-start">
+            <a class="btn btn-primary px-4 me-sm-3"
+               href="{% url 'rates' %}"
+               aria-label="Book Now">Book Now</a>
+            <a class="btn btn-outline-light px-4"
+               href="{% url 'contact' %}"
+               aria-label="Contact Us">Contact Us</a>
           </div>
         </div>
       </div>
-    </section>
+      <div class="col-xl-5 d-none d-md-block text-center">
+        <!-- Optimized image with explicit dimensions, formats, and preload -->
+        <img class="img-fluid rounded-3 my-4"
+             src="{% static 'images/suburban.webp' %}"
+             alt="Luxury SUV"
+             width="400"
+             height="267"
+             loading="eager" />
+      </div>
+    </div>
+  </div>
+</section>
+
 
     <!-- Services Highlights Section -->
     <section class="services-highlights py-5" aria-labelledby="services-heading">
@@ -120,7 +140,8 @@
                          src="{% static 'images/sarah.webp' %}"
                          width="50"
                          height="50"
-                         alt="Sarah Williams" />
+                         alt="Sarah Williams"
+                         loading="lazy" />
                   </div>
                   <figcaption>
                     <h3 class="h5 mb-1">Sarah Williams</h3>
@@ -161,7 +182,8 @@
                    src="{% static 'images/towncar.webp' %}"
                    alt="Executive Sedan for Orlando Airport Transportation"
                    width="400"
-                   height="225" />
+                   height="225"
+                   loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Executive Sedan</div>
                 <h3 class="h5 card-title mb-3">Towncar Service</h3>
@@ -199,7 +221,8 @@
                    src="{% static 'images/suburban.webp' %}"
                    alt="Luxury SUV for Orlando Hotel Transfers"
                    width="400"
-                   height="225" />
+                   height="225"
+                   loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Luxury SUV</div>
                 <h3 class="h5 card-title mb-3">Luxury SUV Service</h3>
@@ -237,7 +260,8 @@
                    src="{% static 'images/van.webp' %}"
                    alt="Passenger Van for Orlando Group Transportation"
                    width="400"
-                   height="225" />
+                   height="225"
+                   loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Group Transport</div>
                 <h3 class="h5 card-title mb-3">Passenger Van Service</h3>
@@ -273,8 +297,8 @@
 
     <!-- Complimentary Services Section -->
     <section class="benefits py-5 bg-light"
-             id="complimentary-services"
-             aria-labelledby="services-benefits-heading">
+            id="complimentary-services"
+            aria-labelledby="services-benefits-heading">
       <div class="container px-4 py-5">
         <div class="row justify-content-center">
           <div class="col-lg-10">
@@ -288,10 +312,10 @@
                 <div class="row g-4">
                   <!-- MCO Meet & Greet -->
                   <div class="col-md-6 col-lg-4">
-                    <article class="service-item h-100">
+                    <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="service-icon bg-primary text-white rounded-circle p-3 me-3">
-                          <i class="bi bi-person-check-fill fs-4" aria-hidden="true"></i>
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                          <i class="bi bi-person-check-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">MCO Meet & Greet</h3>
                       </div>
@@ -303,10 +327,10 @@
 
                   <!-- Free Car Seats -->
                   <div class="col-md-6 col-lg-4">
-                    <article class="service-item h-100">
+                    <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="service-icon bg-primary text-white rounded-circle p-3 me-3">
-                          <i class="bi bi-life-preserver fs-4" aria-hidden="true"></i>
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                          <i class="bi bi-life-preserver"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Free Car Seats</h3>
                       </div>
@@ -318,10 +342,10 @@
 
                   <!-- Grocery Stop -->
                   <div class="col-md-6 col-lg-4">
-                    <article class="service-item h-100">
+                    <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="service-icon bg-primary text-white rounded-circle p-3 me-3">
-                          <i class="bi bi-cart-fill fs-4" aria-hidden="true"></i>
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                          <i class="bi bi-cart-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Grocery Stop</h3>
                       </div>
@@ -333,10 +357,10 @@
 
                   <!-- Professional Drivers -->
                   <div class="col-md-6 col-lg-4">
-                    <article class="service-item h-100">
+                    <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="service-icon bg-primary text-white rounded-circle p-3 me-3">
-                          <i class="bi bi-shield-check fs-4" aria-hidden="true"></i>
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                          <i class="bi bi-shield-check"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Professional Drivers</h3>
                       </div>
@@ -348,10 +372,10 @@
 
                   <!-- 24/7 Availability -->
                   <div class="col-md-6 col-lg-4">
-                    <article class="service-item h-100">
+                    <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="service-icon bg-primary text-white rounded-circle p-3 me-3">
-                          <i class="bi bi-clock-fill fs-4" aria-hidden="true"></i>
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                          <i class="bi bi-clock-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">24/7 Availability</h3>
                       </div>
@@ -363,10 +387,10 @@
 
                   <!-- Roundtrip Discount -->
                   <div class="col-md-6 col-lg-4">
-                    <article class="service-item h-100">
+                    <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="service-icon bg-primary text-white rounded-circle p-3 me-3">
-                          <i class="bi bi-tag-fill fs-4" aria-hidden="true"></i>
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                          <i class="bi bi-tag-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Roundtrip Discount</h3>
                       </div>
@@ -378,15 +402,15 @@
                 <!-- Trust Badges -->
                 <div class="text-center mt-5 mb-4">
                   <div class="d-flex justify-content-center flex-wrap gap-4">
-                    <div class="trust-badge d-flex align-items-center">
+                    <div class="d-flex align-items-center">
                       <i class="bi bi-star-fill text-warning me-2"></i>
                       <span class="fw-bold">5-Star Rated Service</span>
                     </div>
-                    <div class="trust-badge d-flex align-items-center">
+                    <div class="d-flex align-items-center">
                       <i class="bi bi-check-circle-fill text-success me-2"></i>
                       <span class="fw-bold">300+ Happy Families</span>
                     </div>
-                    <div class="trust-badge d-flex align-items-center">
+                    <div class="d-flex align-items-center">
                       <i class="bi bi-calendar-check text-primary me-2"></i>
                       <span class="fw-bold">10+ Years Experience</span>
                     </div>
@@ -399,7 +423,7 @@
                     <small>Limited vehicles available - reserve before they're gone</small>
                   </p>
                   <a href="{% url 'rates' %}"
-                     class="btn btn-primary btn-lg px-5 py-3 fw-bold">
+                    class="btn btn-primary btn-lg px-5 py-3 fw-bold">
                     Book Your Stress-Free Orlando Transfer <i class="bi bi-arrow-right ms-2"></i>
                   </a>
                 </div>
@@ -415,28 +439,42 @@
   </main>
 
   <!-- structured data for SEO -->
+  <!-- Optimized Structured Data for Grayson Towncar SEO -->
   <script type="application/ld+json">
       {
           "@context": "https://schema.org",
-          "@type": "LocalBusiness",
+          "@type": "TransportService",
           "name": "Grayson Towncar",
-          "image": "",
-          "@id": "",
-          "url": "",
-          "telephone": "555-123-4567",
+          "description": "Premier private transportation service in Orlando, offering airport shuttles, Disney and Universal resort transfers, and reliable airport transportation.",
+          "image": "https://www.graysontowncar.com/logo.jpg",
+          "url": "https://www.graysontowncar.com",
+          "telephone": "+1-407-212-7190",
           "priceRange": "$$",
+          "areaServed": {
+              "@type": "Place",
+              "name": "Orlando Metropolitan Area",
+              "geo": {
+                  "@type": "GeoCircle",
+                  "geoMidpoint": {
+                      "@type": "GeoCoordinates",
+                      "latitude": 28.5383,
+                      "longitude": -81.3792
+                  },
+                  "geoRadius": "50 mi"
+              }
+          },
           "address": {
               "@type": "PostalAddress",
-              "streetAddress": "",
+              "streetAddress": "Service-based Business",
               "addressLocality": "Orlando",
               "addressRegion": "FL",
-              "postalCode": "",
+              "postalCode": "32830",
               "addressCountry": "US"
           },
           "geo": {
               "@type": "GeoCoordinates",
               "latitude": 28.5383,
-              "longitude": 81.3792
+              "longitude": -81.3792
           },
           "openingHoursSpecification": {
               "@type": "OpeningHoursSpecification",
@@ -452,24 +490,63 @@
               "opens": "00:00",
               "closes": "23:59"
           },
-          "sameAs": [],
-          "service": [{
-              "@type": "Service",
-              "name": "Orlando Airport to Disney Hotel Transportation",
-              "description": "Private luxury transportation from Orlando International Airport (MCO) to all Disney Resort Hotels."
-          }, {
-              "@type": "Service",
-              "name": "Orlando Airport to Universal Hotel Transportation",
-              "description": "Direct transportation from MCO to all Universal Orlando hotels and nearby accommodations."
-          }, {
-              "@type": "Service",
-              "name": "Orlando Airport to International Drive Hotel Transportation",
-              "description": "Comfortable transfers from Orlando Airport to all International Drive hotels and resorts."
-          }, {
-              "@type": "Service",
-              "name": "Hotel to Hotel Transportation in Orlando",
-              "description": "Private transfers between any Orlando area hotels and resorts."
-          }]
+          "sameAs": [
+              "https://www.instagram.com/graysontowncar/",
+              "https://www.facebook.com/people/Grayson-Towncar/61574468855996/",
+              "https://x.com/graysontowncar"
+          ],
+          "potentialAction": {
+              "@type": "ReserveAction",
+              "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://www.graysontowncar.com/rates/",
+                  "inLanguage": "en-US"
+              }
+          },
+          "hasOfferCatalog": {
+              "@type": "OfferCatalog",
+              "name": "Transportation Services",
+              "itemListElement": [{
+                  "@type": "Offer",
+                  "itemOffered": {
+                      "@type": "Service",
+                      "name": "Orlando Airport to Disney Resort Transportation",
+                      "description": "Direct private shuttle service from Orlando International Airport (MCO) to all Disney World Resort Hotels, including complimentary car seats."
+                  }
+              }, {
+                  "@type": "Offer",
+                  "itemOffered": {
+                      "@type": "Service",
+                      "name": "Orlando Airport to Universal Resort Transportation",
+                      "description": "Convenient and comfortable private transportation from Orlando International Airport to all Universal Orlando Resort hotels."
+                  }
+              }, {
+                  "@type": "Offer",
+                  "itemOffered": {
+                      "@type": "Service",
+                      "name": "Port Canaveral Cruise Transportation",
+                      "description": "Reliable shuttle service between Orlando International Airport and Port Canaveral cruise terminals."
+                  }
+              }, {
+                  "@type": "Offer",
+                  "itemOffered": {
+                      "@type": "Service",
+                      "name": "Inter-Resort Transportation",
+                      "description": "Seamless private transfers between Orlando area hotels, resorts, and attractions."
+                  }
+              }]
+          },
+          "keywords": [
+              "Orlando airport shuttle",
+              "Disney transportation",
+              "Universal Studios transportation",
+              "Orlando towncar",
+              "Private airport transfer",
+              "Port Canaveral shuttle"
+          ]
       }
   </script>
 {% endblock content %}
+
+{% block footer_scripts %}
+{% endblock %}
