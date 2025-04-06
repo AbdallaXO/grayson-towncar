@@ -22,24 +22,15 @@
           <a class="nav-link" href="{% url 'home' %}">Home</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle"
-             href="#"
-             id="navbarDropdown"
-             role="button"
-             data-bs-toggle="dropdown"
-             aria-expanded="false">Company</a>
-          <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
-            <li>
-              <a class="dropdown-item" href="{% url 'about-us' %}">About</a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'partner' %}">Partnership</a>
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'faqs' %}">FAQs</a>
-            </li>
-          </ul>
-        </li>
+           <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+             Company
+           </a>
+           <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
+             <li><a class="dropdown-item" href="{% url 'about-us' %}">About</a></li>
+             <li><a class="dropdown-item" href="{% url 'partner' %}">Partnership</a></li>
+             <li><a class="dropdown-item" href="{% url 'faqs' %}">FAQs</a></li>
+           </ul>
+         </li>
         <li class="nav-item">
           <a class="nav-link" href="{% url 'services' %}">Services</a>
         </li>
