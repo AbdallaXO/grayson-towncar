@@ -22,7 +22,6 @@ tzdata==2025.2
 urllib3==2.3.0
 whitenoise
 whitenoise[brotli]
-dj_database_url
-dotenv
-gunicorn 
+dj-database-url
+python-dotenv 
 uvicorn
