@@ -19,7 +19,7 @@ def create_checkout_session(request, reservation_id):
     stripe_customer = get_or_create_stripe_customer(reservation)
 
     if request.method == "POST":
-        #this will determine if its pay_now or save_card
+        # this will determine if its pay_now or save_card
         action = request.POST.get("action")
         # if user is pre-paying
         if action == "pay_now":
@@ -39,14 +39,13 @@ def create_checkout_session(request, reservation_id):
                         }
                     ],
                     mode="payment",
-                    success_url=request.build_absolute_uri(reverse('payment_success')),
-                    cancel_url=request.build_absolute_uri(reverse('payment_cancel')),
+                    success_url=request.build_absolute_uri(reverse("payment_success")),
+                    cancel_url=request.build_absolute_uri(reverse("payment_cancel")),
                     metadata={
                         "reservation_id": reservation.id,
                         "mode": "pay_now",
-                        "route":f"Roundtrip Between {reservation.rate.route}",
-                        "vehicle":{reservation.rate.vehicle},
-                        
+                        "route": f"Roundtrip Between {reservation.rate.route}",
+                        "vehicle": {reservation.rate.vehicle},
                     },
                 )
             except stripe.error.StripeError as e:

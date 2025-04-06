@@ -73,6 +73,10 @@ class Route(models.Model):
         return f"{self.origin.name} ⇄ {self.destination.name}"
 
 
+from django.db import models
+from django.db.models import Index, UniqueConstraint
+
+
 class Rate(models.Model):
     """
     Associates a specific Vehicle with a specific Route, defining
@@ -80,20 +84,44 @@ class Rate(models.Model):
     """
 
     vehicle = models.ForeignKey(
-        "Vehicle", on_delete=models.CASCADE, related_name="rates"
+        "Vehicle",
+        on_delete=models.CASCADE,
+        related_name="rates",
+        db_index=True,  # Additional index on this foreign key
     )
-    route = models.ForeignKey("Route", on_delete=models.CASCADE)
-    oneway_price = models.DecimalField(max_digits=10, decimal_places=2)
-    round_trip_price = models.DecimalField(max_digits=10, decimal_places=2)
+    route = models.ForeignKey(
+        "Route",
+        on_delete=models.CASCADE,
+        db_index=True,  # Additional index on this foreign key
+    )
+    oneway_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        db_index=True,  # Optional: if you frequently filter by price
+    )
+    round_trip_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        db_index=True,  # Optional: if you frequently filter by price
+    )
 
     class Meta:
-        unique_together = ("vehicle", "route")
+        # Use UniqueConstraint for more flexibility
+        constraints = [
+            UniqueConstraint(fields=["vehicle", "route"], name="unique_vehicle_route")
+        ]
+
+        # Multiple indexes for different query patterns
+        indexes = [
+            # Composite index for vehicle and route
+            models.Index(fields=["vehicle", "route"]),
+            # Optional: additional indexes for common query patterns
+            models.Index(fields=["vehicle", "oneway_price"]),
+            models.Index(fields=["route", "round_trip_price"]),
+        ]
 
     def __str__(self):
         """
         Returns a combination of Vehicle and Route for pricing details.
         """
         return f"{self.vehicle} - {self.route}"
-
-    # def get_absolute_url(self):
-    #     return reverse("Test_detail", kwargs={"pk": self.pk})

@@ -13,9 +13,9 @@ class Customer(models.Model):
     reservation history. It is related to the Reservation model via a ForeignKey.
     """
 
-    first_name = models.CharField(max_length=50)
+    first_name = models.CharField(max_length=50, db_index=True)
     last_name = models.CharField(max_length=50, blank=True)
-    email = models.EmailField()
+    email = models.EmailField(db_index=True)
     phone_number = models.CharField(max_length=20)
     zipcode = models.CharField(max_length=20)
     # For future reference
@@ -30,6 +30,12 @@ class Customer(models.Model):
     card_last4 = models.CharField(max_length=4, blank=True)
     card_exp_month = models.IntegerField(null=True, blank=True)
     card_exp_year = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["email"]),
+            models.Index(fields=["created_at"]),
+        ]
 
     def __str__(self):
         """
@@ -77,6 +83,13 @@ class Reservation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["customer"]),
+            models.Index(fields=["trip_type"]),
+            models.Index(fields=["rate"]),
+        ]
+
     def save(
         self,
         *args,
@@ -119,6 +132,13 @@ class Leg(models.Model):
     pickup_time = models.TimeField()
     pickup_location = models.CharField(max_length=255)
     dropoff_location = models.CharField(max_length=255)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["pickup_date"]),
+            models.Index(fields=["reservation"]),
+            models.Index(fields=["pickup_location", "dropoff_location"]),
+        ]
 
     def __str__(self):
         """

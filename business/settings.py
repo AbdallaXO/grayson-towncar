@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
+
 import dj_database_url
 from dotenv import load_dotenv
 from pathlib import Path
@@ -31,9 +32,14 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'www.graysontowncar.com', 'graysontowncar.com']
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "www.graysontowncar.com",
+    "graysontowncar.com",
+]
 
 
 # Application definition
@@ -101,9 +107,8 @@ WSGI_APPLICATION = "business.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL'),
-        conn_max_age=600
+    "default": dj_database_url.config(
+        default=os.getenv("DATABASE_URL"), conn_max_age=600
     )
 }
 
@@ -143,9 +148,8 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [CONTENT_DIR / "static"]  # Additional static file directories
 
 if not DEBUG:
-    STATIC_ROOT = CONTENT_DIR / 'staticfiles'  # Directory for collected static files
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
+    STATIC_ROOT = CONTENT_DIR / "staticfiles"  # Directory for collected static files
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 
 MEDIA_ROOT = CONTENT_DIR / "media"

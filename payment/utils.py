@@ -24,9 +24,6 @@ def get_or_create_stripe_customer(reservation):
     return stripe_customer
 
 
-
-
-
 def save_card_to_customer(customer_id: str, payment_method_id: str):
     """
     Given a Stripe customer ID and a payment method ID,
