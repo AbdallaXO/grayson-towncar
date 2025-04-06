@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+from django.contrib.auth import get_user_model
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -30,6 +30,18 @@ SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "tgvhbjbvfdr5^asuiklfugulvb#$%^YHBNKI&tgvhbjbvfdr5^"
 )
 
+
+
+User = get_user_model()
+username = os.getenv("DJANGO_SUPERUSER_USERNAME", "admin")
+email = os.getenv("DJANGO_SUPERUSER_EMAIL", "admin@example.com")
+password = os.getenv("DJANGO_SUPERUSER_PASSWORD", "supersecure123")
+
+if not User.objects.filter(username=username).exists():
+    User.objects.create_superuser(username=username, email=email, password=password)
+    print(f"✅ Superuser '{username}' created.")
+else:
+    print(f"ℹ️ Superuser '{username}' already exists. Skipping.")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -198,6 +210,3 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-if DEBUG:
-    THIRD_PARTY_APPS += ['debug_toolbar']
-    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
