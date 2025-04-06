@@ -23,5 +23,5 @@ urllib3==2.3.0
 whitenoise
 whitenoise[brotli]
 dotenv
-gunicorn uvicorn
-fcntl
+gunicorn 
+uvicorn
