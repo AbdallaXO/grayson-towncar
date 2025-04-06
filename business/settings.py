@@ -145,7 +145,7 @@ STATICFILES_DIRS = [CONTENT_DIR / "static"]
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 if not DEBUG:
 
-    STATIC_ROOT = os.path.join(CONTENT_DIR , "staticfiles")
+    STATIC_ROOT = CONTENT_DIR / 'staticfiles'
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
