@@ -177,7 +177,3 @@ cython_debug/
 
 # Visual Studio Code config
 .vscode/
-
-# # Media File Uploads
-# content/media/
-.DS_Store
