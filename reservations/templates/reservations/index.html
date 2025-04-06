@@ -21,41 +21,41 @@
   <main class="flex-shrink-0">
 
     <!-- Hero Section -->
-<section class="hero bg-dark py-4">
-  <div class="container px-4">
-    <div class="row gx-4 align-items-center justify-content-center">
-      <div class="col-lg-7 col-xl-6">
-        <div class="my-4 text-center text-xl-start">
-          <h1 class="fw-light text-white mb-2">
-            <span class="fs-2 text-light">Grayson Towncar </span>
-          </h1>
-          <h2 class="h4 fw-normal text-white mb-2">Orlando Airport Transportation</h2>
-          <!-- Simplified description for faster loading -->
-          <p class="text-white-50 mb-3">
-            Luxury transportation to Orlando attractions, hotels, MCO, Port Canaveral, and more! We offer 24/7 professional service with complimentary car seats for your travel experience. 
-          </p>
-          <div class="d-grid gap-2 d-sm-flex justify-content-sm-center justify-content-xl-start">
-            <a class="btn btn-primary px-4 me-sm-3"
-               href="{% url 'rates' %}"
-               aria-label="Book Now">Book Now</a>
-            <a class="btn btn-outline-light px-4"
-               href="{% url 'contact' %}"
-               aria-label="Contact Us">Contact Us</a>
+    <section class="hero bg-dark py-4">
+      <div class="container px-4">
+        <div class="row gx-4 align-items-center justify-content-center">
+          <div class="col-lg-7 col-xl-6">
+            <div class="my-4 text-center text-xl-start">
+              <h1 class="fw-light text-white mb-2">
+                <span class="fs-2 text-light">Grayson Towncar</span>
+              </h1>
+              <h2 class="h4 fw-normal text-white mb-2">Orlando Airport Transportation</h2>
+              <!-- Simplified description for faster loading -->
+              <p class="text-white-50 mb-3">
+                Luxury transportation to Orlando attractions, hotels, MCO, Port Canaveral, and more! We offer 24/7 professional service with complimentary car seats for your travel experience.
+              </p>
+              <div class="d-grid gap-2 d-sm-flex justify-content-sm-center justify-content-xl-start">
+                <a class="btn btn-primary px-4 me-sm-3"
+                   href="{% url 'rates' %}"
+                   aria-label="Book Now">Book Now</a>
+                <a class="btn btn-outline-light px-4"
+                   href="{% url 'contact' %}"
+                   aria-label="Contact Us">Contact Us</a>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-5 d-none d-md-block text-center">
+            <!-- Optimized image with explicit dimensions, formats, and preload -->
+            <img class="img-fluid rounded-3 my-4"
+                 src="{% static 'images/suburban.webp' %}"
+                 alt="Luxury SUV"
+                 width="400"
+                 height="267"
+                 loading="eager" />
           </div>
         </div>
       </div>
-      <div class="col-xl-5 d-none d-md-block text-center">
-        <!-- Optimized image with explicit dimensions, formats, and preload -->
-        <img class="img-fluid rounded-3 my-4"
-             src="{% static 'images/suburban.webp' %}"
-             alt="Luxury SUV"
-             width="400"
-             height="267"
-             loading="eager" />
-      </div>
-    </div>
-  </div>
-</section>
+    </section>
 
 
     <!-- Services Highlights Section -->
@@ -297,8 +297,8 @@
 
     <!-- Complimentary Services Section -->
     <section class="benefits py-5 bg-light"
-            id="complimentary-services"
-            aria-labelledby="services-benefits-heading">
+             id="complimentary-services"
+             aria-labelledby="services-benefits-heading">
       <div class="container px-4 py-5">
         <div class="row justify-content-center">
           <div class="col-lg-10">
@@ -314,7 +314,10 @@
                   <div class="col-md-6 col-lg-4">
                     <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px;
+                                    height: 48px;
+                                    flex: 0 0 48px">
                           <i class="bi bi-person-check-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">MCO Meet & Greet</h3>
@@ -329,7 +332,10 @@
                   <div class="col-md-6 col-lg-4">
                     <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px;
+                                    height: 48px;
+                                    flex: 0 0 48px">
                           <i class="bi bi-life-preserver"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Free Car Seats</h3>
@@ -344,7 +350,10 @@
                   <div class="col-md-6 col-lg-4">
                     <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px;
+                                    height: 48px;
+                                    flex: 0 0 48px">
                           <i class="bi bi-cart-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Grocery Stop</h3>
@@ -359,7 +368,10 @@
                   <div class="col-md-6 col-lg-4">
                     <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px;
+                                    height: 48px;
+                                    flex: 0 0 48px">
                           <i class="bi bi-shield-check"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Professional Drivers</h3>
@@ -374,7 +386,10 @@
                   <div class="col-md-6 col-lg-4">
                     <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px;
+                                    height: 48px;
+                                    flex: 0 0 48px">
                           <i class="bi bi-clock-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">24/7 Availability</h3>
@@ -389,7 +404,10 @@
                   <div class="col-md-6 col-lg-4">
                     <article class="h-100">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px; flex: 0 0 48px;">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                             style="width: 48px;
+                                    height: 48px;
+                                    flex: 0 0 48px">
                           <i class="bi bi-tag-fill"></i>
                         </div>
                         <h3 class="h5 fw-bold mb-0">Roundtrip Discount</h3>
@@ -423,7 +441,7 @@
                     <small>Limited vehicles available - reserve before they're gone</small>
                   </p>
                   <a href="{% url 'rates' %}"
-                    class="btn btn-primary btn-lg px-5 py-3 fw-bold">
+                     class="btn btn-primary btn-lg px-5 py-3 fw-bold">
                     Book Your Stress-Free Orlando Transfer <i class="bi bi-arrow-right ms-2"></i>
                   </a>
                 </div>

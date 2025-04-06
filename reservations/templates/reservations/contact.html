@@ -3,8 +3,8 @@
 {% load crispy_forms_tags %}
 
 {% block content %}
-<!-- Contact Section -->
-<section class="contact-section py-5" style="background-color: #f9f9f9;">
+  <!-- Contact Section -->
+  <section class="contact-section py-5" style="background-color: #f9f9f9;">
     <div class="container">
       <div class="row">
         <div class="col-lg-12 text-center mb-5">
@@ -13,115 +13,141 @@
         </div>
       </div>
 
-        <div class="row">
-            <!-- Contact Information -->
-            <div class="col-lg-5 mb-5 mb-lg-0">
-                <div class="card border-0 shadow-sm h-100" style="background-color: #f8f9fa; background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%);">
-                    <div class="card-body p-5">
-                        <h3 class="h4 mb-4">Get in Touch</h3>
-                        
-                        <div class="d-flex align-items-center mb-4">
-                            <div class="icon-square bg-primary text-white rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px; height: 40px; min-width: 40px;">
-                                <i class="bi bi-telephone-fill"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0">Phone</h5>
-                                <p class="mb-0">(407) 494-1043</p>
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex align-items-center mb-4">
-                            <div class="icon-square bg-primary text-white rounded-circle d-flex justify-content-center align-items-center me-3" style="width: 40px; height: 40px; min-width: 40px;">
-                                <i class="bi bi-envelope-fill"></i>
-                            </div>
-                            <div>
-                                <h5 class="mb-0">Email</h5>
-                                <p class="mb-0">reservations@graysontowncar.com</p>
-                            </div>
-                        </div>
-                        <h4 class="h5 mt-5 mb-3">Follow Our Socials</h4>
-                        <div class="social-links">
-                            <a href="https://www.facebook.com/profile.php?id=61574468855996" target="_blank" class="me-3 text-decoration-none">
-                                <i class="bi bi-facebook fs-4"></i>
-                            </a>
-                            <a href="https://www.instagram.com/graysontowncar" target="_blank" class="me-3 text-decoration-none">
-                                <i class="bi bi-instagram fs-4"></i>
-                            </a>
-                            <a href="https://x.com/GraysonTowncar" target="_blank" class="me-3 text-decoration-none">
-                                <i class="bi bi-twitter fs-4"></i>
-                            </a>
-                        </div>
-                    </div>
+      <div class="row">
+        <!-- Contact Information -->
+        <div class="col-lg-5 mb-5 mb-lg-0">
+          <div class="card border-0 shadow-sm h-100"
+               style="background-color: #f8f9fa;
+                      background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%)">
+            <div class="card-body p-5">
+              <h3 class="h4 mb-4">Get in Touch</h3>
+
+              <div class="d-flex align-items-center mb-4">
+                <div class="icon-square bg-primary text-white rounded-circle d-flex justify-content-center align-items-center me-3"
+                     style="width: 40px;
+                            height: 40px;
+                            min-width: 40px">
+                  <i class="bi bi-telephone-fill"></i>
                 </div>
-            </div>
-            
-            <!-- Quote Request Form -->
-            <div class="col-lg-7">
-                <div class="card border-0 shadow-sm" style="background-color: #f8f9fa; background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%);">
-                    <div class="card-body p-5">
-                        <h3 class="h4 mb-4">Request a Personalized Quote</h3>
-                        <form method="POST">
-                            {% csrf_token %}
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    {{ form.first_name|as_crispy_field }}
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    {{ form.last_name|as_crispy_field }}
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                {{ form.email|as_crispy_field }}
-                            </div>
-                            
-                            <div class="mb-3">
-                                {{ form.phone_number|as_crispy_field }}
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label class="form-label">Preferred Method of Communication*</label>
-                                <div class="d-flex flex-wrap">
-                                    {% if 'contact_method' in form.fields %}
-                                        {{ form.contact_method|as_crispy_field }}
-                                    {% else %}
-                                    <div class="form-check me-4">
-                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferPhone" value="phone">
-                                        <label class="form-check-label" for="preferPhone">Phone Call</label>
-                                    </div>
-                                    <div class="form-check me-4">
-                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferText" value="text">
-                                        <label class="form-check-label" for="preferText">Text Message</label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" name="preferredContact" id="preferEmail" value="email">
-                                        <label class="form-check-label" for="preferEmail">Email</label>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            
-                            <div class="mb-4">
-                                <div class="d-flex align-items-center mb-2">
-                                    <label for="id_about" class="form-label mb-0">About Your Trip</label>
-                                    <button type="button" class="btn btn-sm ms-2 p-0" data-bs-toggle="tooltip" data-bs-placement="top" title="Please provide details about your desired trip so we can create a personalized quote. We'll get back to you shortly.">
-                                        <i class="bi bi-info-circle text-primary"></i>
-                                    </button>
-                                </div>
-                                {{ form.about }}
-                            </div>
-                            
-                            <button type="submit" class="btn btn-primary btn-lg d-block mx-auto">Request Quote</button>
-                        </form>
-                    </div>
+                <div>
+                  <h5 class="mb-0">Phone</h5>
+                  <p class="mb-0">(407) 212-7190</p>
                 </div>
+              </div>
+
+              <div class="d-flex align-items-center mb-4">
+                <div class="icon-square bg-primary text-white rounded-circle d-flex justify-content-center align-items-center me-3"
+                     style="width: 40px;
+                            height: 40px;
+                            min-width: 40px">
+                  <i class="bi bi-envelope-fill"></i>
+                </div>
+                <div>
+                  <h5 class="mb-0">Email</h5>
+                  <p class="mb-0">reservations@graysontowncar.com</p>
+                </div>
+              </div>
+              <h4 class="h5 mt-5 mb-3">Follow Our Socials</h4>
+              <div class="social-links">
+                <a href="https://www.facebook.com/profile.php?id=61574468855996"
+                   target="_blank"
+                   class="me-3 text-decoration-none">
+                  <i class="bi bi-facebook fs-4"></i>
+                </a>
+                <a href="https://www.instagram.com/graysontowncar"
+                   target="_blank"
+                   class="me-3 text-decoration-none">
+                  <i class="bi bi-instagram fs-4"></i>
+                </a>
+                <a href="https://x.com/GraysonTowncar"
+                   target="_blank"
+                   class="me-3 text-decoration-none">
+                  <i class="bi bi-twitter fs-4"></i>
+                </a>
+              </div>
             </div>
+          </div>
         </div>
+
+        <!-- Quote Request Form -->
+        <div class="col-lg-7">
+          <div class="card border-0 shadow-sm"
+               style="background-color: #f8f9fa;
+                      background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%)">
+            <div class="card-body p-5">
+              <h3 class="h4 mb-4">Request a Personalized Quote</h3>
+              <form method="POST">
+                {% csrf_token %}
+                <div class="row">
+                  <div class="col-md-6 mb-3">{{ form.first_name|as_crispy_field }}</div>
+                  <div class="col-md-6 mb-3">{{ form.last_name|as_crispy_field }}</div>
+                </div>
+
+                <div class="mb-3">{{ form.email|as_crispy_field }}</div>
+
+                <div class="mb-3">{{ form.phone_number|as_crispy_field }}</div>
+
+                <div class="mb-3">
+                  <label class="form-label">Preferred Method of Communication*</label>
+                  <div class="d-flex flex-wrap">
+                    {% if 'contact_method' in form.fields %}
+                      {{ form.contact_method|as_crispy_field }}
+                    {% else %}
+                      <div class="form-check me-4">
+                        <input class="form-check-input"
+                               type="radio"
+                               name="preferredContact"
+                               id="preferPhone"
+                               value="phone">
+                        <label class="form-check-label" for="preferPhone">Phone Call</label>
+                      </div>
+                      <div class="form-check me-4">
+                        <input class="form-check-input"
+                               type="radio"
+                               name="preferredContact"
+                               id="preferText"
+                               value="text">
+                        <label class="form-check-label" for="preferText">Text Message</label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input"
+                               type="radio"
+                               name="preferredContact"
+                               id="preferEmail"
+                               value="email">
+                        <label class="form-check-label" for="preferEmail">Email</label>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="mb-4">
+                  <div class="d-flex align-items-center mb-2">
+                    <label for="id_about" class="form-label mb-0">About Your Trip</label>
+                    <button type="button"
+                            class="btn btn-sm ms-2 p-0"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="Please provide details about your desired trip so we can create a personalized quote. We'll get back to you shortly.">
+                      <i class="bi bi-info-circle text-primary"></i>
+                    </button>
+                  </div>
+                  {{ form.about }}
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg d-block mx-auto">Request Quote</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
-<!-- CSS for Bootstrap Icons and Montserrat font -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
-<script src="{% static 'js/i-button-hover.js' %}"></script>
+  <!-- CSS for Bootstrap Icons and Montserrat font -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
+  <script src="{% static 'js/i-button-hover.js' %}"></script>
 {% endblock %}
