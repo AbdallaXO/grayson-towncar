@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+import dj_database_url
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -102,10 +102,10 @@ WSGI_APPLICATION = "business.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": CONTENT_DIR / "db.sqlite3",
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL', 'postgres://postgres:akgamer99@localhost:5432/grayson_towncar'),
+        conn_max_age=600
+    )
 }
 
 
@@ -141,13 +141,15 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-STATIC_ROOT = CONTENT_DIR / "staticfiles"
 STATIC_URL = "static/"
-
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
+# https://docs.djangoproject.com/en/5.1/howto/static-files/
+if not DEBUG:
+
+    STATIC_ROOT = os.path.join(CONTENT_DIR , "staticfiles")
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+
 
 MEDIA_ROOT = CONTENT_DIR / "media"
 MEDIA_URL = "/media/"
