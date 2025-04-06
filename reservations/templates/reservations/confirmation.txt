@@ -31,7 +31,7 @@ AIRPORT PICKUP INFORMATION:
 - We track your flight for any delays or early arrivals
 - Our driver will meet you inside at the baggage claim area and have a sign with your name on it
 - You will receive a text message when your plane lands and 24 hours prior to the pickup
-- If your flight number changes, please contact us immediately at (407) 494-1043
+- If your flight number changes, please contact us immediately at (407) 212-7190
 {% endif %}
 {% endfor %}
 
@@ -42,7 +42,7 @@ NEED ASSISTANCE?
 ---------------
 Contact our customer service team at:
 Email: reservations@graysontowncar.com
-Phone: (407) 494-1043
+Phone: (407) 212-7190
 Website: www.graysontowncar.com
 
 Thank you for choosing Grayson Towncar.
