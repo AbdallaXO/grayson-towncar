@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-import dj_database_url
 from dotenv import load_dotenv
 from pathlib import Path
 import os
@@ -34,12 +33,7 @@ SECRET_KEY = os.environ.get(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    "www.graysontowncar.com",
-    "graysontowncar.com",
-]
+ALLOWED_HOSTS = ['graysontowncar.com', 'www.graysontowncar.com', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -107,14 +101,12 @@ WSGI_APPLICATION = "business.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'timeout': 20,
-        }
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": CONTENT_DIR / "db.sqlite3",
     }
 }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -147,13 +139,14 @@ USE_I18N = True
 USE_TZ = True
 
 
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.1/howto/static-files/
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+STATIC_ROOT = CONTENT_DIR / "staticfiles"
 STATIC_URL = "static/"
-STATICFILES_DIRS = [CONTENT_DIR / "static"]  # Additional static file directories
 
-if not DEBUG:
-    STATIC_ROOT = CONTENT_DIR / "staticfiles"  # Directory for collected static files
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
+STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
 MEDIA_ROOT = CONTENT_DIR / "media"
 MEDIA_URL = "/media/"
