@@ -10,7 +10,7 @@ from .forms import (
 )
 from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms
 from django.contrib import messages
-from . email import send_reservation_confirmation
+from .email import send_reservation_confirmation
 
 
 # Create your views here.
@@ -35,8 +35,16 @@ def reservation_form(
             flight2_form,
             leg2_form,
         ) = returns_post_form(request, trip_type)
-        
-        forms_valid = validate_forms(customer_form, reservation_form, flight1_form, leg1_form, flight2_form, leg2_form, trip_type)
+
+        forms_valid = validate_forms(
+            customer_form,
+            reservation_form,
+            flight1_form,
+            leg1_form,
+            flight2_form,
+            leg2_form,
+            trip_type,
+        )
         # we validate all forms, and validate leg2 form only  if the trip_type is not = one_way
         if forms_valid:
             customer = customer_form.save()
@@ -68,8 +76,6 @@ def reservation_form(
                     leg2.flight_information = None
                 leg2.save()
             send_reservation_confirmation(reservation)
-                
-
 
             return redirect("create_checkout_session", reservation_id=reservation.id)
 

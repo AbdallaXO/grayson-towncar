@@ -1,12 +1,20 @@
 from django.shortcuts import render
 from .models import Rate, Vehicle
+from django.db import connection
+from django.db.models import F
+from django.db.models import Prefetch
 
 
 # Create your views here.
 def index(request):
-    """a View that returns a table of Vehicles and their prices matching Oneway or Roundtrip,
-    if you choose to book it will forward you to a view in reservations /book"""
-    rates = Rate.objects.select_related("vehicle", "route").distinct().all()
-    vehicles = Vehicle.objects.all()
-    context = {"rates": rates, "vehicles": vehicles}
+    vehicles = Vehicle.objects.prefetch_related(
+        Prefetch(
+            "rates",
+            queryset=Rate.objects.select_related(
+                "route", "route__origin", "route__destination"
+            ),
+        )
+    ).all()
+
+    context = {"vehicles": vehicles}
     return render(request, "rates/index.html", context)

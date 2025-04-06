@@ -79,11 +79,17 @@ def returns_post_form(request, trip_type):
 
 
 def validate_forms(
-    customer_form, reservation_form, flight1_form, leg1_form, flight2_form, leg2_form, trip_type
+    customer_form,
+    reservation_form,
+    flight1_form,
+    leg1_form,
+    flight2_form,
+    leg2_form,
+    trip_type,
 ):
     """Validated all the submitted forms based on trip_type
     received forms for customer, reservation, flight1, leg1, flight2 if round_trip, leg2 if round_trip
-    returns true if all forms are valid 
+    returns true if all forms are valid
     if trip_type is oneway will always return true for oneway+ roundtrip"""
     customer_valid = customer_form.is_valid()
     reservation_valid = reservation_form.is_valid()
@@ -107,4 +113,4 @@ def validate_forms(
         ]
     )
 
-    return forms_valid 
+    return forms_valid
