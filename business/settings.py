@@ -102,7 +102,7 @@ WSGI_APPLICATION = "business.wsgi.application"
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.getenv('DATABASE_URL', 'postgres://postgres:akgamer99@localhost:5432/grayson_towncar'),
+        default=os.getenv('DATABASE_URL'),
         conn_max_age=600
     )
 }

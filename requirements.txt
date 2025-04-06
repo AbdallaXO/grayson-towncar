@@ -25,3 +25,4 @@ whitenoise[brotli]
 dj-database-url
 python-dotenv 
 uvicorn
+django-environ
