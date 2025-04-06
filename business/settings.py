@@ -31,7 +31,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ["grayson-towncar-production.up.railway.app", "localhost", "127.0.0.1"]
 
@@ -139,13 +139,11 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
-STATICFILES_DIRS = [CONTENT_DIR / "static"]
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-if not DEBUG:
+STATICFILES_DIRS = [CONTENT_DIR / "static"]  # Additional static file directories
 
-    STATIC_ROOT = CONTENT_DIR / 'staticfiles'
+if not DEBUG:
+    STATIC_ROOT = CONTENT_DIR / 'staticfiles'  # Directory for collected static files
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
