@@ -27,7 +27,7 @@
           <div class="col-lg-7 col-xl-6">
             <div class="my-4 text-center text-xl-start">
               <h1 class="fw-light text-white mb-2">
-                <span class="fs-2 text-light">Grayson Towncar</span>
+                Grayson Towncar
               </h1>
               <h2 class="h4 fw-normal text-white mb-2">Orlando Airport Transportation</h2>
               <!-- Simplified description for faster loading -->
@@ -56,7 +56,6 @@
         </div>
       </div>
     </section>
-
 
     <!-- Services Highlights Section -->
     <section class="services-highlights py-5" aria-labelledby="services-heading">
@@ -121,62 +120,19 @@
       </div>
     </section>
 
-    <!-- Testimonial section -->
-    <section class="testimonials py-5 bg-light"
-             id="testimonials"
-             aria-labelledby="testimonials-heading">
-      <div class="container px-5 my-5">
-        <div class="text-center mb-5">
-          <h2 id="testimonials-heading" class="fw-bolder">What Our Customers Say</h2>
-          <p class="lead fw-normal text-muted mb-0">Read reviews from families who used our Orlando transportation services</p>
-        </div>
-        <div class="row gx-5 justify-content-center">
-          <div class="col-lg-10 col-xl-7">
-            <figure class="card shadow border-0 h-100 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex">
-                  <div class="flex-shrink-0">
-                    <img class="rounded-circle me-3"
-                         src="{% static 'images/sarah.webp' %}"
-                         width="50"
-                         height="50"
-                         alt="Sarah Williams"
-                         loading="lazy" />
-                  </div>
-                  <figcaption>
-                    <h3 class="h5 mb-1">Sarah Williams</h3>
-                    <div class="small text-muted mb-1">Family Vacation, Chicago</div>
-                    <div class="mb-2" aria-label="5 out of 5 stars">
-                      <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
-                      <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
-                      <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
-                      <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
-                      <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
-                    </div>
-                    <blockquote class="mb-0 fst-italic">
-                      "Using this reliable airport transportation service made our Orlando vacation so much easier! From the moment we landed at MCO to our final departure, their professional drivers and comfortable vehicles removed all the stress of getting around. The included car seats for our kids and free grocery stop were fantastic bonuses!"
-                    </blockquote>
-                  </figcaption>
-                </div>
-              </div>
-            </figure>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Our Fleet Section -->
     <section class="fleet py-5" id="fleet" aria-labelledby="fleet-heading">
       <div class="container px-5 my-5">
         <div class="text-center mb-5">
-          <h2 id="fleet-heading" class="fw-bolder">Premium Orlando Airport Transportation</h2>
+          <h2 id="fleet-heading" class="fw-bolder">Our Premium Orlando Airport Transportation Fleet</h2>
           <p class="lead fw-normal text-muted mb-0">
             Experience luxury, comfort, and reliability with our diverse selection of vehicles. Perfect for Disney, Universal, and all Orlando hotels.
           </p>
         </div>
-        <div class="row gx-5 row-cols-1 row-cols-md-3">
+        <div class="row row-cols-1 row-cols-md-4 g-4">
+
           <!-- Executive Town Car -->
-          <article class="col mb-5">
+          <div class="col">
             <div class="card h-100 shadow border-0 hover-elevate">
               <img class="card-img-top"
                    src="{% static 'images/towncar.webp' %}"
@@ -212,10 +168,49 @@
                 </div>
               </div>
             </div>
-          </article>
+          </div>
+
+          <!-- Minivan -->
+          <div class="col">
+            <div class="card h-100 shadow border-0 hover-elevate">
+              <img class="card-img-top"
+                   src="{% static 'images/minivan.webp' %}"
+                   alt="Mini Van for Orlando Airport Transportation"
+                   width="400"
+                   height="225"
+                   loading="lazy" />
+              <div class="card-body p-4">
+                <div class="badge bg-primary bg-gradient rounded-pill mb-2">Comfortable Mini Van</div>
+                <h3 class="h5 card-title mb-3">Mini Van Service</h3>
+                <p class="card-text mb-0">
+                  Perfect for families of up to 5 passengers, our modern minivan offers ample space and comfort for your Orlando adventure.
+                </p>
+                <ul class="list-unstyled mt-3">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>Up to 5 passengers
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>5 suitcases
+                  </li>
+                  <li>
+                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>Free car seats/boosters
+                  </li>
+                </ul>
+              </div>
+              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                <div class="d-flex flex-column">
+                  <div class="pricing-info mb-3">
+                    <div class="fw-bold fs-5">$230 Round Trip</div>
+                    <div class="text-muted">MCO to Disney/Universal Hotels</div>
+                  </div>
+                  <a href="{% url 'rates' %}" class="btn btn-primary">Reserve Now</a>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- Luxury SUV -->
-          <article class="col mb-5">
+          <div class="col">
             <div class="card h-100 shadow border-0 hover-elevate">
               <img class="card-img-top"
                    src="{% static 'images/suburban.webp' %}"
@@ -237,24 +232,24 @@
                     <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>4-5 large suitcases
                   </li>
                   <li>
-                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>Free car seats available
+                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>Free car seats/boosters
                   </li>
                 </ul>
               </div>
               <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
                 <div class="d-flex flex-column">
                   <div class="pricing-info mb-3">
-                    <div class="fw-bold fs-5">$280 Round Trip</div>
+                    <div class="fw-bold fs-5">$275 Round Trip</div>
                     <div class="text-muted">MCO to Disney/Universal Hotels</div>
                   </div>
                   <a href="{% url 'rates' %}" class="btn btn-primary">Reserve Now</a>
                 </div>
               </div>
             </div>
-          </article>
+          </div>
 
           <!-- Passenger Van -->
-          <article class="col mb-5">
+          <div class="col">
             <div class="card h-100 shadow border-0 hover-elevate">
               <img class="card-img-top"
                    src="{% static 'images/van.webp' %}"
@@ -276,21 +271,21 @@
                     <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>10+ pieces of luggage
                   </li>
                   <li>
-                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>Free car seats available
+                    <i class="bi bi-check-circle-fill text-primary me-2" aria-hidden="true"></i>Free car seats/boosters
                   </li>
                 </ul>
               </div>
               <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
                 <div class="d-flex flex-column">
                   <div class="pricing-info mb-3">
-                    <div class="fw-bold fs-5">$310 Round Trip</div>
+                    <div class="fw-bold fs-5">$305 Round Trip</div>
                     <div class="text-muted">MCO to Disney/Universal Hotels</div>
                   </div>
                   <a href="{% url 'rates' %}" class="btn btn-primary">Reserve Now</a>
                 </div>
               </div>
             </div>
-          </article>
+          </div>
         </div>
       </div>
     </section>
@@ -417,29 +412,8 @@
                   </div>
                 </div>
 
-                <!-- Trust Badges -->
-                <div class="text-center mt-5 mb-4">
-                  <div class="d-flex justify-content-center flex-wrap gap-4">
-                    <div class="d-flex align-items-center">
-                      <i class="bi bi-star-fill text-warning me-2"></i>
-                      <span class="fw-bold">5-Star Rated Service</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i>
-                      <span class="fw-bold">300+ Happy Families</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                      <i class="bi bi-calendar-check text-primary me-2"></i>
-                      <span class="fw-bold">10+ Years Experience</span>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- Stronger CTA with Urgency -->
                 <div class="text-center mt-4">
-                  <p class="text-muted mb-3">
-                    <small>Limited vehicles available - reserve before they're gone</small>
-                  </p>
                   <a href="{% url 'rates' %}"
                      class="btn btn-primary btn-lg px-5 py-3 fw-bold">
                     Book Your Stress-Free Orlando Transfer <i class="bi bi-arrow-right ms-2"></i>
