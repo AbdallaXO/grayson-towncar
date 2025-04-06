@@ -23,7 +23,10 @@
           </div>
         {% endif %}
 
-        <form method="POST" class="needs-validation" novalidate id="reservation_form">
+        <form method="POST"
+              class="needs-validation"
+              novalidate
+              id="reservation_form">
           {% csrf_token %}
 
           <!-- Customer Information Card -->
@@ -174,12 +177,12 @@
               <!-- Flight Info Section (Always Visible) -->
               <div class="mb-3">
                 <h5 class="border-bottom pb-2 mb-3">Flight Information</h5>
-                
+
                 <div class="alert alert-info mb-3">
                   <i class="bi bi-info-circle-fill me-2"></i>
                   <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
                 </div>
-                
+
                 <div class="row g-3">
                   <div class="col-md-6">
                     {{ flight1_form.airline.label_tag }}
@@ -257,12 +260,12 @@
                 <!-- Return Flight Info Section (Always Visible) -->
                 <div class="mb-3">
                   <h5 class="border-bottom pb-2 mb-3">Return Flight Information</h5>
-                  
+
                   <div class="alert alert-info mb-3">
                     <i class="bi bi-info-circle-fill me-2"></i>
                     <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
                   </div>
-                  
+
                   <div class="row g-3">
                     <div class="col-md-6">
                       {{ flight2_form.airline.label_tag }}
@@ -395,13 +398,11 @@
     </div>
   </div>
 
-{% comment %} <!-- Google Maps API  {% endcomment %}
-<script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB26gT2RXgKNNRSzzPk9OKOvTXisbJ-MeQ&libraries=places"
-  async
-  defer
-></script>
+  {% comment %} <!-- Google Maps API  {% endcomment %}
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
+          async
+          defer></script>
 
-{% comment %} autocomplete from google api   {% endcomment %}
-<script src="{% static 'js/maps_autocomplete.js' %}"></script>
+  {% comment %} autocomplete from google api   {% endcomment %}
+  <script src="{% static 'js/maps_autocomplete.js' %}"></script>
 {% endblock content %}
