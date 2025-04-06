@@ -13,12 +13,11 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from dotenv import load_dotenv
 from pathlib import Path
 import os
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 # Directory that contains content such as templates media and static & DB
 CONTENT_DIR = BASE_DIR / "content"
+IN_RAILWAY = os.environ.get('RAILWAY_ENVIRONMENT', False)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -29,9 +28,23 @@ load_dotenv()
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "tgvhbjbvfdr5^asuiklfugulvb#$%^YHBNKI&tgvhbjbvfdr5^"
 )
+if IN_RAILWAY:
+    # USE VOLUME PATH IF IN RAILWAY
+    STORAGE_PATH = Path("/app/storage")
+    # Make sure directories exist
+    os.makedirs(STORAGE_PATH, exist_ok=True)
+    os.makedirs(STORAGE_PATH / "media", exist_ok=True)
+else:
+    # local db if we are local
+    STORAGE_PATH = CONTENT_DIR
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+VOLUME_PATH = Path('/app/storage')
+os.makedirs(VOLUME_PATH, exist_ok=True)
+os.makedirs(VOLUME_PATH / "media", exist_ok=True)
+
 
 ALLOWED_HOSTS = ['graysontowncar.com', 'www.graysontowncar.com', 'localhost', '127.0.0.1', 'grayson-towncar-production.up.railway.app']
 
@@ -99,11 +112,10 @@ WSGI_APPLICATION = "business.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": CONTENT_DIR / "db.sqlite3",
+        "NAME": STORAGE_PATH / "db.sqlite3",
     }
 }
 
@@ -148,7 +160,7 @@ STATIC_URL = "static/"
 
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
-MEDIA_ROOT = CONTENT_DIR / "media"
+MEDIA_ROOT = STORAGE_PATH  / "media"
 MEDIA_URL = "/media/"
 
 # Stripe Settings
