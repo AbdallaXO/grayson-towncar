@@ -31,9 +31,9 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['graysontowncar.com', 'www.graysontowncar.com', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['graysontowncar.com', 'www.graysontowncar.com', 'localhost', '127.0.0.1', 'grayson-towncar-production.up.railway.app']
 
 
 # Application definition
@@ -180,14 +180,24 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://grayson-towncar-production.up.railway.app/",
-    "http://grayson-towncar-production.up.railway.app/",
-    "https://*.up.railway.app/",
-    "http://*.up.railway.app/",
-    "https://*.railway.app/",
-    "http://*.railway.app/",
-    "https://*.app/",
-    "http://*.app/",
+    "https://grayson-towncar-production.up.railway.app",
+    "https://*.railway.app",
+    "https://*.app",
+    "https://graysontowncar.com",
+    "https://www.graysontowncar.com",
 ]
 
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 3600
+SECURE_HSTS_PRELOAD = True
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+if DEBUG:
+    THIRD_PARTY_APPS += ['debug_toolbar']
+    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
