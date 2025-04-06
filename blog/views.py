@@ -5,12 +5,8 @@ from .models import Blog
 def blog_list(request):
     """A View that returns all the latest blogs sorted by most recent,
     also has gets latest post"""
-    try:
-        latest = Blog.objects.latest("created")
-    except:
-        latest = None
-
-    blogs = Blog.objects.all().order_by("-created")
+    blogs = Blog.objects.all().order_by('-created')
+    latest = blogs[0] if blogs else None
     return render(request, "blog/index.html", {"blogs": blogs, "latest_post": latest})
 
 
