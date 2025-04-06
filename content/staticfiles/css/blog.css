@@ -105,3 +105,132 @@
     height: 500px;
     object-position: center;
 }
+
+/*scroll down animation*/
+.mouse-btn {
+  margin: 10px auto;
+  width: 40px;
+  height: 80px;
+  border: 3px solid rgba(122, 122, 124, 0.918);
+  border-radius: 20px;
+  display: flex;
+}
+
+.mouse-scroll {
+  display: block;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(170deg, rgba(122, 122, 124, 0.918), rgb(123, 124, 124));
+  border-radius: 50%;
+  margin: auto;
+  animation: scrolling13 1s linear infinite;
+}
+
+@keyframes scrolling13 {
+  0% {
+      opacity: 0;
+      transform: translateY(-20px);
+  }
+
+  100% {
+      opacity: 1;
+      transform: translateY(20px);
+  }
+}
+
+.scroll-wrapper {
+  margin-top: 100px;
+  /* or whatever value you like */
+}
+
+/*become a partner button*/
+.subscribe-btn {
+  cursor: pointer;
+  position: relative;
+  padding: 10px 24px;
+  font-size: 18px;
+  color: #0d6efd;
+  border: 2px solid #0d6efd;
+  border-radius: 34px;
+  background-color: transparent;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  overflow: hidden;
+  z-index: 1;
+}
+
+.subscribe-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background-color: #0d6efd;
+  transform: scale(0);
+  transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: -1;
+}
+
+.subscribe-btn:hover::before {
+  transform: scale(1.1);
+  /* slightly larger than the button */
+}
+
+.subscribe-btn:hover {
+  color: #fff;
+  scale: 1.05;
+  box-shadow: 0 0px 20px rgba(13, 110, 253, 0.4);
+}
+
+.subscribe-btn:active {
+  scale: 1;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+html{
+  font-family: 'Montserrat';
+}
+
+/* alert message styling */
+
+.notification-wrapper {
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: auto;
+}
+
+.notification {
+  background-color: white;
+  color: #212529;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-radius: 4px;
+  padding: 12px 24px;
+  width: 350px;
+  text-align: center;
+  font-size: 16px;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.notification.success {
+  border-left: 4px solid #28a745;
+}
+
+.notification.danger {
+  border-left: 4px solid #dc3545;
+}
+
+.notification.warning {
+  border-left: 4px solid #ffc107;
+}
+
+.notification.info {
+  border-left: 4px solid #17a2b8;
+}
+
