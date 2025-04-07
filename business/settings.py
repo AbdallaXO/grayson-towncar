@@ -13,11 +13,12 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from dotenv import load_dotenv
 from pathlib import Path
 import os
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Directory that contains content such as templates media and static & DB
 CONTENT_DIR = BASE_DIR / "content"
-IN_RAILWAY = os.environ.get('RAILWAY_ENVIRONMENT', False)
+IN_RAILWAY = os.environ.get("RAILWAY_ENVIRONMENT", False)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -41,12 +42,18 @@ else:
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-VOLUME_PATH = Path('/app/storage')
+VOLUME_PATH = Path("/app/storage")
 os.makedirs(VOLUME_PATH, exist_ok=True)
 os.makedirs(VOLUME_PATH / "media", exist_ok=True)
 
 
-ALLOWED_HOSTS = ['graysontowncar.com', 'www.graysontowncar.com', 'localhost', '127.0.0.1', 'grayson-towncar-production.up.railway.app']
+ALLOWED_HOSTS = [
+    "graysontowncar.com",
+    "www.graysontowncar.com",
+    "localhost",
+    "127.0.0.1",
+    "grayson-towncar-production.up.railway.app",
+]
 
 
 # Application definition
@@ -58,6 +65,7 @@ NATIVE_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sitemaps",
 ]
 THIRD_PARTY_APPS = [
     "widget_tweaks",
@@ -160,7 +168,7 @@ STATIC_URL = "static/"
 
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
-MEDIA_ROOT = STORAGE_PATH  / "media"
+MEDIA_ROOT = STORAGE_PATH / "media"
 MEDIA_URL = "/media/"
 
 # Stripe Settings
@@ -208,8 +216,8 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 if DEBUG:
-    THIRD_PARTY_APPS += ['debug_toolbar']
-    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+    THIRD_PARTY_APPS += ["debug_toolbar"]
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
