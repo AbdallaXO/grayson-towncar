@@ -19,6 +19,8 @@ class Vehicle(models.Model):
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
+    carseats = models.CharField(max_length=55, blank=True)
+    carseat_capacity = models.IntegerField(default=0,blank=True)
 
     # ? Idea
     # boosters = models.PositiveIntegerField()
@@ -29,6 +31,8 @@ class Vehicle(models.Model):
         Returns the vehicle type in uppercase (e.g., 'SUV', 'VAN').
         """
         return str(self.vehicle_type.title())
+    class Meta:
+        ordering = ['capacity']
 
 
 class Location(models.Model):
@@ -56,7 +60,8 @@ class Route(models.Model):
         unique_together = (
             "origin",
             "destination",
-        )  # Ensure unique origin-destination pairs
+        )
+          # Ensure unique origin-destination pairs
 
     def save(self, *args, **kwargs):
         """
