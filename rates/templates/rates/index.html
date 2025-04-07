@@ -34,10 +34,9 @@
                     <img class="card-img-top p-3"
                          src="{{ vehicle.image.url }}"
                          alt="{{ vehicle.get_vehicle_type_display }}"
-                         loading="lazy"
+                         {% if forloop.first %} loading="eager" fetchpriority="high" {% else %} loading="eager" fetchpriority="high" {% endif %}
                          width="300"
-                         height="200"
-                         fetchpriority="low" />
+                         height="200" />
                   </a>
                   <div class="card-body text-center">
                     <h2 class="card-title fw-bold mb-3">{{ vehicle.get_vehicle_type_display }}</h2>

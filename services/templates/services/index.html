@@ -1,504 +1,587 @@
 {% extends 'main.html' %}
 {% load static %}
 {% block content %}
-<script src="{% static 'js/area-selector.js' %}"></script>
-<link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
-    <!-- Modern Hero with Animated Background -->
-    <section class="position-relative overflow-hidden py-6" id="hero">
-        <div class="bg-image position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)), url('{% static 'images/services-bg.jpg' %}') no-repeat center center; background-size: cover;"></div>
-        <div class="container position-relative z-1 py-5">
-            <div class="row justify-content-center">
-                <div class="col-lg-8 text-center text-white">
-                    <h1 class="display-3 fw-bold mb-4 text-shadow">Explore Our Services</h1>
-                    <p class="lead mb-5 fs-4">Seamless airport transfers and hotel transportation across Orlando</p>
-                    <div class="d-flex flex-wrap justify-content-center gap-3">
-                        <a href="{% url 'rates' %}" class="btn btn-primary btn-lg px-5 py-3 rounded-pill">Book Your Ride</a>
-                        <a href="#explore" class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill">Explore Services</a>
-                    </div>
-                </div>
-            </div>
+  <script src="{% static 'js/area-selector.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
+  <!-- Modern Hero with Animated Background -->
+  <section class="position-relative overflow-hidden py-6" id="hero">
+    <div class="bg-image position-absolute top-0 start-0 w-100 h-100"
+         style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)), url('{% static 'images/services-bg.webp' %}') no-repeat center center;
+                background-size: cover"
+         fetchpriority="high"></div>
+    <div class="container position-relative z-1 py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 text-center text-white">
+          <h1 class="display-3 fw-bold mb-4 text-shadow">Explore Our Services</h1>
+          <p class="lead mb-5 fs-4">Seamless airport transfers and hotel transportation across Orlando</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}"
+               class="btn btn-primary btn-lg px-5 py-3 rounded-pill">Book Your Ride</a>
+            <a href="#explore"
+               class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill">Explore Services</a>
+          </div>
         </div>
-    </section>
-
-    <!-- Animated Why Choose Us Section -->
-    <section class="py-6 bg-light" id="why-choose">
-        <div class="container">
-            <div class="text-center mb-5">
-                <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Premium Service</span>
-                <h2 class="display-5 fw-bold">Why Choose Us</h2>
-            </div>
-            <div class="row g-5 justify-content-center">
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-5 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-car-front-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Private Luxury Vehicles</h3>
-                            <p class="text-muted">Travel in comfort with our modern fleet of sedans, SUVs, and passenger vans</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-5 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-geo-alt-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Direct Hotel Service</h3>
-                            <p class="text-muted">Door-to-door transportation with no additional stops along the way</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-5 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-clock-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">24/7 Availability</h3>
-                            <p class="text-muted">We operate around the clock to accommodate all flight schedules</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-5 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-shop fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Complimentary Grocery Stops</h3>
-                            <p class="text-muted">Stock up on essentials with our 30-minute grocery stop service</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-5 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-people-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Family-Friendly</h3>
-                            <p class="text-muted">Complimentary car seats and boosters for travelers of all ages</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Simplified Service Areas Section -->
-    <section class="py-6" id="explore">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-lg-5 mb-5 mb-lg-0">
-                    <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Service Areas</span>
-                    <h2 class="display-5 fw-bold mb-4">Where We Take You</h2>
-                    <p class="lead mb-4">Explore our comprehensive coverage across Orlando's top destinations</p>
-                    
-                    <!-- Interactive Area Selection -->
-                    <div class="destination-selector mb-4">
-                        <div class="btn-group-vertical w-100" role="group" id="areaButtons">
-                            <button type="button" class="btn btn-outline-primary py-3 text-start blue-active active" data-area="disney">
-                                <i class="bi bi-star-fill me-2"></i> Disney Resorts
-                            </button>
-                            <button type="button" class="btn btn-outline-primary py-3 text-start blue-active" data-area="universal">
-                                <i class="bi bi-globe2 me-2"></i> Universal Properties
-                            </button>
-                            <button type="button" class="btn btn-outline-primary py-3 text-start blue-active" data-area="idrive">
-                                <i class="bi bi-signpost-2 me-2"></i> International Drive
-                            </button>
-                            <button type="button" class="btn btn-outline-primary py-3 text-start blue-active" data-area="lbv">
-                                <i class="bi bi-house-door-fill me-2"></i> Lake Buena Vista & Kissimmee
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <p class="small text-muted fst-italic">Not listed? We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-primary">Contact Us</a></p>
-                </div>
-                
-                <div class="col-lg-7">
-                    <div class="card border-0 shadow-lg">
-                        <div class="card-body p-4 position-relative">
-                            <!-- Simplified Map Display with CSS Background Images -->
-                            <div class="area-description active" id="disney-description">
-                                <div class="area-image disney-area mb-4"></div>
-                                <h3 class="h4 mb-3">Disney Resort Area</h3>
-                                <p class="mb-3">Direct service to all Disney properties including Value, Moderate, and Deluxe resorts.</p>
-                                <ul class="list-unstyled mb-0">
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Contemporary Resort</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Grand Floridian</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Polynesian Village</li>
-                                    <li><i class="bi bi-check-circle-fill text-primary me-2"></i> All other Disney resorts</li>
-                                </ul>
-                            </div>
-                            
-                            <div class="area-description" id="universal-description">
-                                <div class="area-image universal-area mb-4"></div>
-                                <h3 class="h4 mb-3">Universal Orlando Area</h3>
-                                <p class="mb-3">Comprehensive service to all Universal Orlando hotels and nearby accommodations.</p>
-                                <ul class="list-unstyled mb-0">
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Loews Portofino Bay Hotel</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Hard Rock Hotel Orlando</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Universal's Cabana Bay</li>
-                                    <li><i class="bi bi-check-circle-fill text-primary me-2"></i> All Universal partner hotels</li>
-                                </ul>
-                            </div>
-                            
-                            <div class="area-description" id="idrive-description">
-                                <div class="area-image idrive-area mb-4"></div>
-                                <h3 class="h4 mb-3">International Drive</h3>
-                                <p class="mb-3">Service to all I-Drive hotels, Convention Center area, and SeaWorld resorts.</p>
-                                <ul class="list-unstyled mb-0">
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Rosen Plaza Hotel</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Hyatt Regency Orlando</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> DoubleTree by Hilton</li>
-                                    <li><i class="bi bi-check-circle-fill text-primary me-2"></i> All I-Drive hotels & resorts</li>
-                                </ul>
-                            </div>
-                            
-                            <div class="area-description" id="lbv-description">
-                                <div class="area-image lbv-area mb-4"></div>
-                                <h3 class="h4 mb-3">Lake Buena Vista & Kissimmee</h3>
-                                <p class="mb-3">Transportation to hotels and vacation rentals throughout LBV and Kissimmee.</p>
-                                <ul class="list-unstyled mb-0">
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Wyndham Lake Buena Vista</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Gaylord Palms Resort</li>
-                                    <li class="mb-2"><i class="bi bi-check-circle-fill text-primary me-2"></i> Vacation home rentals</li>
-                                    <li><i class="bi bi-check-circle-fill text-primary me-2"></i> All LBV & Kissimmee hotels</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Hotels We Service Section -->
-    <section class="py-6 bg-gradient" id="hotels" style="background: linear-gradient(to bottom right, #f8f9fa, #e9ecef);">
-        <div class="container">
-            <div class="text-center mb-5">
-                <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Accommodations</span>
-                <h2 class="display-5 fw-bold">Hotels We Service</h2>
-                <p class="lead mb-1">Comprehensive coverage of Orlando's premier hotels</p>
-                <p class="small text-muted">Can't find your hotel? <a href="#contact" class="text-primary">Contact us</a> for customized routes</p>
-            </div>
-            
-            <!-- Hotel Tabs Navigation -->
-            <ul class="nav nav-pills nav-fill mb-5 hotel-tabs" id="hotelTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="disney-tab" data-bs-toggle="pill" data-bs-target="#disney-hotels" type="button" role="tab">
-                        <i class="bi bi-star me-2"></i>Disney
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="universal-tab" data-bs-toggle="pill" data-bs-target="#universal-hotels" type="button" role="tab">
-                        <i class="bi bi-globe2 me-2"></i>Universal
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="idrive-tab" data-bs-toggle="pill" data-bs-target="#idrive-hotels" type="button" role="tab">
-                        <i class="bi bi-signpost-2 me-2"></i>I-Drive
-                    </button>
-                </li>
-            </ul>
-            
-            <!-- Hotel Tabs Content -->
-            <div class="tab-content" id="hotelTabsContent">
-                <div class="tab-pane fade show active" id="disney-hotels" role="tabpanel">
-                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                        <!-- Disney Hotels -->
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Disney's Contemporary Resort</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Disney's Grand Floridian</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Disney's Polynesian Village</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Disney's Animal Kingdom Lodge</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Disney's Coronado Springs</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card view-all non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">All Other Disney Resorts</h3>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="tab-pane fade" id="universal-hotels" role="tabpanel">
-                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                        <!-- Universal Hotels -->
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Loews Portofino Bay Hotel</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Hard Rock Hotel Orlando</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Loews Royal Pacific Resort</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Loews Sapphire Falls Resort</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Universal's Cabana Bay</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card view-all non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">All Universal Partner Hotels</h3>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="tab-pane fade" id="idrive-hotels" role="tabpanel">
-                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                        <!-- I-Drive Hotels -->
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Rosen Plaza Hotel</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Rosen Centre Hotel</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Hyatt Regency Orlando</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">Marriott Orlando World Center</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">DoubleTree by Hilton</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col">
-                            <div class="hotel-card view-all non-clickable">
-                                <div class="card-body">
-                                    <h3 class="h5 hotel-name">All I-Drive Hotels & Resorts</h3>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Additional Services Section -->
-    <section class="py-6" id="additional-services">
-        <div class="container">
-            <div class="text-center mb-5">
-                <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Options</span>
-                <h2 class="display-5 fw-bold">Additional Transportation Services</h2>
-                <p class="lead mb-0">Beyond airport transfers, we offer comprehensive solutions</p>
-            </div>
-            
-            <div class="row g-4 justify-content-center">
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow service-card">
-                        <div class="card-body p-4">
-                            <div class="service-icon mb-4">
-                                <i class="bi bi-water fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Hotel to Port Canaveral</h3>
-                            <p>Seamless transportation from your Orlando hotel directly to your cruise terminal at Port Canaveral.</p>
-                            <a href={% url 'rates'%} class="btn btn-outline-primary mt-3 stretched-link">Book Port Transfer</a>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow service-card">
-                        <div class="card-body p-4">
-                            <div class="service-icon mb-4">
-                                <i class="bi bi-arrow-left-right fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Hotel to Hotel Transfers</h3>
-                            <p>Convenient transportation between any Orlando hotels. Perfect for switching resorts during your stay.</p>
-                            <a href={% url 'rates'%} class="btn btn-outline-primary mt-3 stretched-link">Book Hotel Transfer</a>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 border-0 shadow service-card">
-                        <div class="card-body p-4">
-                            <div class="service-icon mb-4">
-                                <i class="bi bi-map fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Customized Routes</h3>
-                            <p>Need transportation to a specific location? We offer customized solutions to meet your unique travel needs.</p>
-                            <a href={% url 'contact'%} class="btn btn-outline-primary mt-3 stretched-link">Request Custom Route</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Simplified Family Features Section -->
-    <section class="py-6 bg-primary bg-opacity-10" id="family-features">
-        <div class="container">
-            <div class="text-center mb-5">
-                <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Family Travel</span>
-                <h2 class="display-5 fw-bold">Family-Friendly Features</h2>
-                <p class="lead">Making family travel comfortable, safe, and stress-free</p>
-            </div>
-            
-            <div class="row justify-content-center g-4">
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-4 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-car-front-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Child Car Seats & Boosters</h3>
-                            <p class="text-muted">Complimentary car seats and booster seats available for children of all ages. All seats meet NHTSA safety standards.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-4 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-person-badge-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Professional Drivers</h3>
-                            <p class="text-muted">Experienced, courteous drivers who know Orlando well and prioritize family safety and comfort. All drivers undergo extensive background checks.</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-4">
-                    <div class="card h-100 border-0 shadow-sm service-card">
-                        <div class="card-body p-4 text-center">
-                            <div class="icon-wrapper mb-4">
-                                <i class="bi bi-cart-fill fs-1 text-primary"></i>
-                            </div>
-                            <h3 class="h4 mb-3">Grocery Stop Service</h3>
-                            <p class="text-muted">Complimentary 30-minute grocery stop included with all airport to hotel transfers at Publix, Walmart, Target, or Whole Foods.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-<!-- Enhanced Travel Agent Partnership Section -->
-<section class="py-6" id="travel-agents">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="card border-0 shadow-lg">
-                    <div class="card-body p-5">
-                        <div class="row align-items-center">
-                            <div class="col-lg-8">
-                                <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">For Travel Professionals</span>
-                                <h2 class="display-5 fw-bold mb-4">Travel Agent Partnerships</h2>
-                                <p class="lead mb-4">Join our partner program and provide your clients with premium Orlando transportation while boosting your commission</p>
-                                
-                                <a href="{% url 'partner' %}" class="btn btn-primary btn-lg px-5 py-3 rounded-pill">Discover Grayson Partnership Benefits</a>
-                            </div>
-                            <div class="col-lg-4 text-center">
-                                <div class="bg-primary bg-opacity-10 rounded-circle mx-auto d-flex align-items-center justify-content-center" style="width: 150px; height: 150px;">
-                                    <i class="bi bi-briefcase fs-1 text-primary"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
-</section>
-    <!-- FAQ Link Section -->
-    <section class="py-6 bg-dark text-white text-center" id="faq-link">
-        <div class="container">
-            <div class="row justify-content-center">
-                <div class="col-lg-8">
-                    <h2 class="display-5 fw-bold mb-4">Frequently Asked Questions</h2>
-                    <p class="lead mb-5">Find answers to your transportation questions in our comprehensive FAQ section</p>
-                    <a href="{% url 'faqs' %}" class="btn btn-light btn-lg px-5 py-3 rounded-pill">View All FAQs</a>
-                </div>
+  </section>
+
+  <!-- Animated Why Choose Us Section -->
+  <section class="py-6 bg-light" id="why-choose">
+    <div class="container">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Premium Service</span>
+        <h2 class="display-5 fw-bold">Why Choose Us</h2>
+      </div>
+      <div class="row g-5 justify-content-center">
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-5 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-car-front-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Private Luxury Vehicles</h3>
+              <p class="text-muted">Travel in comfort with our modern fleet of sedans, SUVs, and passenger vans</p>
             </div>
+          </div>
         </div>
-    </section>
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-5 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-geo-alt-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Direct Hotel Service</h3>
+              <p class="text-muted">Door-to-door transportation with no additional stops along the way</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-5 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-clock-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">24/7 Availability</h3>
+              <p class="text-muted">We operate around the clock to accommodate all flight schedules</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-5 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-shop fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Complimentary Grocery Stops</h3>
+              <p class="text-muted">Stock up on essentials with our 30-minute grocery stop service</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-5 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-people-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Family-Friendly</h3>
+              <p class="text-muted">Complimentary car seats and boosters for travelers of all ages</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    {% comment %}Call to Action{% endcomment %}
-    {% include 'call-to-action.html' %}
+  <!-- Simplified Service Areas Section -->
+  <section class="py-6" id="explore">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-lg-5 mb-5 mb-lg-0">
+          <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Service Areas</span>
+          <h2 class="display-5 fw-bold mb-4">Where We Take You</h2>
+          <p class="lead mb-4">Explore our comprehensive coverage across Orlando's top destinations</p>
 
-    <!-- Add structured data for SEO -->
-    <script type="application/ld+json">
+          <!-- Interactive Area Selection -->
+          <div class="destination-selector mb-4">
+            <div class="btn-group-vertical w-100" role="group" id="areaButtons">
+              <button type="button"
+                      class="btn btn-outline-primary py-3 text-start blue-active active"
+                      data-area="disney">
+                <i class="bi bi-star-fill me-2"></i> Disney Resorts
+              </button>
+              <button type="button"
+                      class="btn btn-outline-primary py-3 text-start blue-active"
+                      data-area="universal">
+                <i class="bi bi-globe2 me-2"></i> Universal Properties
+              </button>
+              <button type="button"
+                      class="btn btn-outline-primary py-3 text-start blue-active"
+                      data-area="idrive">
+                <i class="bi bi-signpost-2 me-2"></i> International Drive
+              </button>
+              <button type="button"
+                      class="btn btn-outline-primary py-3 text-start blue-active"
+                      data-area="lbv">
+                <i class="bi bi-house-door-fill me-2"></i> Lake Buena Vista & Kissimmee
+              </button>
+            </div>
+          </div>
+
+          <p class="small text-muted fst-italic">
+            Not listed? We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-primary">Contact Us</a>
+          </p>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="card border-0 shadow-lg">
+            <div class="card-body p-4 position-relative">
+              <!-- Simplified Map Display with CSS Background Images -->
+              <div class="area-description active" id="disney-description">
+                <div class="area-image disney-area mb-4"></div>
+                <h3 class="h4 mb-3">Disney Resort Area</h3>
+                <p class="mb-3">Direct service to all Disney properties including Value, Moderate, and Deluxe resorts.</p>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Contemporary Resort
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Grand Floridian
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Polynesian Village
+                  </li>
+                  <li>
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All other Disney resorts
+                  </li>
+                </ul>
+              </div>
+
+              <div class="area-description" id="universal-description">
+                <div class="area-image universal-area mb-4"></div>
+                <h3 class="h4 mb-3">Universal Orlando Area</h3>
+                <p class="mb-3">Comprehensive service to all Universal Orlando hotels and nearby accommodations.</p>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Loews Portofino Bay Hotel
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Hard Rock Hotel Orlando
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Universal's Cabana Bay
+                  </li>
+                  <li>
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All Universal partner hotels
+                  </li>
+                </ul>
+              </div>
+
+              <div class="area-description" id="idrive-description">
+                <div class="area-image idrive-area mb-4"></div>
+                <h3 class="h4 mb-3">International Drive</h3>
+                <p class="mb-3">Service to all I-Drive hotels, Convention Center area, and SeaWorld resorts.</p>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Rosen Plaza Hotel
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Hyatt Regency Orlando
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> DoubleTree by Hilton
+                  </li>
+                  <li>
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All I-Drive hotels & resorts
+                  </li>
+                </ul>
+              </div>
+
+              <div class="area-description" id="lbv-description">
+                <div class="area-image lbv-area mb-4"></div>
+                <h3 class="h4 mb-3">Lake Buena Vista & Kissimmee</h3>
+                <p class="mb-3">Transportation to hotels and vacation rentals throughout LBV and Kissimmee.</p>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Wyndham Lake Buena Vista
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Gaylord Palms Resort
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Vacation home rentals
+                  </li>
+                  <li>
+                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All LBV & Kissimmee hotels
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hotels We Service Section -->
+  <section class="py-6 bg-gradient"
+           id="hotels"
+           style="background: linear-gradient(to bottom right, #f8f9fa, #e9ecef)">
+    <div class="container">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Accommodations</span>
+        <h2 class="display-5 fw-bold">Hotels We Service</h2>
+        <p class="lead mb-1">Comprehensive coverage of Orlando's premier hotels</p>
+        <p class="small text-muted">
+          Can't find your hotel? <a href="#contact" class="text-primary">Contact us</a> for customized routes
+        </p>
+      </div>
+
+      <!-- Hotel Tabs Navigation -->
+      <ul class="nav nav-pills nav-fill mb-5 hotel-tabs"
+          id="hotelTabs"
+          role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active"
+                  id="disney-tab"
+                  data-bs-toggle="pill"
+                  data-bs-target="#disney-hotels"
+                  type="button"
+                  role="tab">
+            <i class="bi bi-star me-2"></i>Disney
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link"
+                  id="universal-tab"
+                  data-bs-toggle="pill"
+                  data-bs-target="#universal-hotels"
+                  type="button"
+                  role="tab">
+            <i class="bi bi-globe2 me-2"></i>Universal
+          </button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link"
+                  id="idrive-tab"
+                  data-bs-toggle="pill"
+                  data-bs-target="#idrive-hotels"
+                  type="button"
+                  role="tab">
+            <i class="bi bi-signpost-2 me-2"></i>I-Drive
+          </button>
+        </li>
+      </ul>
+
+      <!-- Hotel Tabs Content -->
+      <div class="tab-content" id="hotelTabsContent">
+        <div class="tab-pane fade show active" id="disney-hotels" role="tabpanel">
+          <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <!-- Disney Hotels -->
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Disney's Contemporary Resort</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Disney's Grand Floridian</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Disney's Polynesian Village</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Disney's Animal Kingdom Lodge</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Disney's Coronado Springs</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card view-all non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">All Other Disney Resorts</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="universal-hotels" role="tabpanel">
+          <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <!-- Universal Hotels -->
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Loews Portofino Bay Hotel</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Hard Rock Hotel Orlando</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Loews Royal Pacific Resort</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Loews Sapphire Falls Resort</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Universal's Cabana Bay</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card view-all non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">All Universal Partner Hotels</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-pane fade" id="idrive-hotels" role="tabpanel">
+          <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            <!-- I-Drive Hotels -->
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Rosen Plaza Hotel</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Rosen Centre Hotel</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Hyatt Regency Orlando</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">Marriott Orlando World Center</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">DoubleTree by Hilton</h3>
+                </div>
+              </div>
+            </div>
+            <div class="col">
+              <div class="hotel-card view-all non-clickable">
+                <div class="card-body">
+                  <h3 class="h5 hotel-name">All I-Drive Hotels & Resorts</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Additional Services Section -->
+  <section class="py-6" id="additional-services">
+    <div class="container">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Options</span>
+        <h2 class="display-5 fw-bold">Additional Transportation Services</h2>
+        <p class="lead mb-0">Beyond airport transfers, we offer comprehensive solutions</p>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow service-card">
+            <div class="card-body p-4">
+              <div class="service-icon mb-4">
+                <i class="bi bi-water fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Hotel to Port Canaveral</h3>
+              <p>Seamless transportation from your Orlando hotel directly to your cruise terminal at Port Canaveral.</p>
+              <a href="{% url 'rates' %}"
+                 class="btn btn-outline-primary mt-3 stretched-link">Book Port Transfer</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow service-card">
+            <div class="card-body p-4">
+              <div class="service-icon mb-4">
+                <i class="bi bi-arrow-left-right fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Hotel to Hotel Transfers</h3>
+              <p>Convenient transportation between any Orlando hotels. Perfect for switching resorts during your stay.</p>
+              <a href="{% url 'rates' %}"
+                 class="btn btn-outline-primary mt-3 stretched-link">Book Hotel Transfer</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 border-0 shadow service-card">
+            <div class="card-body p-4">
+              <div class="service-icon mb-4">
+                <i class="bi bi-map fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Customized Routes</h3>
+              <p>Need transportation to a specific location? We offer customized solutions to meet your unique travel needs.</p>
+              <a href="{% url 'contact' %}"
+                 class="btn btn-outline-primary mt-3 stretched-link">Request Custom Route</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Simplified Family Features Section -->
+  <section class="py-6 bg-primary bg-opacity-10" id="family-features">
+    <div class="container">
+      <div class="text-center mb-5">
+        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Family Travel</span>
+        <h2 class="display-5 fw-bold">Family-Friendly Features</h2>
+        <p class="lead">Making family travel comfortable, safe, and stress-free</p>
+      </div>
+
+      <div class="row justify-content-center g-4">
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-4 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-car-front-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Child Car Seats & Boosters</h3>
+              <p class="text-muted">
+                Complimentary car seats and booster seats available for children of all ages. All seats meet NHTSA safety standards.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-4 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-person-badge-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Professional Drivers</h3>
+              <p class="text-muted">
+                Experienced, courteous drivers who know Orlando well and prioritize family safety and comfort. All drivers undergo extensive background checks.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card h-100 border-0 shadow-sm service-card">
+            <div class="card-body p-4 text-center">
+              <div class="icon-wrapper mb-4">
+                <i class="bi bi-cart-fill fs-1 text-primary"></i>
+              </div>
+              <h3 class="h4 mb-3">Grocery Stop Service</h3>
+              <p class="text-muted">
+                Complimentary 30-minute grocery stop included with all airport to hotel transfers at Publix, Walmart, Target, or Whole Foods.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Enhanced Travel Agent Partnership Section -->
+  <section class="py-6" id="travel-agents">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-12">
+          <div class="card border-0 shadow-lg">
+            <div class="card-body p-5">
+              <div class="row align-items-center">
+                <div class="col-lg-8">
+                  <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">For Travel Professionals</span>
+                  <h2 class="display-5 fw-bold mb-4">Travel Agent Partnerships</h2>
+                  <p class="lead mb-4">
+                    Join our partner program and provide your clients with premium Orlando transportation while boosting your commission
+                  </p>
+
+                  <a href="{% url 'partner' %}"
+                     class="btn btn-primary btn-lg px-5 py-3 rounded-pill">Discover Grayson Partnership Benefits</a>
+                </div>
+                <div class="col-lg-4 text-center">
+                  <div class="bg-primary bg-opacity-10 rounded-circle mx-auto d-flex align-items-center justify-content-center"
+                       style="width: 150px;
+                              height: 150px">
+                    <i class="bi bi-briefcase fs-1 text-primary"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- FAQ Link Section -->
+  <section class="py-6 bg-dark text-white text-center" id="faq-link">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <h2 class="display-5 fw-bold mb-4">Frequently Asked Questions</h2>
+          <p class="lead mb-5">Find answers to your transportation questions in our comprehensive FAQ section</p>
+          <a href="{% url 'faqs' %}"
+             class="btn btn-light btn-lg px-5 py-3 rounded-pill">View All FAQs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% comment %}Call to Action{% endcomment %}
+  {% include 'call-to-action.html' %}
+
+  <!-- Add structured data for SEO -->
+  <script type="application/ld+json">
       {
           "@context": "https://schema.org",
           "@type": "LocalBusiness",
@@ -558,5 +641,5 @@
               "description": "Private transfers between any Orlando area hotels and Port Canaveral Cruises."
           }]
       }
-    </script>
+  </script>
 {% endblock %}
