@@ -67,13 +67,13 @@ class ReservationForm(forms.ModelForm):
             ),
             "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "rf_carseat": forms.NumberInput(
-                attrs={"class": "form-control",  "max": 2, 'id':'rf-carseat'}
+                attrs={"class": "form-control" ,'id':'rf-carseat'}
             ),
             "ff_carseat": forms.NumberInput(
-                attrs={"class": "form-control",  "max": 2, 'id':'ff-carseat'}
+                attrs={"class": "form-control",'id':'ff-carseat'}
             ),
             "booster_seats": forms.NumberInput(
-                attrs={"class": "form-control", "max": 2, 'id':'booster'}
+                attrs={"class": "form-control", 'id':'booster'}
             ),
 
 

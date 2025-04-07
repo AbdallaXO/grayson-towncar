@@ -2,8 +2,6 @@
 {% load static %}
 {% block content %}
 
-
-
   <div class="container my-5">
     <div class="row">
       <div class="col-lg-8 mx-auto">
@@ -115,45 +113,44 @@
                   {% endif %}
                 </div>
                 <div class="col-md-6">
-                  {{ reservation_form.need_carseats.label_tag }}
-                  {{ reservation_form.need_carseats }}
-                  {% if reservation_form.carseat_type.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-                <div class="col-md-4">
                   <div class="form-check mt-4">
-                    {{ reservation_form.rf_carseat }}
-                    {{ reservation_form.rf_carseat.label_tag }}
-                    {% if reservation_form.rf_carseat.errors %}
+                    {{ reservation_form.need_carseats.label_tag }}
+                    {{ reservation_form.need_carseats }}
+                    {% if reservation_form.need_carseats.errors %}
                       <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.rf_carseat.errors %}{{ error }}{% endfor %}
+                        {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
                       </div>
                     {% endif %}
                   </div>
                 </div>
 
                 <div class="col-md-4">
-                  <div class="form-check mt-4">
-                    {{ reservation_form.ff_carseat }}
-                    {{ reservation_form.ff_carseat.label_tag }}
-                    {% if reservation_form.ff_carseat.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.rf_carseat.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
+                  {{ reservation_form.rf_carseat }}
+                  {{ reservation_form.rf_carseat.label_tag }}
+                  {% if reservation_form.rf_carseat.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.rf_carseat.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
+
                 <div class="col-md-4">
-                  <div class="form-check mt-4">
-                    {{ reservation_form.booster_seats }}
-                    {{ reservation_form.booster_seats.label_tag }}
-                    {% if reservation_form.booster_seats.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.rf_carseat.errors %}{{ error }}{% endfor %}
-                      </div>
+
+                  {{ reservation_form.ff_carseat }}
+                  {{ reservation_form.ff_carseat.label_tag }}
+                  {% if reservation_form.ff_carseat.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.ff_carseat.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div class="col-md-4">
+                  {{ reservation_form.booster_seats }}
+                  {{ reservation_form.booster_seats.label_tag }}
+                  {% if reservation_form.booster_seats.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
                     {% endif %}
                   </div>
                 </div>
@@ -422,9 +419,12 @@
     </div>
   </div>
 
-  {% comment %} <!-- Google Maps API  {% endcomment %}
+  {% comment %} <!-- Google Maps API --> {% endcomment %}
+  <script src="{% static 'js/reservation.js' %}"></script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
           async
           defer></script>
   <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'css/carseat.css' %}">
+  <script src="{% static 'js/carseat.js' %}"></script>
 {% endblock content %}
