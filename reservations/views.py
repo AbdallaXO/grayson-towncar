@@ -123,11 +123,7 @@ def contact(request):
         form = ContactUsFormSubmission(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(
-                request,
-                "Your quote request has been submitted! We will contact you shortly.",
-            )
-            return redirect("contact")
+            return redirect("thankyou")
     else:
         form = ContactUsFormSubmission()
     context = {"form": form}

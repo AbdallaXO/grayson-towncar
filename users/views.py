@@ -9,6 +9,9 @@ from .forms import CustomUserCreationForm, PartnerFormSubmission
 def index(request):
     return render(request, "users/profiles.html")
 
+def thankYou(request):
+    return render(request, "users/thank-you.html")
+
 
 def registerUser(request):
     form = CustomUserCreationForm()
@@ -72,11 +75,7 @@ def partner(request):
         form = PartnerFormSubmission(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(
-                request,
-                "Your partnership request has been submitted! We will contact you shortly.",
-            )
-            return redirect("partner")
+            return redirect("thankyou")
     else:
         form = PartnerFormSubmission()
     context = {"form": form}
