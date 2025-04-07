@@ -9,12 +9,10 @@ from .forms import (
     ContactUsFormSubmission,
 )
 from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms
-from django.contrib import messages
 from .email import send_reservation_confirmation
-from reservations.templatetags.seo_tags import structured_data
-
-
 # Create your views here.
+
+
 def index(request):
     """Returns the Landing Page"""
     return render(request, "reservations/index.html")
@@ -46,15 +44,16 @@ def reservation_form(
             leg2_form,
             trip_type,
         )
-        # we validate all forms, and validate leg2 form only  if the trip_type is not = one_way
+
         if forms_valid:
             customer = customer_form.save()
-            reservation = reservation_form.save(commit=False)
-            reservation.customer = customer
-            reservation.trip_type = trip_type
-            reservation.rate = rate
-            reservation.base_price = price
-            reservation.save()
+            reservation = reservation_form.save(
+                customer=customer,
+                trip_type=trip_type,
+                rate=rate,
+                base_price=price,
+                vehicle=rate.vehicle,
+            )
             leg1 = leg1_form.save(commit=False)
             leg1.reservation = reservation
 
@@ -77,8 +76,7 @@ def reservation_form(
                 leg2.save()
             send_reservation_confirmation(reservation)
 
-            return redirect("create_checkout_session", reservation_id=reservation.id)
-
+            return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (
             customer_form,

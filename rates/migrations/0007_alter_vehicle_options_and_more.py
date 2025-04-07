@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("rates", "0006_vehicle_carseat_vehicle_carseat_capacity"),
     ]

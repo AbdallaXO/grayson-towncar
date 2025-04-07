@@ -125,9 +125,9 @@
                 </div>
 
                 <div class="col-md-4">
-                  {{ reservation_form.rf_carseat }}
-                  {{ reservation_form.rf_carseat.label_tag }}
-                  {% if reservation_form.rf_carseat.errors %}
+                  {{ reservation_form.rf_carseats }}
+                  {{ reservation_form.rf_carseats.label_tag }}
+                  {% if reservation_form.rf_carseats.errors %}
                     <div class="invalid-feedback d-block">
                       {% for error in reservation_form.rf_carseat.errors %}{{ error }}{% endfor %}
                     </div>
@@ -136,11 +136,11 @@
 
                 <div class="col-md-4">
 
-                  {{ reservation_form.ff_carseat }}
-                  {{ reservation_form.ff_carseat.label_tag }}
-                  {% if reservation_form.ff_carseat.errors %}
+                  {{ reservation_form.ff_carseats }}
+                  {{ reservation_form.ff_carseats.label_tag }}
+                  {% if reservation_form.ff_carseats.errors %}
                     <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.ff_carseat.errors %}{{ error }}{% endfor %}
+                      {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
                     </div>
                   {% endif %}
                 </div>

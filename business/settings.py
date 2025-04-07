@@ -31,9 +31,6 @@ SECRET_KEY = os.environ.get(
 )
 
 
-
-
-
 # STORAGE_PATH = CONTENT_DIR
 
 if IN_RAILWAY:
@@ -51,7 +48,6 @@ os.makedirs(VOLUME_PATH / "media", exist_ok=True)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
 
 
 ALLOWED_HOSTS = [
