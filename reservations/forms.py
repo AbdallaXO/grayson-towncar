@@ -3,8 +3,7 @@
 from django import forms
 from .models import Reservation, Customer, Leg, Flight, ContactUsForm
 from django.utils import timezone
-
-
+from .validators import validate_carseat_limits
 class CustomerForm(forms.ModelForm):
     """Form for customer information"""
 
@@ -44,6 +43,10 @@ class ReservationForm(forms.ModelForm):
             "carseat_type",
             "store_stop",
             "special_requests",
+            "need_carseats",
+            "ff_carseat",
+            "rf_carseat",
+            "booster_seats",
         ]
         widgets = {
             "passenger_count": forms.NumberInput(
@@ -62,10 +65,51 @@ class ReservationForm(forms.ModelForm):
                     "placeholder": "Any special requests?",
                 }
             ),
+            "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "rf_carseat": forms.NumberInput(
+                attrs={"class": "form-control",  "max": 2, 'id':'rf-carseat'}
+            ),
+            "ff_carseat": forms.NumberInput(
+                attrs={"class": "form-control",  "max": 2, 'id':'ff-carseat'}
+            ),
+            "booster_seats": forms.NumberInput(
+                attrs={"class": "form-control", "max": 2, 'id':'booster'}
+            ),
+
+
         }
         help_texts = {
             "special_requests": "Optional. We’ll do our best to accommodate. "
         }
+
+    def __init__(self, *args, **kwargs):
+        self.vehicle = kwargs.pop("vehicle", None)
+        super().__init__(*args, **kwargs)
+        if self.vehicle:
+            limits = {
+                "towncar": {"carseats": 1, "boosters": 1},
+                "suv": {"carseats": 2, "boosters": 2},
+                "van": {"carseats": 2, "boosters": 2},
+            }
+            name = self.vehicle
+            limit = limits.get(name, {"carseats": 0, "boosters": 0})
+
+            self.fields["rf_carseat"].widget.attrs["max"] = limit["carseats"]
+            self.fields["ff_carseat"].widget.attrs["max"] = limit["carseats"]
+            self.fields["booster_seats"].widget.attrs["max"] = limit["boosters"]
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("need_carseats") and self.vehicle:
+            validate_carseat_limits(
+                vehicle=self.vehicle,
+                rear=cleaned.get("rear_facing_seats", 0),
+                forward=cleaned.get("forward_facing_seats", 0),
+                booster=cleaned.get("booster_seats", 0),
+            )
+        return cleaned
+            
+                
 
 
 class LegForm(forms.ModelForm):

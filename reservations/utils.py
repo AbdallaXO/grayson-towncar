@@ -36,6 +36,8 @@ def _initalize_form(trip_type, rate, price):
             "total_price": price,
             "route": rate.route,
         },
+         vehicle = rate.vehicle
+
     )
     flight1_form = FlightForm(prefix="flight1")
     leg1_form = LegForm(prefix="leg1")
@@ -114,3 +116,5 @@ def validate_forms(
     )
 
     return forms_valid
+
+
