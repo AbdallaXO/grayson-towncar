@@ -15,7 +15,7 @@
 
 {% block content %}
   <!-- preload critical assets to improve page speed -->
-  <link rel="preload" href="{% static 'images/suburban.webp' %}" as="image" />
+  <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
 
   <link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
   <main class="flex-shrink-0">
@@ -47,9 +47,9 @@
           <div class="col-xl-5 d-none d-md-block text-center">
             <!-- Optimized image with explicit dimensions, formats, and preload -->
             <img class="img-fluid rounded-3 my-4"
-                 src="{% static 'images/suburban.webp' %}"
+                 src="{% static 'images/full-fleet.webp' %}"
                  alt="Luxury SUV"
-                 width="400"
+                 width="500"
                  height="267"
                  loading="eager" />
           </div>
