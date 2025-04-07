@@ -1,73 +1,127 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>Choose Payment Option</title>
-    <!-- Bootstrap CSS CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-  </head>
-  <body class="bg-light">
-    <div class="container d-flex justify-content-center align-items-center min-vh-100">
-      <div class="card border-0 shadow-lg" style="width: 500px;">
-        <div class="card-body p-4 text-center">
-          <div class="mb-4">
-            <h1 class="h3 mb-2 fw-bold">Reservation #1</h1>
-            <h2 class="h5 text-muted">John Doe</h2>
-            <h3 class="h6 text-muted">Reservation Details</h3>
-          </div>
+{% extends "main.html" %}
 
-          <div class="bg-white border rounded-3 p-3 mb-4">
-            <div class="row g-3">
-              <div class="col-6">
-                <div class="small text-muted">Date</div>
-                <div class="fw-semibold">04/07/2025</div>
-              </div>
-              <div class="col-6">
-                <div class="small text-muted">Route Type</div>
-                <div class="fw-semibold text-break">Orlando International Airport ⇄ Disney Springs Hotels</div>
-              </div>
-              <div class="col-6">
-                <div class="small text-muted">Vehicle Type</div>
-                <div class="fw-semibold">Mini Van</div>
-              </div>
-              <div class="col-6">
-                <div class="small text-muted">Passengers</div>
-                <div class="fw-semibold">3</div>
-              </div>
-              <div class="col-6">
-                <div class="small text-muted">Luggage</div>
-                <div class="fw-semibold">3</div>
-              </div>
-              <div class="col-6">
-                <div class="small text-muted">Child Seats</div>
-                <div class="fw-semibold">1</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mb-4">
-            <div class="h4 mb-0">Total: <strong class="text-primary">$85.00</strong></div>
-          </div>
-
-          <form method="post">
-            {% csrf_token %}
-            <div class="d-grid gap-3">
-              <button type="submit"
-                      name="action"
-                      value="pay_now"
-                      class="btn btn-primary btn-lg">💳 Pay Now</button>
-              <button type="submit"
-                      name="action"
-                      value="save_card"
-                      class="btn btn-outline-secondary btn-lg">🔐 Save Card, Pay Later</button>
-            </div>
-          </form>
+{% block content %}
+<div class="container mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-dark text-white text-center py-3">
+            <h2 class="mb-0">Reservation Confirmation</h2>
         </div>
-      </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-bookmark-check me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Reservation ID</small>
+                            <strong id="reservationId">12345</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-person me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Customer Name</small>
+                            <strong id="customerName">John Doe</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-signpost-split me-2 text-primary"></i>
+                        <div style="max-width: 100%;">
+                            <small class="text-muted d-block">Trip Route</small>
+                            <strong id="tripRoute" class="text-wrap" style="word-break: break-word;">Round Trip</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-calendar-date me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Trip Date</small>
+                            <strong id="tripDate">2023-10-10</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-clock me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Trip Time</small>
+                            <strong id="tripTime">10:00 AM</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-people me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Passenger Count</small>
+                            <strong id="passengerCount">3</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-car-front me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Carseat Count</small>
+                            <strong id="carseatCount">1</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-12 mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-briefcase me-2 text-primary"></i>
+                        <div>
+                            <small class="text-muted d-block">Luggage Count</small>
+                            <strong id="luggageCount">2</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 mb-3">
+                    <div class="d-flex align-items-start">
+                        <i class="bi bi-chat-square-text me-2 text-primary mt-1"></i>
+                        <div>
+                            <small class="text-muted d-block">Additional Comments</small>
+                            <strong id="additionalComments">N/A</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-2 border-top">
+                <h5 class="mb-3 text-center">Payment Options</h5>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-center gap-3">
+                        <button type="submit"
+                               name="action"
+                               value="pay_now"
+                               class="btn btn-success px-4 py-2">💳 Pay Now</button>
+                        <button type="submit"
+                               name="action"
+                               value="save_card"
+                               class="btn btn-outline-primary px-4 py-2">🔐 Save Card, Pay Later</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="card-footer p-0">
+            <div class="bg-light-subtle p-3 border-top">
+                <div class="bg-primary bg-opacity-10 rounded-3 p-3 border border-primary border-opacity-25 shadow-sm">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <i class="bi bi-info-circle-fill text-primary me-2"></i>
+                        <h6 class="mb-0 fw-bold">Need Help?</h6>
+                    </div>
+                    <p class="mb-0 text-center">For questions about your reservation or payment assistance, please contact our customer service team at <span class="fw-semibold">(407) 212-7190</span> or email <strong>reservations@graysontowncar.com</strong></p>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <!-- Optional Bootstrap JS (for interactive components, not required here) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  </body>
-</html>
+<!-- Bootstrap JS Bundle with Popper (includes all the required dependencies) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock content %}
