@@ -17,7 +17,6 @@
   {% structured_data %}
   <!-- preload critical assets to improve page speed -->
   <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
-
   <link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
   <main class="flex-shrink-0">
 
@@ -45,11 +44,11 @@
           </div>
           <div class="col-xl-5 d-none d-md-block text-center">
             <!-- Optimized image with explicit dimensions, formats, and preload -->
-            <img class="img-fluid rounded-3 my-4"
+            <img class="card-img-container position-relative"
                  src="{% static 'images/full-fleet.webp' %}"
                  alt="Luxury SUV"
                  width="500"
-                 height="267"
+                 height="200"
                  loading="eager" />
           </div>
         </div>
@@ -136,8 +135,8 @@
               <img class="card-img-top"
                    src="{% static 'images/towncar.webp' %}"
                    alt="Executive Sedan for Orlando Airport Transportation"
-                   width="400"
-                   height="225"
+                   width="300"
+                   height="200"
                    loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Executive Sedan</div>
@@ -175,8 +174,8 @@
               <img class="card-img-top"
                    src="{% static 'images/minivan.webp' %}"
                    alt="Mini Van for Orlando Airport Transportation"
-                   width="400"
-                   height="225"
+                   width="300"
+                   height="200"
                    loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Comfortable Mini Van</div>
@@ -214,8 +213,8 @@
               <img class="card-img-top"
                    src="{% static 'images/suburban.webp' %}"
                    alt="Luxury SUV for Orlando Hotel Transfers"
-                   width="400"
-                   height="225"
+                   width="300"
+                   height="200"
                    loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Luxury SUV</div>
@@ -253,8 +252,8 @@
               <img class="card-img-top"
                    src="{% static 'images/van.webp' %}"
                    alt="Passenger Van for Orlando Group Transportation"
-                   width="400"
-                   height="225"
+                   width="300"
+                   height="200"
                    loading="lazy" />
               <div class="card-body p-4">
                 <div class="badge bg-primary bg-gradient rounded-pill mb-2">Group Transport</div>
