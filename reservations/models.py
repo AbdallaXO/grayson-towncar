@@ -1,10 +1,10 @@
 from django.db import models
 from .constants import (
-    CARSEAT_CHOICES,
     FLIGHT_TYPE_CHOICES,
     TRIP_CHOICES,
     RESERVTION_STATUS,
 )
+import uuid
 
 
 class Customer(models.Model):
@@ -34,7 +34,7 @@ class Customer(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["email"]),
-            models.Index(fields=["created_at"]),
+            models.Index(fields=["phone_number"]),
         ]
 
     def __str__(self):
@@ -57,15 +57,12 @@ class Reservation(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     rate = models.ForeignKey("rates.Rate", on_delete=models.PROTECT)
     passenger_count = models.PositiveIntegerField(default=1)
-    has_children = models.BooleanField(default=False)
     luggage_count = models.PositiveIntegerField(default=1)
-    need_carseats = models.BooleanField(default=False)
-    rf_carseat = models.PositiveIntegerField(default=0)
-    ff_carseat = models.PositiveBigIntegerField(default=0)
+    need_carseats = models.BooleanField(default=False)  #
+    rf_carseats = models.PositiveIntegerField(default=0)
+    ff_carseats = models.PositiveBigIntegerField(default=0)
     booster_seats = models.PositiveIntegerField(default=0)
-    carseat_type = models.CharField(
-        max_length=20, choices=CARSEAT_CHOICES, blank=True, null=True
-    )
+    uuid = models.UUIDField(blank=True, unique=True, default=uuid.uuid4, editable=False)
 
     # Special Requests
     store_stop = models.BooleanField(default=False)
@@ -79,11 +76,9 @@ class Reservation(models.Model):
     payment = models.OneToOneField(
         "payment.Payment", on_delete=models.PROTECT, null=True, blank=True
     )
-
     status = models.CharField(
         max_length=20, choices=RESERVTION_STATUS, default="pending"
     )
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -92,12 +87,14 @@ class Reservation(models.Model):
             models.Index(fields=["customer"]),
             models.Index(fields=["trip_type"]),
             models.Index(fields=["rate"]),
+            models.Index(fields=["uuid"]),
         ]
 
     def save(self, *args, **kwargs):
         self.total_price = self.base_price
-          # or base_price + carseats, etc.
+        # or base_price + carseats, etc.
         super().save(*args, **kwargs)
+
     def display_carseats(self):
         carseats = []
         if not self.need_carseats:
@@ -109,7 +106,6 @@ class Reservation(models.Model):
         if self.booster_seats:
             carseats.append[f"{self.rf_carseat} Booster"]
         return "".join(carseats) if carseats else None
-    
 
     def __str__(self):
         """
@@ -139,9 +135,8 @@ class Leg(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["pickup_date"]),
             models.Index(fields=["reservation"]),
-            models.Index(fields=["pickup_location", "dropoff_location"]),
+            models.Index(fields=["flight_information"]),
         ]
 
     def __str__(self):

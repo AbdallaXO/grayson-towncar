@@ -19,21 +19,19 @@ class Vehicle(models.Model):
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
-    boosters = models.PositiveIntegerField(default=0)
-    ff_carseats = models.PositiveBigIntegerField(default=0, blank=True)
-    rf_carseats = models.PositiveBigIntegerField(default=0, blank=True)
-    carseat_capacity = models.IntegerField(default=0, blank=True)
-    # ? Idea
-    # boosters = models.PositiveIntegerField()
-    # carseats = models.PositiveIntegerField()
+    ff_carseats_max = models.PositiveIntegerField(default=1)
+    rf_carseats_max = models.PositiveIntegerField(default=1)
+    boosters_max = models.PositiveIntegerField(default=1)
+    carseats_capacity = models.PositiveIntegerField(default=1)
 
     def __str__(self):
         """
         Returns the vehicle type in uppercase (e.g., 'SUV', 'VAN').
         """
         return str(self.vehicle_type.title())
+
     class Meta:
-        ordering = ['capacity']
+        ordering = ["capacity"]
 
 
 class Location(models.Model):
@@ -62,7 +60,7 @@ class Route(models.Model):
             "origin",
             "destination",
         )
-          # Ensure unique origin-destination pairs
+        # Ensure unique origin-destination pairs
 
     def save(self, *args, **kwargs):
         """
@@ -120,10 +118,10 @@ class Rate(models.Model):
         # Multiple indexes for different query patterns
         indexes = [
             # Composite index for vehicle and route
-            models.Index(fields=["vehicle", "route"]),
+            models.Index(fields=["vehicle"]),
             # Optional: additional indexes for common query patterns
-            models.Index(fields=["vehicle", "oneway_price"]),
-            models.Index(fields=["route", "round_trip_price"]),
+            models.Index(fields=["oneway_price"]),
+            models.Index(fields=["round_trip_price"]),
         ]
 
     def __str__(self):

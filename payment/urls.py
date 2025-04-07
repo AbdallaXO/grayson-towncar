@@ -4,12 +4,12 @@ from . import webhook
 
 urlpatterns = [
     path(
-        "create-checkout-session/<int:reservation_id>/",
+        f"checkout-session/<str:reservation_id>/",
         views.create_checkout_session,
         name="create_checkout_session",
     ),
     path(
-        "save-card-checkout/<int:reservation_id>/",
+        "save-card-checkout/<str:reservation_id>/",
         views.save_card,
         name="save_card_checkout",
     ),

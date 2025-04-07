@@ -3,7 +3,10 @@
 from django import forms
 from .models import Reservation, Customer, Leg, Flight, ContactUsForm
 from django.utils import timezone
-from .validators import validate_carseat_limits
+from django.db.models import Q
+from typing import override
+
+
 class CustomerForm(forms.ModelForm):
     """Form for customer information"""
 
@@ -30,6 +33,24 @@ class CustomerForm(forms.ModelForm):
             "zipcode": forms.TextInput(attrs={"class": "form-control"}),
         }
 
+    @override
+    def save(self, commit=True):
+        obj, created = Customer.objects.filter(
+            Q(email=self.instance.email),
+            Q(phone_number=self.instance.phone_number),
+        ).get_or_create(
+            email=self.instance.email,
+            phone_number=self.instance.phone_number,
+            first_name=self.instance.first_name,
+            last_name=self.instance.last_name,
+            zipcode=self.instance.zipcode,
+        )
+        if not created:
+            obj.is_returning = True
+            obj.save()
+
+        return obj
+
 
 class ReservationForm(forms.ModelForm):
     """Form for reservation details"""
@@ -39,13 +60,11 @@ class ReservationForm(forms.ModelForm):
         fields = [
             "passenger_count",
             "luggage_count",
-            "has_children",
-            "carseat_type",
             "store_stop",
             "special_requests",
             "need_carseats",
-            "ff_carseat",
-            "rf_carseat",
+            "ff_carseats",
+            "rf_carseats",
             "booster_seats",
         ]
         widgets = {
@@ -55,8 +74,6 @@ class ReservationForm(forms.ModelForm):
             "luggage_count": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "max": "12"}
             ),
-            "has_children": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "carseat_type": forms.Select(attrs={"class": "form-select"}),
             "store_stop": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "special_requests": forms.Textarea(
                 attrs={
@@ -67,49 +84,25 @@ class ReservationForm(forms.ModelForm):
             ),
             "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "rf_carseat": forms.NumberInput(
-                attrs={"class": "form-control" ,'id':'rf-carseat'}
+                attrs={"class": "form-control", "id": "rf-carseat"}
             ),
             "ff_carseat": forms.NumberInput(
-                attrs={"class": "form-control",'id':'ff-carseat'}
+                attrs={"class": "form-control", "id": "ff-carseat"}
             ),
             "booster_seats": forms.NumberInput(
-                attrs={"class": "form-control", 'id':'booster'}
+                attrs={"class": "form-control", "id": "booster"}
             ),
-
-
         }
         help_texts = {
             "special_requests": "Optional. We’ll do our best to accommodate. "
         }
 
-    def __init__(self, *args, **kwargs):
-        self.vehicle = kwargs.pop("vehicle", None)
-        super().__init__(*args, **kwargs)
-        if self.vehicle:
-            limits = {
-                "towncar": {"carseats": 1, "boosters": 1},
-                "suv": {"carseats": 2, "boosters": 2},
-                "van": {"carseats": 2, "boosters": 2},
-            }
-            name = self.vehicle
-            limit = limits.get(name, {"carseats": 0, "boosters": 0})
-
-            self.fields["rf_carseat"].widget.attrs["max"] = limit["carseats"]
-            self.fields["ff_carseat"].widget.attrs["max"] = limit["carseats"]
-            self.fields["booster_seats"].widget.attrs["max"] = limit["boosters"]
-
-    def clean(self):
-        cleaned = super().clean()
-        if cleaned.get("need_carseats") and self.vehicle:
-            validate_carseat_limits(
-                vehicle=self.vehicle,
-                rear=cleaned.get("rear_facing_seats", 0),
-                forward=cleaned.get("forward_facing_seats", 0),
-                booster=cleaned.get("booster_seats", 0),
-            )
-        return cleaned
-            
-                
+    def save(self, commit=True, **kwargs):
+        self.instance.customer = kwargs.get("customer")
+        self.instance.trip_type = kwargs.get("trip_type")
+        self.instance.rate = kwargs.get("rate")
+        self.instance.base_price = kwargs.get("base_price")
+        return super().save(commit)
 
 
 class LegForm(forms.ModelForm):

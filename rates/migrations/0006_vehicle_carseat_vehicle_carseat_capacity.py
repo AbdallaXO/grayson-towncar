@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("rates", "0005_alter_rate_unique_together_alter_rate_oneway_price_and_more"),
     ]

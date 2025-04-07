@@ -5,6 +5,9 @@ from reservations.models import Reservation
 from .utils import get_or_create_stripe_customer
 from django.conf import settings
 from django.urls import reverse
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import smart_str
+from django.utils.encoding import force_bytes
 
 # Ensure you're using environment variables in production
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -15,7 +18,10 @@ def create_checkout_session(request, reservation_id):
     Creates a Checkout Session for a User and a stripe customer object
     and gives user the option to pay now or later then takes payment here or re-directs user
     to save_card if they decide to save card for later"""
-    reservation = get_object_or_404(Reservation, pk=reservation_id)
+    print(reservation_id)
+    reservation = get_object_or_404(Reservation, uuid=reservation_id)
+    print(reservation_id, reservation.customer.email)
+
     stripe_customer = get_or_create_stripe_customer(reservation)
 
     if request.method == "POST":
