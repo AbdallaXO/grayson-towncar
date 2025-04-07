@@ -114,7 +114,7 @@
                                   <td class="text-center">
                                     <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
                                       <span class="fw-medium">$ {{ v.oneway_price }}</span>
-                                      <a href="{% url 'reserve' v.id %}?round=ow"
+                                      <a href="{% url 'reserve' v.id %}?round=1"
                                          class="btn btn-sm custom-blue-button"
                                          aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip">
                                         Book Now
@@ -124,7 +124,7 @@
                                   <td class="text-center">
                                     <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
                                       <span class="fw-medium">$ {{ v.round_trip_price }}</span>
-                                      <a href="{% url 'reserve' v.id %}?round=rt"
+                                      <a href="{% url 'reserve' v.id %}?round=2"
                                          class="btn btn-sm custom-blue-button"
                                          aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip">
                                         Book Now
