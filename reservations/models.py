@@ -59,6 +59,10 @@ class Reservation(models.Model):
     passenger_count = models.PositiveIntegerField(default=1)
     has_children = models.BooleanField(default=False)
     luggage_count = models.PositiveIntegerField(default=1)
+    need_carseats = models.BooleanField(default=False)
+    rf_carseat = models.PositiveIntegerField(default=0)
+    ff_carseat = models.PositiveBigIntegerField(default=0)
+    booster_seats = models.PositiveIntegerField(default=0)
     carseat_type = models.CharField(
         max_length=20, choices=CARSEAT_CHOICES, blank=True, null=True
     )
@@ -90,22 +94,22 @@ class Reservation(models.Model):
             models.Index(fields=["rate"]),
         ]
 
-    def save(
-        self,
-        *args,
-        force_insert=False,
-        force_update=False,
-        using=None,
-        update_fields=None,
-    ):
-        self.total_price = self.base_price  # + self.additional_charges
-        return super().save(
-            *args,
-            force_insert=force_insert,
-            force_update=force_update,
-            using=using,
-            update_fields=update_fields,
-        )
+    def save(self, *args, **kwargs):
+        self.total_price = self.base_price
+          # or base_price + carseats, etc.
+        super().save(*args, **kwargs)
+    def display_carseats(self):
+        carseats = []
+        if not self.need_carseats:
+            return None
+        if self.rf_carseat:
+            carseats.append[f"{self.rf_carseat} Rear Facing"]
+        if self.rf_carseat:
+            carseats.append[f"{self.ff_carseat} Forward-Facing"]
+        if self.booster_seats:
+            carseats.append[f"{self.rf_carseat} Booster"]
+        return "".join(carseats) if carseats else None
+    
 
     def __str__(self):
         """

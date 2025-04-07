@@ -19,9 +19,10 @@ class Vehicle(models.Model):
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
-    carseats = models.CharField(max_length=55, blank=True)
-    carseat_capacity = models.IntegerField(default=0,blank=True)
-
+    boosters = models.PositiveIntegerField(default=0)
+    ff_carseats = models.PositiveBigIntegerField(default=0, blank=True)
+    rf_carseats = models.PositiveBigIntegerField(default=0, blank=True)
+    carseat_capacity = models.IntegerField(default=0, blank=True)
     # ? Idea
     # boosters = models.PositiveIntegerField()
     # carseats = models.PositiveIntegerField()
