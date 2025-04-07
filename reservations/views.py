@@ -54,7 +54,6 @@ def reservation_form(
             reservation.rate = rate
             reservation.base_price = price
             reservation.save()
-
             leg1 = leg1_form.save(commit=False)
             leg1.reservation = reservation
 

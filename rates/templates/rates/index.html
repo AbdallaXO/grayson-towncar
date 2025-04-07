@@ -1,89 +1,164 @@
 {% extends 'main.html' %}
 {% load static %}
+{% comment %} {% load jsonld %}
+{# Assuming you'll create a custom template tag for JSON-LD #}
+
+{% block head_meta %}
+  {{ block.super }}
+  {# SEO and Performance Meta Tags #}
+  <meta name="description" content="Professional airport transportation and town car services in Orlando. Choose from a variety of vehicles with complimentary car seats, free meet and greet, and transparent pricing.">
+  <link rel="canonical" href="{{ request.build_absolute_uri }}" />
+
+  {# Open Graph Meta Tags #}
+  <meta property="og:title" content="Grayson Town Car - Vehicle Options and Rates" />
+  <meta property="og:description" content="Professional airport transportation and town car services in Orlando. Choose from a variety of vehicles with complimentary car seats, free meet and greet, and transparent pricing." />
+  <meta property="og:type" content="service" />
+  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
+  {% if vehicles.first.image %}<meta property="og:image" content="{{ vehicles.first.image.url }}" />{% endif %}
+
+  {# Twitter Card Meta Tags #}
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Grayson Town Car - Vehicle Options and Rates" />
+  <meta name="twitter:description" content="Professional airport transportation and town car services in Orlando. Choose from a variety of vehicles with complimentary car seats, free meet and greet, and transparent pricing." />
+  {% if vehicles.first.image %}<meta name="twitter:image" content="{{ vehicles.first.image.url }}" />{% endif %}
+{% endblock %}
 
 {% block content %}
-  <link rel="stylesheet" href="{% static 'css/rates-elements.css' %}">
-  <section class="py-5 bg-light">
+
+  {# JSON-LD Structured Data #}
+  {% jsonld %}
+  {
+  "@context": "https://schema.org",
+  "@type": "TransportationService",
+  "name": "Grayson Town Car",
+  "description": "Professional airport transportation and town car services in Orlando",
+  "offers": {
+  "@type": "Offer",
+  "priceCurrency": "USD",
+  "itemOffered": [
+  {% for vehicle in vehicles %}
+    {
+    "@type": "Product",
+    "name": "{{ vehicle.get_vehicle_type_display }}",
+    "description": "Transportation vehicle with {{ vehicle.capacity }} passengers and {{ vehicle.luggage_capacity }} suitcase capacity",
+    "offers": {
+    "@type": "Offer",
+    "price": "{{ vehicle.rates.first.oneway_price }}"
+    }
+    }
+    {% if not forloop.last %},{% endif %}
+  {% endfor %}
+  ]
+  },
+  "areaServed": {
+  "@type": "GeoCircle",
+  "geoMidpoint": {
+  "@type": "GeoCoordinates",
+  "latitude": "28.5383",
+  "longitude": "-81.3792"
+  },
+  "geoRadius": "50 mi"
+  }
+  }
+{% endjsonld %} {% endcomment %}
+
+
+{% block content %}
+  <link rel="stylesheet"
+        href="{% static 'css/rates-elements.css' %}"
+        media="all" />
+  <section class="py-5 bg-light" aria-labelledby="vehicle-options-heading">
     <div class="container px-4 px-lg-5 my-5">
       <div class="row gx-4 gx-lg-5 justify-content-center">
         <div class="col-12 col-lg-10">
           <div class="text-center mb-5">
-            <h2 class="fw-bolder">Our Vehicle Options</h2>
+            <h1 id="vehicle-options-heading" class="fw-bolder">Our Vehicle Options</h1>
             <p class="lead fw-normal text-muted">Choose the perfect vehicle for your Orlando transportation needs</p>
           </div>
 
-          <!-- Vehicle Options -->
+          {# Vehicle Options #}
           <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-5">
             {% for vehicle in vehicles %}
               <div class="col mb-4">
-                <div class="card shadow border-0 h-100">
-                  <!-- Add an anchor tag around the card image -->
+                <article class="card shadow border-0 h-100">
                   <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-rates"
-                     class="card-img-container position-relative">
+                     class="card-img-container position-relative"
+                     aria-label="View {{ vehicle.get_vehicle_type_display }} rates">
                     <img class="card-img-top p-3"
                          src="{{ vehicle.image.url }}"
-                         alt="{{ vehicle.get_vehicle_type_display }}" />
+                         alt="{{ vehicle.get_vehicle_type_display }}"
+                         loading="lazy"
+                         width="300"
+                         height="200"
+                         fetchpriority="low" />
                   </a>
                   <div class="card-body text-center">
-                    <h5 class="card-title fw-bold mb-3">{{ vehicle.get_vehicle_type_display }}</h5>
+                    <h2 class="card-title fw-bold mb-3">{{ vehicle.get_vehicle_type_display }}</h2>
                     <div class="vehicle-details">
                       <p class="mb-2 text-muted">
-                        <i class="bi bi-people me-2"></i>
-                        {{ vehicle.capacity }} Passengers
+                        <i class="bi bi-people me-2" aria-hidden="true"></i>
+                        <span>{{ vehicle.capacity }} Passengers</span>
                       </p>
                       <p class="mb-2 text-muted">
-                        <i class="bi bi-briefcase me-2"></i>
-                        {{ vehicle.luggage_capacity }} Suitcases
+                        <i class="bi bi-briefcase me-2" aria-hidden="true"></i>
+                        <span>{{ vehicle.luggage_capacity }} Suitcases</span>
                       </p>
                       <p class="mb-2 text-muted">
-                        <i class="bi bi-car-front me-2"></i>
-                        2 Booster Seats - 1 Car Seat
+                        <i class="bi bi-car-front me-2" aria-hidden="true"></i>
+                        <span>2 Booster Seats - 1 Car Seat</span>
                       </p>
                     </div>
                   </div>
-                </div>
+                </article>
               </div>
             {% endfor %}
           </div>
 
-          <div class="gtc-container">
-            <div class="gtc-header">
-              <div class="gtc-icon-circle">&#33;</div>
-              <h5 class="gtc-title">Don't See Your Route Listed?</h5>
+          <div class="gtc-container" role="complementary">
+            <div class="gtc-header d-flex align-items-center">
+              <div class="gtc-icon-circle" aria-hidden="true">&#33;</div>
+              <h2 class="gtc-title mb-0 ms-3">Don't See Your Route Listed?</h2>
             </div>
             <p class="gtc-message">
               Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
             </p>
             <div class="gtc-actions">
               <div class="gtc-action-box">
-                <a href="tel:+14072127190">&#128241; (407) 212-7190</a>
+                <a href="tel:+14072127190"
+                   aria-label="Call Grayson Town Car"
+                   class="d-flex align-items-center">
+                  <i class="bi bi-telephone me-2" aria-hidden="true"></i> (407) 212-7190
+                </a>
               </div>
               <div class="gtc-action-box">
-                <a href="mailto:info@example.com">&#128236 reservations@graysontowncar.com</a>
+                <a href="mailto:reservations@graysontowncar.com"
+                   aria-label="Email Grayson Town Car"
+                   class="d-flex align-items-center">
+                  <i class="bi bi-envelope me-2" aria-hidden="true"></i> reservations@graysontowncar.com
+                </a>
               </div>
             </div>
           </div>
 
-          <!-- Vehicle Rates Section -->
-          <section class="py-4">
+          {# Vehicle Rates Section #}
+          <section class="py-4" aria-labelledby="vehicle-rates-heading">
             <div class="container p-0">
               <div class="row">
                 <div class="col-12">
                   {% for vehicle in vehicles %}
                     <article class="card shadow border-0 mb-5">
-                      <!-- Add ID here to create the scroll target -->
                       <header id="{{ vehicle.get_vehicle_type_display|slugify }}-rates"
                               class="card-header bg-dark text-white text-center py-3">
-                        <h4 class="mb-0">{{ vehicle.get_vehicle_type_display }} Rates</h4>
+                        <h2 class="mb-0" id="vehicle-rates-heading">{{ vehicle.get_vehicle_type_display }} Rates</h2>
                       </header>
                       <div class="card-body p-0">
                         <div class="table-responsive">
                           <table class="table table-striped table-hover mb-0">
                             <thead class="bg-light">
                               <tr>
-                                <th>Route</th>
-                                <th class="text-center">One Way</th>
-                                <th class="text-center">Round Trip</th>
+                                <th scope="col">Route</th>
+                                <th scope="col" class="text-center">One Way</th>
+                                <th scope="col" class="text-center">Round Trip</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -94,14 +169,20 @@
                                     <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
                                       <span class="fw-medium">$ {{ v.oneway_price }}</span>
                                       <a href="{% url 'reserve' v.id %}?round=ow"
-                                         class="btn btn-sm custom-blue-button">Book Now</a>
+                                         class="btn btn-sm custom-blue-button"
+                                         aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip">
+                                        Book Now
+                                      </a>
                                     </div>
                                   </td>
                                   <td class="text-center">
                                     <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
                                       <span class="fw-medium">$ {{ v.round_trip_price }}</span>
                                       <a href="{% url 'reserve' v.id %}?round=rt"
-                                         class="btn btn-sm custom-blue-button">Book Now</a>
+                                         class="btn btn-sm custom-blue-button"
+                                         aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip">
+                                        Book Now
+                                      </a>
                                     </div>
                                   </td>
                                 </tr>
@@ -120,26 +201,31 @@
           <section class="container my-5 p-0">
             <div class="card shadow border-0">
               <div class="card-body p-4">
-                <h4 class="fw-bold mb-3 text-center">All Rates Include</h4>
+                <h2 class="fw-bold mb-3 text-center">All Rates Include</h2>
                 <ul class="list-unstyled">
                   <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
+                       aria-hidden="true"></i>
                     <span class="hover-underline-text">Free meet and greet at MCO</span>
                   </li>
                   <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
+                       aria-hidden="true"></i>
                     <span class="hover-underline-text">Complimentary car seats and booster seats</span>
                   </li>
                   <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
+                       aria-hidden="true"></i>
                     <span class="hover-underline-text">Free 30-minute grocery stop</span>
                   </li>
                   <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
+                       aria-hidden="true"></i>
                     <span class="hover-underline-text">All tolls, taxes, and gratuities included</span>
                   </li>
                   <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
+                       aria-hidden="true"></i>
                     <span class="hover-underline-text">Professional, licensed and insured drivers</span>
                   </li>
                 </ul>
@@ -150,4 +236,8 @@
       </div>
     </div>
   </section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/lazy-load.js' %}" defer></script>
 {% endblock %}
