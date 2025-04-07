@@ -1,165 +1,178 @@
 {% extends 'main.html' %}
 {% load static %}
 {% block content %}
-<link rel="stylesheet" href="{% static 'css/about-us-elements.css' %}">
-    <main class="flex-shrink-0">
+  {% load seo_tags %}
 
-      <!-- Header -->
-      <header class="position-relative text-white text-center overflow-hidden">
-          <div class="position-absolute top-0 start-0 w-100 h-100" 
-              style="background-image: url('{% static 'images/lux-fleet.webp' %}'); 
-                      background-size: cover; 
-                      background-position: center; 
-                      z-index: 0;">
-          </div>
+  {% load seo_tags %}
+  {% structured_data additional_data=structured_data %}
 
-          <!-- Gradient overlay -->
-          <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark" style="opacity: 0.5; z-index: 1;"></div>
 
-          <div class="container position-relative py-7" style="z-index: 2;"> <!-- Increased top spacing -->
-              <div class="row justify-content-center">
-                  <div class="col-lg-10 col-xl-8 pt-5"> <!-- Added pt-5 for more top padding -->
-                      <div class="mt-5"> <!-- Additional margin-top -->
-                          <h1 class="display-4 fw-bold mb-4 text-white text-shadow">
-                              Excellence in Every Mile.<br class="d-none d-md-block" />
-                              Peace of Mind in Every Journey.
-                          </h1>
-                          <p class="lead mb-5 text-white">
-                              At Grayson Towncar, we believe transportation is more than just a ride—it's the first chapter of your Orlando adventure. Born from a passion to transform travel experiences, we craft journeys that are seamless, comfortable, and magical from start to finish.
-                          </p>
-                          <div class="d-flex justify-content-center mt-5">
-                              <a href="#scroll-target" class="text-white text-decoration-none d-flex flex-column align-items-center">
-                                  <i class="bi bi-chevron-double-down fs-3 mb-1"></i>
-                                  <small class="text-white-50">Explore Our Story</small>
-                              </a>
-                          </div>
-                          <div class="pb-5"></div> <!-- Space under arrow -->
-                      </div>
-                  </div>
+
+  <link rel="stylesheet" href="{% static 'css/about-us-elements.css' %}">
+  <main class="flex-shrink-0">
+
+    <!-- Header -->
+    <header class="position-relative text-white text-center overflow-hidden">
+      <div class="position-absolute top-0 start-0 w-100 h-100"
+           style="background-image: url('{% static 'images/lux-fleet.webp' %}');
+                  background-size: cover;
+                  background-position: center;
+                  z-index: 0"></div>
+
+      <!-- Gradient overlay -->
+      <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark"
+           style="opacity: 0.5;
+                  z-index: 1"></div>
+
+      <div class="container position-relative py-7" style="z-index: 2;">
+        <!-- Increased top spacing -->
+        <div class="row justify-content-center">
+          <div class="col-lg-10 col-xl-8 pt-5">
+            <!-- Added pt-5 for more top padding -->
+            <div class="mt-5">
+              <!-- Additional margin-top -->
+              <h1 class="display-4 fw-bold mb-4 text-white text-shadow">
+                Excellence in Every Mile.
+                <br class="d-none d-md-block" />
+                Peace of Mind in Every Journey.
+              </h1>
+              <p class="lead mb-5 text-white">
+                At Grayson Towncar, we believe transportation is more than just a ride—it's the first chapter of your Orlando adventure. Born from a passion to transform travel experiences, we craft journeys that are seamless, comfortable, and magical from start to finish.
+              </p>
+              <div class="d-flex justify-content-center mt-5">
+                <a href="#scroll-target"
+                   class="text-white text-decoration-none d-flex flex-column align-items-center">
+                  <i class="bi bi-chevron-double-down fs-3 mb-1"></i>
+                  <small class="text-white-50">Explore Our Story</small>
+                </a>
               </div>
-          </div>
-      </header>
-      <!-- About section one -->
-      <div id="scroll-target" style="height: 80px; margin-top: 40px;"></div>
-      <section class="py-5 bg-light">
-        <div class="container px-5 my-5">
-          <div class="row gx-5 align-items-center">
-            <div class="col-lg-6">
-              <img class="img-fluid rounded shadow-lg mb-5 mb-lg-0"
-                   src="{% static 'images/why-grayson.png' %}"
-                   alt="Our Founding" />
-            </div>
-            <div class="col-lg-6">
-              <h2 class="fw-bolder">Why Grayson Towncar?</h2>
-              <p class="lead fw-normal text-muted mb-0">
-                After years of managing operations at one of Orlando's largest transportation providers, we witnessed firsthand how the industry's focus on volume often compromised quality. We recognized the recurring pain points: delayed pickups, confusing pricing, miscommunication, and the impersonal treatment that left travelers feeling like just another reservation number.
-                <br />
-                <br />
-                This realization sparked our vision: what if a transportation service could combine operational excellence with genuine hospitality? What if every detail—from booking to drop-off—could be reimagined with the guest experience at the center? We founded Grayson Towncar with this commitment to do transportation differently, applying our industry knowledge to build something truly exceptional.
-              </p>
+              <div class="pb-5"></div>
+              <!-- Space under arrow -->
             </div>
           </div>
         </div>
-      </section>
-      <!-- About section two -->
-      <section class="py-5">
-        <div class="container px-5 my-5">
-          <div class="row gx-5 align-items-center">
-            <div class="col-lg-6 order-first order-lg-last">
-              <img class="img-fluid rounded shadow-lg mb-5 mb-lg-0"
-                   src="{% static 'images/grayson-difference.png' %}"
-                   alt="Our Fleet" />
-            </div>
-            <div class="col-lg-6">
-              <h2 class="fw-bolder">The Grayson Difference</h2>
-              <p class="lead fw-normal text-muted mb-0">
-                Our premium fleet stands as a testament to our commitment to excellence. Each vehicle in our collection is carefully selected for optimal comfort, maintained to the highest standards, and equipped with modern amenities that enhance your journey. From sleek sedans to spacious SUVs, our vehicles combine elegance with functionality.
-                <br />
-                <br />
-                Beyond the vehicles, it's our approach that truly sets Grayson apart. We understand that a journey to Disney, Universal, or Port Canaveral is more than transportation—it's an integral part of your vacation experience. That's why we offer complimentary extras like Publix grocery stops, free child safety seats, and personalized meet-and-greet service at baggage claim—turning ordinary transfers into exceptional experiences.
-              </p>
-            </div>
+      </div>
+    </header>
+    <!-- About section one -->
+    <div id="scroll-target" style="height: 80px; margin-top: 40px;"></div>
+    <section class="py-5 bg-light">
+      <div class="container px-5 my-5">
+        <div class="row gx-5 align-items-center">
+          <div class="col-lg-6">
+            <img class="img-fluid rounded shadow-lg mb-5 mb-lg-0"
+                 src="{% static 'images/why-grayson.png' %}"
+                 alt="Our Founding" />
           </div>
-        </div>
-      </section>
-      <!-- Additional value section -->
-      <section class="py-5 bg-light">
-        <div class="container px-5 my-5">
-          <div class="row gx-5 align-items-center">
-            <div class="col-lg-6">
-              <img class="img-fluid rounded shadow-lg mb-5 mb-lg-0"
-                   src="{% static 'images/premier-destinations.png' %}"
-                   alt="Our Service" />
-            </div>
-            <div class="col-lg-6">
-              <h2 class="fw-bolder">Specialized in Central Florida's Premier Destinations</h2>
-              <p class="lead fw-normal text-muted mb-0">
-                While we proudly serve the entire Orlando area, we've developed particular expertise in the routes that matter most to visitors: Disney resorts, Universal properties, and the crucial Port Canaveral cruise connections. Our specialized knowledge means we can anticipate needs before they arise—whether it's the best drop-off points at theme parks, optimal timing for cruise embarkation, or the quietest routes during peak traffic periods.
-                <br />
-                <br />
-                For travel agents and vacation planners, this specialized focus translates to confidence. When you entrust your clients to Grayson Towncar, you're partnering with a specialist who understands these routes intimately and executes them flawlessly.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-      <!-- My Commitment section (replacing Team section) -->
-      <section class="py-5">
-        <div class="container px-5 my-5">
-          <div class="text-center">
-            <h2 class="fw-bolder">Our Commitment to You</h2>
-            <p class="lead fw-normal text-muted mb-5">
-              More than promises—these are the guarantees that define every Grayson Towncar experience.
+          <div class="col-lg-6">
+            <h2 class="fw-bolder">Why Grayson Towncar?</h2>
+            <p class="lead fw-normal text-muted mb-0">
+              After years of managing operations at one of Orlando's largest transportation providers, we witnessed firsthand how the industry's focus on volume often compromised quality. We recognized the recurring pain points: delayed pickups, confusing pricing, miscommunication, and the impersonal treatment that left travelers feeling like just another reservation number.
+              <br />
+              <br />
+              This realization sparked our vision: what if a transportation service could combine operational excellence with genuine hospitality? What if every detail—from booking to drop-off—could be reimagined with the guest experience at the center? We founded Grayson Towncar with this commitment to do transportation differently, applying our industry knowledge to build something truly exceptional.
             </p>
           </div>
-          <div class="row gx-5 justify-content-center">
-            <div class="col-lg-10">
-              <div class="card border-0 bg-light">
-                <div class="card-body p-4">
-                  <div class="row row-cols-1 row-cols-md-2 g-4">
-                    <div class="col">
-                      <div class="h-100">
-                        <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
-                          <i class="bi bi-clock"></i>
-                        </div>
-                        <h5 class="fw-bold">Absolute Punctuality</h5>
-                        <p class="mb-0">
-                          We understand that your time is precious, especially when catching flights or boarding cruises. Our commitment to punctuality is unwavering—I'll always arrive early to ensure you're never rushed.
-                        </p>
+        </div>
+      </div>
+    </section>
+    <!-- About section two -->
+    <section class="py-5">
+      <div class="container px-5 my-5">
+        <div class="row gx-5 align-items-center">
+          <div class="col-lg-6 order-first order-lg-last">
+            <img class="img-fluid rounded shadow-lg mb-5 mb-lg-0"
+                 src="{% static 'images/grayson-difference.png' %}"
+                 alt="Our Fleet" />
+          </div>
+          <div class="col-lg-6">
+            <h2 class="fw-bolder">The Grayson Difference</h2>
+            <p class="lead fw-normal text-muted mb-0">
+              Our premium fleet stands as a testament to our commitment to excellence. Each vehicle in our collection is carefully selected for optimal comfort, maintained to the highest standards, and equipped with modern amenities that enhance your journey. From sleek sedans to spacious SUVs, our vehicles combine elegance with functionality.
+              <br />
+              <br />
+              Beyond the vehicles, it's our approach that truly sets Grayson apart. We understand that a journey to Disney, Universal, or Port Canaveral is more than transportation—it's an integral part of your vacation experience. That's why we offer complimentary extras like Publix grocery stops, free child safety seats, and personalized meet-and-greet service at baggage claim—turning ordinary transfers into exceptional experiences.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Additional value section -->
+    <section class="py-5 bg-light">
+      <div class="container px-5 my-5">
+        <div class="row gx-5 align-items-center">
+          <div class="col-lg-6">
+            <img class="img-fluid rounded shadow-lg mb-5 mb-lg-0"
+                 src="{% static 'images/premier-destinations.png' %}"
+                 alt="Our Service" />
+          </div>
+          <div class="col-lg-6">
+            <h2 class="fw-bolder">Specialized in Central Florida's Premier Destinations</h2>
+            <p class="lead fw-normal text-muted mb-0">
+              While we proudly serve the entire Orlando area, we've developed particular expertise in the routes that matter most to visitors: Disney resorts, Universal properties, and the crucial Port Canaveral cruise connections. Our specialized knowledge means we can anticipate needs before they arise—whether it's the best drop-off points at theme parks, optimal timing for cruise embarkation, or the quietest routes during peak traffic periods.
+              <br />
+              <br />
+              For travel agents and vacation planners, this specialized focus translates to confidence. When you entrust your clients to Grayson Towncar, you're partnering with a specialist who understands these routes intimately and executes them flawlessly.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- My Commitment section (replacing Team section) -->
+    <section class="py-5">
+      <div class="container px-5 my-5">
+        <div class="text-center">
+          <h2 class="fw-bolder">Our Commitment to You</h2>
+          <p class="lead fw-normal text-muted mb-5">
+            More than promises—these are the guarantees that define every Grayson Towncar experience.
+          </p>
+        </div>
+        <div class="row gx-5 justify-content-center">
+          <div class="col-lg-10">
+            <div class="card border-0 bg-light">
+              <div class="card-body p-4">
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+                  <div class="col">
+                    <div class="h-100">
+                      <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
+                        <i class="bi bi-clock"></i>
                       </div>
+                      <h5 class="fw-bold">Absolute Punctuality</h5>
+                      <p class="mb-0">
+                        We understand that your time is precious, especially when catching flights or boarding cruises. Our commitment to punctuality is unwavering—I'll always arrive early to ensure you're never rushed.
+                      </p>
                     </div>
-                    <div class="col">
-                      <div class="h-100">
-                        <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
-                          <i class="bi bi-shield-check"></i>
-                        </div>
-                        <h5 class="fw-bold">Safety First, Always</h5>
-                        <p class="mb-0">
-                          Every vehicle in our fleet undergoes rigorous maintenance checks, and we work exclusively with experienced, professional drivers who know Orlando's roads intimately.
-                        </p>
+                  </div>
+                  <div class="col">
+                    <div class="h-100">
+                      <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
+                        <i class="bi bi-shield-check"></i>
                       </div>
+                      <h5 class="fw-bold">Safety First, Always</h5>
+                      <p class="mb-0">
+                        Every vehicle in our fleet undergoes rigorous maintenance checks, and we work exclusively with experienced, professional drivers who know Orlando's roads intimately.
+                      </p>
                     </div>
-                    <div class="col">
-                      <div class="h-100">
-                        <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
-                          <i class="bi bi-currency-dollar"></i>
-                        </div>
-                        <h5 class="fw-bold">Transparent Pricing</h5>
-                        <p class="mb-0">
-                          No hidden fees, no surprise charges. The price we quote is the price you pay—all-inclusive and clearly communicated from the start.
-                        </p>
+                  </div>
+                  <div class="col">
+                    <div class="h-100">
+                      <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
+                        <i class="bi bi-currency-dollar"></i>
                       </div>
+                      <h5 class="fw-bold">Transparent Pricing</h5>
+                      <p class="mb-0">
+                        No hidden fees, no surprise charges. The price we quote is the price you pay—all-inclusive and clearly communicated from the start.
+                      </p>
                     </div>
-                    <div class="col">
-                      <div class="h-100">
-                        <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
-                          <i class="bi bi-person-check"></i>
-                        </div>
-                        <h5 class="fw-bold">Personal Attention</h5>
-                        <p class="mb-0">
-                          When you book with Grayson, you're not just a reservation in a system. We personally oversee every aspect of your transportation to ensure everything meets our exacting standards.
-                        </p>
+                  </div>
+                  <div class="col">
+                    <div class="h-100">
+                      <div class="feature bg-primary bg-gradient text-white rounded-3 mb-3">
+                        <i class="bi bi-person-check"></i>
                       </div>
+                      <h5 class="fw-bold">Personal Attention</h5>
+                      <p class="mb-0">
+                        When you book with Grayson, you're not just a reservation in a system. We personally oversee every aspect of your transportation to ensure everything meets our exacting standards.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -167,40 +180,44 @@
             </div>
           </div>
         </div>
-      </section>
-      <!-- Partner section -->
-      <section class="py-5 bg-light">
-        <div class="container px-5 my-5">
-          <div class="text-center">
-            <h2 class="fw-bolder">Partner With Grayson</h2>
-            <p class="lead fw-normal text-muted mb-5">
-              For travel agents and vacation planners looking for a reliable transportation partner in Orlando.
-            </p>
-          </div>
-          <div class="row gx-5 justify-content-center">
-            <div class="col-lg-8">
-              <div class="card border-0 shadow rounded-3 overflow-hidden">
-                <div class="card-body p-4">
-                  <div class="row align-items-center">
-                    <div class="col-lg-6">
-                      <h3 class="fw-bold mb-3">The Partnership Advantage</h3>
-                      <ul class="list-unstyled mb-0">
-                        <li class="mb-2">✓ Competitive commission structure</li>
-                        <li class="mb-2">✓ Priority booking for your clients</li>
-                        <li class="mb-2">✓ Direct communication with me</li>
-                        <li class="mb-2">✓ Transparent updates</li>
-                        <li>✓ Specialized in Disney, Universal, and cruise connections</li>
-                      </ul>
-                    </div>
-                    <div class="col-lg-6 text-center">
-                      <a href={% url 'partner' %} class="subscribe-btn mt-4" style="text-decoration: none; display: inline-block;">Become A Partner</a>
-                    </div>
+      </div>
+    </section>
+    <!-- Partner section -->
+    <section class="py-5 bg-light">
+      <div class="container px-5 my-5">
+        <div class="text-center">
+          <h2 class="fw-bolder">Partner With Grayson</h2>
+          <p class="lead fw-normal text-muted mb-5">
+            For travel agents and vacation planners looking for a reliable transportation partner in Orlando.
+          </p>
+        </div>
+        <div class="row gx-5 justify-content-center">
+          <div class="col-lg-8">
+            <div class="card border-0 shadow rounded-3 overflow-hidden">
+              <div class="card-body p-4">
+                <div class="row align-items-center">
+                  <div class="col-lg-6">
+                    <h3 class="fw-bold mb-3">The Partnership Advantage</h3>
+                    <ul class="list-unstyled mb-0">
+                      <li class="mb-2">✓ Competitive commission structure</li>
+                      <li class="mb-2">✓ Priority booking for your clients</li>
+                      <li class="mb-2">✓ Direct communication with me</li>
+                      <li class="mb-2">✓ Transparent updates</li>
+                      <li>✓ Specialized in Disney, Universal, and cruise connections</li>
+                    </ul>
+                  </div>
+                  <div class="col-lg-6 text-center">
+                    <a href="{% url 'partner' %}"
+                       class="subscribe-btn mt-4"
+                       style="text-decoration: none;
+                              display: inline-block">Become A Partner</a>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
+  </main>
 {% endblock %}
