@@ -11,6 +11,7 @@ from .forms import (
 from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms
 from django.contrib import messages
 from .email import send_reservation_confirmation
+from reservations.templatetags.seo_tags import structured_data
 
 
 # Create your views here.
@@ -104,7 +105,13 @@ def reservation_form(
 
 
 def about_us(request):
-    return render(request, "reservations/about.html")
+    structured_data = {
+        "@type": "AboutPage",
+        "description": "Learn about Grayson Towncar's mission and commitment to transportation.",
+    }
+    return render(
+        request, "reservations/about.html", {"structured_data": structured_data}
+    )
 
 
 def faqs(request):

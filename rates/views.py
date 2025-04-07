@@ -15,6 +15,9 @@ def index(request):
             ),
         )
     ).all()
-
-    context = {"vehicles": vehicles}
+    structured_data = {
+        "@type": "Offer",
+        "description": "Comprehensive transportation rates for Orlando airport, Disney, and Universal transfers",
+    }
+    context = {"vehicles": vehicles, "additional_data": structured_data}
     return render(request, "rates/index.html", context)

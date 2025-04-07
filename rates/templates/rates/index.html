@@ -1,69 +1,16 @@
 {% extends 'main.html' %}
 {% load static %}
-{% comment %} {% load jsonld %}
-{# Assuming you'll create a custom template tag for JSON-LD #}
+{% load seo_tags %}
 
-{% block head_meta %}
-  {{ block.super }}
-  {# SEO and Performance Meta Tags #}
-  <meta name="description" content="Professional airport transportation and town car services in Orlando. Choose from a variety of vehicles with complimentary car seats, free meet and greet, and transparent pricing.">
-  <link rel="canonical" href="{{ request.build_absolute_uri }}" />
 
-  {# Open Graph Meta Tags #}
-  <meta property="og:title" content="Grayson Town Car - Vehicle Options and Rates" />
-  <meta property="og:description" content="Professional airport transportation and town car services in Orlando. Choose from a variety of vehicles with complimentary car seats, free meet and greet, and transparent pricing." />
-  <meta property="og:type" content="service" />
-  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
-  {% if vehicles.first.image %}<meta property="og:image" content="{{ vehicles.first.image.url }}" />{% endif %}
-
-  {# Twitter Card Meta Tags #}
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Grayson Town Car - Vehicle Options and Rates" />
-  <meta name="twitter:description" content="Professional airport transportation and town car services in Orlando. Choose from a variety of vehicles with complimentary car seats, free meet and greet, and transparent pricing." />
-  {% if vehicles.first.image %}<meta name="twitter:image" content="{{ vehicles.first.image.url }}" />{% endif %}
-{% endblock %}
-
-{% block content %}
-
-  {# JSON-LD Structured Data #}
-  {% jsonld %}
-  {
-  "@context": "https://schema.org",
-  "@type": "TransportationService",
-  "name": "Grayson Town Car",
-  "description": "Professional airport transportation and town car services in Orlando",
-  "offers": {
-  "@type": "Offer",
-  "priceCurrency": "USD",
-  "itemOffered": [
-  {% for vehicle in vehicles %}
-    {
-    "@type": "Product",
-    "name": "{{ vehicle.get_vehicle_type_display }}",
-    "description": "Transportation vehicle with {{ vehicle.capacity }} passengers and {{ vehicle.luggage_capacity }} suitcase capacity",
-    "offers": {
-    "@type": "Offer",
-    "price": "{{ vehicle.rates.first.oneway_price }}"
-    }
-    }
-    {% if not forloop.last %},{% endif %}
-  {% endfor %}
-  ]
-  },
-  "areaServed": {
-  "@type": "GeoCircle",
-  "geoMidpoint": {
-  "@type": "GeoCoordinates",
-  "latitude": "28.5383",
-  "longitude": "-81.3792"
-  },
-  "geoRadius": "50 mi"
-  }
-  }
-{% endjsonld %} {% endcomment %}
 
 
 {% block content %}
+  {% load seo_tags %}
+  {% structured_data additional_data=structured_data %}
+
+
+
   <link rel="stylesheet"
         href="{% static 'css/rates-elements.css' %}"
         media="all" />

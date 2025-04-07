@@ -1,6 +1,6 @@
 {% extends 'main.html' %}
 {% load static %}
-
+{% load seo_tags %}
 {% block head_extra %}
   <!-- Preload critical resources -->
   <link rel="preload"
@@ -14,6 +14,7 @@
 {% endblock %}
 
 {% block content %}
+  {% structured_data %}
   <!-- preload critical assets to improve page speed -->
   <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
 
@@ -26,9 +27,7 @@
         <div class="row gx-4 align-items-center justify-content-center">
           <div class="col-lg-7 col-xl-6">
             <div class="my-4 text-center text-xl-start">
-              <h1 class="fw-light text-white mb-2">
-                Grayson Towncar
-              </h1>
+              <h1 class="fw-light text-white mb-2">Grayson Towncar</h1>
               <h2 class="h4 fw-normal text-white mb-2">Orlando Airport Transportation</h2>
               <!-- Simplified description for faster loading -->
               <p class="text-white-50 mb-3">
@@ -425,120 +424,8 @@
         </div>
       </div>
     </section>
-
-    <!-- CTA Section -->
     {% include "call-to-action.html" %}
   </main>
-
-  <!-- structured data for SEO -->
-  <!-- Optimized Structured Data for Grayson Towncar SEO -->
-  <script type="application/ld+json">
-      {
-          "@context": "https://schema.org",
-          "@type": "TransportService",
-          "name": "Grayson Towncar",
-          "description": "Premier private transportation service in Orlando, offering airport shuttles, Disney and Universal resort transfers, and reliable airport transportation.",
-          "image": "https://www.graysontowncar.com/logo.jpg",
-          "url": "https://www.graysontowncar.com",
-          "telephone": "+1-407-212-7190",
-          "priceRange": "$$",
-          "areaServed": {
-              "@type": "Place",
-              "name": "Orlando Metropolitan Area",
-              "geo": {
-                  "@type": "GeoCircle",
-                  "geoMidpoint": {
-                      "@type": "GeoCoordinates",
-                      "latitude": 28.5383,
-                      "longitude": -81.3792
-                  },
-                  "geoRadius": "50 mi"
-              }
-          },
-          "address": {
-              "@type": "PostalAddress",
-              "streetAddress": "Service-based Business",
-              "addressLocality": "Orlando",
-              "addressRegion": "FL",
-              "postalCode": "32830",
-              "addressCountry": "US"
-          },
-          "geo": {
-              "@type": "GeoCoordinates",
-              "latitude": 28.5383,
-              "longitude": -81.3792
-          },
-          "openingHoursSpecification": {
-              "@type": "OpeningHoursSpecification",
-              "dayOfWeek": [
-                  "Monday",
-                  "Tuesday",
-                  "Wednesday",
-                  "Thursday",
-                  "Friday",
-                  "Saturday",
-                  "Sunday"
-              ],
-              "opens": "00:00",
-              "closes": "23:59"
-          },
-          "sameAs": [
-              "https://www.instagram.com/graysontowncar/",
-              "https://www.facebook.com/people/Grayson-Towncar/61574468855996/",
-              "https://x.com/graysontowncar"
-          ],
-          "potentialAction": {
-              "@type": "ReserveAction",
-              "target": {
-                  "@type": "EntryPoint",
-                  "urlTemplate": "https://www.graysontowncar.com/rates/",
-                  "inLanguage": "en-US"
-              }
-          },
-          "hasOfferCatalog": {
-              "@type": "OfferCatalog",
-              "name": "Transportation Services",
-              "itemListElement": [{
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "Orlando Airport to Disney Resort Transportation",
-                      "description": "Direct private shuttle service from Orlando International Airport (MCO) to all Disney World Resort Hotels, including complimentary car seats."
-                  }
-              }, {
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "Orlando Airport to Universal Resort Transportation",
-                      "description": "Convenient and comfortable private transportation from Orlando International Airport to all Universal Orlando Resort hotels."
-                  }
-              }, {
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "Port Canaveral Cruise Transportation",
-                      "description": "Reliable shuttle service between Orlando International Airport and Port Canaveral cruise terminals."
-                  }
-              }, {
-                  "@type": "Offer",
-                  "itemOffered": {
-                      "@type": "Service",
-                      "name": "Inter-Resort Transportation",
-                      "description": "Seamless private transfers between Orlando area hotels, resorts, and attractions."
-                  }
-              }]
-          },
-          "keywords": [
-              "Orlando airport shuttle",
-              "Disney transportation",
-              "Universal Studios transportation",
-              "Orlando towncar",
-              "Private airport transfer",
-              "Port Canaveral shuttle"
-          ]
-      }
-  </script>
 {% endblock content %}
 
-{% block footer_scripts %}
-{% endblock %}
+{% block footer_scripts %}{% endblock %}

@@ -29,6 +29,13 @@ load_dotenv()
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "tgvhbjbvfdr5^asuiklfugulvb#$%^YHBNKI&tgvhbjbvfdr5^"
 )
+
+
+
+
+
+# STORAGE_PATH = CONTENT_DIR
+
 if IN_RAILWAY:
     # USE VOLUME PATH IF IN RAILWAY
     STORAGE_PATH = Path("/app/storage")
@@ -38,13 +45,13 @@ if IN_RAILWAY:
 else:
     # local db if we are local
     STORAGE_PATH = CONTENT_DIR
-
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 VOLUME_PATH = Path("/app/storage")
 os.makedirs(VOLUME_PATH, exist_ok=True)
 os.makedirs(VOLUME_PATH / "media", exist_ok=True)
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
 
 
 ALLOWED_HOSTS = [
