@@ -2,32 +2,42 @@
 {% load static %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'css/about-us-elements.css' %}">
-  <div class="py-5">
     <main class="flex-shrink-0">
-      <!-- Navigation (unchanged) -->
 
       <!-- Header -->
-      <header class="py-5">
-        <div class="container px-5">
-          <div class="row justify-content-center">
-            <div class="col-lg-8 col-xxl-6">
-              <div class="text-center my-5">
-                <h1 class="fw-bolder mb-3">Excellence in Every Mile. Peace of Mind in Every Journey.</h1>
-                <p class="lead fw-normal text-muted mb-4">
-                  We founded Grayson Towncar with one clear vision: to elevate the standard of private transportation in Orlando through reliability, transparency, and genuine hospitality. When the difference matters, choose Grayson.
-                </p>
-                    <div class="d-flex justify-content-center scroll-wrapper">
-                        <div class="container_mouse">
-                        <span class="mouse-btn">
-                        <span class="mouse-scroll"></span>
-                        </span>
-                        <span>Scroll Down</span>
-                        </div>
-                    </div>
-              </div>
-            </div>
+      <header class="position-relative text-white text-center overflow-hidden">
+          <div class="position-absolute top-0 start-0 w-100 h-100" 
+              style="background-image: url('{% static 'images/lux-fleet.webp' %}'); 
+                      background-size: cover; 
+                      background-position: center; 
+                      z-index: 0;">
           </div>
-        </div>
+
+          <!-- Gradient overlay -->
+          <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark" style="opacity: 0.5; z-index: 1;"></div>
+
+          <div class="container position-relative py-7" style="z-index: 2;"> <!-- Increased top spacing -->
+              <div class="row justify-content-center">
+                  <div class="col-lg-10 col-xl-8 pt-5"> <!-- Added pt-5 for more top padding -->
+                      <div class="mt-5"> <!-- Additional margin-top -->
+                          <h1 class="display-4 fw-bold mb-4 text-white text-shadow">
+                              Excellence in Every Mile.<br class="d-none d-md-block" />
+                              Peace of Mind in Every Journey.
+                          </h1>
+                          <p class="lead mb-5 text-white">
+                              At Grayson Towncar, we believe transportation is more than just a ride—it's the first chapter of your Orlando adventure. Born from a passion to transform travel experiences, we craft journeys that are seamless, comfortable, and magical from start to finish.
+                          </p>
+                          <div class="d-flex justify-content-center mt-5">
+                              <a href="#scroll-target" class="text-white text-decoration-none d-flex flex-column align-items-center">
+                                  <i class="bi bi-chevron-double-down fs-3 mb-1"></i>
+                                  <small class="text-white-50">Explore Our Story</small>
+                              </a>
+                          </div>
+                          <div class="pb-5"></div> <!-- Space under arrow -->
+                      </div>
+                  </div>
+              </div>
+          </div>
       </header>
       <!-- About section one -->
       <div id="scroll-target" style="height: 80px; margin-top: 40px;"></div>
@@ -193,5 +203,4 @@
         </div>
       </section>
     </main>
-  </div>
 {% endblock %}
