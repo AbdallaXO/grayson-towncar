@@ -4,9 +4,8 @@ def validate_vehicle_constraints(vehicle, cleaned_data, add_error):
     Luggage Count Against the chosen vehicles luggage capacity
     checks the carseats against the vehicles carseats,
     for e.g if a tonwcar only has 1 carseat, a guest fills in 2 carseats
-    returns a field error displaying the towncar cant have more than N carseats """
+    returns a field error displaying the towncar cant have more than N carseats"""
 
-    
     passenger_count = cleaned_data.get("passenger_count")
     luggage_count = cleaned_data.get("luggage_count")
     ff_carseats = cleaned_data.get("ff_carseats") or 0

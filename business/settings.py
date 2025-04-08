@@ -35,7 +35,6 @@ SECRET_KEY = os.environ.get(
 # STORAGE_PATH = CONTENT_DIR
 
 
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -115,24 +114,24 @@ WSGI_APPLICATION = "business.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 
-if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PGHOST'):
+if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PGHOST"):
     # PostgreSQL settings for Railway
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': os.environ.get('PGDATABASE', ''),
-            'USER': os.environ.get('PGUSER', ''),
-            'PASSWORD': os.environ.get('PGPASSWORD', ''),
-            'HOST': os.environ.get('PGHOST', ''),
-            'PORT': os.environ.get('PGPORT', ''),
+        "default": {
+            "ENGINE": "django.db.backends.postgresql_psycopg2",
+            "NAME": os.environ.get("PGDATABASE", ""),
+            "USER": os.environ.get("PGUSER", ""),
+            "PASSWORD": os.environ.get("PGPASSWORD", ""),
+            "HOST": os.environ.get("PGHOST", ""),
+            "PORT": os.environ.get("PGPORT", ""),
         }
     }
 else:
     # SQLite settings for local development
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(CONTENT_DIR, 'db.sqlite3'),
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(CONTENT_DIR, "db.sqlite3"),
         }
     }
 
@@ -175,7 +174,7 @@ STATIC_URL = "static/"
 
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
-MEDIA_ROOT = CONTENT_DIR/ "media"
+MEDIA_ROOT = CONTENT_DIR / "media"
 MEDIA_URL = "/media/"
 
 # Stripe Settings
