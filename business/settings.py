@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from dotenv import load_dotenv
 from pathlib import Path
 import os
-import dj_database_url
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -35,18 +34,7 @@ SECRET_KEY = os.environ.get(
 
 # STORAGE_PATH = CONTENT_DIR
 
-if IN_RAILWAY:
-    # USE VOLUME PATH IF IN RAILWAY
-    STORAGE_PATH = Path("/app/storage")
-    # Make sure directories exist
-    os.makedirs(STORAGE_PATH, exist_ok=True)
-    os.makedirs(STORAGE_PATH / "media", exist_ok=True)
-else:
-    # local db if we are local
-    STORAGE_PATH = CONTENT_DIR
-VOLUME_PATH = Path("/app/storage")
-os.makedirs(VOLUME_PATH, exist_ok=True)
-os.makedirs(VOLUME_PATH / "media", exist_ok=True)
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -127,12 +115,26 @@ WSGI_APPLICATION = "business.wsgi.application"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f'sqlite:///{CONTENT_DIR / "db.sqlite3"}'
-    )
-}
-
+if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PGHOST'):
+    # PostgreSQL settings for Railway
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': os.environ.get('PGDATABASE', ''),
+            'USER': os.environ.get('PGUSER', ''),
+            'PASSWORD': os.environ.get('PGPASSWORD', ''),
+            'HOST': os.environ.get('PGHOST', ''),
+            'PORT': os.environ.get('PGPORT', ''),
+        }
+    }
+else:
+    # SQLite settings for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(CONTENT_DIR, 'db.sqlite3'),
+        }
+    }
 
 
 # Password validation
@@ -173,7 +175,7 @@ STATIC_URL = "static/"
 
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
-MEDIA_ROOT = STORAGE_PATH / "media"
+MEDIA_ROOT = CONTENT_DIR/ "media"
 MEDIA_URL = "/media/"
 
 # Stripe Settings
