@@ -56,9 +56,9 @@
     {% endblock content %}
 
     {# Newsletter #}
-    {% block newsletter %}
+    {% comment %} {% block newsletter %}
       {% include 'newsletter.html' %}
-    {% endblock %}
+    {% endblock %} {% endcomment %}
 
     {# Footer #}
     {% include "footer.html" %}
