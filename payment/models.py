@@ -5,15 +5,18 @@ from django.db import models
 
 
 class Payment(models.Model):
-    # Customer and payment method tracking
-    stripe_customer_id = models.CharField(max_length=255, blank=True)
-    stripe_payment_method_id = models.CharField(max_length=255, blank=True)
-
-    # Session tracking
-    stripe_checkout_id = models.CharField(max_length=255, blank=True)
-    stripe_payment_intent_id = models.CharField(max_length=255, blank=True)
+    reservation = models.ForeignKey(
+        "reservations.Reservation", on_delete=models.PROTECT, related_name="payments", null=True
+    )
+    customer = models.ForeignKey(
+        "reservations.Customer", on_delete=models.PROTECT, related_name="payments", null=True
+    )
+    stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_payment_method_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_checkout_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_payment_intent_id = models.CharField(max_length=255, blank=True, null=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_mode = models.CharField(
+    payment_type = models.CharField(
         max_length=20,
         choices=[
             ("pay_now", "Pay Now"),
@@ -25,7 +28,7 @@ class Payment(models.Model):
         max_length=20,
         choices=[
             ("pending", "Pending"),
-            ("card_saved", "Card Saved"),
+            ("card_saved", "Card Saved On File"),
             ("paid", "Paid"),
             ("failed", "Failed"),
         ],
@@ -34,3 +37,6 @@ class Payment(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Payment #{self.id} - {self.customer} - {self.status}"

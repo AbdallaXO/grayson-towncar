@@ -2,27 +2,43 @@ import stripe
 import stripe.error
 from reservations.models import Customer
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_stripe_customer(reservation):
-    """Takes the Reservation and Returns an existing stripe object or creates one for the customer
-    also updates the reservation.customers stripe_customer_id to his stripe_customer_id after creating it."""
+    """Creates a Stripe customer for this reservation if one doesn't exist."""
     customer = reservation.customer
-    if not customer.stripe_customer_id:
-        # check customer email against db to see if they already exist with an ID
-        stripe_customer = stripe.Customer.create(
-            email=reservation.customer.email,
-            metadata={
-                "reservation_id": reservation.id,
-                "trip_type": reservation.trip_type,
-            },
-        )
-        reservation.customer.stripe_customer_id = stripe_customer.id
-        reservation.customer.save()
-    else:
-        stripe_customer = stripe.Customer.retrieve(
-            id=reservation.customer.stripe_customer_id
-        )
+    if customer.stripe_customer_id:
+        try:
+            stripe_customer = stripe.Customer.create(
+                id=customer.stripe_customer_id,
+            )
+            return stripe_customer
+        except stripe.error.InvalidRequestError:
+            logger.warning("Stripe customer ID is invalid...")
+            stripe_customer = stripe.Customer.create(
+                email=customer.email,
+                name=customer.get_full_name(),
+                metadata={
+                    "reservation_id": reservation.id,
+                    "customer_db_id": customer.id,
+                    "creation_date": timezone.now().isoformat(),
+                },
+            )
+
+    stripe_customer = stripe.Customer.create(
+        email=customer.email,
+        name=customer.get_full_name(),
+        metadata={
+            "reservation_id": reservation.id,
+            "customer_db_id": customer.id,
+            "creation_date": timezone.now().isoformat(),
+        },
+    )
+    customer.stripe_customer_id = stripe_customer.id
+    customer.save()
     return stripe_customer
 
 

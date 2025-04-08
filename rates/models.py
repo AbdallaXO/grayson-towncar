@@ -78,7 +78,7 @@ class Route(models.Model):
 
 
 from django.db import models
-from django.db.models import Index, UniqueConstraint
+from django.db.models import UniqueConstraint
 
 
 class Rate(models.Model):

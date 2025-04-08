@@ -1,7 +1,5 @@
 from django.shortcuts import render
 from .models import Rate, Vehicle
-from django.db import connection
-from django.db.models import F
 from django.db.models import Prefetch
 
 
