@@ -73,8 +73,8 @@
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-dark bg-opacity-75 text-warning p-2 rounded-circle">
-                        <i class="bi bi-airplane fs-4"></i>
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                        <img src="{% static 'images/disney-castle.webp' %}" alt="Disney" width="42" height="42">
                       </span>
                     </div>
                     <h3 class="h5 mb-3 fw-bold">Disney Resort Hotels</h3>
@@ -89,8 +89,8 @@
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-dark bg-opacity-75 text-warning p-2 rounded-circle">
-                        <i class="bi bi-building fs-4"></i>
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                        <img src="{% static 'images/universal-studios.webp' %}" alt="Disney" width="42" height="42">
                       </span>
                     </div>
                     <h3 class="h5 mb-3 fw-bold">Universal Orlando Hotels</h3>
@@ -105,8 +105,8 @@
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-dark bg-opacity-75 text-warning p-2 rounded-circle">
-                        <i class="bi bi-water fs-4"></i>
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                        <img src="{% static 'images/cruise.webp' %}" alt="Disney" width="42" height="42">
                       </span>
                     </div>
                     <h3 class="h5 mb-3 fw-bold">Cruise Terminal Shuttles</h3>
@@ -121,8 +121,8 @@
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-dark bg-opacity-75 text-warning p-2 rounded-circle">
-                        <i class="bi bi-cart fs-4"></i>
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                        <img src="{% static 'images/groceries.webp' %}" alt="Disney" width="42" height="42">
                       </span>
                     </div>
                     <h3 class="h5 mb-3 fw-bold">Complimentary Grocery Stops</h3>
@@ -191,7 +191,7 @@
             </div>
             <div class="d-flex flex-column gap-2">
               <a href="{% url 'rates' %}" class="btn btn-dark text-warning">Reserve Now</a>
-              <a href="#" class="btn bg-dark text-warning">More Details</a>
+              <a href="{% url 'services' %}" class="btn bg-dark text-warning">More Details</a>
             </div>
           </div>
         </div>
@@ -234,7 +234,7 @@
             </div>
             <div class="d-flex flex-column gap-2">
               <a href="{% url 'rates' %}" class="btn btn-dark text-warning">Reserve Now</a>
-              <a href="#" class="btn btn-dark text-warning">More Details</a>
+              <a href="{% url 'services' %}" class="btn btn-dark text-warning">More Details</a>
             </div>
           </div>
         </div>
@@ -277,7 +277,7 @@
             </div>
             <div class="d-flex flex-column gap-2">
               <a href="{% url 'rates' %}" class="btn btn-dark text-warning">Reserve Now</a>
-              <a href="#" class="btn btn-dark text-warning">More Details</a>
+              <a href="{% url 'services' %}" class="btn btn-dark text-warning">More Details</a>
             </div>
           </div>
         </div>
@@ -322,7 +322,7 @@
                   </div>
                   <div class="d-flex flex-column gap-2">
                     <a href="{% url 'rates' %}" class="btn btn-dark text-warning">Reserve Now</a>
-                    <a href="#" class="btn btn-dark text-warning">More Details</a>
+                    <a href="{% url 'services' %}" class="btn btn-dark text-warning">More Details</a>
                   </div>
                 </div>
               </div>
@@ -345,181 +345,194 @@
       </div>
     </section>
 
- <!-- Complementary Services Section -->
-  <section class="benefits py-5 bg-light" id="complimentary-services" aria-labelledby="services-benefits-heading">
-    <div class="container px-4 py-5">
-      <div class="row justify-content-center mb-5">
-        <div class="col-lg-8 text-center">
-          <h2 id="services-benefits-heading" class="fw-bolder mb-3">
-            Premium <span class="text-warning">Complimentary Services</span> Included With Every Transfer
-          </h2>
-          <p class="lead">Enjoy these valuable extras at no additional cost with Grayson Towncar</p>
+    <!-- Complementary Services Section -->
+    <section class="benefits py-5 bg-light" id="complimentary-services" aria-labelledby="services-benefits-heading">
+      <div class="container px-4 py-5">
+        <div class="row justify-content-center mb-5">
+          <div class="col-lg-8 text-center">
+            <h2 id="services-benefits-heading" class="fw-bolder mb-3">
+              Premium <span class="text-warning">Complimentary Services</span> Included With Every Transfer
+            </h2>
+            <p class="lead">Enjoy these valuable extras at no additional cost with Grayson Towncar</p>
+          </div>
         </div>
-      </div>
-      
-      <div class="row g-4">
-        <!-- MCO Meet & Greet -->
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card shadow-sm h-100 border-0 hover-elevate">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 48px; height: 48px;">
-                  <i class="bi bi-hand-thumbs-up"></i>
+        
+        <div class="row g-4">
+          <!-- MCO Meet & Greet -->
+          <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 hover-elevate">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width: 48px; height: 48px; padding: 10px;">
+                    <img src="{% static 'images/handshake.webp' %}" alt="MCO Meet & Greet" class="img-fluid">
+                  </div>
+                  <h3 class="h5 fw-bold mb-0">
+                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#mco-description" aria-expanded="false" aria-controls="mco-description" role="button">
+                      MCO Meet & Greet <i class="bi bi-chevron-down small ms-2"></i>
+                    </span>
+                    <span class="d-none d-md-block">MCO Meet & Greet</span>
+                  </h3>
                 </div>
-                <h3 class="h5 fw-bold mb-0">
-                  <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#mco-description" aria-expanded="false" aria-controls="mco-description" role="button">
-                    MCO Meet & Greet <i class="bi bi-chevron-down small ms-2"></i>
-                  </span>
-                  <span class="d-none d-md-block">MCO Meet & Greet</span>
-                </h3>
-              </div>
-              <div id="mco-description" class="collapse show-md-up">
-                <p class="mb-0"><strong>Professional</strong> drivers that:</p>
-                <ul class="list-unstyled mt-2 mb-0">
-                  <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Meet you inside MCO with personalized signs</li>
-                  <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-2"></i> Help you with luggage</li>
-                  <li><i class="bi bi-check-circle-fill text-success me-2"></i> Facilitate car seat installation</li>
-                </ul>
+                <div id="mco-description" class="collapse show-md-up">
+                  <p class="mb-0"><strong>Professional</strong> drivers that:</p>
+                  <ul class="list-unstyled mt-2 mb-0">
+                    <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Meet you inside MCO with personalized signs</li>
+                    <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Help you with luggage</li>
+                    <li><i class="bi bi-check-circle-fill text-secondary me-2"></i> Facilitate car seat installation</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Free Car Seats -->
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card shadow-sm h-100 border-0 hover-elevate">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 48px; height: 48px;">
-                  <i class="bi bi-life-preserver"></i>
+          <!-- Free Car Seats -->
+          <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 hover-elevate">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width: 48px; height: 48px; padding: 10px;">
+                    <img src="{% static 'images/carseat.webp' %}" alt="Free Car Seats" class="img-fluid">
+                  </div>
+                  <h3 class="h5 fw-bold mb-0">
+                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#car-seat-description" aria-expanded="false" aria-controls="car-seat-description" role="button">
+                      Free Car Seats <i class="bi bi-chevron-down small ms-2"></i>
+                    </span>
+                    <span class="d-none d-md-block">Free Car Seats</span>
+                  </h3>
                 </div>
-                <h3 class="h5 fw-bold mb-0">
-                  <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#car-seat-description" aria-expanded="false" aria-controls="car-seat-description" role="button">
-                    Free Car Seats <i class="bi bi-chevron-down small ms-2"></i>
-                  </span>
-                  <span class="d-none d-md-block">Free Car Seats</span>
-                </h3>
-              </div>
-              <div id="car-seat-description" class="collapse show-md-up">
-                <p class="mb-0">
-                  No extra charge for car seats or booster seats for your children. Just let us know your needs when booking.
-                </p>
+                <div id="car-seat-description" class="collapse show-md-up">
+                  <p class="mb-0">Our <strong>carseat</strong> benefits: </p>
+                    <ul class="list-unstyled mt-2 mb-0">
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> No extra charge for car seats (booster, front-facing or rear-facing carseats)</li>
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Simply request during booking</li>
+                      <li><i class="bi bi-check-circle-fill text-secondary me-2"></i> Professional installation by our drivers</li>
+                    </ul>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Grocery Stop -->
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card shadow-sm h-100 border-0 hover-elevate">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 48px; height: 48px;">
-                  <i class="bi bi-cart-fill"></i>
+          <!-- Grocery Stop -->
+          <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 hover-elevate">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width: 48px; height: 48px; padding: 10px;">
+                    <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop" class="img-fluid">
+                  </div>
+                  <h3 class="h5 fw-bold mb-0">
+                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#grocery-description" aria-expanded="false" aria-controls="grocery-description" role="button">
+                      Grocery Stop <i class="bi bi-chevron-down small ms-2"></i>
+                    </span>
+                    <span class="d-none d-md-block">Grocery Stop</span>
+                  </h3>
                 </div>
-                <h3 class="h5 fw-bold mb-0">
-                  <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#grocery-description" aria-expanded="false" aria-controls="grocery-description" role="button">
-                    Grocery Stop <i class="bi bi-chevron-down small ms-2"></i>
-                  </span>
-                  <span class="d-none d-md-block">Grocery Stop</span>
-                </h3>
-              </div>
-              <div id="grocery-description" class="collapse show-md-up">
-                <p class="mb-0">
-                  20-minute stop for groceries at no extra charge. Stock your vacation rental with essentials right from the airport.
-                </p>
+                <div id="grocery-description" class="collapse show-md-up">
+                  <p class="mb-0">Convenient <strong>grocery stops</strong> : </p>
+                    <ul class="list-unstyled mt-2 mb-0">
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Complimentary 20-minute grocery stop on the way to your destination</li>
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Simply request during booking</li>
+                    </ul>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Professional Drivers -->
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card shadow-sm h-100 border-0 hover-elevate">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 48px; height: 48px;">
-                  <i class="bi bi-shield-check"></i>
+          <!-- Professional Drivers -->
+          <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 hover-elevate">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width: 48px; height: 48px; padding: 10px;">
+                    <img src="{% static 'images/driver.webp' %}" alt="Professional Drivers" class="img-fluid">
+                  </div>
+                  <h3 class="h5 fw-bold mb-0">
+                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#driver-description" aria-expanded="false" aria-controls="driver-description" role="button">
+                      Professional Drivers <i class="bi bi-chevron-down small ms-2"></i>
+                    </span>
+                    <span class="d-none d-md-block">Professional Drivers</span>
+                  </h3>
                 </div>
-                <h3 class="h5 fw-bold mb-0">
-                  <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#driver-description" aria-expanded="false" aria-controls="driver-description" role="button">
-                    Professional Drivers <i class="bi bi-chevron-down small ms-2"></i>
-                  </span>
-                  <span class="d-none d-md-block">Professional Drivers</span>
-                </h3>
-              </div>
-              <div id="driver-description" class="collapse show-md-up">
-                <p class="mb-0">
-                  All drivers are extensively trained, background-checked, and know Orlando's routes to ensure a safe, efficient journey.
-                </p>
+                <div id="driver-description" class="collapse show-md-up">
+                  <p class="mb-0"><strong>Expert, reliable</strong> drivers: </p>
+                    <ul class="list-unstyled mt-2 mb-0">
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Trained and professional chauffeurs</li>
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Courteous service and attention to your needs</li>
+                      <li><i class="bi bi-check-circle-fill text-secondary me-2"></i> Proactive communication before and during your journey</li>
+                    </ul>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- 24/7 Availability -->
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card shadow-sm h-100 border-0 hover-elevate">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 48px; height: 48px;">
-                  <i class="bi bi-clock-fill"></i>
+          <!-- 24/7 Availability -->
+          <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 hover-elevate">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width: 48px; height: 48px; padding: 10px;">
+                    <img src="{% static 'images/247.webp' %}" alt="24/7 Availability" class="img-fluid">
+                  </div>
+                  <h3 class="h5 fw-bold mb-0">
+                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#availability-description" aria-expanded="false" aria-controls="availability-description" role="button">
+                      24/7 Availability <i class="bi bi-chevron-down small ms-2"></i>
+                    </span>
+                    <span class="d-none d-md-block">24/7 Availability</span>
+                  </h3>
                 </div>
-                <h3 class="h5 fw-bold mb-0">
-                  <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#availability-description" aria-expanded="false" aria-controls="availability-description" role="button">
-                    24/7 Availability <i class="bi bi-chevron-down small ms-2"></i>
-                  </span>
-                  <span class="d-none d-md-block">24/7 Availability</span>
-                </h3>
-              </div>
-              <div id="availability-description" class="collapse show-md-up">
-                <p class="mb-0">
-                  Our services are available around the clock. Early morning or late night flights? We've got you covered.
-                </p>
+                <div id="availability-description" class="collapse show-md-up">
+                  <p class="mb-0">Our <strong>24/7</strong> services: </p>
+                    <ul class="list-unstyled mt-2 mb-0">
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Real-time flight monitoring to adjust for delays or early arrivals</li>
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Always ready when you need us, regardless of time</li>
+                    </ul>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Roundtrip Discount -->
-        <div class="col-md-6 col-lg-4 mb-4">
-          <div class="card shadow-sm h-100 border-0 hover-elevate">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 48px; height: 48px;">
-                  <i class="bi bi-tag-fill"></i>
+          <!-- Roundtrip Discount -->
+          <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card shadow-sm h-100 border-0 hover-elevate">
+              <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                      style="width: 48px; height: 48px; padding: 10px;">
+                    <img src="{% static 'images/offer.webp' %}" alt="Roundtrip Discount" class="img-fluid">
+                  </div>
+                  <h3 class="h5 fw-bold mb-0">
+                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#discount-description" aria-expanded="false" aria-controls="discount-description" role="button">
+                      Roundtrip Discount <i class="bi bi-chevron-down small ms-2"></i>
+                    </span>
+                    <span class="d-none d-md-block">Roundtrip Discount</span>
+                  </h3>
                 </div>
-                <h3 class="h5 fw-bold mb-0">
-                  <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#discount-description" aria-expanded="false" aria-controls="discount-description" role="button">
-                    Roundtrip Discount <i class="bi bi-chevron-down small ms-2"></i>
-                  </span>
-                  <span class="d-none d-md-block">Roundtrip Discount</span>
-                </h3>
-              </div>
-              <div id="discount-description" class="collapse show-md-up">
-                <p class="mb-0">
-                  Special savings on return airport transfers. Book your complete journey and save up to 15%.
-                </p>
+                <div id="discount-description" class="collapse show-md-up">
+                  <p class="mb-0">Our <strong>roundtrip</strong> benefits: </p>
+                    <ul class="list-unstyled mt-2 mb-0">
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Special discount when booking both arrival and departure transfers</li>
+                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Same premium service on both legs of your journey</li>
+                    </ul>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
       <!-- CTA Button -->
       <div class="text-center mt-4">
-        <a href="#" class="btn btn-primary btn-lg px-5 py-3 fw-bold">
-          Book Your Stress-Free Orlando Transfer <i class="bi bi-arrow-right ms-2"></i>
-        </a>
+        <div class="d-flex justify-content-center gap-3">
+          <a href="{% url 'services' %}" class="btn btn-dark text-warning btn-lg px-4 py-2" >Our Services</a>
+          <a href="{% url 'rates' %}" class="btn btn-dark text-warning btn-lg px-4 py-2">Book Now</a>
+        </div>
       </div>
-    </div>
-  </section>
+      </div>
+    </section>
     {% include "call-to-action.html" %}
   </main>
   <script src="{% static 'js/mobile-dropdown.js' %}"></script>
