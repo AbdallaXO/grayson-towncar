@@ -36,6 +36,7 @@ def _initalize_form(trip_type, rate, price):
             "total_price": price,
             "route": rate.route,
         },
+        rate=rate,
     )
     flight1_form = FlightForm(prefix="flight1")
     leg1_form = LegForm(prefix="leg1")
@@ -53,11 +54,11 @@ def _initalize_form(trip_type, rate, price):
     )
 
 
-def returns_post_form(request, trip_type):
+def returns_post_form(request, trip_type, rate):
     """Returns Forms with Posted Data, just to Avoid Redundancy of repeating everything in the view
     returns customer,reservatiom,flight1,leg1, flight 2 and leg 2 if trip_type == 2, else oneway"""
     customer_form = CustomerForm(request.POST)
-    reservation_form = ReservationForm(request.POST)
+    reservation_form = ReservationForm(request.POST, rate=rate)
     flight1_form = FlightForm(request.POST, prefix="flight1")
     leg1_form = LegForm(request.POST, prefix="leg1")
     flight2_form = (

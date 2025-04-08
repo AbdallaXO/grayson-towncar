@@ -5,7 +5,7 @@ from .models import Reservation, Customer, Leg, Flight, ContactUsForm
 from django.utils import timezone
 from django.db.models import Q
 from typing import override
-
+from .validator import validate_vehicle_constraints
 
 class CustomerForm(forms.ModelForm):
     """Form for customer information"""
@@ -84,24 +84,36 @@ class ReservationForm(forms.ModelForm):
             ),
             "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "rf_carseat": forms.NumberInput(
-                attrs={"class": "form-control", "id": "rf-carseat"}
+                     attrs={"class": "form-control", "id": "rf-carseat", "type":"number"}
             ),
             "ff_carseat": forms.NumberInput(
-                attrs={"class": "form-control", "id": "ff-carseat"}
+                    attrs={"class": "form-control", "id": "ff-carseat", "type":"number"}
             ),
             "booster_seats": forms.NumberInput(
-                attrs={"class": "form-control", "id": "booster"}
+                attrs={"class": "form-control", "id": "booster", "type":"number"}
             ),
         }
         help_texts = {
             "special_requests": "Optional. We’ll do our best to accommodate. "
         }
 
+    # Grab and store rate when the reservation is created.
+    def __init__(self, *args, **kwargs):
+        self.rate = kwargs.pop("rate", None)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self.rate:
+            vehicle = self.rate.vehicle
+            validate_vehicle_constraints(vehicle, cleaned_data, self.add_error)
+
     def save(self, commit=True, **kwargs):
         self.instance.customer = kwargs.get("customer")
         self.instance.trip_type = kwargs.get("trip_type")
         self.instance.rate = kwargs.get("rate")
         self.instance.base_price = kwargs.get("base_price")
+        self.instance.vehicle = kwargs.get("vehicle")
         return super().save(commit)
 
 
