@@ -125,5 +125,5 @@ AIRLINES = [
     "Southwest Airlines",
     "Spirit Airlines",
     "Alaska Airlines",
-    "Frontier Airlines"
+    "Frontier Airlines",
 ]

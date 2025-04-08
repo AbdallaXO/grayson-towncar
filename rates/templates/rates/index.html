@@ -34,7 +34,7 @@
                     <img class="card-img-top p-3"
                          src="{{ vehicle.image.url }}"
                          alt="{{ vehicle.get_vehicle_type_display }}"
-                         {% if forloop.first %} loading="eager" fetchpriority="high" {% else %} loading="eager" fetchpriority="high" {% endif %}
+                         {% if forloop.first %} loading="eager" fetchpriority="high" {% else %} loading="lazy" fetchpriority="low" {% endif %}
                          width="300"
                          height="200" />
                   </a>

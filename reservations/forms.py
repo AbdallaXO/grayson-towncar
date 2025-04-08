@@ -7,6 +7,7 @@ from django.db.models import Q
 from typing import override
 from .validator import validate_vehicle_constraints
 
+
 class CustomerForm(forms.ModelForm):
     """Form for customer information"""
 
@@ -67,6 +68,8 @@ class ReservationForm(forms.ModelForm):
             "rf_carseats",
             "booster_seats",
         ]
+
+
 class ReservationForm(forms.ModelForm):
     """Form for reservation details"""
 
@@ -104,11 +107,14 @@ class ReservationForm(forms.ModelForm):
         }
         help_texts = {
             "special_requests": "Optional. We’ll do our best to accommodate. ",
-            'needs_carseat':"check this if you would like any carseats or boosters"
+            "needs_carseat": "check this if you would like any carseats or boosters",
         }
-        labels = {'rf_carseats':'Rear-Facing Carseats', 'ff_carseats':'Forward-Facing Carseats', 'booster_seats':'Boosters',
-                  'need_carseats':'Need Carseats/Boosters?'}
-
+        labels = {
+            "rf_carseats": "Rear-Facing Carseats",
+            "ff_carseats": "Forward-Facing Carseats",
+            "booster_seats": "Boosters",
+            "need_carseats": "Need Carseats/Boosters?",
+        }
 
     # Grab and store rate when the reservation is created.
     def __init__(self, *args, **kwargs):
@@ -168,7 +174,9 @@ class FlightForm(forms.ModelForm):
         model = Flight
         fields = ["airline", "flight_number"]
         widgets = {
-            "airline": forms.TextInput(attrs={"class": "form-control", "list":"airlines"}),
+            "airline": forms.TextInput(
+                attrs={"class": "form-control", "list": "airlines"}
+            ),
             "flight_number": forms.TextInput(attrs={"class": "form-control"}),
         }
 
