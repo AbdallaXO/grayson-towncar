@@ -67,12 +67,27 @@ class ReservationForm(forms.ModelForm):
             "rf_carseats",
             "booster_seats",
         ]
+class ReservationForm(forms.ModelForm):
+    """Form for reservation details"""
+
+    class Meta:
+        model = Reservation
+        fields = [
+            "passenger_count",
+            "luggage_count",
+            "store_stop",
+            "special_requests",
+            "need_carseats",
+            "rf_carseats",
+            "ff_carseats",
+            "booster_seats",
+        ]
         widgets = {
             "passenger_count": forms.NumberInput(
                 attrs={"class": "form-control", "min": 1, "max": 10}
             ),
             "luggage_count": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "max": "12"}
+                attrs={"class": "form-control", "min": 0, "max": 12}
             ),
             "store_stop": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "special_requests": forms.Textarea(
@@ -83,19 +98,17 @@ class ReservationForm(forms.ModelForm):
                 }
             ),
             "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "rf_carseat": forms.NumberInput(
-                     attrs={"class": "form-control", "id": "rf-carseat", "type":"number"}
-            ),
-            "ff_carseat": forms.NumberInput(
-                    attrs={"class": "form-control", "id": "ff-carseat", "type":"number"}
-            ),
-            "booster_seats": forms.NumberInput(
-                attrs={"class": "form-control", "id": "booster", "type":"number"}
-            ),
+            "rf_carseats": forms.NumberInput(attrs={"class": "form-control"}),
+            "ff_carseats": forms.NumberInput(attrs={"class": "form-control"}),
+            "booster_seats": forms.NumberInput(attrs={"class": "form-control"}),
         }
         help_texts = {
-            "special_requests": "Optional. We’ll do our best to accommodate. "
+            "special_requests": "Optional. We’ll do our best to accommodate. ",
+            'needs_carseat':"check this if you would like any carseats or boosters"
         }
+        labels = {'rf_carseats':'Rear-Facing Carseats', 'ff_carseats':'Forward-Facing Carseats', 'booster_seats':'Boosters',
+                  'need_carseats':'Need Carseats/Boosters?'}
+
 
     # Grab and store rate when the reservation is created.
     def __init__(self, *args, **kwargs):
@@ -155,7 +168,7 @@ class FlightForm(forms.ModelForm):
         model = Flight
         fields = ["airline", "flight_number"]
         widgets = {
-            "airline": forms.TextInput(attrs={"class": "form-control"}),
+            "airline": forms.TextInput(attrs={"class": "form-control", "list":"airlines"}),
             "flight_number": forms.TextInput(attrs={"class": "form-control"}),
         }
 
