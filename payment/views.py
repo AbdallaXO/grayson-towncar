@@ -18,9 +18,7 @@ def create_checkout_session(request, reservation_id):
     Creates a Checkout Session for a User and a stripe customer object
     and gives user the option to pay now or later then takes payment here or re-directs user
     to save_card if they decide to save card for later"""
-    print(reservation_id)
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
-    print(reservation_id, reservation.customer.email)
 
     stripe_customer = get_or_create_stripe_customer(reservation)
 
@@ -31,17 +29,16 @@ def create_checkout_session(request, reservation_id):
         if action == "pay_now":
             try:
                 checkout_session = stripe.checkout.Session.create(
-                    customer=stripe_customer.id,
+                    customer=stripe_customer.id,                    
                     line_items=[
                         {
                             "price_data": {
                                 "currency": "usd",
-                                "product_data": {
-                                    "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Res ID#{reservation.id}",
-                                },
+                                "product_data": {"name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Res ID#{reservation.id}"},
                                 "unit_amount": int(reservation.total_price * 100),
                             },
                             "quantity": 1,
+                            
                         }
                     ],
                     mode="payment",
@@ -53,6 +50,7 @@ def create_checkout_session(request, reservation_id):
                         "route": f"Roundtrip Between {reservation.rate.route}",
                         "vehicle": {reservation.rate.vehicle},
                     },
+                    payment_intent_data={"setup_future_usage":"off_session"},
                 )
             except stripe.error.StripeError as e:
                 return render(request, "stripe/error.html", {"error": e})
