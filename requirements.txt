@@ -28,3 +28,4 @@ uvicorn
 django-environ
 psycopg
 typing
+psycopg2-binary
