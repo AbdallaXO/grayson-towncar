@@ -18,18 +18,20 @@ def create_checkout_session(request, reservation_id):
     Creates a Checkout Session for a User and a stripe customer object
     and gives user the option to pay now or later then takes payment here or re-directs user
     to save_card if they decide to save card for later"""
+    print(reservation_id)
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
+    print(reservation_id, reservation.customer.email)
 
     stripe_customer = get_or_create_stripe_customer(reservation)
 
     if request.method == "POST":
+        # this will determine if its pay_now or save_card
         action = request.POST.get("action")
+        # if user is pre-paying
         if action == "pay_now":
             try:
                 checkout_session = stripe.checkout.Session.create(
                     customer=stripe_customer.id,
-                    customer_email=reservation.customer.email,
-                    invoice_creation={"enabled": True},
                     line_items=[
                         {
                             "price_data": {
@@ -45,9 +47,6 @@ def create_checkout_session(request, reservation_id):
                     mode="payment",
                     success_url=request.build_absolute_uri(reverse("payment_success")),
                     cancel_url=request.build_absolute_uri(reverse("payment_cancel")),
-                    payment_intent_data={
-                        "setup_future_usage": "off_session",
-                    },
                     metadata={
                         "reservation_id": reservation.id,
                         "mode": "pay_now",
@@ -73,7 +72,6 @@ def save_card(request, reservation_id):
     try:
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer.id,
-            customer_email=reservation.customer.email,
             payment_method_types=["card"],
             mode="setup",
             success_url=success_url,

@@ -7,6 +7,7 @@ from django.utils import timezone
 def get_or_create_stripe_customer(reservation):
     """Takes the Reservation and Returns an existing stripe object or creates one for the customer
     also updates the reservation.customers stripe_customer_id to his stripe_customer_id after creating it."""
+
     if not reservation.customer.stripe_customer_id:
         # check customer email against db to see if they already exist with an ID
         stripe_customer = stripe.Customer.create(
@@ -14,8 +15,6 @@ def get_or_create_stripe_customer(reservation):
             metadata={
                 "reservation_id": reservation.id,
                 "trip_type": reservation.trip_type,
-                "vehicle_tyoe": reservation.vehicle,
-                "route": reservation.rate.route,
             },
         )
         reservation.customer.stripe_customer_id = stripe_customer.id
@@ -51,5 +50,6 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         return True
 
     except Exception as e:
+        # Optionally log error or raise custom exception
         print(f"Error saving card to customer: {e}")
         return False
