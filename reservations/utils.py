@@ -115,3 +115,15 @@ def validate_forms(
     )
 
     return forms_valid
+
+
+AIRLINES = [
+    "American Airlines",
+    "Delta Air Lines",
+    "United Airlines",
+    "JetBlue Airways",
+    "Southwest Airlines",
+    "Spirit Airlines",
+    "Alaska Airlines",
+    "Frontier Airlines"
+]

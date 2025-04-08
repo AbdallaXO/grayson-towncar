@@ -8,7 +8,7 @@ from rates.models import Rate
 from .forms import (
     ContactUsFormSubmission,
 )
-from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms
+from .utils import _initalize_form, get_form_details, returns_post_form, validate_forms, AIRLINES
 from .email import send_reservation_confirmation
 # Create your views here.
 
@@ -98,6 +98,7 @@ def reservation_form(
         "price": price,
         "trip_type": trip_type.replace("_", " "),
         "vehicle": rate.vehicle,
+        "airlines":AIRLINES,
     }
     return render(request, "reservations/book_form.html", context)
 
