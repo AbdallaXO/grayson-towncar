@@ -33,7 +33,7 @@ def reservation_form(
             leg1_form,
             flight2_form,
             leg2_form,
-        ) = returns_post_form(request, trip_type)
+        ) = returns_post_form(request, trip_type, rate)
 
         forms_valid = validate_forms(
             customer_form,

@@ -56,6 +56,9 @@ class Reservation(models.Model):
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     rate = models.ForeignKey("rates.Rate", on_delete=models.PROTECT)
+    vehicle = models.ForeignKey(
+        "rates.vehicle", on_delete=models.PROTECT, null=True, blank=True
+    )
     passenger_count = models.PositiveIntegerField(default=1)
     luggage_count = models.PositiveIntegerField(default=1)
     need_carseats = models.BooleanField(default=False)  #
