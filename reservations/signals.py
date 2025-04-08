@@ -1,8 +1,4 @@
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 import logging
-from reservations.models import Reservation
-from .email import send_reservation_confirmation
 
 
 logger = logging.getLogger(__name__)  # Get a logger instance

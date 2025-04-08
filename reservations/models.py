@@ -44,7 +44,7 @@ class Customer(models.Model):
         return self.first_name
 
     def get_full_name(self):
-        return self.first_name + " " + self.last_name
+        return f"{self.first_name.title()} {self.last_name.title()}"
 
 
 class Reservation(models.Model):
@@ -75,10 +75,6 @@ class Reservation(models.Model):
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
-
-    payment = models.OneToOneField(
-        "payment.Payment", on_delete=models.PROTECT, null=True, blank=True
-    )
     status = models.CharField(
         max_length=20, choices=RESERVTION_STATUS, default="pending"
     )

@@ -5,9 +5,6 @@ from reservations.models import Reservation
 from .utils import get_or_create_stripe_customer
 from django.conf import settings
 from django.urls import reverse
-from django.utils.http import urlsafe_base64_decode
-from django.utils.encoding import smart_str
-from django.utils.encoding import force_bytes
 
 # Ensure you're using environment variables in production
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -19,8 +16,10 @@ def create_checkout_session(request, reservation_id):
     and gives user the option to pay now or later then takes payment here or re-directs user
     to save_card if they decide to save card for later"""
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
-
     stripe_customer = get_or_create_stripe_customer(reservation)
+    success_url = request.build_absolute_uri(reverse("payment_success"))
+    cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
+    uuid = reservation.uuid
 
     if request.method == "POST":
         # this will determine if its pay_now or save_card
@@ -29,28 +28,31 @@ def create_checkout_session(request, reservation_id):
         if action == "pay_now":
             try:
                 checkout_session = stripe.checkout.Session.create(
-                    customer=stripe_customer.id,                    
+                    customer=stripe_customer.id,
                     line_items=[
                         {
                             "price_data": {
                                 "currency": "usd",
-                                "product_data": {"name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Res ID#{reservation.id}"},
+                                "product_data": {
+                                    "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Reservation ID#{reservation.id}"
+                                },
                                 "unit_amount": int(reservation.total_price * 100),
                             },
                             "quantity": 1,
-                            
                         }
                     ],
                     mode="payment",
-                    success_url=request.build_absolute_uri(reverse("payment_success")),
-                    cancel_url=request.build_absolute_uri(reverse("payment_cancel")),
+                    success_url=success_url,  # can add a extrra query ?reservation_)id....),
+                    cancel_url=cancel_url,
                     metadata={
-                        "reservation_id": reservation.id,
+                        "reservation_id": reservation.uuid,
+                        "customer_id": reservation.customer.id,
                         "mode": "pay_now",
                         "route": f"Roundtrip Between {reservation.rate.route}",
-                        "vehicle": {reservation.rate.vehicle},
+                        "vehicle": str(reservation.rate.vehicle),
                     },
-                    payment_intent_data={"setup_future_usage":"off_session"},
+                    payment_intent_data={"setup_future_usage": "off_session"},
+                    client_reference_id=reservation.id,
                 )
             except stripe.error.StripeError as e:
                 return render(request, "stripe/error.html", {"error": e})
@@ -74,7 +76,14 @@ def save_card(request, reservation_id):
             mode="setup",
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={"reservation_id": reservation.id, "mode": "save_card"},
+            metadata={
+                "reservation_id": reservation.uuid,
+                "customer_id": reservation.customer.id,
+                "mode": "pay_now",
+                "route": f"Roundtrip Between {reservation.rate.route}",
+                "vehicle": str(reservation.rate.vehicle),
+            },
+            client_reference_id=reservation.id,
         )
     except stripe.error.StripeError as e:
         return render(request, "stripe/error.html", {"error": e})
