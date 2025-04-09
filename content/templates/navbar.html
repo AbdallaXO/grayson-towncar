@@ -1,6 +1,6 @@
 {% load static %}
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-  <div class="container px-5">
+<nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top">
+  <div class="container px-5 bg-navbar-dark">
     <a class="navbar-brand" href="{% url 'home' %}">
       <img src="{% static 'images/logo.png' %}"
            alt="Company Logo"
@@ -13,16 +13,17 @@
             data-bs-target="#navbarSupportedContent"
             aria-controls="navbarSupportedContent"
             aria-expanded="false"
-            aria-label="Toggle navigation">
+            aria-label="Toggle navigation"
+            style="filter: brightness(0) invert(1);">
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'home' %}">Home</a>
+          <a class="nav-link text-white" href="{% url 'home' %}">Home</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle"
+          <a class="nav-link dropdown-toggle text-white"
              href="#"
              id="navbarDropdown"
              role="button"
@@ -41,16 +42,16 @@
           </ul>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'services' %}">Services</a>
+          <a class="nav-link text-white" href="{% url 'services' %}">Services</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'rates' %}">Reservations</a>
+          <a class="nav-link text-white" href="{% url 'rates' %}">Reservations</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'blog-list' %}">Blog</a>
+          <a class="nav-link text-white" href="{% url 'blog-list' %}">Blog</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{% url 'contact' %}">Contact</a>
+          <a class="nav-link text-white" href="{% url 'contact' %}">Contact</a>
         </li>
         {% comment %} {% if request.user.is_authenticated %}
           <li class="nav-item">
