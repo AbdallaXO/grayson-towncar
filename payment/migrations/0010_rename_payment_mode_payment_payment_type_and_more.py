@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("payment", "0009_delete_userpayment"),
         ("reservations", "0018_remove_reservation_payment"),

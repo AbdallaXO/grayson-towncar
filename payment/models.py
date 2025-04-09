@@ -6,10 +6,16 @@ from django.db import models
 
 class Payment(models.Model):
     reservation = models.ForeignKey(
-        "reservations.Reservation", on_delete=models.PROTECT, related_name="payments", null=True
+        "reservations.Reservation",
+        on_delete=models.PROTECT,
+        related_name="payments",
+        null=True,
     )
     customer = models.ForeignKey(
-        "reservations.Customer", on_delete=models.PROTECT, related_name="payments", null=True
+        "reservations.Customer",
+        on_delete=models.PROTECT,
+        related_name="payments",
+        null=True,
     )
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
     stripe_payment_method_id = models.CharField(max_length=255, blank=True, null=True)

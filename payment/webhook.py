@@ -2,7 +2,6 @@ import stripe
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
-from .utils import save_card_to_customer
 import logging
 from reservations.models import Reservation, Customer
 from .models import Payment
@@ -78,7 +77,7 @@ def handle_checkout_session(session):
                 # Can send an email confirmation here
                 logger.info(f"Card Saved for Reservation {reservation_id}")
 
-        elif session.payment_status == "paid":
+        elif session.get("payment_status") == "paid":
             payment_intent = session.get("payment_intent")
             payment.stripe_payment_intent_id = payment_intent
             payment.status = "paid"
@@ -94,41 +93,45 @@ def handle_checkout_session(session):
         logger.exception(f"Error processing checkout session: {e}")
 
 
-def save_card_to_customer(customer_id: str, payment_method_id: str) -> bool:
+# Fix for utils.py save_card_to_customer function
+def save_card_to_customer(customer_id: str, payment_method_id: str):
     """
     Given a Stripe customer ID and a payment method ID,
-    attach the payment method to the customer and save card details.
-    Returns True if card was saved False if any errors happened saving it
-    Pass in the 
+    retrieve card details and save them Customer model.
     """
     try:
-        # to attach the payment method to to the customer on stripe
+        # First, attach the payment method to the customer in Stripe
         stripe.PaymentMethod.attach(
             payment_method_id,
             customer=customer_id,
         )
 
-        # Retrieve payment that was just attached for some data to store in database
+        # Retrieve the payment method to get card details
         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
         card = payment_method.card
 
-        # Retrieve and update local customer
-        customer = Customer.objects.get(stripe_customer_id=customer_id)
-        customer.stripe_payment_method_id = payment_method.id
-        customer.card_brand = card.brand
-        customer.card_last4 = card.last4
-        customer.card_exp_month = card.exp_month
-        customer.card_exp_year = card.exp_year
-        customer.save()
+        # Find the customer in your database
+        try:
+            customer = Customer.objects.get(stripe_customer_id=customer_id)
+            # Update customer card information
+            customer.stripe_payment_method_id = payment_method.id
+            customer.card_brand = card.brand
+            customer.card_last4 = card.last4
+            customer.card_exp_month = card.exp_month
+            customer.card_exp_year = card.exp_year
+            customer.save()
 
-        logger.info(f"Card saved for customer {customer_id}")
-        return True
+            # Log success
+            logger.info(f"Card saved for customer {customer_id} in database")
+            return True
+        except Customer.DoesNotExist:
+            logger.error(
+                f"Customer not found in database with Stripe ID: {customer_id}"
+            )
+            return False
 
-    except stripe.error.StripeError as stripe_error:
-        logger.error(f"Stripe error saving card: {stripe_error}")
-        return False
-    except Customer.DoesNotExist:
-        logger.error(f"Customer not found with Stripe ID: {customer_id}")
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error saving card: {e}")
         return False
     except Exception as e:
         logger.error(f"Unexpected error saving card to customer: {e}")
