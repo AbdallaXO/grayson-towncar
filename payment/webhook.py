@@ -5,11 +5,10 @@ from django.conf import settings
 import logging
 from reservations.models import Reservation, Customer
 from .models import Payment
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-stripe.api_key = "sk_test_51R6ae8R0WxX20o0RgyIBtSfBKONOcHLNN6UIiCrzI8nnpSnN4UYZ86NIgdAae1jfJ7TpLzJle6zmqC8GE0FwXEWm00olQ4YfjB"
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 @csrf_exempt
@@ -20,7 +19,7 @@ def stripe_webhook(request):
         event = stripe.Webhook.construct_event(
             payload,
             signature,
-            "whsec_0574e9dcf5ec7ada3226013aef41045254ab9dd59b38a6aa61619947e8b2dcc3",
+           settings.STRIPE_WEBHOOK_SECRET,
         )
     except ValueError as e:
         logger.error(f"Invalid Payload : {e}")
