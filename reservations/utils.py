@@ -28,7 +28,7 @@ def get_form_details(request, rate):
 def _initalize_form(trip_type, rate, price):
     """Initializes the forms for the GET request and returns forms for customer, reservation,
     flight1,leg1, and if trip_type is round_trip, it returns a flight2 form and a leg2 form"""
-    customer_form = CustomerForm()
+    customer_form = CustomerForm(label_suffix="*")
     reservation_form = ReservationForm(
         initial={
             "vehicle": rate.vehicle,
@@ -37,12 +37,13 @@ def _initalize_form(trip_type, rate, price):
             "route": rate.route,
         },
         rate=rate,
+        label_suffix=""
     )
     flight1_form = FlightForm(prefix="flight1")
-    leg1_form = LegForm(prefix="leg1")
+    leg1_form = LegForm(prefix="leg1", label_suffix="*")
     # conditional forms if its a roundtrip
     flight2_form = FlightForm(prefix="flight2") if trip_type == "round_trip" else None
-    leg2_form = LegForm(prefix="leg2") if trip_type == "round_trip" else None
+    leg2_form = LegForm(prefix="leg2", label_suffix="*") if trip_type == "round_trip" else None
 
     return (
         customer_form,

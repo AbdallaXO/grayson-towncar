@@ -23,7 +23,7 @@
           <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-5">
             {% for vehicle in vehicles %}
               <div class="col mb-4">
-                <article class="card shadow border-0 h-100">
+                <article class="card shadow-lg border-0 h-100">
                   <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-rates"
                      class="card-img-container position-relative"
                      aria-label="View {{ vehicle.get_vehicle_type_display }} rates">
