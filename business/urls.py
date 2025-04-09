@@ -28,7 +28,6 @@ urlpatterns = [
     path("services/", include("services.urls")),
     path("rates-booking/", include("rates.urls")),
     path("blog/", include("blog.urls")),
-    path("__debug__", include("debug_toolbar.urls")),
     path("payment/", include("payment.urls")),
 ]
 
