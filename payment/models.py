@@ -28,7 +28,7 @@ class Payment(models.Model):
             ("pay_now", "Pay Now"),
             ("pay_later", "Pay Later"),
         ],
-        default="pay_now",
+        default="pay_later",
     )
     status = models.CharField(
         max_length=20,
