@@ -42,9 +42,9 @@ if IN_RAILWAY:
 else:
     # local db if we are local
     STORAGE_PATH = CONTENT_DIR
-# VOLUME_PATH = Path("/app/storage")
-# os.makedirs(VOLUME_PATH, exist_ok=True)
-# os.makedirs(VOLUME_PATH / "media", exist_ok=True)
+VOLUME_PATH = Path("/app/storage")
+os.makedirs(VOLUME_PATH, exist_ok=True)
+os.makedirs(VOLUME_PATH / "media", exist_ok=True)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
