@@ -1,127 +1,275 @@
 {% extends "main.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="card shadow">
-        <div class="card-header bg-dark text-white text-center py-3">
-            <h2 class="mb-0">Reservation Confirmation</h2>
+  <div class="container my-5">
+    <div class="card shadow-lg border-0 rounded-lg overflow-hidden bg-white">
+      <!-- Header -->
+      <div class="card-header bg-dark text-white py-4">
+        <div class="d-flex align-items-center justify-content-between px-3">
+          <h2 class="mb-0 fw-bold">Your Reservation</h2>
+          <span class="badge bg-warning text-dark fw-bold px-3 py-2 fs-6">Confirmed</span>
         </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-bookmark-check me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Reservation ID</small>
-                            <strong id="reservationId">12345</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-person me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Customer Name</small>
-                            <strong id="customerName">John Doe</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-signpost-split me-2 text-primary"></i>
-                        <div style="max-width: 100%;">
-                            <small class="text-muted d-block">Trip Route</small>
-                            <strong id="tripRoute" class="text-wrap" style="word-break: break-word;">Round Trip</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-calendar-date me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Trip Date</small>
-                            <strong id="tripDate">2023-10-10</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-clock me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Trip Time</small>
-                            <strong id="tripTime">10:00 AM</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-people me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Passenger Count</small>
-                            <strong id="passengerCount">3</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-car-front me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Carseat Count</small>
-                            <strong id="carseatCount">1</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-12 mb-3">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-briefcase me-2 text-primary"></i>
-                        <div>
-                            <small class="text-muted d-block">Luggage Count</small>
-                            <strong id="luggageCount">2</strong>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 mb-3">
-                    <div class="d-flex align-items-start">
-                        <i class="bi bi-chat-square-text me-2 text-primary mt-1"></i>
-                        <div>
-                            <small class="text-muted d-block">Additional Comments</small>
-                            <strong id="additionalComments">N/A</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="mt-4 pt-2 border-top">
-                <h5 class="mb-3 text-center">Payment Options</h5>
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="d-flex justify-content-center gap-3">
-                        <button type="submit"
-                               name="action"
-                               value="pay_now"
-                               class="btn btn-success px-4 py-2">💳 Pay Now</button>
-                        <button type="submit"
-                               name="action"
-                               value="save_card"
-                               class="btn btn-outline-primary px-4 py-2">🔐 Save Card, Pay Later</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-        <div class="card-footer p-0">
-            <div class="bg-light-subtle p-3 border-top">
-                <div class="bg-primary bg-opacity-10 rounded-3 p-3 border border-primary border-opacity-25 shadow-sm">
-                    <div class="d-flex align-items-center justify-content-center mb-2">
-                        <i class="bi bi-info-circle-fill text-primary me-2"></i>
-                        <h6 class="mb-0 fw-bold">Need Help?</h6>
-                    </div>
-                    <p class="mb-0 text-center">For questions about your reservation or payment assistance, please contact our customer service team at <span class="fw-semibold">(407) 212-7190</span> or email <strong>reservations@graysontowncar.com</strong></p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+      </div>
 
-<!-- Bootstrap JS Bundle with Popper (includes all the required dependencies) -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+      <div class="card-body p-0 bg-white text-dark">
+        <!-- Reservation Summary Card -->
+        <div class="p-4 border-bottom">
+          <div class="row g-4">
+            <div class="col-md-4">
+              <div class="d-flex align-items-center">
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
+                  <i class="bi bi-bookmark-check text-warning fs-4"></i>
+                </div>
+                <div>
+                  <small class="text-secondary">Reservation ID</small>
+                  <h5 class="fw-bold mb-0">{{ reservation.id }}</h5>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex align-items-center">
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
+                  <i class="bi bi-person text-warning fs-4"></i>
+                </div>
+                <div>
+                  <small class="text-secondary">Customer</small>
+                  <h5 class="fw-bold mb-0">{{ reservation.customer.get_full_name }}</h5>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex align-items-center">
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
+                  <i class="bi bi-signpost-split text-warning fs-4"></i>
+                </div>
+                <div>
+                  <small class="text-secondary">Trip Type</small>
+                  <h5 class="fw-bold mb-0">{{ reservation.trip_type|cut:'_'|title }}</h5>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Itinerary Section -->
+        <div class="p-4">
+          <div class="d-flex align-items-center mb-4">
+            <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-3">
+              <i class="bi bi-map text-warning fs-4"></i>
+            </div>
+            <h3 class="mb-0">Your Itinerary</h3>
+          </div>
+
+          {% for leg in reservation.legs.all %}
+            <div class="card mb-4 border-0 shadow-sm rounded-lg">
+              <div class="card-header py-3 bg-dark text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0">
+                    <i class="bi bi-geo-alt-fill text-warning me-2"></i>
+                    Leg {{ forloop.counter }}
+                    {% if leg.leg_type %}({{ leg.leg_type|title }}){% endif %}
+                  </h5>
+                  <span class="badge bg-warning text-dark px-3 py-2">{{ leg.pickup_date|date:"F j, Y" }}</span>
+                </div>
+              </div>
+              <div class="card-body p-4">
+                <div class="row g-4">
+                  <!-- Date & Time -->
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-start">
+                      <i class="bi bi-clock text-warning fs-4 me-3 mt-1"></i>
+                      <div>
+                        <small class="text-secondary d-block">Pickup Time</small>
+                        <span class="fs-5 fw-bold">{{ leg.pickup_time|time:"g:i A" }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Pick-up Location -->
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-start">
+                      <i class="bi bi-pin-map-fill text-warning fs-4 me-3 mt-1"></i>
+                      <div>
+                        <small class="text-secondary d-block">Pick-up Location</small>
+                        <span class="fs-5 fw-bold">{{ leg.pickup_location|default:"Disney" }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Drop-off Location -->
+                  <div class="col-md-4">
+                    <div class="d-flex align-items-start">
+                      <i class="bi bi-pin-map-fill text-warning fs-4 me-3 mt-1"></i>
+                      <div>
+                        <small class="text-secondary d-block">Drop-off Location</small>
+                        <span class="fs-5 fw-bold">{{ leg.dropoff_location|default:"Disney" }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Flight Information -->
+                <div class="mt-4 pt-3 border-top">
+                  <div class="d-flex align-items-center">
+                    <i class="bi bi-airplane-fill text-warning fs-4 me-3"></i>
+                    <div>
+                      <small class="text-secondary d-block">Flight Details</small>
+                      <span class="fs-5 fw-bold">
+                        {% if forloop.counter == 1 %}
+                          {{ reservation.flight1_airline|default:"Not specified" }}
+                          - Flight #{{ reservation.flight1_number|default:"N/A" }}
+                        {% elif forloop.counter == 2 %}
+                          {{ reservation.flight2_airline|default:"Not specified" }}
+                          - Flight #{{ reservation.flight2_number|default:"N/A" }}
+                        {% endif %}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Additional Notes for this Leg -->
+                {% if leg.notes %}
+                  <div class="mt-4 py-3 px-4 bg-light rounded-3">
+                    <div class="d-flex">
+                      <i class="bi bi-info-circle text-warning fs-4 me-3"></i>
+                      <div>
+                        <small class="text-secondary">Important Notes</small>
+                        <p class="mb-0 mt-1">{{ leg.notes }}</p>
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+
+          <!-- Passenger & Luggage Details -->
+          <div class="mt-5 mb-5">
+            <div class="d-flex align-items-center mb-4">
+              <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-3">
+                <i class="bi bi-person-plus text-warning fs-4"></i>
+              </div>
+              <h3 class="mb-0">Travel Details</h3>
+            </div>
+
+            <div class="row g-4">
+              <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                  <div class="card-body p-4 text-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
+                      <i class="bi bi-people text-warning fs-1"></i>
+                    </div>
+                    <h3 class="mb-0">{{ reservation.passenger_count }}</h3>
+                    <p class="text-secondary mb-0">Passengers</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                  <div class="card-body p-4 text-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
+                      <i class="bi bi-car-front text-warning fs-1"></i>
+                    </div>
+                    <h3 class="mb-0">{{ reservation.display_carseats }}</h3>
+                    <p class="text-secondary mb-0">Car Seats</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                  <div class="card-body p-4 text-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
+                      <i class="bi bi-briefcase text-warning fs-1"></i>
+                    </div>
+                    <h3 class="mb-0">{{ reservation.luggage_count }}</h3>
+                    <p class="text-secondary mb-0">Luggage</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Special Requests -->
+          {% if reservation.special_requests %}
+            <div class="mt-5 mb-5">
+              <div class="card border-0 shadow-sm">
+                <div class="card-header bg-dark text-white py-3">
+                  <h5 class="mb-0">
+                    <i class="bi bi-chat-square-text text-warning me-2"></i>
+                    Special Requests
+                  </h5>
+                </div>
+                <div class="card-body p-4">
+                  <p class="mb-0">{{ reservation.special_requests }}</p>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- Payment Section -->
+          <div class="mt-5">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body p-4">
+                <h4 class="text-center mb-4">Payment Options</h4>
+                <form method="post">
+                  {% csrf_token %}
+                  <div class="d-flex justify-content-center gap-4 flex-wrap">
+                    <button type="submit"
+                            name="action"
+                            value="pay_now"
+                            class="btn btn-warning btn-lg px-4 py-3 shadow fw-bold text-dark">
+                      <i class="bi bi-credit-card me-2"></i>Pay Now
+                    </button>
+                    <button type="submit"
+                            name="action"
+                            value="save_card"
+                            class="btn btn-outline-dark btn-lg px-4 py-3">
+                      <i class="bi bi-shield-lock me-2"></i>Save Card for Later
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Help Section -->
+      <div class="card-footer bg-dark p-4 text-white">
+        <div class="row justify-content-center">
+          <div class="col-lg-8">
+            <div class="card border-0 shadow-sm bg-white text-dark">
+              <div class="card-body p-4">
+                <div class="text-center">
+                  <div class="bg-warning bg-opacity-10 p-3 rounded-circle d-inline-flex mb-3">
+                    <i class="bi bi-headset text-warning fs-1"></i>
+                  </div>
+                  <h4 class="fw-bold">Need Assistance?</h4>
+                  <p class="text-secondary mb-4">Our team is available 24/7 to help with your reservation</p>
+                  <div class="row g-4 justify-content-center">
+                    <div class="col-md-5">
+                      <a href="tel:4072127190"
+                         class="text-decoration-none d-flex align-items-center justify-content-center">
+                        <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-2">
+                          <i class="bi bi-telephone-fill text-warning"></i>
+                        </div>
+                        <span class="text-dark fw-bold">(407) 212-7190</span>
+                      </a>
+                    </div>
+                    <div class="col-md-7">
+                      <a href="mailto:reservations@graysontowncar.com"
+                         class="text-decoration-none d-flex align-items-center justify-content-center">
+                        <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-2">
+                          <i class="bi bi-envelope-fill text-warning"></i>
+                        </div>
+                        <span class="text-dark fw-bold">reservations@graysontowncar.com</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock content %}

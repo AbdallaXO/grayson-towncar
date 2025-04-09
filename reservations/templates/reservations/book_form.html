@@ -9,8 +9,8 @@
         <div class="card shadow-sm mb-4">
           <div class="card-body">
             <h1 class="card-title mb-3 text-center">Booking Details</h1>
-            <h5 class="text-dark mb-0 lh-lg">{{ trip_type|title }} {{ vehicle }} Reservation</h5>
-            <h6 class="text-dark mb-0 fs-">{{ route }}</h6>
+            <h5 class="text-primary mb-0 lh-lg">{{ trip_type|title }} {{ vehicle }} Reservation</h5>
+            <h6 class="text-primary mb-0 fs-6">{{ route }}</h6>
           </div>
         </div>
 
@@ -113,7 +113,7 @@
                   {% endif %}
                 </div>
                 <div class="col-md-6">
-                  <div class="form-check">
+                  <div class="form-check mt-4">
                     {{ reservation_form.need_carseats }}
                     {{ reservation_form.need_carseats.label_tag }}
                     {% if reservation_form.need_carseats.errors %}
@@ -123,9 +123,8 @@
                     {% endif %}
                   </div>
                 </div>
-
                 <div class="col-md-6">
-                  <div class="form-check">
+                  <div class="form-check mt-4">
                     {{ reservation_form.store_stop }}
                     {{ reservation_form.store_stop.label_tag }}
                     {% if reservation_form.store_stop.errors %}
@@ -136,325 +135,293 @@
                   </div>
                 </div>
 
-                <div class="collapse" id="carseat-options">
-                  <div class="row g-3">
-                    <div class="col-md-4">
-                      {{ reservation_form.rf_carseats.label_tag }}
-                      {{ reservation_form.rf_carseats }}
-                      {% if reservation_form.rf_carseats.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <div class="col-md-4">
-                      {{ reservation_form.ff_carseats.label_tag }}
-                      {{ reservation_form.ff_carseats }}
-                      {% if reservation_form.ff_carseats.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <div class="col-md-4">
-                      {{ reservation_form.booster_seats.label_tag }}
-                      {{ reservation_form.booster_seats }}
-                      {% if reservation_form.booster_seats.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-                  </div>
-                </div>
-                <!-- Route Information Card -->
-                <div class="card shadow-sm mb-4">
-                  <div class="card-header bg-light">
-                    <h4 class="mb-0">
-                      <i class="bi bi-map me-2"></i>Route
-                    </h4>
-                  </div>
-                  <div class="card-body">
-                    <p class="mb-0">{{ route }}</p>
-                  </div>
-                </div>
-
-                <!-- Departure Details Card -->
-                <div class="card shadow-sm mb-4">
-                  <div class="card-header bg-light">
-                    <h4 class="mb-0">
-                      <i class="bi bi-car-front me-2"></i>
-                      {% if trip_type == 'one way' %}
-                        Ride Details
-                      {% else %}
-                        First Ride Details
-                      {% endif %}
-                    </h4>
-                  </div>
-                  <div class="card-body">
-                    <!-- Flight Info Section (Always Visible) -->
-                    <div class="mb-3">
-                      <h5 class="border-bottom pb-2 mb-3">Flight Information</h5>
-
-                      <div class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle-fill me-2"></i>
-                        <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
-                      </div>
-
-                      <div class="row g-3">
-                        <div class="col-md-6">
-                          {{ flight1_form.airline.label_tag }}
-                          {{ flight1_form.airline }}
-                          <datalist id="airlines">
-                            {% for airline in airlines %}<option value="{{ airline }}">{% endfor %}
-                            </datalist>
-                            {% if flight1_form.airline.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                          <div class="col-md-6">
-                            {{ flight1_form.flight_number.label_tag }}
-                            {{ flight1_form.flight_number }}
-                            {% if flight1_form.flight_number.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Pickup Info -->
-                      <h5 class="border-bottom pb-2 mb-3">Pickup Information</h5>
-                      <div class="row g-3">
-                        <div class="col-md-6">
-                          {{ leg1_form.pickup_date.label_tag }}
-                          {{ leg1_form.pickup_date }}
-                          {% if leg1_form.pickup_date.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                          {{ leg1_form.pickup_time.label_tag }}
-                          {{ leg1_form.pickup_time }}
-                          <small class="form-text text-muted">
-                            🛬 <strong>If arriving</strong>: enter pickup time from airport.
-                            <br>
-                            ✈️ <strong>If departing</strong>: we recommend <u>2.5 hours before</u> flight time.
-                          </small>
-                          {% if leg1_form.pickup_time.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.pickup_time.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                          {{ leg1_form.pickup_location.label_tag }}
-                          {{ leg1_form.pickup_location }}
-                          {% if leg1_form.pickup_location.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                          {{ leg1_form.dropoff_location.label_tag }}
-                          {{ leg1_form.dropoff_location }}
-                          {% if leg1_form.dropoff_location.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Return Details Card (Conditional) -->
-                  {% if leg2_form %}
-                    <div class="card shadow-sm mb-4">
-                      <div class="card-header bg-light">
-                        <h4 class="mb-0">
-                          <i class="bi bi-car-front me-2"></i>Second Ride Details
-                        </h4>
-                      </div>
-                      <div class="card-body">
-                        <!-- Return Flight Info Section (Always Visible) -->
-                        <div class="mb-3">
-                          <h5 class="border-bottom pb-2 mb-3">Return Flight Information</h5>
-
-                          <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle-fill me-2"></i>
-                            <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
-                          </div>
-
-                          <div class="row g-3">
-                            <div class="col-md-6">
-                              {{ flight2_form.airline.label_tag }}
-                              {{ flight2_form.airline }}
-                              {% if flight2_form.airline.errors %}
-                                <div class="invalid-feedback d-block">
-                                  {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
-                                </div>
-                              {% endif %}
-                            </div>
-                            <div class="col-md-6">
-                              {{ flight2_form.flight_number.label_tag }}
-                              {{ flight2_form.flight_number }}
-                              {% if flight2_form.flight_number.errors %}
-                                <div class="invalid-feedback d-block">
-                                  {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
-                                </div>
-                              {% endif %}
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Return Pickup Info -->
-                        <h5 class="border-bottom pb-2 mb-3">Return Pickup Information</h5>
-                        <div class="row g-3">
-                          <div class="col-md-6">
-                            {{ leg2_form.pickup_date.label_tag }}
-                            {{ leg2_form.pickup_date }}
-                            {% if leg2_form.pickup_date.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                          <div class="col-md-6">
-                            {{ leg2_form.pickup_time.label_tag }}
-                            {{ leg2_form.pickup_time }}
-                            {% if leg2_form.pickup_time.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.pickup_time.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                          <div class="col-md-6">
-                            {{ leg2_form.pickup_location.label_tag }}
-                            {{ leg2_form.pickup_location }}
-                            {% if leg2_form.pickup_location.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                          <div class="col-md-6">
-                            {{ leg2_form.dropoff_location.label_tag }}
-                            {{ leg2_form.dropoff_location }}
-                            {% if leg2_form.dropoff_location.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </div>
+                <div class="col-md-4">
+                  {{ reservation_form.rf_carseats.label_tag }}
+                  {{ reservation_form.rf_carseats }}
+                  {% if reservation_form.rf_carseats.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
                     </div>
                   {% endif %}
+                </div>
 
-                  <!-- Special Requests Card -->
-                  <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-light">
-                      <h4 class="mb-0">
-                        <i class="bi bi-chat-left-text me-2"></i>Special Requests
-                      </h4>
-                    </div>
-                    <div class="card-body">
-                      {{ reservation_form.special_requests.label_tag }}
-                      {{ reservation_form.special_requests }}
-                      {% if reservation_form.special_requests.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                      <small class="text-muted">Optional. We'll do our best to accommodate.</small>
-                    </div>
-                  </div>
-
-                  <!-- Non-field errors -->
-                  {% if form.non_field_errors %}
-                    <div class="card shadow-sm mb-4 border-danger">
-                      <div class="card-header bg-danger text-white">
-                        <h4 class="mb-0">
-                          <i class="bi bi-exclamation-circle me-2"></i>Form Errors
-                        </h4>
-                      </div>
-                      <div class="card-body">
-                        {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
-                      </div>
+                <div class="col-md-4">
+                  {{ reservation_form.ff_carseats.label_tag }}
+                  {{ reservation_form.ff_carseats }}
+                  {% if reservation_form.ff_carseats.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
                     </div>
                   {% endif %}
+                </div>
 
-                  <!-- Price Information Card -->
-                  <div class="card shadow-sm mb-4 border-success">
-                    <div class="card-header bg-light">
-                      <h4 class="mb-0">
-                        <i class="bi bi-tag-fill me-2"></i>Price Information
-                      </h4>
+                <div class="col-md-4">
+                  {{ reservation_form.booster_seats.label_tag }}
+                  {{ reservation_form.booster_seats }}
+                  {% if reservation_form.booster_seats.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
                     </div>
-                    <div class="card-body">
-                      <div class="row align-items-center">
-                        <div class="col-md-6">
-                          <h4 class="text-success mb-0">${{ price }}</h4>
-                        </div>
-                        <div class="col-md-6">
-                          <p class="text-muted mb-0">
-                            <i class="bi bi-info-circle me-1"></i>Price includes all fees & taxes.
-                            Driver gratuity recommended in cash or can be added to your credit card.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Submit Button -->
-                  <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg shadow">
-                      <i class="bi bi-check-circle me-2"></i>Submit Reservation
-                    </button>
-                  </div>
-                </form>
+                  {% endif %}
+                </div>
               </div>
             </div>
           </div>
 
-          <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
-                  async
-                  defer></script>
+          <!-- Route Information Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-map me-2"></i>Route
+              </h4>
+            </div>
+            <div class="card-body">
+              <p class="mb-0">{{ route }}</p>
+            </div>
+          </div>
 
-          <script src="{% static 'js/reservation_form.js' %}"></script>
-          <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+          <!-- Departure Details Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+              <h4 class="mb-0">
+                <i class="bi bi-car-front me-2"></i>
+                {% if trip_type == 'one way' %}
+                  Ride Details
+                {% else %}
+                  First Ride Details
+                {% endif %}
+              </h4>
+            </div>
+            <div class="card-body">
+              <!-- Flight Info Section (Always Visible) -->
+              <div class="mb-3">
+                <h5 class="border-bottom pb-2 mb-3">Flight Information</h5>
 
-          <style>
-              #carseat-options {
-                  overflow: hidden;
-                  transition:
-                      max-height 0.4s ease,
-                      opacity 0.4s ease,
-                      transform 0.4s ease;
-                  max-height: 0;
-                  opacity: 0;
-                  transform: scale(0.98);
-              }
+                <div class="alert alert-info mb-3">
+                  <i class="bi bi-info-circle-fill me-2"></i>
+                  <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                </div>
 
-              #carseat-options.show {
-                  max-height: 500px;
-                  opacity: 1;
-                  transform: scale(1);
-              }
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    {{ flight1_form.airline.label_tag }}
+                    {{ flight1_form.airline }}
+                    <datalist id="airlines">
+                      {% for airline in airlines %}<option value="{{ airline }}">{% endfor %}
+                      </datalist>
+                      {% if flight1_form.airline.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      {{ flight1_form.flight_number.label_tag }}
+                      {{ flight1_form.flight_number }}
+                      {% if flight1_form.flight_number.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
 
-              #carseat-options.hide {
-                  max-height: 0;
-                  opacity: 0;
-                  transform: scale(0.98);
-              }
-          </style>
-        {% endblock content %}
+                <!-- Pickup Info -->
+                <h5 class="border-bottom pb-2 mb-3">Pickup Information</h5>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    {{ leg1_form.pickup_date.label_tag }}
+                    {{ leg1_form.pickup_date }}
+                    {% if leg1_form.pickup_date.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    {{ leg1_form.pickup_time.label_tag }}
+                    {{ leg1_form.pickup_time }}
+                    {% if leg1_form.pickup_time.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg1_form.pickup_time.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    {{ leg1_form.pickup_location.label_tag }}
+                    {{ leg1_form.pickup_location }}
+                    {% if leg1_form.pickup_location.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <div class="col-md-6">
+                    {{ leg1_form.dropoff_location.label_tag }}
+                    {{ leg1_form.dropoff_location }}
+                    {% if leg1_form.dropoff_location.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Return Details Card (Conditional) -->
+            {% if leg2_form %}
+              <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                  <h4 class="mb-0">
+                    <i class="bi bi-car-front me-2"></i>Second Ride Details
+                  </h4>
+                </div>
+                <div class="card-body">
+                  <!-- Return Flight Info Section (Always Visible) -->
+                  <div class="mb-3">
+                    <h5 class="border-bottom pb-2 mb-3">Return Flight Information</h5>
+
+                    <div class="alert alert-info mb-3">
+                      <i class="bi bi-info-circle-fill me-2"></i>
+                      <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
+                    </div>
+
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        {{ flight2_form.airline.label_tag }}
+                        {{ flight2_form.airline }}
+                        {% if flight2_form.airline.errors %}
+                          <div class="invalid-feedback d-block">
+                            {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
+                          </div>
+                        {% endif %}
+                      </div>
+                      <div class="col-md-6">
+                        {{ flight2_form.flight_number.label_tag }}
+                        {{ flight2_form.flight_number }}
+                        {% if flight2_form.flight_number.errors %}
+                          <div class="invalid-feedback d-block">
+                            {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
+                          </div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Return Pickup Info -->
+                  <h5 class="border-bottom pb-2 mb-3">Return Pickup Information</h5>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      {{ leg2_form.pickup_date.label_tag }}
+                      {{ leg2_form.pickup_date }}
+                      {% if leg2_form.pickup_date.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      {{ leg2_form.pickup_time.label_tag }}
+                      {{ leg2_form.pickup_time }}
+                      {% if leg2_form.pickup_time.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in leg2_form.pickup_time.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      {{ leg2_form.pickup_location.label_tag }}
+                      {{ leg2_form.pickup_location }}
+                      {% if leg2_form.pickup_location.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      {{ leg2_form.dropoff_location.label_tag }}
+                      {{ leg2_form.dropoff_location }}
+                      {% if leg2_form.dropoff_location.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            <!-- Special Requests Card -->
+            <div class="card shadow-sm mb-4">
+              <div class="card-header bg-light">
+                <h4 class="mb-0">
+                  <i class="bi bi-chat-left-text me-2"></i>Special Requests
+                </h4>
+              </div>
+              <div class="card-body">
+                {{ reservation_form.special_requests.label_tag }}
+                {{ reservation_form.special_requests }}
+                {% if reservation_form.special_requests.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+                <small class="text-muted">Optional. We'll do our best to accommodate.</small>
+              </div>
+            </div>
+
+            <!-- Non-field errors -->
+            {% if form.non_field_errors %}
+              <div class="card shadow-sm mb-4 border-danger">
+                <div class="card-header bg-danger text-white">
+                  <h4 class="mb-0">
+                    <i class="bi bi-exclamation-circle me-2"></i>Form Errors
+                  </h4>
+                </div>
+                <div class="card-body">
+                  {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            <!-- Price Information Card -->
+            <div class="card shadow-sm mb-4 border-success">
+              <div class="card-header bg-light">
+                <h4 class="mb-0">
+                  <i class="bi bi-tag-fill me-2"></i>Price Information
+                </h4>
+              </div>
+              <div class="card-body">
+                <div class="row align-items-center">
+                  <div class="col-md-6">
+                    <h4 class="text-success mb-0">${{ price }}</h4>
+                  </div>
+                  <div class="col-md-6">
+                    <p class="text-muted mb-0">
+                      <i class="bi bi-info-circle me-1"></i>Price includes all fees & taxes.
+                      Driver gratuity recommended in cash or can be added to your credit card.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary btn-lg shadow">
+                <i class="bi bi-check-circle me-2"></i>Submit Reservation
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
+            async
+            defer></script>
+    <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+  {% endblock content %}

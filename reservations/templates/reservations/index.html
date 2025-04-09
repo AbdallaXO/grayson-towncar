@@ -26,20 +26,22 @@
         <div class="row gx-4 align-items-center justify-content-center">
           <div class="col-lg-7 col-xl-6">
             <div class="my-4 text-center text-xl-start">
-              <h1 class="fw-light text-white mb-2"><strong>Grayson Towncar</strong></h1>
+              <h1 class="fw-light text-white mb-2 display-2">
+                <strong>Grayson Towncar</strong>
+              </h1>
               <h2 class="h4 fw-normal text-white mb-2">Professional. Private. Polished.</h2>
               <!-- Simplified description for faster loading -->
-              <p class="text-white-50 mb-3">
-                Skip the long waits and shared shuttles. Private, direct transportation to Orlando attractions, 
+              <p class="lead text-white-50 mb-3">
+                Skip the long waits and shared shuttles. Private, direct transportation to Orlando attractions,
                 hotels, MCO, Port Canaveral, and more! Complete with complimentary car seats and a free grocery stop to start your vacation right.
               </p>
               <div class="d-grid gap-2 d-sm-flex justify-content-sm-center justify-content-xl-start">
-                <a class="btn btn-warning px-4 me-sm-3"
-                  href="{% url 'rates' %}"
-                  aria-label="Book Now">Book Now</a>
+                <a class="btn btn-outline-light px-4 me-sm-3 text-light"
+                   href="{% url 'rates' %}"
+                   aria-label="Book Now">Book Now</a>
                 <a class="btn btn-secondary px-4 me-sm-3"
-                  href="{% url 'services' %}"
-                  aria-label="Explore Services">Explore Services</a>
+                   href="{% url 'services' %}"
+                   aria-label="Explore Services">Explore Services</a>
               </div>
             </div>
           </div>
@@ -57,75 +59,98 @@
     </section>
 
     <!-- Services Highlights Section -->
-    <section class="services-highlights py-5 bg-light bg-opacity-50" aria-labelledby="services-heading">
+    <section class="services-highlights py-5 bg-light bg-opacity-50"
+             aria-labelledby="services-heading">
       <div class="container px-4 py-5">
         <div class="row g-4 align-items-stretch">
           <div class="col-12 text-center mb-5">
-            <h2 id="services-heading" class="display-6 fw-bold mb-4">Our Transportation <span class="text-warning">Highlights</span></h2>
-            <p class="lead text-muted mx-auto" style="max-width: 800px;">
+            <h2 id="services-heading" class="display-6 fw-light mb-4">
+              Our Transportation <span class="text-warning fw-normal display-3">Highlights</span>
+            </h2>
+            <p class="lead text-muted mx-auto fs-2" style="max-width: 800px;">
               Experience luxury, convenience, and personalized service that transforms your Orlando travel from stressful to seamless.
             </p>
           </div>
-          
+
           <div class="col-12">
             <div class="row g-4">
               <div class="col-md-6 col-lg-3">
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <img src="{% static 'images/disney-castle.webp' %}" alt="Disney" width="42" height="42">
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style="width: 60px;
+                                   height: 60px">
+                        <img src="{% static 'images/disney-castle.webp' %}"
+                             alt="Disney"
+                             width="42"
+                             height="42">
                       </span>
                     </div>
-                    <h3 class="h5 mb-3 fw-bold">Disney Resort Hotels</h3>
+                    <h3 class="h5 mb-3 fw-normal fs-3">Disney Resort Hotels</h3>
                     <p class="text-muted">
                       One-way or round-trip transportation to ALL Disney hotels and resorts. Seamless door-to-door service with personalized meet and greet.
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div class="col-md-6 col-lg-3">
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <img src="{% static 'images/universal-studios.webp' %}" alt="Disney" width="42" height="42">
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style="width: 60px;
+                                   height: 60px">
+                        <img src="{% static 'images/universal-studios.webp' %}"
+                             alt="Disney"
+                             width="42"
+                             height="42">
                       </span>
                     </div>
-                    <h3 class="h5 mb-3 fw-bold">Universal Orlando Hotels</h3>
+                    <h3 class="h5 mb-3 fw-normal fs-3">Universal Orlando Hotels</h3>
                     <p class="text-muted">
                       Reliable transportation to ALL Universal Orlando hotels, resorts, and on-site accommodations. Skip shared shuttles and arrive directly.
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div class="col-md-6 col-lg-3">
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <img src="{% static 'images/cruise.webp' %}" alt="Disney" width="42" height="42">
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style="width: 60px;
+                                   height: 60px">
+                        <img src="{% static 'images/cruise.webp' %}"
+                             alt="Disney"
+                             width="42"
+                             height="42">
                       </span>
                     </div>
-                    <h3 class="h5 mb-3 fw-bold">Cruise Terminal Shuttles</h3>
+                    <h3 class="h5 mb-3 fw-normal fs-3">Cruise Terminal Shuttles</h3>
                     <p class="text-muted">
                       Punctual and comfortable transportation to Port Canaveral. Direct service ensuring you arrive relaxed and on time for your cruise departure.
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div class="col-md-6 col-lg-3">
                 <div class="card h-100 border-0 shadow-sm hover-elevate">
                   <div class="card-body text-center">
                     <div class="mb-3">
-                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <img src="{% static 'images/groceries.webp' %}" alt="Disney" width="42" height="42">
+                      <span class="badge bg-warning bg-opacity-75 p-3 rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style="width: 60px;
+                                   height: 60px">
+                        <img src="{% static 'images/groceries.webp' %}"
+                             alt="Disney"
+                             width="42"
+                             height="42">
                       </span>
                     </div>
-                    <h3 class="h5 mb-3 fw-bold">Complimentary Grocery Stops</h3>
+                    <h3 class="h5 mb-3 fw-normal fs-3">Complimentary Grocery Stops</h3>
                     <p class="text-muted">
                       Free 20-minute stop at Publix when leaving the airport. Stock up on vacation essentials without additional time or cost.
                     </p>
@@ -134,9 +159,10 @@
               </div>
             </div>
           </div>
-          
+
           <div class="col-12 text-center mt-5">
-            <a href="{% url 'services' %}" class="btn bg-button-dark btn-lg px-5 py-3 text-white">
+            <a href="{% url 'services' %}"
+               class="btn bg-button-dark btn-lg px-5 py-3 text-light shadow-lg">
               Explore All Our Services <i class="bi bi-arrow-right ms-2"></i>
             </a>
           </div>
@@ -145,144 +171,165 @@
     </section>
 
     <!-- Our Fleet Section -->
-    <section class="fleet py-5 bg-dark bg-opacity-10" id="fleet" aria-labelledby="fleet-heading">
+    <section class="fleet py-5 bg-secondary bg-opacity-10"
+             id="fleet"
+             aria-labelledby="fleet-heading">
       <div class="container px-5 my-5">
         <div class="text-center mb-5">
-          <h2 id="fleet-heading" class="fw-bolder">Our Premium Orlando Fleet <span class="text-warning">Highlights</span></h2>
-          <p class="lead fw-normal text-muted mb-0">
-            Discover premium comfort: Luxury vehicles tailored for every Orlando adventure.
-          </p>
+          <h2 id="fleet-heading" class="fw-normal">
+            Our Premium Orlando Fleet <span class="fw-bolder text-warning px-2 py-1 fs-2";>Highlights</span>
+          </h2>
+          <blockquote class="blockquote">
+            <p class="mb-0">Discover premium comfort: Luxury vehicles tailored for every Orlando adventure.</p>
+          </blockquote>
         </div>
         <div class="row row-cols-1 row-cols-md-4 g-4">
 
-    <!-- Executive Town Car -->
-    <div class="col">
-      <div class="card h-100 shadow border-0 hover-elevate">
-        <img class="card-img-top"
-            src="{% static 'images/towncar.webp' %}"
-            alt="Executive Sedan for Orlando Airport Transportation"
-            width="300"
-            height="200"
-            loading="lazy" />
-        <div class="card-body p-4">
-          <div class="badge bg-warning rounded-pill text-dark mb-2">Executive Sedan</div>
-          <h3 class="h5 card-title mb-3"><strong>Towncar Service</strong></h3>
-          <p class="card-text mb-3">Perfect for couples and small families visiting Orlando hotels.</p>
-          <div class="mb-3">
-            <strong class="d-block mb-2">Insights:</strong>
-            <ul class="list-unstyled">
-              <li class="mb-2">
-                <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 passengers
-              </li>
-              <li class="mb-2">
-                <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 suitcases
-              </li>
-              <li class="mb-2">
-                <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 1 car seat
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-          <div class="d-flex flex-column">
-            <div class="pricing-info mb-3">
-              <div class="fw-bold fs-5">$195 Round Trip</div>
-              <div class="text-muted">MCO to Disney/Universal Hotels</div>
+          <!-- Executive Town Car -->
+          <div class="col">
+            <div class="card h-100 shadow border-0 hover-elevate">
+              <img class="card-img-top"
+                   src="{% static 'images/towncar.webp' %}"
+                   alt="Executive Sedan for Orlando Airport Transportation"
+                   width="300"
+                   height="200"
+                   loading="lazy" />
+              <div class="card-body p-4">
+                <div class="badge bg-button-dark rounded-pill text-light mb-2">Executive Sedan</div>
+                <h3 class="card-title mb-3 fs-3 fw-light">
+                  <strong>Towncar Service</strong>
+                </h3>
+                <p class="card-text mb-3">Perfect for couples and small families visiting Orlando hotels.</p>
+                <div class="mb-3">
+                  <strong class="d-block">Insights:</strong>
+                  <ul class="list-unstyled">
+                    <li class="mb-2" style="font-size:1 rem;">
+                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 4 passengers
+                    </li>
+                    <li class="mb-2"style="font-size:1 rem;">
+                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"
+                         style="font-size:1 rem"></i>Up to 4 suitcases
+                    </li>
+                    <li class="mb-2" style="font-size:1rem;">
+                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 1 car seat
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                <div class="d-flex flex-column">
+                  <div class="pricing-info mb-3">
+                    <div class="fw-bold fs-5">$195 Round Trip</div>
+                    <div class="text-muted">MCO to Disney/Universal Hotels</div>
+                  </div>
+                  <div class="d-flex flex-column gap-2">
+                    <a href="{% url 'rates' %}"
+                       class="btn bg-button-dark text-warning rounded shadow-lg">Reserve Now</a>
+                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="d-flex flex-column gap-2">
-              <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
-              <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Minivan -->
-    <div class="col">
-      <div class="card h-100 shadow border-0 hover-elevate">
-        <img class="card-img-top"
-            src="{% static 'images/minivan.webp' %}"
-            alt="Mini Van for Orlando Airport Transportation"
-            width="300"
-            height="200"
-            loading="lazy" />
-        <div class="card-body p-4">
-          <div class="badge bg-warning rounded-pill text-dark mb-2">Comfortable Mini Van</div>
-          <h3 class="h5 card-title mb-3"><strong>Mini Van Service</strong></h3>
-          <p class="card-text mb-3">Perfect for families of up to 5 passengers.</p>
-          <div class="mb-3">
-            <strong class="d-block mb-2">Insights:</strong>
-            <ul class="list-unstyled">
-              <li class="mb-2">
-                <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 5 passengers
-              </li>
-              <li class="mb-2">
-                <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 5 suitcases
-              </li>
-              <li class="mb-2">
-                <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 2 car seats
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-          <div class="d-flex flex-column">
-            <div class="pricing-info mb-3">
-              <div class="fw-bold fs-5">$230 Round Trip</div>
-              <div class="text-muted">MCO to Disney/Universal Hotels</div>
+          <!-- Minivan -->
+          <div class="col">
+            <div class="card h-100 shadow border-0 hover-elevate">
+              <img class="card-img-top"
+                   src="{% static 'images/minivan.webp' %}"
+                   alt="Mini Van for Orlando Airport Transportation"
+                   width="300"
+                   height="200"
+                   loading="lazy" />
+              <div class="card-body p-4">
+                <div class="badge bg-button-dark rounded-pill text-light mb-2">Comfortable Mini Van</div>
+                <h3 class="h5 fw-light card-title mb-3">
+                  <strong>Mini Van Service</strong>
+                </h3>
+                <p class="card-text mb-3">Perfect for families of up to 5 passengers.</p>
+                <div class="mb-3">
+                  <strong class="d-block mb-2">Insights:</strong>
+                  <ul class="list-unstyled">
+                    <li class="mb-2">
+                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 5 passengers
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 5 suitcases
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 2 car seats
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                <div class="d-flex flex-column">
+                  <div class="pricing-info mb-3">
+                    <div class="fw-bold fs-5">$230 Round Trip</div>
+                    <div class="text-muted">MCO to Disney/Universal Hotels</div>
+                  </div>
+                  <div class="d-flex flex-column gap-2">
+                    <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
+                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="d-flex flex-column gap-2">
-              <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
-              <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Luxury SUV -->
-    <div class="col">
-      <div class="card h-100 shadow border-0 hover-elevate">
-        <img class="card-img-top"
-            src="{% static 'images/suburban.webp' %}"
-            alt="Luxury SUV for Orlando Hotel Transfers"
-            width="300"
-            height="200"
-            loading="lazy" />
-        <div class="card-body p-4">
-          <div class="badge bg-warning rounded-pill text-dark mb-2">Luxury SUV</div>
-          <h3 class="h5 card-title mb-3"><strong>Luxury SUV Service</strong></h3>
-          <p class="card-text mb-3">Spacious transportation for larger families and groups.</p>
-          <div class="mb-3">
-            <strong class="d-block mb-2">Insights:</strong>
-            <ul class="list-unstyled">
-              <li class="mb-2">
-                <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 6 passengers
-              </li>
-              <li class="mb-2">
-                <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 6 suitcases
-              </li>
-              <li class="mb-2">
-                <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 car seats
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-          <div class="d-flex flex-column">
-            <div class="pricing-info mb-3">
-              <div class="fw-bold fs-5">$275 Round Trip</div>
-              <div class="text-muted">MCO to Disney/Universal Hotels</div>
+          <!-- Luxury SUV -->
+          <div class="col">
+            <div class="card h-100 shadow border-0 hover-elevate">
+              <img class="card-img-top"
+                   src="{% static 'images/suburban.webp' %}"
+                   alt="Luxury SUV for Orlando Hotel Transfers"
+                   width="300"
+                   height="200"
+                   loading="lazy" />
+              <div class="card-body p-4">
+                <div class="badge bg-button-dark rounded-pill text-light mb-2">Luxury SUV</div>
+                <h3 class="fw-light h5 card-title mb-3">
+                  <strong>Luxury SUV Service</strong>
+                </h3>
+                <p class="card-text mb-3">Spacious transportation for larger families and groups.</p>
+                <div class="mb-3">
+                  <strong class="d-block mb-2">Insights:</strong>
+                  <ul class="list-unstyled">
+                    <li class="mb-2">
+                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 6 passengers
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 6 suitcases
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 4 car seats
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                <div class="d-flex flex-column">
+                  <div class="pricing-info mb-3">
+                    <div class="fw-bold fs-5">$275 Round Trip</div>
+                    <div class="text-muted">MCO to Disney/Universal Hotels</div>
+                  </div>
+                  <div class="d-flex flex-column gap-2">
+                    <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
+                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="d-flex flex-column gap-2">
-              <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
-              <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
 
           <!-- Passenger Van -->
           <div class="col">
@@ -294,25 +341,28 @@
                    height="200"
                    loading="lazy" />
               <div class="card-body p-4">
-                <div class="badge bg-warning rounded-pill text-dark mb-2">Group Transport</div>
-                <h3 class="h5 card-title mb-3"><strong>Van Service</strong></h3>
-                <p class="card-text mb-0">
-                  Premium group transportation for larger parties.
-                </p>
-              <div class="mb-3">
-                <strong class="d-block mb-2">Insights:</strong>
-                <ul class="list-unstyled">
-                  <li class="mb-2">
-                    <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 10 passengers
-                  </li>
-                  <li class="mb-2">
-                    <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 11 suitcases
-                  </li>
-                  <li class="mb-2">
-                    <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 car seats
-                  </li>
-                </ul>
-              </div>
+                <div class="badge bg-button-dark rounded-pill text-light mb-3 mt-2">Group Transport</div>
+                <h3 class="fw-light h5 card-title mb-3">
+                  <strong>Van Service</strong>
+                </h3>
+                <p class="card-text mb-0">Premium group transportation for larger parties.</p>
+                <div class="mb-3">
+                  <strong class="d-block mb-2">Insights:</strong>
+                  <ul class="list-unstyled">
+                    <li class="mb-2">
+                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 10 passengers
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 11 suitcases
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                         aria-hidden="true"></i>Up to 4 car seats
+                    </li>
+                  </ul>
+                </div>
               </div>
               <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
                 <div class="d-flex flex-column">
@@ -321,8 +371,10 @@
                     <div class="text-muted">MCO to Disney/Universal Hotels</div>
                   </div>
                   <div class="d-flex flex-column gap-2">
-                    <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
-                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                    <a href="{% url 'rates' %}"
+                       class="btn btn-md bg-button-dark text-warning rounded shadow-sm">Reserve Now</a>
+                    <a href="{% url 'services' %}"
+                       class="btn btn-md bg-button-dark text-white">More Details</a>
                   </div>
                 </div>
               </div>
@@ -336,7 +388,9 @@
         <div class="card shadow border-0 p-4 bg-secondary bg-opacity-10">
           <div class="card-body">
             <h3 class="fw-bold mb-3">Not Sure Which Vehicle Is Right For You?</h3>
-            <p class="lead mb-4">We'll help you choose the perfect transportation for your Orlando vacation needs and group size.</p>
+            <p class="lead mb-4">
+              We'll help you choose the perfect transportation for your Orlando vacation needs and group size.
+            </p>
             <a href="#" class="btn bg-button-dark text-white btn-lg px-5">
               Compare Our Vehicles <i class="bi bi-arrow-right ms-2"></i>
             </a>
@@ -346,7 +400,9 @@
     </section>
 
     <!-- Complementary Services Section -->
-    <section class="benefits py-5 bg-light" id="complimentary-services" aria-labelledby="services-benefits-heading">
+    <section class="benefits py-5 bg-light"
+             id="complimentary-services"
+             aria-labelledby="services-benefits-heading">
       <div class="container px-4 py-5">
         <div class="row justify-content-center mb-5">
           <div class="col-lg-8 text-center">
@@ -356,7 +412,7 @@
             <p class="lead">Enjoy these valuable extras at no additional cost with Grayson Towncar</p>
           </div>
         </div>
-        
+
         <div class="row g-4">
           <!-- MCO Meet & Greet -->
           <div class="col-md-6 col-lg-4 mb-4">
@@ -364,22 +420,39 @@
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
                   <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style="width: 48px; height: 48px; padding: 10px;">
-                    <img src="{% static 'images/handshake.webp' %}" alt="MCO Meet & Greet" class="img-fluid">
+                       style="width: 48px;
+                              height: 48px;
+                              padding: 10px">
+                    <img src="{% static 'images/handshake.webp' %}"
+                         alt="MCO Meet & Greet"
+                         class="img-fluid">
                   </div>
                   <h3 class="h5 fw-bold mb-0">
-                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#mco-description" aria-expanded="false" aria-controls="mco-description" role="button">
+                    <span class="d-block d-md-none"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#mco-description"
+                          aria-expanded="false"
+                          aria-controls="mco-description"
+                          role="button">
                       MCO Meet & Greet <i class="bi bi-chevron-down small ms-2"></i>
                     </span>
                     <span class="d-none d-md-block">MCO Meet & Greet</span>
                   </h3>
                 </div>
                 <div id="mco-description" class="collapse show-md-up">
-                  <p class="mb-0"><strong>Professional</strong> drivers that:</p>
+                  <p class="mb-0">
+                    <strong>Professional</strong> drivers that:
+                  </p>
                   <ul class="list-unstyled mt-2 mb-0">
-                    <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Meet you inside MCO with personalized signs</li>
-                    <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Help you with luggage</li>
-                    <li><i class="bi bi-check-circle-fill text-secondary me-2"></i> Facilitate car seat installation</li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Meet you inside MCO with personalized signs
+                    </li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Help you with luggage
+                    </li>
+                    <li>
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Facilitate car seat installation
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -392,23 +465,40 @@
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
                   <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style="width: 48px; height: 48px; padding: 10px;">
-                    <img src="{% static 'images/carseat.webp' %}" alt="Free Car Seats" class="img-fluid">
+                       style="width: 48px;
+                              height: 48px;
+                              padding: 10px">
+                    <img src="{% static 'images/carseat.webp' %}"
+                         alt="Free Car Seats"
+                         class="img-fluid">
                   </div>
                   <h3 class="h5 fw-bold mb-0">
-                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#car-seat-description" aria-expanded="false" aria-controls="car-seat-description" role="button">
+                    <span class="d-block d-md-none"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#car-seat-description"
+                          aria-expanded="false"
+                          aria-controls="car-seat-description"
+                          role="button">
                       Free Car Seats <i class="bi bi-chevron-down small ms-2"></i>
                     </span>
                     <span class="d-none d-md-block">Free Car Seats</span>
                   </h3>
                 </div>
                 <div id="car-seat-description" class="collapse show-md-up">
-                  <p class="mb-0">Our <strong>carseat</strong> benefits: </p>
-                    <ul class="list-unstyled mt-2 mb-0">
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> No extra charge for car seats (booster, front-facing or rear-facing carseats)</li>
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Simply request during booking</li>
-                      <li><i class="bi bi-check-circle-fill text-secondary me-2"></i> Professional installation by our drivers</li>
-                    </ul>
+                  <p class="mb-0">
+                    Our <strong>carseat</strong> benefits:
+                  </p>
+                  <ul class="list-unstyled mt-2 mb-0">
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> No extra charge for car seats (booster, front-facing or rear-facing carseats)
+                    </li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Simply request during booking
+                    </li>
+                    <li>
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Professional installation by our drivers
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -420,22 +510,37 @@
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
                   <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style="width: 48px; height: 48px; padding: 10px;">
-                    <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop" class="img-fluid">
+                       style="width: 48px;
+                              height: 48px;
+                              padding: 10px">
+                    <img src="{% static 'images/groceries.webp' %}"
+                         alt="Grocery Stop"
+                         class="img-fluid">
                   </div>
                   <h3 class="h5 fw-bold mb-0">
-                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#grocery-description" aria-expanded="false" aria-controls="grocery-description" role="button">
+                    <span class="d-block d-md-none"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#grocery-description"
+                          aria-expanded="false"
+                          aria-controls="grocery-description"
+                          role="button">
                       Grocery Stop <i class="bi bi-chevron-down small ms-2"></i>
                     </span>
                     <span class="d-none d-md-block">Grocery Stop</span>
                   </h3>
                 </div>
                 <div id="grocery-description" class="collapse show-md-up">
-                  <p class="mb-0">Convenient <strong>grocery stops</strong> : </p>
-                    <ul class="list-unstyled mt-2 mb-0">
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Complimentary 20-minute grocery stop on the way to your destination</li>
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Simply request during booking</li>
-                    </ul>
+                  <p class="mb-0">
+                    Convenient <strong>grocery stops</strong> :
+                  </p>
+                  <ul class="list-unstyled mt-2 mb-0">
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Complimentary 20-minute grocery stop on the way to your destination
+                    </li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Simply request during booking
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -447,23 +552,40 @@
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
                   <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style="width: 48px; height: 48px; padding: 10px;">
-                    <img src="{% static 'images/driver.webp' %}" alt="Professional Drivers" class="img-fluid">
+                       style="width: 48px;
+                              height: 48px;
+                              padding: 10px">
+                    <img src="{% static 'images/driver.webp' %}"
+                         alt="Professional Drivers"
+                         class="img-fluid">
                   </div>
                   <h3 class="h5 fw-bold mb-0">
-                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#driver-description" aria-expanded="false" aria-controls="driver-description" role="button">
+                    <span class="d-block d-md-none"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#driver-description"
+                          aria-expanded="false"
+                          aria-controls="driver-description"
+                          role="button">
                       Professional Drivers <i class="bi bi-chevron-down small ms-2"></i>
                     </span>
                     <span class="d-none d-md-block">Professional Drivers</span>
                   </h3>
                 </div>
                 <div id="driver-description" class="collapse show-md-up">
-                  <p class="mb-0"><strong>Expert, reliable</strong> drivers: </p>
-                    <ul class="list-unstyled mt-2 mb-0">
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Trained and professional chauffeurs</li>
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Courteous service and attention to your needs</li>
-                      <li><i class="bi bi-check-circle-fill text-secondary me-2"></i> Proactive communication before and during your journey</li>
-                    </ul>
+                  <p class="mb-0">
+                    <strong>Expert, reliable</strong> drivers:
+                  </p>
+                  <ul class="list-unstyled mt-2 mb-0">
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Trained and professional chauffeurs
+                    </li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Courteous service and attention to your needs
+                    </li>
+                    <li>
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Proactive communication before and during your journey
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -475,22 +597,37 @@
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
                   <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style="width: 48px; height: 48px; padding: 10px;">
-                    <img src="{% static 'images/247.webp' %}" alt="24/7 Availability" class="img-fluid">
+                       style="width: 48px;
+                              height: 48px;
+                              padding: 10px">
+                    <img src="{% static 'images/247.webp' %}"
+                         alt="24/7 Availability"
+                         class="img-fluid">
                   </div>
                   <h3 class="h5 fw-bold mb-0">
-                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#availability-description" aria-expanded="false" aria-controls="availability-description" role="button">
+                    <span class="d-block d-md-none"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#availability-description"
+                          aria-expanded="false"
+                          aria-controls="availability-description"
+                          role="button">
                       24/7 Availability <i class="bi bi-chevron-down small ms-2"></i>
                     </span>
                     <span class="d-none d-md-block">24/7 Availability</span>
                   </h3>
                 </div>
                 <div id="availability-description" class="collapse show-md-up">
-                  <p class="mb-0">Our <strong>24/7</strong> services: </p>
-                    <ul class="list-unstyled mt-2 mb-0">
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Real-time flight monitoring to adjust for delays or early arrivals</li>
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Always ready when you need us, regardless of time</li>
-                    </ul>
+                  <p class="mb-0">
+                    Our <strong>24/7</strong> services:
+                  </p>
+                  <ul class="list-unstyled mt-2 mb-0">
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Real-time flight monitoring to adjust for delays or early arrivals
+                    </li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Always ready when you need us, regardless of time
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -502,35 +639,52 @@
               <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3">
                   <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
-                      style="width: 48px; height: 48px; padding: 10px;">
-                    <img src="{% static 'images/offer.webp' %}" alt="Roundtrip Discount" class="img-fluid">
+                       style="width: 48px;
+                              height: 48px;
+                              padding: 10px">
+                    <img src="{% static 'images/offer.webp' %}"
+                         alt="Roundtrip Discount"
+                         class="img-fluid">
                   </div>
                   <h3 class="h5 fw-bold mb-0">
-                    <span class="d-block d-md-none" data-bs-toggle="collapse" data-bs-target="#discount-description" aria-expanded="false" aria-controls="discount-description" role="button">
+                    <span class="d-block d-md-none"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#discount-description"
+                          aria-expanded="false"
+                          aria-controls="discount-description"
+                          role="button">
                       Roundtrip Discount <i class="bi bi-chevron-down small ms-2"></i>
                     </span>
                     <span class="d-none d-md-block">Roundtrip Discount</span>
                   </h3>
                 </div>
                 <div id="discount-description" class="collapse show-md-up">
-                  <p class="mb-0">Our <strong>roundtrip</strong> benefits: </p>
-                    <ul class="list-unstyled mt-2 mb-0">
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Special discount when booking both arrival and departure transfers</li>
-                      <li class="mb-1"><i class="bi bi-check-circle-fill text-secondary me-2"></i> Same premium service on both legs of your journey</li>
-                    </ul>
+                  <p class="mb-0">
+                    Our <strong>roundtrip</strong> benefits:
+                  </p>
+                  <ul class="list-unstyled mt-2 mb-0">
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Special discount when booking both arrival and departure transfers
+                    </li>
+                    <li class="mb-1">
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Same premium service on both legs of your journey
+                    </li>
+                  </ul>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-      <!-- CTA Button -->
-      <div class="text-center mt-4">
-        <div class="d-flex justify-content-center gap-3">
-          <a href="{% url 'services' %}" class="btn bg-button-dark text-white btn-lg px-4 py-2" >Our Services</a>
-          <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning btn-lg px-4 py-2">Book Now</a>
+        <!-- CTA Button -->
+        <div class="text-center mt-4">
+          <div class="d-flex justify-content-center gap-3">
+            <a href="{% url 'services' %}"
+               class="btn bg-button-dark text-white btn-lg px-4 py-2">Our Services</a>
+            <a href="{% url 'rates' %}"
+               class="btn bg-button-dark text-warning btn-lg px-4 py-2">Book Now</a>
+          </div>
         </div>
-      </div>
       </div>
     </section>
     {% include "call-to-action.html" %}

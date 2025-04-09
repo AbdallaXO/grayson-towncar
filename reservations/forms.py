@@ -64,27 +64,8 @@ class CustomerForm(forms.ModelForm):
 
         return obj
 
-
 class ReservationForm(forms.ModelForm):
     """Form for reservation details"""
-
-    class Meta:
-        model = Reservation
-        fields = [
-            "passenger_count",
-            "luggage_count",
-            "store_stop",
-            "special_requests",
-            "need_carseats",
-            "ff_carseats",
-            "rf_carseats",
-            "booster_seats",
-        ]
-
-
-class ReservationForm(forms.ModelForm):
-    """Form for reservation details"""
-
     class Meta:
         model = Reservation
         fields = [
@@ -112,7 +93,7 @@ class ReservationForm(forms.ModelForm):
                     "placeholder": "Any special requests?",
                 }
             ),
-            "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input","id": "id_need_carseats"  
+            "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input","id": "id_need_carseats"  # critical for JS
 }),
             "rf_carseats": forms.NumberInput(attrs={"class": "form-control"}),
             "ff_carseats": forms.NumberInput(attrs={"class": "form-control"}),
@@ -206,7 +187,7 @@ class FlightForm(forms.ModelForm):
 
     class Meta:
         model = Flight
-        fields = ["flight_type","airline", "flight_number"]
+        fields = ["airline", "flight_number"]
         widgets = {
             "airline": forms.TextInput(
                 attrs={"class": "form-control", "list": "airlines"}
