@@ -6,9 +6,6 @@
   {% load seo_tags %}
   {% structured_data additional_data=structured_data %}
 
-
-
-  <link rel="stylesheet" href="{% static 'css/about-us-elements.css' %}">
   <main class="flex-shrink-0">
 
     <!-- Header -->
@@ -34,7 +31,8 @@
               Peace of Mind in Every Journey.
             </h1>
             <p class="lead mb-5 text-white">
-              At Grayson Towncar, we believe transportation is more than just a ride—it's the first chapter of your Orlando adventure. Born from a passion to transform travel experiences, we craft journeys that are seamless, comfortable, and magical from start to finish.
+              <strong> At Grayson Towncar, we believe transportation is more than just a ride—it's the first chapter of your Orlando adventure. 
+              Born from a passion to transform travel experiences, we craft journeys that are seamless, comfortable, and magical from start to finish.</strong>
             </p>
             <div class="text-center mb-4">
               <a href="#scroll-target" class="text-decoration-none">
@@ -74,7 +72,7 @@
             <!-- Our Story Card -->
             <div class="card border-0 shadow-sm mb-4">
               <div class="card-body p-4">
-                <h4 class="fw-bold text-warning mb-3">Our Story</h4>
+                <h4 class="fw-bold text-black mb-3">Our Story</h4>
                 <p class="mb-0">We started Grayson Towncar with a clear purpose: to <strong>redefine what professional 
                   transportation should feel like.</strong> Built on values of care, precision, and personal service, 
                   our focus is creating exceptional journeys for every guest, every time.</p>
@@ -125,7 +123,7 @@
             
             <!-- CTA section -->
             <div class="d-flex justify-content-end mt-4">
-              <a href="#services" class="btn btn-dark bg-opacity-75 px-4 py-2 rounded-pill shadow-sm text-warning">Experience the Difference</a>
+              <a href="{% url 'rates' %}" class="btn custom-button-bg px-4 py-2 rounded-pill shadow-sm text-black"><strong>Experience the Difference</strong></a>
             </div>
           </div>
         </div>
@@ -164,13 +162,13 @@
                 <p class="small mb-3">We share real-life moments from our journeys, behind-the-scenes glimpses, and authentic experiences of families enjoying our services.</p>
                   <div class="d-flex align-items-center flex-column">
                     <div class="d-flex justify-content-center gap-3 mt-2 mx-auto">
-                      <a href="#" class="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-50" style="width: 40px; height: 40px;">
+                      <a href="https://www.instagram.com/graysontowncar" class="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-50" style="width: 40px; height: 40px;">
                         <i class="bi bi-instagram text-dark fs-5"></i>
                       </a>
-                      <a href="#" class="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-50" style="width: 40px; height: 40px;">
+                      <a href="https://www.facebook.com/profile.php?id=61574468855996" class="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-50" style="width: 40px; height: 40px;">
                         <i class="bi bi-facebook text-dark fs-5"></i>
                       </a>
-                      <a href="#" class="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-50" style="width: 40px; height: 40px;">
+                      <a href="https://x.com/GraysonTowncar" class="d-flex align-items-center justify-content-center rounded-circle bg-warning bg-opacity-50" style="width: 40px; height: 40px;">
                         <i class="bi bi-twitter-x text-dark fs-5"></i>
                       </a>
                     </div>
@@ -194,7 +192,7 @@
                   vehicles worthy of our guests. Each car in our collection is carefully selected for comfort, 
                   maintained meticulously, and equipped with amenities that enhance your journey.</p>
                 <div class="text-end mt-3">
-                  <a href="#" class="btn btn-dark btn-sm rounded-pill text-warning">Explore Our Fleet</a>
+                  <a href="{% url 'rates' %}" class="btn custom-button-bg btn-sm rounded-pill text-black"><strong>Explore Our Fleet</strong></a>
                 </div>
               </div>
             </div>
@@ -237,7 +235,7 @@
                 </div>
                 
                 <div class="text-end mt-3">
-                  <a href="#" class="btn btn-dark btn-sm rounded-pill text-warning">Explore Our Services</a>
+                  <a href="{% url 'services' %}" class="btn custom-button-bg btn-sm rounded-pill text-black"><strong>Explore Our Services</strong></a>
                 </div>
               </div>
             </div>
@@ -247,7 +245,7 @@
     </section>
 
 
-    <!-- Additional value section -->
+    <!-- About Section three - Our Orlando Journey Map -->
     <section class="py-5 bg-light">
       <div class="container px-5 my-5">
         <!-- Section header -->
@@ -267,7 +265,7 @@
             <div class="card border-0 shadow-sm mb-4">
               <img class="card-img-top" src="{% static 'images/disney-fireworks.webp' %}" alt="Central Florida Destinations">
               <div class="card-body">
-                <h4 class="card-title fw-bold text-warning">The Roads We've Mastered</h4>
+                <h4 class="card-title fw-bold text-black">The Roads We've Mastered</h4>
                 <p class="card-text">We started with a simple goal: to move people with care. Along the way, we came to know not just the roads, but the heartbeat of Orlando.</p>
               </div>
             </div>
@@ -276,7 +274,7 @@
             <div class="card border-0 shadow-sm">
               <div class="card-body p-4 text-center">
                 <p class="mb-4">Continue your Grayson story by exploring the vehicles that make it all possible.</p>
-                <a href="#" class="btn btn-dark rounded-pill px-4 py-2 text-warning">Explore Fleet</a>
+                <a href="{% url 'rates' %}" class="btn custom-button-bg rounded-pill px-4 py-2 text-black"><strong>Explore Fleet</strong></a>
               </div>
             </div>
           </div>
@@ -364,116 +362,166 @@
     </section>
 
 
-<!-- Our Commitment to You section -->
-<section class="py-5">
-  <div class="container text-center">
-    <h2 class="display-4 fw-bold mb-3">Our Commitment to You</h2>
-    <p class="lead fw-normal text-muted mb-5">
-      More than promises—these are the guarantees that define every Grayson Towncar experience.
-    </p>
+    <!-- About Section four - Our Commitment to You  -->
+    <section class="py-5">
+      
+      <div class="container text-center">
+        <h2 class="display-4 fw-bold mb-3">Our Commitment to You</h2>
+        <p class="fst-italic mb-2">More than promises—these are the guarantees that define every Grayson Towncar experience.</p>
+        <div class="border-bottom border-warning border-2 w-25 mx-auto mb-5"></div>
 
-    <!-- Top Row -->
-    <div class="row justify-content-center mb-4">
-      <div class="col-12 col-md-4 mb-3">
-        <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
-          <div class="card-body text-start">
-            <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-              <img src="{% static 'images/dollar.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
+        <!-- Top Row -->
+        <div class="row justify-content-center mb-4">
+          <div class="col-12 col-md-4 mb-3">
+            <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+              <div class="card-body text-start">
+                <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                  <img src="{% static 'images/dollar.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
+                </div>
+                <h5 class="fw-bold">Transparent Pricing</h5>
+                <p>No hidden fees or surprise charges. Clear, all-inclusive pricing upfront.</p>
+              </div>
             </div>
-            <h5 class="fw-bold">Transparent Pricing</h5>
-            <p>No hidden fees or surprise charges. Clear, all-inclusive pricing upfront.</p>
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+              <div class="card-body text-start">
+                <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                  <img src="{% static 'images/shield.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
+                </div>
+                <h5 class="fw-bold">Safety First, Always</h5>
+                <p>Rigorously inspected vehicles and professional drivers with clean safety records.</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-12 col-md-4 mb-3">
-        <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
-          <div class="card-body text-start">
-            <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-              <img src="{% static 'images/shield.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
-            </div>
-            <h5 class="fw-bold">Safety First, Always</h5>
-            <p>Rigorously inspected vehicles and professional drivers with clean safety records.</p>
+
+        <!-- Image Row -->
+        <!-- placeholder images for now -->
+        <div class="row justify-content-center mb-4">
+          <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <img src="{% static 'images/photo1.webp' %}" class="img-fluid rounded shadow-sm" alt="Photo 1">
+          </div>
+          <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <img src="{% static 'images/photo3.webp' %}" class="img-fluid rounded shadow-sm" alt="Photo 2">
+          </div>
+          <div class="col-12 col-sm-6 col-md-4 mb-3">
+            <img src="{% static 'images/photo2.webp' %}" class="img-fluid rounded shadow-sm" alt="Photo 3">
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Image Row -->
-     <!-- placeholder images for now -->
-    <div class="row justify-content-center mb-4">
-      <div class="col-12 col-sm-6 col-md-4 mb-3">
-        <img src="{% static 'images/services-bg.webp' %}" class="img-fluid rounded shadow-sm" alt="Photo 1">
-      </div>
-      <div class="col-12 col-sm-6 col-md-4 mb-3">
-        <img src="{% static 'images/why-grayson.webp' %}" class="img-fluid rounded shadow-sm" alt="Photo 2">
-      </div>
-      <div class="col-12 col-sm-6 col-md-4 mb-3">
-        <img src="{% static 'images/about-us-hero.webp' %}" class="img-fluid rounded shadow-sm" alt="Photo 3">
-      </div>
-    </div>
-
-    <!-- Bottom Row -->
-    <div class="row justify-content-center">
-      <div class="col-12 col-md-4 mb-3">
-        <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
-          <div class="card-body text-start">
-            <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-              <img src="{% static 'images/delay.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
+        <!-- Bottom Row -->
+        <div class="row justify-content-center">
+          <div class="col-12 col-md-4 mb-3">
+            <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+              <div class="card-body text-start">
+                <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                  <img src="{% static 'images/delay.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
+                </div>
+                <h5 class="fw-bold">Flexible Flight Tracking</h5>
+                <p>We monitor your flight and adjust pickup times for seamless service.</p>
+              </div>
             </div>
-            <h5 class="fw-bold">Flexible Flight Tracking</h5>
-            <p>We monitor your flight and adjust pickup times for seamless service.</p>
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
+              <div class="card-body text-start">
+                <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                  <img src="{% static 'images/family.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
+                </div>
+                <h5 class="fw-bold">Family Focused Service</h5>
+                <p>Child seats, extra luggage space, and stress-free travel for families.</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-12 col-md-4 mb-3">
-        <div class="card border-0 h-100 shadow-sm" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);">
-          <div class="card-body text-start">
-            <div class="rounded-circle bg-warning p-2 mb-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-              <img src="{% static 'images/family.webp' %}" alt="Dollar Icon" style="width: 100%; height: 100%; object-fit: contain;" />
-            </div>
-            <h5 class="fw-bold">Family Focused Service</h5>
-            <p>Child seats, extra luggage space, and stress-free travel for families.</p>
-          </div>
+
+        <!-- FAQ Button -->
+        <div class="text-center mt-4">
+          <a href="{% url 'faqs' %}" class="btn custom-button-bg text-black btn-lg px-4"><strong>View Frequently Asked Questions</strong></a>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- FAQ Button -->
-    <div class="text-center mt-4">
-      <a href="#" class="btn btn-primary bg-dark text-warning btn-lg px-4">View Frequently Asked Questions</a>
-    </div>
-  </div>
-</section>
-
-    <!-- Partner section -->
-    <section class="py-5 bg-light">
+    <!-- About Section five - Partnership  -->
+    <section class="py-5 custom-bg2">
       <div class="container px-5 my-5">
-        <div class="text-center">
-          <h2 class="fw-bolder">Partner With Grayson</h2>
-          <p class="lead fw-normal text-muted mb-5">
-            For travel agents and vacation planners looking for a reliable transportation partner in Orlando.
-          </p>
+        <!-- Elegant header with minimal styling -->
+        <div class="row mb-5">
+          <div class="col-lg-8 mx-auto text-center">
+            <h2 class="display-4 fw-bold mb-3">Partner With Grayson</h2>
+            <p class="fst-italic medium text-dark mb-2">Elevate your clients' Orlando experience with our premium transportation service.</p>
+            <div class="border-bottom border-warning border-2 w-25 mx-auto mb-4"></div>
+          </div>
         </div>
+        
         <div class="row gx-5 justify-content-center">
-          <div class="col-lg-8">
-            <div class="card border-0 shadow rounded-3 overflow-hidden">
+          <!-- Main partnership card -->
+          <div class="col-lg-10">
+            <div class="card border-0 shadow-sm mb-4">
+              <div class="card-body p-4">
+                <h4 class="fw-bold text-black mb-3">A Travel Partnership That Makes You Shine</h4>
+                <p class="mb-3">We understand that your reputation rests on every recommendation you make. That's why we've designed our travel agent program to be <strong>seamless, rewarding, and impressive</strong> for both you and your clients.</p>
+              </div>
+            </div>
+            
+            <!-- Three benefit cards in a row -->
+            <div class="row g-4">
+              <!-- Benefit 1 -->
+              <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm custom-bg-gold1">
+                  <div class="card-body text-center p-4">
+                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3" style="width: 60px; height: 60px;">
+                      <img src="{% static 'images/return.webp' %}" alt="Return Icon" class="img-fluid" style="width: 100%; height: 100%; object-fit: contain;">
+                    </div>
+                    <h5 class="fw-bold mb-3">Rewarding Returns</h5>
+                    <p class="mb-0">Unlock generous commission structures that grow with your bookings, turning client referrals into a valuable revenue stream.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Benefit 2 -->
+              <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm custom-bg-gold1">
+                  <div class="card-body text-center p-4">
+                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3" style="width: 60px; height: 60px;">
+                      <img src="{% static 'images/vip.webp' %}" alt="VIP Icon" class="img-fluid" style="width: 100%; height: 100%; object-fit: contain;">
+                    </div>
+                    <h5 class="fw-bold mb-3">VIP Treatment</h5>
+                    <p class="mb-0">Your clients enjoy priority booking privileges and personalized service that reflects your high standards of excellence.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Benefit 3 -->
+              <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm custom-bg-gold1">
+                  <div class="card-body text-center p-4">
+                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3" style="width: 60px; height: 60px;">
+                      <img src="{% static 'images/chat.webp' %}" alt="Communication Icon" class="img-fluid" style="width: 100%; height: 100%; object-fit: contain;">
+                    </div>
+                    <h5 class="fw-bold mb-3">Direct Connection</h5>
+                    <p class="mb-0">Enjoy a dedicated communication channel to our team, ensuring rapid responses and real-time updates on your clients' journeys.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Additional benefits card -->
+            <div class="card border-0 shadow-sm mt-4">
               <div class="card-body p-4">
                 <div class="row align-items-center">
-                  <div class="col-lg-6">
-                    <h3 class="fw-bold mb-3">The Partnership Advantage</h3>
+                  <div class="col-lg-7">
+                    <h4 class="fw-bold mb-3">The Grayson Advantage for Travel Experts</h4>
                     <ul class="list-unstyled mb-0">
-                      <li class="mb-2">✓ Competitive commission structure</li>
-                      <li class="mb-2">✓ Priority booking for your clients</li>
-                      <li class="mb-2">✓ Direct communication with me</li>
-                      <li class="mb-2">✓ Transparent updates</li>
-                      <li>✓ Specialized in Disney, Universal, and cruise connections</li>
+                      <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> <strong>Real-time tracking</strong> - Keep clients informed with live journey updates</li>
+                      <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> <strong>Destination mastery</strong> - Disney, Universal, and cruise expertise your clients will appreciate</li>
+                      <li class="mb-3"><i class="bi bi-check-circle-fill text-warning me-2"></i> <strong>Marketing materials</strong> - Custom collateral to enhance your client presentations</li>
                     </ul>
                   </div>
-                  <div class="col-lg-6 text-center">
-                    <a href="{% url 'partner' %}"
-                       class="subscribe-btn mt-4"
-                       style="text-decoration: none;
-                              display: inline-block">Become A Partner</a>
+                  <div class="col-lg-5 text-center">
+                    <p class="fst-italic mb-3">Join our growing network of travel professionals who trust Grayson with their most valued clients.</p>
+                    <a href="{% url 'partner' %}" class="btn custom-button-bg px-4 py-3 rounded-pill shadow-sm text-black"><strong>Become Our Partner</strong></a>
                   </div>
                 </div>
               </div>
@@ -482,5 +530,7 @@
         </div>
       </div>
     </section>
+
+
   </main>
 {% endblock %}
