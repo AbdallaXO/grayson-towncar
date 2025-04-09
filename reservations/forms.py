@@ -16,22 +16,34 @@ class CustomerForm(forms.ModelForm):
         fields = ["first_name", "last_name", "email", "phone_number", "zipcode"]
         widgets = {
             "first_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "First Name"}
+                attrs={"class": "form-control", "placeholder": "First Name", 'autocomplete':'given-name'}
             ),
             "last_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Last Name"}
+                attrs={"class": "form-control", "placeholder": "Last Name", "autocomplete":"family-name", }
             ),
             "email": forms.EmailInput(
                 attrs={
                     "class": "form-control",
                     "placeholder": "you@example.com",
                     "type": "email",
+                    "autocomplete":"email",
+
                 }
             ),
             "phone_number": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "555-555-5555"}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "555-555-5555",
+                    "required": True,
+                    "type": "tel",
+                    "autocomplete":"tel",
+                }
             ),
-            "zipcode": forms.TextInput(attrs={"class": "form-control"}),
+            "zipcode": forms.TextInput(attrs={"class": "form-control", 'autocomplete':'postal-code'}),
+        }
+        labels = {
+            "first_name": "First Name",
+            "last_name": "Last Name",
         }
 
     @override
@@ -100,7 +112,8 @@ class ReservationForm(forms.ModelForm):
                     "placeholder": "Any special requests?",
                 }
             ),
-            "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input","id": "id_need_carseats"  
+}),
             "rf_carseats": forms.NumberInput(attrs={"class": "form-control"}),
             "ff_carseats": forms.NumberInput(attrs={"class": "form-control"}),
             "booster_seats": forms.NumberInput(attrs={"class": "form-control"}),
@@ -113,7 +126,8 @@ class ReservationForm(forms.ModelForm):
             "rf_carseats": "Rear-Facing Carseats",
             "ff_carseats": "Forward-Facing Carseats",
             "booster_seats": "Boosters",
-            "need_carseats": "Need Carseats/Boosters?",
+            "need_carseats": "Traveling with children?",
+            "store_stop": "Need to stop at Publix on the way? (Optional)",
         }
 
     # Grab and store rate when the reservation is created.
@@ -142,6 +156,12 @@ class LegForm(forms.ModelForm):
     class Meta:
         model = Leg
         fields = ["pickup_date", "pickup_time", "pickup_location", "dropoff_location"]
+        labels={
+            'pickup_date':'Pickup Date',
+            'pickup_time':'Pickup Time',
+            'pickup_location':'Pickup Location',
+            'dropoff_location':'Drop-off Location'
+        }
         widgets = {
             "pickup_date": forms.DateInput(
                 attrs={"type": "date", "class": "form-control", "autocomplete": "off"}
@@ -155,15 +175,29 @@ class LegForm(forms.ModelForm):
             "dropoff_location": forms.TextInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "e.g Disney All Star Music",
+                    "placeholder": "e.g. Disney All Star Music",
                 }
             ),
+        }
+        error_messages = {
+            "pickup_date": {
+                "required": "Please enter a pickup date.",
+            },
+            "pickup_time": {
+                "required": "Please enter a pickup time.",
+            },
+            "pickup_location": {
+                "required": "Please enter a pickup location.",
+            },
+            "dropoff_location": {
+                "required": "Please enter a drop-off location.",
+            },
         }
 
     def clean_pickup_date(self):
         date = self.cleaned_data["pickup_date"]
         if date < timezone.now().date():
-            raise forms.ValidationError("Pick Up Date Cannot Be In The Past")
+            raise forms.ValidationError("Please Enter a Valid Pickup Date")
         return date
 
 
@@ -172,7 +206,7 @@ class FlightForm(forms.ModelForm):
 
     class Meta:
         model = Flight
-        fields = ["airline", "flight_number"]
+        fields = ["flight_type","airline", "flight_number"]
         widgets = {
             "airline": forms.TextInput(
                 attrs={"class": "form-control", "list": "airlines"}
@@ -198,6 +232,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "firstName",
                     "placeholder": "First Name",
+                    "autocomplete":"given-name",
                 }
             ),
             "last_name": forms.TextInput(
@@ -205,6 +240,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "lastName",
                     "placeholder": "Last Name",
+                    "autocomplete":"family-name",
                 }
             ),
             "email": forms.EmailInput(
@@ -212,6 +248,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "email",
                     "placeholder": "Your Email",
+                    "autocomplete":"email",
                 }
             ),
             "phone_number": forms.TextInput(
@@ -219,6 +256,8 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "phone",
                     "placeholder": "Your Phone Number",
+                    "autocomplete":"tel",
+
                 }
             ),
             "contact_method": forms.RadioSelect(

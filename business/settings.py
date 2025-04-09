@@ -76,7 +76,6 @@ OUR_APPS = [
 ]
 # Instead of a big list of all the apps seperated them by categories and combined them here
 INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "debug_toolbar.middleware.DebugToolbarMiddleware",

@@ -38,7 +38,7 @@ def validate_vehicle_constraints(vehicle, cleaned_data, add_error):
 
     if boosters > vehicle.boosters_max:
         add_error(
-            "boosters",
+            "booster_seats",
             f"{vehicle} allows a maximum of {vehicle.boosters_max} booster seat(s).",
         )
 
