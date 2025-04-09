@@ -49,7 +49,6 @@ def reservation_form(
             leg2_form,
             trip_type,
         )
-
         if forms_valid:
             customer = customer_form.save()
             reservation = reservation_form.save(
@@ -105,7 +104,6 @@ def reservation_form(
         "airlines": AIRLINES,
     }
     return render(request, "reservations/book_form.html", context)
-
 
 def about_us(request):
     structured_data = {
