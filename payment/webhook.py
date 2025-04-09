@@ -6,10 +6,10 @@ import logging
 from reservations.models import Reservation, Customer
 from .models import Payment
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-stripe.api_key = settings.STRIPE_SECRET_KEY
+stripe.api_key = "sk_test_51R6ae8R0WxX20o0RgyIBtSfBKONOcHLNN6UIiCrzI8nnpSnN4UYZ86NIgdAae1jfJ7TpLzJle6zmqC8GE0FwXEWm00olQ4YfjB"
 
 
 @csrf_exempt
@@ -18,7 +18,9 @@ def stripe_webhook(request):
     signature = request.META.get("HTTP_STRIPE_SIGNATURE")
     try:
         event = stripe.Webhook.construct_event(
-            payload, signature, settings.STRIPE_WEBHOOK_SECRET
+            payload,
+            signature,
+            "whsec_0574e9dcf5ec7ada3226013aef41045254ab9dd59b38a6aa61619947e8b2dcc3",
         )
     except ValueError as e:
         logger.error(f"Invalid Payload : {e}")
@@ -39,12 +41,16 @@ def stripe_webhook(request):
 
 def handle_checkout_session(session):
     reservation_id = session.get("metadata", {}).get("reservation_id")
+    logger.info(f"Processing checkout for reservation: {reservation_id}")
+    logger.info(f"Session details: {session}")
+
+    reservation_id = session.get("metadata", {}).get("reservation_id")
     if not reservation_id:
         logger.error("No Reservation ID in session metadata")
         return
     try:
         reservation = Reservation.objects.select_related("customer").get(
-            id=reservation_id
+            uuid=reservation_id
         )
         customer = reservation.customer
         # creating a record
@@ -52,12 +58,13 @@ def handle_checkout_session(session):
             reservation=reservation,
             customer=customer,
             stripe_checkout_id=session.get("id"),
+            amount=reservation.total_price,
+            payment_type="pay_later",
         )
 
         if session.get("mode") == "setup":
-            setup_intent_id = session.setup_intent
+            setup_intent_id = session.get("setup_intent")
             if setup_intent_id:
-                # Collect Setup intent to get payment method
                 setup_intent = stripe.SetupIntent.retrieve(setup_intent_id)
                 payment_method_id = setup_intent.payment_method
 
@@ -79,14 +86,16 @@ def handle_checkout_session(session):
 
         elif session.get("payment_status") == "paid":
             payment_intent = session.get("payment_intent")
+            if payment_intent:
+                full_payment_intent = stripe.PaymentIntent.retrieve(payment_intent)
+                payment_method_id = full_payment_intent.payment_method
+
+            save_card_to_customer(customer.stripe_customer_id, payment_method_id)
             payment.stripe_payment_intent_id = payment_intent
             payment.status = "paid"
             payment.save()
 
-            # Update Reservation
-            reservation.status = "Confirmed"
-            reservation.save()
-            # Can send an email confirmation Here
+        # update reservation status and email here
     except Reservation.DoesNotExist:
         logger.error(f"Reservation {reservation_id} Not Found")
     except Exception as e:
@@ -100,29 +109,46 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
     retrieve card details and save them Customer model.
     """
     try:
+        logger.info(f"Attempting to save card for Stripe customer ID: {customer_id}")
+        logger.info(f"Payment method ID: {payment_method_id}")
+
         # First, attach the payment method to the customer in Stripe
         stripe.PaymentMethod.attach(
             payment_method_id,
             customer=customer_id,
         )
+        logger.info("Payment method attached successfully")
 
         # Retrieve the payment method to get card details
         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
         card = payment_method.card
 
+        logger.info(f"Retrieved card details: {card}")
+        logger.info(f"Card brand: {card.brand}")
+        logger.info(f"Card last4: {card.last4}")
+        logger.info(f"Card exp month: {card.exp_month}")
+        logger.info(f"Card exp year: {card.exp_year}")
+
         # Find the customer in your database
         try:
             customer = Customer.objects.get(stripe_customer_id=customer_id)
+            logger.info(f"Found customer: {customer}")
+
             # Update customer card information
             customer.stripe_payment_method_id = payment_method.id
             customer.card_brand = card.brand
             customer.card_last4 = card.last4
             customer.card_exp_month = card.exp_month
             customer.card_exp_year = card.exp_year
-            customer.save()
 
-            # Log success
-            logger.info(f"Card saved for customer {customer_id} in database")
+            try:
+                customer.save()
+                logger.info("Customer card details saved successfully")
+                logger.info(f"Updated customer details: {customer.__dict__}")
+            except Exception as save_error:
+                logger.error(f"Error saving customer: {save_error}")
+                return False
+
             return True
         except Customer.DoesNotExist:
             logger.error(

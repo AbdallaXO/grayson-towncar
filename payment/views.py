@@ -5,26 +5,36 @@ from reservations.models import Reservation
 from .utils import get_or_create_stripe_customer
 from django.conf import settings
 from django.urls import reverse
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 # Ensure you're using environment variables in production
-stripe.api_key = settings.STRIPE_SECRET_KEY
+stripe.api_key = "sk_test_51R6ae8R0WxX20o0RgyIBtSfBKONOcHLNN6UIiCrzI8nnpSnN4UYZ86NIgdAae1jfJ7TpLzJle6zmqC8GE0FwXEWm00olQ4YfjB"
 
 
 def create_checkout_session(request, reservation_id):
-    """
-    Creates a Checkout Session for a User and a stripe customer object
-    and gives user the option to pay now or later then takes payment here or re-directs user
-    to save_card if they decide to save card for later"""
+    logger.info(f"Starting checkout session for reservation {reservation_id}")
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"POST data: {request.POST}")
+
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
+    logger.info(
+        f"Reservation details: ID={reservation.id}, Customer Email={reservation.customer.email}"
+    )
+
     stripe_customer = get_or_create_stripe_customer(reservation)
+    logger.info(f"Stripe Customer ID: {stripe_customer.id}")
+
     success_url = request.build_absolute_uri(reverse("payment_success"))
     cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
-    uuid = reservation.uuid
+    logger.info(f"Success URL: {success_url}")
+    logger.info(f"Cancel URL: {cancel_url}")
 
     if request.method == "POST":
-        # this will determine if its pay_now or save_card
         action = request.POST.get("action")
-        # if user is pre-paying
+        logger.info(f"Action selected: {action}")
+
         if action == "pay_now":
             try:
                 checkout_session = stripe.checkout.Session.create(
@@ -42,7 +52,7 @@ def create_checkout_session(request, reservation_id):
                         }
                     ],
                     mode="payment",
-                    success_url=success_url,  # can add a extrra query ?reservation_)id....),
+                    success_url=success_url,
                     cancel_url=cancel_url,
                     metadata={
                         "reservation_id": reservation.uuid,
@@ -54,12 +64,15 @@ def create_checkout_session(request, reservation_id):
                     payment_intent_data={"setup_future_usage": "off_session"},
                     client_reference_id=reservation.id,
                 )
-            except stripe.error.StripeError as e:
+                logger.info(f"Checkout session created: {checkout_session.id}")
+            except Exception as e:
+                logger.error(f"Stripe error creating checkout: {e}")
                 return render(request, "stripe/error.html", {"error": e})
 
             return redirect(checkout_session.url, code=303)
         elif action == "save_card":
-            return redirect("save_card_checkout", reservation_id=reservation.id)
+            logger.info(f"Redirecting to save card for reservation {reservation_id}")
+            return redirect("save_card_checkout", reservation_id=reservation.uuid)
 
     return render(request, "stripe/payment.html", {"reservation": reservation})
 
@@ -67,8 +80,11 @@ def create_checkout_session(request, reservation_id):
 def save_card(request, reservation_id):
     success_url = request.build_absolute_uri(reverse("payment_success"))
     cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
-    reservation = get_object_or_404(Reservation, id=reservation_id)
-    stripe_customer = get_or_create_stripe_customer(reservation)
+    reservation = get_object_or_404(Reservation, uuid=reservation_id)
+    try:
+        stripe_customer = get_or_create_stripe_customer(reservation)
+    except Exception as e:
+        logger.error(f"Unexpected error in checkout session: {e}")
     try:
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer.id,
@@ -83,7 +99,7 @@ def save_card(request, reservation_id):
                 "route": f"Roundtrip Between {reservation.rate.route}",
                 "vehicle": str(reservation.rate.vehicle),
             },
-            client_reference_id=reservation.id,
+            client_reference_id=reservation.uuid,
         )
     except stripe.error.StripeError as e:
         return render(request, "stripe/error.html", {"error": e})
