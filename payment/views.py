@@ -10,7 +10,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 # Ensure you're using environment variables in production
-stripe.api_key = "sk_test_51R6ae8R0WxX20o0RgyIBtSfBKONOcHLNN6UIiCrzI8nnpSnN4UYZ86NIgdAae1jfJ7TpLzJle6zmqC8GE0FwXEWm00olQ4YfjB"
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 def create_checkout_session(request, reservation_id):

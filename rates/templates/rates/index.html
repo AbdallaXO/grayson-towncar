@@ -1,16 +1,12 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load seo_tags %}
-
-
-
-
+{% block title %}
+  Rates & Booking | Orlando Airport Car Service | Grayson Towncar
+{% endblock title %}
 {% block content %}
   {% load seo_tags %}
   {% structured_data additional_data=structured_data %}
-
-
-
   <link rel="stylesheet"
         href="{% static 'css/rates-elements.css' %}"
         media="all" />

@@ -6,10 +6,6 @@ from django.contrib.auth.decorators import login_required
 from .forms import CustomUserCreationForm, PartnerFormSubmission
 
 
-def index(request):
-    return render(request, "users/profiles.html")
-
-
 def thankYou(request):
     return render(request, "users/thank-you.html")
 
