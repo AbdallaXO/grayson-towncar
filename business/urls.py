@@ -24,9 +24,9 @@ from debug_toolbar.toolbar import debug_toolbar_urls
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("reservations.urls")),
-    path("users/", include("users.urls")),
+    path("partnerships/", include("users.urls")),
     path("services/", include("services.urls")),
-    path("rates/", include("rates.urls")),
+    path("rates-booking/", include("rates.urls")),
     path("blog/", include("blog.urls")),
     path("__debug__", include("debug_toolbar.urls")),
     path("payment/", include("payment.urls")),
