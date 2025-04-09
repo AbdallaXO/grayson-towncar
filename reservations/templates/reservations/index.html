@@ -227,8 +227,12 @@
                   </div>
                   <div class="d-flex flex-column gap-2">
                     <a href="{% url 'rates' %}"
-                       class="btn bg-button-dark text-warning rounded shadow-lg">Reserve Now</a>
-                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                       class="btn bg-button-dark text-warning"
+                       aria-label="Go to reservation rates page">Reserve Now</a>
+                    <a href="{% url 'services' %}"
+                       class="btn bg-button-dark text-white"
+                       aria-label="View transportation services and pricing">More Details</a>
+
                   </div>
                 </div>
               </div>
@@ -275,8 +279,13 @@
                     <div class="text-muted">MCO to Disney/Universal Hotels</div>
                   </div>
                   <div class="d-flex flex-column gap-2">
-                    <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
-                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                    <a href="{% url 'rates' %}"
+                       class="btn bg-button-dark text-warning"
+                       aria-label="Go to reservation rates page">Reserve Now</a>
+                    <a href="{% url 'services' %}"
+                       class="btn bg-button-dark text-white"
+                       aria-label="View transportation services and pricing">More Details</a>
+
                   </div>
                 </div>
               </div>
@@ -323,8 +332,13 @@
                     <div class="text-muted">MCO to Disney/Universal Hotels</div>
                   </div>
                   <div class="d-flex flex-column gap-2">
-                    <a href="{% url 'rates' %}" class="btn bg-button-dark text-warning">Reserve Now</a>
-                    <a href="{% url 'services' %}" class="btn bg-button-dark text-white">More Details</a>
+                    <a href="{% url 'rates' %}"
+                       class="btn bg-button-dark text-warning"
+                       aria-label="Go to reservation rates page">Reserve Now</a>
+                    <a href="{% url 'services' %}"
+                       class="btn bg-button-dark text-white"
+                       aria-label="View transportation services and pricing">More Details</a>
+
                   </div>
                 </div>
               </div>
@@ -372,9 +386,12 @@
                   </div>
                   <div class="d-flex flex-column gap-2">
                     <a href="{% url 'rates' %}"
-                       class="btn btn-md bg-button-dark text-warning rounded shadow-sm">Reserve Now</a>
+                       class="btn bg-button-dark text-warning"
+                       aria-label="Go to reservation rates page">Reserve Now</a>
                     <a href="{% url 'services' %}"
-                       class="btn btn-md bg-button-dark text-white">More Details</a>
+                       class="btn bg-button-dark text-white"
+                       aria-label="View transportation services and pricing">More Details</a>
+
                   </div>
                 </div>
               </div>
@@ -391,9 +408,12 @@
             <p class="lead mb-4">
               We'll help you choose the perfect transportation for your Orlando vacation needs and group size.
             </p>
-            <a href="#" class="btn bg-button-dark text-white btn-lg px-5">
+            <a href="{% url 'rates' %}"
+               class="btn bg-button-dark text-white btn-lg px-5"
+               aria-label="Compare vehicle options and rates">
               Compare Our Vehicles <i class="bi bi-arrow-right ms-2"></i>
             </a>
+
           </div>
         </div>
       </div>
@@ -679,10 +699,13 @@
         <!-- CTA Button -->
         <div class="text-center mt-4">
           <div class="d-flex justify-content-center gap-3">
-            <a href="{% url 'services' %}"
-               class="btn bg-button-dark text-white btn-lg px-4 py-2">Our Services</a>
             <a href="{% url 'rates' %}"
-               class="btn bg-button-dark text-warning btn-lg px-4 py-2">Book Now</a>
+               class="btn bg-button-dark text-warning"
+               aria-label="Go to reservation rates page">Reserve Now</a>
+            <a href="{% url 'services' %}"
+               class="btn bg-button-dark text-white"
+               aria-label="View transportation services and pricing">More Details</a>
+
           </div>
         </div>
       </div>

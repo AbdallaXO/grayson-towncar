@@ -263,8 +263,16 @@
                             <strong>Booking your luxury Orlando transportation is simple.</strong> You can book online through our secure reservation system or call us at <strong>(407) 212-7190</strong>. We're available 24/7 to assist with your transportation needs.
                           </p>
                           <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-3">
-                            <a href="#" class="btn btn-primary px-4 py-2"><i class="bi bi-car-front me-2"></i>Book Online Now</a>
-                            <a href="tel:+1XXXXXXXXX" class="btn btn-outline-primary px-4 py-2"><i class="bi bi-telephone me-2"></i>Call to Book</a>
+                            <a href="{% url 'rates' %}"
+                               class="btn btn-primary px-4 py-2"
+                               aria-label="Start your reservation online">
+                              <i class="bi bi-car-front me-2"></i>Book Online Now
+                            </a>
+                            <a href="tel:+14072127190"
+                               class="btn btn-outline-primary px-4 py-2"
+                               aria-label="Call us now at 407-212-7190">
+                              <i class="bi bi-telephone me-2"></i>Call to Book
+                            </a>
                           </div>
                         </div>
                       </div>
@@ -358,22 +366,22 @@
                   <div class="col-lg-6">
                     <div class="row g-4">
                       <div class="col-6">
-                        <img src="{% static 'images/towncar.png' %}"
+                        <img src="{% static 'images/towncar.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="Towncar " />
                       </div>
                       <div class="col-6">
-                        <img src="{% static 'images/suburban.png' %}"
+                        <img src="{% static 'images/suburban.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="SUV" />
                       </div>
                       <div class="col-6">
-                        <img src="{% static 'images/van.png' %}"
+                        <img src="{% static 'images/van.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="Passenger Van" />
                       </div>
                       <div class="col-6">
-                        <img src="{% static 'images/minivan.png' %}"
+                        <img src="{% static 'images/minivan.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="Minibus" />
                       </div>
@@ -628,17 +636,20 @@
                           <div class="d-flex gap-3 mt-3">
                             <a href="https://www.facebook.com/profile.php?id=61574468855996"
                                target="_blank"
-                               class="btn btn-outline-primary">
+                               class="btn btn-outline-primary"
+                               aria-label="Visit our Facebook page">
                               <i class="bi bi-facebook me-2"></i>Facebook
                             </a>
                             <a href="https://www.instagram.com/graysontowncar"
                                target="_blank"
-                               class="btn btn-outline-primary">
+                               class="btn btn-outline-primary"
+                               aria-label="Visit our Instagram profile">
                               <i class="bi bi-instagram me-2"></i>Instagram
                             </a>
                             <a href="https://x.com/GraysonTowncar"
                                target="_blank"
-                               class="btn btn-outline-primary">
+                               class="btn btn-outline-primary"
+                               aria-label="Visit our Twitter/X page">
                               <i class="bi bi-twitter me-2"></i>Twitter
                             </a>
                           </div>

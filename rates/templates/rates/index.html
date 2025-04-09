@@ -1,128 +1,264 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load seo_tags %}
+
 {% block title %}
   Rates & Booking | Orlando Airport Car Service | Grayson Towncar
 {% endblock title %}
+
 {% block content %}
-  {% load seo_tags %}
   {% structured_data additional_data=structured_data %}
   <link rel="stylesheet"
         href="{% static 'css/rates-elements.css' %}"
         media="all" />
-  <section class="py-5 bg-light" aria-labelledby="vehicle-options-heading">
-    <div class="container px-4 px-lg-5 my-5">
+  <link rel="stylesheet" href="{% static 'css/rates_test.css' %}" media="all" />
+
+  <!-- Enhanced hero section with visual impact -->
+  <section class="py-5 position-relative hero-section"
+           aria-labelledby="vehicle-options-heading">
+    <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
+    <div class="container px-4 px-lg-5 my-4 position-relative">
       <div class="row gx-4 gx-lg-5 justify-content-center">
         <div class="col-12 col-lg-10">
-          <div class="text-center mb-5">
-            <h1 id="vehicle-options-heading" class="fw-bolder">Our Vehicle Options</h1>
-            <p class="lead fw-normal text-muted">Choose the perfect vehicle for your Orlando transportation needs</p>
+          <div class="text-center mb-5 fade-in">
+            <h1 id="vehicle-options-heading" class="display-4 fw-light mb-3">Our Vehicle Options</h1>
+            <p class="lead fs-4 fw-light text-muted mb-0 mx-auto"
+               style="max-width: 700px;
+                      letter-spacing: 0.3px">Choose the perfect vehicle for your Orlando transportation needs</p>
           </div>
 
-          {# Vehicle Options #}
+          {# Premium Vehicle Cards with Flip Animation #}
           <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-5">
             {% for vehicle in vehicles %}
-              <div class="col mb-4">
-                <article class="card shadow-lg border-0 h-100">
-                  <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-rates"
-                     class="card-img-container position-relative"
-                     aria-label="View {{ vehicle.get_vehicle_type_display }} rates">
-                    <img class="card-img-top p-3"
-                         src="{{ vehicle.image.url }}"
-                         alt="{{ vehicle.get_vehicle_type_display }}"
-                         {% if forloop.first %} loading="eager" fetchpriority="high" {% else %} loading="lazy" fetchpriority="low" {% endif %}
-                         width="300"
-                         height="200" />
-                  </a>
-                  <div class="card-body text-center">
-                    <h2 class="card-title fw-bold mb-3">{{ vehicle.get_vehicle_type_display }}</h2>
-                    <div class="vehicle-details">
-                      <p class="mb-2 text-muted">
-                        <i class="bi bi-people me-2" aria-hidden="true"></i>
-                        <span>{{ vehicle.capacity }} Passengers</span>
-                      </p>
-                      <p class="mb-2 text-muted">
-                        <i class="bi bi-briefcase me-2" aria-hidden="true"></i>
-                        <span>{{ vehicle.luggage_capacity }} Suitcases</span>
-                      </p>
-                      <p class="mb-2 text-muted">
-                        <i class="bi bi-car-front me-2" aria-hidden="true"></i>
-                        <span>1 Booster Seat & 1 Carseat</span>
-                      </p>
+              <div class="col mb-4 fade-in-up"
+                   style="--animation-delay: {{ forloop.counter0|add:1 }}00ms">
+                <div class="vehicle-card-container">
+                  <article class="vehicle-card h-100">
+                    <!-- Front of card -->
+                    <div class="vehicle-card-front shadow-sm">
+                      <div class="vehicle-card-accent"></div>
+                      <div class="bg-light p-3 text-center">
+                        <img class="img-fluid img-zoom mx-auto"
+                             src="{{ vehicle.image.url }}"
+                             alt="{{ vehicle.get_vehicle_type_display }} - Orlando Luxury Transportation"
+                             {% if forloop.first %} loading="eager" fetchpriority="high" {% else %} loading="lazy" fetchpriority="low" {% endif %}
+                             style="max-height: 180px;
+                                    width: auto" />
+                      </div>
+                      <div class="card-body text-center d-flex flex-column position-relative">
+                        <h2 class="card-title h5 fw-light mb-3">{{ vehicle.get_vehicle_type_display }}</h2>
+                        <div class="vehicle-details mb-3">
+                          <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
+                            <i class="bi bi-people me-2 vehicle-icon" aria-hidden="true"></i>
+                            <span>{{ vehicle.capacity }} Passengers</span>
+                          </p>
+                          <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
+                            <i class="bi bi-briefcase me-2 vehicle-icon" aria-hidden="true"></i>
+                            <span>{{ vehicle.luggage_capacity }} Suitcases</span>
+                          </p>
+                          <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
+                            <i class="bi bi-car-front me-2 vehicle-icon" aria-hidden="true"></i>
+                            <span>{{ vehicle.boosters_max }} Booster & {{ vehicle.carseats_capacity }} Carseat</span>
+                          </p>
+                        </div>
+                        <div class="mt-auto d-flex">
+                          <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-heading"
+                             class="btn btn-sm btn-outline-secondary view-rates-btn flex-fill"
+                             aria-label="View {{ vehicle.get_vehicle_type_display }} rates and booking options">
+                            View Rates
+                          </a>
+                          <button class="btn btn-sm btn-outline-dark ms-2 flip-card-btn"
+                                  aria-label="See more details about {{ vehicle.get_vehicle_type_display }}">
+                            <i class="bi bi-info-circle"></i>
+                            <span class="flip-indicator d-none d-md-flex">
+                              <i class="bi bi-arrow-repeat flip-icon"></i>
+                            </span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </article>
+
+                    <!-- Back of card -->
+                    <div class="vehicle-card-back shadow-sm">
+                      <div class="vehicle-card-accent"></div>
+                      <div class="card-body d-flex flex-column h-100 p-4">
+                        <div class="vehicle-info-header d-flex justify-content-between align-items-center mb-3">
+                          <h3 class="h5 fw-light mb-0">{{ vehicle.get_vehicle_type_display }}</h3>
+                          <button class="btn btn-sm btn-outline-dark flip-card-btn p-2"
+                                  aria-label="Flip card back to see {{ vehicle.get_vehicle_type_display }}">
+                            <i class="bi bi-arrow-left"></i>
+                          </button>
+                        </div>
+                        {% if vehicle.vehicle_type == "towncar" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Perfect for couples and business travelers</span>
+                            <p class="small text-muted">
+                              Our premium towncars offer luxury and comfort for small groups with minimal luggage. Ideal for airport transfers and short trips.
+                            </p>
+                          </div>
+                        {% elif vehicle.vehicle_type == "suv" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Ideal for families with luggage</span>
+                            <p class="small text-muted">
+                              Spacious SUVs provide comfortable transportation for families or small groups with additional luggage space.
+                            </p>
+                          </div>
+                        {% elif vehicle.vehicle_type == "mini_van" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Great for medium-sized groups</span>
+                            <p class="small text-muted">
+                              Our mini vans provide ample space for medium-sized groups with luggage at an excellent value.
+                            </p>
+                          </div>
+                        {% elif vehicle.vehicle_type == "van" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Best for larger groups</span>
+                            <p class="small text-muted">
+                              Perfect for larger families or groups that need extra space for both passengers and luggage.
+                            </p>
+                          </div>
+                        {% else %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Premium transportation</span>
+                            <p class="small text-muted">
+                              Comfortable, reliable transportation for your Orlando visit with professional, experienced drivers.
+                            </p>
+                          </div>
+                        {% endif %}
+                        <div class="vehicle-highlights text-start fade-in-item"
+                             style="--animation-delay: 100ms">
+                          <ul class="list-unstyled mb-0">
+                            <li class="mb-2 small">
+                              <i class="bi bi-check-circle-fill text-success me-2"></i> Professional chauffeur
+                            </li>
+                            <li class="mb-2 small">
+                              <i class="bi bi-check-circle-fill text-success me-2"></i> Bottled water
+                            </li>
+                            <li class="mb-2 small">
+                              <i class="bi bi-check-circle-fill text-success me-2"></i> Climate controlled
+                            </li>
+                          </ul>
+                        </div>
+                        <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-heading"
+                           class="btn btn-sm btn-outline-dark view-rates-btn mt-auto fade-in-item"
+                           style="--animation-delay: 200ms"
+                           aria-label="View {{ vehicle.get_vehicle_type_display }} rates and booking options">
+                          View Rates & Book
+                        </a>
+                      </div>
+                    </div>
+                  </article>
+                </div>
               </div>
             {% endfor %}
           </div>
 
-          <div class="gtc-container" role="complementary">
-            <div class="gtc-header d-flex align-items-center">
-              <div class="gtc-icon-circle" aria-hidden="true">&#33;</div>
-              <h2 class="gtc-title mb-0 ms-3">Don't See Your Route Listed?</h2>
-            </div>
-            <p class="gtc-message">
-              Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
-            </p>
-            <div class="gtc-actions">
-              <div class="gtc-action-box">
+          <!-- Enhanced Contact Information Box -->
+          <div class="bg-white p-4 rounded shadow-sm mb-5 position-relative overflow-hidden contact-box fade-in">
+            <div class="contact-box-decoration"></div>
+            <div class="position-relative">
+              <div class="d-flex align-items-center mb-3">
+                <div class="bg-warning text-white d-flex align-items-center justify-content-center rounded-circle"
+                     style="width: 38px;
+                            height: 38px"
+                     aria-hidden="true">
+                  <i class="bi bi-info" aria-hidden="true"></i>
+                </div>
+                <h2 class="h4 fw-light mb-0 ms-3">Don't See Your Route Listed?</h2>
+              </div>
+              <p class="text-muted mb-4" style="letter-spacing: 0.2px;">
+                Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
+              </p>
+              <div class="d-flex flex-column flex-md-row gap-2">
                 <a href="tel:+14072127190"
-                   aria-label="Call Grayson Town Car"
-                   class="d-flex align-items-center">
+                   aria-label="Call Grayson Town Car at 407-212-7190"
+                   class="btn btn-sm btn-warning me-md-2 mb-2 mb-md-0 d-flex align-items-center justify-content-center">
                   <i class="bi bi-telephone me-2" aria-hidden="true"></i> (407) 212-7190
                 </a>
-              </div>
-              <div class="gtc-action-box">
                 <a href="mailto:reservations@graysontowncar.com"
-                   aria-label="Email Grayson Town Car"
-                   class="d-flex align-items-center">
+                   aria-label="Email Grayson Town Car for reservations"
+                   class="btn btn-sm btn-outline-dark d-flex align-items-center justify-content-center">
                   <i class="bi bi-envelope me-2" aria-hidden="true"></i> reservations@graysontowncar.com
                 </a>
               </div>
             </div>
           </div>
 
-          {# Vehicle Rates Section #}
+          {# THIS IS FOR MOBILE #}
           <section class="py-4" aria-labelledby="vehicle-rates-heading">
             <div class="container p-0">
               <div class="row">
                 <div class="col-12">
                   {% for vehicle in vehicles %}
-                    <article class="card shadow border-0 mb-5">
-                      <header id="{{ vehicle.get_vehicle_type_display|slugify }}-rates"
-                              class="card-header bg-dark text-white text-center py-3">
-                        <h2 class="mb-0" id="vehicle-rates-heading">{{ vehicle.get_vehicle_type_display }} Rates</h2>
+                    <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in">
+                      <header id="{{ vehicle.get_vehicle_type_display|slugify }}-heading"
+                              class="card-header bg-dark text-white text-center py-3 position-relative">
+                        <div class="header-accent"></div>
+                        <h2 class="h4 fw-light mb-0">{{ vehicle.get_vehicle_type_display }} Rates</h2>
                       </header>
                       <div class="card-body p-0">
-                        <div class="table-responsive">
-                          <table class="table table-striped table-hover mb-0">
+                        <!-- Mobile-friendly price cards-->
+                        <div class="d-md-none">
+                          {% for v in vehicle.rates.all %}
+                            <div class="mobile-rate-card p-3 border-bottom">
+                              <h3 class="h6 fw-normal mb-3">{{ v.route }}</h3>
+                              <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                  <small class="text-muted d-block fw-bolder">One Way</small>
+                                  <span class="fw-light pricing-text">${{ v.oneway_price }}</span>
+                                </div>
+                                <a href="{% url 'reserve' v.id %}?round=1"
+                                   class="btn btn-dark btn-sm rounded-pill shadow-sm"
+                                   aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                  Book One Way
+                                </a>
+                              </div>
+                              <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                  <small class="text-muted d-block">Round Trip</small>
+                                  <span class="fw-light pricing-text">${{ v.round_trip_price }}</span>
+                                </div>
+                                <a href="{% url 'reserve' v.id %}?round=2"
+                                   class="btn btn-dark btn-sm rounded-pill shadow-sm px-2"
+                                   aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}"> Book Round-Trip
+                                </a>
+                              </div>
+                            </div>
+                          {% endfor %}
+                        </div>
+
+                        <!-- Desktop table ONLY NOT MOBILE (hidden on small screens) -->
+                        <div class="table-responsive d-none d-md-block">
+                          <table class="table table-striped table-hover align-middle mb-0">
                             <thead class="bg-light">
                               <tr>
-                                <th scope="col">Route</th>
-                                <th scope="col" class="text-center">One Way</th>
-                                <th scope="col" class="text-center">Round Trip</th>
+                                <th scope="col" class="py-3">Route</th>
+                                <th scope="col" class="text-center py-3">One Way</th>
+                                <th scope="col" class="text-center py-3">Round Trip</th>
                               </tr>
                             </thead>
                             <tbody>
                               {% for v in vehicle.rates.all %}
-                                <tr>
-                                  <td class="align-middle">{{ v.route }}</td>
-                                  <td class="text-center">
-                                    <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
-                                      <span class="fw-medium">$ {{ v.oneway_price }}</span>
+                                <tr class="rate-row">
+                                  <td class="align-middle py-3">
+                                    <span class="fw-light">{{ v.route }}</span>
+                                  </td>
+                                  <td class="text-center py-3">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                      <span class="fw-light me-3 pricing-text">${{ v.oneway_price }}</span>
                                       <a href="{% url 'reserve' v.id %}?round=1"
-                                         class="btn btn-sm custom-blue-button"
-                                         aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip">
+                                         class="btn btn-secondary rounded-pill px-3 shadow-sm py-2"
+                                         aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
                                         Book Now
                                       </a>
                                     </div>
                                   </td>
-                                  <td class="text-center">
-                                    <div class="d-flex align-items-center justify-content-center gap-2 flex-column flex-md-row">
-                                      <span class="fw-medium">$ {{ v.round_trip_price }}</span>
+                                  <td class="text-center py-3">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                      <span class="fw-light me-3 pricing-text">${{ v.round_trip_price }}</span>
                                       <a href="{% url 'reserve' v.id %}?round=2"
-                                         class="btn btn-sm custom-blue-button"
-                                         aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip">
+                                         class="btn btn-secondary rounded-pill px-3 shadow-sm py-2"
+                                         aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
                                         Book Now
                                       </a>
                                     </div>
@@ -140,37 +276,43 @@
             </div>
           </section>
 
-          <section class="container my-5 p-0">
-            <div class="card shadow border-0">
-              <div class="card-body p-4">
-                <h2 class="fw-bold mb-3 text-center">All Rates Include</h2>
-                <ul class="list-unstyled">
-                  <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
-                       aria-hidden="true"></i>
-                    <span class="hover-underline-text">Free meet and greet at MCO</span>
-                  </li>
-                  <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
-                       aria-hidden="true"></i>
-                    <span class="hover-underline-text">Complimentary car seats and booster seats</span>
-                  </li>
-                  <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
-                       aria-hidden="true"></i>
-                    <span class="hover-underline-text">Free 30-minute grocery stop</span>
-                  </li>
-                  <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
-                       aria-hidden="true"></i>
-                    <span class="hover-underline-text">All tolls, taxes, and gratuities included</span>
-                  </li>
-                  <li class="mb-2 d-flex align-items-start">
-                    <i class="bi bi-check-circle-fill text-success me-2 mt-1"
-                       aria-hidden="true"></i>
-                    <span class="hover-underline-text">Professional, licensed and insured drivers</span>
-                  </li>
-                </ul>
+          <!-- Inclusions Section -->
+          <section class="container my-5 p-0 fade-in">
+            <div class="card shadow-sm border-0 bg-white position-relative inclusions-card overflow-hidden">
+              <div class="inclusions-accent"></div>
+              <div class="card-body p-4 p-md-5 position-relative">
+                <h2 class="display-6 fw-light mb-4 text-center">All Rates Include</h2>
+                <div class="row justify-content-center">
+                  <div class="col-md-10">
+                    <ul class="list-unstyled mb-0">
+                      <li class="mb-3 d-flex align-items-start inclusion-item">
+                        <i class="bi bi-check-circle text-success me-3 mt-1 inclusion-icon"
+                           aria-hidden="true"></i>
+                        <span class="fw-bnormal">Free meet and greet at MCO</span>
+                      </li>
+                      <li class="mb-3 d-flex align-items-start inclusion-item">
+                        <i class="bi bi-check-circle text-success me-3 mt-1 inclusion-icon"
+                           aria-hidden="true"></i>
+                        <span class="fw-normal">Complimentary car seats and booster seats</span>
+                      </li>
+                      <li class="mb-3 d-flex align-items-start inclusion-item">
+                        <i class="bi bi-check-circle text-success me-3 mt-1 inclusion-icon"
+                           aria-hidden="true"></i>
+                        <span class="fw-normal">Free 30-minute grocery stop</span>
+                      </li>
+                      <li class="mb-3 d-flex align-items-start inclusion-item">
+                        <i class="bi bi-check-circle text-success me-3 mt-1 inclusion-icon"
+                           aria-hidden="true"></i>
+                        <span class="fw-normal">All tolls, taxes, and gratuities included</span>
+                      </li>
+                      <li class="mb-0 d-flex align-items-start inclusion-item">
+                        <i class="bi bi-check-circle text-success me-3 mt-1 inclusion-icon"
+                           aria-hidden="true"></i>
+                        <span class="fw-normal">Professional, licensed and insured drivers</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -178,8 +320,5 @@
       </div>
     </div>
   </section>
-{% endblock %}
-
-{% block extra_js %}
-  <script src="{% static 'js/lazy-load.js' %}" defer></script>
+  <script src="{% static 'js/rates_page.js' %}" defer></script>
 {% endblock %}
