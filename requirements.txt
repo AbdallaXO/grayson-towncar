@@ -30,3 +30,5 @@ psycopg
 typing
 psycopg2-binary
 django-compressor
+boto3
+django-storages
