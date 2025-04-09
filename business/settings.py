@@ -49,7 +49,7 @@ ALLOWED_HOSTS = [
 
 
 # Application definition
-
+# Native and third-party apps
 NATIVE_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -59,6 +59,7 @@ NATIVE_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.sitemaps",
 ]
+
 THIRD_PARTY_APPS = [
     "widget_tweaks",
     "import_export",
@@ -66,6 +67,10 @@ THIRD_PARTY_APPS = [
     "crispy_bootstrap5",
     "storages",
 ]
+
+if DEBUG:
+    THIRD_PARTY_APPS += ["debug_toolbar"]
+
 OUR_APPS = [
     "rates",
     "reservations.apps.ReservationsConfig",
@@ -74,8 +79,10 @@ OUR_APPS = [
     "blog",
     "payment",
 ]
-# Instead of a big list of all the apps seperated them by categories and combined them here
+
+# After DEbuyg toolbar
 INSTALLED_APPS = NATIVE_APPS + THIRD_PARTY_APPS + OUR_APPS
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -87,6 +94,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+if DEBUG:
+    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
 ROOT_URLCONF = "business.urls"
 
 TEMPLATES = [
@@ -227,8 +236,4 @@ AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
 AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
 DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'
-
-if DEBUG:
-    THIRD_PARTY_APPS += ["debug_toolbar"]
-    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")
 
