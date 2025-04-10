@@ -10,6 +10,7 @@ dependencies = [
     "django-crispy-forms>=2.3",
     "django-debug-toolbar>=5.1.0",
     "django-import-export>=4.3.7",
+    "django-storages[s3]>=1.14.6",
     "django-widget-tweaks>=1.5.0",
     "gunicorn>=23.0.0",
     "pillow>=11.1.0",
