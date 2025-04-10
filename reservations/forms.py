@@ -92,10 +92,10 @@ class ReservationForm(forms.ModelForm):
         ]
         widgets = {
             "passenger_count": forms.NumberInput(
-                attrs={"class": "form-control", "min": 1, "max": 10}
+                attrs={"class": "form-control", "min": 1, "max": 10 ,"type":"number"}
             ),
             "luggage_count": forms.NumberInput(
-                attrs={"class": "form-control", "min": 0, "max": 12}
+                attrs={"class": "form-control", "min": 0, "max": 12 ,"type":"number"}
             ),
             "store_stop": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "special_requests": forms.Textarea(
@@ -111,9 +111,9 @@ class ReservationForm(forms.ModelForm):
                     "id": "id_need_carseats",  # critical for JS
                 }
             ),
-            "rf_carseats": forms.NumberInput(attrs={"class": "form-control"}),
-            "ff_carseats": forms.NumberInput(attrs={"class": "form-control"}),
-            "booster_seats": forms.NumberInput(attrs={"class": "form-control"}),
+            "rf_carseats": forms.NumberInput(attrs={"class": "form-control" ,"type":"number",}),
+            "ff_carseats": forms.NumberInput(attrs={"class": "form-control" ,"type":"number"}),
+            "booster_seats": forms.NumberInput(attrs={"class": "form-control" ,"type":"number"}),
         }
         help_texts = {
             "special_requests": "Optional. We’ll do our best to accommodate. ",
