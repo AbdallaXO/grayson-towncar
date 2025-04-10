@@ -7,7 +7,7 @@
 
 {% block content %}
   <script src="{% static 'js/area-selector.js' %}"></script>
-  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
+  <link rel="stylesheet" href="{% static 'css/purged/services_styles.css' %}">
   <!-- Modern Hero with Animated Background -->
   <section class="position-relative overflow-hidden py-6" id="hero">
     <div class="bg-image position-absolute top-0 start-0 w-100 h-100"
@@ -142,7 +142,9 @@
             <div class="card-body p-4 position-relative">
               <!-- Simplified Map Display with CSS Background Images -->
               <div class="area-description active" id="disney-description">
-                <div class="area-image disney-area mb-4"></div>
+                <div class="area-image mb-4"
+                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/disney-resorts.webp" %}');">
+                </div>
                 <h3 class="h4 mb-3">Disney Resort Area</h3>
                 <p class="mb-3">Direct service to all Disney properties including Value, Moderate, and Deluxe resorts.</p>
                 <ul class="list-unstyled mb-0">
@@ -162,7 +164,9 @@
               </div>
 
               <div class="area-description" id="universal-description">
-                <div class="area-image universal-area mb-4"></div>
+                <div class="area-image mb-4"
+                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/universal-resort.webp" %}');">
+                </div>
                 <h3 class="h4 mb-3">Universal Orlando Area</h3>
                 <p class="mb-3">Comprehensive service to all Universal Orlando hotels and nearby accommodations.</p>
                 <ul class="list-unstyled mb-0">
@@ -182,7 +186,9 @@
               </div>
 
               <div class="area-description" id="idrive-description">
-                <div class="area-image idrive-area mb-4"></div>
+                <div class="area-image mb-4"
+                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/idrive.webp" %}');">
+                </div>
                 <h3 class="h4 mb-3">International Drive</h3>
                 <p class="mb-3">Service to all I-Drive hotels, Convention Center area, and SeaWorld resorts.</p>
                 <ul class="list-unstyled mb-0">
@@ -202,7 +208,9 @@
               </div>
 
               <div class="area-description" id="lbv-description">
-                <div class="area-image lbv-area mb-4"></div>
+                <div class="area-image mb-4"
+                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/lbv.webp" %}');">
+                </div>
                 <h3 class="h4 mb-3">Lake Buena Vista & Kissimmee</h3>
                 <p class="mb-3">Transportation to hotels and vacation rentals throughout LBV and Kissimmee.</p>
                 <ul class="list-unstyled mb-0">

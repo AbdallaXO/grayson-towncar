@@ -1,0 +1,39 @@
+/* Add the feature class styling here */
+
+/* Add a subtle transition for the icons */
+
+/* Add a hover effect to make the icons more interactive */
+
+/* If you want the hover effect for the cards */
+.hover-elevate {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-elevate:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.bg-hero-dark, .bg-navbar-dark, .bg-footer-dark, .bg-button-dark {
+    background-color: #0A1428 !important;
+}
+
+.bg-custom-light-gold {
+    background-color: #F0E6D2 !important;
+} 
+
+.custom-button-bg {
+    background-color: #dbba72 !important;
+}
+
+.custom-button-bg:hover {
+    background-color: #c9a851 !important;
+}
+
+.custom-bg-gold1 {
+    background-color: #F0E6D2 !important;
+}
+
+.custom-bg2 {
+    background-color: rgba(0, 91, 130, 0.127) !important;
+}
