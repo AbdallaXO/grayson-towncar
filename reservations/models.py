@@ -160,7 +160,7 @@ class Flight(models.Model):
         Display flight type (e.g., 'Arrival' or 'Departure'), airline,
         and flight number for quick reference.
         """
-        return f"{self.get_flight_type_display()} - {self.airline} {self.flight_number}"
+        return f"{self.airline} {self.flight_number}"
 
 
 class ContactUsForm(models.Model):

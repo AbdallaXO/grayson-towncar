@@ -37,13 +37,15 @@ def _initalize_form(trip_type, rate, price):
             "route": rate.route,
         },
         rate=rate,
-        label_suffix=""
+        label_suffix="",
     )
     flight1_form = FlightForm(prefix="flight1")
     leg1_form = LegForm(prefix="leg1", label_suffix="*")
     # conditional forms if its a roundtrip
     flight2_form = FlightForm(prefix="flight2") if trip_type == "round_trip" else None
-    leg2_form = LegForm(prefix="leg2", label_suffix="*") if trip_type == "round_trip" else None
+    leg2_form = (
+        LegForm(prefix="leg2", label_suffix="*") if trip_type == "round_trip" else None
+    )
 
     return (
         customer_form,

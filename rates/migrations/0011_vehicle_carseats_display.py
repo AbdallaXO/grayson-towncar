@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("rates", "0010_remove_rate_rates_rate_vehicle_822bc6_idx_and_more"),
     ]

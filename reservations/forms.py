@@ -16,18 +16,26 @@ class CustomerForm(forms.ModelForm):
         fields = ["first_name", "last_name", "email", "phone_number", "zipcode"]
         widgets = {
             "first_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "First Name", 'autocomplete':'given-name', "autofocus": True}
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "First Name",
+                    "autocomplete": "given-name",
+                    "autofocus": True,
+                }
             ),
             "last_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Last Name", "autocomplete":"family-name", }
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Last Name",
+                    "autocomplete": "family-name",
+                }
             ),
             "email": forms.EmailInput(
                 attrs={
                     "class": "form-control",
                     "placeholder": "you@example.com",
                     "type": "email",
-                    "autocomplete":"email",
-
+                    "autocomplete": "email",
                 }
             ),
             "phone_number": forms.TextInput(
@@ -36,10 +44,12 @@ class CustomerForm(forms.ModelForm):
                     "placeholder": "555-555-5555",
                     "required": True,
                     "type": "tel",
-                    "autocomplete":"tel",
+                    "autocomplete": "tel",
                 }
             ),
-            "zipcode": forms.TextInput(attrs={"class": "form-control", 'autocomplete':'postal-code'}),
+            "zipcode": forms.TextInput(
+                attrs={"class": "form-control", "autocomplete": "postal-code"}
+            ),
         }
         labels = {
             "first_name": "First Name",
@@ -64,8 +74,10 @@ class CustomerForm(forms.ModelForm):
 
         return obj
 
+
 class ReservationForm(forms.ModelForm):
     """Form for reservation details"""
+
     class Meta:
         model = Reservation
         fields = [
@@ -93,8 +105,12 @@ class ReservationForm(forms.ModelForm):
                     "placeholder": "Any special requests?",
                 }
             ),
-            "need_carseats": forms.CheckboxInput(attrs={"class": "form-check-input","id": "id_need_carseats"  # critical for JS
-}),
+            "need_carseats": forms.CheckboxInput(
+                attrs={
+                    "class": "form-check-input",
+                    "id": "id_need_carseats",  # critical for JS
+                }
+            ),
             "rf_carseats": forms.NumberInput(attrs={"class": "form-control"}),
             "ff_carseats": forms.NumberInput(attrs={"class": "form-control"}),
             "booster_seats": forms.NumberInput(attrs={"class": "form-control"}),
@@ -137,11 +153,11 @@ class LegForm(forms.ModelForm):
     class Meta:
         model = Leg
         fields = ["pickup_date", "pickup_time", "pickup_location", "dropoff_location"]
-        labels={
-            'pickup_date':'Pickup Date',
-            'pickup_time':'Pickup Time',
-            'pickup_location':'Pickup Location',
-            'dropoff_location':'Drop-off Location'
+        labels = {
+            "pickup_date": "Pickup Date",
+            "pickup_time": "Pickup Time",
+            "pickup_location": "Pickup Location",
+            "dropoff_location": "Drop-off Location",
         }
         widgets = {
             "pickup_date": forms.DateInput(
@@ -213,7 +229,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "firstName",
                     "placeholder": "First Name",
-                    "autocomplete":"given-name",
+                    "autocomplete": "given-name",
                 }
             ),
             "last_name": forms.TextInput(
@@ -221,7 +237,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "lastName",
                     "placeholder": "Last Name",
-                    "autocomplete":"family-name",
+                    "autocomplete": "family-name",
                 }
             ),
             "email": forms.EmailInput(
@@ -229,7 +245,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "email",
                     "placeholder": "Your Email",
-                    "autocomplete":"email",
+                    "autocomplete": "email",
                 }
             ),
             "phone_number": forms.TextInput(
@@ -237,8 +253,7 @@ class ContactUsFormSubmission(forms.ModelForm):
                     "class": "form-control",
                     "id": "phone",
                     "placeholder": "Your Phone Number",
-                    "autocomplete":"tel",
-
+                    "autocomplete": "tel",
                 }
             ),
             "contact_method": forms.RadioSelect(

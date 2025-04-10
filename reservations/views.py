@@ -15,7 +15,9 @@ from .utils import (
     validate_forms,
     AIRLINES,
 )
+
 # Create your views here.
+from .email import send_reservation_confirmation
 
 
 def index(request):
@@ -77,7 +79,6 @@ def reservation_form(
                 else:
                     leg2.flight_information = None
                 leg2.save()
-            #####
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (
@@ -104,6 +105,7 @@ def reservation_form(
     }
     return render(request, "reservations/book_form.html", context)
 
+
 def about_us(request):
     structured_data = {
         "@type": "AboutPage",
@@ -113,10 +115,11 @@ def about_us(request):
         request, "reservations/about.html", {"structured_data": structured_data}
     )
 
+
 # def confirm_reservation(request, pk):
 #     """Shows reservation details for confirmation before payment"""
 #     rate = get_object_or_404(Rate.objects.select_related("route", "vehicle"), pk=pk)
-    
+
 #     # Get form data from session
 #     customer_data = request.session.get('customer_data', {})
 #     reservation_data = request.session.get('reservation_data', {})
@@ -126,10 +129,10 @@ def about_us(request):
 #     flight2_data = request.session.get('flight2_data', {})
 #     trip_type = request.session.get('trip_type')
 #     base_price = request.session.get('base_price')
-    
+
 #     if request.method == "POST":
 #         customer = Customer.objects.create(**customer_data)
-        
+
 #         reservation = Reservation.objects.create(
 #             customer=customer,
 #             trip_type=trip_type,
@@ -138,34 +141,34 @@ def about_us(request):
 #             vehicle=rate.vehicle,
 #             **reservation_data
 #         )
-        
+
 #         leg1 = Leg.objects.create(
 #             reservation=reservation,
 #             **leg1_data
 #         )
-        
+
 #         if flight1_data and any(flight1_data.values()):
 #             flight1 = Flight.objects.create(**flight1_data)
 #             leg1.flight_information = flight1
 #             leg1.save()
-        
+
 #         if trip_type == "round_trip" and leg2_data:
 #             leg2 = Leg.objects.create(
 #                 reservation=reservation,
 #                 **leg2_data
 #             )
-            
+
 #             if flight2_data and any(flight2_data.values()):
 #                 flight2 = Flight.objects.create(**flight2_data)
 #                 leg2.flight_information = flight2
 #                 leg2.save()
-#         for key in ['customer_data', 'reservation_data', 'leg1_data', 
+#         for key in ['customer_data', 'reservation_data', 'leg1_data',
 #                    'flight1_data', 'leg2_data', 'flight2_data',
 #                     'trip_type', 'base_price']:
 #             request.session.pop(key, None)
-        
+
 #         return redirect("create_checkout_session", reservation_id=reservation.uuid)
-    
+
 #     # Context for confirmation template
 #     context = {
 #         'customer_data': customer_data,
@@ -178,7 +181,7 @@ def about_us(request):
 #         'trip_type': trip_type,
 #         'base_price': base_price,
 #     }
-    
+
 #     return render(request, 'reservations/confirm.html', context)
 
 
