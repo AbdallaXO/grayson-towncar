@@ -1,4 +1,4 @@
-{% extends "main.html" %}
+{% extends 'main.html' %}
 
 {% block content %}
   <div class="container my-5">
@@ -67,9 +67,11 @@
                   <h5 class="mb-0">
                     <i class="bi bi-geo-alt-fill text-warning me-2"></i>
                     Leg {{ forloop.counter }}
-                    {% if leg.leg_type %}({{ leg.leg_type|title }}){% endif %}
+                    {% if leg.leg_type %}
+                      ({{ leg.leg_type|title }})
+                    {% endif %}
                   </h5>
-                  <span class="badge bg-warning text-dark px-3 py-2">{{ leg.pickup_date|date:"F j, Y" }}</span>
+                  <span class="badge bg-warning text-dark px-3 py-2">{{ leg.pickup_date|date:'F j, Y' }}</span>
                 </div>
               </div>
               <div class="card-body p-4">
@@ -80,7 +82,7 @@
                       <i class="bi bi-clock text-warning fs-4 me-3 mt-1"></i>
                       <div>
                         <small class="text-secondary d-block">Pickup Time</small>
-                        <span class="fs-5 fw-bold">{{ leg.pickup_time|time:"g:i A" }}</span>
+                        <span class="fs-5 fw-bold">{{ leg.pickup_time|time:'g:i A' }}</span>
                       </div>
                     </div>
                   </div>
@@ -90,7 +92,7 @@
                       <i class="bi bi-pin-map-fill text-warning fs-4 me-3 mt-1"></i>
                       <div>
                         <small class="text-secondary d-block">Pick-up Location</small>
-                        <span class="fs-5 fw-bold">{{ leg.pickup_location|default:"Disney" }}</span>
+                        <span class="fs-5 fw-bold">{{ leg.pickup_location|default:'Disney' }}</span>
                       </div>
                     </div>
                   </div>
@@ -100,7 +102,7 @@
                       <i class="bi bi-pin-map-fill text-warning fs-4 me-3 mt-1"></i>
                       <div>
                         <small class="text-secondary d-block">Drop-off Location</small>
-                        <span class="fs-5 fw-bold">{{ leg.dropoff_location|default:"Disney" }}</span>
+                        <span class="fs-5 fw-bold">{{ leg.dropoff_location|default:'Disney' }}</span>
                       </div>
                     </div>
                   </div>
@@ -114,11 +116,11 @@
                       <small class="text-secondary d-block">Flight Details</small>
                       <span class="fs-5 fw-bold">
                         {% if forloop.counter == 1 %}
-                          {{ reservation.flight1_airline|default:"Not specified" }}
-                          - Flight #{{ reservation.flight1_number|default:"N/A" }}
+                          {{ reservation.flight1_airline|default:'Not specified' }}
+                          - Flight #{{ reservation.flight1_number|default:'N/A' }}
                         {% elif forloop.counter == 2 %}
-                          {{ reservation.flight2_airline|default:"Not specified" }}
-                          - Flight #{{ reservation.flight2_number|default:"N/A" }}
+                          {{ reservation.flight2_airline|default:'Not specified' }}
+                          - Flight #{{ reservation.flight2_number|default:'N/A' }}
                         {% endif %}
                       </span>
                     </div>
@@ -168,7 +170,7 @@
                     <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
                       <i class="bi bi-car-front text-warning fs-1"></i>
                     </div>
-                    <h3 class="mb-0">{{ reservation.display_carseats }}</h3>
+                    <h3 class="mb-0">{{ reservation.vehicle.carseats_display }}</h3>
                     <p class="text-secondary mb-0">Car Seats</p>
                   </div>
                 </div>
@@ -212,18 +214,8 @@
                 <form method="post">
                   {% csrf_token %}
                   <div class="d-flex justify-content-center gap-4 flex-wrap">
-                    <button type="submit"
-                            name="action"
-                            value="pay_now"
-                            class="btn btn-warning btn-lg px-4 py-3 shadow fw-bold text-dark">
-                      <i class="bi bi-credit-card me-2"></i>Pay Now
-                    </button>
-                    <button type="submit"
-                            name="action"
-                            value="save_card"
-                            class="btn btn-outline-dark btn-lg px-4 py-3">
-                      <i class="bi bi-shield-lock me-2"></i>Save Card for Later
-                    </button>
+                    <button type="submit" name="action" value="pay_now" class="btn btn-warning btn-lg px-4 py-3 shadow fw-bold text-dark"><i class="bi bi-credit-card me-2"></i>Pay Now</button>
+                    <button type="submit" name="action" value="save_card" class="btn btn-outline-dark btn-lg px-4 py-3"><i class="bi bi-shield-lock me-2"></i>Save Card for Later</button>
                   </div>
                 </form>
               </div>
@@ -246,8 +238,7 @@
                   <p class="text-secondary mb-4">Our team is available 24/7 to help with your reservation</p>
                   <div class="row g-4 justify-content-center">
                     <div class="col-md-5">
-                      <a href="tel:4072127190"
-                         class="text-decoration-none d-flex align-items-center justify-content-center">
+                      <a href="tel:4072127190" class="text-decoration-none d-flex align-items-center justify-content-center">
                         <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-2">
                           <i class="bi bi-telephone-fill text-warning"></i>
                         </div>
@@ -255,8 +246,7 @@
                       </a>
                     </div>
                     <div class="col-md-7">
-                      <a href="mailto:reservations@graysontowncar.com"
-                         class="text-decoration-none d-flex align-items-center justify-content-center">
+                      <a href="mailto:reservations@graysontowncar.com" class="text-decoration-none d-flex align-items-center justify-content-center">
                         <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-2">
                           <i class="bi bi-envelope-fill text-warning"></i>
                         </div>
@@ -272,4 +262,4 @@
       </div>
     </div>
   </div>
-{% endblock content %}
+{% endblock %}

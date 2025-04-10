@@ -180,7 +180,6 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
 
-
 # Stripe Settings
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -232,11 +231,11 @@ STORAGES = {
     "default": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            'bucket_name' : os.getenv('AWS_STORAGE_BUCKET_NAME'), 
-            'region_name':  os.getenv('AWS_S3_REGION_NAME', 'us-east-1'),
-            'custom_domain': "media.graysontowncar.com",
-            'access_key': os.getenv('AWS_ACCESS_KEY_ID'),
-            'secret_key': os.getenv('AWS_SECRET_ACCESS_KEY')
+            "bucket_name": os.getenv("AWS_STORAGE_BUCKET_NAME"),
+            "region_name": os.getenv("AWS_S3_REGION_NAME", "us-east-1"),
+            "custom_domain": "media.graysontowncar.com",
+            "access_key": os.getenv("AWS_ACCESS_KEY_ID"),
+            "secret_key": os.getenv("AWS_SECRET_ACCESS_KEY"),
         },
     },
     "staticfiles": {

@@ -25,8 +25,8 @@ class Payment(models.Model):
     payment_type = models.CharField(
         max_length=20,
         choices=[
-            ("pay_now", "Pay Now"),
-            ("pay_later", "Pay Later"),
+            ("pay_now", "Pre-Pay"),
+            ("pay_later", "Save Card & Pay Later"),
         ],
         default="pay_later",
     )

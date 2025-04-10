@@ -2,7 +2,8 @@ import stripe
 import stripe.error
 from django.utils import timezone
 import logging
-
+from django.db import transaction
+from reservations.email import send_reservation_confirmation
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -22,9 +23,9 @@ def get_or_create_stripe_customer(reservation):
         # Save the new Stripe customer ID
         customer.stripe_customer_id = stripe_customer.id
         customer.save()
-
         return stripe_customer
 
     except Exception as e:
         logger.error(f"Error creating Stripe customer: {e}")
         raise
+

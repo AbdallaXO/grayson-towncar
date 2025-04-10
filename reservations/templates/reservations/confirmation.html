@@ -1,185 +1,359 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grayson Towncar Reservation Confirmation</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grayson Towncar - Reservation Confirmation</title>
+    <style type="text/css">
+      /* Import Google Fonts */
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+      
+      /* Reset styles */
+      body,
+      p,
+      div,
+      h1,
+      h2,
+      h3,
+      h4,
+      ul,
+      li {
+        margin: 0;
+        padding: 0;
+      }
+      
+      body {
+        background-color: #f4f4f4;
+        font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+        color: #333333;
+      }
+      
+      /* Base container */
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+      
+      /* Header */
+      .header {
+        background-color: #2c3e50;
+        padding: 25px 20px;
+        text-align: center;
+      }
+      
+      .header-logo {
+        max-width: 180px;
+        margin-bottom: 15px;
+      }
+      
+      .header-title {
+        margin: 0;
+        font-size: 28px;
+        color: #ffffff;
+        font-weight: 600;
+      }
+      
+      /* Content */
+      .content {
+        padding: 30px;
+      }
+      
+      .greeting {
+        margin-bottom: 20px;
+        font-size: 17px;
+      }
+      
+      /* Info sections */
+      .info-section {
+        background-color: #f9f9f9;
+        border-left: 5px solid #2c3e50;
+        padding: 20px;
+        margin-bottom: 25px;
+        border-radius: 4px;
+      }
+      
+      .section-title {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      
+      .info-text {
+        margin-bottom: 10px;
+        font-size: 16px;
+      }
+      
+      .info-text strong {
+        font-weight: 600;
+      }
+      
+      /* Status colors */
+      .status-paid {
+        color: #27ae60;
+        font-weight: 600;
+      }
+      
+      .status-unpaid {
+        color: #e74c3c;
+        font-weight: 600;
+      }
+      
+      .status-pending {
+        color: #f39c12;
+        font-weight: 600;
+      }
+      
+      .status-saved {
+        color: #3498db;
+        font-weight: 600;
+      }
+      
+      /* Itinerary leg */
+      .itinerary-leg {
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px dashed #e0e0e0;
+      }
+      
+      .itinerary-leg:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+      
+      /* List styling */
+      ul {
+        padding-left: 20px;
+        margin: 10px 0;
+      }
+      
+      li {
+        margin-bottom: 8px;
+      }
+      
+      /* Links */
+      a {
+        color: #2980b9;
+        text-decoration: none;
+      }
+      
+      a:hover {
+        text-decoration: underline;
+      }
+      
+      /* Footer */
+      .footer {
+        text-align: center;
+        color: #666666;
+        padding: 25px;
+        border-top: 1px solid #e0e0e0;
+        font-size: 15px;
+      }
+      
+      .footer p {
+        margin-bottom: 10px;
+      }
+      
+      /* Contact icons */
+      .contact-icon {
+        font-size: 18px;
+        margin-right: 5px;
+      }
+      
+      /* Responsive styles */
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 100% !important;
         }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .header {
-            text-align: center;
-            padding: 20px 0;
-            border-bottom: 2px solid #d9d9d9;
-        }
-
-        .header img {
-            max-width: 200px;
-            height: auto;
-        }
-
+      
         .content {
-            padding: 20px 0;
+          padding: 20px !important;
         }
-
-        .reservation-details {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
+      
+        .info-section {
+          padding: 15px !important;
         }
-
-        .leg {
-            border-left: 3px solid #486581;
-            padding-left: 15px;
-            margin: 15px 0;
+      
+        .header-title {
+          font-size: 24px !important;
         }
-
-        .footer {
-            text-align: center;
-            padding: 20px 0;
-            border-top: 2px solid #d9d9d9;
-            font-size: 12px;
-            color: #777;
+      
+        .section-title {
+          font-size: 18px !important;
         }
-
-        .button {
-            display: inline-block;
-            background-color: #486581;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            margin: 20px 0;
+      
+        .info-text {
+          font-size: 15px !important;
         }
-
-        h2 {
-            color: #486581;
-        }
-
-        .contact {
-            margin-top: 20px;
-            text-align: center;
-        }
+      }
     </style>
   </head>
   <body>
-    <div class="container">
+    <div class="email-container">
+      <!-- Header -->
       <div class="header">
-        <img src="https://dummyjson.com/image/50" alt="Grayson Towncar Logo" />
-        <h1>Reservation Confirmation</h1>
+        <img src="https://i.postimg.cc/tJmrm93v/grayson-Email-Signature-1.png" alt="Grayson Towncar Logo" class="header-logo" />
+        <h1 class="header-title">Reservation Confirmation</h1>
       </div>
 
+      <!-- Content -->
       <div class="content">
-        <p>Dear {{ reservation.customer.first_name }},</p>
+        <p class="greeting">Hello {{ reservation.customer.first_name }},</p>
 
-        <p>
-          Thank you for choosing Grayson Towncar for your transportation needs. Your reservation has been confirmed and the details are provided below:
-        </p>
+        <p class="info-text" style="margin-bottom: 25px;">Thank you for choosing Grayson Towncar. Your reservation has been successfully booked. Below you'll find all the important details.</p>
 
-        <div class="reservation-details">
-          <h2>Reservation Details</h2>
-          <p>
-            <strong>Reservation #:</strong> {{ reservation.id }}
+        <!-- Reservation Details -->
+        <div class="info-section">
+          <h2 class="section-title">Reservation Details</h2>
+          <p class="info-text">
+            <strong>Reservation ID:</strong> {{ reservation.id }}
           </p>
-          <p>
-            <strong>Passenger Name:</strong> {{ reservation.customer.get_full_name }}
+          <p class="info-text">
+            <strong>Booking Date:</strong> {{ date|date:'F j, Y' }}
           </p>
-          <p>
-            <strong>Booking Date:</strong> {{ date|date:"F j, Y" }}
-          </p>
-          <p>
-            <strong>Trip Type:</strong> {{ reservation.get_trip_type_display }}
-          </p>
+          <p class="info-text">
+            <strong>Reservation Status:</strong>
+            <span class="{% if reservation.status == 'Confirmed' %}
+                
+                
+                status-paid
 
-          <h3>Trip Itinerary</h3>
-          {% for leg in legs %}
-            <div class="leg">
-              <p>
+
+              {% else %}
+                
+                
+                status-pending
+
+
+              {% endif %}">
+              {{ reservation.status }}
+            </span>
+          </p>
+          <p class="info-text">
+            <strong>Payment Status:</strong>
+            {% for payment in reservation.payments.all %}
+              <span class="
+                {% if payment.status == 'paid' %}
+                  
+                  
+                  status-paid
+
+
+
+                {% elif payment.status == 'save_card' %}
+                  
+                  
+                  status-saved
+
+
+
+                {% else %}
+                  
+                  
+                  status-pending
+
+
+                {% endif %}">
+                {{ payment.status|capfirst }}
+              </span>
+              {% if not forloop.last %}, {% endif %}
+            {% endfor %}
+          </p>
+          <p class="info-text">
+            <strong>Total Price:</strong> ${{ reservation.total }}
+          </p>
+          <p class="info-text" style="font-style: italic; color: #666;">(Includes all taxes and fees)</p>
+        </div>
+
+        <!-- Guest Information -->
+        <div class="info-section">
+          <h2 class="section-title">Guest Information</h2>
+          <p class="info-text">
+            <strong>Name:</strong> {{ reservation.customer.get_full_name }}
+          </p>
+          <p class="info-text">
+            <strong>Email:</strong> {{ reservation.customer.email }}
+          </p>
+          <p class="info-text">
+            <strong>Phone:</strong> {{ reservation.customer.phone_number }}
+          </p>
+        </div>
+
+        <!-- Trip Itinerary -->
+        <div class="info-section">
+          <h2 class="section-title">Trip Itinerary</h2>
+          {% for leg in reservation.legs.all %}
+            <div class="itinerary-leg">
+              <p class="info-text">
                 <strong>Leg {{ forloop.counter }}:</strong>
               </p>
-              <p>
-                <strong>Date:</strong> {{ leg.pickup_date|date:"F j, Y" }}
+              <p class="info-text">
+                <strong>Date:</strong> {{ leg.pickup_date|date:'F j, Y' }}
               </p>
-              <p>
-                <strong>Pickup Time:</strong> {{ leg.pickup_time|time:"g:i A" }}
+              <p class="info-text">
+                <strong>Time:</strong> {{ leg.pickup_time|time:'g:i A' }}
               </p>
-              <p>
-                <strong>Pickup Location:</strong> {{ leg.pickup_location }}
+              <p class="info-text">
+                <strong>From:</strong> {{ leg.pickup_location }}
               </p>
-              <p>
-                <strong>Destination:</strong> {{ leg.dropoff_location }}
+              <p class="info-text">
+                <strong>To:</strong> {{ leg.dropoff_location }}
               </p>
-              {% if leg.flight_info %}
-                <p>
-                  <strong>Flight Info:</strong> {{ leg.flight_info }}
+              {% if leg.flight_information %}
+                <p class="info-text">
+                  <strong>Flight Info:</strong> {{ leg.flight_information }}
                 </p>
               {% endif %}
             </div>
           {% endfor %}
         </div>
 
-        <p>Your chauffeur will be there at the scheduled time to provide you with excellent service.</p>
+        <!-- Pickup Instructions -->
+        <div class="info-section">
+          <h2 class="section-title">Airport Pickup Instructions</h2>
+          <p class="info-text">Our drivers monitor your flight's arrival time to stay updated on delays or early landings. Once your plane lands, your chauffeur will send you a text message to confirm their presence and guide you. They will then meet you inside the baggage claim area holding a sign with your name.</p>
+        </div>
 
-        {% for leg in legs %}
-          {% if "airport" in leg.pickup_location|lower %}
-            <div class="airport-instructions">
-              <h3>Airport Pickup Information</h3>
-              <p>
-                <strong>Our airport service includes:</strong>
-              </p>
-              <ul style="list-style-type: none; padding-left: 0;">
-                <li>✓ Flight tracking for any delays or early arrivals</li>
-                <li>✓ Driver will meet you inside at the baggage claim area</li>
-                <li>✓ Text message notification when your plane lands</li>
-                <li>✓ Assistance with your luggage from baggage claim to the car</li>
-              </ul>
-              <p>
-                <strong>Important:</strong> If your flight number changes, please contact us immediately at (407) 494-1043.
-              </p>
-            </div>
-          {% endif %}
-        {% endfor %}
+        <!-- Gratuity -->
+        <div class="info-section">
+          <h2 class="section-title">Gratuity</h2>
+          <p class="info-text">Gratuity is not included in the total price. We kindly recommend a 20% tip for your professional driver, which can be given in cash or added upon request.</p>
+        </div>
 
-        {% comment %} <p>To manage your reservation, please click the button below:</p>
-        <div style="text-align: center;">
-          <a href="https://graysontowncar.com/my-reservations/{{ reservation_id }}" class="button">Manage Reservation</a>
-        </div> {% endcomment %}
+        <!-- Cancellation Policy -->
+        <div class="info-section">
+          <h2 class="section-title">Cancellation Policy</h2>
+          <p class="info-text">We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours:</p>
+          <ul>
+            <li class="info-text">Return trip will be refunded in full</li>
+            <li class="info-text">Arrival trip will receive a 50% credit</li>
+          </ul>
+        </div>
 
-        <div class="contact">
-          <h3>Need assistance?</h3>
-          <p>Contact our customer service team at:</p>
-          <p>Email: reservations@graysontowncar.com</p>
-          <p>Phone: (407) 212-7190</p>
-          <p>
-            Website: <a href="https://www.graysontowncar.com">www.graysontowncar.com</a>
+        <!-- Contact Information -->
+        <div class="info-section">
+          <h2 class="section-title">Contact Us</h2>
+          <p class="info-text">Questions or need to make changes? Just reply to this email or contact us directly:</p>
+          <p class="info-text">
+            <span class="contact-icon">📧</span> <a href="mailto:reservations@graysontowncar.com">reservations@graysontowncar.com</a>
+          </p>
+          <p class="info-text">
+            <span class="contact-icon">☎️</span> (407) 212-7190
+          </p>
+          <p class="info-text">
+            <span class="contact-icon">🌐</span> <a href="https://www.graysontowncar.com">www.graysontowncar.com</a>
           </p>
         </div>
-      </div>
 
-      <div class="footer">
-        <p>Thank you for choosing Grayson Towncar.</p>
-        <p>©Grayson Towncar. All rights reserved.</p>
-        <p>1234 Main Street, Suite 500, Anytown, CA 12345</p>
-        <p>
-          <small>You can reply directly to this email if you have any questions or need to make changes to your reservation.</small>
-        </p>
+        <!-- Footer -->
+        <div class="footer">
+          <p>© Grayson Towncar. All rights reserved.</p>
+          <p>We look forward to welcoming you aboard. Thank you for letting us be part of your journey.</p>
+        </div>
       </div>
     </div>
   </body>
