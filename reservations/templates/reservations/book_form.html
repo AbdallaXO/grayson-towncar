@@ -11,22 +11,18 @@
             <h1 class="card-title mb-3 text-center">Booking Details</h1>
             <h5 class="text-primary mb-0 lh-lg">{{ trip_type|title }} {{ vehicle }} Reservation</h5>
             <h6 class="text-primary mb-0 fs-6">{{ route }}</h6>
+            <small class="form-text text-muted" style="font-size: 0.8rem;">
+              ✈️ For arrivals, set the pickup time as your flight's landing time.
+              <br>
+              For departures, we recommend a pickup time at least <strong>2.5 hours before</strong> your flight's departure time.
+            </small>
           </div>
         </div>
-
-        {% if form.errors %}
-          <div class="alert alert-danger mb-4">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <strong>Please correct the errors below.</strong>
-          </div>
-        {% endif %}
-
         <form method="POST"
               class="needs-validation"
               novalidate
               id="reservation_form">
           {% csrf_token %}
-
           <!-- Customer Information Card -->
           <div class="card shadow-sm mb-4">
             <div class="card-header bg-light">
@@ -279,12 +275,11 @@
                   </h4>
                 </div>
                 <div class="card-body">
-                  <!-- Return Flight Info Section (Always Visible) -->
                   <div class="mb-3">
                     <h5 class="border-bottom pb-2 mb-3">Return Flight Information</h5>
 
-                    <div class="alert alert-info mb-3">
-                      <i class="bi bi-info-circle-fill me-2"></i>
+                    <div class="alert alert-dark mb-3">
+                      <i class="bi bi-light-circle-fill me-2"></i>
                       <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
                     </div>
 

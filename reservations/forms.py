@@ -16,7 +16,7 @@ class CustomerForm(forms.ModelForm):
         fields = ["first_name", "last_name", "email", "phone_number", "zipcode"]
         widgets = {
             "first_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "First Name", 'autocomplete':'given-name'}
+                attrs={"class": "form-control", "placeholder": "First Name", 'autocomplete':'given-name', "autofocus": True}
             ),
             "last_name": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Last Name", "autocomplete":"family-name", }
