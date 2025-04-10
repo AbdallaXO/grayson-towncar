@@ -23,6 +23,7 @@ class Vehicle(models.Model):
     rf_carseats_max = models.PositiveIntegerField(default=1)
     boosters_max = models.PositiveIntegerField(default=1)
     carseats_capacity = models.PositiveIntegerField(default=1)
+    carseats_display = models.CharField(max_length=100, blank=True)
 
     def __str__(self):
         """
