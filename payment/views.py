@@ -16,7 +16,6 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 def create_checkout_session(request, reservation_id):
     logger.info(f"Starting checkout session for reservation {reservation_id}")
-    logger.info(f"Request method: {request.method}")
     logger.info(f"POST data: {request.POST}")
 
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
@@ -27,11 +26,12 @@ def create_checkout_session(request, reservation_id):
     stripe_customer = get_or_create_stripe_customer(reservation)
     logger.info(f"Stripe Customer ID: {stripe_customer.id}")
 
-    success_url = request.build_absolute_uri(reverse("payment_success"))
-    cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
-    logger.info(f"Success URL: {success_url}")
-    logger.info(f"Cancel URL: {cancel_url}")
-
+    success_url = request.build_absolute_uri(
+        reverse("payment_success") + f"?q={reservation.uuid}"
+    )
+    cancel_url = request.build_absolute_uri(
+        reverse("payment_cancel") + f"?q={reservation.uuid}"
+    )
     if request.method == "POST":
         action = request.POST.get("action")
         logger.info(f"Action selected: {action}")
@@ -79,9 +79,13 @@ def create_checkout_session(request, reservation_id):
 
 
 def save_card(request, reservation_id):
-    success_url = request.build_absolute_uri(reverse("payment_success"))
-    cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
+    success_url = request.build_absolute_uri(
+        reverse("payment_success") + f"?q={reservation.uuid}"
+    )
+    cancel_url = request.build_absolute_uri(
+        reverse("payment_cancel") + f"?q={reservation.uuid}"
+    )
     try:
         stripe_customer = get_or_create_stripe_customer(reservation)
     except Exception as e:
