@@ -353,27 +353,14 @@
       font-size: 14px;
     }
   }
+  input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button {
+  opacity: 1;
+}
 </style>
 
 <div class="container form-container">
-  <div class="row">
-    <div class="col-lg-8 mx-auto">
-      <!-- Progress Indicator -->
-      <div class="progress-steps">
-        <div class="step active">
-          <div class="step-circle active">1</div>
-          <div class="step-label">Details</div>
-        </div>
-        <div class="step">
-          <div class="step-circle">2</div>
-          <div class="step-label">Payment</div>
-        </div>
-        <div class="step">
-          <div class="step-circle">3</div>
-          <div class="step-label">Confirmation</div>
-        </div>
-      </div>
-      
+
       <!-- Form Heading -->
       <h1 class="form-heading">Booking Details</h1>
       
@@ -815,39 +802,35 @@
         {% endif %}
         
         <!-- Price Information Card -->
-        <div class="form-card">
-          <div class="card-header">
-            <h4><i class="bi bi-tag-fill me-2"></i> Price Information</h4>
-          </div>
-          <div class="card-body">
-            <div class="row align-items-center">
-              <div class="col-md-4">
-                <div class="price-amount">${{ price }}</div>
-              </div>
-              <div class="col-md-8">
-                <div class="grayson-benefits">
-                  <h5><img src="{% static 'img/logo-small.png' %}" alt="Grayson Towncar" class="me-2" height="24"> Grayson Towncar Benefits</h5>
-                  <ul class="benefits-list">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> All-inclusive price - no hidden fees</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Professional, uniformed drivers</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Free flight monitoring and adjustments</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> 24/7 customer support</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Clean, late-model luxury vehicles</li>
-                  </ul>
-                  <p class="mt-2 mb-0 text-muted small">Gratuity for your driver is appreciated and can be provided in cash or added to your credit card.</p>
-                </div>
-              </div>
-            </div>
-          </div>
+  <!-- Price Information Card with Booking CTA -->
+<div class="card border-light mb-4 bg-white rounded-0">
+  <div class="card-header bg-white border-light pb-2 pt-3">
+    <h5 class="mb-0 text-dark fw-normal"><i class="bi bi-currency-dollar me-2"></i>Pricing & Service Details</h5>
+  </div>
+  <div class="card-body pt-0">
+    <div class="row align-items-center">
+      <!-- Price Display -->
+      <div class="col-md-4 text-center py-3">
+        <div class="h3 fw-light text-dark mb-1">Total</div>
+        <div class="h2 fw-bold text-dark">${{ price }}</div>
+        <p class="small text-muted mt-1 mb-3">Final price, inclusive of fees</p>
+        <button class="btn btn-dark rounded-0 w-100 py-2">Book Now</button>
+      </div>
+
+      <!-- Benefits List -->
+      <div class="col-md-8 ps-md-4 border-start">
+        <h6 class="text-uppercase text-dark fw-normal mb-3">Service Inclusions</h6>
+        <ul class="list-unstyled mb-4">
+          <li class="mb-2"><i class="bi bi-check text-success me-2"></i>Transparent all-inclusive pricing</li>
+          <li class="mb-2"><i class="bi bi-check text-success me-2"></i>Professional chauffeur service</li>
+          <li class="mb-2"><i class="bi bi-check text-success me-2"></i>Real-time flight tracking</li>
+          <li class="mb-2"><i class="bi bi-check text-success me-2"></i>Dedicated 24/7 support</li>
+          <li class="mb-2"><i class="bi bi-check text-success me-2"></i>Premium luxury vehicles</li>
+        </ul>
+        <div class="border-top pt-2 small text-muted">
+          <i class="bi bi-info-circle me-1"></i> Gratuity for your chauffeur is not included it we recommend to do it in cash.
         </div>
-        
-        <!-- Submit Button -->
-        <div class="d-grid gap-2 mb-4">
-          <button type="submit" class="btn btn-primary btn-submit">
-            <i class="bi bi-check-circle me-2"></i>Submit Reservation
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 </div>
