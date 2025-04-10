@@ -2,973 +2,890 @@
 {% load static %}
 {% block content %}
 
-  <style>
-      /* Modern styling with clean aesthetic */
-      body {
-          background-color: #f5f7fa;
-      }
+<style>
+  /* Modern styling with clean aesthetic */
+  body {
+    background-color: #f5f7fa;
+  }
+  
+  .form-container {
+    background-color: #f5f7fa;
+    border-radius: 12px;
+    padding: 30px 0;
+  }
+  
+  .form-card {
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    border: none;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  
+  .form-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+  }
+  
+  .card-header {
+    padding: 16px 20px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #eaedf2;
+  }
+  
+  .card-header h4 {
+    font-weight: 600;
+    color: #1e2432;
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .card-body {
+    padding: 24px;
+  }
+  
+  /* Form controls */
+  .form-control, .form-select {
+    height: 46px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #d1d9e6;
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+    font-size: 15px;
+  }
+  
+  .form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+  }
+  
+  textarea.form-control {
+    min-height: 120px;
+  }
+  
+  /* Date and time inputs */
+  input[type="date"], input[type="time"] {
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    color: #212529;
+    background-color: #ffffff;
+  }
+  
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 12px;
+    opacity: 0.7;
+  }
+  
+  /* Progress steps */
+  .progress-steps {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    max-width: 500px;
+    margin: 0 auto 40px;
+    padding: 0;
+  }
+  
+  .progress-steps::before {
+    content: "";
+    position: absolute;
+    top: 16px;
+    left: 10%;
+    width: 80%;
+    height: 2px;
+    background-color: #dfe3e8;
+    z-index: 1;
+  }
+  
+  .step {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .step-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    border: 2px solid #dfe3e8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 8px;
+  }
+  
+  .step-circle.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: #ffffff;
+  }
+  
+  .step-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #6c757d;
+  }
+  
+  .step.active .step-label {
+    color: #0d6efd;
+    font-weight: 600;
+  }
+  
+  /* Headings */
+  .form-heading {
+    text-align: center;
+    margin-bottom: 24px;
+    color: #1e2432;
+  }
+  
+  .section-heading {
+    font-size: 18px;
+    margin-bottom: 20px;
+    font-weight: 600;
+    color: #1e2432;
+    border-bottom: 1px solid #eaedf2;
+    padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .section-heading i {
+    margin-right: 8px;
+    color: #0d6efd;
+  }
+  
+  /* Form labels and fields */
+  .form-label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #1e2432;
+    display: flex;
+    align-items: center;
+  }
+  
+  .required::after {
+    content: "*";
+    color: #dc3545;
+    margin-left: 4px;
+  }
+  
+  .help-text {
+    font-size: 13px;
+    color: #6c757d;
+    margin-top: 5px;
+  }
+  
+  /* Info tooltip */
+  .info-tooltip {
+    color: #6c757d;
+    font-size: 14px;
+    margin-left: 5px;
+    cursor: help;
+  }
+  
+  .info-tooltip:hover {
+    color: #0d6efd;
+  }
+  
+  /* Form row spacing */
+  .form-row {
+    margin-bottom: 20px;
+  }
+  
+  /* Checkboxes */
+  .form-check {
+    padding-left: 0;
+    margin: 12px 0;
+  }
+  
+  .form-check-input {
+    margin-right: 8px;
+    cursor: pointer;
+  }
+  
+  .form-check-label {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  
+  /* Alerts */
+  .alert {
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border: none;
+  }
+  
+  .alert-info {
+    background-color: #e5f5fb;
+    color: #055160;
+    border-left: 4px solid #0dcaf0;
+  }
+  
+  /* Price tag */
+  .price-amount {
+    font-size: 32px;
+    font-weight: 700;
+    color: #198754;
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    display: inline-block;
+    margin-bottom: 1rem;
+  }
+  
+  /* Benefits list */
+  .grayson-benefits {
+    padding: 10px 0;
+  }
+  
+  .grayson-benefits h5 {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    color: #212529;
+  }
+  
+  .benefits-list {
+    list-style: none;
+    padding-left: 0;
+    margin-bottom: 0;
+  }
+  
+  .benefits-list li {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .benefits-list li i {
+    margin-right: 8px;
+    font-size: 14px;
+  }
+  
+  /* Submit button */
+  .btn-submit {
+    background-color: #0d6efd;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: all 0.3s ease;
+  }
+  
+  .btn-submit:hover {
+    background-color: #0b5ed7;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
+  }
+  
+  /* Car seats section */
+  .car-seats-section {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 16px;
+    border: 1px solid #e9ecef;
+  }
+  
+  /* Validation styling */
+  .invalid-feedback {
+    color: #dc3545;
+    font-size: 13px;
+    margin-top: 5px;
+  }
+  
+  .has-error .form-control,
+  .has-error .form-select {
+    border-color: #dc3545;
+  }
+  
+  /* Route display */
+  .route-display {
+    display: flex;
+    align-items: center;
+    margin: 12px 0;
+  }
+  
+  .route-display i {
+    color: #dc3545;
+    margin-right: 10px;
+    font-size: 20px;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .card-body {
+      padding: 16px;
+    }
+    
+    .form-control, .form-select {
+      height: 42px;
+    }
+    
+    .progress-steps::before {
+      width: 70%;
+      left: 15%;
+    }
+    
+    .price-amount {
+      font-size: 28px;
+      margin-bottom: 15px;
+    }
+    
+    .benefits-list li {
+      font-size: 14px;
+    }
+  }
+</style>
 
-      .form-container {
-          background-color: #f5f7fa;
-          border-radius: 12px;
-          padding: 30px 0;
-      }
-
-      .form-card {
-          background-color: #ffffff;
-          border-radius: 8px;
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-          border: none;
-          overflow: hidden;
-          margin-bottom: 24px;
-      }
-
-      .form-card:hover {
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-          transition: all 0.3s ease;
-      }
-
-      .card-header {
-          padding: 16px 20px;
-          background-color: #ffffff;
-          border-bottom: 1px solid #eaedf2;
-      }
-
-      .card-header h4 {
-          font-weight: 600;
-          color: #1e2432;
-          margin: 0;
-          display: flex;
-          align-items: center;
-      }
-
-      .card-body {
-          padding: 24px;
-      }
-
-      /* Form controls */
-      .form-control,
-      .form-select {
-          height: 46px;
-          padding: 10px 16px;
-          border-radius: 6px;
-          border: 1px solid #d1d9e6;
-          background-color: #ffffff;
-          transition: all 0.2s ease;
-          font-size: 15px;
-      }
-
-      .form-control:focus,
-      .form-select:focus {
-          border-color: #0d6efd;
-          box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
-      }
-
-      textarea.form-control {
-          min-height: 120px;
-      }
-
-      /* Date and time inputs */
-      input[type="date"],
-      input[type="time"] {
-          appearance: none;
-          -webkit-appearance: none;
-          position: relative;
-          color: #212529;
-          background-color: #ffffff;
-      }
-
-      input[type="date"]::-webkit-calendar-picker-indicator,
-      input[type="time"]::-webkit-calendar-picker-indicator {
-          position: absolute;
-          right: 12px;
-          opacity: 0.7;
-      }
-
-      /* Progress steps */
-      .progress-steps {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          position: relative;
-          max-width: 500px;
-          margin: 0 auto 40px;
-          padding: 0;
-      }
-
-      .progress-steps::before {
-          content: "";
-          position: absolute;
-          top: 16px;
-          left: 10%;
-          width: 80%;
-          height: 2px;
-          background-color: #dfe3e8;
-          z-index: 1;
-      }
-
-      .step {
-          position: relative;
-          z-index: 2;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-      }
-
-      .step-circle {
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          background-color: #ffffff;
-          border: 2px solid #dfe3e8;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 600;
-          color: #6c757d;
-          margin-bottom: 8px;
-      }
-
-      .step-circle.active {
-          background-color: #0d6efd;
-          border-color: #0d6efd;
-          color: #ffffff;
-      }
-
-      .step-label {
-          font-size: 14px;
-          font-weight: 500;
-          color: #6c757d;
-      }
-
-      .step.active .step-label {
-          color: #0d6efd;
-          font-weight: 600;
-      }
-
-      /* Headings */
-      .form-heading {
-          text-align: center;
-          margin-bottom: 24px;
-          color: #1e2432;
-      }
-
-      .section-heading {
-          font-size: 18px;
-          margin-bottom: 20px;
-          font-weight: 600;
-          color: #1e2432;
-          border-bottom: 1px solid #eaedf2;
-          padding-bottom: 10px;
-          display: flex;
-          align-items: center;
-      }
-
-      .section-heading i {
-          margin-right: 8px;
-          color: #0d6efd;
-      }
-
-      /* Form labels and fields */
-      .form-label {
-          font-weight: 500;
-          margin-bottom: 8px;
-          color: #1e2432;
-          display: flex;
-          align-items: center;
-      }
-
-      .required::after {
-          content: "*";
-          color: #dc3545;
-          margin-left: 4px;
-      }
-
-      .help-text {
-          font-size: 13px;
-          color: #6c757d;
-          margin-top: 5px;
-      }
-
-      /* Info tooltip */
-      .info-tooltip {
-          color: #6c757d;
-          font-size: 14px;
-          margin-left: 5px;
-          cursor: help;
-      }
-
-      .info-tooltip:hover {
-          color: #0d6efd;
-      }
-
-      /* Form row spacing */
-      .form-row {
-          margin-bottom: 20px;
-      }
-
-      /* Checkboxes */
-      .form-check {
-          padding-left: 0;
-          margin: 12px 0;
-      }
-
-      .form-check-input {
-          margin-right: 8px;
-          cursor: pointer;
-      }
-
-      .form-check-label {
-          display: flex;
-          align-items: center;
-          font-weight: 500;
-          cursor: pointer;
-      }
-
-      /* Alerts */
-      .alert {
-          border-radius: 6px;
-          padding: 12px 16px;
-          margin-bottom: 16px;
-          border: none;
-      }
-
-      .alert-info {
-          background-color: #e5f5fb;
-          color: #055160;
-          border-left: 4px solid #0dcaf0;
-      }
-
-      /* Price tag */
-      .price-amount {
-          font-size: 32px;
-          font-weight: 700;
-          color: #198754;
-          padding: 10px 15px;
-          background-color: #f8f9fa;
-          border-radius: 8px;
-          display: inline-block;
-          margin-bottom: 1rem;
-      }
-
-      /* Benefits list */
-      .grayson-benefits {
-          padding: 10px 0;
-      }
-
-      .grayson-benefits h5 {
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          margin-bottom: 15px;
-          color: #212529;
-      }
-
-      .benefits-list {
-          list-style: none;
-          padding-left: 0;
-          margin-bottom: 0;
-      }
-
-      .benefits-list li {
-          margin-bottom: 8px;
-          display: flex;
-          align-items: center;
-      }
-
-      .benefits-list li i {
-          margin-right: 8px;
-          font-size: 14px;
-      }
-
-      /* Submit button */
-      .btn-submit {
-          background-color: #0d6efd;
-          border: none;
-          padding: 14px 24px;
-          border-radius: 6px;
-          font-weight: 600;
-          font-size: 16px;
-          transition: all 0.3s ease;
-      }
-
-      .btn-submit:hover {
-          background-color: #0b5ed7;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
-      }
-
-      /* Car seats section */
-      .car-seats-section {
-          background-color: #f8f9fa;
-          border-radius: 8px;
-          padding: 20px;
-          margin-top: 16px;
-          border: 1px solid #e9ecef;
-      }
-
-      /* Validation styling */
-      .invalid-feedback {
-          color: #dc3545;
-          font-size: 13px;
-          margin-top: 5px;
-      }
-
-      .has-error .form-control,
-      .has-error .form-select {
-          border-color: #dc3545;
-      }
-
-      /* Route display */
-      .route-display {
-          display: flex;
-          align-items: center;
-          margin: 12px 0;
-      }
-
-      .route-display i {
-          color: #dc3545;
-          margin-right: 10px;
-          font-size: 20px;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 768px) {
-          .card-body {
-              padding: 16px;
-          }
-
-          .form-control,
-          .form-select {
-              height: 42px;
-          }
-
-          .progress-steps::before {
-              width: 70%;
-              left: 15%;
-          }
-
-          .price-amount {
-              font-size: 28px;
-              margin-bottom: 15px;
-          }
-
-          .benefits-list li {
-              font-size: 14px;
-          }
-      }
-  </style>
-
-  <div class="container form-container">
-    <div class="row">
-      <div class="col-lg-8 mx-auto">
-        <!-- Progress Indicator -->
-        <div class="progress-steps">
-          <div class="step active">
-            <div class="step-circle active">1</div>
-            <div class="step-label">Details</div>
+<div class="container form-container">
+  <div class="row">
+    <div class="col-lg-8 mx-auto">
+      <!-- Progress Indicator -->
+      <div class="progress-steps">
+        <div class="step active">
+          <div class="step-circle active">1</div>
+          <div class="step-label">Details</div>
+        </div>
+        <div class="step">
+          <div class="step-circle">2</div>
+          <div class="step-label">Payment</div>
+        </div>
+        <div class="step">
+          <div class="step-circle">3</div>
+          <div class="step-label">Confirmation</div>
+        </div>
+      </div>
+      
+      <!-- Form Heading -->
+      <h1 class="form-heading">Booking Details</h1>
+      
+      <!-- Trip Overview -->
+      <div class="form-card">
+        <div class="card-body">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+            <div>
+              <h5 class="text-primary mb-2">{{ trip_type|title }} {{ vehicle }} Reservation</h5>
+              <h6 class="text-muted">{{ route }}</h6>
+            </div>
+            <div class="text-muted mt-3 mt-md-0">
+              <i class="bi bi-clock"></i>
+              <small>Completing this form takes approximately <strong>3-5 minutes</strong></small>
+            </div>
           </div>
-          <div class="step">
-            <div class="step-circle">2</div>
-            <div class="step-label">Payment</div>
-          </div>
-          <div class="step">
-            <div class="step-circle">3</div>
-            <div class="step-label">Confirmation</div>
+          
+          <div class="alert alert-info mt-3 mb-0">
+            <i class="bi bi-info-circle-fill me-2"></i>
+            <span>
+              <strong>Travel Tip:</strong> For arrivals, set the pickup time as your flight's landing time.
+              For departures, we recommend a pickup time at least <strong>2.5 hours before</strong> your flight.
+            </span>
           </div>
         </div>
-
-        <!-- Form Heading -->
-        <h1 class="form-heading">Booking Details</h1>
-
-        <!-- Trip Overview -->
+      </div>
+      
+      <form method="POST" class="needs-validation" novalidate id="reservation_form">
+        {% csrf_token %}
+        
+        <!-- Contact Information -->
         <div class="form-card">
+          <div class="card-header">
+            <h4><i class="bi bi-person-circle me-2"></i> Contact Information</h4>
+          </div>
           <div class="card-body">
-            <h1 class="card-title mb-3 text-center">Booking Details</h1>
-            <h5 class="text-primary mb-0 lh-lg">{{ trip_type|title }} {{ vehicle }} Reservation</h5>
-            <h6 class="text-primary mb-0 fs-6">{{ route }}</h6>
+            <div class="row">
+              <div class="col-md-6 form-row">
+                <label for="{{ customer_form.first_name.id_for_label }}" class="form-label required">First Name</label>
+                {{ customer_form.first_name }}
+                {% if customer_form.first_name.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in customer_form.first_name.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ customer_form.last_name.id_for_label }}" class="form-label required">Last Name</label>
+                {{ customer_form.last_name }}
+                {% if customer_form.last_name.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in customer_form.last_name.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ customer_form.email.id_for_label }}" class="form-label required">Email Address</label>
+                {{ customer_form.email }}
+                <div class="help-text">We'll send your confirmation and updates to this address</div>
+                {% if customer_form.email.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in customer_form.email.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ customer_form.phone_number.id_for_label }}" class="form-label required">Phone Number</label>
+                {{ customer_form.phone_number }}
+                <div class="help-text">For day-of-travel updates and driver contact</div>
+                {% if customer_form.phone_number.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in customer_form.phone_number.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ customer_form.zipcode.id_for_label }}" class="form-label required">Zipcode</label>
+                {{ customer_form.zipcode }}
+                {% if customer_form.zipcode.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in customer_form.zipcode.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
           </div>
         </div>
-
-        {% if form.errors %}
-          <div class="alert alert-danger mb-4">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <strong>Please correct the errors below.</strong>
+        
+        <!-- Reservation Details -->
+        <div class="form-card">
+          <div class="card-header">
+            <h4><i class="bi bi-clipboard-check me-2"></i> Reservation Details</h4>
           </div>
-        {% endif %}
-
-        <form method="POST"
-              class="needs-validation"
-              novalidate
-              id="reservation_form">
-          {% csrf_token %}
-
-          <!-- Customer Information Card -->
-          <div class="card shadow-sm mb-4">
-            <div class="card-header bg-light">
-              <h4 class="mb-0">
-                <i class="bi bi-person-circle me-2"></i>Contact Information
-              </h4>
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-6 form-row">
-                  <label for="{{ customer_form.first_name.id_for_label }}"
-                         class="form-label required">First Name</label>
-                  {{ customer_form.first_name }}
-                  {% if customer_form.first_name.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in customer_form.first_name.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <label for="{{ customer_form.last_name.id_for_label }}"
-                         class="form-label required">Last Name</label>
-                  {{ customer_form.last_name }}
-                  {% if customer_form.last_name.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in customer_form.last_name.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <label for="{{ customer_form.email.id_for_label }}"
-                         class="form-label required">Email Address</label>
-                  {{ customer_form.email }}
-                  <div class="help-text">We'll send your confirmation and updates to this address</div>
-                  {% if customer_form.email.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in customer_form.email.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <label for="{{ customer_form.phone_number.id_for_label }}"
-                         class="form-label required">Phone Number</label>
-                  {{ customer_form.phone_number }}
-                  <div class="help-text">For day-of-travel updates and driver contact</div>
-                  {% if customer_form.phone_number.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in customer_form.phone_number.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <label for="{{ customer_form.zipcode.id_for_label }}"
-                         class="form-label required">Zipcode</label>
-                  {{ customer_form.zipcode }}
-                  {% if customer_form.zipcode.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in customer_form.zipcode.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Reservation Details -->
-          <div class="form-card">
-            <div class="card-header">
-              <h4>
-                <i class="bi bi-clipboard-check me-2"></i> Reservation Details
-              </h4>
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-6 form-row">
-                  <label for="{{ reservation_form.passenger_count.id_for_label }}"
-                         class="form-label required">
-                    Number of Passengers
-                    <i class="bi bi-question-circle info-tooltip"
-                       data-bs-toggle="tooltip"
-                       title="Count all passengers that need a seat, including infants and children"></i>
-                  </label>
-                  {{ reservation_form.passenger_count }}
-                  <div class="help-text">Include all travelers who need a seat</div>
-                  {% if reservation_form.passenger_count.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <label for="{{ reservation_form.luggage_count.id_for_label }}"
-                         class="form-label required">
-                    Number of Luggage Items
-                    <i class="bi bi-question-circle info-tooltip"
-                       data-bs-toggle="tooltip"
-                       title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
-                  </label>
-                  {{ reservation_form.luggage_count }}
-                  <div class="help-text">Standard check-in size suitcases</div>
-                  {% if reservation_form.luggage_count.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <div class="form-check">
-                    <label for="{{ reservation_form.need_carseats.id_for_label }}"
-                           class="form-check-label">
-                      {{ reservation_form.need_carseats }}
-                      Need Child Seats?
-                      <i class="bi bi-question-circle info-tooltip"
-                         data-bs-toggle="tooltip"
-                         title="Select if you need car seats or boosters for children of any age"></i>
-                    </label>
-                    {% if reservation_form.need_carseats.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6 form-row">
+                <label for="{{ reservation_form.passenger_count.id_for_label }}" class="form-label required">
+                  Number of Passengers
+                  <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="Count all passengers that need a seat, including infants and children"></i>
+                </label>
+                {{ reservation_form.passenger_count }}
+                <div class="help-text">Include all travelers who need a seat</div>
+                {% if reservation_form.passenger_count.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
                   </div>
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <div class="form-check">
-                    <label for="{{ reservation_form.store_stop.id_for_label }}"
-                           class="form-check-label">
-                      {{ reservation_form.store_stop }}
-                      Need a grocery store stop?
-                      <i class="bi bi-question-circle info-tooltip"
-                         data-bs-toggle="tooltip"
-                         title="We can make a quick stop (15-20 minutes) at a grocery store on the way to your destination"></i>
-                    </label>
-                    {% if reservation_form.store_stop.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-                </div>
-
-                <!-- Car Seats Section -->
-                <div class="col-12" id="car-seats-section">
-                  <div class="car-seats-section">
-                    <h5 class="mb-3">Child Seat Details</h5>
-                    <div class="row">
-                      <div class="col-md-4 form-row">
-                        <label for="{{ reservation_form.rf_carseats.id_for_label }}"
-                               class="form-label">
-                          Rear-Facing Seats
-                          <i class="bi bi-question-circle info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="For infants and small toddlers (approx. 0-2 years, up to 40 lbs)"></i>
-                        </label>
-                        {{ reservation_form.rf_carseats }}
-                        {% if reservation_form.rf_carseats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-
-                      <div class="col-md-4 form-row">
-                        <label for="{{ reservation_form.ff_carseats.id_for_label }}"
-                               class="form-label">
-                          Forward-Facing Seats
-                          <i class="bi bi-question-circle info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="For toddlers and preschoolers (approx. 2-5 years, 20-65 lbs)"></i>
-                        </label>
-                        {{ reservation_form.ff_carseats }}
-                        {% if reservation_form.ff_carseats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-
-                      <div class="col-md-4 form-row">
-                        <label for="{{ reservation_form.booster_seats.id_for_label }}"
-                               class="form-label">
-                          Booster Seats
-                          <i class="bi bi-question-circle info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="For older children (approx. 4-10 years, 40-100 lbs)"></i>
-                        </label>
-                        {{ reservation_form.booster_seats }}
-                        {% if reservation_form.booster_seats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Route Information -->
-          <div class="form-card">
-            <div class="card-header">
-              <h4>
-                <i class="bi bi-map me-2"></i> Route
-              </h4>
-            </div>
-            <div class="card-body">
-              <div class="route-display">
-                <i class="bi bi-geo-alt-fill"></i>
-                <p class="mb-0 fw-medium">{{ route }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Ride Details -->
-          <div class="form-card">
-            <div class="card-header">
-              <h4>
-                <i class="bi bi-car-front me-2"></i>
-                {% if trip_type == 'one way' %}
-                  Ride Details
-                {% else %}
-                  First Ride Details
                 {% endif %}
-              </h4>
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ reservation_form.luggage_count.id_for_label }}" class="form-label required">
+                  Number of Luggage Items
+                  <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
+                </label>
+                {{ reservation_form.luggage_count }}
+                <div class="help-text">Standard check-in size suitcases</div>
+                {% if reservation_form.luggage_count.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <div class="form-check">
+                  <label for="{{ reservation_form.need_carseats.id_for_label }}" class="form-check-label m-3">
+                    {{ reservation_form.need_carseats }}
+                    Need Child Seats?
+                    <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="Select if you need car seats or boosters for children of any age"></i>
+                  </label>
+                  {% if reservation_form.need_carseats.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <div class="form-check">
+                  <label for="{{ reservation_form.store_stop.id_for_label }}" class="form-check-label m-3">
+                    {{ reservation_form.store_stop }}
+                    Need a grocery store stop?
+                    <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="We can make a quick stop (15-20 minutes) at a grocery store on the way to your destination"></i>
+                  </label>
+                  {% if reservation_form.store_stop.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <!-- Car Seats Section -->
+              <div class="col-12" id="car-seats-section">
+                <div class="car-seats-section">
+                  <h5 class="mb-3">Child Seat Details</h5>
+                  <div class="row">
+                    <div class="col-md-4 form-row">
+                      <label for="{{ reservation_form.rf_carseats.id_for_label }}" class="form-label">
+                        Rear-Facing Seats
+                        <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="For infants and small toddlers (approx. 0-2 years, up to 40 lbs)"></i>
+                      </label>
+                      {{ reservation_form.rf_carseats }}
+                      {% if reservation_form.rf_carseats.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4 form-row">
+                      <label for="{{ reservation_form.ff_carseats.id_for_label }}" class="form-label">
+                        Forward-Facing Seats
+                        <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="For toddlers and preschoolers (approx. 2-5 years, 20-65 lbs)"></i>
+                      </label>
+                      {{ reservation_form.ff_carseats }}
+                      {% if reservation_form.ff_carseats.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                    
+                    <div class="col-md-4 form-row">
+                      <label for="{{ reservation_form.booster_seats.id_for_label }}" class="form-label">
+                        Booster Seats
+                        <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="For older children (approx. 4-10 years, 40-100 lbs)"></i>
+                      </label>
+                      {{ reservation_form.booster_seats }}
+                      {% if reservation_form.booster_seats.errors %}
+                        <div class="invalid-feedback d-block">
+                          {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Route Information -->
+        <div class="form-card">
+          <div class="card-header">
+            <h4><i class="bi bi-map me-2"></i> Route</h4>
+          </div>
+          <div class="card-body">
+            <div class="route-display">
+              <i class="bi bi-geo-alt-fill"></i>
+              <p class="mb-0 fw-medium">{{ route }}</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Ride Details -->
+        <div class="form-card">
+          <div class="card-header">
+            <h4>
+              <i class="bi bi-car-front me-2"></i>
+              {% if trip_type == 'one way' %}
+                Ride Details
+              {% else %}
+                First Ride Details
+              {% endif %}
+            </h4>
+          </div>
+          <div class="card-body">
+            <!-- Flight Info Section -->
+            <h5 class="section-heading"><i class="bi bi-airplane"></i> Flight Information</h5>
+            <div class="alert alert-info mb-4">
+              <i class="bi bi-info-circle-fill me-2"></i>
+              <strong>Please Note:</strong> Flight information is needed for airport pickups/dropoffs for tracking purposes. Skip if not applicable (e.g., hotel pickup).
+            </div>
+            
+            <div class="row">
+              <div class="col-md-6 form-row">
+                <label for="{{ flight1_form.airline.id_for_label }}" class="form-label">Airline</label>
+                {{ flight1_form.airline }}
+                <datalist id="airlines">
+                  {% for airline in airlines %}<option value="{{ airline }}">{% endfor %}
+                </datalist>
+                {% if flight1_form.airline.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ flight1_form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
+                {{ flight1_form.flight_number }}
+                <div class="help-text">Include airline code (DL1234, not just 1234)</div>
+                {% if flight1_form.flight_number.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Pickup Info -->
+            <h5 class="section-heading mt-4"><i class="bi bi-pin-map"></i> Pickup Information</h5>
+            <div class="row">
+              <div class="col-md-6 form-row">
+                <label for="{{ leg1_form.pickup_date.id_for_label }}" class="form-label required">Pickup Date</label>
+                {{ leg1_form.pickup_date }}
+                <div class="help-text">Select your travel date</div>
+                {% if leg1_form.pickup_date.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ leg1_form.pickup_time.id_for_label }}" class="form-label required">
+                  Pickup Time
+                  <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="For flight arrivals, use your flight's landing time. For departures, schedule at least 2.5 hours before your flight time"></i>
+                </label>
+                {{ leg1_form.pickup_time }}
+                <div class="help-text">We'll track flights and adjust for any delays</div>
+                {% if leg1_form.pickup_time.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in leg1_form.pickup_time.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ leg1_form.pickup_location.id_for_label }}" class="form-label required">Pickup Location</label>
+                {{ leg1_form.pickup_location }}
+                <div class="help-text">Airport terminal, hotel name, or full address</div>
+                {% if leg1_form.pickup_location.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+              
+              <div class="col-md-6 form-row">
+                <label for="{{ leg1_form.dropoff_location.id_for_label }}" class="form-label required">Drop-off Location</label>
+                {{ leg1_form.dropoff_location }}
+                <div class="help-text">Hotel name, resort name, or full address</div>
+                {% if leg1_form.dropoff_location.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Return Details Card (Conditional) -->
+        {% if leg2_form %}
+          <div class="form-card">
+            <div class="card-header">
+              <h4><i class="bi bi-car-front me-2"></i> Second Ride Details</h4>
             </div>
             <div class="card-body">
-              <!-- Flight Info Section -->
-              <h5 class="section-heading">
-                <i class="bi bi-airplane"></i> Flight Information
-              </h5>
+              <h5 class="section-heading"><i class="bi bi-airplane"></i> Return Flight Information</h5>
               <div class="alert alert-info mb-4">
                 <i class="bi bi-info-circle-fill me-2"></i>
                 <strong>Please Note:</strong> Flight information is needed for airport pickups/dropoffs for tracking purposes. Skip if not applicable (e.g., hotel pickup).
               </div>
-
+              
               <div class="row">
                 <div class="col-md-6 form-row">
-                  <label for="{{ flight1_form.airline.id_for_label }}" class="form-label">Airline</label>
-                  {{ flight1_form.airline }}
-                  <datalist id="airlines">
-                    {% for airline in airlines %}<option value="{{ airline }}">{% endfor %}
-                    </datalist>
-                    {% if flight1_form.airline.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  <div class="col-md-6 form-row">
-                    <label for="{{ flight1_form.flight_number.id_for_label }}"
-                           class="form-label">Flight Number</label>
-                    {{ flight1_form.flight_number }}
-                    <div class="help-text">Include airline code (DL1234, not just 1234)</div>
-                    {% if flight1_form.flight_number.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
+                  <label for="{{ flight2_form.airline.id_for_label }}" class="form-label">Airline</label>
+                  {{ flight2_form.airline }}
+                  {% if flight2_form.airline.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
-
-                <!-- Pickup Info -->
-                <h5 class="section-heading mt-4">
-                  <i class="bi bi-pin-map"></i> Pickup Information
-                </h5>
-                <div class="row">
-                  <div class="col-md-6 form-row">
-                    <label for="{{ leg1_form.pickup_date.id_for_label }}"
-                           class="form-label required">Pickup Date</label>
-                    {{ leg1_form.pickup_date }}
-                    <div class="help-text">Select your travel date</div>
-                    {% if leg1_form.pickup_date.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  <div class="col-md-6 form-row">
-                    <label for="{{ leg1_form.pickup_time.id_for_label }}"
-                           class="form-label required">
-                      Pickup Time
-                      <i class="bi bi-question-circle info-tooltip"
-                         data-bs-toggle="tooltip"
-                         title="For flight arrivals, use your flight's landing time. For departures, schedule at least 2.5 hours before your flight time"></i>
-                    </label>
-                    {{ leg1_form.pickup_time }}
-                    <div class="help-text">We'll track flights and adjust for any delays</div>
-                    {% if leg1_form.pickup_time.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in leg1_form.pickup_time.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  <div class="col-md-6 form-row">
-                    <label for="{{ leg1_form.pickup_location.id_for_label }}"
-                           class="form-label required">Pickup Location</label>
-                    {{ leg1_form.pickup_location }}
-                    <div class="help-text">Airport terminal, hotel name, or full address</div>
-                    {% if leg1_form.pickup_location.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  <div class="col-md-6 form-row">
-                    <label for="{{ leg1_form.dropoff_location.id_for_label }}"
-                           class="form-label required">Drop-off Location</label>
-                    {{ leg1_form.dropoff_location }}
-                    <div class="help-text">Hotel name, resort name, or full address</div>
-                    {% if leg1_form.dropoff_location.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
+                
+                <div class="col-md-6 form-row">
+                  <label for="{{ flight2_form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
+                  {{ flight2_form.flight_number }}
+                  <div class="help-text">Include airline code (DL1234, not just 1234)</div>
+                  {% if flight2_form.flight_number.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+              
+              <!-- Return Pickup Info -->
+              <h5 class="section-heading mt-4"><i class="bi bi-pin-map"></i> Return Pickup Information</h5>
+              <div class="row">
+                <div class="col-md-6 form-row">
+                  <label for="{{ leg2_form.pickup_date.id_for_label }}" class="form-label required">Pickup Date</label>
+                  {{ leg2_form.pickup_date }}
+                  <div class="help-text">Select your return date</div>
+                  {% if leg2_form.pickup_date.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <div class="col-md-6 form-row">
+                  <label for="{{ leg2_form.pickup_time.id_for_label }}" class="form-label required">
+                    Pickup Time
+                    <i class="bi bi-question-circle info-tooltip" data-bs-toggle="tooltip" title="For airport departures, schedule at least 2.5 hours before your flight time"></i>
+                  </label>
+                  {{ leg2_form.pickup_time }}
+                  <div class="help-text">For airport departures, schedule at least 2.5 hours before flight</div>
+                  {% if leg2_form.pickup_time.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg2_form.pickup_time.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <div class="col-md-6 form-row">
+                  <label for="{{ leg2_form.pickup_location.id_for_label }}" class="form-label required">Pickup Location</label>
+                  {{ leg2_form.pickup_location }}
+                  <div class="help-text">Hotel name, resort name, or full address</div>
+                  {% if leg2_form.pickup_location.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <div class="col-md-6 form-row">
+                  <label for="{{ leg2_form.dropoff_location.id_for_label }}" class="form-label required">Drop-off Location</label>
+                  {{ leg2_form.dropoff_location }}
+                  <div class="help-text">Airport terminal or full address</div>
+                  {% if leg2_form.dropoff_location.errors %}
+                    <div class="invalid-feedback d-block">
+                      {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                    </div>
+                  {% endif %}
                 </div>
               </div>
             </div>
-
-            <!-- Return Details Card (Conditional) -->
-            {% if leg2_form %}
-              <div class="form-card">
-                <div class="card-header">
-                  <h4>
-                    <i class="bi bi-car-front me-2"></i> Second Ride Details
-                  </h4>
-                </div>
-                <div class="card-body">
-                  <!-- Return Flight Info Section (Always Visible) -->
-                  <div class="mb-3">
-                    <h5 class="border-bottom pb-2 mb-3">Return Flight Information</h5>
-
-                    <div class="alert alert-info mb-3">
-                      <i class="bi bi-info-circle-fill me-2"></i>
-                      <strong>Please Note:</strong> If you are arriving at or departing from an airport, we need your flight information for tracking purposes. You can skip this section if you don't have a flight (e.g., if you're staying at an airport hotel).
-                    </div>
-
-                  <div class="row">
-                    <div class="col-md-6 form-row">
-                      <label for="{{ flight2_form.airline.id_for_label }}" class="form-label">Airline</label>
-                      {{ flight2_form.airline }}
-                      {% if flight2_form.airline.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <div class="col-md-6 form-row">
-                      <label for="{{ flight2_form.flight_number.id_for_label }}"
-                             class="form-label">Flight Number</label>
-                      {{ flight2_form.flight_number }}
-                      <div class="help-text">Include airline code (DL1234, not just 1234)</div>
-                      {% if flight2_form.flight_number.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-                  </div>
-
-                  <!-- Return Pickup Info -->
-                  <h5 class="section-heading mt-4">
-                    <i class="bi bi-pin-map"></i> Return Pickup Information
-                  </h5>
-                  <div class="row">
-                    <div class="col-md-6 form-row">
-                      <label for="{{ leg2_form.pickup_date.id_for_label }}"
-                             class="form-label required">Pickup Date</label>
-                      {{ leg2_form.pickup_date }}
-                      <div class="help-text">Select your return date</div>
-                      {% if leg2_form.pickup_date.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <div class="col-md-6 form-row">
-                      <label for="{{ leg2_form.pickup_time.id_for_label }}"
-                             class="form-label required">
-                        Pickup Time
-                        <i class="bi bi-question-circle info-tooltip"
-                           data-bs-toggle="tooltip"
-                           title="For airport departures, schedule at least 2.5 hours before your flight time"></i>
-                      </label>
-                      {{ leg2_form.pickup_time }}
-                      <div class="help-text">For airport departures, schedule at least 2.5 hours before flight</div>
-                      {% if leg2_form.pickup_time.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in leg2_form.pickup_time.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <div class="col-md-6 form-row">
-                      <label for="{{ leg2_form.pickup_location.id_for_label }}"
-                             class="form-label required">Pickup Location</label>
-                      {{ leg2_form.pickup_location }}
-                      <div class="help-text">Hotel name, resort name, or full address</div>
-                      {% if leg2_form.pickup_location.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <div class="col-md-6 form-row">
-                      <label for="{{ leg2_form.dropoff_location.id_for_label }}"
-                             class="form-label required">Drop-off Location</label>
-                      {{ leg2_form.dropoff_location }}
-                      <div class="help-text">Airport terminal or full address</div>
-                      {% if leg2_form.dropoff_location.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-                  </div>
-                </div>
+          </div>
+        {% endif %}
+        
+        <!-- Special Requests Card -->
+        <div class="form-card">
+          <div class="card-header">
+            <h4><i class="bi bi-chat-left-text me-2"></i> Special Requests</h4>
+          </div>
+          <div class="card-body">
+            <label for="{{ reservation_form.special_requests.id_for_label }}" class="form-label">Additional Requests</label>
+            {{ reservation_form.special_requests }}
+            {% if reservation_form.special_requests.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
               </div>
             {% endif %}
-
-            <!-- Special Requests Card -->
-            <div class="form-card">
-              <div class="card-header">
-                <h4>
-                  <i class="bi bi-chat-left-text me-2"></i> Special Requests
-                </h4>
-              </div>
-              <div class="card-body">
-                <label for="{{ reservation_form.special_requests.id_for_label }}"
-                       class="form-label">Additional Requests</label>
-                {{ reservation_form.special_requests }}
-                {% if reservation_form.special_requests.errors %}
-                  <div class="invalid-feedback d-block">
-                    {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
-                  </div>
-                {% endif %}
-                <div class="help-text">
-                  Optional. Tell us about any specific needs or requests (early arrival, oversized items, etc.)
-                </div>
-              </div>
-            </div>
-
-            <!-- Non-field errors -->
-            {% if form.non_field_errors %}
-              <div class="form-card border-danger">
-                <div class="card-header bg-danger text-white">
-                  <h4 class="mb-0">
-                    <i class="bi bi-exclamation-circle me-2"></i>Form Errors
-                  </h4>
-                </div>
-                <div class="card-body">
-                  {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
-                </div>
-              </div>
-            {% endif %}
-
-            <!-- Price Information Card -->
-            <div class="form-card">
-              <div class="card-header">
-                <h4>
-                  <i class="bi bi-tag-fill me-2"></i> Price Information
-                </h4>
-              </div>
-              <div class="card-body">
-                <div class="row align-items-center">
-                  <div class="col-md-4">
-                    <div class="price-amount">${{ price }}</div>
-                  </div>
-                  <div class="col-md-8">
-                    <div class="grayson-benefits">
-                      <h5>
-                        <img src="{% static 'img/logo-triny.png' %}"
-                             alt="Grayson Towncar"
-                             class="me-2"
-                             height="24">
-                        Grayson Towncar Benefits
-                      </h5>
-                      <ul class="benefits-list">
-                        <li>
-                          <i class="bi bi-check-circle-fill text-success"></i> All-inclusive price - no hidden fees
-                        </li>
-                        <li>
-                          <i class="bi bi-check-circle-fill text-success"></i> Professional, uniformed drivers
-                        </li>
-                        <li>
-                          <i class="bi bi-check-circle-fill text-success"></i> Free flight monitoring and adjustments
-                        </li>
-                        <li>
-                          <i class="bi bi-check-circle-fill text-success"></i> 24/7 customer support
-                        </li>
-                        <li>
-                          <i class="bi bi-check-circle-fill text-success"></i> Clean, late-model luxury vehicles
-                        </li>
-                      </ul>
-                      <p class="mt-2 mb-0 text-muted small">
-                        Gratuity for your driver is appreciated and can be provided in cash or added to your credit card.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Submit Button -->
-            <div class="d-grid gap-2 mb-4">
-              <button type="submit" class="btn btn-secondary btn-sm btn-submit">
-                <i class="bi bi-check-circle me-2"></i>Submit Reservation
-              </button>
-            </div>
-          </form>
+            <div class="help-text">Optional. Tell us about any specific needs or requests (early arrival, oversized items, etc.)</div>
+          </div>
         </div>
-      </div>
+        
+        <!-- Non-field errors -->
+        {% if form.non_field_errors %}
+          <div class="form-card border-danger">
+            <div class="card-header bg-danger text-white">
+              <h4 class="mb-0">
+                <i class="bi bi-exclamation-circle me-2"></i>Form Errors
+              </h4>
+            </div>
+            <div class="card-body">
+              {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
+            </div>
+          </div>
+        {% endif %}
+        
+        <!-- Price Information Card -->
+        <div class="form-card">
+          <div class="card-header">
+            <h4><i class="bi bi-tag-fill me-2"></i> Price Information</h4>
+          </div>
+          <div class="card-body">
+            <div class="row align-items-center">
+              <div class="col-md-4">
+                <div class="price-amount">${{ price }}</div>
+              </div>
+              <div class="col-md-8">
+                <div class="grayson-benefits">
+                  <h5><img src="{% static 'img/logo-small.png' %}" alt="Grayson Towncar" class="me-2" height="24"> Grayson Towncar Benefits</h5>
+                  <ul class="benefits-list">
+                    <li><i class="bi bi-check-circle-fill text-success"></i> All-inclusive price - no hidden fees</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Professional, uniformed drivers</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Free flight monitoring and adjustments</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> 24/7 customer support</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Clean, late-model luxury vehicles</li>
+                  </ul>
+                  <p class="mt-2 mb-0 text-muted small">Gratuity for your driver is appreciated and can be provided in cash or added to your credit card.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Submit Button -->
+        <div class="d-grid gap-2 mb-4">
+          <button type="submit" class="btn btn-primary btn-submit">
+            <i class="bi bi-check-circle me-2"></i>Submit Reservation
+          </button>
+        </div>
+      </form>
     </div>
+  </div>
+</div>
 
-    <!-- Script for tooltips and car seat toggle -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Bootstrap tooltips
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
+<!-- Script for tooltips and car seat toggle -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Handle car seats section visibility
+    var needCarseatsCheckbox = document.getElementById('id_need_carseats');
+    var carSeatsSection = document.getElementById('car-seats-section');
+    
+    // Function to toggle visibility
+    function toggleCarSeatsSection() {
+      if (needCarseatsCheckbox && carSeatsSection) {
+        if (needCarseatsCheckbox.checked) {
+          carSeatsSection.style.display = 'block';
+        } else {
+          carSeatsSection.style.display = 'none';
+        }
+      }
+    }
+    
+    // Initial state
+    toggleCarSeatsSection();
+    
+    // Add event listener
+    if (needCarseatsCheckbox) {
+      needCarseatsCheckbox.addEventListener('change', toggleCarSeatsSection);
+    }
+  });
+</script>
 
-            // Handle car seats section visibility
-            var needCarseatsCheckbox = document.getElementById('id_need_carseats');
-            var carSeatsSection = document.getElementById('car-seats-section');
-
-            // Function to toggle visibility
-            function toggleCarSeatsSection() {
-                if (needCarseatsCheckbox && carSeatsSection) {
-                    if (needCarseatsCheckbox.checked) {
-                        carSeatsSection.style.display = 'block';
-                    } else {
-                        carSeatsSection.style.display = 'none';
-                    }
-                }
-            }
-
-            // Initial state
-            toggleCarSeatsSection();
-
-            // Add event listener
-            if (needCarseatsCheckbox) {
-                needCarseatsCheckbox.addEventListener('change', toggleCarSeatsSection);
-            }
-        });
-    </script>
-
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
-            async
-            defer></script>
-    <script src="{% static 'js/maps_autocomplete.js' %}"></script>
-  {% endblock content %}
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places" async defer></script>
+<script src="{% static 'js/maps_autocomplete.js' %}"></script>
+{% endblock content %}
