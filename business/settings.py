@@ -174,7 +174,6 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 STATIC_ROOT = CONTENT_DIR / "staticfiles"
 STATIC_URL = "static/"
 
@@ -229,11 +228,18 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # AWS Configurations
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')
-AWS_S3_CUSTOM_DOMAIN = "media.graysontowncar.com"
-MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            'bucket_name' : os.getenv('AWS_STORAGE_BUCKET_NAME'), 
+            'region_name':  os.getenv('AWS_S3_REGION_NAME', 'us-east-1'),
+            'custom_domain': "media.graysontowncar.com",
+            'access_key': os.getenv('AWS_ACCESS_KEY_ID'),
+            'secret_key': os.getenv('AWS_SECRET_ACCESS_KEY')
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
