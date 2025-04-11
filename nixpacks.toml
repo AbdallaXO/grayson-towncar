@@ -5,9 +5,11 @@ nixPkgs = ["python311"]
 
 [phases.build]
 cmds = [
-  "pip install -r requirements.txt",
-  "python manage.py compress --force",
-  "python manage.py collectstatic --noinput"
+  "python -m pip install --upgrade pip",
+  "python -m pip install -r requirements.txt",
+  "python manage.py migrate",
+  "python manage.py collectstatic --noinput",
+  "python manage.py compress --force"
 ]
 
 [start]
