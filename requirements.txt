@@ -32,3 +32,5 @@ psycopg2-binary
 django-compressor
 boto3
 django-storages
+django-compressor
+gunicorn

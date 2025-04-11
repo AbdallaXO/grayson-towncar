@@ -36,15 +36,15 @@ SECRET_KEY = os.environ.get(
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 
 ALLOWED_HOSTS = [
     "graysontowncar.com",
     "www.graysontowncar.com",
+    "grayson-towncar-production.up.railway.app",
     "localhost",
     "127.0.0.1",
-    "grayson-towncar-production.up.railway.app",
 ]
 
 
@@ -78,6 +78,7 @@ OUR_APPS = [
     "services",
     "blog",
     "payment",
+    "compressor",
 ]
 
 # After DEbuyg toolbar
@@ -174,9 +175,8 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
-STATIC_ROOT = CONTENT_DIR / "staticfiles"
-STATIC_URL = "static/"
-
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = "/static/"
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
 
@@ -209,11 +209,9 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://grayson-towncar-production.up.railway.app",
-    "https://*.railway.app",
-    "https://*.app",
     "https://graysontowncar.com",
     "https://www.graysontowncar.com",
+    "https://grayson-towncar-production.up.railway.app",
 ]
 
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
@@ -224,7 +222,7 @@ SECURE_HSTS_PRELOAD = True
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_PROXY_SSL_HEADER = ('HTTP_CF_VISITOR', 'https')  # Cloudflare-specific header
 
 # AWS Configurations
 STORAGES = {
@@ -242,3 +240,13 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+STATICFILES_FINDERS = [
+    "django.contrib.staticfiles.finders.FileSystemFinder",
+    "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+    "compressor.finders.CompressorFinder", 
+]
+
+COMPRESS_ENABLED = True
+
+COMPRESS_OFFLINE = not DEBUG

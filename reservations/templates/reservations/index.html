@@ -1,8 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load seo_tags %}
-{% block head_extra %}
-  <!-- Preload critical resources -->
+{% block extra_css %}
   <link rel="preload"
         href="{% static 'css/homepage-elements.css' %}"
         as="style">
@@ -11,15 +10,13 @@
         as="font"
         type="font/woff2"
         crossorigin>
+  <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
+  <link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
 {% endblock %}
 
 {% block content %}
   {% structured_data %}
-  <!-- preload critical assets to improve page speed -->
-  <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
-  <link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
   <main class="flex-shrink-0">
-
     <!-- Hero Section -->
     <section class="hero bg-hero-dark py-4">
       <div class="container px-4">
@@ -44,7 +41,7 @@
                    href="{% url 'services' %}"
                    aria-label="Explore Services">Explore Services</a>
               </div>
-              
+
             </div>
           </div>
           <div class="col-xl-5 d-none d-md-block text-center">
@@ -179,7 +176,8 @@
       <div class="container px-5 my-5">
         <div class="text-center mb-5">
           <h2 id="fleet-heading" class="fw-normal">
-            Our Premium Orlando Fleet <span class="fw-bolder text-warning px-2 py-1 fs-2";>Highlights</span>
+            Our Premium Orlando Fleet <span class="fw-bolder text-warning px-2 py-1 fs-2">Highlights</span>
+
           </h2>
           <blockquote class="blockquote">
             <p class="mb-0">Discover premium comfort: Luxury vehicles tailored for every Orlando adventure.</p>
@@ -205,7 +203,7 @@
                 <div class="mb-3">
                   <strong class="d-block">Insights:</strong>
                   <ul class="list-unstyled">
-                    <li class="mb-2" style="font-size:1 rem;">
+                    <li class="mb-2" style="font-size: 1rem;">
                       <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
                          aria-hidden="true"></i>Up to 4 passengers
                     </li>

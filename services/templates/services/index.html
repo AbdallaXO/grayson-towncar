@@ -1,13 +1,13 @@
 {% extends 'main.html' %}
 {% load static %}
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
+{% endblock extra_css %}
 {% block title %}
   Our Services | Disney, Universal & Port Canaveral Rides | Grayson Towncar
 {% endblock title %}
-
-
 {% block content %}
   <script src="{% static 'js/area-selector.js' %}"></script>
-  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
   <!-- Modern Hero with Animated Background -->
   <section class="position-relative overflow-hidden py-6" id="hero">
     <div class="bg-image position-absolute top-0 start-0 w-100 h-100"
