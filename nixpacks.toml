@@ -1,0 +1,14 @@
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["python311", "pip"]
+
+[phases.build]
+cmds = [
+  "pip install -r requirements.txt",
+  "python manage.py compress --force",
+  "python manage.py collectstatic --noinput"
+]
+
+[start]
+cmd = "gunicorn business.wsgi:application --bind 0.0.0.0:$PORT"
