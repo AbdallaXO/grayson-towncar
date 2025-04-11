@@ -1,15 +1,15 @@
 providers = ["python"]
-
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311Full"]  # Ensure full Python package with pip
 
 [phases.build]
 cmds = [
-  "python -m pip install --upgrade pip",
-  "python -m pip install -r requirements.txt",
-  "python manage.py migrate",
-  "python manage.py collectstatic --noinput",
-  "python manage.py compress --force"
+  "python3.11 -m ensurepip",  # Ensure pip is installed
+  "python3.11 -m pip install --upgrade pip",
+  "python3.11 -m pip install -r requirements.txt",
+  "python3.11 manage.py migrate",
+  "python3.11 manage.py collectstatic --noinput",
+  "python3.11 manage.py compress --force"
 ]
 
 [start]
