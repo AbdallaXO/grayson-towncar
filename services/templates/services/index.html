@@ -30,73 +30,8 @@
     </div>
   </section>
 
-  <!-- Animated Why Choose Us Section -->
-  <section class="py-6 bg-light" id="why-choose">
-    <div class="container">
-      <div class="text-center mb-5">
-        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Premium Service</span>
-        <h2 class="display-5 fw-bold">Why Choose Us</h2>
-      </div>
-      <div class="row g-5 justify-content-center">
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-5 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-car-front-fill fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Private Luxury Vehicles</h3>
-              <p class="text-muted">Travel in comfort with our modern fleet of sedans, SUVs, and passenger vans</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-5 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-geo-alt-fill fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Direct Hotel Service</h3>
-              <p class="text-muted">Door-to-door transportation with no additional stops along the way</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-5 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-clock-fill fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">24/7 Availability</h3>
-              <p class="text-muted">We operate around the clock to accommodate all flight schedules</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-5 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-shop fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Complimentary Grocery Stops</h3>
-              <p class="text-muted">Stock up on essentials with our 30-minute grocery stop service</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-5 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-people-fill fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Family-Friendly</h3>
-              <p class="text-muted">Complimentary car seats and boosters for travelers of all ages</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
 
+  {% include "services/comparison.html" %}
   <!-- Simplified Service Areas Section -->
   <section class="py-6" id="explore">
     <div class="container">
@@ -143,7 +78,7 @@
               <!-- Simplified Map Display with CSS Background Images -->
               <div class="area-description active" id="disney-description">
                 <div class="area-image mb-4"
-                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/disney-resorts.webp" %}');">
+                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/disney-resorts.webp" %}')">
                 </div>
                 <h3 class="h4 mb-3">Disney Resort Area</h3>
                 <p class="mb-3">Direct service to all Disney properties including Value, Moderate, and Deluxe resorts.</p>
@@ -165,7 +100,7 @@
 
               <div class="area-description" id="universal-description">
                 <div class="area-image mb-4"
-                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/universal-resort.webp" %}');">
+                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/universal-resort.webp" %}')">
                 </div>
                 <h3 class="h4 mb-3">Universal Orlando Area</h3>
                 <p class="mb-3">Comprehensive service to all Universal Orlando hotels and nearby accommodations.</p>
@@ -187,7 +122,7 @@
 
               <div class="area-description" id="idrive-description">
                 <div class="area-image mb-4"
-                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/idrive.webp" %}');">
+                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/idrive.webp" %}')">
                 </div>
                 <h3 class="h4 mb-3">International Drive</h3>
                 <p class="mb-3">Service to all I-Drive hotels, Convention Center area, and SeaWorld resorts.</p>
@@ -209,7 +144,7 @@
 
               <div class="area-description" id="lbv-description">
                 <div class="area-image mb-4"
-                    style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/lbv.webp" %}');">
+                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/lbv.webp" %}')">
                 </div>
                 <h3 class="h4 mb-3">Lake Buena Vista & Kissimmee</h3>
                 <p class="mb-3">Transportation to hotels and vacation rentals throughout LBV and Kissimmee.</p>
