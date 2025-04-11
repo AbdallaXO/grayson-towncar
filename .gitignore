@@ -179,3 +179,5 @@ cython_debug/
 
 # Visual Studio Code config
 .vscode/
+
+/staticfiles/
