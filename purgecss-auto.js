@@ -1,5 +1,15 @@
 /* 
-  Shared Repo PurgeCSS Script
+
+LATEST NOTE: 
+
+
+
+*** PURGE CSS IS CURRENTLY NOT IN USE ***
+*** WORKING ON FIXING BUGS ON IT SO FILES ARE NOT USING /pruged JUST YET ***
+
+
+----- Ignore below for now -----
+ Shared Repo PurgeCSS Script
   ---------------------------
   First time:
     npm install -g purgecss

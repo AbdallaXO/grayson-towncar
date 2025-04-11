@@ -13,12 +13,12 @@
 }
 
 .text-primary {
-    color: var(--bs-primary) !important;
+    color: black !important;
 }
 
 .accordion-button:not(.collapsed) {
     background-color: rgba(var(--bs-primary-rgb), 0.1);
-    color: var(--bs-primary);
+    color: #785A28;
 }
 
 .accordion-button:focus {
@@ -67,14 +67,23 @@
 .nav-pills .nav-link {
     border-radius: 50rem;
     transition: all 0.3s ease;
+    background-color:  #c8aa6e80 !important;
 }
 
+.nav-pills .nav-link:hover {
+    background-color: #A58C4E !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(172, 161, 161, 0.1);
+}
+
+
 .nav-pills .nav-link.active {
-    background-color: var(--bs-primary);
+    background-color: #C8AA6E !important;
+    color: black !important;
 }
 
 .nav-pills .nav-link:not(.active) {
-    color: var(--bs-primary);
+    color: black;
     background-color: rgba(var(--bs-primary-rgb), 0.1);
 }
 
@@ -87,3 +96,126 @@
         margin-bottom: 1rem;
     }
 } 
+
+
+
+/* =============================================================================
+   FAQs Page Custom CSS
+   -----------------------------------------------------------------------------
+   - Override accent colors (blue to gold).
+   - Improve accordion appearance.
+   - Adjust subtle backgrounds, borders, and mobile typography.
+   ============================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Override Bootstrap Primary Variable to Gold
+--------------------------------------------------------------------------- */
+:root {
+    --bs-primary: #030303;
+}
+
+/* Ensure primary text and backgrounds use the new gold accent */
+.text-primary {
+    color: black !important;
+}
+
+.bg-primary {
+    background-color: var(--bs-primary) !important;
+}
+
+.btn-primary {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+    background-color: #C8AA6E;
+    border-color: #C8AA6E;
+    color: black;
+}
+
+/* ---------------------------------------------------------------------------
+   Subtle Gold Backgrounds & Borders
+--------------------------------------------------------------------------- */
+.bg-primary-subtle {
+    background-color: rgba(0, 0, 0, 0.027) !important;
+}
+
+.border-primary-subtle {
+    border-color: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Custom Accordion Styles
+   - Applies a clean white background with a light gold border.
+--------------------------------------------------------------------------- */
+
+/* Adjust accordion body padding and font size */
+.accordion-body {
+    font-size: 0.95rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile Adjustments for a Luxurious Look
+--------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
+    h1.display-4 {
+        font-size: 2.5rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+}
+
+/* ---------------------------------------------------------------------------
+   Quick Action & List Group Hover States
+--------------------------------------------------------------------------- */
+.list-group-item-action:hover {
+    color: #463714;
+    transform: translateX(3px);
+    background-color: white;
+}
+
+
+
+/* Add these mobile-specific adjustments */
+@media (max-width: 576px) {
+
+    .container {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    /* Fix for the FAQs header area */
+    #hero .display-3 {
+        font-size: 2rem !important;
+    }
+
+    #hero .lead {
+        font-size: 1rem !important;
+    }
+
+    /* Fix for the features display */
+    .col-md-6 .p-4 {
+        padding: 0.75rem !important;
+    }
+
+    /* Make feature headings smaller on mobile */
+    .col-md-6 h5.fw-bold {
+        font-size: 0.95rem !important;
+    }
+
+    /* Reduce padding on the nav pills */
+    .nav-pills .nav-link {
+        padding: 0.375rem 0.75rem !important;
+    }
+
+    /* Reduce icon circle size */
+    .icon-circle {
+        width: 60px;
+        height: 60px;
+    }
+}
