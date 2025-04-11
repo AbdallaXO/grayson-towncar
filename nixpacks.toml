@@ -1,16 +1,19 @@
-providers = ["python"]
-
 [phases.setup]
-nixPkgs = ["python311", "pip"]
+nixPkgs = ["python311", "python311Packages.pip", "nodejs-18_x"]
+
+[phases.install]
+cmds = [
+  "python -m pip install --upgrade pip", 
+  "pip install -r requirements.txt"
+]
 
 [phases.build]
 cmds = [
-  "pip install --upgrade pip",
-  "pip install -r requirements.txt",
-  "python manage.py migrate",
   "python manage.py collectstatic --noinput",
+  "python manage.py migrate",
+  "python manage.py createsuperuser --no-input",
   "python manage.py compress --force"
 ]
 
 [start]
-cmd = "gunicorn business.wsgi:application --bind 0.0.0.0:$PORT"
+cmd = "gunicorn your_project_name.wsgi:application"
