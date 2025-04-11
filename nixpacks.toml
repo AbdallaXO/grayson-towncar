@@ -1,12 +1,20 @@
 providers = ["python"]
-
 [phases.setup]
-nixPkgs = ["python311Full"]
+nixPkgs = ["python311Full"]  # Full Python package
 
 [phases.build]
 cmds = [
-  "python3.11 -m pip install --upgrade pip",
-  "python3.11 -m pip install -r requirements.txt",
+  # Pip bootstrap
+  "curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py",
+  "python3.11 get-pip.py",
+  
+  # Upgrade pip
+  "python3.11 -m pip install --upgrade pip setuptools wheel",
+  
+  # Install dependencies with verbose output
+  "python3.11 -m pip install -v -r requirements.txt",
+  
+  # Django commands
   "python3.11 manage.py migrate",
   "python3.11 manage.py collectstatic --noinput",
   "python3.11 manage.py compress --force"
