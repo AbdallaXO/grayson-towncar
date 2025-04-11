@@ -110,6 +110,12 @@ img {
   overflow: hidden !important;
 }
 
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Smooth transitions for interactive elements */
 a, button, .btn {
   transition: all 0.3s ease;

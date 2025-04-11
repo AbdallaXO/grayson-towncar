@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "purgecss": "^7.0.2"
+  }
+}

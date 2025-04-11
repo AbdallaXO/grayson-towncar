@@ -52,6 +52,10 @@
     border-left-color: #0dcaf0;
 }
 
+.alert-dark {
+    border-left-color: #212529;
+}
+
 /* Form check enhancements */
 .form-check {
     display: flex;

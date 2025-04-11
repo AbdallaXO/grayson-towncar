@@ -4,20 +4,39 @@
 {% endblock title %}
 {% load static %}
 {% block content %}
-  <link rel="stylesheet" href="{% static 'css/purged/faqs.css' %}">
-  <section class="py-2 bg-light">
-    <div class="container px-4 py-2">
-      <!-- Modern Hero Section with Gradient -->
-      <div class="rounded-4 p-5 mb-3 text-center bg-gradient"
-           style="background: linear-gradient(135deg, #4158D0, #C850C0)">
-        <div class="py-5">
-          <h1 class="display-4 fw-bold text-dark mb-2">Frequently Asked Questions</h1>
-          <p class="lead text-dark mb-2 mx-auto" style="max-width: 700px;">
-            Everything you need to know about our luxury family transportation services in Orlando
-          </p>
+  <!-- ================================================================ -->
+  <!-- Link to CSS for FAQs Page -->
+  <!-- ================================================================ -->
+  <link rel="stylesheet" href="{% static 'css/purge/faqs.css' %}">
+
+  <!-- ================================================================ -->
+  <!-- Main Section (Background) -->
+  <!-- ================================================================ -->
+  <section class="bg-light">
+
+    <!-- ============================================================== -->
+    <!-- Modern Hero Section with Gradient Background -->
+    <!-- ============================================================== -->
+    <section class="position-relative overflow-hidden py-6" id="hero">
+      <div class="bg-image position-absolute top-0 start-0 w-100 h-100"
+           style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)), url('{% static 'images/universalstudios.webp' %}') no-repeat center center;
+                  background-size: cover"
+           fetchpriority="high"></div>
+      <div class="container position-relative z-1 py-5">
+        <div class="row justify-content-center">
+          <div class="col-lg-8 text-center text-white">
+            <h1 class="display-3 fw-bold mb-4 text-shadow">Frequently Asked Questions</h1>
+            <p class="lead mb-5 fs-4">Everything you need to know about our luxury family transportation services in Orlando</p>
+          </div>
         </div>
       </div>
-      <!-- FAQ Nav Pills -->
+    </section>
+
+
+    <!-- ============================================================== -->
+    <!-- FAQ Navigation Pills -->
+    <!-- ============================================================== -->
+    <div class="container px-0 py-5">
       <ul class="nav nav-pills mb-5 justify-content-center gap-2"
           id="faqTab"
           role="tablist">
@@ -55,30 +74,46 @@
           </button>
         </li>
       </ul>
+
+      <!-- ============================================================== -->
+      <!-- Main Content Row: FAQ Tabs & Sidebar -->
+      <!-- ============================================================== -->
       <div class="row gx-5">
+        <!-- -------------------------------------------------------------- -->
+        <!-- Left Column: FAQ Tab Content -->
+        <!-- -------------------------------------------------------------- -->
         <div class="col-xl-8">
-          <!-- Tab Content -->
+          <!-- ============================= -->
+          <!-- Tab Content Wrapper -->
+          <!-- ============================= -->
           <div class="tab-content" id="faqTabContent">
+
+            <!-- ------------------------------------- -->
             <!-- Transportation Tab -->
+            <!-- ------------------------------------- -->
             <div class="tab-pane fade show active"
                  id="transportation"
                  role="tabpanel"
                  aria-labelledby="transportation-tab">
               <div class="d-flex align-items-center mb-4">
-                <span class="display-6 text-primary me-3"><i class="bi bi-luggage-fill"></i></span>
-                <h2 class="fw-bold mb-0">Airport & Transportation Services</h2>
+                <span class="display-6 text-black me-3"><i class="bi bi-luggage-fill"></i></span>
+                <h2 class="fw-normal mb-0">Airport & Transportation Services</h2>
               </div>
-              <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
+              <!-- ===================================== -->
+              <!-- Transportation Accordion Section -->
+              <!-- ===================================== -->
+              <div class="accordion border rounded-4 shadow-sm mb-5"
                    id="accordionTransportation">
+                <!-- Accordion Item: Airport Pickup Process -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingAirportPickup">
-                    <button class="accordion-button rounded-top-4"
+                    <button class="accordion-button rounded-top-2"
                             type="button"
                             data-bs-toggle="collapse"
                             data-bs-target="#collapseAirportPickup"
                             aria-expanded="true"
                             aria-controls="collapseAirportPickup">
-                      <i class="bi bi-person-check me-3 text-primary"></i>How does the Orlando airport pickup process work?
+                      <i class="bi bi-person-check me-3 text-primary"></i><strong>How does the Orlando airport pickup process work?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse show"
@@ -92,37 +127,65 @@
                         </div>
                       </div>
                       <div class="row g-4 mb-3">
+                        <!-- Feature 1: Meet & Greet -->
                         <div class="col-md-6">
                           <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">1</span>
+                            <div class="d-flex mb-2 align-items-center">
+                              <div class="me-2 d-flex align-items-center justify-content-center"
+                                   style="width: 1.5rem;
+                                          height: 1.5rem">
+                                <img src="{% static 'images/handshake.webp' %}"
+                                     alt="Flight Tracking"
+                                     class="img-fluid">
+                              </div>
                               <h5 class="fw-bold">Meet & Greet Service</h5>
                             </div>
                             <p class="text-muted mb-0">Your driver will meet you at baggage claim holding a sign with your name.</p>
                           </div>
                         </div>
+                        <!-- Feature 2: Direct Communication -->
                         <div class="col-md-6">
                           <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">2</span>
+                            <div class="d-flex mb-2 align-items-center">
+                              <div class="me-2 d-flex align-items-center justify-content-center"
+                                   style="width: 1.5rem;
+                                          height: 1.5rem">
+                                <img src="{% static 'images/mobile.webp' %}"
+                                     alt="Flight Tracking"
+                                     class="img-fluid">
+                              </div>
                               <h5 class="fw-bold">Direct Communication</h5>
                             </div>
                             <p class="text-muted mb-0">Your driver will contact you upon your arrival.</p>
                           </div>
                         </div>
+                        <!-- Feature 3: Flight Tracking -->
                         <div class="col-md-6">
                           <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">3</span>
+                            <div class="d-flex mb-2 align-items-center">
+                              <div class="me-2 d-flex align-items-center justify-content-center"
+                                   style="width: 1.5rem;
+                                          height: 1.5rem">
+                                <img src="{% static 'images/order-tracking.webp' %}"
+                                     alt="Flight Tracking"
+                                     class="img-fluid">
+                              </div>
                               <h5 class="fw-bold">Flight Tracking</h5>
                             </div>
                             <p class="text-muted mb-0">We monitor your flight for any delays or early arrivals.</p>
                           </div>
                         </div>
+                        <!-- Feature 4: No Extra Waiting Fees -->
                         <div class="col-md-6">
                           <div class="h-100 p-4 bg-white rounded-4 shadow-sm">
-                            <div class="d-flex mb-2">
-                              <span class="badge rounded-pill bg-primary-subtle text-primary me-2 px-3 py-2">4</span>
+                            <div class="d-flex mb-2 align-items-center">
+                              <div class="me-2 d-flex align-items-center justify-content-center"
+                                   style="width: 1.5rem;
+                                          height: 1.5rem">
+                                <img src="{% static 'images/dollar.webp' %}"
+                                     alt="Flight Tracking"
+                                     class="img-fluid">
+                              </div>
                               <h5 class="fw-bold">No Extra Waiting Fees</h5>
                             </div>
                             <p class="text-muted mb-0">
@@ -130,11 +193,13 @@
                             </p>
                           </div>
                         </div>
+
                       </div>
                       <p>Our luxury family transportation ensures a stress-free start to your Orlando vacation.</p>
                     </div>
                   </div>
                 </div>
+                <!-- Accordion Item: Airport Departure -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingAirportDeparture">
                     <button class="accordion-button collapsed"
@@ -143,7 +208,7 @@
                             data-bs-target="#collapseAirportDeparture"
                             aria-expanded="false"
                             aria-controls="collapseAirportDeparture">
-                      <i class="bi bi-clock-history me-3 text-primary"></i>When should I schedule my airport departure pickup?
+                      <i class="bi bi-clock-history me-3 text-primary"></i><strong>When should I schedule my airport departure pickup?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -153,6 +218,7 @@
                     <div class="accordion-body">
                       <p>For a seamless Orlando airport transfer experience, we recommend scheduling your pickup:</p>
                       <div class="row g-3 mb-3">
+                        <!-- Domestic Flights -->
                         <div class="col-md-6">
                           <div class="card h-100 border-primary-subtle">
                             <div class="card-body">
@@ -164,6 +230,7 @@
                             </div>
                           </div>
                         </div>
+                        <!-- International Flights -->
                         <div class="col-md-6">
                           <div class="card h-100 border-primary-subtle">
                             <div class="card-body">
@@ -182,7 +249,7 @@
                     </div>
                   </div>
                 </div>
-                <!-- Other transportation accordion items - simplified for brevity -->
+                <!-- Accordion Item: Disney Transportation -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingDisney">
                     <button class="accordion-button collapsed"
@@ -191,7 +258,7 @@
                             data-bs-target="#collapseDisney"
                             aria-expanded="false"
                             aria-controls="collapseDisney">
-                      <i class="bi bi-stars me-3 text-primary"></i>Do you provide transportation to Disney parks and resorts?
+                      <i class="bi bi-stars me-3 text-primary"></i><strong>Do you provide transportation to Disney parks and resorts?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -200,11 +267,12 @@
                        data-bs-parent="#accordionTransportation">
                     <div class="accordion-body">
                       <p>
-                        Yes, we specialize in Disney resort and theme park transportation!</strong> Our family-friendly rides are perfect for getting to and from all Disney properties in Orlando. We offer flexible scheduling to accommodate park opening and closing times, allowing you to maximize your Disney experience without transportation worries.
+                        Yes, we specialize in Disney resort and theme park transportation! Our family-friendly rides are perfect for getting to and from all Disney properties in Orlando. We offer flexible scheduling to accommodate park opening and closing times, allowing you to maximize your Disney experience without transportation worries.
                       </p>
                     </div>
                   </div>
                 </div>
+                <!-- Accordion Item: Cruise Shuttle -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingCruise">
                     <button class="accordion-button collapsed"
@@ -213,7 +281,7 @@
                             data-bs-target="#collapseCruise"
                             aria-expanded="false"
                             aria-controls="collapseCruise">
-                      <i class="bi bi-water me-3 text-primary"></i>How does your cruise port shuttle service work?
+                      <i class="bi bi-water me-3 text-primary"></i><strong>How does your cruise port shuttle service work?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -222,34 +290,44 @@
                        data-bs-parent="#accordionTransportation">
                     <div class="accordion-body">
                       <p>
-                        Our Port Canaveral shuttle service provides luxury transportation</strong> between Orlando and your cruise ship. We'll pick you up from your Orlando hotel or the airport and transport you directly to the cruise terminal. For returning cruises, we'll meet you at the port and take you to your Orlando destination. All services include luggage handling and comfortable, spacious vehicles perfect for families.
+                        Our Port Canaveral shuttle service provides luxury transportation between Orlando and your cruise ship. We'll pick you up from your Orlando hotel or the airport and transport you directly to the cruise terminal. For returning cruises, we'll meet you at the port and take you to your Orlando destination. All services include luggage handling and comfortable, spacious vehicles perfect for families.
                       </p>
                     </div>
                   </div>
                 </div>
+                <!-- End Transportation Accordion Items -->
               </div>
             </div>
+            <!-- ------------------------------------- -->
+            <!-- End Transportation Tab -->
+            <!-- ------------------------------------- -->
+
+            <!-- ------------------------------------- -->
             <!-- Policies Tab -->
+            <!-- ------------------------------------- -->
             <div class="tab-pane fade"
                  id="policies"
                  role="tabpanel"
                  aria-labelledby="policies-tab">
               <div class="d-flex align-items-center mb-4">
                 <span class="display-6 text-primary me-3"><i class="bi bi-clipboard-check"></i></span>
-                <h2 class="fw-bold mb-0">Policies & Requirements</h2>
+                <h2 class="fw-normal mb-0">Policies & Requirements</h2>
               </div>
-              <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
+              <!-- ===================================== -->
+              <!-- Policies Accordion Section -->
+              <!-- ===================================== -->
+              <div class="accordion border rounded-4 shadow-sm mb-5"
                    id="accordionPolicies">
-                <!-- Booking policy -->
+                <!-- Accordion Item: Booking Policy -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingBooking">
-                    <button class="accordion-button rounded-top-4"
+                    <button class="accordion-button rounded-top-2"
                             type="button"
                             data-bs-toggle="collapse"
                             data-bs-target="#collapseBooking"
                             aria-expanded="true"
                             aria-controls="collapseBooking">
-                      <i class="bi bi-calendar-check me-3 text-primary"></i>How do I book my reservation?
+                      <i class="bi bi-calendar-check me-3 text-primary"></i><strong>How do I book my reservation?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse show"
@@ -264,12 +342,12 @@
                           </p>
                           <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-3">
                             <a href="{% url 'rates' %}"
-                               class="btn btn-primary px-4 py-2"
+                               class="btn btn-primary rounded-pill px-4 py-2"
                                aria-label="Start your reservation online">
                               <i class="bi bi-car-front me-2"></i>Book Online Now
                             </a>
                             <a href="tel:+14072127190"
-                               class="btn btn-outline-primary px-4 py-2"
+                               class="btn btn-outline-secondary rounded-pill px-4 py-2"
                                aria-label="Call us now at 407-212-7190">
                               <i class="bi bi-telephone me-2"></i>Call to Book
                             </a>
@@ -282,7 +360,7 @@
                     </div>
                   </div>
                 </div>
-                <!-- Other policy items - simplified for brevity -->
+                <!-- Accordion Item: Cancellation Policy -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingCancellation">
                     <button class="accordion-button collapsed"
@@ -291,7 +369,7 @@
                             data-bs-target="#collapseCancellation"
                             aria-expanded="false"
                             aria-controls="collapseCancellation">
-                      <i class="bi bi-x-circle me-3 text-primary"></i>What is your cancellation policy?
+                      <i class="bi bi-x-circle me-3 text-primary"></i><strong>What is your cancellation policy?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -342,18 +420,27 @@
                     </div>
                   </div>
                 </div>
-                <!-- More policy items would follow... simplified for brevity -->
+                <!-- Additional Policy Items (Simplified for brevity) -->
               </div>
             </div>
+            <!-- ------------------------------------- -->
+            <!-- End Policies Tab -->
+            <!-- ------------------------------------- -->
+
+            <!-- ------------------------------------- -->
             <!-- Vehicles Tab -->
+            <!-- ------------------------------------- -->
             <div class="tab-pane fade"
                  id="vehicles"
                  role="tabpanel"
                  aria-labelledby="vehicles-tab">
               <div class="d-flex align-items-center mb-4">
                 <span class="display-6 text-primary me-3"><i class="bi bi-car-front-fill"></i></span>
-                <h2 class="fw-bold mb-0">Vehicles & Services</h2>
+                <h2 class="fw-normal mb-0">Vehicles & Services</h2>
               </div>
+              <!-- ===================================== -->
+              <!-- Luxury Fleet Showcase Section -->
+              <!-- ===================================== -->
               <div class="p-4 mb-4 bg-light rounded-4">
                 <div class="row align-items-center">
                   <div class="col-lg-6 mb-4 mb-lg-0">
@@ -365,21 +452,25 @@
                   </div>
                   <div class="col-lg-6">
                     <div class="row g-4">
+                      <!-- Fleet Image: Towncar -->
                       <div class="col-6">
                         <img src="{% static 'images/towncar.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="Towncar " />
                       </div>
+                      <!-- Fleet Image: SUV -->
                       <div class="col-6">
                         <img src="{% static 'images/suburban.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="SUV" />
                       </div>
+                      <!-- Fleet Image: Passenger Van -->
                       <div class="col-6">
                         <img src="{% static 'images/van.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
                              alt="Passenger Van" />
                       </div>
+                      <!-- Fleet Image: Minibus -->
                       <div class="col-6">
                         <img src="{% static 'images/minivan.webp' %}"
                              class="img-fluid rounded-4 shadow-sm"
@@ -389,17 +480,21 @@
                   </div>
                 </div>
               </div>
-              <div class="accordion accordion-flush border rounded-4 shadow-sm mb-5"
+              <!-- ===================================== -->
+              <!-- Vehicles Accordion Section -->
+              <!-- ===================================== -->
+              <div class="accordion border rounded-4 shadow-sm mb-5"
                    id="accordionVehicles">
+                <!-- Accordion Item: Vehicle Types -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingVehicleTypes">
-                    <button class="accordion-button rounded-top-4"
+                    <button class="accordion-button rounded-top-2"
                             type="button"
                             data-bs-toggle="collapse"
                             data-bs-target="#collapseVehicleTypes"
                             aria-expanded="true"
                             aria-controls="collapseVehicleTypes">
-                      <i class="bi bi-car-front-fill me-3 text-primary"></i>What types of vehicles do you offer?
+                      <i class="bi bi-car-front-fill me-3 text-primary"></i><strong>What types of vehicles do you offer?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse show"
@@ -411,6 +506,7 @@
                         <strong>Our luxury transportation fleet includes:</strong>
                       </p>
                       <div class="row g-4">
+                        <!-- Vehicle Option: Towncars -->
                         <div class="col-md-4">
                           <div class="card h-100 text-center">
                             <div class="card-body">
@@ -426,6 +522,7 @@
                             </div>
                           </div>
                         </div>
+                        <!-- Vehicle Option: Luxury SUVs -->
                         <div class="col-md-4">
                           <div class="card h-100 text-center">
                             <div class="card-body">
@@ -441,6 +538,7 @@
                             </div>
                           </div>
                         </div>
+                        <!-- Vehicle Option: Passenger Vans -->
                         <div class="col-md-4">
                           <div class="card h-100 text-center">
                             <div class="card-body">
@@ -460,7 +558,7 @@
                     </div>
                   </div>
                 </div>
-                <!-- Child Car Seats Question -->
+                <!-- Accordion Item: Child Car Seats -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingCarSeats">
                     <button class="accordion-button collapsed"
@@ -469,7 +567,7 @@
                             data-bs-target="#collapseCarSeats"
                             aria-expanded="false"
                             aria-controls="collapseCarSeats">
-                      <i class="bi bi-emoji-smile me-3 text-primary"></i>Are your vehicles equipped with car seats or booster seats for children?
+                      <i class="bi bi-emoji-smile me-3 text-primary"></i><strong>Are your vehicles equipped with car seats or booster seats for children?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -489,6 +587,7 @@
                         </div>
                       </div>
                       <div class="row g-3">
+                        <!-- Child Seat: Infant Seats -->
                         <div class="col-md-6">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
                             <h6 class="fw-bold">
@@ -497,6 +596,7 @@
                             <p class="text-muted mb-0 small">Rear-facing seats suitable for babies weighing 5-22 pounds</p>
                           </div>
                         </div>
+                        <!-- Child Seat: Convertible Seats -->
                         <div class="col-md-6">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
                             <h6 class="fw-bold">
@@ -505,6 +605,7 @@
                             <p class="text-muted mb-0 small">For toddlers weighing 20-65 pounds</p>
                           </div>
                         </div>
+                        <!-- Child Seat: Booster Seats -->
                         <div class="col-md-6">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
                             <h6 class="fw-bold">
@@ -513,6 +614,7 @@
                             <p class="text-muted mb-0 small">For children 4+ years old, 40-100 pounds</p>
                           </div>
                         </div>
+                        <!-- Child Seat: Professional Installation -->
                         <div class="col-md-6">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm">
                             <h6 class="fw-bold">
@@ -525,7 +627,7 @@
                     </div>
                   </div>
                 </div>
-                <!-- Choose Right Vehicle Question -->
+                <!-- Accordion Item: Choose Right Vehicle -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingChooseVehicle">
                     <button class="accordion-button collapsed"
@@ -534,7 +636,7 @@
                             data-bs-target="#collapseChooseVehicle"
                             aria-expanded="false"
                             aria-controls="collapseChooseVehicle">
-                      <i class="bi bi-question-circle me-3 text-primary"></i>How do I choose the right vehicle for my trip?
+                      <i class="bi bi-question-circle me-3 text-primary"></i><strong>How do I choose the right vehicle for my trip?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -557,6 +659,7 @@
                         </div>
                       </div>
                       <div class="row g-3">
+                        <!-- Advice: Consider Group Size -->
                         <div class="col-md-4">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm text-center">
                             <div class="py-2 mb-2 text-primary">
@@ -566,6 +669,7 @@
                             <p class="text-muted small mb-0">Total number of passengers including children</p>
                           </div>
                         </div>
+                        <!-- Advice: Luggage Amount -->
                         <div class="col-md-4">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm text-center">
                             <div class="py-2 mb-2 text-primary">
@@ -575,6 +679,7 @@
                             <p class="text-muted small mb-0">Number and size of bags, strollers, etc.</p>
                           </div>
                         </div>
+                        <!-- Advice: Trip Duration -->
                         <div class="col-md-4">
                           <div class="h-100 p-3 bg-white rounded-4 shadow-sm text-center">
                             <div class="py-2 mb-2 text-primary">
@@ -588,7 +693,7 @@
                     </div>
                   </div>
                 </div>
-                <!-- Fleet Pictures Question -->
+                <!-- Accordion Item: Fleet Pictures -->
                 <div class="accordion-item">
                   <h3 class="accordion-header" id="headingFleetPictures">
                     <button class="accordion-button collapsed"
@@ -597,7 +702,7 @@
                             data-bs-target="#collapseFleetPictures"
                             aria-expanded="false"
                             aria-controls="collapseFleetPictures">
-                      <i class="bi bi-camera me-3 text-primary"></i>Can I see pictures of the fleet?
+                      <i class="bi bi-camera me-3 text-primary"></i><strong>Can I see pictures of the fleet?</strong>
                     </button>
                   </h3>
                   <div class="accordion-collapse collapse"
@@ -605,6 +710,7 @@
                        aria-labelledby="headingFleetPictures"
                        data-bs-parent="#accordionVehicles">
                     <div class="accordion-body">
+                      <!-- Fleet Pictures: Luxury Fleet Card -->
                       <div class="card mb-4 border-0 shadow-sm">
                         <div class="card-body">
                           <div class="row align-items-center">
@@ -623,7 +729,7 @@
                           </div>
                         </div>
                       </div>
-
+                      <!-- Social Media Card -->
                       <div class="card bg-light border-0">
                         <div class="card-body">
                           <div class="d-flex align-items-center mb-3">
@@ -636,19 +742,19 @@
                           <div class="d-flex gap-3 mt-3">
                             <a href="https://www.facebook.com/profile.php?id=61574468855996"
                                target="_blank"
-                               class="btn btn-outline-primary"
+                               class="btn btn-outline-secondary"
                                aria-label="Visit our Facebook page">
                               <i class="bi bi-facebook me-2"></i>Facebook
                             </a>
                             <a href="https://www.instagram.com/graysontowncar"
                                target="_blank"
-                               class="btn btn-outline-primary"
+                               class="btn btn-outline-secondary"
                                aria-label="Visit our Instagram profile">
                               <i class="bi bi-instagram me-2"></i>Instagram
                             </a>
                             <a href="https://x.com/GraysonTowncar"
                                target="_blank"
-                               class="btn btn-outline-primary"
+                               class="btn btn-outline-secondary"
                                aria-label="Visit our Twitter/X page">
                               <i class="bi bi-twitter me-2"></i>Twitter
                             </a>
@@ -658,26 +764,46 @@
                     </div>
                   </div>
                 </div>
+                <!-- End Vehicles Accordion Items -->
               </div>
             </div>
+            <!-- ------------------------------------- -->
+            <!-- End Vehicles Tab -->
+            <!-- ------------------------------------- -->
           </div>
+          <!-- End Tab Content Wrapper -->
         </div>
+        <!-- -------------------------------------------------------------- -->
+        <!-- End Left Column: FAQ Tab Content -->
+        <!-- -------------------------------------------------------------- -->
+
+        <!-- -------------------------------------------------------------- -->
+        <!-- Right Column: Sidebar (Contact Card and Quick Actions) -->
+        <!-- -------------------------------------------------------------- -->
         <div class="col-xl-4">
-          <!-- Contact Card -->
+          <!-- ============================= -->
+          <!-- Contact Card: Need Help Section -->
+          <!-- ============================= -->
           <div class="card border-0 rounded-4 shadow-sm mb-4"
                style="top: 2rem;
                       z-index: 1">
             <div class="card-body p-4 p-xl-5">
               <div class="text-center mb-4">
-                <span class="icon-circle bg-primary-subtle text-primary mb-3"><i class="bi bi-headset display-6"></i></span>
+                <span class="icon-circle bg-secondary-subtle text-black mb-3">
+                  <i class="bi bi-headset display-6"></i>
+                </span>
                 <h4 class="fw-bold">Need Help?</h4>
                 <p class="text-muted">Our team is here to answer all your questions</p>
               </div>
-              <div class="d-grid gap-3 mb-4">
+              <!-- ===================================== -->
+              <!-- Call Us and Email Support Buttons (Accordion) -->
+              <!-- ===================================== -->
+              <div class="d-grid gap-2 mb-4">
                 <!-- Call Us Button with Accordion -->
                 <div class="accordion accordion-flush" id="callUsAccordion">
-                  <div class="accordion-item">
-                    <button class="btn btn-primary py-3 w-100"
+                  <div class="accordion-item border-0">
+                    <button class="btn btn-outline-dark rounded-pill mx-auto"
+                            style="width: 100%"
                             type="button"
                             data-bs-toggle="collapse"
                             data-bs-target="#collapsePhone"
@@ -688,7 +814,7 @@
                     <div id="collapsePhone"
                          class="accordion-collapse collapse mt-2"
                          data-bs-parent="#callUsAccordion">
-                      <div class="card">
+                      <div class="card border-0 shadow-sm">
                         <div class="card-body text-center">
                           <p class="mb-0 text-break">
                             <strong>(407) 212-7190</strong>
@@ -698,11 +824,11 @@
                     </div>
                   </div>
                 </div>
-
                 <!-- Email Support Button with Accordion -->
                 <div class="accordion accordion-flush" id="emailAccordion">
-                  <div class="accordion-item">
-                    <button class="btn btn-primary py-3 w-100 mx-auto"
+                  <div class="accordion-item border-0">
+                    <button class="btn btn-outline-dark rounded-pill mx-auto"
+                            style="width: 100%"
                             type="button"
                             data-bs-toggle="collapse"
                             data-bs-target="#collapseEmail"
@@ -713,7 +839,7 @@
                     <div id="collapseEmail"
                          class="accordion-collapse collapse mt-2"
                          data-bs-parent="#emailAccordion">
-                      <div class="card">
+                      <div class="card border-0 shadow-sm">
                         <div class="card-body text-center">
                           <p class="mb-0 text-break">
                             <strong>reservations@graysontowncar.com</strong>
@@ -724,45 +850,77 @@
                   </div>
                 </div>
               </div>
+              <!-- ===================================== -->
+              <!-- Social Media Follow Section -->
+              <!-- ===================================== -->
               <hr class="my-4" />
               <div class="text-center">
                 <h5 class="fw-bold mb-3">Follow us for updates</h5>
                 <div class="d-flex justify-content-center gap-3">
                   <a href="https://www.facebook.com/profile.php?id=61574468855996"
                      target="_blank"
-                     class="social-icon bg-primary-subtle text-primary"><i class="bi bi-facebook"></i></a>
+                     class="social-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-facebook"></i>
+                  </a>
                   <a href="https://www.instagram.com/graysontowncar"
                      target="_blank"
-                     class="social-icon bg-primary-subtle text-primary"><i class="bi bi-instagram"></i></a>
+                     class="social-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-instagram"></i>
+                  </a>
                   <a href="https://x.com/GraysonTowncar"
                      target="_blank"
-                     class="social-icon bg-primary-subtle text-primary"><i class="bi bi-twitter"></i></a>
+                     class="social-icon bg-primary-subtle text-primary">
+                    <i class="bi bi-twitter"></i>
+                  </a>
                 </div>
               </div>
             </div>
           </div>
+          <!-- ============================= -->
+          <!-- End Contact Card -->
+
+          <!-- ============================= -->
           <!-- Quick Links Card -->
+          <!-- ============================= -->
           <div class="card border-0 rounded-4 shadow-sm mt-5">
             <div class="card-body p-4">
               <h5 class="fw-bold mb-3">Quick Actions</h5>
               <div class="list-group list-group-flush">
                 <a href="{% url 'rates' %}"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-calendar-check me-3 text-primary"></i>Make a Reservation</a>
+                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0">
+                  <i class="bi bi-calendar-check me-3 text-primary"></i>Make a Reservation
+                </a>
                 <a href="{% url 'contact' %}"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-calculator me-3 text-primary"></i>Get a Price Quote</a>
+                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0">
+                  <i class="bi bi-calculator me-3 text-primary"></i>Get a Price Quote
+                </a>
                 <a href="{% url 'services' %}"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-map me-3 text-primary"></i>Service Areas</a>
+                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0">
+                  <i class="bi bi-map me-3 text-primary"></i>Service Areas
+                </a>
                 <a href="{% url 'about-us' %}"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-award me-3 text-primary"></i>About Us</a>
+                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0">
+                  <i class="bi bi-award me-3 text-primary"></i>About Us
+                </a>
                 <a href="#"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-star me-3 text-primary"></i>Customer Reviews</a>
+                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0">
+                  <i class="bi bi-star me-3 text-primary"></i>Customer Reviews
+                </a>
                 <a href="{% url 'partner' %}"
-                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0"><i class="bi bi-people me-3 text-primary"></i>Become a Partner</a>
+                   class="list-group-item list-group-item-action d-flex align-items-center border-0 px-0">
+                  <i class="bi bi-people me-3 text-primary"></i>Become a Partner
+                </a>
               </div>
             </div>
           </div>
+          <!-- ============================= -->
+          <!-- End Quick Links Card -->
         </div>
+        <!-- -------------------------------------------------------------- -->
+        <!-- End Right Column: Sidebar -->
+        <!-- -------------------------------------------------------------- -->
       </div>
+      <!-- End Main Content Row -->
     </div>
   </section>
 {% endblock %}
