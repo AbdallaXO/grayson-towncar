@@ -181,3 +181,4 @@ cython_debug/
 .vscode/
 /staticfiles/
 /static/CACHE/
+pyproject.toml

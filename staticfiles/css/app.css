@@ -1,0 +1,130 @@
+/* Global Reset and Base Styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px; /* Base font size for rem calculations */
+}
+
+body {
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  color: #212529;
+  background-color: #fff;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* Improve typography */
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* Responsive images */
+img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+/* Focus styles for accessibility */
+:focus {
+  outline: 2px solid #4158d0;
+  outline-offset: 2px;
+}
+
+/* Notification Styles (Enhanced) */
+.notification-wrapper {
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: auto;
+  max-width: calc(100% - 2rem); /* Responsive width */
+}
+
+.notification {
+  background-color: white;
+  color: #212529;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-radius: 4px;
+  padding: 12px 24px;
+  width: 350px;
+  max-width: 100%;
+  text-align: center;
+  font-size: 1rem;
+  opacity: 1;
+  transition: all 0.3s ease;
+}
+
+.notification.success {
+  border-left: 4px solid #28a745;
+}
+
+.notification.danger {
+  border-left: 4px solid #dc3545;
+}
+
+.notification.warning {
+  border-left: 4px solid #ffc107;
+}
+
+.notification.info {
+  border-left: 4px solid #17a2b8;
+}
+
+/* Responsive Typography */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px; /* Slightly smaller base font size on mobile */
+  }
+
+  .notification {
+    width: 90%; /* More responsive on small screens */
+    max-width: 350px;
+  }
+}
+
+/* Improve scrollbar (optional) */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4158d0;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #344bb0;
+}
+
+/* Utility classes for common responsive behaviors */
+.overflow-hidden {
+  overflow: hidden !important;
+}
+
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Smooth transitions for interactive elements */
+a, button, .btn {
+  transition: all 0.3s ease;
+}
