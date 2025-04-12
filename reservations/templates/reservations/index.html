@@ -1,8 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load seo_tags %}
-{% block head_extra %}
-  <!-- Preload critical resources -->
+{% block extra_css %}
   <link rel="preload"
         href="{% static 'css/homepage-elements.css' %}"
         as="style">
@@ -11,13 +10,11 @@
         as="font"
         type="font/woff2"
         crossorigin>
-{% endblock %}
-
+{% endblock extra_css %}
 {% block content %}
   {% structured_data %}
   <!-- preload critical assets to improve page speed -->
   <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
-  <link rel="stylesheet" href="{% static 'css/homepage-elements.css' %}">
   <main class="flex-shrink-0">
 
     <!-- Hero Section -->
@@ -44,7 +41,7 @@
                    href="{% url 'services' %}"
                    aria-label="Explore Services">Explore Services</a>
               </div>
-              
+
             </div>
           </div>
           <div class="col-xl-5 d-none d-md-block text-center">

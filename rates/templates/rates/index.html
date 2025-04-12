@@ -5,10 +5,11 @@
 {% block title %}
   Rates & Booking | Orlando Airport Car Service | Grayson Towncar
 {% endblock title %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/rates_test.css' %}" media="all" />
+{% endblock extra_css %}
 {% block content %}
   {% structured_data additional_data=structured_data %}
-  <link rel="stylesheet" href="{% static 'css/rates_test.css' %}" media="all" />
 
   <!-- Enhanced hero section with visual impact -->
   <section class="py-5 position-relative hero-section"
@@ -30,10 +31,13 @@
               <div class="col mb-4 fade-in-up"
                    style="--animation-delay: {{ forloop.counter0|add:1 }}00ms">
                 <div class="vehicle-card-container h-100">
-                  <article class="vehicle-card h-100" style="min-height: 420px; position: relative;">
+                  <article class="vehicle-card h-100"
+                           style="min-height: 420px;
+                                  position: relative">
 
                     <!-- Front of card -->
-                    <div class="vehicle-card-front shadow-sm h-100 d-flex flex-column" style="position: relative;">
+                    <div class="vehicle-card-front shadow-sm h-100 d-flex flex-column"
+                         style="position: relative">
                       <div class="vehicle-card-accent"></div>
                       <div class="bg-light p-3 text-center">
                         <img class="img-fluid img-zoom mx-auto"
@@ -47,22 +51,37 @@
                         <h2 class="card-title h5 fw-light mb-3">{{ vehicle.get_vehicle_type_display }}</h2>
                         <div class="vehicle-details mb-3">
                           <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
-                            <img src="{% static 'images/passengers.webp' %}" class="me-2 vehicle-icon" alt="Passengers icon" aria-hidden="true" style="width: 1em; height: 1em;">
+                            <img src="{% static 'images/passengers.webp' %}"
+                                 class="me-2 vehicle-icon"
+                                 alt="Passengers icon"
+                                 aria-hidden="true"
+                                 style="width: 1em;
+                                        height: 1em">
                             <span>{{ vehicle.capacity }} Passengers</span>
                           </p>
                           <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
-                            <img src="{% static 'images/luggage.webp' %}" class="me-2 vehicle-icon" alt="Passengers icon" aria-hidden="true" style="width: 1em; height: 1em;">
+                            <img src="{% static 'images/luggage.webp' %}"
+                                 class="me-2 vehicle-icon"
+                                 alt="Passengers icon"
+                                 aria-hidden="true"
+                                 style="width: 1em;
+                                        height: 1em">
                             <span>{{ vehicle.luggage_capacity }} Suitcases</span>
                           </p>
                           <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
-                            <img src="{% static 'images/carseat.webp' %}" class="me-2 vehicle-icon" alt="Passengers icon" aria-hidden="true" style="width: 1em; height: 1em;">
-                            <span>{{vehicle.carseats_display}}</span>
+                            <img src="{% static 'images/carseat.webp' %}"
+                                 class="me-2 vehicle-icon"
+                                 alt="Passengers icon"
+                                 aria-hidden="true"
+                                 style="width: 1em;
+                                        height: 1em">
+                            <span>{{ vehicle.carseats_display }}</span>
                           </p>
                         </div>
                         <div class="mt-auto d-flex">
                           <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-heading"
-                            class="btn btn-sm bg-secondary bg-opacity-75 text-white btn-outline-secondary view-rates-btn flex-fill rounded-pill"
-                            aria-label="View {{ vehicle.get_vehicle_type_display }} rates and booking options">
+                             class="btn btn-sm bg-secondary bg-opacity-75 text-white btn-outline-secondary view-rates-btn flex-fill rounded-pill"
+                             aria-label="View {{ vehicle.get_vehicle_type_display }} rates and booking options">
                             View Rates
                           </a>
                           <button class="btn btn-sm bg-transparent p-0 ms-2 flip-card-btn border-0"
@@ -76,86 +95,99 @@
                       </div>
                     </div>
 
-                      <!-- Back of card -->
-                      <div class="vehicle-card-back shadow-sm h-100 d-flex flex-column" style="position: relative;">
-                        <div class="vehicle-card-accent"></div>
-                        <div class="card-body d-flex flex-column h-100 p-4" style="overflow: auto;">
-                          <div class="vehicle-info-header d-flex justify-content-between align-items-center mb-3">
-                            <h3 class="h5 fw-light mb-0">{{ vehicle.get_vehicle_type_display }}</h3>
-                            <button class="btn btn-sm btn-outline-dark flip-card-btn p-2"
-                                    aria-label="Flip card back to see {{ vehicle.get_vehicle_type_display }}">
-                              <i class="bi bi-arrow-left"></i>
-                            </button>
-                          </div>
-                          {% if vehicle.vehicle_type == "towncar" %}
-                            <div class="vehicle-description text-start mb-1 fade-in-item">
-                              <span class="badge bg-light text-dark mb-2">Couples & small families</span>
-                              <p class="small text-muted">
-                                Our premium towncars offer a smooth, comfortable ride—perfect for couples, small groups, and small families.
-                              </p>
-                            </div>
-                          {% elif vehicle.vehicle_type == "suv" %}
-                            <div class="vehicle-description text-start mb-4 fade-in-item">
-                              <span class="badge bg-light text-dark mb-2">Families with luggage</span>
-                              <p class="small text-muted">
-                                Our spacious SUVs offer a comfortable ride for families or medium groups, with extra room for luggage.
-                              </p>
-                            </div>
-                          {% elif vehicle.vehicle_type == "mini_van" %}
-                            <div class="vehicle-description text-start mb-4 fade-in-item">
-                              <span class="badge bg-light text-dark mb-2">Medium-sized families</span>
-                              <p class="small text-muted">
-                                Spacious and reliable, our minivans are a great fit for medium groups with luggage—comfort and value combined.
-                              </p>
-                            </div>
-                          {% elif vehicle.vehicle_type == "van" %}
-                            <div class="vehicle-description text-start mb-4 fade-in-item">
-                              <span class="badge bg-light text-dark mb-2">Best for larger groups</span>
-                              <p class="small text-muted">
-                                Perfect for larger families or groups that need extra space for both passengers and luggage.
-                              </p>
-                            </div>
-                          {% else %}
-                            <div class="vehicle-description text-start mb-4 fade-in-item">
-                              <span class="badge bg-light text-dark mb-2">Premium transportation</span>
-                              <p class="small text-muted">
-                                Comfortable, reliable transportation for your Orlando visit with professional, experienced drivers.
-                              </p>
-                            </div>
-                          {% endif %}
-                          <div class="vehicle-highlights text-start fade-in-item"
-                              style="--animation-delay: 100ms">
-                            <ul class="list-unstyled mb-0">
-                              <li class="mb-2 small">
-                                <i class="icon-container text-success me-2">
-                                  <img src="{% static 'images/check.webp' %}" alt="check icon" class="icon-img" style="width: 1em; height: 1em;">
-                                </i> Professional chauffeur
-                              </li>
-                              <li class="mb-2 small">
-                                <i class="icon-container text-success me-2">
-                                  <img src="{% static 'images/check.webp' %}" alt="check icon" class="icon-img" style="width: 1em; height: 1em;">
-                                </i> Bottled water
-                              </li>
-                              <li class="mb-2 small">
-                                <i class="icon-container text-success me-2">
-                                  <img src="{% static 'images/check.webp' %}" alt="check icon" class="icon-img" style="width: 1em; height: 1em;">
-                                </i> Climate controlled
-                              </li>
-                            </ul>
-                          </div>
-                          <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-heading"
-                            class="btn btn-sm btn-outline-dark view-rates-btn mt-auto fade-in-item rounded-pill"
-                            style="--animation-delay: 200ms"
-                            aria-label="View {{ vehicle.get_vehicle_type_display }} rates and booking options">
-                            View Rates & Book
-                          </a>
+                    <!-- Back of card -->
+                    <div class="vehicle-card-back shadow-sm h-100 d-flex flex-column"
+                         style="position: relative">
+                      <div class="vehicle-card-accent"></div>
+                      <div class="card-body d-flex flex-column h-100 p-4" style="overflow: auto">
+                        <div class="vehicle-info-header d-flex justify-content-between align-items-center mb-3">
+                          <h3 class="h5 fw-light mb-0">{{ vehicle.get_vehicle_type_display }}</h3>
+                          <button class="btn btn-sm btn-outline-dark flip-card-btn p-2"
+                                  aria-label="Flip card back to see {{ vehicle.get_vehicle_type_display }}">
+                            <i class="bi bi-arrow-left"></i>
+                          </button>
                         </div>
+                        {% if vehicle.vehicle_type == "towncar" %}
+                          <div class="vehicle-description text-start mb-1 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Couples & small families</span>
+                            <p class="small text-muted">
+                              Our premium towncars offer a smooth, comfortable ride—perfect for couples, small groups, and small families.
+                            </p>
+                          </div>
+                        {% elif vehicle.vehicle_type == "suv" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Families with luggage</span>
+                            <p class="small text-muted">
+                              Our spacious SUVs offer a comfortable ride for families or medium groups, with extra room for luggage.
+                            </p>
+                          </div>
+                        {% elif vehicle.vehicle_type == "mini_van" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Medium-sized families</span>
+                            <p class="small text-muted">
+                              Spacious and reliable, our minivans are a great fit for medium groups with luggage—comfort and value combined.
+                            </p>
+                          </div>
+                        {% elif vehicle.vehicle_type == "van" %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Best for larger groups</span>
+                            <p class="small text-muted">
+                              Perfect for larger families or groups that need extra space for both passengers and luggage.
+                            </p>
+                          </div>
+                        {% else %}
+                          <div class="vehicle-description text-start mb-4 fade-in-item">
+                            <span class="badge bg-light text-dark mb-2">Premium transportation</span>
+                            <p class="small text-muted">
+                              Comfortable, reliable transportation for your Orlando visit with professional, experienced drivers.
+                            </p>
+                          </div>
+                        {% endif %}
+                        <div class="vehicle-highlights text-start fade-in-item"
+                             style="--animation-delay: 100ms">
+                          <ul class="list-unstyled mb-0">
+                            <li class="mb-2 small">
+                              <i class="icon-container text-success me-2">
+                                <img src="{% static 'images/check.webp' %}"
+                                     alt="check icon"
+                                     class="icon-img"
+                                     style="width: 1em;
+                                            height: 1em">
+                              </i> Professional chauffeur
+                            </li>
+                            <li class="mb-2 small">
+                              <i class="icon-container text-success me-2">
+                                <img src="{% static 'images/check.webp' %}"
+                                     alt="check icon"
+                                     class="icon-img"
+                                     style="width: 1em;
+                                            height: 1em">
+                              </i> Bottled water
+                            </li>
+                            <li class="mb-2 small">
+                              <i class="icon-container text-success me-2">
+                                <img src="{% static 'images/check.webp' %}"
+                                     alt="check icon"
+                                     class="icon-img"
+                                     style="width: 1em;
+                                            height: 1em">
+                              </i> Climate controlled
+                            </li>
+                          </ul>
+                        </div>
+                        <a href="#{{ vehicle.get_vehicle_type_display|slugify }}-heading"
+                           class="btn btn-sm btn-outline-dark view-rates-btn mt-auto fade-in-item rounded-pill"
+                           style="--animation-delay: 200ms"
+                           aria-label="View {{ vehicle.get_vehicle_type_display }} rates and booking options">
+                          View Rates & Book
+                        </a>
                       </div>
-                    </article>
-                  </div>
+                    </div>
+                  </article>
                 </div>
-              {% endfor %}
-            </div>
+              </div>
+            {% endfor %}
+          </div>
 
           <!-- Enhanced Contact Information Box -->
           <div class="bg-white p-4 rounded shadow-sm mb-5 position-relative overflow-hidden contact-box fade-in">
@@ -250,21 +282,21 @@
                                   <td class="text-center py-3">
                                     <div class="d-flex align-items-center justify-content-center">
                                       <span class="one-way-price fs-6 py-2 px-3 align-middle">${{ v.oneway_price }}</span>
-                                        <a href="{% url 'reserve' v.id %}?round=1"
-                                          class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
-                                          aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                          Book Now
-                                        </a>
+                                      <a href="{% url 'reserve' v.id %}?round=1"
+                                         class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
+                                         aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                        Book Now
+                                      </a>
                                     </div>
                                   </td>
                                   <td class="text-center py-3">
                                     <div class="d-flex align-items-center justify-content-center">
                                       <span class="round-trip-price fs-6 py-2 px-3 align-middle">${{ v.round_trip_price }}</span>
-                                        <a href="{% url 'reserve' v.id %}?round=2"
-                                          class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
-                                          aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                          Book Now
-                                        </a>
+                                      <a href="{% url 'reserve' v.id %}?round=2"
+                                         class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
+                                         aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                        Book Now
+                                      </a>
                                     </div>
                                   </td>
                                 </tr>
@@ -282,77 +314,101 @@
           </section>
 
           <!-- Inclusions Section -->
-        <section class="container my-4 fade-in">
-          <h2 class="text-center mb-3">All Rates Include</h2>
-          <div class="row row-cols-1 row-cols-md-3 g-3">
-            <!-- Card 1 -->
-            <div class="col">
-              <div class="card h-100 border-0 shadow-sm inclusion-item">
-                <div class="card-body p-3 text-center">
-                  <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
-                    <img src="{% static 'images/handshake.webp' %}" alt="check icon" class="img-fluid" style="width: 2em; height: 2em;">
-                  </i>
-                  <p class="card-text mb-0">Free meet and greet at MCO</p>
+          <section class="container my-4 fade-in">
+            <h2 class="text-center mb-3">All Rates Include</h2>
+            <div class="row row-cols-1 row-cols-md-3 g-3">
+              <!-- Card 1 -->
+              <div class="col">
+                <div class="card h-100 border-0 shadow-sm inclusion-item">
+                  <div class="card-body p-3 text-center">
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
+                      <img src="{% static 'images/handshake.webp' %}"
+                           alt="check icon"
+                           class="img-fluid"
+                           style="width: 2em;
+                                  height: 2em">
+                    </i>
+                    <p class="card-text mb-0">Free meet and greet at MCO</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Card 2 -->
+              <div class="col">
+                <div class="card h-100 border-0 shadow-sm inclusion-item">
+                  <div class="card-body p-3 text-center">
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
+                      <img src="{% static 'images/carseat.webp' %}"
+                           alt="check icon"
+                           class="img-fluid"
+                           style="width: 1.5em;
+                                  height: 1.5em">
+                    </i>
+                    <p class="card-text mb-0">Complimentary car seats and booster seats</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Card 3 -->
+              <div class="col">
+                <div class="card h-100 border-0 shadow-sm inclusion-item">
+                  <div class="card-body p-3 text-center">
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
+                      <img src="{% static 'images/groceries.webp' %}"
+                           alt="check icon"
+                           class="img-fluid"
+                           style="width: 1.5em;
+                                  height: 1.5em">
+                    </i>
+                    <p class="card-text mb-0">Free 20-minute grocery stop at Publix</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Card 4 -->
+              <div class="col">
+                <div class="card h-100 border-0 shadow-sm inclusion-item">
+                  <div class="card-body p-3 text-center">
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
+                      <img src="{% static 'images/highway.webp' %}"
+                           alt="check icon"
+                           class="img-fluid"
+                           style="width: 1.5em;
+                                  height: 1.5em">
+                    </i>
+                    <p class="card-text mb-0">All tolls and taxes included</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Card 5 -->
+              <div class="col">
+                <div class="card h-100 border-0 shadow-sm inclusion-item">
+                  <div class="card-body p-3 text-center">
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
+                      <img src="{% static 'images/shield.webp' %}"
+                           alt="check icon"
+                           class="img-fluid"
+                           style="width: 1.5em;
+                                  height: 1.5em">
+                    </i>
+                    <p class="card-text mb-0">Professional, licensed and insured drivers</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Card 6 -->
+              <div class="col">
+                <div class="card h-100 border-0 shadow-sm inclusion-item">
+                  <div class="card-body p-3 text-center">
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
+                      <img src="{% static 'images/delay.webp' %}"
+                           alt="check icon"
+                           class="img-fluid"
+                           style="width: 1.5em;
+                                  height: 1.5em">
+                    </i>
+                    <p class="card-text mb-0">Flight delay protection at no extra charge</p>
+                  </div>
                 </div>
               </div>
             </div>
-            <!-- Card 2 -->
-            <div class="col">
-              <div class="card h-100 border-0 shadow-sm inclusion-item">
-                <div class="card-body p-3 text-center">
-                  <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
-                    <img src="{% static 'images/carseat.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em;">
-                  </i>
-                  <p class="card-text mb-0">Complimentary car seats and booster seats</p>
-                </div>
-              </div>
-            </div>
-            <!-- Card 3 -->
-            <div class="col">
-              <div class="card h-100 border-0 shadow-sm inclusion-item">
-                <div class="card-body p-3 text-center">
-                  <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
-                    <img src="{% static 'images/groceries.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em;">
-                  </i>
-                  <p class="card-text mb-0">Free 20-minute grocery stop at Publix</p>
-                </div>
-              </div>
-            </div>
-            <!-- Card 4 -->
-            <div class="col">
-              <div class="card h-100 border-0 shadow-sm inclusion-item">
-                <div class="card-body p-3 text-center">
-                  <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
-                    <img src="{% static 'images/highway.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em;">
-                  </i>
-                  <p class="card-text mb-0">All tolls and taxes included</p>
-                </div>
-              </div>
-            </div>
-            <!-- Card 5 -->
-            <div class="col">
-              <div class="card h-100 border-0 shadow-sm inclusion-item">
-                <div class="card-body p-3 text-center">
-                  <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
-                    <img src="{% static 'images/shield.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em;">
-                  </i>
-                  <p class="card-text mb-0">Professional, licensed and insured drivers</p>
-                </div>
-              </div>
-            </div>
-            <!-- Card 6 -->
-            <div class="col">
-              <div class="card h-100 border-0 shadow-sm inclusion-item">
-                <div class="card-body p-3 text-center">
-                  <i class="text-success mb-2 inclusion-icon" aria-hidden="true">
-                    <img src="{% static 'images/delay.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em;">
-                  </i>
-                  <p class="card-text mb-0">Flight delay protection at no extra charge</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+          </section>
 
 
         </div>
