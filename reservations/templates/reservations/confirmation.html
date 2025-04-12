@@ -4,199 +4,201 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Grayson Towncar - Reservation Confirmation</title>
-    <style type="text/css">
-      /* Import Google Fonts */
-      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
-      
-      /* Reset styles */
-      body,
-      p,
-      div,
-      h1,
-      h2,
-      h3,
-      h4,
-      ul,
-      li {
-        margin: 0;
-        padding: 0;
-      }
-      
-      body {
-        background-color: #f4f4f4;
-        font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        line-height: 1.6;
-        color: #333333;
-      }
-      
-      /* Base container */
-      .email-container {
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #ffffff;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      }
-      
-      /* Header */
-      .header {
-        background-color: #2c3e50;
-        padding: 25px 20px;
-        text-align: center;
-      }
-      
-      .header-logo {
-        max-width: 180px;
-        margin-bottom: 15px;
-      }
-      
-      .header-title {
-        margin: 0;
-        font-size: 28px;
-        color: #ffffff;
-        font-weight: 600;
-      }
-      
-      /* Content */
-      .content {
-        padding: 30px;
-      }
-      
-      .greeting {
-        margin-bottom: 20px;
-        font-size: 17px;
-      }
-      
-      /* Info sections */
-      .info-section {
-        background-color: #f9f9f9;
-        border-left: 5px solid #2c3e50;
-        padding: 20px;
-        margin-bottom: 25px;
-        border-radius: 4px;
-      }
-      
-      .section-title {
-        color: #2c3e50;
-        margin-bottom: 15px;
-        font-size: 20px;
-        font-weight: 600;
-      }
-      
-      .info-text {
-        margin-bottom: 10px;
-        font-size: 16px;
-      }
-      
-      .info-text strong {
-        font-weight: 600;
-      }
-      
-      /* Status colors */
-      .status-paid {
-        color: #27ae60;
-        font-weight: 600;
-      }
-      
-      .status-unpaid {
-        color: #e74c3c;
-        font-weight: 600;
-      }
-      
-      .status-pending {
-        color: #f39c12;
-        font-weight: 600;
-      }
-      
-      .status-saved {
-        color: #3498db;
-        font-weight: 600;
-      }
-      
-      /* Itinerary leg */
-      .itinerary-leg {
-        margin-bottom: 20px;
-        padding-bottom: 15px;
-        border-bottom: 1px dashed #e0e0e0;
-      }
-      
-      .itinerary-leg:last-child {
-        border-bottom: none;
-        margin-bottom: 0;
-        padding-bottom: 0;
-      }
-      
-      /* List styling */
-      ul {
-        padding-left: 20px;
-        margin: 10px 0;
-      }
-      
-      li {
-        margin-bottom: 8px;
-      }
-      
-      /* Links */
-      a {
-        color: #2980b9;
-        text-decoration: none;
-      }
-      
-      a:hover {
-        text-decoration: underline;
-      }
-      
-      /* Footer */
-      .footer {
-        text-align: center;
-        color: #666666;
-        padding: 25px;
-        border-top: 1px solid #e0e0e0;
-        font-size: 15px;
-      }
-      
-      .footer p {
-        margin-bottom: 10px;
-      }
-      
-      /* Contact icons */
-      .contact-icon {
-        font-size: 18px;
-        margin-right: 5px;
-      }
-      
-      /* Responsive styles */
-      @media only screen and (max-width: 600px) {
+    <style>
+        /* Import Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+
+        /* Reset styles */
+        body,
+        p,
+        div,
+        h1,
+        h2,
+        h3,
+        h4,
+        ul,
+        li {
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #f4f4f4;
+            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+        }
+
+        /* Base container */
         .email-container {
-          width: 100% !important;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
-      
-        .content {
-          padding: 20px !important;
+
+        /* Header */
+        .header {
+            background-color: #2c3e50;
+            padding: 25px 20px;
+            text-align: center;
         }
-      
-        .info-section {
-          padding: 15px !important;
+
+        .header-logo {
+            max-width: 180px;
+            margin-bottom: 15px;
         }
-      
+
         .header-title {
-          font-size: 24px !important;
+            margin: 0;
+            font-size: 28px;
+            color: #ffffff;
+            font-weight: 600;
         }
-      
+
+        /* Content */
+        .content {
+            padding: 30px;
+        }
+
+        .greeting {
+            margin-bottom: 20px;
+            font-size: 17px;
+        }
+
+        /* Info sections */
+        .info-section {
+            background-color: #f9f9f9;
+            border-left: 5px solid #2c3e50;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-radius: 4px;
+        }
+
         .section-title {
-          font-size: 18px !important;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 20px;
+            font-weight: 600;
         }
-      
+
         .info-text {
-          font-size: 15px !important;
+            margin-bottom: 10px;
+            font-size: 16px;
         }
-      }
+
+        .info-text strong {
+            font-weight: 600;
+        }
+
+        /* Status colors */
+        .status-paid {
+            color: #27ae60;
+            font-weight: 600;
+        }
+
+        .status-unpaid {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            color: #f39c12;
+            font-weight: 600;
+        }
+
+        .status-saved {
+            color: #3498db;
+            font-weight: 600;
+        }
+
+        /* Itinerary leg */
+        .itinerary-leg {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px dashed #e0e0e0;
+        }
+
+        .itinerary-leg:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        /* List styling */
+        ul {
+            padding-left: 20px;
+            margin: 10px 0;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        /* Links */
+        a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            color: #666666;
+            padding: 25px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 15px;
+        }
+
+        .footer p {
+            margin-bottom: 10px;
+        }
+
+        /* Contact icons */
+        .contact-icon {
+            font-size: 18px;
+            margin-right: 5px;
+        }
+
+        /* Responsive styles */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                width: 100% !important;
+            }
+
+            .content {
+                padding: 20px !important;
+            }
+
+            .info-section {
+                padding: 15px !important;
+            }
+
+            .header-title {
+                font-size: 24px !important;
+            }
+
+            .section-title {
+                font-size: 18px !important;
+            }
+
+            .info-text {
+                font-size: 15px !important;
+            }
+        }
     </style>
   </head>
   <body>
     <div class="email-container">
       <!-- Header -->
       <div class="header">
-        <img src="https://i.postimg.cc/tJmrm93v/grayson-Email-Signature-1.png" alt="Grayson Towncar Logo" class="header-logo" />
+        <img src="https://i.postimg.cc/tJmrm93v/grayson-Email-Signature-1.png"
+             alt="Grayson Towncar Logo"
+             class="header-logo" />
         <h1 class="header-title">Reservation Confirmation</h1>
       </div>
 
@@ -204,7 +206,9 @@
       <div class="content">
         <p class="greeting">Hello {{ reservation.customer.first_name }},</p>
 
-        <p class="info-text" style="margin-bottom: 25px;">Thank you for choosing Grayson Towncar. Your reservation has been successfully booked. Below you'll find all the important details.</p>
+        <p class="info-text" style="margin-bottom: 25px;">
+          Thank you for choosing Grayson Towncar. Your reservation has been successfully booked. Below you'll find all the important details.
+        </p>
 
         <!-- Reservation Details -->
         <div class="info-section">
@@ -217,50 +221,17 @@
           </p>
           <p class="info-text">
             <strong>Reservation Status:</strong>
-            <span class="{% if reservation.status == 'Confirmed' %}
-                
-                
-                status-paid
-
-
-              {% else %}
-                
-                
-                status-pending
-
-
-              {% endif %}">
+            <span class="{% if reservation.status == 'Confirmed' %}   status-paid   {% else %}   status-pending   {% endif %}">
               {{ reservation.status }}
             </span>
           </p>
           <p class="info-text">
             <strong>Payment Status:</strong>
             {% for payment in reservation.payments.all %}
-              <span class="
-                {% if payment.status == 'paid' %}
-                  
-                  
-                  status-paid
-
-
-
-                {% elif payment.status == 'save_card' %}
-                  
-                  
-                  status-saved
-
-
-
-                {% else %}
-                  
-                  
-                  status-pending
-
-
-                {% endif %}">
+              <span class=" {% if payment.status == 'paid' %}   status-paid    {% elif payment.status == 'save_card' %}   status-saved    {% else %}   status-pending   {% endif %}">
                 {{ payment.status|capfirst }}
               </span>
-              {% if not forloop.last %}, {% endif %}
+              {% if not forloop.last %},{% endif %}
             {% endfor %}
           </p>
           <p class="info-text">
@@ -315,19 +286,25 @@
         <!-- Pickup Instructions -->
         <div class="info-section">
           <h2 class="section-title">Airport Pickup Instructions</h2>
-          <p class="info-text">Our drivers monitor your flight's arrival time to stay updated on delays or early landings. Once your plane lands, your chauffeur will send you a text message to confirm their presence and guide you. They will then meet you inside the baggage claim area holding a sign with your name.</p>
+          <p class="info-text">
+            Our drivers monitor your flight's arrival time to stay updated on delays or early landings. Once your plane lands, your chauffeur will send you a text message to confirm their presence and guide you. They will then meet you inside the baggage claim area holding a sign with your name.
+          </p>
         </div>
 
         <!-- Gratuity -->
         <div class="info-section">
           <h2 class="section-title">Gratuity</h2>
-          <p class="info-text">Gratuity is not included in the total price. We kindly recommend a 20% tip for your professional driver, which can be given in cash or added upon request.</p>
+          <p class="info-text">
+            Gratuity is not included in the total price. We kindly recommend a 20% tip for your professional driver, which can be given in cash or added upon request.
+          </p>
         </div>
 
         <!-- Cancellation Policy -->
         <div class="info-section">
           <h2 class="section-title">Cancellation Policy</h2>
-          <p class="info-text">We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours:</p>
+          <p class="info-text">
+            We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours:
+          </p>
           <ul>
             <li class="info-text">Return trip will be refunded in full</li>
             <li class="info-text">Arrival trip will receive a 50% credit</li>
