@@ -178,3 +178,140 @@
         order: 2;
     }
 }
+
+
+@media (max-width: 767px) {
+    .fleet-tabs .nav-link {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .card {
+        margin-bottom: 1rem;
+    }
+
+    .lead {
+        font-size: 1rem;
+    }
+}
+
+ .custom-tab {
+     border: 2px solid #000 !important;
+     color: #212529 !important;
+     border-radius: 50rem !important;
+     transition: all 0.3s ease !important;
+     margin: 0 5px;
+ }
+
+ /* Hover state */
+ .custom-tab:hover {
+     background-color: #000 !important;
+     color: #fff !important;
+ }
+
+ /* Active state */
+ .custom-tab.active {
+     background-color: #000 !important;
+     color: #fff !important;
+     border-color: #000 !important;
+ }
+
+ /* Focus state without the default Bootstrap outline */
+ .custom-tab:focus {
+     box-shadow: none !important;
+     outline: none !important;
+ }
+
+ /* Mobile responsiveness */
+ @media (max-width: 767px) {
+     .custom-tab {
+         font-size: 0.85rem;
+         padding: 0.5rem 0.75rem;
+         margin: 0 2px;
+     }
+
+     .fleet-tabs {
+         display: flex;
+         overflow-x: auto;
+         flex-wrap: nowrap;
+         padding-bottom: 5px;
+     }
+
+     .fleet-tabs .nav-item {
+         flex: 0 0 auto;
+         width: auto;
+     }
+ }
+
+ /* Make buttons smaller overall */
+.custom-tab {
+    width: 150px !important;
+    padding: 0.5rem 0 !important;
+    margin: 0 !important;
+    text-align: center;
+}
+
+/* Center the tabs container */
+.fleet-tabs {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+/* Give the nav-item a specific width */
+.fleet-tabs .nav-item {
+    flex: 0 0 auto;
+    width: auto;
+    margin: 0 10px;
+}
+
+/* Additional centering for the container */
+#fleetTabs {
+    margin: 0 auto;
+}
+
+.bg-gradient {
+    background-color: #f0e6d291 !important;
+}
+
+/* Accordion on mobile */
+@media (max-width: 767px) {
+    .fleet-tabs {
+        flex-direction: column;
+        max-width: 100%;
+    }
+
+    .fleet-tabs .nav-item {
+        margin: 0 0 10px 0;
+        width: 100%;
+    }
+
+    .custom-tab {
+        width: 100% !important;
+        border-radius: 10px !important;
+    }
+
+    /* Make images smaller on mobile */
+    .tab-pane .img-fluid {
+        max-height: 200px;
+        object-fit: contain;
+    }
+
+    /* Reduce overall container padding */
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    /* Make heading smaller */
+    .display-5 {
+        font-size: 1.75rem;
+    }
+
+    /* Make the description cards stack better */
+    .row.row-cols-1.row-cols-md-2 {
+        row-gap: 0.5rem !important;
+    }
+}
