@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from dotenv import load_dotenv
 from pathlib import Path
 import os
-
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -122,16 +122,13 @@ WSGI_APPLICATION = "business.wsgi.application"
 
 
 if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("PGHOST"):
-    # PostgreSQL settings for Railway
+    # Use Railway PostgreSQL via DATABASE_URL
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql_psycopg2",
-            "NAME": os.environ.get("PGDATABASE", ""),
-            "USER": os.environ.get("PGUSER", ""),
-            "PASSWORD": os.environ.get("PGPASSWORD", ""),
-            "HOST": os.environ.get("PGHOST", ""),
-            "PORT": os.environ.get("PGPORT", ""),
-        }
+        "default": dj_database_url.config(
+            default=os.environ.get("DATABASE_URL"),
+            conn_max_age=600,
+            conn_health_checks=True
+        )
     }
 else:
     # SQLite settings for local development
