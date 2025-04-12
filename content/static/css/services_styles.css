@@ -1,3 +1,8 @@
+html {
+    scroll-padding-top: 100px;
+    /* Adjust this value as needed */
+}
+
 /* General styling */
 .py-6 {
     padding-top: 5rem;

@@ -23,7 +23,7 @@
           <div class="d-flex flex-wrap justify-content-center gap-3">
             <a href="{% url 'rates' %}"
                class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill text-warning">Book Your Ride</a>
-            <a href="#explore"
+            <a href="#why-choose"
                class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill">Explore Services</a>
           </div>
         </div>
@@ -673,17 +673,17 @@
   </section>
   
  <!-- FAQ Link Section - Compact Version -->
-<section class="py-4 bg-dark text-white text-center" id="faq-link">
-  <div class="container">
-    <div class="row justify-content-center">
-      <div class="col-lg-6"> <!-- Reduced from col-lg-8 -->
-        <h3 class="mb-3">Frequently Asked Questions</h3> <!-- Changed from display-5 to h3 -->
-        <p class="mb-3">Get answers to common transportation questions</p> <!-- Shortened text, reduced margin -->
-        <a href="{% url 'faqs' %}" class="btn btn-light px-4 py-2 rounded-pill">View All FAQs</a> <!-- Smaller button -->
+  <section class="py-4 bg-dark text-white text-center" id="faq-link">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-6"> <!-- Reduced from col-lg-8 -->
+          <h3 class="mb-3">Frequently Asked Questions</h3> <!-- Changed from display-5 to h3 -->
+          <p class="mb-3">Get answers to common transportation questions</p> <!-- Shortened text, reduced margin -->
+          <a href="{% url 'faqs' %}" class="btn btn-light px-4 py-2 rounded-pill">View All FAQs</a> <!-- Smaller button -->
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
   {% comment %}Call to Action{% endcomment %}
   {% include 'call-to-action.html' %}
