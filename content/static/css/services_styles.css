@@ -201,7 +201,7 @@ html {
 }
 
  .custom-tab {
-     border: 2px solid #000 !important;
+     border: 1.5px solid #000 !important;
      color: #212529 !important;
      border-radius: 50rem !important;
      transition: all 0.3s ease !important;
@@ -212,7 +212,7 @@ html {
  .custom-tab:hover {
      background-color: #997c42 !important;
      color: #000000 !important;
-    border: 2px solid #997c42 !important;
+    border: 1.5px solid #997c42 !important;
  }
 
  /* Active state */
