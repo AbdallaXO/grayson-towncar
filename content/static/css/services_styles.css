@@ -92,7 +92,7 @@
 
 /* Destination Selector with Blue Active */
 .destination-selector .btn.blue-active {
-    color: var(--bs-primary);
+    color: black;
     background-color: transparent;
     border-left-width: 4px;
     position: relative;
@@ -100,10 +100,10 @@
 }
 
 .destination-selector .btn.blue-active.active {
-    border-left-color: var(--bs-primary);
-    background-color: rgba(var(--bs-primary-rgb), 0.1);
+    border-left-color: #0A323C;
+    background-color: #06aec555;
     font-weight: 500;
-    color: var(--bs-primary);
+    color: #005A82;
 }
 
 /* Hotel Cards - Non-clickable with Stronger Shading */

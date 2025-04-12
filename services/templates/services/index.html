@@ -9,7 +9,7 @@
   <script src="{% static 'js/area-selector.js' %}"></script>
   <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
   <!-- Modern Hero with Animated Background -->
-  <section class="position-relative overflow-hidden py-6" id="hero">
+  <section class="position-relative overflow-hidden vh-100 d-flex align-items-center" id="hero">
     <div class="bg-image position-absolute top-0 start-0 w-100 h-100"
          style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)), url('{% static 'images/services-bg.webp' %}') no-repeat center center;
                 background-size: cover"
@@ -29,51 +29,59 @@
       </div>
     </div>
   </section>
+
   {% include "services/comparison.html" %}
+
+
   <!-- Simplified Service Areas Section -->
   <section class="py-6" id="explore">
     <div class="container">
       <div class="row align-items-center">
         <div class="col-lg-5 mb-5 mb-lg-0">
-          <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Service Areas</span>
-          <h2 class="display-5 fw-bold mb-4">Where We Take You</h2>
+          <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">Service Areas</span>
+          <h2 class="display-5 fw-normal mb-4">Where We Take You</h2>
           <p class="lead mb-4">Explore our comprehensive coverage across Orlando's top destinations</p>
 
           <!-- Interactive Area Selection -->
           <div class="destination-selector mb-4">
             <div class="btn-group-vertical w-100" role="group" id="areaButtons">
               <button type="button"
-                      class="btn btn-outline-primary py-3 text-start blue-active active"
+                      class="btn btn-outline-secondary py-3 text-start blue-active active"
                       data-area="disney">
-                <i class="bi bi-star-fill me-2"></i> Disney Resorts
+                  <img src="{% static 'images/disney-castle.webp' %}" class="me-2" style="width: 1.5em; height: 1.5em;" alt="Disney"> Disney Resorts
               </button>
               <button type="button"
-                      class="btn btn-outline-primary py-3 text-start blue-active"
+                      class="btn btn-outline-secondary py-3 text-start blue-active"
                       data-area="universal">
-                <i class="bi bi-globe2 me-2"></i> Universal Properties
+                <img src="{% static 'images/universal-studios.webp' %}" class="me-2" style="width: 1.5em; height: 1.5em;" alt="Universal"> Universal Properties
               </button>
               <button type="button"
-                      class="btn btn-outline-primary py-3 text-start blue-active"
+                      class="btn btn-outline-secondary py-3 text-start blue-active"
                       data-area="idrive">
-                <i class="bi bi-signpost-2 me-2"></i> International Drive
+                <img src="{% static 'images/direction-sign.webp' %}" class="me-2" style="width: 1.5em; height: 1.5em;" alt="International Drive"> International Drive
               </button>
               <button type="button"
-                      class="btn btn-outline-primary py-3 text-start blue-active"
+                      class="btn btn-outline-secondary py-3 text-start blue-active"
                       data-area="lbv">
-                <i class="bi bi-house-door-fill me-2"></i> Lake Buena Vista & Kissimmee
+                <img src="{% static 'images/hotel.webp' %}" class="me-2" style="width: 1.5em; height: 1.5em;" alt="LBV & Kissimmee"> Lake Buena Vista & Kissimmee
+              </button>
+              <button type="button"
+                      class="btn btn-outline-secondary py-3 text-start blue-active"
+                      data-area="cruises">
+                <img src="{% static 'images/cruise.webp' %}" class="me-2" style="width: 1.5em; height: 1.5em;" alt="Port Canaveral"> Port Canaveral
               </button>
             </div>
           </div>
 
           <p class="small text-muted fst-italic">
-            Not listed? We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-primary">Contact Us</a>
+            Not listed? We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-warning">Contact Us</a>
           </p>
         </div>
 
         <div class="col-lg-7">
           <div class="card border-0 shadow-lg">
             <div class="card-body p-4 position-relative">
-              <!-- Simplified Map Display with CSS Background Images -->
+              <!-- Simplified Map Display with Background Images -->
               <div class="area-description active" id="disney-description">
                 <div class="area-image mb-4"
                      style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/disney-resorts.webp" %}')">
@@ -82,16 +90,16 @@
                 <p class="mb-3">Direct service to all Disney properties including Value, Moderate, and Deluxe resorts.</p>
                 <ul class="list-unstyled mb-0">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Contemporary Resort
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Disney's Contemporary Resort
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Grand Floridian
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Disney's Grand Floridian
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Disney's Polynesian Village
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Disney's Polynesian Village
                   </li>
                   <li>
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All other Disney resorts
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> <strong>All other Disney resorts</strong>
                   </li>
                 </ul>
               </div>
@@ -104,16 +112,16 @@
                 <p class="mb-3">Comprehensive service to all Universal Orlando hotels and nearby accommodations.</p>
                 <ul class="list-unstyled mb-0">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Loews Portofino Bay Hotel
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Loews Portofino Bay Hotel
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Hard Rock Hotel Orlando
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Hard Rock Hotel Orlando
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Universal's Cabana Bay
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Universal's Cabana Bay
                   </li>
                   <li>
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All Universal partner hotels
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> <strong>All Universal partner hotels</strong>
                   </li>
                 </ul>
               </div>
@@ -126,16 +134,16 @@
                 <p class="mb-3">Service to all I-Drive hotels, Convention Center area, and SeaWorld resorts.</p>
                 <ul class="list-unstyled mb-0">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Rosen Plaza Hotel
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Rosen Plaza Hotel
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Hyatt Regency Orlando
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Hyatt Regency Orlando
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> DoubleTree by Hilton
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> DoubleTree by Hilton
                   </li>
                   <li>
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All I-Drive hotels & resorts
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> <strong>All I-Drive hotels & resorts</strong>
                   </li>
                 </ul>
               </div>
@@ -148,16 +156,38 @@
                 <p class="mb-3">Transportation to hotels and vacation rentals throughout LBV and Kissimmee.</p>
                 <ul class="list-unstyled mb-0">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Wyndham Lake Buena Vista
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Wyndham Lake Buena Vista
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Gaylord Palms Resort
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Gaylord Palms Resort
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> Vacation home rentals
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Vacation home rentals
                   </li>
                   <li>
-                    <i class="bi bi-check-circle-fill text-primary me-2"></i> All LBV & Kissimmee hotels
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> <strong>All LBV & Kissimmee hotels</strong>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="area-description" id="cruises-description">
+                <div class="area-image mb-4"
+                     style="background-image: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), url('{% static "images/port-canaveral.webp" %}')">
+                </div>
+                <h3 class="h4 mb-3">Port Canaveral</h3>
+                <p class="mb-3">Transportation to and from Port Canaveral cruise terminals for all major cruise lines.</p>
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Royal Caribbean, Carnival, Disney Cruise Line, and more
+                  </li>
+                  <li class="mb-2">
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Direct transfers from MCO and all area hotels
+                  </li>
+                  <li class="mb-2">
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> Pre-cruise hotel pickups and post-cruise drop-offs
+                  </li>
+                  <li>
+                    <img src="{% static 'images/check.webp' %}" class="text-primary me-2" style="width: 1em; height: 1em;" alt="Check"> <strong>All Port Canaveral cruise terminals</strong>
                   </li>
                 </ul>
               </div>
@@ -588,4 +618,15 @@
           }]
       }
   </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll(".accordion-toggle").forEach(function (toggle) {
+        toggle.addEventListener("click", function () {
+          const targetId = this.getAttribute("data-target");
+          const target = document.querySelector(targetId);
+          target.classList.toggle("active");
+        });
+      });
+    });
+</script>
 {% endblock %}

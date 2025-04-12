@@ -1,18 +1,18 @@
+{% load static %}
 <style>
     :root {
         --btn-color-1: #091428;
-        /* Accent (used in various text elements) */
         --btn-color-2: #010A13;
-        /* Headings and other prominent text */
         --btn-color-3: #091428;
-        /* Primary button background, badges, and icons */
     }
 
-    /* ==========================
-   Why Choose Us Section
-   ========================== */
+    .accordion-button:not(.collapsed){
+      color: black !important;
+      background-color: #c8aa6e96 !important;
+    }
+    
     #why-choose {
-        background-color: #f8f9fa;
+        background-color: #fff;
         padding: 2rem 0;
     }
 
@@ -24,207 +24,175 @@
     #why-choose h2 {
         color: var(--btn-color-2);
         margin-bottom: 1rem;
+        font-size: 2rem;
     }
 
-    /* Service card hover effect */
+    .why-choose-container {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
     .service-card {
         transition: transform 0.3s ease, box-shadow 0.3s ease;
-        border-radius: 0.5rem;
+        border-radius: 1rem;
+        width: 220px;
+        height: 280px;
+        margin-bottom: 1rem;
+        border: 1px solid #f0f0f0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
 
     .service-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-10px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
     }
 
-    /* Icon animation */
-    .icon-wrapper {
-        transition: transform 0.3s ease;
+    .service-card .icon-wrapper {
+        width: 60px;
+        height: 60px;
+        background-color: #e6f2ff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1.2rem;
     }
 
-    .icon-wrapper:hover {
-        transform: scale(1.1);
+    .service-card .icon-wrapper img {
+        width: auto;
+        height: auto;
+        max-width: 70%;
+        max-height: 70%;
+        display: block;
     }
 
-    /* ==========================
-   Value Comparison Section
-   ========================== */
-    #value-comparison {
-        background-color: #fff;
-        color: #333;
-        padding: 2rem 0;
-    }
-
-    #value-comparison .text-center .badge {
-        font-weight: 500;
-        padding: 0.5rem 1rem;
-        background-color: red;
-        color: #fff;
-    }
-
-    #value-comparison h2 {
+    .service-card .icon-wrapper i {
         font-size: 2.5rem;
-        margin-bottom: 1rem;
+        color: #3b82f6;
+    }
+
+    .service-card h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
         color: var(--btn-color-2);
-        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
     }
 
-    #value-comparison p.lead {
-        color: var(--btn-color-1);
-        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.1);
+    .service-card p {
+        font-size: 0.925rem;
+        color: #6c757d;
     }
 
-    /* Comparison table styles */
-    .comparison-table {
-        border-collapse: collapse;
-        width: 100%;
-        margin-top: 1rem;
-    }
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .why-choose-container {
+            flex-direction: column;
+            align-items: center;
+        }
 
-    .comparison-table th,
-    .comparison-table td {
-        padding: 1rem;
-        text-align: center;
-        vertical-align: middle;
-        border: 1px solid #dee2e6;
-    }
-
-    .comparison-table th {
-        background-color: #f1f1f1;
-        font-weight: bold;
-    }
-
-    .comparison-table tbody tr:nth-child(even) {
-        background-color: #f8f8f8;
-    }
-
-    .comparison-table i {
-        font-size: 1.25rem;
-    }
-
-    /* ==========================
-   Accordion (Mobile View)
-   ========================== */
-    .accordion-button {
-        background-color: #fff;
-        font-weight: bold;
-        border: none;
-    }
-
-    .accordion-button:not(.collapsed) {
-        color: var(--btn-color-3);
-        background-color: rgba(9, 20, 40, 0.1);
-    }
-
-    /* ==========================
-   Cards and Buttons
-   ========================== */
-    .card {
-        border-radius: 0.5rem;
-    }
-
-    .card.shadow-sm {
-        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    }
-
-    .card-body {
-        padding: 2rem;
-    }
-
-    .btn-custom {
-        background-color: var(--btn-color-3);
-        border-color: var(--btn-color-3);
-        color: #fff;
-        transition: filter 0.3s ease;
-    }
-
-    .btn-custom:hover {
-        /* Slightly darkens the button on hover */
-        filter: brightness(90%);
-    }
-
-    /* ==========================
-   Responsive Adjustments
-   ========================== */
-    @media (max-width: 767.98px) {
-        .comparison-table {
-            font-size: 0.875rem;
+        .service-card {
+            width: 100%;
+            max-width: 350px;
         }
     }
+    @media (max-width: 768px) {
+    #why-choose {
+        padding: 1rem 0;
+    }
+
+    .text-center.mb-4 {
+        margin-bottom: 1.5rem !important;
+    }
+
+    .service-card {
+        padding: 1rem;
+        height: auto;
+        margin-bottom: 0.75rem;
+    }
+
+    .service-card h3 {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .service-card p {
+        font-size: 0.85rem;
+    }
+
+    .service-card .icon-wrapper {
+        width: 50px;
+        height: 50px;
+        margin-bottom: 1rem;
+    }
+
+    .service-card .icon-wrapper img {
+        max-width: 65%;
+        max-height: 65%;
+    }
+}
 </style>
-<section class="py-6 bg-light" id="why-choose">
+
+<section class="py-6 bg-white" id="why-choose">
   <div class="container">
-    <div class="text-center mb-5">
-      <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Premium Service</span>
-      <h2 class="display-5 fw-bold">Why Choose Us</h2>
+    <div class="text-center mb-4">
+      <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-5">Premium Service</span>
+      <h2 class="fw-normal">Why Choose Us</h2>
     </div>
-    <div class="row g-5 justify-content-center">
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm service-card">
-          <div class="card-body p-5 text-center">
-            <div class="icon-wrapper mb-4">
-              <i class="bi bi-car-front-fill fs-1 text-primary"></i>
-            </div>
-            <h3 class="h4 mb-3">Private Luxury Vehicles</h3>
-            <p class="text-muted">Travel in comfort with our modern fleet of sedans, SUVs, and passenger vans</p>
-          </div>
+    <div class="why-choose-container">
+      <div class="service-card">
+        <div class="icon-wrapper">
+          <img src="{% static 'images/premium.webp' %}" alt="Premium Luxury Vehicles">
         </div>
+        <h3>Private Luxury Vehicles</h3>
+        <p>Travel in comfort with our modern fleet of sedans, SUVs, and passenger vans</p>
       </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm service-card">
-          <div class="card-body p-5 text-center">
-            <div class="icon-wrapper mb-4">
-              <i class="bi bi-geo-alt-fill fs-1 text-primary"></i>
-            </div>
-            <h3 class="h4 mb-3">Direct Hotel Service</h3>
-            <p class="text-muted">Door-to-door transportation with no additional stops along the way</p>
-          </div>
+      <div class="service-card">
+        <div class="icon-wrapper">
+          <img src="{% static 'images/direction.webp' %}" alt="Premium Luxury Vehicles">
         </div>
+        <h3>Direct Hotel Service</h3>
+        <p>Door-to-door transportation with no additional stops along the way</p>
       </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm service-card">
-          <div class="card-body p-5 text-center">
-            <div class="icon-wrapper mb-4">
-              <i class="bi bi-clock-fill fs-1 text-primary"></i>
-            </div>
-            <h3 class="h4 mb-3">24/7 Availability</h3>
-            <p class="text-muted">We operate around the clock to accommodate all flight schedules</p>
-          </div>
+      <div class="service-card">
+        <div class="icon-wrapper">
+          <img src="{% static 'images/247.webp' %}" alt="Premium Luxury Vehicles">
         </div>
+        <h3>24/7 Availability</h3>
+        <p>We operate around the clock to accommodate all flight schedules</p>
       </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm service-card">
-          <div class="card-body p-5 text-center">
-            <div class="icon-wrapper mb-4">
-              <i class="bi bi-shop fs-1 text-primary"></i>
-            </div>
-            <h3 class="h4 mb-3">Complimentary Grocery Stops</h3>
-            <p class="text-muted">Stock up on essentials with our 30-minute grocery stop service</p>
-          </div>
+      <div class="service-card">
+        <div class="icon-wrapper">
+          <img src="{% static 'images/groceries.webp' %}" alt="Premium Luxury Vehicles">
         </div>
+        <h3>Complimentary Grocery Stops</h3>
+        <p>Stock up on essentials with our 30-minute grocery stop service</p>
       </div>
-      <div class="col-md-6 col-lg-4">
-        <div class="card h-100 border-0 shadow-sm service-card">
-          <div class="card-body p-5 text-center">
-            <div class="icon-wrapper mb-4">
-              <i class="bi bi-people-fill fs-1 text-primary"></i>
-            </div>
-            <h3 class="h4 mb-3">Family-Friendly</h3>
-            <p class="text-muted">Complimentary car seats and boosters for travelers of all ages</p>
-          </div>
+      <div class="service-card">
+        <div class="icon-wrapper">
+          <img src="{% static 'images/family.webp' %}" alt="Premium Luxury Vehicles">
         </div>
+        <h3>Family-Friendly</h3>
+        <p>Complimentary car seats and boosters for travelers of all ages</p>
       </div>
     </div>
   </div>
 </section>
 <!-- Value Comparison Section -->
-<section id="value-comparison" class="py-6 bg-white text-dark">
+<section id="value-comparison" class="py-6 bg-light text-dark">
   <div class="container">
     <div class="text-center mb-5">
-      <span class="badge rounded-pill mb-3 px-3 py-2"
+      <span class="badge rounded-pill mb-5 px-3 py-2"
             style="background-color: var(--btn-color-3);
-                   color: #fff">VALUE COMPARISON</span>
-      <h2 class="display-5 fw-bold" style="color: var(--btn-color-2);">Experience Premium Transportation</h2>
+                   color: #fff">Value Comparison</span>
+      <h2 class="display-5 fw-normal" style="color: var(--btn-color-2);">Experience Premium Transportation</h2>
       <p class="lead" style="color: var(--btn-color-1);">Comfort, convenience, and clear pricing</p>
     </div>
     <div class="row justify-content-center">
@@ -614,7 +582,7 @@
       </div>
     </div>
     <div class="text-center mt-5">
-      <a href="{% url 'rates' %}" class="btn btn-custom btn-secondary btn-lg">Check Your Exact Rate Now</a>
+      <a href="{% url 'rates' %}" class="btn btn-custom rounded-pill btn-secondary btn-lg">Check Your Exact Rate Now</a>
       <p class="mt-3 text-muted">Transparent pricing with no hidden fees</p>
     </div>
     <div class="row mt-4 justify-content-center">
