@@ -6,11 +6,11 @@
 {% endblock title %}
 {% block content %}
   <!-- Contact Section -->
-  <section class="contact-section py-5" style="background-color: #f9f9f9;">
+  <section class="contact-section contact-gradient py-5 position-relative">
     <div class="container">
       <div class="row">
         <div class="col-lg-12 text-center mb-5">
-          <h1 class="text-dark fw-bolder mb-3">Contact Us</h1>
+          <h1 class="text-dark fw-bold mb-3">Contact Us</h1>
           <p class="lead text-muted">We're here to help you plan your perfect journey</p>
         </div>
       </div>
@@ -19,8 +19,7 @@
         <!-- Contact Information -->
         <div class="col-lg-5 mb-5 mb-lg-0">
           <div class="card border-0 shadow-sm h-100"
-               style="background-color: #f8f9fa;
-                      background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%)">
+               style="background-color: rgba(255, 255, 255, 0.7);">
             <div class="card-body p-5">
               <h3 class="h4 mb-4">Get in Touch</h3>
 
@@ -73,10 +72,8 @@
 
         <!-- Quote Request Form -->
         <div class="col-lg-7">
-          <div class="card border-0 shadow-sm"
-               style="background-color: #f8f9fa;
-                      background-image: linear-gradient(to bottom, rgba(0,0,0,0.03) 0%, rgba(0,0,0,0) 100%)">
-            <div class="card-body p-5">
+          <div class="card border-0 shadow-sm" style="background-color: rgba(255, 255, 255, 0.7);">
+            <div class="card-body p-5 ">
               <h3 class="h4 mb-4">Request a Personalized Quote</h3>
               <form method="POST">
                 {% csrf_token %}
@@ -137,7 +134,7 @@
                   {{ form.about }}
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-lg d-block mx-auto">Request Quote</button>
+                <button type="submit" class="btn btn-primary btn-lg d-block mx-auto rounded-pill">Request Quote</button>
               </form>
             </div>
           </div>
@@ -152,4 +149,9 @@
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
   <script src="{% static 'js/i-button-hover.js' %}"></script>
+  <style>
+    .contact-gradient {
+      background: linear-gradient(to top, #486581, #D6E6F2) !important;
+    }
+  </style>
 {% endblock %}

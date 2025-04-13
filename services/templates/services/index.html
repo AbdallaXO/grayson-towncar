@@ -8,6 +8,8 @@
 {% endblock %}
 {% block content %}
   <script src="{% static 'js/area-selector.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
+
   <!-- Modern Hero with Animated Background -->
   <section class="position-relative overflow-hidden vh-100 d-flex align-items-center" id="hero">
     <div class="bg-image position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)), url('{% static 'images/services-bg.webp' %}') no-repeat center center;
@@ -18,15 +20,18 @@
           <h1 class="display-3 fw-bold mb-4 text-shadow">Explore Our Services</h1>
           <p class="lead mb-5 fs-4">Seamless airport transfers and hotel transportation across Orlando</p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
-            <a href="{% url 'rates' %}" class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill text-warning">Book Your Ride</a>
-            <a href="#explore" class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill">Explore Services</a>
+            <a href="{% url 'rates' %}"
+               class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill text-warning">Book Your Ride</a>
+            <a href="#why-choose"
+               class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill">Explore Services</a>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  {% include 'services/comparison.html' %}
+  <!-- Value Comparison Section -->
+  {% include "services/comparison.html" %}
 
   <!-- Simplified Service Areas Section -->
   <section class="py-6" id="explore">
@@ -164,7 +169,8 @@
   </section>
 
   <!-- Fleet Section -->
-  <section class="py-6 bg-gradient" id="fleet" style="background: linear-gradient(to bottom right, #f8f9fa, #e9ecef)">
+  <section class="py-6 fleet-gradient" 
+          id="fleet">
     <div class="container">
       <div class="text-center mb-5">
         <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">Transportation</span>
@@ -176,39 +182,70 @@
       </div>
 
       <!-- Fleet Tabs Navigation -->
-      <ul class="nav nav-pills nav-fill mb-5 fleet-tabs" id="fleetTabs" role="tablist">
+      <ul class="nav nav-pills nav-fill mb-5 fleet-tabs" 
+          id="fleetTabs" 
+          role="tablist">
         <li class="nav-item" role="presentation">
-          <button class="nav-link active custom-tab" id="towncar-tab" data-bs-toggle="pill" data-bs-target="#towncar" type="button" role="tab"><i class="bi bi-car-front me-2"></i>Town Car</button>
+          <button class="nav-link active custom-tab" 
+              id="towncar-tab" 
+              data-bs-toggle="pill" 
+              data-bs-target="#towncar" 
+              type="button" 
+              role="tab">
+            <img src="{% static 'images/towncar-icon.webp' %}" alt="Minivan" class="me-2" style="width: 1.5em; height: 1.5em;"></i>Town Car
+          </button>
         </li>
         <li class="nav-item" role="presentation">
-          <button class="nav-link custom-tab" id="minivan-tab" data-bs-toggle="pill" data-bs-target="#minivan" type="button" role="tab"><i class="bi bi-truck me-2"></i>Minivan</button>
+          <button class="nav-link custom-tab" 
+                  id="minivan-tab" 
+                  data-bs-toggle="pill" 
+                  data-bs-target="#minivan" 
+                  type="button" 
+                  role="tab">
+            <img src="{% static 'images/minivan-icon.webp' %}" alt="Minivan" class="me-2" style="width: 1.5em; height: 1.5em;">Minivan
+          </button>
         </li>
         <li class="nav-item" role="presentation">
-          <button class="nav-link custom-tab" id="suv-tab" data-bs-toggle="pill" data-bs-target="#suv" type="button" role="tab"><i class="bi bi-truck-front me-2"></i>SUV</button>
+          <button class="nav-link custom-tab" 
+                  id="suv-tab" 
+                  data-bs-toggle="pill" 
+                  data-bs-target="#suv" 
+                  type="button" 
+                  role="tab">
+            <img src="{% static 'images/suv-icon.webp' %}" alt="Minivan" class="me-2" style="width: 1.5em; height: 1.5em;"></i>SUV
+          </button>
         </li>
         <li class="nav-item" role="presentation">
-          <button class="nav-link custom-tab" id="van-tab" data-bs-toggle="pill" data-bs-target="#van" type="button" role="tab"><i class="bi bi-minecart-loaded me-2"></i>Van</button>
+          <button class="nav-link custom-tab" 
+                  id="van-tab" 
+                  data-bs-toggle="pill" 
+                  data-bs-target="#van" 
+                  type="button" 
+                  role="tab">
+            <img src="{% static 'images/van-icon.webp' %}" alt="Minivan" class="me-2" style="width: 1.5em; height: 1.5em;"></i>Van
+          </button>
         </li>
       </ul>
 
       <!-- Fleet Tabs Content -->
       <div class="tab-content" id="fleetTabsContent">
+        
         <!-- Town Car Tab -->
         <div class="tab-pane fade show active" id="towncar" role="tabpanel">
           <div class="row">
             <div class="col-lg-5 mb-4">
               <div class="d-flex flex-column h-100 align-items-center">
                 <div class="rounded shadow-sm p-2 mb-4">
-                  <img src="{% static 'images/towncar.webp' %}" alt="Town Car" class="img-fluid rounded" />
+                  <img src="{% static 'images/towncar.webp' %}" alt="Town Car" class="img-fluid rounded">
                 </div>
                 <div class="card h-100 border-0 bg-light mt-auto">
                   <div class="card-body">
-                    <h5 class="card-title"><strong>Curious to see our vehicles in action?</strong></h5>
+                    <h5 class="card-title"><strong> Curious to see our vehicles in action? </strong></h5>
                     <p class="card-text">Follow our socials for real-time photos and updates about our fleet!</p>
                     <div class="mt-2">
-                      <a href="#" class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
-                      <a href="#" class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
-                      <a href="#" class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
+                      <a href="https://www.instagram.com/graysontowncar" target="_blank" class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
+                      <a href="https://www.facebook.com/profile.php?id=61574468855996" target="_blank" class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
+                      <a href="https://x.com/GraysonTowncar" target="_blank" class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
                     </div>
                   </div>
                 </div>
@@ -216,10 +253,8 @@
             </div>
             <div class="col-lg-7">
               <h3 class="mb-4">Luxury Town Car Experience</h3>
-              <p class="rounded shadow mb-4 p-3">
-                Ride in style with our luxury town cars—perfect for <strong>business travelers, couples, and small families.</strong> Whether you’re heading to a meeting or exploring Orlando, our professional drivers ensure a smooth and comfortable journey every time.
-              </p>
-
+              <p class="rounded shadow mb-4 p-3">Ride in style with our luxury town cars—perfect for <strong>business travelers, couples, and small families.</strong> Whether you’re heading to a meeting or exploring Orlando, our professional drivers ensure a smooth and comfortable journey every time.</p>
+              
               <div class="row row-cols-1 row-cols-md-2 g-4">
                 <!-- Town Car Details -->
                 <div class="col">
@@ -258,18 +293,18 @@
             </div>
           </div>
         </div>
-
+        
         <!-- Minivan Tab -->
         <div class="tab-pane fade" id="minivan" role="tabpanel">
           <div class="row">
             <div class="col-lg-5 mb-4">
               <div class="d-flex flex-column h-100 align-items-center">
                 <div class="rounded shadow-sm p-2 mb-4">
-                  <img src="{% static 'images/minivan.webp' %}" alt="Minivan" class="img-fluid rounded" />
+                  <img src="{% static 'images/minivan.webp' %}" alt="Minivan" class="img-fluid rounded">
                 </div>
                 <div class="card h-100 border-0 bg-light mt-auto">
                   <div class="card-body">
-                    <h5 class="card-title"><strong>Curious to see our vehicles in action?</strong></h5>
+                    <h5 class="card-title"><strong> Curious to see our vehicles in action? </strong></h5>
                     <p class="card-text">Follow our socials for real-time photos and updates about our fleet!</p>
                     <div class="mt-2">
                       <a href="#" class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
@@ -282,10 +317,8 @@
             </div>
             <div class="col-lg-7">
               <h3 class="mb-4">Family-Friendly Minivan</h3>
-              <p class="rounded shadow mb-4 p-3">
-                Perfect for <strong>small to medium families and small groups</strong>, our minivans combine space and comfort to ensure everyone arrives at Orlando ready for adventure.
-              </p>
-
+              <p class="rounded shadow mb-4 p-3">Perfect for <strong>small to medium families and small groups</strong>, our minivans combine space and comfort to ensure everyone arrives at Orlando ready for adventure.</p>
+              
               <div class="row row-cols-1 row-cols-md-2 g-4">
                 <!-- Minivan Details -->
                 <div class="col">
@@ -324,18 +357,18 @@
             </div>
           </div>
         </div>
-
+        
         <!-- SUV Tab -->
         <div class="tab-pane fade" id="suv" role="tabpanel">
           <div class="row">
             <div class="col-lg-5 mb-4">
               <div class="d-flex flex-column h-100 align-items-center">
                 <div class="rounded shadow-sm p-2 mb-4">
-                  <img src="{% static 'images/suburban.webp' %}" alt="SUV" class="img-fluid rounded" />
+                  <img src="{% static 'images/suburban.webp' %}" alt="SUV" class="img-fluid rounded">
                 </div>
                 <div class="card h-100 border-0 bg-light mt-auto">
                   <div class="card-body">
-                    <h5 class="card-title"><strong>Curious to see our vehicles in action?</strong></h5>
+                    <h5 class="card-title"><strong> Curious to see our vehicles in action? </strong></h5>
                     <p class="card-text">Follow our socials for real-time photos and updates about our fleet!</p>
                     <div class="mt-2">
                       <a href="#" class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
@@ -348,10 +381,9 @@
             </div>
             <div class="col-lg-7">
               <h3 class="mb-4">Premium SUV Transportation</h3>
-              <p class="rounded shadow mb-4 p-3">
-                Enhance your Orlando ride with our luxury SUVs—designed for executive comfort and flexible enough for <strong>medium to large families or small groups</strong>traveling together.
-              </p>
-
+              <p class="rounded shadow mb-4 p-3">Enhance your Orlando ride with our luxury SUVs—designed for executive 
+                comfort and flexible enough for <strong>medium to large families or small groups </strong>traveling together.</p>
+              
               <div class="row row-cols-1 row-cols-md-2 g-4">
                 <!-- SUV Details -->
                 <div class="col">
@@ -390,18 +422,18 @@
             </div>
           </div>
         </div>
-
+        
         <!-- Van Tab -->
         <div class="tab-pane fade" id="van" role="tabpanel">
           <div class="row">
             <div class="col-lg-5 mb-4">
               <div class="d-flex flex-column h-100 align-items-center">
                 <div class="rounded shadow-sm p-2 mb-4">
-                  <img src="{% static 'images/van.webp' %}" alt="Van" class="img-fluid rounded" />
+                  <img src="{% static 'images/van.webp' %}" alt="Van" class="img-fluid rounded">
                 </div>
                 <div class="card h-100 border-0 bg-light mt-auto">
                   <div class="card-body">
-                    <h5 class="card-title"><strong>Curious to see our vehicles in action?</strong></h5>
+                    <h5 class="card-title"><strong> Curious to see our vehicles in action? </strong></h5>
                     <p class="card-text">Follow our socials for real-time photos and updates about our fleet!</p>
                     <div class="mt-2">
                       <a href="#" class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
@@ -414,10 +446,9 @@
             </div>
             <div class="col-lg-7">
               <h3 class="mb-4">Spacious Group Van</h3>
-              <p class="rounded shadow mb-4 p-3">
-                Our full-size vans are the ultimate solution for larger groups wanting to travel together. Perfect for <strong>corporate events, large families, or tour groups</strong> exploring Orlando's attractions.
-              </p>
-
+              <p class="rounded shadow mb-4 p-3">Our full-size vans are the ultimate solution for larger groups wanting to travel together. 
+                Perfect for <strong>corporate events, large families, or tour groups</strong> exploring Orlando's attractions.</p>
+              
               <div class="row row-cols-1 row-cols-md-2 g-4">
                 <!-- Van Details -->
                 <div class="col">
@@ -456,55 +487,56 @@
             </div>
           </div>
         </div>
+        
       </div>
     </div>
   </section>
 
   <!-- Additional Services Section -->
-  <section class="py-6" id="additional-services">
+  <section class="py-5" id="additional-services">
     <div class="container">
-      <div class="text-center mb-5">
-        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Options</span>
-        <h2 class="display-5 fw-bold">Additional Transportation Services</h2>
+      <div class="text-center mb-4">
+        <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-5">Options</span>
+        <h2 class="display-5 fw-normal">Additional Transportation Services</h2>
         <p class="lead mb-0">Beyond airport transfers, we offer comprehensive solutions</p>
       </div>
 
-      <div class="row g-4 justify-content-center">
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow service-card">
-            <div class="card-body p-4">
-              <div class="service-icon mb-4">
-                <i class="bi bi-water fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Hotel to Port Canaveral</h3>
-              <p>Seamless transportation from your Orlando hotel directly to your cruise terminal at Port Canaveral.</p>
-              <a href="{% url 'rates' %}" class="btn btn-outline-primary mt-3 stretched-link">Book Port Transfer</a>
+      <div class="services-container">
+        <div class="service-option">
+          <div class="card-body p-4 text-center d-flex flex-column">
+            <div class="icon-circle">
+              <img src="{% static 'images/cruise.webp' %}" alt="Cruise" style="width: 2em; height: 2em;">
+            </div>
+            <h3>Hotel to Port Canaveral</h3>
+            <p>Seamless transportation from your Orlando hotel directly to your cruise terminal at Port Canaveral.</p>
+            <div class="mt-auto pt-3">
+              <a href="{% url 'rates' %}" class="btn btn-custom rounded-pill btn-secondary btn-m">Book Port Transfer</a>
             </div>
           </div>
         </div>
 
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow service-card">
-            <div class="card-body p-4">
-              <div class="service-icon mb-4">
-                <i class="bi bi-arrow-left-right fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Hotel to Hotel Transfers</h3>
-              <p>Convenient transportation between any Orlando hotels. Perfect for switching resorts during your stay.</p>
-              <a href="{% url 'rates' %}" class="btn btn-outline-primary mt-3 stretched-link">Book Hotel Transfer</a>
+        <div class="service-option">
+          <div class="card-body p-4 text-center d-flex flex-column">
+            <div class="icon-circle">
+              <img src="{% static 'images/hotel.webp' %}" alt="Hotel" style="width: 2em; height: 2em;">
+            </div>
+            <h3>Hotel to Hotel Transfers</h3>
+            <p>Convenient transportation between any Orlando hotels. Perfect for switching resorts during your stay.</p>
+            <div class="mt-auto pt-3">
+              <a href="{% url 'rates' %}" class="btn btn-custom rounded-pill btn-secondary btn-m">Book Hotel Transfer</a>
             </div>
           </div>
         </div>
 
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow service-card">
-            <div class="card-body p-4">
-              <div class="service-icon mb-4">
-                <i class="bi bi-map fs-1 text-primary"></i>
-              </div>
-              <h3 class="h4 mb-3">Customized Routes</h3>
-              <p>Need transportation to a specific location? We offer customized solutions to meet your unique travel needs.</p>
-              <a href="{% url 'contact' %}" class="btn btn-outline-primary mt-3 stretched-link">Request Custom Route</a>
+        <div class="service-option">
+          <div class="card-body p-4 text-center d-flex flex-column">
+            <div class="icon-circle">
+              <img src="{% static 'images/custom.webp' %}" alt="Custom" style="width: 2em; height: 2em;">
+            </div>
+            <h3>Customized Routes</h3>
+            <p>Need transportation to a specific location? We offer customized solutions to meet your unique travel needs.</p>
+            <div class="mt-auto pt-3">
+              <a href="{% url 'contact' %}" class="btn btn-custom rounded-pill btn-secondary btn-m">Request Custom Route</a>
             </div>
           </div>
         </div>
@@ -512,49 +544,59 @@
     </div>
   </section>
 
-  <!-- Simplified Family Features Section -->
-  <section class="py-6 bg-primary bg-opacity-10" id="family-features">
-    <div class="container">
+  <!-- Family Features Section -->
+  <section class="py-6 bg-secondary bg-opacity-10 position-relative" id="family-features">
+    <div class="position-absolute top-0 start-0 w-100 h-100" style="z-index: 0; opacity: 0.15;">
+      <img src="{% static 'images/photo2.webp' %}" alt="Background" class="w-100 h-100 object-fit-cover">
+    </div>
+    <div class="container position-relative" style="z-index: 1;">
       <div class="text-center mb-5">
-        <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">Family Travel</span>
-        <h2 class="display-5 fw-bold">Family-Friendly Features</h2>
+        <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-5">Family Travel</span>
+        <h2 class="display-5 fw-normal">Family-Friendly Features</h2>
         <p class="lead">Making family travel comfortable, safe, and stress-free</p>
       </div>
-
-      <div class="row justify-content-center g-4">
-        <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-4 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-car-front-fill fs-1 text-primary"></i>
+      
+      <div class="d-flex justify-content-center">
+        <div class="card shadow-sm rounded-4" style="max-width: 800px; width: 100%; overflow: visible; background-color: rgba(248, 249, 250, 0.75);">
+          <div class="card-body p-4 p-md-5">
+            
+            <!-- Car Seats Feature -->
+            <div class="row mb-5">
+              <div class="col-2 col-md-1 text-center">
+                <img src="{% static 'images/carseat.webp' %}" alt="Family" style="width: 40px; height: 40px;">
               </div>
-              <h3 class="h4 mb-3">Child Car Seats & Boosters</h3>
-              <p class="text-muted">Complimentary car seats and booster seats available for children of all ages. All seats meet NHTSA safety standards.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-4 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-person-badge-fill fs-1 text-primary"></i>
+              <div class="col-10 col-md-11">
+                <h3 class="h4 mb-2">Child Car Seats & Boosters</h3>
+                <p class="text-muted mb-0">Complimentary car seats and booster seats available for children of all ages.</p>
               </div>
-              <h3 class="h4 mb-3">Professional Drivers</h3>
-              <p class="text-muted">Experienced, courteous drivers who know Orlando well and prioritize family safety and comfort. All drivers undergo extensive background checks.</p>
             </div>
-          </div>
-        </div>
-
-        <div class="col-md-4">
-          <div class="card h-100 border-0 shadow-sm service-card">
-            <div class="card-body p-4 text-center">
-              <div class="icon-wrapper mb-4">
-                <i class="bi bi-cart-fill fs-1 text-primary"></i>
+            
+            <hr class="my-4">
+            
+            <!-- Professional Drivers Feature -->
+            <div class="row mb-5">
+              <div class="col-2 col-md-1 text-center">
+                <img src="{% static 'images/premium.webp' %}" alt="Premium" style="width: 40px; height: 40px;">
               </div>
-              <h3 class="h4 mb-3">Grocery Stop Service</h3>
-              <p class="text-muted">Complimentary 30-minute grocery stop included with all airport to hotel transfers at Publix, Walmart, Target, or Whole Foods.</p>
+              <div class="col-10 col-md-11">
+                <h3 class="h4 mb-2">Professional Drivers</h3>
+                <p class="text-muted mb-0">Experienced, courteous drivers who know Orlando well and prioritize family safety and comfort.</p>
+              </div>
             </div>
+            
+            <hr class="my-4">
+            
+            <!-- Grocery Stop Feature -->
+            <div class="row">
+              <div class="col-2 col-md-1 text-center">
+                <img src="{% static 'images/groceries.webp' %}" alt="Groceries" style="width: 40px; height: 40px;">
+              </div>
+              <div class="col-10 col-md-11">
+                <h3 class="h4 mb-2">Grocery Stop Service</h3>
+                <p class="text-muted mb-0">Complimentary 20-minute grocery stop included with all airport to hotel transfers at Publix.</p>
+              </div>
+            </div>
+            
           </div>
         </div>
       </div>
@@ -562,24 +604,32 @@
   </section>
 
   <!-- Enhanced Travel Agent Partnership Section -->
-  <section class="py-6" id="travel-agents">
+  <section class="py-4" id="travel-agents">
     <div class="container">
-      <div class="row">
-        <div class="col-lg-12">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 col-md-12"> <!-- Reduced width for smaller overall box -->
           <div class="card border-0 shadow-lg">
-            <div class="card-body p-5">
-              <div class="row align-items-center">
-                <div class="col-lg-8">
-                  <span class="badge bg-primary px-3 py-2 rounded-pill mb-3">For Travel Professionals</span>
-                  <h2 class="display-5 fw-bold mb-4">Travel Agent Partnerships</h2>
-                  <p class="lead mb-4">Join our partner program and provide your clients with premium Orlando transportation while boosting your commission</p>
+            <div class="card-body p-4"> <!-- Reduced padding -->
+              <div class="row">
+                <div class="col-12">
+                  <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">For Travel Professionals</span>
+                  <h2 class="display-5 fw-normal mb-3">Travel Agent Partnerships</h2> <!-- Reduced margin -->
+                  <p class="lead mb-3"> <!-- Reduced margin -->
+                    Partner with us to offer your clients luxurious Orlando transportation while unlocking these exclusive benefits:
+                  </p>
+                  
+                  <!-- Benefits list -->
+                  <div class="mb-3"> <!-- Reduced margin -->
+                    <p class="mb-2"><i class="bi bi-shield-check text-secondary me-2"></i> <span class="fw-medium">Trusted Client Care</span></p>
+                    <p class="mb-2"><i class="bi bi-cash-coin text-secondary me-2"></i> <span class="fw-medium">High-Earning Commissions</span></p>
+                    <p class="mb-2"><i class="bi bi-tag text-secondary me-2"></i> <span class="fw-medium">Exclusive Travel Discounts</span></p>
+                    <p class="mb-2"><i class="bi bi-star text-secondary me-2"></i> <span class="fw-medium">Spotlight on You</span></p>
+                    <p class="mb-2"><i class="bi bi-headset text-secondary me-2"></i> <span class="fw-medium">Always-On Support</span></p>
+                  </div>
 
-                  <a href="{% url 'partner' %}" class="btn btn-primary btn-lg px-5 py-3 rounded-pill">Discover Grayson Partnership Benefits</a>
-                </div>
-                <div class="col-lg-4 text-center">
-                  <div class="bg-primary bg-opacity-10 rounded-circle mx-auto d-flex align-items-center justify-content-center" style="width: 150px;
-                              height: 150px">
-                    <i class="bi bi-briefcase fs-1 text-primary"></i>
+                  <!-- Added text-center class to center the button -->
+                  <div class="text-center">
+                    <a href="{% url 'partner' %}" class="btn btn-custom rounded-pill btn-secondary btn-m">Discover Grayson Partnership Benefits</a>
                   </div>
                 </div>
               </div>
@@ -589,14 +639,15 @@
       </div>
     </div>
   </section>
-  <!-- FAQ Link Section -->
-  <section class="py-6 bg-dark text-white text-center" id="faq-link">
+  
+ <!-- FAQ Link Section - Compact Version -->
+  <section class="py-4 bg-dark text-white text-center" id="faq-link">
     <div class="container">
       <div class="row justify-content-center">
-        <div class="col-lg-8">
-          <h2 class="display-5 fw-bold mb-4">Frequently Asked Questions</h2>
-          <p class="lead mb-5">Find answers to your transportation questions in our comprehensive FAQ section</p>
-          <a href="{% url 'faqs' %}" class="btn btn-light btn-lg px-5 py-3 rounded-pill">View All FAQs</a>
+        <div class="col-lg-6"> <!-- Reduced from col-lg-8 -->
+          <h3 class="mb-3">Frequently Asked Questions</h3> <!-- Changed from display-5 to h3 -->
+          <p class="mb-3">Get answers to common transportation questions</p> <!-- Shortened text, reduced margin -->
+          <a href="{% url 'faqs' %}" class="btn btn-light px-4 py-2 rounded-pill">View All FAQs</a> <!-- Smaller button -->
         </div>
       </div>
     </div>
@@ -677,36 +728,36 @@
         });
       });
     });
-    // Only run on mobile devices
-  document.addEventListener('DOMContentLoaded', function() {
-    if (window.innerWidth <= 767) {
-      // Get all tab panels
-      const tabPanes = document.querySelectorAll('.tab-pane');
-      
-      // Hide all tab panes except the active one
-      tabPanes.forEach(pane => {
-        if (!pane.classList.contains('show')) {
-          pane.style.display = 'none';
-        }
-      });
-      
-      // Add click event to tabs
-      const tabButtons = document.querySelectorAll('.nav-link');
-      tabButtons.forEach(button => {
-        button.addEventListener('click', function() {
-          const targetId = this.getAttribute('data-bs-target');
-          const targetPane = document.querySelector(targetId);
-          
-          // Toggle display of the clicked pane
-          if (targetPane.style.display === 'none') {
-            tabPanes.forEach(pane => {
-              pane.style.display = 'none';
-            });
-            targetPane.style.display = 'block';
+      // Only run on mobile devices
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.innerWidth <= 767) {
+        // Get all tab panels
+        const tabPanes = document.querySelectorAll('.tab-pane');
+        
+        // Hide all tab panes except the active one
+        tabPanes.forEach(pane => {
+          if (!pane.classList.contains('show')) {
+            pane.style.display = 'none';
           }
         });
-      });
-    }
-  });
+        
+        // Add click event to tabs
+        const tabButtons = document.querySelectorAll('.nav-link');
+        tabButtons.forEach(button => {
+          button.addEventListener('click', function() {
+            const targetId = this.getAttribute('data-bs-target');
+            const targetPane = document.querySelector(targetId);
+            
+            // Toggle display of the clicked pane
+            if (targetPane.style.display === 'none') {
+              tabPanes.forEach(pane => {
+                pane.style.display = 'none';
+              });
+              targetPane.style.display = 'block';
+            }
+          });
+        });
+      }
+    });
 </script>
 {% endblock %}
