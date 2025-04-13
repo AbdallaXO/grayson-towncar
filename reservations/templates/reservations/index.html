@@ -176,7 +176,7 @@
       <div class="container px-5 my-5">
         <div class="text-center mb-5">
           <h2 id="fleet-heading" class="fw-normal">
-            Our Premium Orlando Fleet <span class="fw-bolder text-warning px-2 py-1 fs-2">Highlights</span>
+            Our Premium Orlando Fleet <span class="fw-bolder text-black px-2 py-1 fs-2">Highlights</span>
           </h2>
           <blockquote class="blockquote">
             <p class="mb-0">Discover premium comfort: Luxury vehicles tailored for every Orlando adventure.</p>
@@ -228,7 +228,7 @@
                     <a href="{% url 'rates' %}"
                        class="btn bg-button-dark text-warning rounded-pill"
                        aria-label="Go to reservation rates page">Reserve Now</a>
-                    <a href="{% url 'services' %}"
+                    <a href="{% url 'services' %}#fleet"
                        class="btn bg-button-dark text-white rounded-pill"
                        aria-label="View transportation services and pricing">More Details</a>
 
@@ -281,7 +281,7 @@
                     <a href="{% url 'rates' %}"
                        class="btn bg-button-dark text-warning rounded-pill"
                        aria-label="Go to reservation rates page">Reserve Now</a>
-                    <a href="{% url 'services' %}"
+                    <a href="{% url 'services' %}?tab=minivan#fleet"
                        class="btn bg-button-dark text-white rounded-pill"
                        aria-label="View transportation services and pricing">More Details</a>
 
@@ -294,8 +294,8 @@
           <!-- Luxury SUV -->
           <div class="col">
             <div class="card h-100 shadow border-0 hover-elevate">
-              <img class="card-img-top pb-5 mb-4"
-                   src="{% static 'images/suburban.webp' %}"
+              <img class="card-img-top pt-4 mb-4"
+                   src="{% static 'images/suv-new.webp' %}"
                    alt="Luxury SUV for Orlando Hotel Transfers"
                    width="300"
                    height="200"
@@ -334,7 +334,7 @@
                     <a href="{% url 'rates' %}"
                        class="btn bg-button-dark text-warning rounded-pill"
                        aria-label="Go to reservation rates page">Reserve Now</a>
-                    <a href="{% url 'services' %}"
+                    <a href="{% url 'services' %}?tab=suv#fleet"
                        class="btn bg-button-dark text-white rounded-pill"
                        aria-label="View transportation services and pricing">More Details</a>
 
@@ -387,7 +387,7 @@
                     <a href="{% url 'rates' %}"
                        class="btn bg-button-dark text-warning rounded-pill"
                        aria-label="Go to reservation rates page">Reserve Now</a>
-                    <a href="{% url 'services' %}"
+                    <a href="{% url 'services' %}?tab=van#fleet"
                        class="btn bg-button-dark text-white rounded-pill"
                        aria-label="View transportation services and pricing">More Details</a>
 
