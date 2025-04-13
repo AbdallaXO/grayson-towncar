@@ -6,7 +6,6 @@ from .utils import get_or_create_stripe_customer
 from django.conf import settings
 from django.urls import reverse
 import logging
-from reservations.email import send_reservation_confirmation
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

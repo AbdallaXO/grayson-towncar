@@ -1,9 +1,6 @@
 import stripe
 import stripe.error
-from django.utils import timezone
 import logging
-from django.db import transaction
-from reservations.email import send_reservation_confirmation
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

@@ -17,13 +17,11 @@ from .utils import (
 )
 
 # Create your views here.
-from .email import send_reservation_confirmation
 
 
 def index(request):
     """Returns the Landing Page"""
     return render(request, "reservations/index.html")
-
 
 def reservation_form(
     request, pk

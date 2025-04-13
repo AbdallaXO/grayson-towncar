@@ -6,7 +6,7 @@ from django.db import transaction  # Added for atomicity
 import logging
 from reservations.models import Reservation, Customer
 from .models import Payment
-from reservations.email import send_reservation_confirmation  # Added import
+from users.emails import send_reservation_confirmation  # Added import
 from decimal import Decimal  # Added import
 
 logging.basicConfig(level=logging.INFO)
