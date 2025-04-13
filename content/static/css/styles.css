@@ -48,6 +48,22 @@
     background-color: #F0E6D2 !important;
 }
 
-.custom-bg2 {
-    background-color: rgba(0, 91, 130, 0.127) !important;
+.about-gradient {
+    background: linear-gradient(to top, #486581, #D6E6F2) !important;
+}
+
+.about-gradient2 {
+    background: linear-gradient(to right, #c89c3ccd, #c89c3c5f) !important;
+}
+
+.about-gradient3 {
+    background: linear-gradient(to left, #9b9b9bcd, #ffffffd6) !important;
+}
+
+.home-gradient {
+    background: linear-gradient(to bottom, #ffa01bb1, #ffffffd6) !important;
+}
+
+.fleet-gradient {
+    background: linear-gradient(to bottom, #c89c3cc5, #ffffff) !important;
 }
