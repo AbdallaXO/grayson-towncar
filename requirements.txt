@@ -32,3 +32,4 @@ psycopg2-binary
 django-compressor
 boto3
 django-storages
+dj-database-url
