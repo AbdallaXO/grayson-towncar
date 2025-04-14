@@ -44,13 +44,14 @@ def create_checkout_session(request, reservation_id):
                             "price_data": {
                                 "currency": "usd",
                                 "product_data": {
-                                    "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Reservation ID#{reservation.id}"
+                                    "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Reservation ID#481{reservation.id}"
                                 },
                                 "unit_amount": int(reservation.total_price * 100),
                             },
                             "quantity": 1,
                         }
                     ],
+                    allow_promotion_codes=True,
                     mode="payment",
                     billing_address_collection="auto",  # zip code autofill
                     success_url=success_url,
@@ -98,6 +99,7 @@ def save_card(request, reservation_id):
             billing_address_collection="auto",
             success_url=success_url,
             cancel_url=cancel_url,
+            allow_promotion_codes=True,
             metadata={
                 "reservation_id": reservation.uuid,
                 "customer_id": reservation.customer.id,
