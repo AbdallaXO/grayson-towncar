@@ -4,15 +4,21 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('payment', '0011_alter_payment_payment_type'),
+        ("payment", "0011_alter_payment_payment_type"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='payment',
-            name='payment_type',
-            field=models.CharField(choices=[('pay_now', 'Pre-Pay'), ('pay_later', 'Save Card & Pay Later')], default='pay_later', max_length=20),
+            model_name="payment",
+            name="payment_type",
+            field=models.CharField(
+                choices=[
+                    ("pay_now", "Pre-Pay"),
+                    ("pay_later", "Save Card & Pay Later"),
+                ],
+                default="pay_later",
+                max_length=20,
+            ),
         ),
     ]

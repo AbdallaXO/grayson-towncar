@@ -20,6 +20,7 @@ def index(request):
     """Returns the Landing Page"""
     return render(request, "reservations/index.html")
 
+
 def reservation_form(
     request, pk
 ) -> HttpResponsePermanentRedirect | HttpResponseRedirect | HttpResponse:
@@ -182,5 +183,3 @@ def about_us(request):
 
 def faqs(request):
     return render(request, "reservations/faqs.html")
-
-

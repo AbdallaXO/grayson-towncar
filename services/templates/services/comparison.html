@@ -1,201 +1,304 @@
-{% load static %}
 <style>
     :root {
-        --btn-color-1: #091428;
-        --btn-color-2: #010A13;
-        --btn-color-3: #091428;
+        --primary-color: #091428;
+        --primary-light: rgba(9, 20, 40, 0.05);
+        --accent-color: #c8aa6e;
+        --accent-light: #c8aa6e40;
+        --text-dark: #333;
+        --text-muted: #6c757d;
+        --success: #2e7d32;
+        --error: #c62828;
+        --border-radius: 12px;
+        --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        --transition: all 0.3s ease;
     }
 
-    .accordion-button:not(.collapsed){
-      color: black !important;
-      background-color: #c8aa6e96 !important;
-    }
-    
-    #why-choose {
-        background-color: #fff;
-        padding: 2rem 0;
+    .badge-premium {
+        background-color: var(--accent-color);
+        color: var(--primary-color);
+        font-weight: 500;
+        letter-spacing: 0.03em;
+        padding: 0.5rem 1rem;
+        border-radius: 30px;
+        display: inline-block;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
     }
 
-    #why-choose .text-center .badge {
+    .section-title {
+        color: var(--primary-color);
+        margin-bottom: 2rem;
         font-weight: 600;
-        letter-spacing: 0.05em;
+        font-size: 2.2rem;
     }
 
-    #why-choose h2 {
-        color: var(--btn-color-2);
-        margin-bottom: 1rem;
-        font-size: 2rem;
+    .section-subtitle {
+        color: var(--text-dark);
+        font-size: 1.2rem;
+        margin-bottom: 3rem;
+        max-width: 700px;
+        margin-left: auto;
+        margin-right: auto;
     }
 
-    .why-choose-container {
+    .comparison-container {
         display: flex;
         justify-content: center;
-        gap: 1rem;
-        flex-wrap: wrap;
+        margin-bottom: 3rem;
     }
 
-    .service-card {
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        border-radius: 1rem;
-        width: 220px;
-        height: 280px;
-        margin-bottom: 1rem;
-        border: 1px solid #f0f0f0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
+    .comparison-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fff;
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        box-shadow: var(--card-shadow);
+    }
+
+    .comparison-table th {
+        background-color: var(--primary-color);
+        color: #fff;
+        font-weight: 500;
+        text-align: left;
+        padding: 1.2rem 1.5rem;
+        font-size: 1rem;
+    }
+
+    .comparison-table th:first-child {
+        border-top-left-radius: var(--border-radius);
+    }
+
+    .comparison-table th:last-child {
+        border-top-right-radius: var(--border-radius);
+    }
+
+    .comparison-table th.featured {
+        background-color: var(--accent-color);
+        color: var(--primary-color);
+        position: relative;
+    }
+
+    .comparison-table th.featured::before {
+        content: "Recommended";
+        position: absolute;
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--primary-color);
+        color: #fff;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.8rem;
+        border-radius: 30px;
+        white-space: nowrap;
+    }
+
+    .comparison-table td {
+        padding: 1.2rem 1.5rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        color: var(--text-dark);
+        vertical-align: middle;
+    }
+
+    .comparison-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .comparison-table tr:nth-child(even) td {
+        background-color: var(--primary-light);
+    }
+
+    .comparison-table td.feature-name {
+        font-weight: 500;
+    }
+
+    .comparison-table .pricing-cell {
         padding: 1.5rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        text-align: center;
     }
 
-    .service-card:hover {
-        transform: translateY(-10px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    .comparison-table .price {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+        color: var(--primary-color);
     }
 
-    .service-card .icon-wrapper {
-        width: 60px;
-        height: 60px;
-        background-color: #e6f2ff;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 1.2rem;
-    }
-
-    .service-card .icon-wrapper img {
-        width: auto;
-        height: auto;
-        max-width: 70%;
-        max-height: 70%;
+    .comparison-table .price-note {
+        font-size: 0.9rem;
+        color: var(--text-muted);
         display: block;
     }
 
-    .service-card .icon-wrapper i {
-        font-size: 2.5rem;
-        color: #3b82f6;
+    .price-highlight {
+        background-color: var(--accent-light);
+        border-radius: 4px;
+        padding: 0.5rem 0.8rem;
+        margin-top: 0.5rem;
+        display: inline-block;
+        font-weight: 500;
     }
 
-    .service-card h3 {
-        font-size: 1.125rem;
+    .available-icon {
+        color: var(--success);
+        font-size: 1.4rem;
+    }
+
+    .unavailable-icon {
+        color: var(--error);
+        font-size: 1.4rem;
+    }
+
+    /* Mobile accordion styles */
+    .mobile-comparison {
+        display: none;
+        margin-bottom: 2rem;
+    }
+
+    .accordion-card {
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 1.5rem;
+        border: none;
+    }
+
+    .accordion-header {
+        background-color: #fff;
+        border: none;
+    }
+
+    .accordion-button {
+        padding: 1.2rem 1.5rem;
         font-weight: 600;
-        margin-bottom: 0.75rem;
-        color: var(--btn-color-2);
+        font-size: 1.1rem;
+        color: var(--primary-color);
+        background-color: #fff;
+        border: none;
+        box-shadow: none;
     }
 
-    .service-card p {
-        font-size: 0.925rem;
-        color: #6c757d;
+    .accordion-button:not(.collapsed) {
+        background-color: var(--accent-light);
+        color: var(--primary-color);
     }
 
-    /* Responsive adjustments */
-    @media (max-width: 768px) {
-        .why-choose-container {
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .service-card {
-            width: 100%;
-            max-width: 350px;
-        }
-    }
-    @media (max-width: 768px) {
-    #why-choose {
-        padding: 1rem 0;
+    .accordion-button:focus {
+        box-shadow: none;
     }
 
-    .text-center.mb-4 {
-        margin-bottom: 1.5rem !important;
+    .accordion-body {
+        padding: 1.5rem;
     }
 
-    .service-card {
-        padding: 1rem;
-        height: auto;
-        margin-bottom: 0.75rem;
+    .feature-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.8rem 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     }
 
-    .service-card h3 {
-        font-size: 1rem;
+    .feature-item:last-child {
+        border-bottom: none;
+    }
+
+    .pricing-header {
+        background-color: var(--primary-light);
+        border-radius: 8px;
+        padding: 1.2rem;
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .recommended-badge {
+        display: inline-block;
+        background-color: var(--primary-color);
+        color: #fff;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.8rem;
+        border-radius: 30px;
         margin-bottom: 0.5rem;
     }
 
-    .service-card p {
-        font-size: 0.85rem;
+    /* CTA section */
+    .cta-section {
+        text-align: center;
+        margin-top: 3rem;
     }
 
-    .service-card .icon-wrapper {
-        width: 50px;
-        height: 50px;
-        margin-bottom: 1rem;
+    .btn-primary {
+        background-color: var(--primary-color);
+        border: none;
+        color: #fff;
+        padding: 0.8rem 2rem;
+        font-weight: 500;
+        border-radius: 30px;
+        transition: var(--transition);
     }
 
-    .service-card .icon-wrapper img {
-        max-width: 65%;
-        max-height: 65%;
+    .btn-primary:hover {
+        background-color: var(--accent-color);
+        color: var(--primary-color);
+        transform: translateY(-2px);
     }
-}
+
+    .tip-card {
+        background-color: var(--primary-light);
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-top: 3rem;
+        border-left: 4px solid var(--accent-color);
+    }
+
+    .tip-title {
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .tip-title i {
+        margin-right: 0.5rem;
+    }
+
+    /* Responsive styles */
+    @media (max-width: 992px) {
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 1rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .desktop-comparison {
+            display: none;
+        }
+
+        .mobile-comparison {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 1.8rem;
+        }
+
+        .section-subtitle {
+            font-size: 1rem;
+        }
+    }
 </style>
-
-<!-- Why Choose Us Section -->
-<section class="py-6 bg-white" id="why-choose">
-  <div class="container">
-    <div class="text-center mb-4">
-      <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-5">Premium Service</span>
-      <h2 class="fw-normal">Why Choose Us</h2>
-    </div>
-    <div class="why-choose-container">
-      <div class="service-card">
-        <div class="icon-wrapper">
-          <img src="{% static 'images/premium.webp' %}" alt="Premium Luxury Vehicles">
-        </div>
-        <h3>Private Luxury Vehicles</h3>
-        <p>Travel in comfort with our modern fleet of sedans, SUVs, and passenger vans</p>
-      </div>
-      <div class="service-card">
-        <div class="icon-wrapper">
-          <img src="{% static 'images/direction.webp' %}" alt="Premium Luxury Vehicles">
-        </div>
-        <h3>Direct Hotel Service</h3>
-        <p>Door-to-door transportation with no additional stops along the way</p>
-      </div>
-      <div class="service-card">
-        <div class="icon-wrapper">
-          <img src="{% static 'images/247.webp' %}" alt="Premium Luxury Vehicles">
-        </div>
-        <h3>24/7 Availability</h3>
-        <p>We operate around the clock to accommodate all flight schedules</p>
-      </div>
-      <div class="service-card">
-        <div class="icon-wrapper">
-          <img src="{% static 'images/groceries.webp' %}" alt="Premium Luxury Vehicles">
-        </div>
-        <h3>Complimentary Grocery Stops</h3>
-        <p>Stock up on essentials with our 30-minute grocery stop service</p>
-      </div>
-      <div class="service-card">
-        <div class="icon-wrapper">
-          <img src="{% static 'images/family.webp' %}" alt="Premium Luxury Vehicles">
-        </div>
-        <h3>Family-Friendly</h3>
-        <p>Complimentary car seats and boosters for travelers of all ages</p>
-      </div>
-    </div>
-  </div>
-</section>
 
 <!-- Value Comparison Section -->
 <section id="value-comparison" class="py-6 bg-light text-dark">
   <div class="container">
     <div class="text-center mb-5">
-      <span class="badge rounded-pill mb-5 px-3 py-2"
-            style="background-color: var(--btn-color-3);
-                   color: #fff">Value Comparison</span>
-      <h2 class="display-5 fw-normal" style="color: var(--btn-color-2);">Experience Premium Transportation</h2>
-      <p class="lead" style="color: var(--btn-color-1);">Comfort, convenience, and clear pricing</p>
+      <span class="badge rounded-pill mb-5 px-3 py-2 bg-black text-white">Transport Comparison</span>
+      <h2 class="display-5 fw-normal mb-3" style="color: #091428;">Choose Your Travel Experience</h2>
+      <p class="lead" style="color: #091428;">Compare options to find the best transportation solution</p>
     </div>
     <div class="row justify-content-center">
       <div class="col-lg-11">
@@ -212,8 +315,7 @@
                         aria-expanded="true"
                         aria-controls="collapseOne">
                   <div class="d-flex align-items-center w-100">
-                    <span class="badge rounded-pill me-2"
-                          style="background-color: var(--btn-color-3)">BEST VALUE</span>
+                    <span class="badge rounded-pill me-2 bg-warning text-dark">Recommended</span>
                     <span class="fs-5 fw-bold">Grayson Towncar</span>
                   </div>
                 </button>
@@ -226,12 +328,12 @@
                        style="background-color: rgba(9,20,40,0.05);
                               border-radius: 8px">
                     <h4 class="mb-1">
-                      $99-169 <small>one way</small>
+                      $95 <small>one way</small>
                     </h4>
                     <h4 class="mb-1">
                       $195 <small>round trip</small>
                     </h4>
-                    <p class="mb-0" style="color: var(--btn-color-3);">
+                    <p class="mb-0 text-primary">
                       <strong>All-inclusive pricing</strong>
                     </p>
                     <small class="text-muted">Driver gratuity not included</small>
@@ -239,43 +341,35 @@
                   <div class="feature-list">
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Private vehicle</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>No waiting</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Direct to destination</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Driver assists with luggage</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Free grocery stop</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Complimentary car seats</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Fixed, all-inclusive price</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2">
                       <span>24/7 availability</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                   </div>
                 </div>
@@ -301,7 +395,7 @@
                        style="background-color: rgba(9,20,40,0.05);
                               border-radius: 8px">
                     <h4 class="mb-1">$85-175</h4>
-                    <p class="mb-0" style="color: #701c1c;">
+                    <p class="mb-0 text-danger">
                       <strong>Surge pricing may apply</strong>
                     </p>
                     <small class="text-muted">Varies by demand</small>
@@ -309,39 +403,35 @@
                   <div class="feature-list">
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Private vehicle</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>No waiting</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Direct to destination</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Driver assists with luggage</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Free grocery stop</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Complimentary car seats</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Fixed, all-inclusive price</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2">
                       <span>24/7 availability</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                   </div>
                 </div>
@@ -367,7 +457,7 @@
                        style="background-color: rgba(9,20,40,0.05);
                               border-radius: 8px">
                     <h4 class="mb-1">$75-160</h4>
-                    <p class="mb-0" style="color:rgb(255, 0, 0);">
+                    <p class="mb-0 text-danger">
                       <strong>+ 90 min travel time</strong>
                     </p>
                     <small class="text-muted">Multiple stops add time</small>
@@ -375,37 +465,35 @@
                   <div class="feature-list">
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Private vehicle</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>No waiting</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Direct to destination</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Driver assists with luggage</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Free grocery stop</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Complimentary car seats</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2 border-bottom">
                       <span>Fixed, all-inclusive price</span>
-                      <i class="bi bi-check-circle-fill fs-5"
-                         style="color: var(--btn-color-3)"></i>
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
                     </div>
                     <div class="d-flex justify-content-between py-2">
                       <span>24/7 availability</span>
-                      <i class="bi bi-x-circle-fill fs-5" style="color: #701c1c;"></i>
+                      <i class="bi bi-x-circle-fill fs-5 text-danger"></i>
                     </div>
                   </div>
                 </div>
@@ -417,50 +505,54 @@
         <div class="d-none d-md-block">
           <div class="table-responsive">
             <table class="table comparison-table">
-              <thead>
+              <thead class="bg-dark text-white">
                 <tr>
-                  <th>Feature</th>
-                  <th>Grayson Towncar</th>
-                  <th>Ride Share</th>
-                  <th>Shared Shuttle</th>
+                  <th class="py-3">Service Features</th>
+                  <th class="py-3 text-center position-relative">
+                    <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-warning text-dark"
+                          style="margin-top: -10px">Recommended</span>
+                    Grayson Towncar
+                  </th>
+                  <th class="py-3 text-center">Ride Share</th>
+                  <th class="py-3 text-center">Shared Shuttle</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td data-label="Feature">
-                    <strong>Pricing</strong>
+                  <td>
+                    <strong>Cost Structure</strong>
                   </td>
-                  <td data-label="Grayson Towncar">
-                    <div>
+                  <td>
+                    <div class="text-center">
                       <p class="mb-1">
                         <strong>$99-169</strong> one way
                       </p>
                       <p class="mb-1">
                         <strong>$195</strong> round trip
                       </p>
-                      <p class="mb-0" style="color: var(--btn-color-3);">
+                      <p class="mb-0 text-primary">
                         <strong>All-inclusive pricing</strong>
                       </p>
                       <small class="text-muted">Driver gratuity not included</small>
                     </div>
                   </td>
-                  <td data-label="Ride Share">
-                    <div>
+                  <td>
+                    <div class="text-center">
                       <p class="mb-1">
                         <strong>$85-175</strong>
                       </p>
-                      <p class="mb-0" style="color: #701c1c;">
+                      <p class="mb-0 text-danger">
                         <strong>Surge pricing may apply</strong>
                       </p>
                       <small class="text-muted">Varies by demand</small>
                     </div>
                   </td>
-                  <td data-label="Shared Shuttle">
-                    <div>
+                  <td>
+                    <div class="text-center">
                       <p class="mb-1">
                         <strong>$75-160</strong>
                       </p>
-                      <p class="mb-0">
+                      <p class="mb-0 text-danger">
                         <strong>+ 90 min travel time</strong>
                       </p>
                       <small class="text-muted">Multiple stops add time</small>
@@ -468,113 +560,115 @@
                   </td>
                 </tr>
                 <tr>
-                  <td data-label="Feature">Private vehicle</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td>
+                    <strong>Private vehicle</strong>
                   </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                </tr>
-                <tr>
-                  <td data-label="Feature">No waiting</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
-                  </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
-                  </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
                   </td>
                 </tr>
                 <tr>
-                  <td data-label="Feature">Direct to destination</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td>
+                    <strong>No waiting</strong>
                   </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                </tr>
-                <tr>
-                  <td data-label="Feature">Driver assists with luggage</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
-                  </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
-                  </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
                   </td>
                 </tr>
                 <tr>
-                  <td data-label="Feature">Free grocery stop</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td>
+                    <strong>Direct to destination</strong>
                   </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                </tr>
-                <tr>
-                  <td data-label="Feature">Complimentary car seats</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
-                  </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
-                  </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
                   </td>
                 </tr>
                 <tr>
-                  <td data-label="Feature">Fixed, all-inclusive price</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td>
+                    <strong>Driver assists with luggage</strong>
                   </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
                 </tr>
                 <tr>
-                  <td data-label="Feature">24/7 availability</td>
-                  <td data-label="Grayson Towncar">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td>
+                    <strong>Free grocery stop</strong>
                   </td>
-                  <td data-label="Ride Share">
-                    <i class="bi bi-check-circle-fill fs-4"
-                       style="color: var(--btn-color-3)"></i>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
                   </td>
-                  <td data-label="Shared Shuttle">
-                    <i class="bi bi-x-circle-fill fs-4" style="color: #701c1c;"></i>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Complimentary car seats</strong>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>Fixed, all-inclusive price</strong>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong>24/7 availability</strong>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-check-circle-fill fs-4 text-success"></i>
+                  </td>
+                  <td class="text-center">
+                    <i class="bi bi-x-circle-fill fs-4 text-danger"></i>
                   </td>
                 </tr>
               </tbody>
@@ -584,7 +678,8 @@
       </div>
     </div>
     <div class="text-center mt-5">
-      <a href="{% url 'rates' %}" class="btn btn-custom rounded-pill btn-secondary btn-lg">Check Your Exact Rate Now</a>
+      <a href="{% url 'rates' %}"
+         class="btn btn-custom rounded-pill btn-dark btn-lg">Check Your Rate</a>
       <p class="mt-3 text-muted">Transparent pricing with no hidden fees</p>
     </div>
     <div class="row mt-4 justify-content-center">
@@ -592,14 +687,13 @@
         <div class="card border-0 shadow-sm">
           <div class="card-body p-4"
                style="background-color: rgba(9,20,40,0.05);
-                      border-left: 5px solid var(--btn-color-3)">
+                      border-left: 5px solid #c8aa6e">
             <div class="d-flex align-items-center mb-3">
-              <i class="bi bi-info-circle-fill fs-4 me-2"
-                 style="color: var(--btn-color-2)"></i>
-              <h5 class="mb-0" style="color: var(--btn-color-2);">Why Choose Grayson Towncar?</h5>
+              <i class="bi bi-lightbulb fs-4 me-2 text-dark"></i>
+              <h5 class="mb-0">Travel Insight</h5>
             </div>
             <p class="mb-0">
-              Begin your vacation the moment you leave the airport. Enjoy fixed pricing and professional drivers ensuring a stress‑free experience.
+              Begin your vacation the moment you leave the airport. Consider both cost and the value of convenience, predictability, and comfort for your overall travel experience.
             </p>
           </div>
         </div>

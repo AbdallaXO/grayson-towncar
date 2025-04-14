@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+
 @csrf_exempt
 def stripe_webhook(request):
     payload = request.body
@@ -40,6 +41,7 @@ def stripe_webhook(request):
 
     return HttpResponse(status=200)
 
+
 def handle_checkout_session(session):
     reservation_id = session.get("metadata", {}).get("reservation_id")
     logger.info(f"Processing checkout for reservation: {reservation_id}")
@@ -49,14 +51,19 @@ def handle_checkout_session(session):
         logger.error("No Reservation ID in session metadata")
         return
     try:
-        reservation = Reservation.objects.select_related("customer").get(uuid=reservation_id)
+        reservation = Reservation.objects.select_related("customer").get(
+            uuid=reservation_id
+        )
         customer = reservation.customer
         # Creating a record
         payment, created = Payment.objects.get_or_create(
             reservation=reservation,
             customer=customer,
             stripe_checkout_id=session.get("id"),
-            defaults={"amount": reservation.total_price, "payment_type": "pay_later"},  # Fixed syntax
+            defaults={
+                "amount": reservation.total_price,
+                "payment_type": "pay_later",
+            },  # Fixed syntax
         )
 
         if session.get("mode") == "setup":
@@ -66,7 +73,9 @@ def handle_checkout_session(session):
                 payment_method_id = setup_intent.payment_method
 
                 # Save card to customer in Stripe and database
-                if save_card_to_customer(customer.stripe_customer_id, payment_method_id):
+                if save_card_to_customer(
+                    customer.stripe_customer_id, payment_method_id
+                ):
                     # Update payment details
                     payment.stripe_customer_id = customer.stripe_customer_id
                     payment.stripe_payment_method_id = payment_method_id
@@ -81,7 +90,9 @@ def handle_checkout_session(session):
                         payment.save()
                         reservation.save()
 
-                    send_reservation_confirmation(reservation)  # Added as per your comment
+                    send_reservation_confirmation(
+                        reservation
+                    )  # Added as per your comment
                     logger.info(f"Card Saved for Reservation {reservation_id}")
                 else:
                     logger.error("Failed to save card to customer")
@@ -92,19 +103,27 @@ def handle_checkout_session(session):
                 full_payment_intent = stripe.PaymentIntent.retrieve(payment_intent)
                 payment_method_id = full_payment_intent.payment_method
 
-                if save_card_to_customer(customer.stripe_customer_id, payment_method_id):  # Fixed indentation and added check
+                if save_card_to_customer(
+                    customer.stripe_customer_id, payment_method_id
+                ):  # Fixed indentation and added check
                     payment.stripe_payment_intent_id = payment_intent
                     payment.status = "paid"
                     payment.payment_type = "pay_now"  # Added to reflect paid status
-                    payment.amount = Decimal(full_payment_intent.amount) / 100  # Added to update amount
+                    payment.amount = (
+                        Decimal(full_payment_intent.amount) / 100
+                    )  # Added to update amount
                     reservation.status = "Confirmed"  # Added as per your comment
-                    reservation.total_price = payment.amount  # Added to sync with payment
+                    reservation.total_price = (
+                        payment.amount
+                    )  # Added to sync with payment
 
                     with transaction.atomic():  # Added for consistency
                         payment.save()
                         reservation.save()
 
-                    send_reservation_confirmation(reservation)  # Added as per your comment
+                    send_reservation_confirmation(
+                        reservation
+                    )  # Added as per your comment
                     logger.info(f"Payment processed for reservation {reservation_id}")
                 else:
                     logger.error("Failed to save card to customer")
@@ -116,6 +135,7 @@ def handle_checkout_session(session):
     except Exception as e:
         logger.exception(f"Error processing checkout session: {e}")
 
+
 def save_card_to_customer(customer_id: str, payment_method_id: str):
     """
     Given a Stripe customer ID and a payment method ID,
@@ -125,7 +145,7 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         logger.info(f"Attempting to save card for Stripe customer ID: {customer_id}")
         logger.info(f"Payment method ID: {payment_method_id}")
 
-        #attach the payment method to the customer in Stripe
+        # attach the payment method to the customer in Stripe
         stripe.PaymentMethod.attach(
             payment_method_id,
             customer=customer_id,
@@ -164,7 +184,9 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
 
             return True
         except Customer.DoesNotExist:
-            logger.error(f"Customer not found in database with Stripe ID: {customer_id}")
+            logger.error(
+                f"Customer not found in database with Stripe ID: {customer_id}"
+            )
             return False
 
     except stripe.error.StripeError as e:

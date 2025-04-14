@@ -120,7 +120,6 @@ class PartnerFormSubmission(forms.ModelForm):
         }
 
 
-
 class ContactUsFormSubmission(forms.ModelForm):
     class Meta:
         model = ContactUsForm

@@ -47,6 +47,7 @@ class PartnerForm(models.Model):
     def __str__(self):
         return f"{self.name} - {self.agency_name}"
 
+
 class ContactUsForm(models.Model):
     CONTACT_METHODS = [
         ("email", "Email"),

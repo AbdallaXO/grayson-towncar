@@ -161,5 +161,3 @@ class Flight(models.Model):
         and flight number for quick reference.
         """
         return f"{self.airline} {self.flight_number}"
-
-

@@ -1,6 +1,7 @@
 import stripe
 import stripe.error
 import logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -25,4 +26,3 @@ def get_or_create_stripe_customer(reservation):
     except Exception as e:
         logger.error(f"Error creating Stripe customer: {e}")
         raise
-
