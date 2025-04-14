@@ -74,8 +74,8 @@ def partner(request):
     if request.method == "POST":
         form = PartnerFormSubmission(request.POST)
         if form.is_valid():
-            form.save()
-            transaction.on_commit(lambda:thankyou_email(form=form))
+            instance = form.save()
+            transaction.on_commit(lambda:thankyou_email(instance))
             return redirect("thankyou")
 
     else:
@@ -90,8 +90,8 @@ def contact(request):
     if request.method == "POST":
         form = ContactUsFormSubmission(request.POST)
         if form.is_valid():
-            form.save()
-            transaction.on_commit(lambda:thankyou_email(form=form))
+            instance = form.save()
+            transaction.on_commit(lambda:thankyou_email(instance))
             return redirect("thankyou")
     else:
         form = ContactUsFormSubmission()
