@@ -99,7 +99,6 @@ def save_card(request, reservation_id):
             billing_address_collection="auto",
             success_url=success_url,
             cancel_url=cancel_url,
-            allow_promotion_codes=True,
             metadata={
                 "reservation_id": reservation.uuid,
                 "customer_id": reservation.customer.id,
