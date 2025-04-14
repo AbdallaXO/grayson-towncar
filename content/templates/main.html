@@ -3,7 +3,6 @@
 <html lang="en">
   <head>
     <!-- Google tag (gtag.js) -->
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-E999VVT9CE"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -28,25 +27,20 @@
           media="print"
           onload="this.media='all'">
 
-    {# CSS Libraries #}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
           rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
           rel="stylesheet">
-    {% comment %} <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet" /> {% endcomment %}
     <link rel="icon"
           type="image/x-icon"
           href="{% static 'images/favicon.png' %}" />
-
-    {# Custom CSS - Use static tag #}
     <link href="{% static 'css/styles.css' %}" rel="stylesheet" />
     <link href="{% static 'css/app.css' %}" rel="stylesheet" />
 
-    {# Meta Tags #}
+    {% block head_extra %}
+    {% endblock head_extra %}
     <meta name="description" content="" />
     <meta name="author" content="" />
-
-    {# Page Title #}
     <title>
       {% block title %}
         Orlando Airport Transportation | Grayson Towncar - Disney, Cruises & More
@@ -55,10 +49,7 @@
   </head>
 
   <body>
-    {# Navigation #}
     {% include "navbar.html" %}
-
-    {# Django Messages #}
     {% block messages %}
       {% if messages %}
         <div class="notification-wrapper">
@@ -66,8 +57,6 @@
         </div>
       {% endif %}
     {% endblock messages %}
-
-
     {% block content %}
     {% endblock content %}
 
@@ -75,7 +64,6 @@
     {% endblock extra_js %}
     {% include "footer.html" %}
     <script src="{% static 'js/alerts.js' %}"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>

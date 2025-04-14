@@ -146,8 +146,6 @@
   {# SEO and Social Media Metadata #}
   <meta name="description"
         content="{{ post.content|truncatewords:30|striptags }}">
-
-  {# Open Graph Metadata #}
   <meta property="og:type" content="article">
   <meta property="og:title" content="{{ post.title }}">
   <meta property="og:description"
@@ -158,7 +156,6 @@
   {% endif %}
   <meta property="og:url" content="{{ request.build_absolute_uri }}">
 
-  {# Twitter Card Metadata #}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ post.title }}">
   <meta name="twitter:description"
