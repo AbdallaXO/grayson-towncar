@@ -1,6 +1,7 @@
 {% extends "main.html" %}
 {% load static %}
 {% block content %}
+<body class="page-booking">
   {% block extra_css %}
     <link rel="stylesheet" href="{% static "css/book_form.css" %}">
   {% endblock extra_css %}
@@ -12,7 +13,7 @@
         <section class="form-card shadow-sm border-0 mb-4">
           <div class="card-header bg-white">
             <div class="d-flex align-items-center">
-              <span class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+              <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
                     style="width: 40px;
                            height: 40px;
                            line-height: 1;
@@ -53,11 +54,11 @@
             <div class="route-visual p-3 bg-light rounded position-relative mb-3">
               <div class="d-flex justify-content-center align-items-center">
                 <div class="route-box border shadow-sm p-3">
-                  <div class="d-flex justify-content-center align-items-center gap-5">
-                    <i class="bi bi-geo-alt-fill fs-4 text-secondary"></i>
-                    <div class="border-top border-2" style="width: 80px;"></div>
-                    <i class="bi bi-geo-alt-fill fs-4 text-warning"></i>
-                  </div>
+                 <div class="d-flex justify-content-center align-items-center gap-5">
+                  <i class="bi bi-geo-alt-fill fs-4 text-secondary"></i>
+                  <div class="border-top border-2" style="width: 80px;"></div>
+                  <i class="bi bi-geo-alt-fill fs-4 text-warning"></i>
+                </div>
 
                   <div class="mt-2 pt-2 border-top fw-bold text-center">{{ route }}</div>
 
@@ -85,10 +86,9 @@
 
               <!-- Arrival Tip -->
               <div class="d-flex align-items-center bg-light rounded p-3 shadow-sm">
-                <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 text-info rounded-circle me-3"
-                     style="min-width: 40px;
-                            height: 40px">
-                  <i class="bi bi-lightbulb-fill"></i>
+                <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3"
+                    style="min-width: 40px; height: 40px;">
+                  <img src="{% static 'images/arrival.webp' %}" alt="Arrival Icon" style="width: 20px; height: 20px; object-fit: contain;">
                 </div>
                 <div>
                   <strong>Arrival Tip:</strong> Schedule pickup for your flight’s landing time — we monitor delays and adjust automatically.
@@ -97,10 +97,9 @@
 
               <!-- Departure Tip -->
               <div class="d-flex align-items-center bg-light rounded p-3 shadow-sm">
-                <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 text-info rounded-circle me-3"
-                     style="min-width: 40px;
-                            height: 40px">
-                  <i class="bi bi-lightbulb-fill"></i>
+                <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3"
+                    style="min-width: 40px; height: 40px;">
+                  <img src="{% static 'images/departure.webp' %}" alt="Arrival Icon" style="width: 20px; height: 20px; object-fit: contain;">
                 </div>
                 <div>
                   <strong>Departure Tip:</strong> Book pickup at least 2.5 hours before domestic flights, or 3 hours for international travel.
@@ -121,8 +120,10 @@
           <section class="form-card shadow-sm border-0 mb-4">
             <div class="card-header bg-white">
               <div class="d-flex align-items-center">
-                <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                  <i class="bi bi-person-circle fs-4 text-primary"></i>
+                <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                    style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                  <img src="{% static 'images/id-card.webp' %}" alt="Passenger Icon"
+                      style="width: 20px; height: 20px; object-fit: contain;">
                 </span>
                 <h2 class="fs-5 mb-0 fw-bold">Contact Information</h2>
               </div>
@@ -194,201 +195,183 @@
           </section>
 
           <!-- Passenger Details -->
-          <section class="form-card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white">
-              <div class="d-flex align-items-center">
-                <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                      style="width: 40px;
-                             height: 40px;
-                             line-height: 1;
-                             padding: 0">
-                  <img src="{% static 'images/travel-guy.webp' %}"
-                       alt="Passenger Icon"
-                       style="width: 30px;
-                              height: 30px;
-                              object-fit: contain">
-                </span>
-                <h2 class="fs-5 mb-0 fw-bold">Passenger Details</h2>
+        <section class="form-card shadow-sm border-0 mb-4"> 
+          <div class="card-header bg-white">
+            <div class="d-flex align-items-center">
+              <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                    style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                <img src="{% static 'images/travel-guy.webp' %}" alt="Passenger Icon"
+                    style="width: 30px; height: 30px; object-fit: contain;">
+              </span>
+              <h2 class="fs-5 mb-0 fw-bold">Passenger Details</h2>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- Passenger Count -->
+              <div class="col-md-6">
+                <label for="{{ reservation_form.passenger_count.id_for_label }}"
+                      class="form-label required d-flex align-items-center">
+                  <span>Number of Passengers</span>
+                  <i class="bi bi-question-circle ms-2 info-tooltip"
+                    data-bs-toggle="tooltip"
+                    title="Include all travelers who need a seat, including infants and children"></i>
+                </label>
+                {{ reservation_form.passenger_count }}
+                <div class="form-text">
+                  <i class="bi bi-people me-1"></i> Include all travelers needing a seat
+                </div>
+                {% if reservation_form.passenger_count.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
               </div>
+
+              <!-- Luggage Count -->
+              <div class="col-md-6">
+                <label for="{{ reservation_form.luggage_count.id_for_label }}"
+                      class="form-label required d-flex align-items-center">
+                  <span>Number of Luggage Items</span>
+                  <i class="bi bi-question-circle ms-2 info-tooltip"
+                    data-bs-toggle="tooltip"
+                    title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
+                </label>
+                {{ reservation_form.luggage_count }}
+                <div class="form-text">
+                  <i class="bi bi-bag-check me-1"></i> Standard check-in sized bags
+                </div>
+                {% if reservation_form.luggage_count.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Checkboxes -->
+              <div class="col-12">
+                <div class="row g-4">
+                  <!-- Has Children -->
+               <div class="col-md-6">
+              <div class="form-label d-flex align-items-center mb-1">
+                <span>Traveling with children?</span>
+                <i class="bi bi-question-circle ms-2 info-tooltip"
+                  data-bs-toggle="tooltip"
+                  title="Select if you're traveling with children of any age"></i>
+              </div>
+
+              <div class="form-check d-flex align-items-center">
+                {{ reservation_form.need_carseats }}
+                <label class="form-check-label ms-2" for="{{ reservation_form.need_carseats.id_for_label }}">
+                  Yes
+                </label>
+              </div>
+
+              <div class="form-text mt-1">
+                <i class="bi bi-people me-1"></i> Include all travelers needing a seat
+              </div>
+
+              {% if reservation_form.need_carseats.errors %}
+                <div class="invalid-feedback d-block">
+                  {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
             </div>
 
-            <div class="card-body">
-              <div class="row g-3">
-                <!-- Passenger Count -->
-                <div class="col-md-6">
-                  <label for="{{ reservation_form.passenger_count.id_for_label }}"
-                         class="form-label required d-flex align-items-center">
-                    <span>Number of Passengers</span>
-                    <i class="bi bi-question-circle ms-2 info-tooltip"
-                       data-bs-toggle="tooltip"
-                       title="Include all travelers who need a seat, including infants and children"></i>
-                  </label>
-                  {{ reservation_form.passenger_count }}
-                  <div class="form-text">
-                    <i class="bi bi-people me-1"></i> Include all travelers needing a seat
+                  <!-- Grocery Stop -->
+                  <div class="col-md-6">
+                    <label class="form-label d-flex align-items-center mb-1" for="{{ reservation_form.store_stop.id_for_label }}">
+                      <span>Need a grocery stop?</span>
+                      <i class="bi bi-question-circle ms-2 info-tooltip"
+                        data-bs-toggle="tooltip"
+                        title="We'll make a quick stop (15-20 minutes) at a grocery store on the way"></i>
+                    </label>
+                    <div class="form-check">
+                      {{ reservation_form.store_stop }}
+                      <label class="form-check-label ms-2" for="{{ reservation_form.store_stop.id_for_label }}">Yes</label>
+                    </div>
+                    <div class="form-text mt-1">
+                      <i class="bi bi-bag-check me-1"></i> 20-min Publix stop for essentials
+                    </div>
+                    {% if reservation_form.store_stop.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
                   </div>
-                  {% if reservation_form.passenger_count.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
                 </div>
+              </div>
 
-                <!-- Luggage Count -->
-                <div class="col-md-6">
-                  <label for="{{ reservation_form.luggage_count.id_for_label }}"
-                         class="form-label required d-flex align-items-center">
-                    <span>Number of Luggage Items</span>
-                    <i class="bi bi-question-circle ms-2 info-tooltip"
-                       data-bs-toggle="tooltip"
-                       title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
-                  </label>
-                  {{ reservation_form.luggage_count }}
-                  <div class="form-text">
-                    <i class="bi bi-bag-check me-1"></i> Standard check-in sized bags
-                  </div>
-                  {% if reservation_form.luggage_count.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
+                  <!-- Car Seats Section (Shown if "has_children" is checked) -->
+                  <div class="col-12" id="car-seats-section" style="display: none;">
+                    <div class="p-4 rounded border border-secondary bg-light position-relative">
+                      <div class="position-absolute top-0 start-0 h-100 bg-warning"
+                          style="width: 4px; border-radius: 0 4px 4px 0;"></div>
+                      <h4 class="fs-5 mb-3">
+                        <img src="{% static 'images/carseat.webp' %}" alt="Car Seat Icon" class="me-2" style="width: 1em; height: 1em; object-fit: contain;"> Child Seat Details
+                      </h4>
+                      <div class="row g-3">
 
-                <!-- Checkboxes -->
-                <div class="col-12">
-                  <div class="row g-4">
-                    <!-- Has Children -->
-                    <div class="col-md-6">
-                      <div class="form-label d-flex align-items-center mb-1">
-                        <span>Traveling with children?</span>
+                    <div class="col-md-4">
+                      <label for="{{ reservation_form.ff_carseats.id_for_label }}" class="form-label d-flex align-items-center">
+                        <span>Forward-Facing Carseats</span>
                         <i class="bi bi-question-circle ms-2 info-tooltip"
-                           data-bs-toggle="tooltip"
-                           title="Select if you're traveling with children of any age"></i>
-                      </div>
-
-                      <div class="form-check d-flex align-items-center">
-                        {{ reservation_form.need_carseats }}
-                        <label class="form-check-label ms-2"
-                               for="{{ reservation_form.need_carseats.id_for_label }}">Yes</label>
-                      </div>
-
-                      <div class="form-text mt-1">
-                        <i class="bi bi-people me-1"></i> Include all travelers needing a seat
-                      </div>
-
-                      {% if reservation_form.need_carseats.errors %}
-                        <div class="invalid-feedback d-block">
-                          {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
-                        </div>
-                      {% endif %}
-                    </div>
-
-                    <!-- Grocery Stop -->
-                    <div class="col-md-6">
-                      <label class="form-label d-flex align-items-center mb-1"
-                             for="{{ reservation_form.store_stop.id_for_label }}">
-                        <span>Need a grocery stop?</span>
-                        <i class="bi bi-question-circle ms-2 info-tooltip"
-                           data-bs-toggle="tooltip"
-                           title="We'll make a quick stop (15-20 minutes) at a grocery store on the way"></i>
+                          data-bs-toggle="tooltip"
+                          title="Select the appropriate car seat type based on your child's age and size"></i>
                       </label>
-                      <div class="form-check">
-                        {{ reservation_form.store_stop }}
-                        <label class="form-check-label ms-2"
-                               for="{{ reservation_form.store_stop.id_for_label }}">Yes</label>
-                      </div>
-                      <div class="form-text mt-1">
-                        <i class="bi bi-bag-check me-1"></i> We'll stop at Publix if available
-                      </div>
-                      {% if reservation_form.store_stop.errors %}
+                      {{ reservation_form.ff_carseats }}
+                      {% if reservation_form.ff_carseats.errors %}
                         <div class="invalid-feedback d-block">
-                          {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
+                          {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
                         </div>
                       {% endif %}
-                    </div>
                   </div>
-                </div>
 
-                <!-- Car Seats Section (Shown if "has_children" is checked) -->
-                <div class="col-12" id="car-seats-section" style="display: none;">
-                  <div class="p-4 rounded border border-primary bg-light position-relative">
-                    <div class="position-absolute top-0 start-0 h-100 bg-primary"
-                         style="width: 4px;
-                                border-radius: 0 4px 4px 0"></div>
-                    <h4 class="fs-5 mb-3">
-                      <i class="bi bi-shield-check me-2 text-primary"></i> Child Seat Details
-                    </h4>
-                    <div class="row g-3">
-
-                      <div class="col-md-4">
-                        <label for="{{ reservation_form.ff_carseats.id_for_label }}"
-                               class="form-label d-flex align-items-center">
-                          <span>Forward-Facing Carseats</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="Select the appropriate car seat type based on your child's age and size"></i>
-                        </label>
-                        {{ reservation_form.ff_carseats }}
-                        {% if reservation_form.ff_carseats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
+                  <div class="col-md-4">
+                    <label for="{{ reservation_form.rf_carseats.id_for_label }}" class="form-label d-flex align-items-center">
+                      <span>Rear-Facing Carseats</span>
+                      <i class="bi bi-question-circle ms-2 info-tooltip"
+                        data-bs-toggle="tooltip"
+                        title="Select the appropriate car seat type based on your child's age and size"></i>
+                    </label>
+                    {{ reservation_form.rf_carseats }}
+                    {% if reservation_form.rf_carseats.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
                       </div>
-
-                      <div class="col-md-4">
-                        <label for="{{ reservation_form.rf_carseats.id_for_label }}"
-                               class="form-label d-flex align-items-center">
-                          <span>Rear-Facing Carseats</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="Select the appropriate car seat type based on your child's age and size"></i>
-                        </label>
-                        F
-                        {{ reservation_form.rf_carseats }}
-                        {% if reservation_form.rf_carseats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
+                    {% endif %}
+                  </div>
+                  <div class="col-md-4">
+                    <label for="{{ reservation_form.booster_seats.id_for_label }}" class="form-label d-flex align-items-center">
+                      <span>Booster Seats</span>
+                      <i class="bi bi-question-circle ms-2 info-tooltip"
+                        data-bs-toggle="tooltip"
+                        title="Select the appropriate car seat type based on your child's age and size"></i>
+                    </label>
+                    {{ reservation_form.booster_seats }}
+                    {% if reservation_form.booster_seats.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
                       </div>
-                      <div class="col-md-4">
-                        <label for="{{ reservation_form.booster_seats.id_for_label }}"
-                               class="form-label d-flex align-items-center">
-                          <span>Booster Seats</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="Select the appropriate car seat type based on your child's age and size"></i>
-                        </label>
-                        {{ reservation_form.booster_seats }}
-                        {% if reservation_form.booster_seats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
+                    {% endif %}
+                  </div>
 
-                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
           <!-- First Ride Details -->
           <section class="form-card shadow-sm border-0 mb-4">
             <div class="card-header bg-white">
               <div class="d-flex align-items-center">
                 <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                      style="width: 40px;
-                             height: 40px;
-                             line-height: 1;
-                             padding: 0">
-                  <img src="{% static 'images/ride-deets.webp' %}"
-                       alt="Find Icon"
-                       style="width: 25px;
-                              height: 25px;
-                              object-fit: contain">
+                  style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                    <img src="{% static 'images/ride-deets.webp' %}" alt="Find Icon"
+                      style="width: 25px; height: 25px; object-fit: contain;">
                 </span>
                 <h2 class="fs-5 mb-0 fw-bold">
                   {% if trip_type == 'one way' %}
@@ -639,15 +622,9 @@
               <div class="card-header bg-white">
                 <div class="d-flex align-items-center">
                   <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                        style="width: 40px;
-                               height: 40px;
-                               line-height: 1;
-                               padding: 0">
-                    <img src="{% static 'images/request.webp' %}"
-                         alt="Find Icon"
-                         style="width: 20px;
-                                height: 20px;
-                                object-fit: contain">
+                    style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                    <img src="{% static 'images/request.webp' %}" alt="Find Icon"
+                      style="width: 20px; height: 20px; object-fit: contain;">
                   </span>
                   <h2 class="fs-5 mb-0 fw-bold">Notes for Your Trip</h2>
                 </div>
@@ -681,84 +658,154 @@
               </section>
             {% endif %}
 
-            <!-- Price & Summary -->
-            <section class="form-card shadow-sm border-0 mb-4">
-              <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center">
-                  <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-25 rounded-circle me-3"
-                       style="width: 48px;
-                              height: 48px">
-                    <img src="{% static 'images/receipt.webp' %}"
-                         alt="Receipt"
-                         style="width: 24px;
-                                height: 24px">
-                  </div>
-                  <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
+          <!-- Price & Summary -->
+          <section class="form-card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-25 rounded-circle me-3"
+                    style="width: 48px; height: 48px;">
+                  <img src="{% static 'images/receipt.webp' %}" alt="Receipt" style="width: 24px; height: 24px;">
                 </div>
-                <div class="fw-normal fs-3 text-success mb-0">${{ price }}</div>
+                <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
               </div>
+              <div class="fw-bold fs-3 text-success mb-0">${{ price }}</div>
+            </div>
 
-              <div class="card-body">
-                <div class="row justify-content-center g-3">
+            <div class="card-body">
+              <div class="row justify-content-center g-3">
 
-                  <!-- Gratuity Note -->
-                  <div class="col-md-6">
-                    <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
-                      <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
-                           style="min-width: 40px;
-                                  height: 40px">
-                        <img src="{% static 'images/gratuity.webp' %}"
-                             alt="Gratuity"
-                             style="width: 25px;
-                                    height: 25px">
-                      </div>
-                      <div>
-                        Gratuity is <strong>not</strong> included. You can tip by card or cash — add preferences in the Notes section.
-                      </div>
+                <!-- Gratuity Note -->
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
+                        style="min-width: 40px; height: 40px;">
+                      <img src="{% static 'images/gratuity.webp' %}" alt="Gratuity"
+                         style="width: 25px; height: 25px;">
+                    </div>
+                    <div>
+                      Gratuity is <strong>not</strong> included. You can tip by card or cash — add preferences in the Notes section.
                     </div>
                   </div>
+                </div>
 
-                  <!-- After-Hours Fee Note -->
-                  <div class="col-md-6">
-                    <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
-                      <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
-                           style="min-width: 40px;
-                                  height: 40px">
-                        <img src="{% static 'images/afterhours.webp' %}"
-                             alt="Gratuity"
-                             style="width: 20px;
-                                    height: 20px">
-                      </div>
-                      <div>
-                        Pickups from 10PM to 6AM include a <strong>$20 late-night fee</strong> — paid directly to the driver.
-                      </div>
+                <!-- After-Hours Fee Note -->
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
+                        style="min-width: 40px; height: 40px;">
+                      <img src="{% static 'images/afterhours.webp' %}" alt="Gratuity"
+                         style="width: 20px; height: 20px;">
+                    </div>
+                    <div>
+                      Pickups from 10PM to 6AM include a <strong>$20 late-night fee</strong> — paid directly to the driver.
                     </div>
                   </div>
-
                 </div>
+
               </div>
-            </section>
+            </div>
+          </section>
 
             <!-- Submit Button -->
             <div class="mb-5">
-              <button type="submit"
-                      class="btn btn-submit w-100 py-3 d-flex align-items-center justify-content-center">
-                <i class="bi bi-check-circle me-2"></i>
-                <span>Complete Reservation</span>
-                <i class="bi bi-arrow-right ms-2"></i>
-              </button>
+              <div class="text-center">
+                <button type="submit" class="button_reservation">
+                  Complete Reservation
+                  <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      fill-rule="evenodd"
+                      d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm4.28 10.28a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06l1.72 1.72H8.25a.75.75 0 000 1.5h5.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"
+                      clip-rule="evenodd"
+                    ></path>
+                  </svg>
+                </button>
+            </div>
               <p class="text-center text-muted small mt-3">
-                By submitting, you agree to our <a href="#" class="text-decoration-none">Terms of Service</a>
+                By submitting, you agree to our <a href="{% url 'tos' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                  Terms of Service
+                </a>
               </p>
             </div>
           </form>
         </div>
       </div>
     </main>
+
+    <!-- Enhanced Scripts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Bootstrap tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Handle car seats section visibility based on has_children checkbox
+            var hasChildrenCheckbox = document.getElementById('id_need_carseats');
+            var carSeatsSection = document.getElementById('car-seats-section');
+
+            function toggleCarSeatsSection() {
+                if (hasChildrenCheckbox && carSeatsSection) {
+                    carSeatsSection.style.display = hasChildrenCheckbox.checked ? 'block' : 'none';
+                }
+            }
+            // Initial state
+            toggleCarSeatsSection();
+            if (hasChildrenCheckbox) {
+                hasChildrenCheckbox.addEventListener('change', toggleCarSeatsSection);
+            }
+
+            // Enhanced form validation + highlight first invalid field
+            const forms = document.querySelectorAll('.needs-validation');
+            Array.from(forms).forEach(form => {
+                form.addEventListener('submit', event => {
+                    if (!form.checkValidity()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+
+                        // Scroll to first error
+                        const firstError = form.querySelector(':invalid');
+                        if (firstError) {
+                            firstError.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center'
+                            });
+                            firstError.classList.add('highlight-error');
+                            setTimeout(() => {
+                                firstError.classList.remove('highlight-error');
+                            }, 1500);
+                        }
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+
+            // Animate form cards when they enter the viewport
+            const formCards = document.querySelectorAll('.form-card');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.2
+            });
+
+            formCards.forEach(card => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                observer.observe(card);
+            });
+        });
+    </script>
+
     <!-- Google Maps API for location autocomplete -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
             async
             defer></script>
     <script src="{% static 'js/maps_autocomplete.js' %}"></script>
-    <script src="{% static 'js/reservation_form.js' %}"></script>
   {% endblock content %}

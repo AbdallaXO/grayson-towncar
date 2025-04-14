@@ -25,8 +25,40 @@ body {
 /* Container to keep form centered and readable against the body background */
 .form-container {
     max-width: 1000px;
-    margin: 0 auto;
+    margin-left: auto;
+    margin-right: auto;
     padding: 1rem;
+    width: 100%;
+}
+
+@media (max-width: 576px) {
+    .form-container {
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+        width: 100%;
+    }
+}
+
+/* * {
+    outline: 1px solid red;
+} */
+ 
+/* Target row only inside this page */
+.form-container .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+.form-container .col-lg-10.mx-auto {
+    max-width: 100%;
+    width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    box-sizing: border-box;
+}
+
+body.page-booking {
+    overflow-x: hidden;
 }
 
 /* Modern Form styling */
@@ -628,3 +660,73 @@ body {
     font-size: 14px;
 }
 
+
+
+.button_reservation {
+    display: inline-flex;
+    width: auto;
+    padding: 0.75rem 1.75rem;
+    /* More height and width */
+    font-size: 16px;
+    /* Slightly larger text */
+    font-weight: 600;
+    gap: 10px;
+    border-radius: 9999px;
+    background-color: #0A1428;
+    color: #fff;
+    border: 3px solid #ffffff4d;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease-in-out;
+    box-shadow: 0px 8px 18px rgba(0, 0, 0, 0.15);
+}
+
+.button_reservation .icon {
+    width: 22px;
+    height: 22px;
+    transition: transform 0.3s ease-in-out;
+}
+
+.button_reservation:hover {
+    transform: scale(1.05);
+    border-color: #fff9;
+}
+
+.button_reservation:hover .icon {
+    transform: translateX(4px);
+}
+
+.button_reservation::before {
+    content: "";
+    position: absolute;
+    width: 100px;
+    height: 100%;
+    background-image: linear-gradient(120deg,
+            rgba(255, 255, 255, 0) 30%,
+            rgba(255, 255, 255, 0.8),
+            rgba(255, 255, 255, 0) 70%);
+    top: 0;
+    left: -100px;
+    opacity: 0.6;
+    animation: shine 1.5s ease-out infinite;
+}
+
+@keyframes shine {
+    0% {
+        left: -100px;
+    }
+
+    60% {
+        left: 100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    opacity: 1 !important;
+}
