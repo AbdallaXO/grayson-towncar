@@ -755,10 +755,15 @@
         </div>
       </div>
     </main>
-    <!-- Google Maps API for location autocomplete -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places"
-            async
-            defer></script>
-    <script src="{% static 'js/maps_autocomplete.js' %}"></script>
-    <script src="{% static 'js/reservation_form.js' %}"></script>
+    {% block footer_scripts %}
+
+      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete"
+              async
+              defer></script>
+      <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+      <script src="{% static 'js/reservation_form.js' %}"></script>
+
+
+    {% endblock %}
+
   {% endblock content %}
