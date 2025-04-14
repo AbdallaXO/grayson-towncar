@@ -102,7 +102,7 @@ class ReservationForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Any special requests?",
+                    "placeholder": "Special car seat needs, gratuity method preferance, or other notes…",
                 }
             ),
             "need_carseats": forms.CheckboxInput(

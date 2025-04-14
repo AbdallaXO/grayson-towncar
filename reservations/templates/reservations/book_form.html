@@ -2,376 +2,7 @@
 {% load static %}
 {% block content %}
   {% block extra_css %}
-    <link rel="stylesheet" href="{% static "css/reservation_form.css" %}">
-    <style>
-        /* Modern color variables */
-        :root {
-            --primary-color: #4158d0;
-            --secondary-color: #486581;
-            --dark-color: #1e2a3a;
-            --light-color: #f8f9fa;
-            --success-color: #2ecc71;
-            --warning-color: #f39c12;
-            --info-color: #3498db;
-            --box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.08);
-            --border-radius: 0.75rem;
-            --transition: all 0.3s ease;
-        }
-
-        /* Give the body a slightly muted modern background color */
-        body {
-            background-color: #f2f4f7;
-            /* <––– pick any neutral color you like */
-            color: #1e2a3a;
-            /* <––– ensure text remains visible */
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Container to keep form centered and readable against the body background */
-        .form-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 1rem;
-        }
-
-        /* Modern Form styling */
-        .form-card {
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-            transition: var(--transition);
-            background: #fff;
-            /* Ensure card background is solid white */
-        }
-
-        .form-card:hover {
-            box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.12);
-        }
-
-        .card-header {
-            padding: 1rem 1.25rem;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-            background: #fff;
-            /* Solid background for better contrast */
-        }
-
-        /* Header section with gradient */
-        .form-header {
-            background: linear-gradient(45deg, var(--dark-color), var(--secondary-color));
-            color: #fff;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-            border-radius: var(--border-radius);
-            position: relative;
-            overflow: hidden;
-            box-shadow: var(--box-shadow);
-        }
-
-        .form-header:after {
-            content: "";
-            position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;
-            background: url('{% static "images/pattern.svg" %}') no-repeat center right;
-            background-size: contain;
-            opacity: 0.1;
-            /* Light overlay pattern */
-        }
-
-        .form-heading {
-            margin: 0;
-            font-weight: 700;
-            position: relative;
-            z-index: 1;
-        }
-
-        .form-subheading {
-            color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 0;
-            font-weight: 400;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Label and form controls */
-        .form-label {
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-
-        .form-label.required:after {
-            content: "*";
-            color: #dc3545;
-            margin-left: 0.25rem;
-        }
-
-        .form-control {
-            border-radius: 0.5rem;
-            padding: 0.6rem 1rem;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            transition: var(--transition);
-        }
-
-        .form-control:focus {
-            box-shadow: 0 0 0 0.25rem rgba(65, 88, 208, 0.15);
-            border-color: var(--primary-color);
-        }
-
-        .form-row {
-            margin-bottom: 1.5rem;
-        }
-
-        /* Progress steps */
-        .progress-steps {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 2rem;
-            position: relative;
-        }
-
-        .progress-steps:before {
-            content: "";
-            position: absolute;
-            top: 24px;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: #e9ecef;
-            z-index: 0;
-        }
-
-        .step {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            z-index: 1;
-            flex: 1;
-        }
-
-        .step-circle {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background-color: #e9ecef;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #6c757d;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-            border: 2px solid transparent;
-            transition: var(--transition);
-        }
-
-        .step-circle.active {
-            background-color: var(--primary-color);
-            color: #fff;
-            border-color: #fff;
-            box-shadow: 0 0 0 5px rgba(65, 88, 208, 0.2);
-        }
-
-        .step-label {
-            font-size: 0.875rem;
-            color: #6c757d;
-            font-weight: 500;
-        }
-
-        .step.active .step-label {
-            color: var(--primary-color);
-            font-weight: 600;
-        }
-
-        /* Route visual */
-        .route-visual,
-        .route-display {
-            background-color: rgba(248, 249, 250, 0.85);
-            /* Slightly stronger for better visibility */
-            border-radius: var(--border-radius);
-            transition: var(--transition);
-        }
-
-        .route-box {
-            display: inline-block;
-            padding: 1rem 1.5rem;
-            background-color: #fff;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            position: relative;
-            transition: var(--transition);
-        }
-
-        .route-visual:hover .route-box {
-            transform: translateY(-3px);
-            box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.12);
-        }
-
-        /* Price display */
-        .price-display {
-            background: linear-gradient(135deg, var(--primary-color), #c850c0);
-            color: #fff;
-            transition: var(--transition);
-            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-        }
-
-        .price-amount {
-            font-weight: 700;
-        }
-
-        /* Benefits list animation */
-        .benefits-list li {
-            opacity: 0;
-            transform: translateY(10px);
-            animation: fadeInUp 0.5s forwards;
-        }
-
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .benefits-list li:nth-child(1) {
-            animation-delay: 0.1s;
-        }
-
-        .benefits-list li:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .benefits-list li:nth-child(3) {
-            animation-delay: 0.3s;
-        }
-
-        .benefits-list li:nth-child(4) {
-            animation-delay: 0.4s;
-        }
-
-        .benefits-list li:nth-child(5) {
-            animation-delay: 0.5s;
-        }
-
-        /* Travel tips */
-        .travel-tips {
-            background-color: rgba(248, 249, 250, 0.85);
-            border-left: 3px solid var(--primary-color);
-            padding: 1rem;
-            border-radius: 0 var(--border-radius) var(--border-radius) 0;
-        }
-
-        /* Submit button animation */
-        .btn-submit {
-            background: linear-gradient(45deg, var(--primary-color), #c850c0);
-            border: none;
-            color: #fff;
-            border-radius: 50px;
-            padding: 1rem 1.5rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-            z-index: 1;
-        }
-
-        .btn-submit:before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 0%;
-            height: 100%;
-            background: linear-gradient(45deg, #c850c0, var(--primary-color));
-            transition: all 0.3s ease;
-            z-index: -1;
-        }
-
-        .btn-submit:hover:before {
-            width: 100%;
-        }
-
-        .btn-submit:hover {
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-            transform: translateY(-3px);
-        }
-
-        /* Mobile optimizations */
-        @media (max-width: 768px) {
-            .form-header {
-                padding: 1.25rem;
-            }
-
-            .progress-steps:before {
-                top: 15px;
-            }
-
-            .step-circle {
-                width: 30px;
-                height: 30px;
-                font-size: 0.75rem;
-            }
-
-            .step-label {
-                font-size: 0.7rem;
-            }
-
-            .card-body {
-                padding: 1rem;
-            }
-
-            .form-label {
-                font-size: 0.9rem;
-            }
-
-            .price-display {
-                width: 120px !important;
-                height: 120px !important;
-            }
-
-            .price-amount {
-                font-size: 1.75rem !important;
-            }
-        }
-
-        /* Info tooltip */
-        .info-tooltip {
-            color: var(--primary-color);
-            cursor: pointer;
-            transition: var(--transition);
-        }
-
-        .info-tooltip:hover {
-            color: var(--secondary-color);
-        }
-
-        /* Section headings with accents */
-        .section-heading {
-            position: relative;
-            padding-left: 0.75rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .section-heading:before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: var(--primary-color);
-            border-radius: 3px;
-        }
-
-        /* Simple highlight animation for invalid fields */
-        .highlight-error {
-            outline: 2px solid #dc3545 !important;
-        }
-    </style>
+    <link rel="stylesheet" href="{% static "css/book_form.css" %}">
   {% endblock extra_css %}
 
   <main class="container form-container py-4">
@@ -381,15 +12,17 @@
         <section class="form-card shadow-sm border-0 mb-4">
           <div class="card-header bg-white">
             <div class="d-flex align-items-center">
-              <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                <i class="bi bi-compass fs-4 text-primary"></i>
+              <span class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                    style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                <img src="{% static 'images/find.webp' %}" alt="Find Icon"
+                  style="width: 20px; height: 20px; object-fit: contain;">
               </span>
               <h2 class="fs-5 mb-0 fw-bold">Trip Overview</h2>
             </div>
           </div>
           <div class="card-body">
             <!-- Trip Type & Vehicle -->
-            <div class="mb-3 d-flex flex-wrap align-items-center gap-3">
+            <div class="mb-3 d-flex justify-content-center align-items-center gap-3">
               <!-- Trip Type Badge -->
               <div class="badge {% if trip_type == 'round trip' %}bg-primary{% else %}bg-dark{% endif %} p-2">
                 {% if trip_type == 'round trip' %}
@@ -405,7 +38,7 @@
               </div>
 
               <!-- Price Badge -->
-              <div class="badge bg-success p-2 ms-auto">
+              <div class="badge bg-success p-2">
                 <i class="bi bi-tag-fill me-1"></i> ${{ price }}
               </div>
             </div>
@@ -414,17 +47,11 @@
             <div class="route-visual p-3 bg-light rounded position-relative mb-3">
               <div class="d-flex justify-content-center align-items-center">
                 <div class="route-box border shadow-sm p-3">
-                  <div class="d-flex align-items-center">
-                    <div class="text-center">
-                      <i class="bi bi-geo-alt-fill fs-4 text-primary mb-1 d-block"></i>
-                      <div class="small text-muted">Origin</div>
-                    </div>
-                    <div class="mx-3 border-top border-2" style="width: 80px;"></div>
-                    <div class="text-center">
-                      <i class="bi bi-geo-alt-fill fs-4 text-danger mb-1 d-block"></i>
-                      <div class="small text-muted">Destination</div>
-                    </div>
-                  </div>
+                 <div class="d-flex justify-content-center align-items-center gap-5">
+                  <i class="bi bi-geo-alt-fill fs-4 text-secondary"></i>
+                  <div class="border-top border-2" style="width: 80px;"></div>
+                  <i class="bi bi-geo-alt-fill fs-4 text-warning"></i>
+                </div>
 
                   <div class="mt-2 pt-2 border-top fw-bold text-center">{{ route }}</div>
 
@@ -448,23 +75,30 @@
             </div>
 
             <!-- Travel Tips -->
-            <div class="travel-tips rounded">
-              <div class="d-flex align-items-start mb-2">
-                <div class="flex-shrink-0 me-2 bg-info bg-opacity-10 p-1 rounded-circle text-info">
+            <div class="travel-tips d-flex flex-column gap-3">
+
+              <!-- Arrival Tip -->
+              <div class="d-flex align-items-center bg-light rounded p-3 shadow-sm">
+                <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 text-info rounded-circle me-3"
+                    style="min-width: 40px; height: 40px;">
                   <i class="bi bi-lightbulb-fill"></i>
                 </div>
                 <div>
-                  <strong>Arrival Tip:</strong> Schedule pickup at your flight's landing time - we'll track any delays.
+                  <strong>Arrival Tip:</strong> Schedule pickup for your flight’s landing time — we monitor delays and adjust automatically.
                 </div>
               </div>
-              <div class="d-flex align-items-start">
-                <div class="flex-shrink-0 me-2 bg-info bg-opacity-10 p-1 rounded-circle text-info">
+
+              <!-- Departure Tip -->
+              <div class="d-flex align-items-center bg-light rounded p-3 shadow-sm">
+                <div class="d-inline-flex align-items-center justify-content-center bg-info bg-opacity-10 text-info rounded-circle me-3"
+                    style="min-width: 40px; height: 40px;">
                   <i class="bi bi-lightbulb-fill"></i>
                 </div>
                 <div>
-                  <strong>Departure Tip:</strong> Book pickup at least 2.5 hours before domestic flights or 3 hours for international.
+                  <strong>Departure Tip:</strong> Book pickup at least 2.5 hours before domestic flights, or 3 hours for international travel.
                 </div>
               </div>
+
             </div>
           </div>
         </section>
@@ -552,141 +186,183 @@
           </section>
 
           <!-- Passenger Details -->
-          <section class="form-card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white">
-              <div class="d-flex align-items-center">
-                <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                  <i class="bi bi-clipboard-check fs-4 text-primary"></i>
-                </span>
-                <h2 class="fs-5 mb-0 fw-bold">Passenger Details</h2>
+        <section class="form-card shadow-sm border-0 mb-4"> 
+          <div class="card-header bg-white">
+            <div class="d-flex align-items-center">
+              <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                    style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                <img src="{% static 'images/travel-guy.webp' %}" alt="Passenger Icon"
+                    style="width: 30px; height: 30px; object-fit: contain;">
+              </span>
+              <h2 class="fs-5 mb-0 fw-bold">Passenger Details</h2>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- Passenger Count -->
+              <div class="col-md-6">
+                <label for="{{ reservation_form.passenger_count.id_for_label }}"
+                      class="form-label required d-flex align-items-center">
+                  <span>Number of Passengers</span>
+                  <i class="bi bi-question-circle ms-2 info-tooltip"
+                    data-bs-toggle="tooltip"
+                    title="Include all travelers who need a seat, including infants and children"></i>
+                </label>
+                {{ reservation_form.passenger_count }}
+                <div class="form-text">
+                  <i class="bi bi-people me-1"></i> Include all travelers needing a seat
+                </div>
+                {% if reservation_form.passenger_count.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Luggage Count -->
+              <div class="col-md-6">
+                <label for="{{ reservation_form.luggage_count.id_for_label }}"
+                      class="form-label required d-flex align-items-center">
+                  <span>Number of Luggage Items</span>
+                  <i class="bi bi-question-circle ms-2 info-tooltip"
+                    data-bs-toggle="tooltip"
+                    title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
+                </label>
+                {{ reservation_form.luggage_count }}
+                <div class="form-text">
+                  <i class="bi bi-bag-check me-1"></i> Standard check-in sized bags
+                </div>
+                {% if reservation_form.luggage_count.errors %}
+                  <div class="invalid-feedback d-block">
+                    {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Checkboxes -->
+              <div class="col-12">
+                <div class="row g-4">
+                  <!-- Has Children -->
+               <div class="col-md-6">
+  <div class="form-label d-flex align-items-center mb-1">
+    <span>Traveling with children?</span>
+    <i class="bi bi-question-circle ms-2 info-tooltip"
+       data-bs-toggle="tooltip"
+       title="Select if you're traveling with children of any age"></i>
+  </div>
+
+  <div class="form-check d-flex align-items-center">
+    {{ reservation_form.need_carseats }}
+    <label class="form-check-label ms-2" for="{{ reservation_form.need_carseats.id_for_label }}">
+      Yes
+    </label>
+  </div>
+
+  <div class="form-text mt-1">
+    <i class="bi bi-people me-1"></i> Include all travelers needing a seat
+  </div>
+
+  {% if reservation_form.need_carseats.errors %}
+    <div class="invalid-feedback d-block">
+      {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+                  <!-- Grocery Stop -->
+                  <div class="col-md-6">
+                    <label class="form-label d-flex align-items-center mb-1" for="{{ reservation_form.store_stop.id_for_label }}">
+                      <span>Need a grocery stop?</span>
+                      <i class="bi bi-question-circle ms-2 info-tooltip"
+                        data-bs-toggle="tooltip"
+                        title="We'll make a quick stop (15-20 minutes) at a grocery store on the way"></i>
+                    </label>
+                    <div class="form-check">
+                      {{ reservation_form.store_stop }}
+                      <label class="form-check-label ms-2" for="{{ reservation_form.store_stop.id_for_label }}">Yes</label>
+                    </div>
+                    <div class="form-text mt-1">
+                      <i class="bi bi-bag-check me-1"></i> We'll stop at Publix if available
+                    </div>
+                    {% if reservation_form.store_stop.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Car Seats Section (Shown if "has_children" is checked) -->
+              <div class="col-12" id="car-seats-section" style="display: none;">
+                <div class="p-4 rounded border border-primary bg-light position-relative">
+                  <div class="position-absolute top-0 start-0 h-100 bg-primary"
+                      style="width: 4px; border-radius: 0 4px 4px 0;"></div>
+                  <h4 class="fs-5 mb-3">
+                    <i class="bi bi-shield-check me-2 text-primary"></i> Child Seat Details
+                  </h4>
+                  <div class="row g-3">
+
+                <div class="col-md-4">
+            <label for="{{ reservation_form.ff_carseats.id_for_label }}" class="form-label d-flex align-items-center">
+              <span>Forward-Facing Carseats</span>
+              <i class="bi bi-question-circle ms-2 info-tooltip"
+                data-bs-toggle="tooltip"
+                title="Select the appropriate car seat type based on your child's age and size"></i>
+            </label>
+            {{ reservation_form.ff_carseats }}
+            {% if reservation_form.ff_carseats.errors %}
+              <div class="invalid-feedback d-block">
+                {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
+              </div>
+            {% endif %}
+          </div>
+
+                       <div class="col-md-4">
+  <label for="{{ reservation_form.rf_carseats.id_for_label }}" class="form-label d-flex align-items-center">
+    <span>Rear-Facing Carseats</span>
+    <i class="bi bi-question-circle ms-2 info-tooltip"
+       data-bs-toggle="tooltip"
+       title="Select the appropriate car seat type based on your child's age and size"></i>
+  </label>F
+  {{ reservation_form.rf_carseats }}
+  {% if reservation_form.rf_carseats.errors %}
+    <div class="invalid-feedback d-block">
+      {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
+    </div>
+  {% endif %}
+</div>
+                     <div class="col-md-4">
+  <label for="{{ reservation_form.booster_seats.id_for_label }}" class="form-label d-flex align-items-center">
+    <span>Booster Seats</span>
+    <i class="bi bi-question-circle ms-2 info-tooltip"
+       data-bs-toggle="tooltip"
+       title="Select the appropriate car seat type based on your child's age and size"></i>
+  </label>
+  {{ reservation_form.booster_seats }}
+  {% if reservation_form.booster_seats.errors %}
+    <div class="invalid-feedback d-block">
+      {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="card-body">
-              <div class="row g-3">
-                <div class="col-md-6 form-row">
-                  <label for="{{ reservation_form.passenger_count.id_for_label }}"
-                         class="form-label required d-flex align-items-center">
-                    <span>Number of Passengers</span>
-                    <i class="bi bi-question-circle ms-2 info-tooltip"
-                       data-bs-toggle="tooltip"
-                       title="Include all travelers who need a seat, including infants and children"></i>
-                  </label>
-                  {{ reservation_form.passenger_count }}
-                  <div class="form-text">
-                    <i class="bi bi-people me-1"></i> Include all travelers needing a seat
-                  </div>
-                  {% if reservation_form.passenger_count.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-md-6 form-row">
-                  <label for="{{ reservation_form.luggage_count.id_for_label }}"
-                         class="form-label required d-flex align-items-center">
-                    <span>Number of Luggage Items</span>
-                    <i class="bi bi-question-circle ms-2 info-tooltip"
-                       data-bs-toggle="tooltip"
-                       title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
-                  </label>
-                  {{ reservation_form.luggage_count }}
-                  <div class="form-text">
-                    <i class="bi bi-bag-check me-1"></i> Standard check-in sized bags
-                  </div>
-                  {% if reservation_form.luggage_count.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="col-12">
-                  <div class="row g-3 mt-2">
-                    <div class="col-md-6">
-                      <div class="form-check p-3 border rounded bg-light position-relative overflow-hidden">
-                        <div class="position-absolute top-0 start-0 h-100 bg-primary"
-                             style="width: 4px"></div>
-                        <label class="form-check-label d-flex align-items-center"
-                               for="{{ reservation_form.has_children.id_for_label }}">
-                          {{ reservation_form.has_children }}
-                          <span class="ms-2">
-                            <strong>Traveling with children?</strong>
-                            <i class="bi bi-question-circle ms-1 info-tooltip"
-                               data-bs-toggle="tooltip"
-                               title="Select if you're traveling with children of any age"></i>
-                          </span>
-                        </label>
-                        {% if reservation_form.has_children.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.has_children.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-                    </div>
-
-                    <div class="col-md-6">
-                      <div class="form-check p-3 border rounded bg-light position-relative overflow-hidden">
-                        <div class="position-absolute top-0 start-0 h-100 bg-primary"
-                             style="width: 4px"></div>
-                        <label class="form-check-label d-flex align-items-center"
-                               for="{{ reservation_form.store_stop.id_for_label }}">
-                          {{ reservation_form.store_stop }}
-                          <span class="ms-2">
-                            <strong>Need a grocery stop?</strong>
-                            <i class="bi bi-question-circle ms-1 info-tooltip"
-                               data-bs-toggle="tooltip"
-                               title="We'll make a quick stop (15-20 minutes) at a grocery store on the way"></i>
-                          </span>
-                        </label>
-                        {% if reservation_form.store_stop.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Car Seats Section (shown if has_children is checked) -->
-                <div class="col-12 mt-3" id="car-seats-section" style="display: none;">
-                  <div class="p-3 rounded border bg-primary bg-opacity-5 position-relative">
-                    <div class="position-absolute top-0 start-0 h-100 bg-primary"
-                         style="width: 4px"></div>
-                    <h4 class="fs-5 mb-3">
-                      <i class="bi bi-shield-check me-2 text-primary"></i>Child Seat Details
-                    </h4>
-                    <div class="row g-3">
-                      <div class="col-md-4 form-row">
-                        <label for="{{ reservation_form.carseat_type.id_for_label }}"
-                               class="form-label d-flex align-items-center">
-                          <span>Car Seat Type</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="Select the appropriate car seat type based on your child's age and size"></i>
-                        </label>
-                        {{ reservation_form.carseat_type }}
-                        {% if reservation_form.carseat_type.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.carseat_type.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </section>
+          </div>
+        </section>
 
           <!-- First Ride Details -->
           <section class="form-card shadow-sm border-0 mb-4">
             <div class="card-header bg-white">
               <div class="d-flex align-items-center">
-                <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                  <i class="bi bi-car-front fs-4 text-primary"></i>
+                <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                  style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                    <img src="{% static 'images/ride-deets.webp' %}" alt="Find Icon"
+                      style="width: 25px; height: 25px; object-fit: contain;">
                 </span>
                 <h2 class="fs-5 mb-0 fw-bold">
                   {% if trip_type == 'one way' %}
@@ -701,7 +377,7 @@
               <!-- Flight Info Section -->
               <div class="mb-4">
                 <h3 class="section-heading fs-5 mb-3">
-                  <i class="bi bi-airplane me-2"></i> Flight Information
+                  <i class="bi bi-airplane text-secondary me-2"></i> Flight Information
                 </h3>
                 <div class="alert alert-info d-flex align-items-center mb-4 border-0 bg-info bg-opacity-10">
                   <i class="bi bi-info-circle-fill fs-5 me-3"></i>
@@ -743,7 +419,7 @@
                 <!-- Pickup Info -->
                 <div>
                   <h3 class="section-heading fs-5 mb-3">
-                    <i class="bi bi-pin-map me-2"></i> Pickup Information
+                    <i class="bi bi-pin-map text-secondary me-2"></i> Pickup Information
                   </h3>
                   <div class="row g-3">
                     <div class="col-md-6 form-row">
@@ -936,15 +612,17 @@
             <section class="form-card shadow-sm border-0 mb-4">
               <div class="card-header bg-white">
                 <div class="d-flex align-items-center">
-                  <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                    <i class="bi bi-chat-left-text fs-4 text-primary"></i>
+                  <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                    style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                    <img src="{% static 'images/request.webp' %}" alt="Find Icon"
+                      style="width: 20px; height: 20px; object-fit: contain;">
                   </span>
-                  <h2 class="fs-5 mb-0 fw-bold">Special Requests</h2>
+                  <h2 class="fs-5 mb-0 fw-bold">Notes for Your Trip</h2>
                 </div>
               </div>
               <div class="card-body">
                 <label for="{{ reservation_form.special_requests.id_for_label }}"
-                       class="form-label">Additional Notes or Requests</label>
+                       class="form-label">Anything we should know?</label>
                 {{ reservation_form.special_requests }}
                 {% if reservation_form.special_requests.errors %}
                   <div class="invalid-feedback d-block">
@@ -952,7 +630,7 @@
                   </div>
                 {% endif %}
                 <div class="form-text mt-2">
-                  <i class="bi bi-chat-quote me-1"></i> Optional. Let us know about any special requirements.
+                  <i class="bi bi-info-circle me-1"></i> This field is optional
                 </div>
               </div>
             </section>
@@ -971,66 +649,53 @@
               </section>
             {% endif %}
 
-            <!-- Price & Summary -->
-            <section class="form-card shadow-sm border-0 mb-4">
-              <div class="card-header bg-white">
-                <div class="d-flex align-items-center">
-                  <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                    <i class="bi bi-tag-fill fs-4 text-primary"></i>
-                  </span>
-                  <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
+          <!-- Price & Summary -->
+          <section class="form-card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center">
+                <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-25 rounded-circle me-3"
+                    style="width: 48px; height: 48px;">
+                  <img src="{% static 'images/receipt.webp' %}" alt="Receipt" style="width: 24px; height: 24px;">
                 </div>
+                <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
               </div>
-              <div class="card-body">
-                <div class="row align-items-center">
-                  <div class="col-md-4 text-center mb-4 mb-md-0">
-                    <div class="price-display p-3 rounded-circle d-flex align-items-center justify-content-center mx-auto"
-                         style="width: 150px;
-                                height: 150px">
-                      <div>
-                        <div class="text-white-50 small">TOTAL</div>
-                        <div class="price-amount display-5">${{ price }}</div>
-                        <div class="text-white-50 small">All-inclusive</div>
-                      </div>
+              <div class="fw-normal fs-3 text-success mb-0">${{ price }}</div>
+            </div>
+
+            <div class="card-body">
+              <div class="row justify-content-center g-3">
+
+                <!-- Gratuity Note -->
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
+                        style="min-width: 40px; height: 40px;">
+                      <img src="{% static 'images/gratuity.webp' %}" alt="Gratuity"
+                         style="width: 25px; height: 25px;">
                     </div>
-                  </div>
-                  <div class="col-md-8">
-                    <div class="grayson-benefits p-3 ps-4 mt-3 mt-md-0 bg-light rounded">
-                      <h4 class="fs-5 mb-3">
-                        <i class="bi bi-check2-circle text-primary me-2"></i>
-                        Benefits Included
-                      </h4>
-                      <ul class="benefits-list list-unstyled">
-                        <li class="mb-2 d-flex">
-                          <i class="bi bi-check-circle-fill text-success me-2 mt-1 flex-shrink-0"></i>
-                          <span>All-inclusive price with no hidden fees</span>
-                        </li>
-                        <li class="mb-2 d-flex">
-                          <i class="bi bi-check-circle-fill text-success me-2 mt-1 flex-shrink-0"></i>
-                          <span>Professional, uniformed drivers</span>
-                        </li>
-                        <li class="mb-2 d-flex">
-                          <i class="bi bi-check-circle-fill text-success me-2 mt-1 flex-shrink-0"></i>
-                          <span>Free flight monitoring with automatic adjustment for delays</span>
-                        </li>
-                        <li class="mb-2 d-flex">
-                          <i class="bi bi-check-circle-fill text-success me-2 mt-1 flex-shrink-0"></i>
-                          <span>Complimentary waiting time (30 minutes for domestic, 60 for international)</span>
-                        </li>
-                        <li class="mb-2 d-flex">
-                          <i class="bi bi-check-circle-fill text-success me-2 mt-1 flex-shrink-0"></i>
-                          <span>Clean, late-model luxury vehicles</span>
-                        </li>
-                      </ul>
-                      <p class="mt-3 mb-0 small text-muted fst-italic">
-                        <i class="bi bi-hand-thumbs-up me-1"></i>
-                        Driver gratuity is appreciated and can be provided in cash or added to your payment.
-                      </p>
+                    <div>
+                      Gratuity is <strong>not</strong> included. You can tip by card or cash — add preferences in the Notes section.
                     </div>
                   </div>
                 </div>
+
+                <!-- After-Hours Fee Note -->
+                <div class="col-md-6">
+                  <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
+                        style="min-width: 40px; height: 40px;">
+                      <img src="{% static 'images/afterhours.webp' %}" alt="Gratuity"
+                         style="width: 20px; height: 20px;">
+                    </div>
+                    <div>
+                      Pickups from 10PM to 6AM include a <strong>$20 late-night fee</strong> — paid directly to the driver.
+                    </div>
+                  </div>
+                </div>
+
               </div>
-            </section>
+            </div>
+          </section>
 
             <!-- Submit Button -->
             <div class="mb-5">
@@ -1059,7 +724,7 @@
             });
 
             // Handle car seats section visibility based on has_children checkbox
-            var hasChildrenCheckbox = document.getElementById('id_has_children');
+            var hasChildrenCheckbox = document.getElementById('id_need_carseats');
             var carSeatsSection = document.getElementById('car-seats-section');
 
             function toggleCarSeatsSection() {
