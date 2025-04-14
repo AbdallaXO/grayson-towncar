@@ -1,7 +1,7 @@
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django import forms
-from .models import PartnerForm
+from .models import PartnerForm, ContactUsForm
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -117,4 +117,73 @@ class PartnerFormSubmission(forms.ModelForm):
             "agency_website": "Agency Website",
             "referral_source": "How Did You Hear About Us?",
             "additional_info": "Additional Information",
+        }
+
+
+
+class ContactUsFormSubmission(forms.ModelForm):
+    class Meta:
+        model = ContactUsForm
+        fields = [
+            "first_name",
+            "last_name",
+            "phone_number",
+            "email",
+            "contact_method",
+            "about",
+        ]
+        widgets = {
+            "first_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "firstName",
+                    "placeholder": "First Name",
+                    "autocomplete": "given-name",
+                }
+            ),
+            "last_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "lastName",
+                    "placeholder": "Last Name",
+                    "autocomplete": "family-name",
+                }
+            ),
+            "email": forms.EmailInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "email",
+                    "placeholder": "Your Email",
+                    "autocomplete": "email",
+                }
+            ),
+            "phone_number": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "id": "phone",
+                    "placeholder": "Your Phone Number",
+                    "autocomplete": "tel",
+                }
+            ),
+            "contact_method": forms.RadioSelect(
+                attrs={
+                    "class": "form-check-input",
+                }
+            ),
+            "about": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "id": "tripDetails",
+                    "rows": "5",
+                    "placeholder": "Tell us about your dream destination, travel dates, number of travelers, and any special requirements...",
+                }
+            ),
+        }
+        labels = {
+            "first_name": "First Name",
+            "last_name": "Last Name",
+            "email": "Email",
+            "phone_number": "Phone Number",
+            "contact_method": "",
+            "about": "About Your Trip",
         }

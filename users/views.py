@@ -3,7 +3,10 @@ from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .forms import CustomUserCreationForm, PartnerFormSubmission
+from .forms import CustomUserCreationForm, PartnerFormSubmission, ContactUsFormSubmission
+from . emails import thankyou_email
+from django.db import transaction
+
 
 
 def thankYou(request):
@@ -72,8 +75,26 @@ def partner(request):
         form = PartnerFormSubmission(request.POST)
         if form.is_valid():
             form.save()
+            transaction.on_commit(lambda:thankyou_email(form=form))
             return redirect("thankyou")
+
     else:
         form = PartnerFormSubmission()
     context = {"form": form}
     return render(request, "users/become_partner.html", context)
+
+
+
+
+def contact(request):
+    if request.method == "POST":
+        form = ContactUsFormSubmission(request.POST)
+        if form.is_valid():
+            form.save()
+            transaction.on_commit(lambda:thankyou_email(form=form))
+            return redirect("thankyou")
+    else:
+        form = ContactUsFormSubmission()
+    context = {"form": form}
+
+    return render(request, "reservations/contact.html", context)

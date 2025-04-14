@@ -163,20 +163,3 @@ class Flight(models.Model):
         return f"{self.airline} {self.flight_number}"
 
 
-class ContactUsForm(models.Model):
-    CONTACT_METHODS = [
-        ("email", "Email"),
-        ("phone", "Phone Call"),
-        ("text", "Text Message"),
-    ]
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    email = models.EmailField()
-    phone_number = models.CharField(max_length=15)
-    contact_method = models.CharField(
-        max_length=10, choices=CONTACT_METHODS, default="email"
-    )
-    about = models.TextField()
-
-    def __str__(self):
-        return f"{self.first_name} - {self.last_name}"

@@ -5,9 +5,6 @@ from django.http.response import (
 )
 from django.shortcuts import render, get_object_or_404, redirect
 from rates.models import Rate
-from .forms import (
-    ContactUsFormSubmission,
-)
 from .utils import (
     _initalize_form,
     get_form_details,
@@ -187,13 +184,3 @@ def faqs(request):
     return render(request, "reservations/faqs.html")
 
 
-def contact(request):
-    if request.method == "POST":
-        form = ContactUsFormSubmission(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect("thankyou")
-    else:
-        form = ContactUsFormSubmission()
-    context = {"form": form}
-    return render(request, "reservations/contact.html", context)

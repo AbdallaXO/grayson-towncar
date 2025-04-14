@@ -30,17 +30,17 @@ def send_reservation_confirmation(reservation):
 
 
 
-def send_partner_confirmation(partner):
+def thankyou_email(user):
     """This Reservation is Called in the View
     When a Reservation is created with the reservation Object
     Renders a nicely formatted HTML and emails a Confirmation"""
     try:
-        context = {'name': partner.name.title(),}
-        subject = f"Hello {partner.name}, We've Recieved Your Message."
-        from_email = "reservations@graysontowncar.com"
-        print(f'Email Sending to.... {partner.email}')
-        to = [partner.email]
-        html_content = render_to_string("users/partner_contact_email.html", context)
+        context = {'name': user.name.title(),}
+        subject = f"Hello {user.name.title() if user.name else user.first_name.title()}, We've Recieved Your Message."
+        from_email = "info@graysontowncar.com"
+        logger.info(f'Sending Email to ... {user.email}')
+        to = [user.email]
+        html_content = render_to_string("users/user_contact_email.html", context)
 
         msg = EmailMultiAlternatives(subject, "", from_email, to)
         msg.attach_alternative(html_content, "text/html")
