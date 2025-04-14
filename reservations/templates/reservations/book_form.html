@@ -196,6 +196,14 @@
 
           <!-- Passenger Details -->
         <section class="form-card shadow-sm border-0 mb-4"> 
+          <div id="vehicle-limits"
+              data-max-passengers="{{ vehicle.capacity }}"
+              data-max-luggage="{{ vehicle.luggage_capacity }}"
+              data-max-ff="{{ vehicle.ff_carseats_max }}"
+              data-max-rf="{{ vehicle.rf_carseats_max }}"
+              data-max-boosters="{{ vehicle.boosters_max }}"
+              data-max-carseats="{{ vehicle.carseats_capacity }}">
+          </div>
           <div class="card-header bg-white">
             <div class="d-flex align-items-center">
               <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
@@ -501,8 +509,10 @@
               <section class="form-card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white">
                   <div class="d-flex align-items-center">
-                    <span class="bg-primary bg-opacity-10 p-2 rounded-circle me-3">
-                      <i class="bi bi-arrow-return-left fs-4 text-primary"></i>
+                    <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                          style="width: 40px; height: 40px; line-height: 1; padding: 0;">
+                      <img src="{% static 'images/return-trip.webp' %}" alt="Passenger Icon"
+                          style="width: 30px; height: 30px; object-fit: contain;">
                     </span>
                     <h2 class="fs-5 mb-0 fw-bold">Return Ride Details</h2>
                   </div>
@@ -510,7 +520,7 @@
                 <div class="card-body">
                   <div class="mb-4">
                     <h3 class="section-heading fs-5 mb-3">
-                      <i class="bi bi-airplane me-2"></i> Return Flight Information
+                      <i class="bi bi-airplane text-secondary me-2"></i> Return Flight Information
                     </h3>
                     <div class="alert alert-info d-flex align-items-center mb-4 border-0 bg-info bg-opacity-10">
                       <i class="bi bi-info-circle-fill fs-5 me-3"></i>
@@ -548,7 +558,7 @@
 
                   <div>
                     <h3 class="section-heading fs-5 mb-3">
-                      <i class="bi bi-pin-map me-2"></i> Return Pickup Information
+                      <i class="bi bi-pin-map text-secondary me-2"></i> Return Pickup Information
                     </h3>
                     <div class="row g-3">
                       <div class="col-md-6 form-row">
@@ -731,85 +741,15 @@
       </div>
     </main>
 
-    <!-- Enhanced Scripts -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Bootstrap tooltips
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-
-            // Handle car seats section visibility based on has_children checkbox
-            var hasChildrenCheckbox = document.getElementById('id_need_carseats');
-            var carSeatsSection = document.getElementById('car-seats-section');
-
-            function toggleCarSeatsSection() {
-                if (hasChildrenCheckbox && carSeatsSection) {
-                    carSeatsSection.style.display = hasChildrenCheckbox.checked ? 'block' : 'none';
-                }
-            }
-            // Initial state
-            toggleCarSeatsSection();
-            if (hasChildrenCheckbox) {
-                hasChildrenCheckbox.addEventListener('change', toggleCarSeatsSection);
-            }
-
-            // Enhanced form validation + highlight first invalid field
-            const forms = document.querySelectorAll('.needs-validation');
-            Array.from(forms).forEach(form => {
-                form.addEventListener('submit', event => {
-                    if (!form.checkValidity()) {
-                        event.preventDefault();
-                        event.stopPropagation();
-
-                        // Scroll to first error
-                        const firstError = form.querySelector(':invalid');
-                        if (firstError) {
-                            firstError.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center'
-                            });
-                            firstError.classList.add('highlight-error');
-                            setTimeout(() => {
-                                firstError.classList.remove('highlight-error');
-                            }, 1500);
-                        }
-                    }
-                    form.classList.add('was-validated');
-                }, false);
-            });
-
-            // Animate form cards when they enter the viewport
-            const formCards = document.querySelectorAll('.form-card');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.opacity = '1';
-                        entry.target.style.transform = 'translateY(0)';
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, {
-                threshold: 0.2
-            });
-
-            formCards.forEach(card => {
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(20px)';
-                card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
-                observer.observe(card);
-            });
-        });
-    </script>
-
     {% block footer_scripts %}
-
-      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete"
-              async
-              defer></script>
-      <script src="{% static 'js/maps_autocomplete.js' %}"></script>
-  
+    <script src="{% static 'js/form-ui-enhancer.js' %}"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete"
+            async
+            defer>
+    </script>
+    <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+    <script src="{% static 'js/validate-vehicle-limits.js' %}"></script>
+    <script src="{% static 'js/validate-trip-times.js' %}"></script>
 
     {% endblock %}
 

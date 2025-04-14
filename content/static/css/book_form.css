@@ -730,3 +730,10 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
     opacity: 1 !important;
 }
+
+/* Remove the Bootstrap "!" icon from .is-invalid fields */
+input.form-control.is-invalid {
+    background-image: none !important;
+    padding-right: 0.75rem;
+    /* optional: tighten padding */
+}
