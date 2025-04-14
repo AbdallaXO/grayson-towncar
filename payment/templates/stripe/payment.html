@@ -105,7 +105,7 @@
                     </div>
                   </div>
                 </div>
-                {% comment %}
+                
                 <!-- Flight Information -->
                 <div class="mt-4 pt-3 border-top">
                   <div class="d-flex align-items-center">
@@ -114,16 +114,16 @@
                       <small class="text-secondary d-block">Flight Details</small>
                       <span class="fs-5 fw-bold">
                         {% if forloop.counter == 1 %}
-                          {{ leg.flight1_airline|default:'Not specified' }}
-                          - Flight #{{ leg.flight1_number|default:'N/A' }}
+                          {{ leg.flight_information.airline|default:"Not specified" }}
+                          - Flight #{{ leg.flight_information.flight_number|default:"N/A" }}
                         {% elif forloop.counter == 2 %}
-                          {{ leg2.flight2_airline|default:'Not specified' }}
-                          - Flight #{{ leg.flight2_number|default:'N/A' }}
+                          {{ leg2.flight_information.airline|default:"Not specified" }}
+                          - Flight #{{ leg2.flight_information.flight_number|default:"N/A" }}
                         {% endif %}
                       </span>
                     </div>
                   </div>
-                </div> {% endcomment %}
+                </div>
 
                 <!-- Additional Notes for this Leg -->
                 {% if leg.notes %}
