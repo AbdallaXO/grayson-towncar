@@ -184,5 +184,6 @@ def about_us(request):
 def faqs(request):
     return render(request, "reservations/faqs.html")
 
+
 def tos(request):
     return render(request, "reservations/tos.html")

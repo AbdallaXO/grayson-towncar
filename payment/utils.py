@@ -9,13 +9,17 @@ logger = logging.getLogger(__name__)
 def get_or_create_stripe_customer(reservation):
     customer = reservation.customer
     logger.info(f"Attempting to get/create Stripe customer for {customer.email}")
-
-    # Always try to create a new customer
     try:
-        stripe_customer = stripe.Customer.create(
-            email=customer.email,
+        stripe_customer =  stripe.Customer.create(
+             email=customer.email,
             name=customer.get_full_name(),
-        )
+            metadata={
+                 'Reservation ID':str(reservation.id),
+                 'Trip Type':reservation.trip_type,
+                 'Phone Number':customer.phone_number,
+                       
+            }
+            )
         logger.info(f"Created new Stripe customer: {stripe_customer.id}")
 
         # Save the new Stripe customer ID
@@ -26,3 +30,4 @@ def get_or_create_stripe_customer(reservation):
     except Exception as e:
         logger.error(f"Error creating Stripe customer: {e}")
         raise
+        

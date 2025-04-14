@@ -52,6 +52,7 @@ def create_checkout_session(request, reservation_id):
                         }
                     ],
                     mode="payment",
+                    billing_address_collection="auto",  # zip code autofill
                     success_url=success_url,
                     cancel_url=cancel_url,
                     metadata={
@@ -94,6 +95,7 @@ def save_card(request, reservation_id):
             customer=stripe_customer.id,
             payment_method_types=["card"],
             mode="setup",
+            billing_address_collection="auto",
             success_url=success_url,
             cancel_url=cancel_url,
             metadata={

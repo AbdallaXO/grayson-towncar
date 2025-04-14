@@ -2,6 +2,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 import logging
 from django.utils import timezone
+
 logger = logging.getLogger(__name__)
 
 
@@ -13,7 +14,7 @@ def send_reservation_confirmation(reservation):
         context = {
             "reservation": reservation,
             "legs": reservation.legs.all(),
-            "date":timezone.now().date()
+            "date": timezone.now().date(),
         }
         subject = f"Hello {reservation.customer.first_name}, Your Grayson Towncar Reservation is Confirmed"
         from_email = "reservations@graysontowncar.com"
