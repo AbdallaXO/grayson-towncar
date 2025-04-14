@@ -1,3 +1,4 @@
+{% load filters %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -229,13 +230,13 @@
             <strong>Payment Status:</strong>
             {% for payment in reservation.payments.all %}
               <span class=" {% if payment.status == 'paid' %}   status-paid    {% elif payment.status == 'save_card' %}   status-saved    {% else %}   status-pending   {% endif %}">
-                {{ payment.status|capfirst }}
+                {{ payment.status|format_status }}
               </span>
               {% if not forloop.last %},{% endif %}
             {% endfor %}
           </p>
           <p class="info-text">
-            <strong>Total Price:</strong> ${{ reservation.total }}
+            <strong>Total Price:</strong> ${{ reservation.total_price }}
           </p>
           <p class="info-text" style="font-style: italic; color: #666;">(Includes all taxes and fees)</p>
         </div>
