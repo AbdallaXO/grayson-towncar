@@ -1,118 +1,114 @@
 {% extends 'main.html' %}
+{% load static %}
 
 {% block content %}
-  <div class="container my-5">
-    <div class="card shadow-lg border-0 rounded-lg overflow-hidden bg-white">
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static "css/payment-styles.css" %}">
+{% endblock extra_css %}
+  <div class="container my-4">
+    <div class="card border-0 shadow-sm rounded">
       <!-- Header -->
-      <div class="card-header bg-dark text-white py-4">
-        <div class="d-flex align-items-center justify-content-between px-3">
-          <h2 class="mb-0 fw-bold">Your Reservation</h2>
-          <span class="badge bg-warning text-dark fw-bold px-3 py-2 fs-6">Confirmed</span>
+      <div class="card-header bg-dark custom-legs2">
+        <div class="d-flex align-items-center justify-content-between header-colors">
+          <h3 class="mb-0 text-white fw-light">Reservation Details</h3>
+          <span class="badge bg-warning text-black px-3 py-2 rounded-pill">Confirmed</span>
         </div>
       </div>
 
-      <div class="card-body p-0 bg-white text-dark">
-        <!-- Reservation Summary Card -->
-        <div class="p-4 border-bottom">
-          <div class="row g-4">
-            <div class="col-md-4">
-              <div class="d-flex align-items-center">
-                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
-                  <i class="bi bi-bookmark-check text-warning fs-4"></i>
-                </div>
-                <div>
-                  <small class="text-secondary">Reservation ID</small>
-                  <h5 class="fw-bold mb-0">481{{ reservation.id }}</h5>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="d-flex align-items-center">
-                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
-                  <i class="bi bi-person text-warning fs-4"></i>
-                </div>
-                <div>
-                  <small class="text-secondary">Customer</small>
-                  <h5 class="fw-bold mb-0">{{ reservation.customer.get_full_name }}</h5>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="d-flex align-items-center">
-                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
-                  <i class="bi bi-signpost-split text-warning fs-4"></i>
-                </div>
-                <div>
-                  <small class="text-secondary">Trip Type</small>
-                  <h5 class="fw-bold mb-0">{{ reservation.trip_type|cut:'_'|title }}</h5>
-                </div>
-              </div>
+      <div class="card-body p-0">
+       <!-- Reservation Summary -->
+      <div class="p-3 border-bottom bg-light">
+        <div class="row row-cols-3 text-center g-0">
+          
+          <!-- Reservation ID -->
+          <div class="col">
+            <div class="d-flex flex-column align-items-center">
+              <img src="{% static 'images/reserved-id.webp' %}" alt="Reserved Icon"
+                  class="img-fluid mb-2" style="width: 1.6em; height: 1.6em;">
+              <small class="text-muted">Reservation ID</small>
+              <p class="mb-0 fw-bold">481{{ reservation.id }}</p>
             </div>
           </div>
+
+          <!-- Customer -->
+          <div class="col">
+            <div class="d-flex flex-column align-items-center">
+              <img src="{% static 'images/customer.webp' %}" alt="Customer Icon"
+                  class="img-fluid mb-2" style="width: 1.6em; height: 1.6em;">
+              <small class="text-muted">Customer</small>
+              <p class="mb-0 fw-bold">{{ reservation.customer.get_full_name }}</p>
+            </div>
+          </div>
+
+          <!-- Trip Type -->
+          <div class="col">
+            <div class="d-flex flex-column align-items-center">
+              <img src="{% static 'images/trip-type.webp' %}" alt="Trip Type Icon"
+                  class="img-fluid mb-2" style="width: 1.6em; height: 1.6em;">
+              <small class="text-muted">Trip Type</small>
+              <p class="mb-0 fw-bold">{{ reservation.trip_type|cut:"_"|title }}</p>
+            </div>
+          </div>
+
         </div>
+      </div>
 
         <!-- Itinerary Section -->
         <div class="p-4">
-          <div class="d-flex align-items-center mb-4">
-            <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-3">
-              <i class="bi bi-map text-warning fs-4"></i>
-            </div>
-            <h3 class="mb-0">Your Itinerary</h3>
-          </div>
+          <h4 class="mb-4 border-bottom pb-2">Itinerary</h4>
 
           {% for leg in reservation.legs.all %}
-            <div class="card mb-4 border-0 shadow-sm rounded-lg">
-              <div class="card-header py-3 bg-dark text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h5 class="mb-0">
-                    <i class="bi bi-geo-alt-fill text-warning me-2"></i>
-                    Leg {{ forloop.counter }}
+            <div class="card mb-4 border-0 shadow-sm">
+              <div class="card-header custom-legs2 bg-light">
+                <div class="custom-legs justify-content-between align-items-center">
+                  <h5 class="mb-0 fw-normal">
+                    <span class="text-white">Leg {{ forloop.counter }}</span>
                     {% if leg.leg_type %}({{ leg.leg_type|title }}){% endif %}
                   </h5>
-                  <span class="badge bg-warning text-dark px-3 py-2">{{ leg.pickup_date|date:'F j, Y' }}</span>
+                  <span class="badge bg-secondary rounded-pill text-white">{{ leg.pickup_date|date:'F j, Y' }}</span>
                 </div>
               </div>
-              <div class="card-body p-4">
-                <div class="row g-4">
+              <div class="card-body p-3">
+                <div class="row g-3">
                   <!-- Date & Time -->
                   <div class="col-md-4">
                     <div class="d-flex align-items-start">
-                      <i class="bi bi-clock text-warning fs-4 me-3 mt-1"></i>
+                      <i class="bi bi-clock text-secondary me-2 mt-1"></i>
                       <div>
-                        <small class="text-secondary d-block">Pickup Time</small>
-                        <span class="fs-5 fw-bold">{{ leg.pickup_time|time:'g:i A' }}</span>
+                        <small class="text-muted d-block">Pickup Time</small>
+                        <span class="fw-bold">{{ leg.pickup_time|time:'g:i A' }}</span>
                       </div>
                     </div>
                   </div>
                   <!-- Pick-up Location -->
                   <div class="col-md-4">
                     <div class="d-flex align-items-start">
-                      <i class="bi bi-pin-map-fill text-warning fs-4 me-3 mt-1"></i>
+                      <i class="bi bi-pin-map text-secondary me-2 mt-1"></i>
                       <div>
-                        <small class="text-secondary d-block">Pick-up Location</small>
-                        <span class="fs-5 fw-bold">{{ leg.pickup_location|default:'Disney' }}</span>
+                        <small class="text-muted d-block">Pick-up</small>
+                        <span class="fw-bold">{{ leg.pickup_location|default:'Disney' }}</span>
                       </div>
                     </div>
                   </div>
                   <!-- Drop-off Location -->
                   <div class="col-md-4">
                     <div class="d-flex align-items-start">
-                      <i class="bi bi-pin-map-fill text-warning fs-4 me-3 mt-1"></i>
+                      <i class="bi bi-pin-map text-secondary me-2 mt-1"></i>
                       <div>
-                        <small class="text-secondary d-block">Drop-off Location</small>
-                        <span class="fs-5 fw-bold">{{ leg.dropoff_location|default:'Disney' }}</span>
+                        <small class="text-muted d-block">Drop-off</small>
+                        <span class="fw-bold">{{ leg.dropoff_location|default:'Disney' }}</span>
                       </div>
                     </div>
                   </div>
                 </div>
                 
                 <!-- Flight Information -->
-                <div class="mt-4 pt-3 border-top">
+                <div class="mt-3 pt-3 border-top">
                   <div class="d-flex align-items-center">
-                    <i class="bi bi-airplane-fill text-warning fs-4 me-3"></i>
+                    <i class="bi bi-airplane text-secondary me-2"></i>
                     <div>
-                      <small class="text-secondary d-block">Flight Details</small>
-                      <span class="fs-5 fw-bold">
+                      <small class="text-muted d-block">Flight Details</small>
+                      <span class="fw-bold">
                         {{ leg.flight_information.airline|default:"Not specified" }}
                         - Flight #{{ leg.flight_information.flight_number|default:"N/A" }}
                       </span>
@@ -122,12 +118,12 @@
 
                 <!-- Additional Notes for this Leg -->
                 {% if leg.notes %}
-                  <div class="mt-4 py-3 px-4 bg-light rounded-3">
+                  <div class="mt-3 py-2 px-3 bg-light rounded">
                     <div class="d-flex">
-                      <i class="bi bi-info-circle text-warning fs-4 me-3"></i>
+                      <i class="bi bi-info-circle text-primary me-2 mt-1"></i>
                       <div>
-                        <small class="text-secondary">Important Notes</small>
-                        <p class="mb-0 mt-1">{{ leg.notes }}</p>
+                        <small class="text-muted">Notes</small>
+                        <p class="mb-0 mt-1 small">{{ leg.notes }}</p>
                       </div>
                     </div>
                   </div>
@@ -137,45 +133,73 @@
           {% endfor %}
 
           <!-- Passenger & Luggage Details -->
-          <div class="mt-5 mb-5">
-            <div class="d-flex align-items-center mb-4">
-              <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-3">
-                <i class="bi bi-person-plus text-warning fs-4"></i>
-              </div>
-              <h3 class="mb-0">Travel Details</h3>
-            </div>
+          <div class="mt-4 mb-4">
+            <h4 class="mb-3 border-bottom pb-2">Travel Details</h4>
 
-            <div class="row g-4">
-              <div class="col-md-4">
+            <div class="row g-3">
+              <div class="col-md-3">
                 <div class="card h-100 border-0 shadow-sm">
-                  <div class="card-body p-4 text-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
-                      <i class="bi bi-people text-warning fs-1"></i>
+                  <div class="card-body py-3">
+                    <div class="d-flex align-items-center">
+                      <div class="me-3">
+                        <img src="{% static 'images/travel-guy.webp' %}" alt="Trip Type Icon"
+                            class="img-fluid mb-2" style="width: 1.6em; height: 1.6em;">
+                      </div>
+                      <div>
+                        <p class="mb-0 medium">{{ reservation.passenger_count }}</p>
+                        <small class="text-muted">Passengers</small>
+                      </div>
                     </div>
-                    <h3 class="mb-0">{{ reservation.passenger_count }}</h3>
-                    <p class="text-secondary mb-0">Passengers</p>
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <div class="card h-100 border-0 shadow-sm">
-                  <div class="card-body p-4 text-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
-                      <i class="bi bi-car-front text-warning fs-1"></i>
+                  <div class="card-body py-3">
+                    <div class="d-flex align-items-center">
+                      <div class="me-3">
+                        <img src="{% static 'images/carseat.webp' %}" alt="Trip Type Icon"
+                            class="img-fluid mb-2" style="width: 1.4em; height: 1.4em;">
+                      </div>
+                      <div>
+                        <p class="mb-0 medium">{{ reservation.display_carseats }}</p>
+                        <small class="text-muted">Car Seats</small>
+                      </div>
                     </div>
-                    <h3 class="mb-0">{{ reservation.vehicle.carseats_display }}</h3>
-                    <p class="text-secondary mb-0">Car Seats</p>
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <div class="card h-100 border-0 shadow-sm">
-                  <div class="card-body p-4 text-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 d-inline-flex mb-3">
-                      <i class="bi bi-briefcase text-warning fs-1"></i>
+                  <div class="card-body py-3">
+                    <div class="d-flex align-items-center">
+                      <div class="me-3">
+                        <img src="{% static 'images/luggage.webp' %}" alt="Trip Type Icon"
+                            class="img-fluid mb-2" style="width: 1.4em; height: 1.4em;">
+                      </div>
+                      <div>
+                        <p class="mb-0 medium">{{ reservation.luggage_count }}</p>
+                        <small class="text-muted">Luggage</small>
+                      </div>
                     </div>
-                    <h3 class="mb-0">{{ reservation.luggage_count }}</h3>
-                    <p class="text-secondary mb-0">Luggage</p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="card h-100 border-0 shadow-sm">
+                  <div class="card-body py-3">
+                    <div class="d-flex align-items-center">
+                      <div class="me-3">
+                        <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop Icon"
+                            class="img-fluid mb-2" style="width: 1.4em; height: 1.4em;">
+                      </div>
+                      <div>
+                        <p class="mb-0 medium">
+                          {{ reservation.store_stop|yesno:"Yes,None" }}
+                        </p>
+                        <small class="text-muted">Grocery Stop</small>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -184,40 +208,37 @@
 
           <!-- Special Requests -->
           {% if reservation.special_requests %}
-            <div class="mt-5 mb-5">
+            <div class="mt-4 mb-4">
               <div class="card border-0 shadow-sm">
-                <div class="card-header bg-dark text-white py-3">
-                  <h5 class="mb-0">
-                    <i class="bi bi-chat-square-text text-warning me-2"></i>
-                    Special Requests
-                  </h5>
+                <div class="card-header custom-legs2 bg-light py-2">
+                  <h5 class="mb-0 fw-normal text-white">Special Requests</h5>
                 </div>
-                <div class="card-body p-4">
-                  <p class="mb-0">{{ reservation.special_requests }}</p>
+                <div class="card-body p-3">
+                  <p class="mb-0 small">{{ reservation.special_requests }}</p>
                 </div>
               </div>
             </div>
           {% endif %}
 
           <!-- Payment Section -->
-          <div class="mt-5">
+          <div class="mt-4">
             <div class="card border-0 shadow-sm">
-              <div class="card-body p-4">
-                <h4 class="text-center mb-4">Payment Options</h4>
+              <div class="card-body p-3">
+                <h5 class="text-center mb-3 fw-normal">Payment Options</h5>
                 <form method="post">
                   {% csrf_token %}
-                  <div class="d-flex justify-content-center gap-4 flex-wrap">
+                  <div class="d-flex justify-content-center gap-3">
                     <button type="submit"
                             name="action"
                             value="pay_now"
-                            class="btn btn-warning btn-lg px-4 py-3 shadow fw-bold text-dark">
-                      <i class="bi bi-credit-card me-2"></i>Pay Now
+                            class="btn btn-warning text-black px-4 py-2 rounded-pill">
+                      <i class="bi bi-credit-card me-1"></i>Pay Now
                     </button>
                     <button type="submit"
                             name="action"
                             value="save_card"
-                            class="btn btn-outline-dark btn-lg px-4 py-3">
-                      <i class="bi bi-shield-lock me-2"></i>Save Card for Later
+                            class="btn btn-outline-secondary px-3 py-2 rounded-pill">
+                      <i class="bi bi-shield-lock me-1"></i>Save Card
                     </button>
                   </div>
                 </form>
@@ -228,34 +249,26 @@
       </div>
 
       <!-- Footer Help Section -->
-      <div class="card-footer bg-dark p-4 text-white">
+      <div class="card-footer bg-light p-3">
         <div class="row justify-content-center">
-          <div class="col-lg-8">
-            <div class="card border-0 shadow-sm bg-white text-dark">
-              <div class="card-body p-4">
-                <div class="text-center">
-                  <div class="bg-warning bg-opacity-10 p-3 rounded-circle d-inline-flex mb-3">
-                    <i class="bi bi-headset text-warning fs-1"></i>
+          <div class="col-lg-10">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body p-3">
+                <div class="d-flex align-items-center">
+                  <div class="me-3">
+                    <i class="bi bi-headset text-secondary fs-4"></i>
                   </div>
-                  <h4 class="fw-bold">Need Assistance?</h4>
-                  <p class="text-secondary mb-4">Our team is available 24/7 to help with your reservation</p>
-                  <div class="row g-4 justify-content-center">
-                    <div class="col-md-5">
-                      <a href="tel:4072127190"
-                         class="text-decoration-none d-flex align-items-center justify-content-center">
-                        <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-2">
-                          <i class="bi bi-telephone-fill text-warning"></i>
-                        </div>
-                        <span class="text-dark fw-bold">(407) 212-7190</span>
+                  <div>
+                    <h5 class="fw-normal mb-1">Need Assistance?</h5>
+                    <p class="text-muted small mb-2">Our team is available 24/7</p>
+                    <div class="d-flex flex-wrap gap-3">
+                      <a href="tel:4072127190" class="text-decoration-none text-dark small">
+                        <i class="bi bi-telephone-fill text-danger me-1"></i>
+                        (407) 212-7190
                       </a>
-                    </div>
-                    <div class="col-md-7">
-                      <a href="mailto:reservations@graysontowncar.com"
-                         class="text-decoration-none d-flex align-items-center justify-content-center">
-                        <div class="bg-warning bg-opacity-10 p-2 rounded-circle me-2">
-                          <i class="bi bi-envelope-fill text-warning"></i>
-                        </div>
-                        <span class="text-dark fw-bold">reservations@graysontowncar.com</span>
+                      <a href="mailto:reservations@graysontowncar.com" class="text-decoration-none text-dark small">
+                        <i class="bi bi-envelope-fill text-danger me-1"></i>
+                        reservations@graysontowncar.com
                       </a>
                     </div>
                   </div>
@@ -267,4 +280,5 @@
       </div>
     </div>
   </div>
+
 {% endblock %}
