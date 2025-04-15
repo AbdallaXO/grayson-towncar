@@ -1,338 +1,207 @@
 {% load filters %}
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Grayson Towncar - Reservation Confirmation</title>
-    <style>
-        /* Import Google Fonts */
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en" style="-webkit-text-size-adjust: none !important;">
+<head>
+<title></title>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<!--[if !mso]>-->
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--<![endif]-->
+<meta name="x-apple-disable-message-reformatting" content="">
+<meta content="target-densitydpi=device-dpi" name="viewport">
+<meta content="true" name="HandheldFriendly">
+<meta content="width=device-width" name="viewport">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no">
 
-        /* Reset styles */
-        body,
-        p,
-        div,
-        h1,
-        h2,
-        h3,
-        h4,
-        ul,
-        li {
-            margin: 0;
-            padding: 0;
-        }
 
-        body {
-            background-color: #f4f4f4;
-            font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: #333333;
-        }
 
-        /* Base container */
-        .email-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        }
 
-        /* Header */
-        .header {
-            background-color: #2c3e50;
-            padding: 25px 20px;
-            text-align: center;
-        }
+<!--[if !mso]>-->
 
-        .header-logo {
-            max-width: 180px;
-            margin-bottom: 15px;
-        }
+<!--<![endif]-->
+<!--[if mso]>
+<xml>
+<o:OfficeDocumentSettings>
+<o:AllowPNG/>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+<![endif]-->
+</head>
+<body id="body" class="t198" style="min-width: 100%;margin: 0px;padding: 0px;background-color: #242424;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;-webkit-font-smoothing: antialiased;-moz-osx-font-smoothing: grayscale;"><div class="t197" style="background-color:#242424;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" style="border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t196" style="font-size: 0;line-height: 0;mso-line-height-rule: exactly;background-color: #242424;border-collapse: collapse;" valign="top" align="center">
+<!--[if mso]>
+<v:background xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false">
+<v:fill color=#242424/>
+</v:background>
+<![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" align="center" id="innerTable" style="border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;-webkit-font-smoothing: antialiased;-moz-osx-font-smoothing: grayscale;"><tr><td style="border-collapse: collapse;"><div class="t166" style="mso-line-height-rule:exactly;mso-line-height-alt:45px;line-height:45px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t170" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="600" class="t169" style="background-color: #F8F8F8;width: 600px;border-collapse: collapse;">
+<table class="t168" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t167" style="padding: 0 50px 60px 50px;border-collapse: collapse;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width: 100% !important;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td align="center" style="border-collapse: collapse;">
+<table class="t4" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="195" class="t3" style="width: 195px;border-collapse: collapse;">
+<table class="t2" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t1" style="border-collapse: collapse;"><div style="font-size:0px;">></div></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t9" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t8" style="width: 600px;border-collapse: collapse;">
+<table class="t7" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t6" style="border-collapse: collapse;"><h1 class="t5" style="margin: 0;font-family: Roboto,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 26px;font-weight: 400;font-style: normal;font-size: 25px;text-decoration: none;text-transform: none;direction: ltr;color: #333333;text-align: left;mso-line-height-rule: exactly;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Grayson Towncar Reservation Confirmed</h1></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t10" style="mso-line-height-rule:exactly;mso-line-height-alt:7px;line-height:7px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t15" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t14" style="width: 600px;border-collapse: collapse;">
+<table class="t13" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t12" style="padding: 0 0 22px 0;border-collapse: collapse;"><p class="t11" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 18px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Thank You for Considering Us, {{ reservation.customer.first_name }}.</p></td></tr></table>
+</td></tr></table>
+</td></tr>
+<!--[if !mso]>-->
+<tr><td style="border-collapse: collapse;"><div class="t16" style="mso-line-height-rule:exactly;font-size:1px;display:none;">&nbsp;&nbsp;</div></td></tr>
+<!--<![endif]-->
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t22" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t21" style="width: 600px;border-collapse: collapse;">
+<table class="t20" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t19" style="border-collapse: collapse;"><p class="t18" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: bold;font-style: normal;font-size: 22px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><span class="t17" style="margin:0;Margin:0;font-weight:700;font-style:italic;mso-line-height-rule:exactly;">Reservation Details</span></p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t23" style="mso-line-height-rule:exactly;mso-line-height-alt:7px;line-height:7px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t28" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t27" style="width: 600px;border-collapse: collapse;">
+<table class="t26" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t25" style="border-collapse: collapse;"><p class="t24" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Reservation ID: 43{{ reservation.id }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t29" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t34" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t33" style="width: 600px;border-collapse: collapse;">
+<table class="t32" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t31" style="padding: 0 0 2px 0;border-collapse: collapse;"><p class="t30" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Booking Date: {{ date|date:'F j, Y' }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t35" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t41" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t40" style="width: 600px;border-collapse: collapse;">
+<table class="t39" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t38" style="padding: 0 0 2px 0;border-collapse: collapse;"><p class="t37" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: normal;font-size: 20px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><span class="t36" style="margin:0;Margin:0;font-weight:700;font-style:italic;mso-line-height-rule:exactly;">Guest Information</span></p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t42" style="mso-line-height-rule:exactly;mso-line-height-alt:7px;line-height:7px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t47" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t46" style="width: 600px;border-collapse: collapse;">
+<table class="t45" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t44" style="padding: 0 0 2px 0;border-collapse: collapse;"><p class="t43" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Name: {{ reservation.customer.get_full_name }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t48" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t53" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t52" style="width: 600px;border-collapse: collapse;">
+<table class="t51" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t50" style="padding: 0 0 2px 0;border-collapse: collapse;"><p class="t49" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 20px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Email: {{ reservation.customer.email }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t58" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t57" style="width: 600px;border-collapse: collapse;">
+<table class="t56" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t55" style="padding: 0 0 2px 0;border-collapse: collapse;"><p class="t54" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 20px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Phone Number: {{ reservation.customer.phone_number }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t59" style="mso-line-height-rule:exactly;mso-line-height-alt:19px;line-height:19px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
 
-        .header-title {
-            margin: 0;
-            font-size: 28px;
-            color: #ffffff;
-            font-weight: 600;
-        }
+<!-- Trip Itinerary -->
+{% for leg in reservation.legs.all %}
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t64" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t63" style="width: 600px;border-collapse: collapse;">
+<table class="t62" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t61" style="border-collapse: collapse;"><p class="t60" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: italic;font-size: 20px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Trip Information - Leg {{ forloop.counter }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t65" style="mso-line-height-rule:exactly;mso-line-height-alt:7px;line-height:7px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
 
-        /* Content */
-        .content {
-            padding: 30px;
-        }
+{% if leg.flight_information %}
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t70" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t69" style="width: 600px;border-collapse: collapse;">
+<table class="t68" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t67" style="border-collapse: collapse;"><p class="t66" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Flight Information: {{ leg.flight_information }}</p></td></tr></table>
+</td></tr></table>
+</td></tr>
+{% endif %}
 
-        .greeting {
-            margin-bottom: 20px;
-            font-size: 17px;
-        }
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t75" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t74" style="width: 600px;border-collapse: collapse;">
+<table class="t73" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t72" style="border-collapse: collapse;"><p class="t71" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Pickup Date And Time: {{ leg.pickup_date|date:'F j, Y' }} {{ leg.pickup_time|time:'g:i A' }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t80" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t79" style="width: 600px;border-collapse: collapse;">
+<table class="t78" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t77" style="border-collapse: collapse;"><p class="t76" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Pickup From: {{ leg.pickup_location }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t85" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t84" style="width: 600px;border-collapse: collapse;">
+<table class="t83" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t82" style="border-collapse: collapse;"><p class="t81" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Drop-Off At: {{ leg.dropoff_location }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t86" style="mso-line-height-rule:exactly;mso-line-height-alt:15px;line-height:15px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
+{% endfor %}
 
-        /* Info sections */
-        .info-section {
-            background-color: #f9f9f9;
-            border-left: 5px solid #2c3e50;
-            padding: 20px;
-            margin-bottom: 25px;
-            border-radius: 4px;
-        }
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t115" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t114" style="width: 600px;border-collapse: collapse;">
+<table class="t113" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t112" style="border-collapse: collapse;"><p class="t111" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Total: ${{ reservation.total_price }}</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t116" style="mso-line-height-rule:exactly;mso-line-height-alt:2px;line-height:2px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t121" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t120" style="width: 600px;border-collapse: collapse;">
+<table class="t119" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t118" style="border-collapse: collapse;"><p class="t117" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Payment Status: 
+{% for payment in reservation.payments.all %}
+<span class="{% if payment.status == 'paid' %}status-paid{% elif payment.status == 'save_card' %}status-saved{% else %}status-pending{% endif %}">
+  {{ payment.status|format_status }}
+</span>
+{% if not forloop.last %},{% endif %}
+{% endfor %}
+</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t122" style="mso-line-height-rule:exactly;mso-line-height-alt:4px;line-height:4px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t133" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t132" style="width: 600px;border-collapse: collapse;">
+<table class="t131" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t130" style="border-collapse: collapse;"><p class="t129" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><span class="t124" style="margin:0;Margin:0;mso-line-height-rule:exactly;"><span class="t123" style="margin:0;Margin:0;font-weight:700;mso-line-height-rule:exactly;">Please note</span>:</span><span class="t125" style="margin:0;Margin:0;mso-line-height-rule:exactly;"> </span><span class="t126" style="margin:0;Margin:0;color:#C89B3C;mso-line-height-rule:exactly;">Driver&#39;s</span><span class="t127" style="margin:0;Margin:0;mso-line-height-rule:exactly;"> </span><span class="t128" style="margin:0;Margin:0;mso-line-height-rule:exactly;">Gratuity is not included. We kindly recommend a 20% tip for your driver, which can be given in cash or added by request.</span></p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t134" style="mso-line-height-rule:exactly;mso-line-height-alt:11px;line-height:11px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
 
-        .section-title {
-            color: #2c3e50;
-            margin-bottom: 15px;
-            font-size: 20px;
-            font-weight: 600;
-        }
+<!-- Airport Pickup Instructions -->
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t140" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t139" style="width: 600px;border-collapse: collapse;">
+<table class="t138" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t137" style="border-collapse: collapse;"><p class="t136" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: normal;font-size: 17px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><span class="t135" style="margin:0;Margin:0;font-weight:700;font-style:italic;mso-line-height-rule:exactly;">Airport Pickup Instructions</span></p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t141" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t146" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t145" style="width: 636px;border-collapse: collapse;">
+<table class="t144" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t143" style="border-collapse: collapse;"><p class="t142" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Our drivers monitor your flight's arrival time to stay updated on delays or early landings. Once your plane lands, your chauffeur will send you a text message to confirm their presence and guide you. They will then meet you inside the baggage claim area holding a sign with your name.</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t147" style="mso-line-height-rule:exactly;mso-line-height-alt:20px;line-height:20px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
 
-        .info-text {
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
+<!-- Cancellation Policy -->
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t140" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t139" style="width: 600px;border-collapse: collapse;">
+<table class="t138" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t137" style="border-collapse: collapse;"><p class="t136" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: normal;font-size: 17px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><span class="t135" style="margin:0;Margin:0;font-weight:700;font-style:italic;mso-line-height-rule:exactly;">Cancellation Policy</span></p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t141" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t146" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t145" style="width: 636px;border-collapse: collapse;">
+<table class="t144" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t143" style="border-collapse: collapse;"><p class="t142" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours: return trip will be refunded in full; arrival trip will receive a 50% credit.</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t147" style="mso-line-height-rule:exactly;mso-line-height-alt:20px;line-height:20px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
 
-        .info-text strong {
-            font-weight: 600;
-        }
+<!-- Need to make a change -->
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t140" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t139" style="width: 600px;border-collapse: collapse;">
+<table class="t138" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t137" style="border-collapse: collapse;"><p class="t136" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: normal;font-size: 17px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><span class="t135" style="margin:0;Margin:0;font-weight:700;font-style:italic;mso-line-height-rule:exactly;">Need to make a change or book another trip?</span></p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t141" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t146" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t145" style="width: 636px;border-collapse: collapse;">
+<table class="t144" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t143" style="border-collapse: collapse;"><p class="t142" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 400;font-style: normal;font-size: 14px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 2px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Please Call us anytime at (407) 212-7190 or email reservations@graysontowncar.com</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t147" style="mso-line-height-rule:exactly;mso-line-height-alt:40px;line-height:40px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr>
 
-        /* Status colors */
-        .status-paid {
-            color: #27ae60;
-            font-weight: 600;
-        }
-
-        .status-unpaid {
-            color: #e74c3c;
-            font-weight: 600;
-        }
-
-        .status-pending {
-            color: #f39c12;
-            font-weight: 600;
-        }
-
-        .status-saved {
-            color: #3498db;
-            font-weight: 600;
-        }
-
-        /* Itinerary leg */
-        .itinerary-leg {
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px dashed #e0e0e0;
-        }
-
-        .itinerary-leg:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-
-        /* List styling */
-        ul {
-            padding-left: 20px;
-            margin: 10px 0;
-        }
-
-        li {
-            margin-bottom: 8px;
-        }
-
-        /* Links */
-        a {
-            color: #2980b9;
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            color: #666666;
-            padding: 25px;
-            border-top: 1px solid #e0e0e0;
-            font-size: 15px;
-        }
-
-        .footer p {
-            margin-bottom: 10px;
-        }
-
-        /* Contact icons */
-        .contact-icon {
-            font-size: 18px;
-            margin-right: 5px;
-        }
-
-        /* Responsive styles */
-        @media only screen and (max-width: 600px) {
-            .email-container {
-                width: 100% !important;
-            }
-
-            .content {
-                padding: 20px !important;
-            }
-
-            .info-section {
-                padding: 15px !important;
-            }
-
-            .header-title {
-                font-size: 24px !important;
-            }
-
-            .section-title {
-                font-size: 18px !important;
-            }
-
-            .info-text {
-                font-size: 15px !important;
-            }
-        }
-    </style>
-  </head>
-  <body>
-    <div class="email-container">
-      <!-- Header -->
-      <div class="header">
-        <img src="https://i.postimg.cc/tJmrm93v/grayson-Email-Signature-1.png"
-             alt="Grayson Towncar Logo"
-             class="header-logo" />
-        <h1 class="header-title">Reservation Confirmation</h1>
-      </div>
-
-      <!-- Content -->
-      <div class="content">
-        <p class="greeting">Hello {{ reservation.customer.first_name }},</p>
-
-        <p class="info-text" style="margin-bottom: 25px;">
-          Thank you for choosing Grayson Towncar. Your reservation has been successfully booked. Below you'll find all the important details.
-        </p>
-
-        <!-- Reservation Details -->
-        <div class="info-section">
-          <h2 class="section-title">Reservation Details</h2>
-          <p class="info-text">
-            <strong>Reservation ID:</strong> 43{{ reservation.id }}
-          </p>
-          <p class="info-text">
-            <strong>Booking Date:</strong> {{ date|date:'F j, Y' }}
-          </p>
-          <p class="info-text">
-            <strong>Reservation Status:</strong>
-            <span class="{% if reservation.status == 'Confirmed' %}   status-paid   {% else %}   status-pending   {% endif %}">
-              {{ reservation.status }}
-            </span>
-          </p>
-          <p class="info-text">
-            <strong>Payment Status:</strong>
-            {% for payment in reservation.payments.all %}
-              <span class=" {% if payment.status == 'paid' %}   status-paid    {% elif payment.status == 'save_card' %}   status-saved    {% else %}   status-pending   {% endif %}">
-                {{ payment.status|format_status }}
-              </span>
-              {% if not forloop.last %},{% endif %}
-            {% endfor %}
-          </p>
-          <p class="info-text">
-            <strong>Total Price:</strong> ${{ reservation.total_price }}
-          </p>
-          <p class="info-text" style="font-style: italic; color: #666;">(Includes all taxes and fees)</p>
-        </div>
-
-        <!-- Guest Information -->
-        <div class="info-section">
-          <h2 class="section-title">Guest Information</h2>
-          <p class="info-text">
-            <strong>Name:</strong> {{ reservation.customer.get_full_name }}
-          </p>
-          <p class="info-text">
-            <strong>Email:</strong> {{ reservation.customer.email }}
-          </p>
-          <p class="info-text">
-            <strong>Phone:</strong> {{ reservation.customer.phone_number }}
-          </p>
-        </div>
-
-        <!-- Trip Itinerary -->
-        <div class="info-section">
-          <h2 class="section-title">Trip Itinerary</h2>
-          {% for leg in reservation.legs.all %}
-            <div class="itinerary-leg">
-              <p class="info-text">
-                <strong>Leg {{ forloop.counter }}:</strong>
-              </p>
-              <p class="info-text">
-                <strong>Date:</strong> {{ leg.pickup_date|date:'F j, Y' }}
-              </p>
-              <p class="info-text">
-                <strong>Time:</strong> {{ leg.pickup_time|time:'g:i A' }}
-              </p>
-              <p class="info-text">
-                <strong>From:</strong> {{ leg.pickup_location }}
-              </p>
-              <p class="info-text">
-                <strong>To:</strong> {{ leg.dropoff_location }}
-              </p>
-              {% if leg.flight_information %}
-                <p class="info-text">
-                  <strong>Flight Info:</strong> {{ leg.flight_information }}
-                </p>
-              {% endif %}
-            </div>
-          {% endfor %}
-        </div>
-
-        <!-- Pickup Instructions -->
-        <div class="info-section">
-          <h2 class="section-title">Airport Pickup Instructions</h2>
-          <p class="info-text">
-            Our drivers monitor your flight's arrival time to stay updated on delays or early landings. Once your plane lands, your chauffeur will send you a text message to confirm their presence and guide you. They will then meet you inside the baggage claim area holding a sign with your name.
-          </p>
-        </div>
-
-        <!-- Gratuity -->
-        <div class="info-section">
-          <h2 class="section-title">Gratuity</h2>
-          <p class="info-text">
-            Gratuity is not included in the total price. We kindly recommend a 20% tip for your professional driver, which can be given in cash or added upon request.
-          </p>
-        </div>
-
-        <!-- Cancellation Policy -->
-        <div class="info-section">
-          <h2 class="section-title">Cancellation Policy</h2>
-          <p class="info-text">
-            We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours:
-          </p>
-          <ul>
-            <li class="info-text">Return trip will be refunded in full</li>
-            <li class="info-text">Arrival trip will receive a 50% credit</li>
-          </ul>
-        </div>
-
-        <!-- Contact Information -->
-        <div class="info-section">
-          <h2 class="section-title">Contact Us</h2>
-          <p class="info-text">Questions or need to make changes? Just reply to this email or contact us directly:</p>
-          <p class="info-text">
-            <span class="contact-icon">📧</span> <a href="mailto:reservations@graysontowncar.com">reservations@graysontowncar.com</a>
-          </p>
-          <p class="info-text">
-            <span class="contact-icon">☎️</span> (407) 212-7190
-          </p>
-          <p class="info-text">
-            <span class="contact-icon">🌐</span> <a href="https://www.graysontowncar.com">www.graysontowncar.com</a>
-          </p>
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-          <p>© Grayson Towncar. All rights reserved.</p>
-          <p>We look forward to welcoming you aboard. Thank you for letting us be part of your journey.</p>
-        </div>
-      </div>
-    </div>
-  </body>
+<!-- Company Info -->
+<tr><td align="center" style="border-collapse: collapse;">
+<table class="t152" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t151" style="width: 636px;border-collapse: collapse;">
+<table class="t150" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t149" style="border-collapse: collapse;"><p class="t148" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: italic;font-size: 18px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Grayson Towncar Orlando</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t153" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t158" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t157" style="width: 636px;border-collapse: collapse;">
+<table class="t156" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t155" style="border-collapse: collapse;"><p class="t154" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: italic;font-size: 18px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Phone: 407-370-2196</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t159" style="mso-line-height-rule:exactly;mso-line-height-alt:3px;line-height:3px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t164" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t163" style="width: 636px;border-collapse: collapse;">
+<table class="t162" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t161" style="border-collapse: collapse;"><p class="t160" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 21px;font-weight: 700;font-style: italic;font-size: 18px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: left;mso-line-height-rule: exactly;mso-text-raise: 1px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Email: reservations@graysontowncar.com&nbsp;</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td style="border-collapse: collapse;"><div class="t165" style="mso-line-height-rule:exactly;mso-line-height-alt:9px;line-height:9px;font-size:1px;display:block;">&nbsp;&nbsp;</div></td></tr></table></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t195" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="600" class="t194" style="background-color: #242424;width: 600px;border-collapse: collapse;">
+<table class="t193" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t192" style="padding: 48px 50px 48px 50px;border-collapse: collapse;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width: 100% !important;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td align="center" style="border-collapse: collapse;">
+<table class="t175" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t174" style="width: 600px;border-collapse: collapse;">
+<table class="t173" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t172" style="border-collapse: collapse;"><p class="t171" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 22px;font-weight: 400;font-style: normal;font-size: 12px;text-decoration: none;text-transform: none;direction: ltr;color: #888888;text-align: center;mso-line-height-rule: exactly;mso-text-raise: 3px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Cancellation Policy: Cancellations must be made at least 48 hours prior for a refund to be issued on All Pick-Ups.</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t180" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t179" style="width: 600px;border-collapse: collapse;">
+<table class="t178" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t177" style="border-collapse: collapse;"><p class="t176" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 22px;font-weight: 400;font-style: normal;font-size: 12px;text-decoration: none;text-transform: none;direction: ltr;color: #888888;text-align: center;mso-line-height-rule: exactly;mso-text-raise: 3px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">© 2024 Grayson Towncar. All rights reserved.</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t185" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t184" style="width: 600px;border-collapse: collapse;">
+<table class="t183" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t182" style="border-collapse: collapse;"><p class="t181" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 22px;font-weight: 400;font-style: normal;font-size: 12px;text-decoration: none;text-transform: none;direction: ltr;color: #888888;text-align: center;mso-line-height-rule: exactly;mso-text-raise: 3px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;">Contact Us | 407-212-7190</p></td></tr></table>
+</td></tr></table>
+</td></tr><tr><td align="center" style="border-collapse: collapse;">
+<table class="t191" role="presentation" cellpadding="0" cellspacing="0" style="margin-left: auto;margin-right: auto;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td width="500" class="t190" style="width: 600px;border-collapse: collapse;">
+<table class="t189" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="width: 100%;border-collapse: separate;table-layout: fixed;mso-table-lspace: 0pt;mso-table-rspace: 0pt;"><tr><td class="t188" style="border-collapse: collapse;"><p class="t187" style="margin: 0;font-family: Fira Sans,BlinkMacSystemFont,Segoe UI,Helvetica Neue,Arial,sans-serif;line-height: 22px;font-weight: 400;font-style: normal;font-size: 12px;text-decoration: none;text-transform: none;direction: ltr;color: #555555;text-align: center;mso-line-height-rule: exactly;mso-text-raise: 3px;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;overflow-wrap: normal;white-space: normal;word-break: break-word;border: 0;padding: 0;min-width: 100%!important;width: 100%!important;max-width: 100%!important;display: inline-block!important;"><a class="t186" href="https://www.graysontowncar.com" style="margin: 0;font-weight: 700;font-style: normal;text-decoration: none;direction: ltr;color: #555555;mso-line-height-rule: exactly;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%;line-height: inherit;overflow-wrap: normal;white-space: normal;word-break: break-word;" target="_blank">www.graysontowncar.com</a></p></td></tr></table>
+</td></tr></table>
+</td></tr></table></td></tr></table>
+</td></tr></table>
+</td></tr></table></td></tr></table></div><div class="gmail-fix" style="display: none; white-space: nowrap; font: 15px courier; line-height: 0;">&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</div></body>
 </html>

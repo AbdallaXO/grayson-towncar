@@ -12,7 +12,7 @@ from .utils import (
     validate_forms,
     AIRLINES,
 )
-
+from users.emails import send_reservation_confirmation
 # Create your views here.
 
 

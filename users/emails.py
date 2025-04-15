@@ -16,7 +16,7 @@ def send_reservation_confirmation(reservation):
             "legs": reservation.legs.all(),
             "date": timezone.now().date(),
         }
-        subject = f"Hello {reservation.customer.first_name}, Your Grayson Towncar Reservation is Confirmed"
+        subject = f"Grayson Towncar Reservation Confirmed"
         from_email = "reservations@graysontowncar.com"
         to = [reservation.customer.email]
 

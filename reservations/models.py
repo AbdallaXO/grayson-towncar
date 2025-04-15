@@ -150,10 +150,9 @@ class Flight(models.Model):
     Stores specific flight details, including airline, flight number, date, and time.
     Ties into a Leg model via a OneToOneField.
     """
-
-    flight_type = models.CharField(max_length=10, choices=FLIGHT_TYPE_CHOICES)
-    airline = models.CharField(max_length=50)
-    flight_number = models.CharField(max_length=50)
+    flight_type = models.CharField(max_length=10, choices=FLIGHT_TYPE_CHOICES, blank=True)
+    airline = models.CharField(max_length=50, blank=True)
+    flight_number = models.CharField(max_length=50, blank=True)
 
     def __str__(self):
         """
