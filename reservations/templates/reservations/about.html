@@ -9,11 +9,11 @@
   {% structured_data additional_data=structured_data %}
   <main class="flex-shrink-0">
     <!-- Hero Section - Modernized with Parallax -->
-    <header class="position-relative text-white overflow-hidden vh-100 d-flex align-items-center">
-      <!-- Parallax background -->
-      <div class="position-absolute top-0 start-0 w-100 h-100 parallax-hero"
-           style="background-image: url('{% static 'images/about-us-hero.webp' %}');
-                  z-index: 0"></div>
+    <header class="position-relative text-white text-center overflow-hidden vh-100 d-flex align-items-center">
+      <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: url('{% static 'images/about-us-hero.webp' %}');
+               background-size: cover;
+               background-position: center;
+               z-index: 0"></div>
 
       <!-- Enhanced gradient overlay -->
       <div class="position-absolute top-0 start-0 w-100 h-100 hero-overlay"
@@ -26,17 +26,14 @@
             <p class="lead fs-4 mb-4">Experience Orlando with the transportation service families trust</p>
             <div class="d-flex justify-content-center gap-3">
               <a href="#our-story"
-                 class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">Discover Our Story</a>
+                 class="btn btn-warning btn-md px-4 py-2 rounded-pill shadow fw-bold">Discover Our Story</a>
               <a href="{% url 'contact' %}"
-                 class="btn btn-outline-light btn-lg px-4 py-2 rounded-pill">Contact Us</a>
+                 class="btn btn-outline-light btn-md px-4 py-2 rounded-pill">Contact Us</a>
             </div>
 
             <!-- Mouse scroll indicator -->
             <div class="position-absolute start-50 bottom-0 translate-middle-x mb-5 d-none d-md-block">
               <div class="mouse-scroll">
-                <a href="#our-story" class="text-white">
-                  <i class="bi bi-chevron-double-down fs-4 animate__animated animate__bounce animate__infinite"></i>
-                </a>
               </div>
             </div>
           </div>
@@ -51,7 +48,7 @@
         <div class="row mb-5">
           <div class="col-lg-8 mx-auto text-center section-header">
             <span class="badge bg-warning text-dark mb-3 px-3 py-2 rounded-pill fs-6">Our Journey</span>
-            <h2 class="display-4 fw-bold mb-3">The Grayson Story</h2>
+            <h2 class="display-4 fw-normal mb-3">The Grayson Story</h2>
             <p class="lead text-muted mb-4">More than a ride — it's a Grayson experience</p>
             <div class="golden-line mb-4"></div>
           </div>
@@ -162,7 +159,7 @@
         <div class="row mb-5">
           <div class="col-lg-8 mx-auto text-center section-header">
             <span class="badge bg-warning text-dark mb-3 px-3 py-2 rounded-pill fs-6">Why Choose Us</span>
-            <h2 class="display-4 fw-bold mb-3">The Grayson Difference</h2>
+            <h2 class="display-4 fw-normal mb-3">The Grayson Difference</h2>
             <p class="lead text-muted mb-4">How we turn transportation into an experience worth remembering</p>
             <div class="golden-line mb-4"></div>
           </div>
@@ -328,7 +325,7 @@
         <div class="row mb-5">
           <div class="col-lg-8 mx-auto text-center section-header">
             <span class="badge bg-warning text-dark mb-3 px-3 py-2 rounded-pill fs-6">Our Expertise</span>
-            <h2 class="display-4 fw-bold mb-3">Orlando Journey Map</h2>
+            <h2 class="display-4 fw-normal mb-3">Orlando Journey Map</h2>
             <p class="lead text-muted mb-4">The destinations that shaped our expertise</p>
             <div class="golden-line mb-4"></div>
           </div>
@@ -465,7 +462,7 @@
         <div class="row mb-5">
           <div class="col-lg-8 mx-auto text-center section-header">
             <span class="badge bg-warning text-dark mb-3 px-3 py-2 rounded-pill fs-6">Guest Experiences</span>
-            <h2 class="display-4 fw-bold mb-3">Our Commitment to You</h2>
+            <h2 class="display-4 fw-normal mb-3">Our Commitment to You</h2>
             <p class="lead text-muted mb-4">More than promises—real experiences from real families</p>
             <div class="golden-line mb-4"></div>
           </div>
@@ -485,7 +482,9 @@
                   <i class="bi bi-star-fill text-warning"></i>
                 </div>
                 <p class="fst-italic mb-4">
-                  "Having complimentary car seats made such a difference for our family. One less thing to worry about! Our driver was professional and incredibly kind to our children."
+                  "Grayson Towncar really impressed us. The booking process was smooth, the car was immaculate, 
+                  and our driver struck the perfect balance of laid-back and professional. My family felt like 
+                  VIPs—minus the fuss. Our Orlando travel just got a serious upgrade. We’ll absolutely be riding with them again."
                 </p>
                 <div class="d-flex align-items-center">
                   <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
@@ -494,7 +493,7 @@
                     <i class="bi bi-person-fill fs-5"></i>
                   </div>
                   <div>
-                    <p class="fw-bold mb-0">The Rodriguez Family</p>
+                    <p class="fw-bold mb-0">Arshad Family</p>
                     <p class="small text-muted mb-0">Disney Vacation</p>
                   </div>
                 </div>
@@ -514,7 +513,8 @@
                   <i class="bi bi-star-fill text-warning"></i>
                 </div>
                 <p class="fst-italic mb-4">
-                  "Our cruise ship was delayed, but Grayson monitored everything and adjusted our pickup time without us having to worry. Truly remarkable service!"
+                  "Ab checked in with us personally, which really stood out. It’s rare to see that level of care. It felt like being looked after by family. 
+                  Our kids were so excited for their first cruise and the ride to Port Canaveral was a breeze. Thank you Grayson Towncar!!"
                 </p>
                 <div class="d-flex align-items-center">
                   <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
@@ -523,7 +523,7 @@
                     <i class="bi bi-person-fill fs-5"></i>
                   </div>
                   <div>
-                    <p class="fw-bold mb-0">Jennifer & Mark</p>
+                    <p class="fw-bold mb-0">Alvarez Family</p>
                     <p class="small text-muted mb-0">Port Canaveral Transfer</p>
                   </div>
                 </div>
@@ -543,7 +543,10 @@
                   <i class="bi bi-star-fill text-warning"></i>
                 </div>
                 <p class="fst-italic mb-4">
-                  "The grocery stop on our way to the resort was incredibly helpful. Our driver helped with our luggage and got us settled quickly. Outstanding service!"
+                  "Rayyan kept in touch the whole way, making sure we were comfortable and everything was on time. As a parent traveling with my family, 
+                  I appreciated the child seat accommodation they provided and the comfort of the vehicles we rode in. 
+                  Their flight tracking was very valuable, taking a weight off our shoulders when we found out one of our fights was delayed. 
+                  The drivers we had were professional, courteous, and made us feel safe every trip. They truly are a company that keep their word. Thank you!! Will be using your service again."
                 </p>
                 <div class="d-flex align-items-center">
                   <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
@@ -552,7 +555,7 @@
                     <i class="bi bi-person-fill fs-5"></i>
                   </div>
                   <div>
-                    <p class="fw-bold mb-0">The Willson Family</p>
+                    <p class="fw-bold mb-0">Michele & Family</p>
                     <p class="small text-muted mb-0">Airport to Resort Transfer</p>
                   </div>
                 </div>
@@ -673,7 +676,7 @@
         <div class="row mb-5">
           <div class="col-lg-8 mx-auto text-center section-header">
             <span class="badge bg-warning text-dark mb-3 px-3 py-2 rounded-pill fs-6">Travel Professionals</span>
-            <h2 class="display-4 fw-bold mb-3">Partner With Grayson</h2>
+            <h2 class="display-4 fw-normal mb-3">Partner With Grayson</h2>
             <p class="lead text-muted mb-4">Elevate your clients' Orlando experience with our premium transportation service</p>
             <div class="golden-line mb-4"></div>
           </div>
@@ -817,7 +820,7 @@
       <div class="container px-4 text-center">
         <div class="row justify-content-center">
           <div class="col-lg-8">
-            <h2 class="fw-bold mb-4">Ready to Experience the Grayson Difference?</h2>
+            <h2 class="fw-normal mb-4">Ready to Experience the Grayson Difference?</h2>
             <p class="mb-4">
               Your Orlando transportation should be as memorable as your vacation itself. Book with Grayson Towncar and discover the difference that care, expertise, and attention to detail can make.
             </p>
