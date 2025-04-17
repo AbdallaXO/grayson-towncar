@@ -99,12 +99,12 @@ class Reservation(models.Model):
         if not self.need_carseats:
             return None
         if self.rf_carseats:
-            carseats.append(f"{self.rf_carseats} Rear Facing")
+            carseats.append(f"{self.rf_carseats} Rear-Facing")
         if self.ff_carseats:
             carseats.append(f"{self.ff_carseats} Forward-Facing")
         if self.booster_seats:
             carseats.append(f"{self.booster_seats} Booster")
-        return "".join(carseats) if carseats else None
+        return ", ".join(carseats) if carseats else None
 
     def __str__(self):
         """
