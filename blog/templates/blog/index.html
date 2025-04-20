@@ -19,7 +19,7 @@
                 <div class="p-4 p-md-5">
                   <div class="badge bg-primary bg-gradient rounded-pill mb-2">Latest Post</div>
                   <h2 class="h3 fw-bolder">{{ latest_post.title|title }}</h2>
-                  <p>{{ latest_post.content|truncatewords:15 }}...</p>
+                  <p>{{ latest_post.content|safe|truncatewords:15 }}...</p>
                   <a class="stretched-link text-decoration-none"
                      href="{% url "blog-post" latest_post.slug %}">
                     Read more
