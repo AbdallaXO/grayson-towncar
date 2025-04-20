@@ -87,15 +87,40 @@
 
     /* Mobile responsiveness enhancements */
     @media (max-width: 768px) {
-        .display-4 {
-            font-size: 2.5rem;
-        }
-
-        .lead {
-            font-size: 1.1rem;
-        }
-    }
-
+      .display-4 {
+          font-size: 2.5rem;
+      }
+  
+      .lead {
+          font-size: 1.1rem;
+      }
+      
+      .parallax-hero {
+          background-attachment: scroll;
+          background-position: center center;
+      }
+      
+      /* Fix for gallery images on mobile */
+      .about-card.h-100 {
+          height: auto !important;
+          max-height: 250px;
+      }
+      
+      .img-fluid.about-card {
+          margin-bottom: 10px;
+      }
+      
+      /* Make buttons smaller on mobile */
+      .btn-lg {
+          font-size: 0.9rem;
+          padding: 0.375rem 1rem !important;
+      }
+      
+      /* Adjust button spacing */
+      .gap-3 {
+          gap: 0.5rem !important;
+      }
+  }
     .testimonial-card {
         border-radius: 10px;
         overflow: hidden;

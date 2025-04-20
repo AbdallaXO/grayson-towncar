@@ -88,6 +88,7 @@ class Reservation(models.Model):
             models.Index(fields=["rate"]),
             models.Index(fields=["uuid"]),
         ]
+        
 
     def save(self, *args, **kwargs):
         self.total_price = self.base_price
@@ -120,7 +121,7 @@ class Leg(models.Model):
     For example, a single pickup/dropoff or a one-way airport transfer.
     Multiple legs can be tied to a single Reservation.
     """
-
+    
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
     )
