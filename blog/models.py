@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.text import slugify
+from ckeditor.fields import RichTextField
 
 
 # Create your models here.
@@ -10,7 +11,7 @@ class Blog(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField(unique=True, blank=True, null=True, db_index=True)
     image = models.ImageField(upload_to="blog/")
-    content = models.TextField()
+    content = RichTextField()
 
     def save(self, *args, **kwargs):
         if not self.slug:

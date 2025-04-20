@@ -66,6 +66,8 @@ THIRD_PARTY_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     "storages",
+    'ckeditor',
+
 ]
 
 if DEBUG:
@@ -78,6 +80,7 @@ OUR_APPS = [
     "services",
     "blog",
     "payment",
+    "drivers",
 ]
 
 # After DEbuyg toolbar

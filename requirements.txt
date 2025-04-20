@@ -33,3 +33,4 @@ django-compressor
 boto3
 django-storages
 dj-database-url
+django-ckeditor
