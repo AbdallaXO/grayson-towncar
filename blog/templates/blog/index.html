@@ -108,7 +108,7 @@
                    href="{% url 'blog-post' blog.slug %}">
                   <h3 class="h5 card-title mb-3">{{ blog.title }}</h3>
                 </a>
-                <p class="card-text mb-0">{{ blog.content|truncatewords:10 }}</p>
+                <p class="card-text mb-0">{{ blog.content|safe|truncatewords:20 }}</p>
               </div>
               <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
                 <div class="d-flex align-items-end justify-content-between">
