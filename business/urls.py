@@ -28,7 +28,7 @@ urlpatterns = [
     path("rates-booking/", include("rates.urls")),
     path("blog/", include("blog.urls")),
     path("payment/", include("payment.urls")),
-    path("drivers/", include('drivers.urls'))
+    path("drivers/", include("drivers.urls")),
 ]
 
 if settings.DEBUG:

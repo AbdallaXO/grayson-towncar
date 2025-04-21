@@ -66,8 +66,7 @@ THIRD_PARTY_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     "storages",
-    'ckeditor',
-
+    "ckeditor",
 ]
 
 if DEBUG:
@@ -239,7 +238,6 @@ STORAGES = {
         },
     },
     "staticfiles": {
-               "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }

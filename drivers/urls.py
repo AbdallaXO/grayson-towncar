@@ -1,6 +1,4 @@
 from django.urls import path, include
 from . import views
 
-urlpatterns = [
-    path('', views.index, name='driver-home')
-]
+urlpatterns = [path("", views.index, name="driver-home")]

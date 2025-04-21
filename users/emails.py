@@ -10,24 +10,35 @@ def send_reservation_confirmation(reservation):
     """This Reservation is Called in the View
     When a Reservation is created with the reservation Object
     Renders a nicely formatted HTML and emails a Confirmation"""
+    logger.info(f"Preparing to send reservation confirmation for {reservation.uuid}")
+
     try:
         context = {
             "reservation": reservation,
             "legs": reservation.legs.all(),
             "date": timezone.now().date(),
         }
-        subject = f"Grayson Towncar Reservation Confirmed"
+
+        subject = "Thank you for booking with Grayson Towncar!"
         from_email = "reservations@graysontowncar.com"
         to = [reservation.customer.email]
-
-        # Skip the .txt file for now
+        logger.info(f"Email subject: {subject}")
+        logger.info(f"Sending to: {to}")
         html_content = render_to_string("users/confirmation_email.html", context)
+        logger.info("HTML content rendered successfully")
 
         msg = EmailMultiAlternatives(subject, "", from_email, to)
         msg.attach_alternative(html_content, "text/html")
         msg.send()
+
+        logger.info(
+            f"Confirmation email sent successfully for reservation {reservation.uuid}"
+        )
+
     except Exception as e:
-        logger.error(f"Error sending confirmation email: {e}")
+        logger.exception(
+            f"Error sending confirmation email for reservation {reservation.uuid}: {e}"
+        )
 
 
 def thankyou_email(instance):
