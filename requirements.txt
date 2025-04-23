@@ -35,4 +35,4 @@ django-storages
 dj-database-url
 django-ckeditor
 django-scheduler
-jazzmin
+django-jazzmin
