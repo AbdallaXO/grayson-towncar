@@ -165,11 +165,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "America/New_York"
 
-USE_I18N = True
-
-USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -242,3 +238,15 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
+DATE_FORMAT = 'Y-m-d'
+TIME_FORMAT = 'g:i A'  # 12-hour format with AM/PM
+DATETIME_FORMAT = 'Y-m-d g:i A'
+SHORT_DATE_FORMAT = 'm/d/Y'
+SHORT_DATETIME_FORMAT = 'm/d/Y g:i A'
+TIME_ZONE = "America/New_York"
+USE_I18N = False
+USE_TZ = True
+USE_L10N = False
+ADMIN_DATETIME_FORMAT = 'g:i A' 
+ADMIN_DATE_FORMAT = 'm/d/Y'      # 
+ADMIN_TIME_FORMAT = 'g:i A'
