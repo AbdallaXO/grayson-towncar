@@ -110,6 +110,7 @@ def handle_checkout_session(session):
                     payment.payment_type = "pay_now"  
                     payment.amount = final_amount
                     reservation.status = "Confirmed"  
+                    reservation.base_price = final_amount
                     reservation.total_price = final_amount
                     with transaction.atomic():
                         payment.save()  
