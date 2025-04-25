@@ -1,0 +1,644 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}
+  Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog
+{% endblock title %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
+  <!-- Additional SEO Meta Tags -->
+  <meta property="og:title"
+        content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
+  <meta property="og:description"
+        content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ request.build_absolute_uri }}" />
+  {% if latest_post and latest_post.image %}
+    <meta property="og:image"
+          content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}" />
+  {% endif %}
+  <!-- Twitter Card data -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title"
+        content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog">
+  <meta name="twitter:description"
+        content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation.">
+  {% if latest_post and latest_post.image %}
+    <meta name="twitter:image"
+          content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}">
+  {% endif %}
+  <!-- Structured Data for Blog -->
+  <script type="application/ld+json">
+      {
+          "@context": "https://schema.org",
+          "@type": "Blog",
+          "name": "Grayson Towncar Blog",
+          "description": "Expert travel tips and guides for Orlando visitors",
+          "url": "{{ request.build_absolute_uri }}",
+          "publisher": {
+              "@type": "Organization",
+              "name": "Grayson Towncar",
+              "logo": {
+                  "@type": "ImageObject",
+                  "url": "{{ request.build_absolute_uri }}{% static 'images/logo.png' %}"
+              }
+          }
+      }
+  </script>
+{% endblock meta_description %}
+
+{% block extra_css %}
+  <style>
+      /* Enhanced Modern Blog Styles */
+      .blog-card {
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          border-radius: 12px;
+          overflow: hidden;
+          height: 100%;
+          animation: fadeIn 0.8s ease-out;
+      }
+
+      @keyframes fadeIn {
+          from {
+              opacity: 0;
+              transform: translateY(10px);
+          }
+
+          to {
+              opacity: 1;
+              transform: translateY(0);
+          }
+      }
+
+      .blog-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .card-img-wrapper {
+          position: relative;
+          overflow: hidden;
+          padding-top: 66.67%;
+          /* 3:2 Aspect Ratio */
+      }
+
+      .card-img-wrapper img {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s ease;
+      }
+
+      .blog-card:hover .card-img-wrapper img {
+          transform: scale(1.05);
+      }
+
+      .blog-card .card-body {
+          padding: 1.5rem;
+      }
+
+      .blog-card .card-title {
+          font-weight: 700;
+          margin-bottom: 0.75rem;
+          line-height: 1.4;
+      }
+
+      .blog-card .card-text {
+          color: #6c757d;
+          margin-bottom: 1rem;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+      }
+
+      /* Enhanced Featured Post */
+      .featured-post-card {
+          border-radius: 15px;
+          overflow: hidden;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+          animation: fadeIn 1s ease-out;
+          animation-delay: 0.2s;
+          animation-fill-mode: both;
+      }
+
+      .featured-post-card:hover {
+          transform: translateY(-7px);
+          box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+      }
+
+      .featured-post-image {
+          position: relative;
+          overflow: hidden;
+          height: 100%;
+      }
+
+      .featured-post-image img {
+          object-fit: cover;
+          transition: transform 0.7s ease;
+          height: 100%;
+      }
+
+      .featured-post-card:hover .featured-post-image img {
+          transform: scale(1.03);
+      }
+
+      .blog-pagination .page-item .page-link {
+          color: #007bff;
+          border-radius: 50%;
+          margin: 0 5px;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+      }
+
+      .blog-pagination .page-item .page-link:hover {
+          background-color: #f0f7ff;
+          color: #0056b3;
+      }
+
+      .blog-pagination .page-item.active .page-link {
+          background-color: #007bff;
+          border-color: #007bff;
+          transform: scale(1.1);
+          box-shadow: 0 3px 6px rgba(0, 123, 255, 0.2);
+      }
+
+      .author-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid #fff;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .latest-badge {
+          position: absolute;
+          top: 15px;
+          left: 15px;
+          z-index: 3;
+          background-color: #fd7e14;
+          color: white;
+          padding: 0.5rem 1rem;
+          border-radius: 30px;
+          font-weight: 600;
+          font-size: 0.8rem;
+          letter-spacing: 0.5px;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+          animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+          0% {
+              transform: scale(1);
+          }
+
+          50% {
+              transform: scale(1.05);
+          }
+
+          100% {
+              transform: scale(1);
+          }
+      }
+
+      .blog-search {
+          position: relative;
+          margin-bottom: 2rem;
+          max-width: 600px;
+          margin-left: auto;
+          margin-right: auto;
+      }
+
+      .blog-search input {
+          border-radius: 30px;
+          padding-left: 20px;
+          padding-right: 50px;
+          height: 50px;
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          transition: all 0.3s ease;
+      }
+
+      .blog-search input:focus {
+          box-shadow: 0 5px 20px rgba(0, 123, 255, 0.15);
+          border-color: rgba(0, 123, 255, 0.3);
+      }
+
+      .blog-search button {
+          position: absolute;
+          right: 5px;
+          top: 5px;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.3s ease;
+      }
+
+      .blog-search button:hover {
+          background-color: #0056b3;
+          transform: scale(1.05);
+      }
+
+      .read-more-link {
+          font-weight: 600;
+          color: #007bff;
+          display: inline-flex;
+          align-items: center;
+          transition: all 0.2s ease;
+      }
+
+      .read-more-link i {
+          transition: transform 0.2s ease;
+          margin-left: 5px;
+      }
+
+      .read-more-link:hover {
+          color: #0056b3;
+      }
+
+      .read-more-link:hover i {
+          transform: translateX(5px);
+      }
+
+      .blog-hero {
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border-radius: 0 0 50px 50px;
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.03);
+      }
+
+      .blog-title {
+          position: relative;
+          display: inline-block;
+      }
+
+      .blog-title:after {
+          content: '';
+          position: absolute;
+          bottom: -10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 50px;
+          height: 3px;
+          background-color: #007bff;
+          border-radius: 3px;
+      }
+
+      .read-time {
+          font-size: 0.8rem;
+          padding: 0.2rem 0.6rem;
+          background-color: rgba(0, 123, 255, 0.1);
+          border-radius: 20px;
+          color: #007bff;
+          display: inline-flex;
+          align-items: center;
+      }
+
+      .read-time i {
+          margin-right: 3px;
+          font-size: 0.75rem;
+      }
+
+      /* Contact section enhancements */
+      .contact-card {
+          border-radius: 15px;
+          overflow: hidden;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .contact-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+      }
+
+      social-icons-wrapper {
+          margin-top: 1.5rem;
+      }
+
+      .social-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 45px;
+          height: 45px;
+          border-radius: 50%;
+          color: white;
+          font-size: 1.2rem;
+          transition: all 0.3s ease;
+          text-decoration: none;
+      }
+
+      .social-icon:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .social-icon.twitter {
+          background-color: #1DA1F2;
+      }
+
+      .social-icon.facebook {
+          background-color: #4267B2;
+      }
+
+      .social-icon.instagram {
+          background: linear-gradient(45deg, #405DE6, #5851DB, #833AB4, #C13584, #E1306C, #FD1D1D);
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 992px) {
+          .featured-post-card {
+              margin-bottom: 2rem;
+          }
+
+          .blog-card {
+              animation-delay: calc(0.1s * var(--card-index, 0));
+          }
+      }
+  </style>
+{% endblock extra_css %}
+
+{% block content %}
+  <!-- Hero Section (Enhanced) -->
+  <section class="py-5 blog-hero">
+    <div class="container px-4 px-lg-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <header class="text-center mb-5">
+            <h1 class="fw-bolder display-4 mb-4 blog-title">Grayson Towncar Blog</h1>
+            <p class="lead text-muted mb-4">
+              Expert travel tips, transportation guides, and insider advice for making the most of your Orlando vacation.
+            </p>
+
+            <!-- Blog Search -->
+            <div class="blog-search">
+              <form action="{% url 'blog-list' %}" method="get">
+                <div class="position-relative">
+                  <input type="text"
+                         name="search"
+                         class="form-control"
+                         placeholder="Search for travel tips, guides and more..."
+                         aria-label="Search blog">
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </header>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Post Section (Enhanced) -->
+  <section class="py-5">
+    <div class="container px-4 px-lg-5">
+      {% if latest_post %}
+        <div class="mb-5">
+          <div class="featured-post-card border-0">
+            <div class="row g-0">
+              <div class="col-lg-6 featured-post-image">
+                <img src="{{ latest_post.image.url }}"
+                     alt="{{ latest_post.title }}"
+                     class="img-fluid w-100"
+                     loading="lazy" />
+                <span class="latest-badge">Latest Post</span>
+              </div>
+              <div class="col-lg-6">
+                <div class="card-body p-4 p-lg-5">
+                  <h2 class="card-title h3 fw-bold">{{ latest_post.title|title }}</h2>
+
+                  <div class="d-flex align-items-center mb-3">
+                    <img src="{% static 'images/default-profile.png' %}"
+                         alt="{{ latest_post.user.first_name }}"
+                         class="me-2 author-avatar">
+                    <div class="small">
+                      <span class="fw-bold">{{ latest_post.user.first_name }}</span>
+                      <span class="text-muted mx-2">•</span>
+                      <time datetime="{{ latest_post.created|date:'Y-m-d' }}">{{ latest_post.created|date:'F j, Y' }}</time>
+                      {% if latest_post.estimated_read_time %}
+                        <span class="ms-2 read-time">
+                          <i class="bi bi-clock"></i> {{ latest_post.estimated_read_time }}min
+                        </span>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <p class="card-text">{{ latest_post.get_clean_preview }}</p>
+
+                  <a href="{% url 'blog-post' latest_post.slug %}"
+                     class="read-more-link text-decoration-none"
+                     aria-label="Read more about {{ latest_post.title }}">
+                    Continue Reading <i class="bi bi-arrow-right"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Blog Posts Grid (Enhanced) -->
+  <section class="py-5"
+           style="background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%)">
+    <div class="container px-4 px-lg-5">
+      <h2 class="fw-bolder mb-4">Featured Stories</h2>
+
+      <div class="row gx-4 gy-4">
+        {% for blog in blogs %}
+          <div class="col-lg-4 col-md-6" style="--card-index: {{ forloop.counter }}">
+            <div class="card blog-card h-100 border-0 shadow-sm">
+              <div class="card-img-wrapper">
+                <img src="{{ blog.image.url }}"
+                     alt="{{ blog.title }}"
+                     class="card-img-top"
+                     loading="lazy">
+              </div>
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <div class="d-flex align-items-center">
+                    <img src="{% static 'images/default-profile.png' %}"
+                         alt="{{ blog.user.first_name }}"
+                         class="me-2 author-avatar">
+                    <div class="small">
+                      <span class="fw-bold">{{ blog.user.first_name }}</span>
+                    </div>
+                  </div>
+                  <div class="small text-muted">
+                    <time datetime="{{ blog.created|date:'Y-m-d' }}">{{ blog.created|date:'F j, Y' }}</time>
+                  </div>
+                </div>
+
+                <h3 class="card-title h5">{{ blog.title }}</h3>
+                <p class="card-text">{{ blog.get_clean_preview }}</p>
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <a href="{% url 'blog-post' blog.slug %}"
+                     class="read-more-link text-decoration-none"
+                     aria-label="Read more about {{ blog.title }}">
+                    Read more <i class="bi bi-arrow-right"></i>
+                  </a>
+                  {% if blog.estimated_read_time %}
+                    <span class="read-time">
+                      <i class="bi bi-clock"></i> {{ blog.estimated_read_time }}min
+                    </span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Pagination (Enhanced) -->
+      {% if blogs.has_other_pages %}
+        <div class="mt-5 d-flex justify-content-center">
+          <nav aria-label="Blog pagination">
+            <ul class="pagination blog-pagination">
+              {% if blogs.has_previous %}
+                <li class="page-item">
+                  <a class="page-link"
+                     href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ blogs.previous_page_number }}"
+                     aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link" aria-hidden="true">&laquo;</span>
+                </li>
+              {% endif %}
+
+              {% for num in blogs.paginator.page_range %}
+                {% if blogs.number == num %}
+                  <li class="page-item active" aria-current="page">
+                    <span class="page-link">{{ num }}</span>
+                  </li>
+                {% elif num > blogs.number|add:'-3' and num < blogs.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link"
+                       href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ num }}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+
+              {% if blogs.has_next %}
+                <li class="page-item">
+                  <a class="page-link"
+                     href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ blogs.next_page_number }}"
+                     aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link" aria-hidden="true">&raquo;</span>
+                </li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Contact Section (Enhanced) -->
+  <section class="py-5">
+    <div class="container px-4 px-lg-5">
+      <div class="card contact-card border-0 shadow-sm">
+        <div class="card-body p-4 p-lg-5">
+          <div class="row justify-content-center">
+            <div class="col-lg-8 text-center">
+              <h3 class="fw-bold mb-3">Need Transportation in Orlando?</h3>
+              <p class="text-muted mb-4">
+                Let Grayson Towncar provide you with reliable, comfortable, and professional transportation services during your Orlando visit.
+              </p>
+
+              <div class="mb-4">
+                <a href="mailto:reservations@graysontowncar.com"
+                   class="btn btn-outline-primary me-2 mb-2 mb-md-0"
+                   aria-label="Email us">
+                  <i class="bi bi-envelope me-2"></i>reservations@graysontowncar.com
+                </a>
+                <a href="tel:4072127190"
+                   class="btn btn-outline-primary"
+                   aria-label="Call us">
+                  <i class="bi bi-telephone me-2"></i>(407) 212-7190
+                </a>
+              </div>
+
+              <!-- Social Media Links -->
+              <div class="social-icons-wrapper d-flex justify-content-center gap-3">
+                <a href="https://x.com/GraysonTowncar"
+                   target="_blank"
+                   class="social-icon twitter"
+                   aria-label="Follow us on Twitter">
+                  <i class="bi bi-twitter-x"></i>
+                </a>
+                <a href="https://www.facebook.com/profile.php?id=61574468855996"
+                   target="_blank"
+                   class="social-icon facebook"
+                   aria-label="Follow us on Facebook">
+                  <i class="bi bi-facebook"></i>
+                </a>
+                <a href="https://www.instagram.com/graysontowncar"
+                   target="_blank"
+                   class="social-icon instagram"
+                   aria-label="Follow us on Instagram">
+                  <i class="bi bi-instagram"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock content %}
+
+{% block extra_js %}
+  <script>
+      // Add lazy loading to images for better performance
+      document.addEventListener('DOMContentLoaded', function() {
+          // Set staggered animation delay for blog cards
+          const blogCards = document.querySelectorAll('.blog-card');
+          blogCards.forEach((card, index) => {
+              card.style.setProperty('--card-index', index);
+          });
+
+          // Enhance image loading
+          const lazyImages = document.querySelectorAll('img[loading="lazy"]');
+          if ('IntersectionObserver' in window) {
+              const imageObserver = new IntersectionObserver((entries, observer) => {
+                  entries.forEach(entry => {
+                      if (entry.isIntersecting) {
+                          const img = entry.target;
+                          img.src = img.dataset.src || img.src;
+                          imageObserver.unobserve(img);
+                      }
+                  });
+              });
+
+              lazyImages.forEach(img => {
+                  imageObserver.observe(img);
+              });
+          }
+      });
+  </script>
+{% endblock extra_js %}

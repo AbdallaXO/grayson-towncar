@@ -68,6 +68,7 @@ THIRD_PARTY_APPS = [
     "crispy_bootstrap5",
     "storages",
     "ckeditor",
+    "ckeditor_uploader",
 ]
 
 if DEBUG:
@@ -250,3 +251,45 @@ USE_L10N = False
 ADMIN_DATETIME_FORMAT = 'g:i A' 
 ADMIN_DATE_FORMAT = 'm/d/Y'      # 
 ADMIN_TIME_FORMAT = 'g:i A'
+
+CKEDITOR_UPLOAD_PATH = 'uploads/'
+CKEDITOR_JQUERY_URL = 'https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'
+
+CKEDITOR_CONFIGS = {
+    'default': {
+        'skin': 'moono-lisa',
+        'toolbar': 'full',
+        'height': 300,
+        'width': '100%',
+    },
+    'awesome_ckeditor': {
+        'toolbar': 'Custom',
+        'toolbar_Custom': [
+            ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript'],
+            ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', 'Blockquote'],
+            ['JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock'],
+            ['Link', 'Unlink', 'Anchor'],
+            ['Image', 'Table', 'HorizontalRule', 'SpecialChar', 'Iframe'],
+            ['Styles', 'Format', 'Font', 'FontSize'],
+            ['TextColor', 'BGColor'],
+            ['Maximize', 'ShowBlocks', 'Source']
+        ],
+        'filebrowserBrowseUrl': '/ckeditor/browse/',
+        'filebrowserUploadUrl': '/ckeditor/upload/',
+        'extraPlugins': ','.join([
+            'uploadimage',
+            'autolink',
+            'image2',
+            'autoembed',
+            'embedsemantic',
+            'autogrow',
+            'widget',
+            'lineutils',
+            'dialog',
+            'dialogui',
+            'elementspath'
+        ]),
+        'height': 400,
+        'width': '100%',
+    }
+}

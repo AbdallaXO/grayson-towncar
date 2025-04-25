@@ -36,3 +36,4 @@ dj-database-url
 django-ckeditor
 django-scheduler
 django-jazzmin
+django-ckeditor 
