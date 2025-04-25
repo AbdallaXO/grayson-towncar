@@ -18,7 +18,7 @@
 
     <div class="card shadow-sm mb-5">
       <div class="card-header bg-dark text-white">
-        <h4 class="mb-0">Reservation #491546 – Jane Smith</h4>
+        <h4 class="mb-0">Reservation ID: {{ reservation.id }} – Created At {{ reservation.created_at }}</h4>
       </div>
 
       <div class="card-body">
@@ -45,7 +45,7 @@
               <strong>Payment Status:</strong> <span class="badge bg-success">{{ reservation.payments.last.status|default:'N/A' }}</span>
             </p>
             <p>
-              <strong>Gratuity:</strong> Cash Tip
+              <strong>Private Comments:</strong> {{ reservation.private_notes|default:'' }}
             </p>
           </div>
         </div>
@@ -55,25 +55,28 @@
         {% for leg in reservation.legs.all %}
           <h5>Trip Details</h5>
 
-          <div class="card mb-3 border-primary">
-            <div class="card-header bg-primary text-white">Leg ({{ forloop.counter }}): Polynesian Resort → MCO - Terminal C</div>
+          <div class="card mb-3 border-dark">
+            <div class="card-header bg-dark text-white">Leg ({{ forloop.counter }}) Route: {{ reservation.rate.route }}</div>
             <div class="card-body">
               <div class="row">
                 <div class="col-md-4">
+                  <p>
+                    <strong>Pickup Date:</strong> {{ leg.pickup_date|date:'D, M, Y' }}
+                  </p>
+                  <p>
+                    <strong>Flight Info:</strong> {{ leg.flight_information }}
+                  </p>
+                  <p>
+                    <strong>Pickup Time:</strong> {{ leg.pickup_time|date:'g:i A' }}
+                  </p>
                   <p>
                     <strong>Pickup:</strong> {{ leg.pickup_location }}
                   </p>
                   <p>
                     <strong>Dropoff:</strong> {{ leg.dropoff_location }}
                   </p>
-                  <p>
-                    <strong>Pickup Time:</strong> {{ leg.pickup_time }}
-                  </p>
                 </div>
                 <div class="col-md-4">
-                  <p>
-                    <strong>Flight Info:</strong> {{ leg.flight_information }}
-                  </p>
                   <p>
                     <strong>Flight Type:</strong> N/A
                   </p>
@@ -121,4 +124,8 @@
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block footer %}
+
 {% endblock %}

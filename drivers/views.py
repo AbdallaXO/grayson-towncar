@@ -6,6 +6,4 @@ from .models import Driver
 # Create your views here.
 def index(request):
     driver = get_object_or_404(Driver, profile=request.user)
-    return HttpResponse(
-        f"Hello! {driver} {driver.legs.all().order_by('pickup_date').last().pickup_time}"
-    )
+    return HttpResponse('Hello')
