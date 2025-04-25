@@ -82,6 +82,7 @@ OUR_APPS = [
     "blog",
     "payment",
     "drivers",
+    "dispatching",
 ]
 
 # After DEbuyg toolbar

@@ -6,5 +6,4 @@ class ReservationsConfig(AppConfig):
     name = "reservations"
 
     def ready(self):
-        print("ReservationsConfig.ready() called!")
         import reservations.signals

@@ -1,0 +1,124 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+  <div class="container mt-3">
+    <div class="alert alert-light d-flex justify-content-between align-items-center border">
+      <div>
+        <strong>Logged in as:</strong> {{ request.user|title }}
+      </div>
+      <div class="text-muted">
+        <i class="bi bi-calendar3 me-2"></i>{% now 'l, F j, Y - g:i A' %}
+      </div>
+    </div>
+  </div>
+
+  <div class="container my-5">
+    <a href="{% url 'dispatcher_dashboard' %}" class="btn btn-outline-secondary mb-4">← Back to Dashboard</a>
+
+    <div class="card shadow-sm mb-5">
+      <div class="card-header bg-dark text-white">
+        <h4 class="mb-0">Reservation #491546 – Jane Smith</h4>
+      </div>
+
+      <div class="card-body">
+        <!-- Guest Information -->
+        <div class="row mb-4">
+          <div class="col-md-6">
+            <h5>Guest Information</h5>
+            <p>
+              <strong>Name:</strong> {{ reservation.customer.get_full_name }}
+            </p>
+            <p>
+              <strong>Phone:</strong> {{ reservation.customer.phone_number }}
+            </p>
+            <p>
+              <strong>Email:</strong> {{ reservation.customer.email }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <h5>Payment</h5>
+            <p>
+              <strong>Fare Total:</strong> $ {{ reservation.total_price|default:'Unpaid' }}
+            </p>
+            <p>
+              <strong>Payment Status:</strong> <span class="badge bg-success">{{ reservation.payments.last.status|default:'N/A' }}</span>
+            </p>
+            <p>
+              <strong>Gratuity:</strong> Cash Tip
+            </p>
+          </div>
+        </div>
+
+        <hr />
+
+        {% for leg in reservation.legs.all %}
+          <h5>Trip Details</h5>
+
+          <div class="card mb-3 border-primary">
+            <div class="card-header bg-primary text-white">Leg ({{ forloop.counter }}): Polynesian Resort → MCO - Terminal C</div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4">
+                  <p>
+                    <strong>Pickup:</strong> {{ leg.pickup_location }}
+                  </p>
+                  <p>
+                    <strong>Dropoff:</strong> {{ leg.dropoff_location }}
+                  </p>
+                  <p>
+                    <strong>Pickup Time:</strong> {{ leg.pickup_time }}
+                  </p>
+                </div>
+                <div class="col-md-4">
+                  <p>
+                    <strong>Flight Info:</strong> {{ leg.flight_information }}
+                  </p>
+                  <p>
+                    <strong>Flight Type:</strong> N/A
+                  </p>
+                </div>
+                <div class="col-md-4">
+                  <p>
+                    <strong>Vehicle:</strong> {{ reservation.vehicle }}
+                  </p>
+                  <p>
+                    <strong>Passengers:</strong> {{ reservation.passenger_count }}
+                  </p>
+                  <p>
+                    <strong>Car Seats:</strong> {{ reservation.display_carseats }}
+                  </p>
+                </div>
+              </div>
+              <div class="mt-3">
+                <label><strong>Assign Driver:</strong></label>
+                <select class="form-select w-auto d-inline-block">
+                  <option selected>John Doe</option>
+                  <option>Jane Doe</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+        <h5>Notes</h5>
+        <div class="row">
+          <div class="col-md-6">
+            <p>
+              <strong>Private Notes:</strong> {{ reservation.private_notes }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p>
+              <strong>Customer Notes:</strong> {{ reservation.special_requests }}
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <button class="btn btn-success me-2">Update Reservation</button>
+          <button class="btn btn-outline-danger">Cancel Reservation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

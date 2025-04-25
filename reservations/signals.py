@@ -12,7 +12,6 @@ def reservation_updated(sender, instance, created, **kwargs):
     Signal handler that sends email confirmation when a reservation is updated.
     Only sends email for updates, not for newly created reservations.
     """
-    print('test')
     if not created:  
         try:
             send_reservation_confirmation(instance)

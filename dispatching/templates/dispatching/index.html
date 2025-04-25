@@ -1,0 +1,75 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+  <div class="container my-5">
+    <h1 class="mb-4">Dispatcher Dashboard</h1>
+
+    <!-- Top controls -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <label for="legsCount" class="form-label me-2"># of Legs:</label>
+        <input type="text" class="form-control d-inline-block w-auto" value="67" readonly />
+      </div>
+      <div>
+        <input type="date" class="form-control d-inline-block w-auto me-2" value="2025-04-25" />
+        <button class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle text-nowrap">
+        <thead class="table-dark">
+          <tr>
+            <th>Reservation ID & Guest Details</th>
+            <th>P/U & Fare</th>
+            <th>Pickup - Drop off</th>
+            <th>Vehicle & Passengers</th>
+            <th>Comments</th>
+            <th>Driver & Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for leg in legs %}
+            <tr>
+              <td>
+                <strong><a href="{% url 'reservation_details' leg.reservation.uuid %}">{{ leg.reservation.id }}</a></strong><br />
+                {{ leg.reservation.customer.get_full_name }}<br />
+                {{ leg.reservation.customer.phone_number }}<br />
+                <small>{{ leg.reservation.customer.email }}</small>
+              </td>
+              <td>
+                <strong>{{ leg.pickup_date }} {{ leg.pickup_time }}</strong><br />
+                <span class="badge bg-secondary">$170 Paid</span>
+              </td>
+              <td>
+                <strong>P/U:</strong> {{ leg.pickup_location }}<br />
+                <strong>D/O:</strong> {{ leg.dropoff_location }}<br />
+                <strong>Flight:</strong> {{ leg.flight_information }}
+              </td>
+              <td>
+                {{ leg.reservation.vehicle }}<br />
+                Adults: {{ leg.reservation.passenger_count }}<br />
+                Kids: 2<br />
+                Car Seats: 1
+              </td>
+              <td>
+                <em>Private:</em><br />
+                Booked by Travel Agent<br />
+                <em>Customer:</em><br />
+                Will pay driver cash tip
+              </td>
+              <td>
+                <select class="form-select">
+                  <option selected>John Doe</option>
+                  <option>Jane Doe</option>
+                </select>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
