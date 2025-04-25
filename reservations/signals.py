@@ -14,7 +14,10 @@ def reservation_updated(sender, instance, created, **kwargs):
     """
     if not created:  
         try:
-            send_reservation_confirmation(instance)
-            logger.info(f"Confirmation email sent to {instance.customer.email} for updated reservation")
+            if hasattr(instance, 'private_notes') and instance.private_notes and 'email' in instance.private_notes.lower():
+                send_reservation_confirmation(instance)
+                logger.info(f"Confirmation email sent to {instance.customer.email} for updated reservation")
+            else:
+                logger.info(f"No email sent - 'email' marker not found in private notes")                             
         except Exception as e:
             logger.error(f"Failed to send confirmation email to {instance.customer.email}: {e}")
