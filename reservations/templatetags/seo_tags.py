@@ -5,7 +5,6 @@ import json
 
 register = template.Library()
 
-
 def get_base_structured_data(request, additional_data=None):
     """
     Generate base structured data with optional customization
@@ -95,15 +94,10 @@ def get_base_structured_data(request, additional_data=None):
             "Port Canaveral cruise transfers",
             "Multilingual service",
         ],
-        # Fixed the aggregateRating structure by adding itemReviewed
         "aggregateRating": {
             "@type": "AggregateRating",
-            "ratingValue": "4.8",
-            "reviewCount": "250",
-            "itemReviewed": {
-                "@type": "TransportService",
-                "name": "Grayson Towncar Orlando Airport Transportation"
-            }
+            "ratingValue": 4.8,  # <-- fixed: number, not string
+            "reviewCount": 250    # <-- fixed: number, not string
         },
         "potentialAction": {
             "@type": "ReserveAction",
@@ -160,7 +154,6 @@ def get_base_structured_data(request, additional_data=None):
 
     return base_data
 
-
 @register.simple_tag(takes_context=True)
 def structured_data(context, page_type="home", additional_data=None):
     """
@@ -168,6 +161,12 @@ def structured_data(context, page_type="home", additional_data=None):
     """
     request = context["request"]
     data = get_base_structured_data(request, additional_data)
+
+    # Add page-specific structured data enhancements
+    if page_type == "service":
+        pass
+    elif page_type == "location":
+        pass
 
     return mark_safe(f"""
     <script type="application/ld+json">

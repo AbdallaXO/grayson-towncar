@@ -1,21 +1,22 @@
 {% extends 'main.html' %}
+{% load seo_tags %}
 {% load static %}
+{% block head_extra %}
+<link rel="canonical" href="https://www.graysontowncar.com/services/" />
+{% endblock head_extra %}
 {% block title %}Our Services | Disney, Universal & Port Canaveral Rides | Grayson Towncar{% endblock %}
-
 {% block meta_description %}
 <meta name="description" content="Premium Orlando transportation services to Disney, Universal, and Port Canaveral with family-friendly options, car seats, and professional drivers.">
-<!-- Preload critical hero image -->
 <link rel="preload" href="{% static 'images/services-bg.webp' %}" as="image" type="image/webp">
 {% endblock %}
-
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
 {% endblock %}
-
 {% block content %}
-  <!-- Defer script loading -->
+{% block schema %}
+{% structured_data additional_data=structured_data %}
+{% endblock schema %}
   <script src="{% static 'js/area-selector.js' %}" defer></script>
-
   <!-- Modern Hero with Optimized Background -->
   <section class="position-relative overflow-hidden vh-100 d-flex align-items-center"
            id="hero">
@@ -46,11 +47,7 @@
       </div>
     </div>
   </section>
-
-
-  <!-- Value Comparison Section -->
-
-  <!-- Simplified Service Areas Section -->
+ <!-- Simplified Service Areas Section -->
   <section class="py-6" id="explore">
     <div class="container">
       <div class="row align-items-center">
@@ -990,11 +987,8 @@
     </div>
   </div>
 </section>
-
-{% comment %}Call to Action{% endcomment %}
 {% include 'call-to-action.html' %}
 
-<!-- Add structured data for SEO -->
 <script type="application/ld+json">
     {
         "@context": "https://schema.org",

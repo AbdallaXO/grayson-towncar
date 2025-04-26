@@ -1,24 +1,27 @@
 {% extends 'main.html' %}
 {% load static %}
-{% block title %}About Grayson Towncar | Orlando's Premier Transportation Service{% endblock %}
+{% block title %}
+  About Grayson Towncar | Orlando's Premier Transportation Service
+{% endblock %}
+{% block head_extra %}
+  <link rel="canonical" href="https://graysontowncar.com/about-grayson-towncar-services/" />
+{% endblock %}
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static "css/about.css" %}">
-{% endblock extra_css %}
+  <link rel="stylesheet" href="{% static 'css/about.css' %}" />
+{% endblock %}
+
 {% block content %}
   {% load seo_tags %}
   {% structured_data additional_data=structured_data %}
   <main class="flex-shrink-0">
     <!-- Hero Section - Modernized with Parallax -->
     <header class="position-relative text-white text-center overflow-hidden vh-100 d-flex align-items-center">
-      <div class="position-absolute top-0 start-0 w-100 h-100"
-           style="background-image: url('{% static 'images/about-us-hero.webp' %}');
+      <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: url('{% static 'images/about-us-hero.webp' %}');
                   background-size: cover;
                   background-position: center;
                   z-index: 0"></div>
-
       <!-- Enhanced gradient overlay -->
-      <div class="position-absolute top-0 start-0 w-100 h-100 hero-overlay"
-           style="z-index: 1"></div>
+      <div class="position-absolute top-0 start-0 w-100 h-100 hero-overlay" style="z-index: 1"></div>
 
       <div class="container position-relative fade-in" style="z-index: 2;">
         <div class="row justify-content-center">
@@ -26,10 +29,8 @@
             <h1 class="display-3 fw-bold mb-3 text-shadow">Your Magical Journey Begins Here</h1>
             <p class="lead fs-4 mb-4">Experience Orlando with the transportation service families trust</p>
             <div class="d-flex justify-content-center gap-3">
-              <a href="#our-story"
-                 class="btn btn-warning btn-md px-4 py-2 rounded-pill shadow fw-bold">Discover Our Story</a>
-              <a href="{% url 'contact' %}"
-                 class="btn btn-outline-light btn-md px-4 py-2 rounded-pill">Contact Us</a>
+              <a href="#our-story" class="btn btn-warning btn-md px-4 py-2 rounded-pill shadow fw-bold">Discover Our Story</a>
+              <a href="{% url 'contact' %}" class="btn btn-outline-light btn-md px-4 py-2 rounded-pill">Contact Us</a>
             </div>
 
             <!-- Mouse scroll indicator -->
@@ -58,15 +59,10 @@
           <!-- Left column - Image with visual enhancements -->
           <div class="col-lg-6 mb-4 mb-lg-0">
             <div class="position-relative scroll-reveal">
-              <div class="border-5 border-warning position-absolute top-0 start-0 w-25 h-25 translate-middle rounded"
-                   style="z-index: 0;
+              <div class="border-5 border-warning position-absolute top-0 start-0 w-25 h-25 translate-middle rounded" style="z-index: 0;
                           opacity: 0.3"></div>
-              <img class="img-fluid rounded-lg position-relative shadow-lg"
-                   src="{% static 'images/why-grayson.webp' %}"
-                   alt="Grayson Towncar's founding vision"
-                   style="z-index: 1" />
-              <div class="border-5 border-warning position-absolute bottom-0 end-0 w-25 h-25 translate-middle rounded"
-                   style="z-index: 0;
+              <img class="img-fluid rounded-lg position-relative shadow-lg" src="{% static 'images/why-grayson.webp' %}" alt="Grayson Towncar's founding vision" style="z-index: 1" />
+              <div class="border-5 border-warning position-absolute bottom-0 end-0 w-25 h-25 translate-middle rounded" style="z-index: 0;
                           opacity: 0.3"></div>
             </div>
           </div>
@@ -75,20 +71,15 @@
           <div class="col-lg-6">
             <div class="ps-lg-4 scroll-reveal">
               <h3 class="fw-bold text-black mb-3">Redefining Transportation in Orlando</h3>
-              <p class="mb-4 fs-5">
-                We started Grayson Towncar with a clear purpose: to transform ordinary transportation into extraordinary experiences. Built on values of exceptional care, precision, and personalized service, our focus is creating magical journeys for every guest, every time.
-              </p>
+              <p class="mb-4 fs-5">We started Grayson Towncar with a clear purpose: to transform ordinary transportation into extraordinary experiences. Built on values of exceptional care, precision, and personalized service, our focus is creating magical journeys for every guest, every time.</p>
 
               <div class="mb-4">
                 <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning rounded-circle p-2 me-3 d-flex align-items-center justify-content-center"
-                       style="width: 40px;
+                  <div class="bg-warning rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px;
                               height: 40px">
                     <i class="bi bi-quote fs-5 text-dark"></i>
                   </div>
-                  <p class="fst-italic mb-0">
-                    We transform ordinary transfers into exceptional memories that become part of your family's Orlando story.
-                  </p>
+                  <p class="fst-italic mb-0">We transform ordinary transfers into exceptional memories that become part of your family's Orlando story.</p>
                 </div>
               </div>
 
@@ -98,12 +89,9 @@
                 <div class="col-md-4">
                   <div class="card h-100 border-0 shadow-sm about-card pillar-card">
                     <div class="card-body text-center p-3">
-                      <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3 value-icon"
-                           style="width: 60px;
+                      <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3 value-icon" style="width: 60px;
                                   height: 60px">
-                        <img src="{% static 'images/excellence.webp' %}"
-                             alt="Excellence Icon"
-                             class="img-fluid" />
+                        <img src="{% static 'images/excellence.webp' %}" alt="Excellence Icon" class="img-fluid" />
                       </div>
                       <h5 class="fw-bold mb-2">Excellence</h5>
                       <p class="small mb-0">Precision and professionalism in every journey</p>
@@ -114,12 +102,9 @@
                 <div class="col-md-4">
                   <div class="card h-100 border-0 shadow-sm about-card pillar-card">
                     <div class="card-body text-center p-3">
-                      <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3 value-icon"
-                           style="width: 60px;
+                      <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3 value-icon" style="width: 60px;
                                   height: 60px">
-                        <img src="{% static 'images/reliability.webp' %}"
-                             alt="Reliability Icon"
-                             class="img-fluid" />
+                        <img src="{% static 'images/reliability.webp' %}" alt="Reliability Icon" class="img-fluid" />
                       </div>
                       <h5 class="fw-bold mb-2">Reliability</h5>
                       <p class="small mb-0">Punctual service you can count on</p>
@@ -130,12 +115,9 @@
                 <div class="col-md-4">
                   <div class="card h-100 border-0 shadow-sm about-card pillar-card">
                     <div class="card-body text-center p-3">
-                      <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3 value-icon"
-                           style="width: 60px;
+                      <div class="rounded-circle bg-warning bg-opacity-50 p-3 mx-auto mb-3 value-icon" style="width: 60px;
                                   height: 60px">
-                        <img src="{% static 'images/hospitality.webp' %}"
-                             alt="Hospitality Icon"
-                             class="img-fluid" />
+                        <img src="{% static 'images/hospitality.webp' %}" alt="Hospitality Icon" class="img-fluid" />
                       </div>
                       <h5 class="fw-bold mb-2">Hospitality</h5>
                       <p class="small mb-0">Personal attention to every detail</p>
@@ -172,20 +154,14 @@
             <div class="card h-100 border-0 shadow-sm about-card">
               <div class="card-body p-4">
                 <div class="feature-icon-wrapper mb-4">
-                  <img src="{% static 'images/premium.webp' %}"
-                       alt="Premium Fleet"
-                       class="img-fluid"
-                       style="width: 40px;
+                  <img src="{% static 'images/premium.webp' %}" alt="Premium Fleet" class="img-fluid" style="width: 40px;
                               height: 40px;
                               object-fit: contain" />
                 </div>
                 <h4 class="fw-bold text-center mb-3">Premium Fleet</h4>
-                <p>
-                  Our meticulously maintained vehicles combine luxury with the practical amenities families need. Each ride offers spotless interiors, climate control, and ample space for your vacation essentials.
-                </p>
+                <p>Our meticulously maintained vehicles combine luxury with the practical amenities families need. Each ride offers spotless interiors, climate control, and ample space for your vacation essentials.</p>
                 <div class="text-center mt-3">
-                  <a href="{% url 'services' %}#fleet"
-                     class="btn btn-sm btn-outline-warning rounded-pill px-3">Explore Fleet</a>
+                  <a href="{% url 'services' %}#fleet" class="btn btn-sm btn-outline-warning rounded-pill px-3">Explore Fleet</a>
                 </div>
               </div>
             </div>
@@ -196,20 +172,14 @@
             <div class="card h-100 border-0 shadow-sm about-card">
               <div class="card-body p-4">
                 <div class="feature-icon-wrapper mb-4">
-                  <img src="{% static 'images/family.webp' %}"
-                       alt="Family Focused"
-                       class="img-fluid"
-                       style="width: 40px;
+                  <img src="{% static 'images/family.webp' %}" alt="Family Focused" class="img-fluid" style="width: 40px;
                               height: 40px;
                               object-fit: contain" />
                 </div>
                 <h4 class="fw-bold text-center mb-3">Family Focused</h4>
-                <p>
-                  We understand family travel needs. That's why we offer complimentary car seats, booster seats, and thoughtful touches that make traveling with children stress-free and enjoyable.
-                </p>
+                <p>We understand family travel needs. That's why we offer complimentary car seats, booster seats, and thoughtful touches that make traveling with children stress-free and enjoyable.</p>
                 <div class="text-center mt-3">
-                  <a href="{% url 'services' %}"
-                     class="btn btn-sm btn-outline-warning rounded-pill px-3">Our Services</a>
+                  <a href="{% url 'services' %}" class="btn btn-sm btn-outline-warning rounded-pill px-3">Our Services</a>
                 </div>
               </div>
             </div>
@@ -220,20 +190,14 @@
             <div class="card h-100 border-0 shadow-sm about-card">
               <div class="card-body p-4">
                 <div class="feature-icon-wrapper mb-4">
-                  <img src="{% static 'images/extra.webp' %}"
-                       alt="Extra Mile"
-                       class="img-fluid"
-                       style="width: 40px;
+                  <img src="{% static 'images/extra.webp' %}" alt="Extra Mile" class="img-fluid" style="width: 40px;
                               height: 40px;
                               object-fit: contain" />
                 </div>
                 <h4 class="fw-bold text-center mb-3">Extra Mile Service</h4>
-                <p>
-                  From complimentary grocery stops to personalized airport greetings, we've reimagined every touchpoint of your transportation experience to exceed expectations.
-                </p>
+                <p>From complimentary grocery stops to personalized airport greetings, we've reimagined every touchpoint of your transportation experience to exceed expectations.</p>
                 <div class="text-center mt-3">
-                  <a href="{% url 'services' %}"
-                     class="btn btn-sm btn-outline-warning rounded-pill px-3">Learn More</a>
+                  <a href="{% url 'services' %}" class="btn btn-sm btn-outline-warning rounded-pill px-3">Learn More</a>
                 </div>
               </div>
             </div>
@@ -244,27 +208,20 @@
         <div class="row g-4 align-items-center mt-5">
           <div class="col-lg-6 order-lg-2">
             <div class="scroll-reveal">
-              <img class="img-fluid rounded-lg shadow-lg"
-                   src="{% static 'images/grayson-difference.webp' %}"
-                   alt="Grayson Towncar experience" />
+              <img class="img-fluid rounded-lg shadow-lg" src="{% static 'images/grayson-difference.webp' %}" alt="Grayson Towncar experience" />
             </div>
           </div>
 
           <div class="col-lg-6 order-lg-1">
             <div class="pe-lg-4 scroll-reveal">
               <h3 class="fw-bold mb-4">Orlando Destination Experts</h3>
-              <p class="mb-4 fs-5">
-                With countless trips to Disney, Universal, and Port Canaveral, we've mastered the most efficient routes, optimal drop-off points, and timing strategies that maximize your vacation time.
-              </p>
+              <p class="mb-4 fs-5">With countless trips to Disney, Universal, and Port Canaveral, we've mastered the most efficient routes, optimal drop-off points, and timing strategies that maximize your vacation time.</p>
 
               <!-- Enhanced feature list -->
               <div class="row g-3 mb-4">
                 <div class="col-sm-6">
                   <div class="d-flex align-items-center p-3 border rounded-3 h-100 about-card">
-                    <img src="{% static 'images/groceries.webp' %}"
-                         alt="Groceries"
-                         class="me-3"
-                         style="width: 32px;
+                    <img src="{% static 'images/groceries.webp' %}" alt="Groceries" class="me-3" style="width: 32px;
                                 height: 32px;
                                 object-fit: contain" />
                     <span class="fw-medium">Grocery stops included</span>
@@ -272,10 +229,7 @@
                 </div>
                 <div class="col-sm-6">
                   <div class="d-flex align-items-center p-3 border rounded-3 h-100 about-card">
-                    <img src="{% static 'images/carseat.webp' %}"
-                         alt="Car Seat"
-                         class="me-3"
-                         style="width: 32px;
+                    <img src="{% static 'images/carseat.webp' %}" alt="Car Seat" class="me-3" style="width: 32px;
                                 height: 32px;
                                 object-fit: contain" />
                     <span class="fw-medium">Child seats at no cost</span>
@@ -283,10 +237,7 @@
                 </div>
                 <div class="col-sm-6">
                   <div class="d-flex align-items-center p-3 border rounded-3 h-100 about-card">
-                    <img src="{% static 'images/handshake.webp' %}"
-                         alt="Personal Greeting"
-                         class="me-3"
-                         style="width: 32px;
+                    <img src="{% static 'images/handshake.webp' %}" alt="Personal Greeting" class="me-3" style="width: 32px;
                                 height: 32px;
                                 object-fit: contain" />
                     <span class="fw-medium">Personal greeting</span>
@@ -294,10 +245,7 @@
                 </div>
                 <div class="col-sm-6">
                   <div class="d-flex align-items-center p-3 border rounded-3 h-100 about-card">
-                    <img src="{% static 'images/delay.webp' %}"
-                         alt="Flight Tracking"
-                         class="me-3"
-                         style="width: 32px;
+                    <img src="{% static 'images/delay.webp' %}" alt="Flight Tracking" class="me-3" style="width: 32px;
                                 height: 32px;
                                 object-fit: contain" />
                     <span class="fw-medium">Real-time flight tracking</span>
@@ -306,8 +254,7 @@
               </div>
 
               <div class="d-flex justify-content-center mt-4">
-                <a href="{% url 'contact' %}"
-                   class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">Book Your Experience</a>
+                <a href="{% url 'contact' %}" class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">Book Your Experience</a>
               </div>
             </div>
           </div>
@@ -337,14 +284,10 @@
           <div class="col-lg-5">
             <div class="scroll-reveal">
               <div class="card border-0 shadow-lg overflow-hidden rounded-lg mb-4">
-                <img class="card-img-top"
-                     src="{% static 'images/disney-fireworks.webp' %}"
-                     alt="Orlando destinations" />
+                <img class="card-img-top" src="{% static 'images/disney-fireworks.webp' %}" alt="Orlando destinations" />
                 <div class="card-body p-4">
                   <h3 class="fw-bold mb-3">The Roads We've Mastered</h3>
-                  <p>
-                    We've dedicated ourselves to understanding not just the roads, but the heartbeat of Orlando. Every shortcut, every peak time, every special access point — we've optimized our service around making your Orlando experience seamless.
-                  </p>
+                  <p>We've dedicated ourselves to understanding not just the roads, but the heartbeat of Orlando. Every shortcut, every peak time, every special access point — we've optimized our service around making your Orlando experience seamless.</p>
                 </div>
               </div>
             </div>
@@ -355,9 +298,7 @@
             <div class="scroll-reveal">
               <div class="mb-4">
                 <h4 class="fw-bold mb-3">Our Destination Expertise</h4>
-                <p>
-                  While we proudly serve all of Central Florida, our journey has naturally led us to master the most magical routes. Our experience has taught us the rhythm of each destination's unique patterns.
-                </p>
+                <p>While we proudly serve all of Central Florida, our journey has naturally led us to master the most magical routes. Our experience has taught us the rhythm of each destination's unique patterns.</p>
               </div>
 
               <!-- Destination cards in an enhanced grid -->
@@ -367,18 +308,13 @@
                   <div class="card h-100 border-0 shadow-sm about-card">
                     <div class="card-body p-4">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon"
-                             style="width: 50px;
+                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon" style="width: 50px;
                                     height: 50px">
-                          <img src="{% static 'images/disney-castle.webp' %}"
-                               alt="Disney Castle"
-                               class="img-fluid" />
+                          <img src="{% static 'images/disney-castle.webp' %}" alt="Disney Castle" class="img-fluid" />
                         </div>
                         <h5 class="fw-bold mb-0">Disney Resorts</h5>
                       </div>
-                      <p>
-                        We've mapped every resort-specific drop-off point to ensure your family's magical experience begins the moment you step out of our vehicle.
-                      </p>
+                      <p>We've mapped every resort-specific drop-off point to ensure your family's magical experience begins the moment you step out of our vehicle.</p>
                     </div>
                   </div>
                 </div>
@@ -388,18 +324,13 @@
                   <div class="card h-100 border-0 shadow-sm about-card">
                     <div class="card-body p-4">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon"
-                             style="width: 50px;
+                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon" style="width: 50px;
                                     height: 50px">
-                          <img src="{% static 'images/universal-studios.webp' %}"
-                               alt="Universal Studios"
-                               class="img-fluid" />
+                          <img src="{% static 'images/universal-studios.webp' %}" alt="Universal Studios" class="img-fluid" />
                         </div>
                         <h5 class="fw-bold mb-0">Universal</h5>
                       </div>
-                      <p>
-                        Our years navigating to Universal have taught us the optimal arrival times to minimize your wait and maximize your adventure at every park.
-                      </p>
+                      <p>Our years navigating to Universal have taught us the optimal arrival times to minimize your wait and maximize your adventure at every park.</p>
                     </div>
                   </div>
                 </div>
@@ -409,18 +340,13 @@
                   <div class="card h-100 border-0 shadow-sm about-card">
                     <div class="card-body p-4">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon"
-                             style="width: 50px;
+                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon" style="width: 50px;
                                     height: 50px">
-                          <img src="{% static 'images/cruise.webp' %}"
-                               alt="Port Canaveral"
-                               class="img-fluid" />
+                          <img src="{% static 'images/cruise.webp' %}" alt="Port Canaveral" class="img-fluid" />
                         </div>
                         <h5 class="fw-bold mb-0">Port Canaveral</h5>
                       </div>
-                      <p>
-                        We've mastered the embarkation schedules for all cruise lines, ensuring stress-free arrivals exactly when you need to be there.
-                      </p>
+                      <p>We've mastered the embarkation schedules for all cruise lines, ensuring stress-free arrivals exactly when you need to be there.</p>
                     </div>
                   </div>
                 </div>
@@ -430,18 +356,13 @@
                   <div class="card h-100 border-0 shadow-sm about-card">
                     <div class="card-body p-4">
                       <div class="d-flex align-items-center mb-3">
-                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon"
-                             style="width: 50px;
+                        <div class="rounded-circle bg-warning bg-opacity-50 p-2 me-3 value-icon" style="width: 50px;
                                     height: 50px">
-                          <img src="{% static 'images/travel-agent.webp' %}"
-                               alt="MCO Airport"
-                               class="img-fluid" />
+                          <img src="{% static 'images/travel-agent.webp' %}" alt="MCO Airport" class="img-fluid" />
                         </div>
                         <h5 class="fw-bold mb-0">MCO Airport</h5>
                       </div>
-                      <p>
-                        Our airport expertise ensures we're ready at the right terminal, with real-time flight monitoring to adjust for any schedule changes.
-                      </p>
+                      <p>Our airport expertise ensures we're ready at the right terminal, with real-time flight monitoring to adjust for any schedule changes.</p>
                     </div>
                   </div>
                 </div>
@@ -481,14 +402,9 @@
                   <i class="bi bi-star-fill text-warning me-1"></i>
                   <i class="bi bi-star-fill text-warning"></i>
                 </div>
-                <p class="fst-italic mb-4">
-                  "Grayson Towncar really impressed us. The booking process was smooth, the car was immaculate,
-                  and our driver struck the perfect balance of laid-back and professional. My family felt like
-                  VIPs—minus the fuss. Our Orlando travel just got a serious upgrade. We’ll absolutely be riding with them again."
-                </p>
+                <p class="fst-italic mb-4">"Grayson Towncar really impressed us. The booking process was smooth, the car was immaculate, and our driver struck the perfect balance of laid-back and professional. My family felt like VIPs—minus the fuss. Our Orlando travel just got a serious upgrade. We’ll absolutely be riding with them again."</p>
                 <div class="d-flex align-items-center">
-                  <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
-                       style="width: 40px;
+                  <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px;
                               height: 40px">
                     <i class="bi bi-person-fill fs-5"></i>
                   </div>
@@ -512,13 +428,9 @@
                   <i class="bi bi-star-fill text-warning me-1"></i>
                   <i class="bi bi-star-fill text-warning"></i>
                 </div>
-                <p class="fst-italic mb-4">
-                  "Ab checked in with us personally, which really stood out. It’s rare to see that level of care. It felt like being looked after by family.
-                  Our kids were so excited for their first cruise and the ride to Port Canaveral was a breeze. Thank you Grayson Towncar!!"
-                </p>
+                <p class="fst-italic mb-4">"Ab checked in with us personally, which really stood out. It’s rare to see that level of care. It felt like being looked after by family. Our kids were so excited for their first cruise and the ride to Port Canaveral was a breeze. Thank you Grayson Towncar!!"</p>
                 <div class="d-flex align-items-center">
-                  <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
-                       style="width: 40px;
+                  <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px;
                               height: 40px">
                     <i class="bi bi-person-fill fs-5"></i>
                   </div>
@@ -542,15 +454,9 @@
                   <i class="bi bi-star-fill text-warning me-1"></i>
                   <i class="bi bi-star-fill text-warning"></i>
                 </div>
-                <p class="fst-italic mb-4">
-                  "Rayyan kept in touch the whole way, making sure we were comfortable and everything was on time. As a parent traveling with my family,
-                  I appreciated the child seat accommodation they provided and the comfort of the vehicles we rode in.
-                  Their flight tracking was very valuable, taking a weight off our shoulders when we found out one of our fights was delayed.
-                  The drivers we had were professional, courteous, and made us feel safe every trip. They truly are a company that keep their word. Thank you!! Will be using your service again."
-                </p>
+                <p class="fst-italic mb-4">"Rayyan kept in touch the whole way, making sure we were comfortable and everything was on time. As a parent traveling with my family, I appreciated the child seat accommodation they provided and the comfort of the vehicles we rode in. Their flight tracking was very valuable, taking a weight off our shoulders when we found out one of our fights was delayed. The drivers we had were professional, courteous, and made us feel safe every trip. They truly are a company that keep their word. Thank you!! Will be using your service again."</p>
                 <div class="d-flex align-items-center">
-                  <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
-                       style="width: 40px;
+                  <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px;
                               height: 40px">
                     <i class="bi bi-person-fill fs-5"></i>
                   </div>
@@ -571,19 +477,13 @@
             <div class="scroll-reveal">
               <div class="row g-3">
                 <div class="col-6">
-                  <img src="{% static 'images/photo1.webp' %}"
-                       class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-cover"
-                       alt="Grayson Towncar Experience" />
+                  <img src="{% static 'images/photo1.webp' %}" class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-cover" alt="Grayson Towncar Experience" />
                 </div>
                 <div class="col-6">
-                  <img src="{% static 'images/photo3.webp' %}"
-                       class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-cover"
-                       alt="Grayson Towncar Experience" />
+                  <img src="{% static 'images/photo3.webp' %}" class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-cover" alt="Grayson Towncar Experience" />
                 </div>
                 <div class="col-12 mt-3">
-                  <img src="{% static 'images/photo2.webp' %}"
-                       class="img-fluid rounded-3 shadow-sm about-card w-100"
-                       alt="Grayson Towncar Experience" />
+                  <img src="{% static 'images/photo2.webp' %}" class="img-fluid rounded-3 shadow-sm about-card w-100" alt="Grayson Towncar Experience" />
                 </div>
               </div>
             </div>
@@ -598,18 +498,13 @@
               <div class="card mb-3 border-0 shadow-sm about-card">
                 <div class="card-body p-4">
                   <div class="d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 me-3 value-icon flex-shrink-0"
-                         style="width: 60px;
+                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 me-3 value-icon flex-shrink-0" style="width: 60px;
                                 height: 60px">
-                      <img src="{% static 'images/dollar.webp' %}"
-                           alt="Transparent Pricing"
-                           class="img-fluid" />
+                      <img src="{% static 'images/dollar.webp' %}" alt="Transparent Pricing" class="img-fluid" />
                     </div>
                     <div>
                       <h5 class="fw-bold mb-2">Transparent Pricing</h5>
-                      <p class="mb-0">
-                        No hidden fees or surprise charges. The price we quote is the price you pay, with all amenities included.
-                      </p>
+                      <p class="mb-0">No hidden fees or surprise charges. The price we quote is the price you pay, with all amenities included.</p>
                     </div>
                   </div>
                 </div>
@@ -618,18 +513,13 @@
               <div class="card mb-3 border-0 shadow-sm about-card">
                 <div class="card-body p-4">
                   <div class="d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 me-3 value-icon flex-shrink-0"
-                         style="width: 60px;
+                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 me-3 value-icon flex-shrink-0" style="width: 60px;
                                 height: 60px">
-                      <img src="{% static 'images/shield.webp' %}"
-                           alt="Safety First"
-                           class="img-fluid" />
+                      <img src="{% static 'images/shield.webp' %}" alt="Safety First" class="img-fluid" />
                     </div>
                     <div>
                       <h5 class="fw-bold mb-2">Safety First, Always</h5>
-                      <p class="mb-0">
-                        Meticulously maintained vehicles, professional drivers with spotless records, and child safety equipment that exceeds standards.
-                      </p>
+                      <p class="mb-0">Meticulously maintained vehicles, professional drivers with spotless records, and child safety equipment that exceeds standards.</p>
                     </div>
                   </div>
                 </div>
@@ -638,18 +528,13 @@
               <div class="card mb-3 border-0 shadow-sm about-card">
                 <div class="card-body p-4">
                   <div class="d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 me-3 value-icon flex-shrink-0"
-                         style="width: 60px;
+                    <div class="rounded-circle bg-warning bg-opacity-50 p-3 me-3 value-icon flex-shrink-0" style="width: 60px;
                                 height: 60px">
-                      <img src="{% static 'images/delay.webp' %}"
-                           alt="Flight Tracking"
-                           class="img-fluid" />
+                      <img src="{% static 'images/delay.webp' %}" alt="Flight Tracking" class="img-fluid" />
                     </div>
                     <div>
                       <h5 class="fw-bold mb-2">Flexible Flight Tracking</h5>
-                      <p class="mb-0">
-                        We monitor your flight in real-time and adjust pickup times automatically for early or delayed arrivals.
-                      </p>
+                      <p class="mb-0">We monitor your flight in real-time and adjust pickup times automatically for early or delayed arrivals.</p>
                     </div>
                   </div>
                 </div>
@@ -657,8 +542,7 @@
 
               <!-- CTA button -->
               <div class="d-flex justify-content-center mt-4">
-                <a href="{% url 'faqs' %}"
-                   class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">View Our FAQs</a>
+                <a href="{% url 'faqs' %}" class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">View Our FAQs</a>
               </div>
             </div>
           </div>
@@ -690,50 +574,39 @@
               <div class="card border-0 shadow-lg overflow-hidden rounded-lg mb-4">
                 <div class="card-body p-4">
                   <h3 class="fw-bold mb-3">A Travel Partnership That Makes You Shine</h3>
-                  <p class="mb-4">
-                    We understand that your reputation rests on every recommendation you make. Our travel agent program is designed to be seamless, rewarding, and impressive for both you and your clients.
-                  </p>
+                  <p class="mb-4">We understand that your reputation rests on every recommendation you make. Our travel agent program is designed to be seamless, rewarding, and impressive for both you and your clients.</p>
 
                   <!-- Partnership benefits -->
                   <div class="d-flex align-items-start mb-4">
-                    <div class="rounded-circle bg-warning text-dark p-2 me-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                         style="width: 36px;
+                    <div class="rounded-circle bg-warning text-dark p-2 me-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px;
                                 height: 36px">
                       <i class="bi bi-check-lg fs-5"></i>
                     </div>
                     <div>
                       <h5 class="fw-bold mb-2">Rewarding Returns</h5>
-                      <p class="mb-0">
-                        Unlock generous commission structures that grow with your bookings, turning client referrals into a valuable revenue stream.
-                      </p>
+                      <p class="mb-0">Unlock generous commission structures that grow with your bookings, turning client referrals into a valuable revenue stream.</p>
                     </div>
                   </div>
 
                   <div class="d-flex align-items-start mb-4">
-                    <div class="rounded-circle bg-warning text-dark p-2 me-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                         style="width: 36px;
+                    <div class="rounded-circle bg-warning text-dark p-2 me-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px;
                                 height: 36px">
                       <i class="bi bi-check-lg fs-5"></i>
                     </div>
                     <div>
                       <h5 class="fw-bold mb-2">VIP Treatment</h5>
-                      <p class="mb-0">
-                        Your clients enjoy priority booking privileges and personalized service that reflects your high standards of excellence.
-                      </p>
+                      <p class="mb-0">Your clients enjoy priority booking privileges and personalized service that reflects your high standards of excellence.</p>
                     </div>
                   </div>
 
                   <div class="d-flex align-items-start">
-                    <div class="rounded-circle bg-warning text-dark p-2 me-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                         style="width: 36px;
+                    <div class="rounded-circle bg-warning text-dark p-2 me-3 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 36px;
                                 height: 36px">
                       <i class="bi bi-check-lg fs-5"></i>
                     </div>
                     <div>
                       <h5 class="fw-bold mb-2">Direct Communication</h5>
-                      <p class="mb-0">
-                        Enjoy a dedicated communication channel to our team, ensuring rapid responses and real-time updates on your clients' journeys.
-                      </p>
+                      <p class="mb-0">Enjoy a dedicated communication channel to our team, ensuring rapid responses and real-time updates on your clients' journeys.</p>
                     </div>
                   </div>
                 </div>
@@ -747,39 +620,24 @@
               <!-- Social proof card -->
               <div class="card border-0 shadow-sm p-4 mb-4 about-card">
                 <h4 class="fw-bold mb-3 text-center">Join Our Growing Network</h4>
-                <p class="text-center mb-4">
-                  Connect with Grayson Towncar and elevate your clients' Orlando experience with premium transportation they'll rave about.
-                </p>
+                <p class="text-center mb-4">Connect with Grayson Towncar and elevate your clients' Orlando experience with premium transportation they'll rave about.</p>
 
                 <!-- Social media connections -->
                 <div class="text-center mb-4">
                   <p class="fw-medium mb-3">Follow us on social media:</p>
                   <div class="d-flex justify-content-center gap-3">
-                    <a href="https://www.instagram.com/graysontowncar"
-                       class="d-flex align-items-center justify-content-center rounded-circle bg-warning"
-                       style="width: 46px;
-                              height: 46px">
-                      <i class="bi bi-instagram text-dark fs-4"></i>
-                    </a>
-                    <a href="https://www.facebook.com/profile.php?id=61574468855996"
-                       class="d-flex align-items-center justify-content-center rounded-circle bg-warning"
-                       style="width: 46px;
-                              height: 46px">
-                      <i class="bi bi-facebook text-dark fs-4"></i>
-                    </a>
-                    <a href="https://x.com/GraysonTowncar"
-                       class="d-flex align-items-center justify-content-center rounded-circle bg-warning"
-                       style="width: 46px;
-                              height: 46px">
-                      <i class="bi bi-twitter-x text-dark fs-4"></i>
-                    </a>
+                    <a href="https://www.instagram.com/graysontowncar" class="d-flex align-items-center justify-content-center rounded-circle bg-warning" style="width: 46px;
+                              height: 46px"><i class="bi bi-instagram text-dark fs-4"></i></a>
+                    <a href="https://www.facebook.com/profile.php?id=61574468855996" class="d-flex align-items-center justify-content-center rounded-circle bg-warning" style="width: 46px;
+                              height: 46px"><i class="bi bi-facebook text-dark fs-4"></i></a>
+                    <a href="https://x.com/GraysonTowncar" class="d-flex align-items-center justify-content-center rounded-circle bg-warning" style="width: 46px;
+                              height: 46px"><i class="bi bi-twitter-x text-dark fs-4"></i></a>
                   </div>
                 </div>
 
                 <!-- CTA button -->
                 <div class="text-center">
-                  <a href="{% url 'partner' %}"
-                     class="btn btn-warning btn-lg px-5 py-3 rounded-pill shadow fw-bold">Become Our Partner</a>
+                  <a href="{% url 'partner' %}" class="btn btn-warning btn-lg px-5 py-3 rounded-pill shadow fw-bold">Become Our Partner</a>
                 </div>
               </div>
 
@@ -793,12 +651,9 @@
                     <i class="bi bi-star-fill text-warning me-1"></i>
                     <i class="bi bi-star-fill text-warning"></i>
                   </div>
-                  <p class="fst-italic mb-4">
-                    "My clients consistently rave about Grayson's service. Their attention to detail and family-focused approach has made them my go-to recommendation for Orlando transportation."
-                  </p>
+                  <p class="fst-italic mb-4">"My clients consistently rave about Grayson's service. Their attention to detail and family-focused approach has made them my go-to recommendation for Orlando transportation."</p>
                   <div class="d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center"
-                         style="width: 40px;
+                    <div class="rounded-circle bg-warning bg-opacity-25 p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px;
                                 height: 40px">
                       <i class="bi bi-briefcase-fill fs-5"></i>
                     </div>
@@ -821,20 +676,16 @@
         <div class="row justify-content-center">
           <div class="col-lg-8">
             <h2 class="fw-normal mb-4">Ready to Experience the Grayson Difference?</h2>
-            <p class="mb-4">
-              Your Orlando transportation should be as memorable as your vacation itself. Book with Grayson Towncar and discover the difference that care, expertise, and attention to detail can make.
-            </p>
+            <p class="mb-4">Your Orlando transportation should be as memorable as your vacation itself. Book with Grayson Towncar and discover the difference that care, expertise, and attention to detail can make.</p>
             <div class="d-flex flex-column flex-md-row justify-content-center gap-3">
-              <a href="{% url 'rates' %}"
-                 class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">Book Your Ride</a>
-              <a href="{% url 'contact' %}"
-                 class="btn btn-outline-dark btn-lg px-4 py-2 rounded-pill">Contact Us</a>
+              <a href="{% url 'rates' %}" class="btn btn-warning btn-lg px-4 py-2 rounded-pill shadow fw-bold">Book Your Ride</a>
+              <a href="{% url 'contact' %}" class="btn btn-outline-dark btn-lg px-4 py-2 rounded-pill">Contact Us</a>
             </div>
           </div>
         </div>
       </div>
     </section>
-    <script src="{% static "js/about.js" %}"></script>
+    <script src="{% static 'js/about.js' %}"></script>
   </main>
 
   <!-- Add this script at the end of your page, before the closing </body> tag -->
