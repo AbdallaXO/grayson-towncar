@@ -1,4 +1,3 @@
-# rates/templatetags/seo_tags.py
 from django import template
 from django.utils.safestring import mark_safe
 import json
@@ -11,9 +10,13 @@ def get_base_structured_data(request, additional_data=None):
     """
     base_data = {
         "@context": "https://schema.org",
-        "@type": "TransportService",
+        "@type": ["TransportService", "LocalBusiness"],
         "name": "Grayson Towncar",
-        "description": "Premier private airport transportation service in Orlando, offering luxury MCO airport transfers, Disney resort shuttles, Universal Studios transportation, and Port Canaveral cruise transfers with exceptional customer service and flexibility.",
+        "description": (
+            "Premier private airport transportation service in Orlando, offering luxury "
+            "MCO airport transfers, Disney resort shuttles, Universal Studios transportation, "
+            "and Port Canaveral cruise transfers with exceptional customer service and flexibility."
+        ),
         "image": "https://www.graysontowncar.com/logo.jpg",
         "url": request.build_absolute_uri(),
         "telephone": "+1-407-212-7190",
@@ -54,7 +57,10 @@ def get_base_structured_data(request, additional_data=None):
                     "itemOffered": {
                         "@type": "Service",
                         "name": "Luxury SUV Transportation",
-                        "description": "Premium SUV airport transportation with professional drivers and complimentary meet and greet",
+                        "description": (
+                            "Premium SUV airport transportation with professional drivers "
+                            "and complimentary meet and greet"
+                        ),
                     },
                 },
                 {
@@ -62,7 +68,10 @@ def get_base_structured_data(request, additional_data=None):
                     "itemOffered": {
                         "@type": "Service",
                         "name": "Executive Towncar Transportation",
-                        "description": "Classic towncar service for elegant and comfortable travel to MCO and Orlando attractions",
+                        "description": (
+                            "Classic towncar service for elegant and comfortable travel "
+                            "to MCO and Orlando attractions"
+                        ),
                     },
                 },
                 {
@@ -70,7 +79,9 @@ def get_base_structured_data(request, additional_data=None):
                     "itemOffered": {
                         "@type": "Service",
                         "name": "Orlando Van Transportation",
-                        "description": "Spacious van service ideal for larger groups and Disney resort transfers",
+                        "description": (
+                            "Spacious van service ideal for larger groups and Disney resort transfers"
+                        ),
                     },
                 },
                 {
@@ -78,7 +89,10 @@ def get_base_structured_data(request, additional_data=None):
                     "itemOffered": {
                         "@type": "Service",
                         "name": "Family Mini Van Transportation",
-                        "description": "Comfortable mini van service perfect for families with complimentary car seats and booster seats",
+                        "description": (
+                            "Comfortable mini van service perfect for families with "
+                            "complimentary car seats and booster seats"
+                        ),
                     },
                 },
             ],
@@ -96,8 +110,9 @@ def get_base_structured_data(request, additional_data=None):
         ],
         "aggregateRating": {
             "@type": "AggregateRating",
-            "ratingValue": 4.8,  # <-- fixed: number, not string
-            "reviewCount": 250    # <-- fixed: number, not string
+            "ratingValue": 4.8,
+            "bestRating": 5,
+            "ratingCount": 250
         },
         "potentialAction": {
             "@type": "ReserveAction",
@@ -122,12 +137,18 @@ def get_base_structured_data(request, additional_data=None):
         "parentOrganization": {
             "@type": "Organization",
             "name": "Grayson Towncar",
-            "description": "Providing premium Orlando airport transportation and luxury shuttle solutions in Central Florida",
+            "description": (
+                "Providing premium Orlando airport transportation and luxury shuttle "
+                "solutions in Central Florida"
+            ),
         },
         "areaServedDetails": {
             "@type": "Place",
             "name": "Central Florida Transportation Network",
-            "description": "Serving Orlando International Airport (MCO), Disney World, Universal Studios, SeaWorld, Port Canaveral, and surrounding areas within a 100-mile radius",
+            "description": (
+                "Serving Orlando International Airport (MCO), Disney World, Universal Studios, "
+                "SeaWorld, Port Canaveral, and surrounding areas within a 100-mile radius"
+            ),
         },
         "keywords": [
             "Orlando airport shuttle",
@@ -148,11 +169,11 @@ def get_base_structured_data(request, additional_data=None):
         ],
     }
 
-    # Allow for additional or overriding data
     if additional_data:
         base_data.update(additional_data)
 
     return base_data
+
 
 @register.simple_tag(takes_context=True)
 def structured_data(context, page_type="home", additional_data=None):
@@ -162,14 +183,8 @@ def structured_data(context, page_type="home", additional_data=None):
     request = context["request"]
     data = get_base_structured_data(request, additional_data)
 
-    # Add page-specific structured data enhancements
-    if page_type == "service":
-        pass
-    elif page_type == "location":
-        pass
+    # Add page-specific enhancements here if needed
 
     return mark_safe(f"""
-    <script type="application/ld+json">
-    {json.dumps(data, indent=2)}
-    </script>
+    <script type=\"application/ld+json\">\n{json.dumps(data, indent=2)}\n    </script>
     """)
