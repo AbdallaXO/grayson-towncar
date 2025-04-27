@@ -1,7 +1,7 @@
 {% load static %}
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top">
   <div class="container px-5 bg-navbar-dark">
-    <a class="navbar-brand" href="{% url 'home' %}"><img src="{% static 'images/logo.png' %}" alt="Company Logo" height="80" width="80" /></a>
+    <a class="navbar-brand" href="{% url 'home' %}"><img src="{% static 'images/logo.png' %}" alt="Company Logo" height="150" width="150" /></a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation" style="filter: brightness(0) invert(1);"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
@@ -25,7 +25,7 @@
           <a class="nav-link text-white" href="{% url 'home' %}">Home</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Company</a>
+          <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button"  aria-expanded="false">Company</a>
           <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'about-us' %}">About</a>
@@ -61,3 +61,33 @@
     </div>
   </div>
 </nav>
+<style>
+  /* Increase the size of navbar items */
+  .navbar-nav .nav-link {
+    font-size: 1.2rem; /* Increase font size */
+    padding: 0.8rem 1rem; /* Increase padding */
+  }
+
+  /* Adjust the size of the navbar dropdown */
+  .navbar-nav .nav-item.dropdown .dropdown-toggle {
+    font-size: 1.2rem; /* Larger font for dropdown items */
+    padding: 0.8rem 1rem; /* Larger padding for dropdown items */
+  }
+
+  /* Increase the size of dropdown items */
+  .dropdown-menu .dropdown-item {
+    font-size: 1.1rem; /* Larger font for dropdown items */
+    padding: 0.75rem 1rem; /* Increase padding for dropdown items */
+  }
+
+  /* Adjust navbar toggler (hamburger icon) size */
+  .navbar-toggler {
+    padding: 1rem; /* Increase size of the hamburger icon */
+  }
+
+  /* Adjust the navbar brand (logo) size */
+  .navbar-brand img {
+    height: 150px; /* Adjust logo size */
+    width: auto;
+  }
+</style>
