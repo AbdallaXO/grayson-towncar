@@ -1,7 +1,10 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load seo_tags %}
-{% block head_extra %}<link rel="canonical" href="https://www.graysontowncar.com/" />{% endblock %}
+{% block head_extra %}
+  <link rel="canonical" href="https://www.graysontowncar.com/" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+{% endblock %}
 {% block extra_css %}
   <link rel="preload"
         href="{% static 'css/homepage-elements.css' %}"
@@ -24,7 +27,7 @@
           <div class="col-lg-7 col-xl-6">
             <div class="my-4 text-center text-xl-start">
               <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-3">PRIVATE ORLANDO TRANSPORTATION</span>
-              <h1 class="fw-light text-white mb-3 display-3">
+              <h1 class="fw-light text-white mb-3 display-4">
                 <strong>Skip The Shuttle Lines. Arrive In Style.</strong>
               </h1>
 
@@ -68,38 +71,41 @@
       </div>
     </section>
 
-    <!-- Social Proof Section - NEW -->
-    <section class="social-proof py-4 bg-white">
+    <!-- Social Proof Section - Vertical Stack -->
+    <section class="social-proof py-5 bg-white">
       <div class="container">
-        <div class="row justify-content-center">
-          <div class="col-12">
-            <div class="d-flex flex-wrap justify-content-center align-items-center gap-4">
-              <div class="d-flex align-items-center">
-                <span class="fw-bold h5 mb-0 me-2">5.0</span>
-                <div>
-                  <div class="text-warning">
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                    <i class="bi bi-star-fill"></i>
-                  </div>
-                  <small class="text-muted">Google Reviews</small>
+        <!-- Google Rating Centered at Top -->
+        <div class="row justify-content-center mb-4">
+          <div class="col-12 text-center">
+            <div class="d-inline-flex align-items-center">
+              <span class="fw-bold display-6 mb-0 me-2">5.0</span>
+              <div>
+                <div class="text-warning">
+                  <i class="bi bi-star-fill"></i>
+                  <i class="bi bi-star-fill"></i>
+                  <i class="bi bi-star-fill"></i>
+                  <i class="bi bi-star-fill"></i>
+                  <i class="bi bi-star-fill"></i>
                 </div>
+                <small class="text-muted">Google Reviews</small>
               </div>
-              <div class="vr d-none d-md-block" style="height: 40px;"></div>
-              <div class="text-center">
-                <p class="mb-0 fst-italic">
-                  "My experience with Grayson Towncar was awesome! Booking was made really easy and the driver was great. The whole experience was made really comfortable and convenient for the whole family. I'll definitely be booking with them again next time I'm in Orlando!
-                  "
-                </p>
-                <small class="text-muted">- Amanda W., Disney World Visitor</small>
-              </div>
-              <div class="vr d-none d-md-block" style="height: 40px;"></div>
-              <div class="text-center d-none d-lg-block">
-                <p class="mb-0 fst-italic">"The free car seats and grocery stop made our family trip so much easier!"</p>
-                <small class="text-muted">- Michael T., Family Traveler</small>
-              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Reviews Stacked Vertically -->
+        <div class="row justify-content-center">
+          <div class="col-md-8">
+            <!-- First Review -->
+            <div class="text-center mb-4">
+              <p class="mb-2 fst-italic">"The driver was on time, professional, and the car was immaculate!"</p>
+              <small class="text-muted">- Amanda W., Disney World Visitor</small>
+            </div>
+            
+            <!-- Second Review -->
+            <div class="text-center">
+              <p class="mb-2 fst-italic">"The free car seats and grocery stop made our family trip so much easier!"</p>
+              <small class="text-muted">- Michael T., Family Traveler</small>
             </div>
           </div>
         </div>
@@ -123,8 +129,8 @@
           <div class="col-md-6 col-lg-4">
             <div class="card h-100 border-0 shadow-sm hover-elevate">
               <div class="card-body p-4">
-                <div class="ribbon ribbon-top-right">
-                  <span>POPULAR</span>
+                <div class="position-absolute top-0 start-0 ms-2 mt-2">
+                    <span class="badge rounded-pill bg-warning text-black py-1 px-2 fs-7">POPULAR</span>
                 </div>
                 <div class="text-center mb-3">
                   <img src="{% static 'images/disney-castle.webp' %}"
@@ -136,13 +142,13 @@
                 </div>
                 <ul class="list-unstyled mb-4">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Direct, non-stop service
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Direct, non-stop service
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Inside airport meet & greet
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Inside airport meet & greet
                   </li>
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Free car seats available
+                  <li class="mb-5">
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Free car seats available
                   </li>
                 </ul>
                 <div class="d-flex justify-content-between align-items-end">
@@ -172,13 +178,13 @@
                 </div>
                 <ul class="list-unstyled mb-4">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Direct, non-stop service
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Direct, non-stop service
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Inside airport meet & greet
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Inside airport meet & greet
                   </li>
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Free car seats available
+                  <li class="mb-5">
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Free car seats available
                   </li>
                 </ul>
                 <div class="d-flex justify-content-between align-items-end">
@@ -208,13 +214,13 @@
                 </div>
                 <ul class="list-unstyled mb-4">
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Direct service to cruise terminal
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Direct service to cruise terminal
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Flexible scheduling for cruise times
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Flexible scheduling for cruise times
                   </li>
                   <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i> Spacious vehicles for luggage
+                    <i class="bi bi-check-circle-fill text-secondary me-2"></i> Spacious vehicles for luggage
                   </li>
                 </ul>
                 <div class="d-flex justify-content-between align-items-end">
@@ -527,7 +533,7 @@
       </div>
     </section>
 
-    <!-- FAQ Section - NEW -->
+    <!-- FAQS -->
     <section class="faq py-5 bg-light" aria-labelledby="faq-heading">
       <div class="container px-4 py-5">
         <div class="row justify-content-center mb-5">
@@ -545,17 +551,17 @@
                 <h3 class="accordion-header" id="headingOne">
                   <button class="accordion-button collapsed fw-bold"
                           type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target="#collapseOne"
                           aria-expanded="false"
-                          aria-controls="collapseOne">How does the airport pickup process work?</button>
+                          aria-controls="collapseOne">
+                    How does the airport pickup process work?
+                    <i class="fas fa-chevron-down"></i> <!-- Font Awesome custom arrow -->
+                  </button>
                 </h3>
-                <div id="collapseOne"
-                     class="accordion-collapse collapse"
-                     aria-labelledby="headingOne"
-                     data-bs-parent="#faqAccordion">
+                <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne">
                   <div class="accordion-body">
-                    Our driver will meet you <strong>inside the airport terminal</strong> at baggage claim with a sign displaying your name. We track your flight in real-time, so we'll be there even if your flight is delayed. Simply collect your luggage and look for your driver - no need to call or text when you land!
+                    Our driver will <strong>track your flight and text you once you land.</strong> 
+                    They will meet you inside the airport terminal at baggage claim with a sign displaying your name. 
+                    After you collect your luggage, the driver will assist you and take you to the vehicle.
                   </div>
                 </div>
               </div>
@@ -565,17 +571,16 @@
                 <h3 class="accordion-header" id="headingTwo">
                   <button class="accordion-button collapsed fw-bold"
                           type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target="#collapseTwo"
                           aria-expanded="false"
-                          aria-controls="collapseTwo">Are car seats really included for free?</button>
+                          aria-controls="collapseTwo">
+                    Are car seats really included for free?
+                    <i class="fas fa-chevron-down"></i> <!-- Font Awesome custom arrow -->
+                  </button>
                 </h3>
-                <div id="collapseTwo"
-                     class="accordion-collapse collapse"
-                     aria-labelledby="headingTwo"
-                     data-bs-parent="#faqAccordion">
+                <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo">
                   <div class="accordion-body">
-                    Yes! We provide complimentary car seats for infants, toddlers, and children at no additional charge. Simply request them during booking, and we'll have them professionally installed in your vehicle. We offer infant seats, forward-facing toddler seats, and booster seats to accommodate children of all ages.
+                    Yes, <strong>each car</strong> is equipped with a specific number of car seats and booster seats, and they’re completely free of charge! 
+                    Just request the type you need—booster, forward-facing, or rear-facing—when filling out your booking form.
                   </div>
                 </div>
               </div>
@@ -585,19 +590,17 @@
                 <h3 class="accordion-header" id="headingThree">
                   <button class="accordion-button collapsed fw-bold"
                           type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target="#collapseThree"
                           aria-expanded="false"
                           aria-controls="collapseThree">
-                    How do I book a return trip from my hotel back to the airport?
+                    What if I am staying at 2 different hotels, can I still do a round trip?
+                    <i class="fas fa-chevron-down"></i> <!-- Font Awesome custom arrow -->
                   </button>
                 </h3>
-                <div id="collapseThree"
-                     class="accordion-collapse collapse"
-                     aria-labelledby="headingThree"
-                     data-bs-parent="#faqAccordion">
+                <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree">
                   <div class="accordion-body">
-                    You can book your complete round-trip transportation in one reservation. We offer a special discount when you book both arrival and departure transfers together. During booking, simply select "Round Trip" and provide your departure flight details. We'll pick you up approximately 3 hours before domestic flights and 4 hours before international flights.
+                    Yes, you can! As long as the hotels are in the Disney, Universal, or Lake Buena Vista areas (areas with the same rates), 
+                    you can do a round trip. For the <strong>arrival, enter your initial hotel as the drop-off location,</strong> and for the <strong>return, 
+                    just provide the other hotel as the pick-up location.</strong>
                   </div>
                 </div>
               </div>
@@ -607,19 +610,16 @@
                 <h3 class="accordion-header" id="headingFour">
                   <button class="accordion-button collapsed fw-bold"
                           type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target="#collapseFour"
                           aria-expanded="false"
                           aria-controls="collapseFour">
-                    Can we really stop for groceries on the way to our hotel?
+                    Can we stop for groceries on the way to our hotel?
+                    <i class="fas fa-chevron-down"></i> <!-- Font Awesome custom arrow -->
                   </button>
                 </h3>
-                <div id="collapseFour"
-                     class="accordion-collapse collapse"
-                     aria-labelledby="headingFour"
-                     data-bs-parent="#faqAccordion">
+                <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour">
                   <div class="accordion-body">
-                    Absolutely! We offer a complimentary 20-minute grocery stop at Publix or similar grocery store on your way from the airport to your hotel. This allows you to stock up on snacks, breakfast items, drinks, and other essentials for your stay. Simply request this service during booking or let your driver know upon arrival.
+                    Absolutely! We offer a complimentary 20-minute stop at Publix, located at <a href="https://www.publix.com/locations/1191-lake-cay-commons" target="_blank">9930 Universal Blvd, Orlando, FL 32819.</a> , <strong>exclusively for airport pick-ups. </strong>
+                    For your convenience, we recommend preordering and selecting curbside pick-up. Just let us know you’d like this stop when making your booking, and we’ll take care of the rest!
                   </div>
                 </div>
               </div>
@@ -630,7 +630,7 @@
         <!-- CTA Button -->
         <div class="text-center mt-5">
           <a href="{% url 'rates' %}"
-             class="btn btn-warning btn-lg px-5 py-3 fw-bold rounded-pill shadow-sm">Ready to Book? Check Rates Now</a>
+            class="btn btn-warning btn-lg px-5 py-3 fw-bold rounded-pill shadow-sm">Ready to Book? Check Rates Now</a>
         </div>
       </div>
     </section>
@@ -667,13 +667,13 @@
                 <div>
                   <ul class="list-unstyled mt-3 mb-0">
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Inside airport terminal greeting
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Inside airport terminal greeting
                     </li>
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Personalized sign with your name
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Personalized sign with your name
                     </li>
                     <li>
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Luggage assistance to your vehicle
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Luggage assistance to your vehicle
                     </li>
                   </ul>
                 </div>
@@ -699,13 +699,13 @@
                 <div>
                   <ul class="list-unstyled mt-3 mb-0">
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Infant, toddler, and booster seats
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Infant, toddler, and booster seats
                     </li>
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> No additional cost (unlike rentals)
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> No additional cost (unlike rentals)
                     </li>
                     <li>
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Professional installation by our drivers
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Professional installation by our drivers
                     </li>
                   </ul>
                 </div>
@@ -731,13 +731,13 @@
                 <div>
                   <ul class="list-unstyled mt-3 mb-0">
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> 20-minute Publix stop included
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> 20-minute Publix stop included
                     </li>
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Stock up on vacation essentials
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Stock up on vacation essentials
                     </li>
                     <li>
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Save money on hotel convenience stores
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Save money on hotel convenience stores
                     </li>
                   </ul>
                 </div>
@@ -763,13 +763,13 @@
                 <div>
                   <ul class="list-unstyled mt-3 mb-0">
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Experienced, professional chauffeurs
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Experienced, professional chauffeurs
                     </li>
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Courteous and knowledgeable about Orlando
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Courteous and knowledgeable about Orlando
                     </li>
                     <li>
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Clean, well-maintained vehicles
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Clean, well-maintained vehicles
                     </li>
                   </ul>
                 </div>
@@ -795,13 +795,13 @@
                 <div>
                   <ul class="list-unstyled mt-3 mb-0">
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Early morning or late night flights
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Early morning or late night flights
                     </li>
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Real-time flight monitoring
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Real-time flight monitoring
                     </li>
                     <li>
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> No extra charge for delayed flights
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> No extra charge for delayed flights
                     </li>
                   </ul>
                 </div>
@@ -827,13 +827,13 @@
                 <div>
                   <ul class="list-unstyled mt-3 mb-0">
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Save by booking arrival & departure
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Save by booking arrival & departure
                     </li>
                     <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> Guaranteed return service
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> Guaranteed return service
                     </li>
                     <li>
-                      <i class="bi bi-check-circle-fill text-success me-2"></i> One simple booking process
+                      <i class="bi bi-check-circle-fill text-secondary me-2"></i> One simple booking process
                     </li>
                   </ul>
                 </div>
@@ -855,7 +855,7 @@
       <div class="container px-4 py-5">
         <div class="row justify-content-center">
           <div class="col-lg-8">
-            <h2 class="display-4 fw-bold mb-4">Ready for Stress-Free Orlando Transportation?</h2>
+            <h2 class="display-4 fw-bold mb-4">Book With Orlando’s Best Transportation Service</h2>
             <p class="lead mb-5">
               Skip the shuttle lines and rental car hassles. Book your private, direct transportation with Grayson Towncar now.
             </p>
@@ -872,25 +872,149 @@
 
     {% include 'call-to-action.html' %}
   </main>
-  <script src="{% static 'js/mobile-dropdown.js' %}"></script>
 
-  <!-- Add this script for the accordion functionality -->
+  <style>
+    /* General Accordion Button Style */
+    .accordion-button {
+      background-color: #0A1428 !important; /* Dark background */
+      color: #ffffff !important; /* White text */
+      border: none;  /* Remove border */
+      font-size: 1.2rem;  /* Adjust font size */
+      padding: 1rem; /* Add padding */
+      transition: background-color 0.3s, color 0.3s; /* Smooth transition */
+      display: flex;
+      justify-content: space-between;  /* Align text to the left and the icon to the right */
+      align-items: center;  /* Center the text and icon vertically */
+      width: 100%;  /* Ensure full width of the button */
+      text-align: left; /* Ensure the text stays aligned to the left */
+      position: relative; /* Ensure the arrow can be placed correctly */
+    }
+
+    /* Custom Font Awesome Arrow */
+    .accordion-button i {
+      color: #ffffff !important; /* Set the arrow color to white */
+      transition: transform 0.3s ease; /* Smooth rotation */
+      position: absolute; /* Position the arrow independently */
+      right: 20px; /* Move the arrow a bit more to the left */
+    }
+
+    /* Rotate arrow when accordion is expanded */
+    .accordion-button:not(.collapsed) i {
+      transform: rotate(180deg); /* Rotate the arrow when expanded */
+    }
+
+    /* Smooth transition for collapsible content */
+    .accordion-collapse {
+      padding: 0.5rem 1rem;
+      background-color: #f4f4f4;
+      max-height: 0; /* Start collapsed */
+      overflow: hidden; /* Hide content when collapsed */
+      transition: max-height 0.3s ease; /* Smooth max-height transition */
+    }
+
+    .accordion-body {
+      font-size: 1rem;
+      color: #333;
+    }
+
+    /* Mobile-specific styles */
+    @media (max-width: 768px) {
+      /* Make the accordion button smaller on mobile */
+      .accordion-button {
+        font-size: 1rem; /* Smaller font size */
+        padding: 0.8rem; /* Less padding */
+      }
+
+      /* Adjust the accordion body padding for mobile */
+      .accordion-collapse {
+        padding: 0.5rem 0.8rem; /* Less padding */
+      }
+
+      .accordion-body {
+        font-size: 0.9rem; /* Smaller text size */
+      }
+    }
+
+    /* Adjust the FAQ section for better layout on mobile */
+    .faq {
+      margin-bottom: 1rem;
+    }
+
+    /* Ensure the FAQ section takes up the full width on smaller screens */
+    .faq .container {
+      padding-left: 0;
+      padding-right: 0;
+    }
+  </style>
+
+{% endblock %}
+{% block extra_js %}
+  <!-- Accordion functionality -->
   <script>
-      document.addEventListener('DOMContentLoaded', function() {
-          // Initialize all accordions
-          var accordionItems = document.querySelectorAll('.accordion-item');
+    document.addEventListener('DOMContentLoaded', function () {
+      // Handle Accordion functionality
+      var accordionItems = document.querySelectorAll('.accordion-item');
 
-          accordionItems.forEach(function(item) {
-              var button = item.querySelector('.accordion-button');
-              var collapse = item.querySelector('.accordion-collapse');
+      accordionItems.forEach(function (item) {
+        var button = item.querySelector('.accordion-button');
+        var collapse = item.querySelector('.accordion-collapse');
 
-              button.addEventListener('click', function() {
-                  var expanded = this.getAttribute('aria-expanded') === 'true';
-                  this.setAttribute('aria-expanded', !expanded);
-                  collapse.classList.toggle('show');
-              });
-          });
+        // Ensure collapses are hidden initially
+        collapse.style.transition = 'max-height 0.3s ease';
+        collapse.style.maxHeight = '0';  // Start collapsed
+        collapse.style.overflow = 'hidden';
+
+        button.addEventListener('click', function () {
+          var expanded = this.getAttribute('aria-expanded') === 'true';
+
+          if (expanded) {
+            collapse.style.maxHeight = '0';  // Collapse
+          } else {
+            collapse.style.maxHeight = collapse.scrollHeight + 'px';  // Expand
+          }
+
+          this.setAttribute('aria-expanded', !expanded);
+        });
       });
+
+      // Handle responsive behavior for accordion
+      function handleResponsiveDisplay() {
+        const isMobile = window.innerWidth < 768;
+        const collapseElements = document.querySelectorAll('.collapse.accordion-collapse');
+
+        collapseElements.forEach(function (element) {
+          if (isMobile) {
+            // On mobile, ensure accordion collapses are handled correctly
+            element.style.maxHeight = '0';  // Collapse all on mobile
+            element.style.overflow = 'hidden';
+          } else {
+            // On desktop, ensure the collapse is shown if necessary
+            if (!element.classList.contains('show-initial')) {
+              element.classList.add('show');
+              element.style.maxHeight = element.scrollHeight + 'px'; // Ensure content is shown
+            }
+          }
+        });
+      }
+
+      // Initial call to handle responsive behavior
+      handleResponsiveDisplay();
+
+      // Add resize listener for responsive behavior
+      window.addEventListener('resize', handleResponsiveDisplay);
+
+      // Ensure that Bootstrap's dropdown works on mobile (for navbar)
+      var bootstrapDropdowns = document.querySelectorAll('.navbar .dropdown-toggle');
+      bootstrapDropdowns.forEach(function (dropdown) {
+        dropdown.addEventListener('click', function (e) {
+          var menu = this.nextElementSibling;
+          if (menu && menu.classList.contains('dropdown-menu')) {
+            e.preventDefault();
+            menu.classList.toggle('show');
+          }
+        });
+      });
+    });
   </script>
 {% endblock %}
 {% block footer_scripts %}{% endblock %}
