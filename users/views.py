@@ -54,7 +54,7 @@ def loginUser(request):
         if user is not None:
             login(request, user)
             messages.success(request, "Successfully logged in", extra_tags="success")
-            return redirect("home")
+            return redirect("dispatcher_dashboard")
         else:
             messages.error(
                 request, "Please Enter Valid Credentials", extra_tags="danger"

@@ -352,3 +352,86 @@
   outline: 3px solid rgba(108,117,125,0.4);
   outline-offset: 2px;
 }
+
+.bg-rates-dark {
+  background-color: #091428 !important;
+}
+
+/* One Way price styling */
+.one-way-price {
+  font-weight: bold;
+  color: #1E282D;
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  margin-right: 10px;
+  text-align: center;
+}
+
+/* Round Trip price styling */
+.round-trip-price {
+  font-weight: bold;
+  color: #1E282D;
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  text-align: center;
+}
+
+/* Removes hover effect */
+.one-way-price:hover,
+.round-trip-price:hover {
+  color: #1e282dc2 !important;
+  background-color: transparent !important;
+}
+
+/* Add a border to the right of the One Way column */
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  border-right: 1px solid #ccc !important;
+  /* Create a 2px border between One Way and Round Trip */
+}
+
+/* Optional: Adding spacing between the columns */
+.table th,
+.table td {
+  padding-right: 15px;
+  padding-left: 15px;
+}
+
+/* Remove background color, make text smaller, and adjust padding */
+.btn2 {
+  background-color: transparent !important;
+  color: #6c757d;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #6c757d;
+  min-width: 90px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn2:hover {
+  background-color: transparent;
+  color: #49505795;
+  text-decoration: none;
+}
+
+/* Icon hover effect */
+.inclusion-icon {
+  transition: transform 0.3s ease;
+}
+
+.inclusion-item:hover .inclusion-icon {
+  transform: scale(1.2);
+}
+
+/* Optional: Add card hover effect */
+.inclusion-item {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.inclusion-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}

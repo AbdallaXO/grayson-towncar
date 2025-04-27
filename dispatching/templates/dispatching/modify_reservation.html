@@ -1,0 +1,9 @@
+{% extends "main.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+  <p>Edit Reservation</p>
+  <form action="POST">
+    {{ customer_form | crispy }}
+    {{ reservation_form | crispy }}
+  </form>
+{% endblock content %}

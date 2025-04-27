@@ -1,0 +1,68 @@
+
+import os
+import django
+import random
+from datetime import datetime, timedelta
+from django.utils.timezone import now
+
+
+from reservations.models import Customer, Reservation, Leg, Flight 
+from rates.models import Rate, Vehicle
+
+# You can adjust or randomize these
+first_names = ["Alice", "Bob", "Charlie", "Diana", "Ethan"]
+last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones"]
+emails = ["test1@example.com", "test2@example.com", "test3@example.com", "test4@example.com", "test5@example.com"]
+phones = ["1234567890", "0987654321", "5555555555", "7777777777", "8888888888"]
+zipcodes = ["32801", "32819", "34747", "32830", "32837"]
+
+# Pick some Rate and Vehicle
+rate = Rate.objects.first()
+vehicle = Vehicle.objects.first()
+
+for i in range(5):
+    customer = Customer.objects.create(
+        first_name=random.choice(first_names),
+        last_name=random.choice(last_names),
+        email=random.choice(emails),
+        phone_number=random.choice(phones),
+        zipcode=random.choice(zipcodes),
+    )
+
+    reservation = Reservation.objects.create(
+        trip_type="oneway",  # or "roundtrip" if your constants allow
+        customer=customer,
+        rate=rate,
+        vehicle=vehicle,
+        passenger_count=random.randint(1, 4), 
+        luggage_count=random.randint(0, 4), 
+        need_carseats=random.choice([True, False]),
+        rf_carseats=random.randint(0, 2),
+        ff_carseats=random.randint(0, 2),
+        booster_seats=random.randint(0, 2),
+        base_price=100,
+        additional_charges=0,
+        total_price=100,
+        status="pending",
+    )
+
+    flight = Flight.objects.create(
+        flight_type=random.choice(["arrival", "departure"]),
+        airline="Test Airline",
+        flight_number=str(random.randint(100, 999)),
+    )
+
+    pickup_date = now().date() + timedelta(days=random.randint(1, 10))
+    pickup_time = (datetime.now() + timedelta(hours=random.randint(1, 5))).time()
+
+    Leg.objects.create(
+        reservation=reservation,
+        flight_information=flight,
+        pickup_date=pickup_date,
+        pickup_time=pickup_time,
+        pickup_location="Orlando Airport",
+        dropoff_location="Disney Resort",
+    )
+
+print("✅ Successfully created 5 dummy reservations!")
+

@@ -47,7 +47,7 @@ def handle_checkout_session(session):
     logger.info(f"Processing checkout for reservation: {reservation_id}")
     logger.info(f"Session details: {session}")
 
-    if not reservation_id:  # Removed duplicate assignment
+    if not reservation_id:  
         logger.error("No Reservation ID in session metadata")
         return
     try:
@@ -55,13 +55,16 @@ def handle_checkout_session(session):
             uuid=reservation_id
         )
         customer = reservation.customer
-        # Creating a record
+
+        amount_total = session.get('amount_total')
+        session_total_amount = Decimal(amount_total if amount_total is not None else 0) / 100
+
         payment, created = Payment.objects.get_or_create(
             reservation=reservation,
             customer=customer,
             stripe_checkout_id=session.get("id"),
             defaults={
-                "amount": reservation.total_price,
+                "amount": session_total_amount,
                 "payment_type": "pay_later",
             },  # Fixed syntax
         )
@@ -81,18 +84,13 @@ def handle_checkout_session(session):
                     payment.stripe_payment_method_id = payment_method_id
                     payment.stripe_checkout_id = session.get("id")
                     payment.status = "card_saved"
-                    # payment.payment_type remains "pay_later" from defaults
-
-                    # Update reservation status
                     reservation.status = "Confirmed"
 
                     with transaction.atomic():  # Added for consistency
                         payment.save()
                         reservation.save()
 
-                    send_reservation_confirmation(
-                        reservation
-                    )  # Added as per your comment
+                    send_reservation_confirmation(reservation)
                     logger.info(f"Card Saved for Reservation {reservation_id}")
                 else:
                     logger.error("Failed to save card to customer")
@@ -102,28 +100,25 @@ def handle_checkout_session(session):
             if payment_intent:
                 full_payment_intent = stripe.PaymentIntent.retrieve(payment_intent)
                 payment_method_id = full_payment_intent.payment_method
-
+                
+                final_amount = Decimal(full_payment_intent.amount) / 100
                 if save_card_to_customer(
                     customer.stripe_customer_id, payment_method_id
                 ):  # Fixed indentation and added check
                     payment.stripe_payment_intent_id = payment_intent
                     payment.status = "paid"
-                    payment.payment_type = "pay_now"  # Added to reflect paid status
-                    payment.amount = (
-                        Decimal(full_payment_intent.amount) / 100
-                    )  # Added to update amount
-                    reservation.status = "Confirmed"  # Added as per your comment
-                    reservation.total_price = (
-                        payment.amount
-                    )  # Added to sync with payment
-
-                    with transaction.atomic():  # Added for consistency
-                        payment.save()
+                    payment.payment_type = "pay_now"  
+                    payment.amount = final_amount
+                    reservation.status = "Confirmed"  
+                    reservation.base_price = final_amount
+                    reservation.total_price = final_amount
+                    with transaction.atomic():
+                        payment.save()  
                         reservation.save()
 
                     send_reservation_confirmation(
                         reservation
-                    )  # Added as per your comment
+                    )  
                     logger.info(f"Payment processed for reservation {reservation_id}")
                 else:
                     logger.error("Failed to save card to customer")
@@ -152,17 +147,13 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         )
         logger.info("Payment method attached successfully")
 
-        # Retrieve the payment method to get card details
         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
         card = payment_method.card
 
         logger.info(f"Retrieved card details: {card}")
         logger.info(f"Card brand: {card.brand}")
         logger.info(f"Card last4: {card.last4}")
-        logger.info(f"Card exp month: {card.exp_month}")
-        logger.info(f"Card exp year: {card.exp_year}")
 
-        # Find the customer in your database
         try:
             customer = Customer.objects.get(stripe_customer_id=customer_id)
             logger.info(f"Found customer: {customer}")

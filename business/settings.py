@@ -51,6 +51,7 @@ ALLOWED_HOSTS = [
 # Application definition
 # Native and third-party apps
 NATIVE_APPS = [
+    "jazzmin",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -66,6 +67,8 @@ THIRD_PARTY_APPS = [
     "crispy_forms",
     "crispy_bootstrap5",
     "storages",
+    "ckeditor",
+    "ckeditor_uploader",
 ]
 
 if DEBUG:
@@ -78,6 +81,8 @@ OUR_APPS = [
     "services",
     "blog",
     "payment",
+    "drivers",
+    "dispatching",
 ]
 
 # After DEbuyg toolbar
@@ -162,11 +167,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "America/New_York"
 
-USE_I18N = True
-
-USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -236,6 +237,60 @@ STORAGES = {
         },
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
+}
+DATE_FORMAT = 'Y-m-d'
+TIME_FORMAT = 'g:i A'  # 12-hour format with AM/PM
+DATETIME_FORMAT = 'Y-m-d g:i A'
+SHORT_DATE_FORMAT = 'm/d/Y'
+SHORT_DATETIME_FORMAT = 'm/d/Y g:i A'
+TIME_ZONE = "America/New_York"
+USE_I18N = False
+USE_TZ = True
+USE_L10N = False
+ADMIN_DATETIME_FORMAT = 'g:i A' 
+ADMIN_DATE_FORMAT = 'm/d/Y'      # 
+ADMIN_TIME_FORMAT = 'g:i A'
+
+CKEDITOR_UPLOAD_PATH = 'uploads/'
+CKEDITOR_JQUERY_URL = 'https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'
+
+CKEDITOR_CONFIGS = {
+    'default': {
+        'skin': 'moono-lisa',
+        'toolbar': 'full',
+        'height': 300,
+        'width': '100%',
+    },
+    'awesome_ckeditor': {
+        'toolbar': 'Custom',
+        'toolbar_Custom': [
+            ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript'],
+            ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', 'Blockquote'],
+            ['JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock'],
+            ['Link', 'Unlink', 'Anchor'],
+            ['Image', 'Table', 'HorizontalRule', 'SpecialChar', 'Iframe'],
+            ['Styles', 'Format', 'Font', 'FontSize'],
+            ['TextColor', 'BGColor'],
+            ['Maximize', 'ShowBlocks', 'Source']
+        ],
+        'filebrowserBrowseUrl': '/ckeditor/browse/',
+        'filebrowserUploadUrl': '/ckeditor/upload/',
+        'extraPlugins': ','.join([
+            'uploadimage',
+            'autolink',
+            'image2',
+            'autoembed',
+            'embedsemantic',
+            'autogrow',
+            'widget',
+            'lineutils',
+            'dialog',
+            'dialogui',
+            'elementspath'
+        ]),
+        'height': 400,
+        'width': '100%',
+    }
 }

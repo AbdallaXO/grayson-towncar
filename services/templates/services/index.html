@@ -1,20 +1,37 @@
 {% extends 'main.html' %}
+{% load seo_tags %}
 {% load static %}
+{% block head_extra %}
+<link rel="canonical" href="https://www.graysontowncar.com/services/" />
+{% endblock head_extra %}
 {% block title %}Our Services | Disney, Universal & Port Canaveral Rides | Grayson Towncar{% endblock %}
+{% block meta_description %}
+<meta name="description" content="Premium Orlando transportation services to Disney, Universal, and Port Canaveral with family-friendly options, car seats, and professional drivers.">
+<link rel="preload" href="{% static 'images/services-bg.webp' %}" as="image" type="image/webp">
+{% endblock %}
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
 {% endblock %}
 {% block content %}
-  <script src="{% static 'js/area-selector.js' %}"></script>
-  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}">
-
-  <!-- Modern Hero with Animated Background -->
+{% block schema %}
+{% structured_data additional_data=structured_data %}
+{% endblock schema %}
+  <script src="{% static 'js/area-selector.js' %}" defer></script>
+  <!-- Modern Hero with Optimized Background -->
   <section class="position-relative overflow-hidden vh-100 d-flex align-items-center"
            id="hero">
-    <div class="bg-image position-absolute top-0 start-0 w-100 h-100"
-         style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)), url('{% static 'images/services-bg.webp' %}') no-repeat center center;
-                background-size: cover"
-         fetchpriority="high"></div>
+    <!-- Optimized background image - move to actual img tag for better LCP -->
+    <div class="position-absolute top-0 start-0 w-100 h-100">
+      <img src="{% static 'images/services-bg.webp' %}" 
+           width="1920" 
+           height="1080"
+           alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night, with colorful lights reflecting across the water, symbolizing the magical transportation experience to Disney destinations." 
+           class="w-100 h-100 object-fit-cover" 
+           style="position: absolute; z-index: 0;" 
+           fetchpriority="high">
+      <div class="position-absolute top-0 start-0 w-100 h-100" 
+           style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)); z-index: 1;"></div>
+    </div>
     <div class="container position-relative z-1 py-5">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center text-white">
@@ -30,11 +47,7 @@
       </div>
     </div>
   </section>
-
-
-  <!-- Value Comparison Section -->
-
-  <!-- Simplified Service Areas Section -->
+ <!-- Simplified Service Areas Section -->
   <section class="py-6" id="explore">
     <div class="container">
       <div class="row align-items-center">
@@ -51,8 +64,8 @@
                       data-area="disney">
                 <img src="{% static 'images/disney-castle.webp' %}"
                      class="me-2"
-                     style="width: 1.5em;
-                            height: 1.5em"
+                     width="24"
+                     height="24"
                      alt="Disney" />
                 Disney Resorts
               </button>
@@ -974,11 +987,8 @@
     </div>
   </div>
 </section>
-
-{% comment %}Call to Action{% endcomment %}
 {% include 'call-to-action.html' %}
 
-<!-- Add structured data for SEO -->
 <script type="application/ld+json">
     {
         "@context": "https://schema.org",
@@ -1040,5 +1050,5 @@
         }]
     }
 </script>
-<script src="{% static 'js/services-page.js' %}"></script>
+<script src="{% static 'js/services-page.js' %}" defer></script>
 {% endblock %}
