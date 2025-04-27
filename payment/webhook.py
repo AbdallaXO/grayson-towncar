@@ -56,7 +56,8 @@ def handle_checkout_session(session):
         )
         customer = reservation.customer
 
-        session_total_amount = Decimal(session.get('amount_total', 0)) / 100
+        amount_total = session.get('amount_total')
+        session_total_amount = Decimal(amount_total if amount_total is not None else 0) / 100
 
         payment, created = Payment.objects.get_or_create(
             reservation=reservation,
@@ -83,7 +84,6 @@ def handle_checkout_session(session):
                     payment.stripe_payment_method_id = payment_method_id
                     payment.stripe_checkout_id = session.get("id")
                     payment.status = "card_saved"
-
                     reservation.status = "Confirmed"
 
                     with transaction.atomic():  # Added for consistency
@@ -147,17 +147,13 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         )
         logger.info("Payment method attached successfully")
 
-        # Retrieve the payment method to get card details
         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
         card = payment_method.card
 
         logger.info(f"Retrieved card details: {card}")
         logger.info(f"Card brand: {card.brand}")
         logger.info(f"Card last4: {card.last4}")
-        logger.info(f"Card exp month: {card.exp_month}")
-        logger.info(f"Card exp year: {card.exp_year}")
 
-        # Find the customer in your database
         try:
             customer = Customer.objects.get(stripe_customer_id=customer_id)
             logger.info(f"Found customer: {customer}")

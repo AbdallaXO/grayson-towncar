@@ -7,7 +7,8 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
       <h1 class="mb-2 mb-md-0">Dispatcher Dashboard</h1>
 
-      <div class="alert alert-light d-flex justify-content-between align-items-center border py-1 px-3 m-0" style="max-width: 450px;">
+      <div class="alert alert-light d-flex justify-content-between align-items-center border py-1 px-3 m-0"
+           style="max-width: 450px">
         <div>
           <strong>Logged in as:</strong> {{ request.user|title }}
         </div>
@@ -53,7 +54,8 @@
               <td style="min-width: 200px;">
                 <div class="fw-bold">
                   Res Id:
-                  <a class="text-decoration-none" href="{% url 'reservation_details' leg.reservation.uuid %} ">{{ leg.reservation.id }}</a>
+                  <a class="text-decoration-none"
+                     href="{% url 'reservation_details' leg.reservation.uuid %} ">{{ leg.reservation.id }}</a>
                 </div>
                 <div>{{ leg.reservation.customer.get_full_name }}</div>
                 <div class="text-secondary">{{ leg.reservation.customer.phone_number }}</div>
@@ -115,16 +117,20 @@
   <!-- Mobile/small screen card view for better responsiveness -->
   <div class="d-md-none container-fluid my-4">
     <div class="d-flex justify-content-between mb-3">
-      <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i> Previous</button>
+      <button class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Previous
+      </button>
       <span class="badge bg-secondary">Page 1 of 3</span>
-      <button class="btn btn-sm btn-outline-secondary">Next <i class="bi bi-arrow-right"></i></button>
+      <button class="btn btn-sm btn-outline-secondary">
+        Next <i class="bi bi-arrow-right"></i>
+      </button>
     </div>
 
     {% for leg in legs %}
       <div class="card mb-3 shadow-sm">
         <div class="card-header bg-dark text-white d-flex justify-content-between">
           <div>
-            <strong>ID: {{ leg.reservation.id }}</strong>
+            <strong>ID: <a href="{% url "reservation_details" leg.reservation.uuid %}">{{ reservation.id }}</a></strong>
           </div>
           <div>
             {{ leg.pickup_date|date:'m/d/Y' }}
@@ -187,49 +193,49 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // Get today's date in YYYY-MM-DD format for the date picker
-      const today = new Date()
-      const formattedDate = today.toISOString().split('T')[0]
-    
-      // Set default date to today if not already set
-      const datePicker = document.getElementById('dateFilter')
-      if (!datePicker.value) {
-        datePicker.value = formattedDate
-      }
-      // Handle the submit button click to filter by date
-      document.getElementById('submitDateFilter').addEventListener('click', function () {
-        const selectedDate = document.getElementById('dateFilter').value
-        // You would normally do a form submit or redirect here
-        window.location.href = `?date=${selectedDate}`
+      document.addEventListener('DOMContentLoaded', function() {
+          // Get today's date in YYYY-MM-DD format for the date picker
+          const today = new Date()
+          const formattedDate = today.toISOString().split('T')[0]
+
+          // Set default date to today if not already set
+          const datePicker = document.getElementById('dateFilter')
+          if (!datePicker.value) {
+              datePicker.value = formattedDate
+          }
+          // Handle the submit button click to filter by date
+          document.getElementById('submitDateFilter').addEventListener('click', function() {
+              const selectedDate = document.getElementById('dateFilter').value
+              // You would normally do a form submit or redirect here
+              window.location.href = `?date=${selectedDate}`
+          })
       })
-    })
   </script>
 
   <style>
-    /* Minimal CSS - using Bootstrap as much as possible */
-    .sticky-top {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
-    
-    /* Enhanced mobile optimizations */
-    @media (max-width: 768px) {
-      .table {
-        font-size: 13px;
+      /* Minimal CSS - using Bootstrap as much as possible */
+      .sticky-top {
+          position: sticky;
+          top: 0;
+          z-index: 1;
       }
-    
-      td {
-        padding: 8px;
+
+      /* Enhanced mobile optimizations */
+      @media (max-width: 768px) {
+          .table {
+              font-size: 13px;
+          }
+
+          td {
+              padding: 8px;
+          }
+
+          /* Hide table on very small screens - cards will show instead */
+          @media (max-width: 576px) {
+              .table-responsive {
+                  display: none;
+              }
+          }
       }
-    
-      /* Hide table on very small screens - cards will show instead */
-      @media (max-width: 576px) {
-        .table-responsive {
-          display: none;
-        }
-      }
-    }
   </style>
 {% endblock %}

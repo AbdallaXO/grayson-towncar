@@ -15,4 +15,5 @@ RESERVTION_STATUS = [
     ("pending", "Pending"),
     ("canceled", "Canceled"),
     ("confirmed", "Confirmed"),
+    ("completed", "Completed"),
 ]
