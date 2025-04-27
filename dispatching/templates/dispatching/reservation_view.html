@@ -2,132 +2,262 @@
 {% load static %}
 
 {% block content %}
-  <div class="container mt-3">
-    <div class="alert alert-light d-flex justify-content-between align-items-center border">
-      <div>
-        <strong>Logged in as:</strong> {{ request.user|title }}
+  <div class="container-fluid mt-4">
+    {% if messages %}
+      <div class="row">
+        <div class="col-12">
+          {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show"
+                 role="alert">
+              {{ message }}
+              <button type="button"
+                      class="btn-close"
+                      data-bs-dismiss="alert"
+                      aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
       </div>
-      <div class="text-muted">
-        <i class="bi bi-calendar3 me-2"></i>{% now 'l, F j, Y - g:i A' %}
+    {% endif %}
+
+    <div class="row">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1 class="h3">Reservation Details</h1>
+          <div>
+            <a href="{% url 'reservations_list' %}"
+               class="btn btn-outline-secondary me-2">
+              <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+            <a href="{% url 'modify_reservation' reservation.uuid %}"
+               class="btn btn-primary">
+              <i class="bi bi-pencil me-1"></i>Edit Reservation
+            </a>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="container my-5">
-    <a href="{% url 'dispatcher_dashboard' %}"
-       class="btn btn-outline-secondary mb-4">← Back to Dashboard</a>
-
-    <div class="card shadow-sm mb-5">
-      <div class="card-header bg-dark text-white">
-        <h4 class="mb-0">Reservation ID: {{ reservation.id }} – Created At {{ reservation.created_at }}</h4>
-      </div>
-
-      <div class="card-body">
-        <!-- Guest Information -->
-        <div class="row mb-4">
-          <div class="col-md-6">
-            <h5>Guest Information</h5>
-            <a href="{% url "edit_reservation" reservation.uuid %}">Edit Reservation</a>
-            <p>
-              <strong>Name:</strong> {{ reservation.customer.get_full_name }}
-            </p>
-            <p>
-              <strong>Phone:</strong> {{ reservation.customer.phone_number }}
-            </p>
-            <p>
-              <strong>Email:</strong> {{ reservation.customer.email }}
-            </p>
+    <div class="row">
+      <div class="col-md-8">
+        <div class="card mb-4">
+          <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              Reservation #{{ reservation.id }}
+              <span class="badge bg-info ms-2">{{ reservation.status|title }}</span>
+            </h5>
+            <small>Created: {{ reservation.created_at|date:"F d, Y H:i" }}</small>
           </div>
-          <div class="col-md-6">
-            <h5>Payment</h5>
-            <p>
-              <strong>Fare Total:</strong> $ {{ reservation.total_price|default:'Unpaid' }}
-            </p>
-            <p>
-              <strong>Payment Status:</strong> <span class="badge bg-success">{{ reservation.payments.last.status|default:'N/A' }}</span>
-            </p>
-            <p>
-              <strong>Private Comments:</strong> {{ reservation.private_notes|default:'' }}
-            </p>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-muted">Customer Information</h6>
+                <dl class="row">
+                  <dt class="col-sm-4">Name</dt>
+                  <dd class="col-sm-8">
+                    {{ reservation.customer.get_full_name }}
+                  </dd>
+
+                  <dt class="col-sm-4">Phone</dt>
+                  <dd class="col-sm-8">
+                    {{ reservation.customer.phone_number }}
+                  </dd>
+
+                  <dt class="col-sm-4">Email</dt>
+                  <dd class="col-sm-8">
+                    {{ reservation.customer.email }}
+                  </dd>
+                </dl>
+              </div>
+              <div class="col-md-6">
+                <h6 class="text-muted">Reservation Details</h6>
+                <dl class="row">
+                  <dt class="col-sm-4">Trip Type</dt>
+                  <dd class="col-sm-8">
+                    {{ reservation.get_trip_type_display }}
+                  </dd>
+
+                  <dt class="col-sm-4">Passengers</dt>
+                  <dd class="col-sm-8">
+                    {{ reservation.passenger_count }}
+                    {% if reservation.display_carseats %}(Carseats: {{ reservation.display_carseats }}){% endif %}
+                  </dd>
+
+                  <dt class="col-sm-4">Vehicle</dt>
+                  <dd class="col-sm-8">
+                    {{ reservation.vehicle.name|default:"Not Assigned" }}
+                  </dd>
+                </dl>
+              </div>
+            </div>
           </div>
         </div>
 
-        <hr />
-
         {% for leg in reservation.legs.all %}
-          <h5>Trip Details</h5>
-
-          <div class="card mb-3 border-dark">
-            <div class="card-header bg-dark text-white">Leg ({{ forloop.counter }}) Route: {{ reservation.rate.route }}</div>
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                Leg #{{ forloop.counter }}
+                <span class="badge bg-secondary ms-2">{{ reservation.rate.route }}</span>
+              </h5>
+              <small>{{ leg.pickup_date|date:"F d, Y" }}</small>
+            </div>
             <div class="card-body">
               <div class="row">
                 <div class="col-md-4">
-                  <p>
-                    <strong>Pickup Date:</strong> {{ leg.pickup_date|date:'D, M, Y' }}
-                  </p>
-                  <p>
-                    <strong>Flight Info:</strong> {{ leg.flight_information }}
-                  </p>
-                  <p>
-                    <strong>Pickup Time:</strong> {{ leg.pickup_time|date:'g:i A' }}
-                  </p>
-                  <p>
-                    <strong>Pickup:</strong> {{ leg.pickup_location }}
-                  </p>
-                  <p>
-                    <strong>Dropoff:</strong> {{ leg.dropoff_location }}
-                  </p>
+                  <h6 class="text-muted">Pickup Details</h6>
+                  <dl class="row">
+                    <dt class="col-sm-4">Time</dt>
+                    <dd class="col-sm-8">
+                      {{ leg.pickup_time|time:"h:i A" }}
+                    </dd>
+
+                    <dt class="col-sm-4">Location</dt>
+                    <dd class="col-sm-8">
+                      {{ leg.pickup_location }}
+                    </dd>
+
+                    <dt class="col-sm-4">Dropoff</dt>
+                    <dd class="col-sm-8">
+                      {{ leg.dropoff_location }}
+                    </dd>
+                  </dl>
                 </div>
                 <div class="col-md-4">
-                  <p>
-                    <strong>Flight Type:</strong> N/A
-                  </p>
+                  <h6 class="text-muted">Flight Information</h6>
+                  <dl class="row">
+                    <dt class="col-sm-4">Flight</dt>
+                    <dd class="col-sm-8">
+                      {{ leg.flight_information|default:"No Flight Info" }}
+                    </dd>
+                  </dl>
                 </div>
                 <div class="col-md-4">
-                  <p>
-                    <strong>Vehicle:</strong> {{ reservation.vehicle }}
-                  </p>
-                  <p>
-                    <strong>Passengers:</strong> {{ reservation.passenger_count }}
-                  </p>
-                  <p>
-                    <strong>Car Seats:</strong> {{ reservation.display_carseats }}
-                  </p>
+                  <h6 class="text-muted">Driver Assignment</h6>
+                  <form method="post" class="mb-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="leg_id" value="{{ leg.id }}">
+                    <div class="input-group">
+                      <select name="driver"
+                              class="form-select form-select-sm"
+                              onchange="this.form.submit()">
+                        <option value="">Assign Driver</option>
+                        {% for driver in available_drivers %}
+                          <option value="{{ driver.id }}"
+                                  {% if driver == leg.driver %}selected{% endif %}>{{ driver.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  </form>
+                  {% if leg.driver %}
+                    <div class="alert alert-info py-1 px-2">
+                      <small>Assigned: {{ leg.driver.name }}</small>
+                    </div>
+                  {% endif %}
                 </div>
-              </div>
-              <div class="mt-3">
-                <label>
-                  <strong>Assign Driver:</strong>
-                </label>
-                <select class="form-select w-auto d-inline-block">
-                  <option selected>John Doe</option>
-                  <option>Jane Doe</option>
-                </select>
               </div>
             </div>
           </div>
         {% endfor %}
-        <h5>Notes</h5>
-        <div class="row">
-          <div class="col-md-6">
-            <p>
-              <strong>Private Notes:</strong> {{ reservation.private_notes }}
-            </p>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Pricing & Payments</h5>
           </div>
-          <div class="col-md-6">
-            <p>
-              <strong>Customer Notes:</strong> {{ reservation.special_requests }}
-            </p>
+          <div class="card-body">
+            <dl class="row">
+              <dt class="col-sm-6">Base Price</dt>
+              <dd class="col-sm-6 text-end">
+                ${{ total_cost.base|floatformat:2 }}
+              </dd>
+
+              <dt class="col-sm-6">Additional Charges</dt>
+              <dd class="col-sm-6 text-end">
+                ${{ total_cost.additional|floatformat:2 }}
+              </dd>
+
+              <hr>
+
+              <dt class="col-sm-6 fw-bold">Total Price</dt>
+              <dd class="col-sm-6 text-end fw-bold text-primary">
+                ${{ total_cost.total|floatformat:2 }}
+              </dd>
+            </dl>
+
+            <div class="d-grid gap-2">
+              <button type="button"
+                      class="btn btn-outline-success"
+                      data-bs-toggle="modal"
+                      data-bs-target="#paymentModal">Process Payment</button>
+
+              <button type="button"
+                      class="btn btn-outline-danger"
+                      data-bs-toggle="modal"
+                      data-bs-target="#cancelModal">Cancel Reservation</button>
+            </div>
           </div>
         </div>
 
-        <div class="mt-4">
-          <button class="btn btn-success me-2">Update Reservation</button>
-          <button class="btn btn-outline-danger">Cancel Reservation</button>
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">Notes</h5>
+          </div>
+          <div class="card-body">
+            <h6 class="text-muted">Private Notes</h6>
+            <p>{{ reservation.private_notes|default:"No private notes" }}</p>
+
+            <h6 class="text-muted mt-3">Special Requests</h6>
+            <p>{{ reservation.special_requests|default:"No special requests" }}</p>
+          </div>
         </div>
       </div>
     </div>
   </div>
-{% endblock %}
 
-{% block footer %}{% endblock %}
+  <!-- Payment Modal -->
+  <div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Process Payment</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Payment form or integration would go here -->
+          <p>Total due: ${{ total_cost.total|floatformat:2 }}</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary">Pay Now</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% comment %} <!-- Cancellation Modal -->
+        <div class="modal fade" id="cancelModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+          <h5 class="modal-title">Cancel Reservation</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to cancel this reservation?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep Reservation</button>
+          <form method="post"
+                action="{% url 'cancel_reservation' reservation.uuid %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Yes, Cancel Reservation</button>
+          </form>
+        </div>
+      </div>
+    </div>
+</div> {% endcomment %}
+{% endblock %}
+{% block footer %}
+{% endblock footer %}

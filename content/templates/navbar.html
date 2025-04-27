@@ -1,16 +1,38 @@
 {% load static %}
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top">
   <div class="container px-5 bg-navbar-dark">
-    <a class="navbar-brand" href="{% url 'home' %}"><img src="{% static 'images/logo.png' %}" alt="Company Logo" height="80" width="80" /></a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation" style="filter: brightness(0) invert(1);"><span class="navbar-toggler-icon"></span></button>
+    <a class="navbar-brand" href="{% url 'home' %}">
+      <img src="{% static 'images/logo.png' %}"
+           alt="Company Logo"
+           height="80"
+           width="80" />
+    </a>
+    <button class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+            style="filter: brightness(0) invert(1)">
+      <span class="navbar-toggler-icon"></span>
+    </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         {% if request.user.is_authenticated %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin View</a>
+            <a class="nav-link dropdown-toggle text-white"
+               href="#"
+               id="navbarDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">Admin View</a>
             <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
               <li>
-                <a class="dropdown-item" href="{% url 'dispatcher_dashboard' %}">Dashboard</a>
+                <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'reservations_list' %}">All Reservations</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'admin:index' %}" target="_blank">Admin</a>
@@ -25,7 +47,12 @@
           <a class="nav-link text-white" href="{% url 'home' %}">Home</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Company</a>
+          <a class="nav-link dropdown-toggle text-white"
+             href="#"
+             id="navbarDropdown"
+             role="button"
+             data-bs-toggle="dropdown"
+             aria-expanded="false">Company</a>
           <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'about-us' %}">About</a>
