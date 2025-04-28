@@ -67,7 +67,8 @@ def handle_checkout_session(session):
             stripe_checkout_id=session.get("id"),
             defaults={
                 "amount": session_total_amount,
-                "payment_type": "pay_later",
+                "payment_type": "pay_now",
+                "status":"pending",
             },  # Fixed syntax
         )
 
@@ -81,12 +82,13 @@ def handle_checkout_session(session):
                 if save_card_to_customer(
                     customer.stripe_customer_id, payment_method_id
                 ):
-                    # Update payment details
                     payment.stripe_customer_id = customer.stripe_customer_id
                     payment.stripe_payment_method_id = payment_method_id
                     payment.stripe_checkout_id = session.get("id")
+                    payment.payment_type = "pay_later"
+                    payment.amount = reservation.total_price
                     payment.status = "card_saved"
-                    reservation.status = "Confirmed"
+                    reservation.status = "confirmed"
 
                     with transaction.atomic():  # Added for consistency
                         payment.save()
@@ -108,10 +110,10 @@ def handle_checkout_session(session):
                     customer.stripe_customer_id, payment_method_id
                 ):  # Fixed indentation and added check
                     payment.stripe_payment_intent_id = payment_intent
-                    payment.status = "paid"
                     payment.payment_type = "pay_now"
+                    payment.status = "paid"
                     payment.amount = final_amount
-                    reservation.status = "Confirmed"
+                    reservation.status = "confirmed"
                     reservation.base_price = final_amount
                     reservation.total_price = final_amount
                     with transaction.atomic():
@@ -157,8 +159,6 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         try:
             customer = Customer.objects.get(stripe_customer_id=customer_id)
             logger.info(f"Found customer: {customer}")
-
-            # Update customer card information
             customer.stripe_payment_method_id = payment_method.id
             customer.card_brand = card.brand
             customer.card_last4 = card.last4
@@ -167,8 +167,7 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
 
             try:
                 customer.save()
-                logger.info("Customer card details saved successfully")
-                logger.info(f"Updated customer details: {customer.__dict__}")
+                logger.info(f"Customer card details saved successfully for {customer.get_full_name()}")
             except Exception as save_error:
                 logger.error(f"Error saving customer: {save_error}")
                 return False

@@ -23,9 +23,9 @@ class DateForm(forms.Form):
 @login_required(login_url="login")
 def index(request):
     """
-    Dispatcher dashboard with date-based leg filtering
+    Dispatcher Dashboard Shows All Legs-Lets you Filter by Date
     """
-    # Use today's date if no date is provided, ensuring it's a date object
+
     selected_date = request.GET.get("date")
     try:
         selected_date = (
@@ -49,7 +49,7 @@ def index(request):
         "legs": legs,
         "selected_date": selected_date,
         "total_legs": legs.count(),
-        "total_revenue": sum(leg.reservation.total_price for leg in legs),
+        "total_revenue": sum(leg.reservation.total_price for leg in legs) / 2,
     }
 
     return render(request, "dispatching/index.html", context)
@@ -93,7 +93,6 @@ def reservation_details(request, id):
     """
     Detailed view for a reservation
     """
-    # Optimize query with prefetch and select_related
     reservation = get_object_or_404(
         Reservation.objects.prefetch_related("legs__flight_information").select_related(
             "customer", "vehicle", "rate"

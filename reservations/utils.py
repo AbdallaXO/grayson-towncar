@@ -6,6 +6,11 @@ from .forms import (
     LegForm,
     FlightForm,
 )
+from decimal import Decimal
+from datetime import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_form_details(request, rate):
@@ -130,3 +135,17 @@ AIRLINES = [
     "Alaska Airlines",
     "Frontier Airlines",
 ]
+
+
+def extra_charges(reservation):
+    extra_charge = 0
+    for leg in reservation.legs.all():
+        if leg.pickup_time >= time(22, 0) or leg.pickup_time < time(6, 0):
+            extra_charge += Decimal(20.00)
+            logger.info(f"Added a {extra_charge} On Reservation #{reservation.id} For {reservation.customer.get_full_name()}")
+
+    if extra_charge:
+        reservation.additional_charges += extra_charge
+        reservation.base_price += extra_charge
+        reservation.save()
+    return extra_charge

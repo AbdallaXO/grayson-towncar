@@ -7,4 +7,3 @@ class ReservationsConfig(AppConfig):
 
     def ready(self):
         from . import signals
-        

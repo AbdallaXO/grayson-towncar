@@ -11,6 +11,7 @@ from .utils import (
     returns_post_form,
     validate_forms,
     AIRLINES,
+    extra_charges,
 )
 from users.emails import send_internal_confirmation
 # Create your views here.
@@ -75,7 +76,9 @@ def reservation_form(
                 else:
                     leg2.flight_information = None
                 leg2.save()
-            send_internal_confirmation(reservation)
+
+            extra_charges(reservation)
+            # send_internal_confirmation(reservation)
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (

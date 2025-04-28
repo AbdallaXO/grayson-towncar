@@ -9,7 +9,6 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-# Ensure you're using environment variables in production
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
@@ -18,9 +17,7 @@ def create_checkout_session(request, reservation_id):
     logger.info(f"POST data: {request.POST}")
 
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
-    logger.info(
-        f"Reservation details: ID={reservation.id}, Customer Email={reservation.customer.email}"
-    )
+    logger.info(f"Found Reservation For Customer Email={reservation.customer.email}")
 
     stripe_customer = get_or_create_stripe_customer(reservation)
     logger.info(f"Stripe Customer ID: {stripe_customer.id}")
@@ -44,7 +41,8 @@ def create_checkout_session(request, reservation_id):
                             "price_data": {
                                 "currency": "usd",
                                 "product_data": {
-                                    "name": f"{reservation.rate.vehicle} {reservation.trip_type.replace('_', '').title()} Reservation Reservation ID#481{reservation.id}"
+                                    "name": f"Grayson Town Car {reservation.trip_type.replace('_', ' ').title()} Booking",
+                                    "description": (f"{reservation.rate.route}"),
                                 },
                                 "unit_amount": int(reservation.total_price * 100),
                             },
@@ -57,7 +55,8 @@ def create_checkout_session(request, reservation_id):
                     success_url=success_url,
                     cancel_url=cancel_url,
                     metadata={
-                        "reservation_id": reservation.uuid,
+                        "reservation_uuid": reservation.uuid,
+                        "reservation_id": reservation.id,
                         "customer_id": reservation.customer.id,
                         "mode": "pay_now",
                         "route": f"Roundtrip Between {reservation.rate.route}",
