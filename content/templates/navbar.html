@@ -23,10 +23,11 @@
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle text-white"
                href="#"
-               id="navbarDropdown"
+               id="adminDropdown"
                role="button"
+               data-bs-toggle="dropdown"
                aria-expanded="false">Admin View</a>
-            <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
+            <ul class="dropdown-menu bg-light" aria-labelledby="adminDropdown">
               <li>
                 <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
               </li>
@@ -51,10 +52,11 @@
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-white"
              href="#"
-             id="navbarDropdown"
+             id="companyDropdown"
              role="button"
+             data-bs-toggle="dropdown"
              aria-expanded="false">Company</a>
-          <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
+          <ul class="dropdown-menu bg-light" aria-labelledby="companyDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'about-us' %}">About</a>
             </li>
@@ -127,69 +129,3 @@
         width: auto;
     }
 </style>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Handle Accordion functionality
-        var accordionItems = document.querySelectorAll('.accordion-item');
-
-        accordionItems.forEach(function(item) {
-            var button = item.querySelector('.accordion-button');
-            var collapse = item.querySelector('.accordion-collapse');
-
-            // Ensure collapses are hidden initially
-            collapse.style.transition = 'max-height 0.3s ease';
-            collapse.style.maxHeight = '0'; // Start collapsed
-            collapse.style.overflow = 'hidden';
-
-            button.addEventListener('click', function() {
-                var expanded = this.getAttribute('aria-expanded') === 'true';
-
-                if (expanded) {
-                    collapse.style.maxHeight = '0'; // Collapse
-                } else {
-                    collapse.style.maxHeight = collapse.scrollHeight + 'px'; // Expand
-                }
-
-                this.setAttribute('aria-expanded', !expanded);
-            });
-        });
-
-        // Handle responsive behavior for accordion
-        function handleResponsiveDisplay() {
-            const isMobile = window.innerWidth < 768;
-            const collapseElements = document.querySelectorAll('.collapse.accordion-collapse');
-
-            collapseElements.forEach(function(element) {
-                if (isMobile) {
-                    // On mobile, ensure accordion collapses are handled correctly
-                    element.style.maxHeight = '0'; // Collapse all on mobile
-                    element.style.overflow = 'hidden';
-                } else {
-                    // On desktop, ensure the collapse is shown if necessary
-                    if (!element.classList.contains('show-initial')) {
-                        element.classList.add('show');
-                        element.style.maxHeight = element.scrollHeight + 'px'; // Ensure content is shown
-                    }
-                }
-            });
-        }
-
-        // Initial call to handle responsive behavior
-        handleResponsiveDisplay();
-
-        // Add resize listener for responsive behavior
-        window.addEventListener('resize', handleResponsiveDisplay);
-
-        // Ensure that Bootstrap's dropdown works on mobile (for navbar)
-        var bootstrapDropdowns = document.querySelectorAll('.navbar .dropdown-toggle');
-        bootstrapDropdowns.forEach(function(dropdown) {
-            dropdown.addEventListener('click', function(e) {
-                var menu = this.nextElementSibling;
-                if (menu && menu.classList.contains('dropdown-menu')) {
-                    e.preventDefault();
-                    menu.classList.toggle('show');
-                }
-            });
-        });
-    });
-</script>
