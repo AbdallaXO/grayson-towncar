@@ -196,40 +196,32 @@ def modify_reservation(request, id):
 
 @login_required(login_url="login")
 def legs_list(request):
-    # Get the date filter from request or use today's date as default
+    # Get the date filter from request (optional filter)
     date_filter = request.GET.get("date")
 
     # Get today's date for comparison
     today = timezone.localdate()
-
-    if not date_filter:
-        # Default to today's date if no filter is provided
-        date_filter = today.strftime("%Y-%m-%d")
-
-    # Convert the filter date string to a date object
-    try:
-        filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-    except ValueError:
-        # Handle invalid date format - default to today
-        filter_date = today
-        date_filter = today.strftime("%Y-%m-%d")
 
     # Base query - select related fields for optimization
     legs_query = Leg.objects.select_related(
         "reservation", "reservation__customer", "reservation__vehicle"
     )
 
-    # Filter legs - only show legs with pickup date >= today
+    # Always filter legs to show only today and future legs
     legs_query = legs_query.filter(pickup_date__gte=today)
 
-    # If a specific date is selected, filter by that date
-    if filter_date:
-        legs_query = legs_query.filter(pickup_date=filter_date)
+    # If a specific date filter is provided, apply it as an additional filter
+    if date_filter:
+        try:
+            filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            legs_query = legs_query.filter(pickup_date=filter_date)
+        except ValueError:
+            # Handle invalid date format - ignore the filter
+            pass
 
-    # Order by pickup time for better readability
-    legs = legs_query.order_by("pickup_time")
+    # Order by pickup date first, then pickup time for better readability
+    legs = legs_query.order_by("pickup_date", "pickup_time")
 
-    # Mock data for drivers dropdown since it's just a placeholder
     drivers = [
         {"id": 1, "name": "Select Driver"},
         {"id": 2, "name": "Wael"},
