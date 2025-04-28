@@ -4,6 +4,7 @@ import json
 
 register = template.Library()
 
+
 def get_base_structured_data(request, additional_data=None):
     """
     Generate base structured data with optional customization
@@ -112,7 +113,7 @@ def get_base_structured_data(request, additional_data=None):
             "@type": "AggregateRating",
             "ratingValue": 4.8,
             "bestRating": 5,
-            "ratingCount": 250
+            "ratingCount": 250,
         },
         "potentialAction": {
             "@type": "ReserveAction",

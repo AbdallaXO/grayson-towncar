@@ -2,20 +2,20 @@
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top">
   <div class="container px-5 bg-navbar-dark">
     <a class="navbar-brand" href="{% url 'home' %}">
-      <img src="{% static 'images/logo.png' %}" 
-          alt="Company Logo" 
-          height="150" 
-          width="150" />
+      <img src="{% static 'images/logo.png' %}"
+           alt="Company Logo"
+           height="150"
+           width="150" />
     </a>
     <button class="navbar-toggler"
-          type="button" 
-          data-bs-toggle="collapse" 
-          data-bs-target="#navbarSupportedContent" 
-          aria-controls="navbarSupportedContent" 
-          aria-expanded="false" 
-          aria-label="Toggle navigation" 
-          style="filter: brightness(0) invert(1);">
-        <span class="navbar-toggler-icon"></span>
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+            style="filter: brightness(0) invert(1)">
+      <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
@@ -25,7 +25,6 @@
                href="#"
                id="navbarDropdown"
                role="button"
-               data-bs-toggle="dropdown"
                aria-expanded="false">Admin View</a>
             <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
               <li>
@@ -33,6 +32,9 @@
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'reservations_list' %}">All Reservations</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'legs_list' %}">All Legs</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'admin:index' %}" target="_blank">Admin</a>
@@ -48,10 +50,10 @@
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-white"
-                href="#" 
-                id="navbarDropdown" 
-                role="button"  
-                aria-expanded="false">Company</a>
+             href="#"
+             id="navbarDropdown"
+             role="button"
+             aria-expanded="false">Company</a>
           <ul class="dropdown-menu bg-light" aria-labelledby="navbarDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'about-us' %}">About</a>
@@ -88,98 +90,106 @@
   </div>
 </nav>
 <style>
-  /* Increase the size of navbar items */
-  .navbar-nav .nav-link {
-    font-size: 1.2rem; /* Increase font size */
-    padding: 0.8rem 1rem; /* Increase padding */
-  }
+    /* Increase the size of navbar items */
+    .navbar-nav .nav-link {
+        font-size: 1.2rem;
+        /* Increase font size */
+        padding: 0.8rem 1rem;
+        /* Increase padding */
+    }
 
-  /* Adjust the size of the navbar dropdown */
-  .navbar-nav .nav-item.dropdown .dropdown-toggle {
-    font-size: 1.2rem; /* Larger font for dropdown items */
-    padding: 0.8rem 1rem; /* Larger padding for dropdown items */
-  }
+    /* Adjust the size of the navbar dropdown */
+    .navbar-nav .nav-item.dropdown .dropdown-toggle {
+        font-size: 1.2rem;
+        /* Larger font for dropdown items */
+        padding: 0.8rem 1rem;
+        /* Larger padding for dropdown items */
+    }
 
-  /* Increase the size of dropdown items */
-  .dropdown-menu .dropdown-item {
-    font-size: 1.1rem; /* Larger font for dropdown items */
-    padding: 0.75rem 1rem; /* Increase padding for dropdown items */
-  }
+    /* Increase the size of dropdown items */
+    .dropdown-menu .dropdown-item {
+        font-size: 1.1rem;
+        /* Larger font for dropdown items */
+        padding: 0.75rem 1rem;
+        /* Increase padding for dropdown items */
+    }
 
-  /* Adjust navbar toggler (hamburger icon) size */
-  .navbar-toggler {
-    padding: 1rem; /* Increase size of the hamburger icon */
-  }
+    /* Adjust navbar toggler (hamburger icon) size */
+    .navbar-toggler {
+        padding: 1rem;
+        /* Increase size of the hamburger icon */
+    }
 
-  /* Adjust the navbar brand (logo) size */
-  .navbar-brand img {
-    height: 150px; /* Adjust logo size */
-    width: auto;
-  }
+    /* Adjust the navbar brand (logo) size */
+    .navbar-brand img {
+        height: 150px;
+        /* Adjust logo size */
+        width: auto;
+    }
 </style>
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // Handle Accordion functionality
-      var accordionItems = document.querySelectorAll('.accordion-item');
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle Accordion functionality
+        var accordionItems = document.querySelectorAll('.accordion-item');
 
-      accordionItems.forEach(function (item) {
-        var button = item.querySelector('.accordion-button');
-        var collapse = item.querySelector('.accordion-collapse');
+        accordionItems.forEach(function(item) {
+            var button = item.querySelector('.accordion-button');
+            var collapse = item.querySelector('.accordion-collapse');
 
-        // Ensure collapses are hidden initially
-        collapse.style.transition = 'max-height 0.3s ease';
-        collapse.style.maxHeight = '0';  // Start collapsed
-        collapse.style.overflow = 'hidden';
+            // Ensure collapses are hidden initially
+            collapse.style.transition = 'max-height 0.3s ease';
+            collapse.style.maxHeight = '0'; // Start collapsed
+            collapse.style.overflow = 'hidden';
 
-        button.addEventListener('click', function () {
-          var expanded = this.getAttribute('aria-expanded') === 'true';
+            button.addEventListener('click', function() {
+                var expanded = this.getAttribute('aria-expanded') === 'true';
 
-          if (expanded) {
-            collapse.style.maxHeight = '0';  // Collapse
-          } else {
-            collapse.style.maxHeight = collapse.scrollHeight + 'px';  // Expand
-          }
+                if (expanded) {
+                    collapse.style.maxHeight = '0'; // Collapse
+                } else {
+                    collapse.style.maxHeight = collapse.scrollHeight + 'px'; // Expand
+                }
 
-          this.setAttribute('aria-expanded', !expanded);
+                this.setAttribute('aria-expanded', !expanded);
+            });
         });
-      });
 
-      // Handle responsive behavior for accordion
-      function handleResponsiveDisplay() {
-        const isMobile = window.innerWidth < 768;
-        const collapseElements = document.querySelectorAll('.collapse.accordion-collapse');
+        // Handle responsive behavior for accordion
+        function handleResponsiveDisplay() {
+            const isMobile = window.innerWidth < 768;
+            const collapseElements = document.querySelectorAll('.collapse.accordion-collapse');
 
-        collapseElements.forEach(function (element) {
-          if (isMobile) {
-            // On mobile, ensure accordion collapses are handled correctly
-            element.style.maxHeight = '0';  // Collapse all on mobile
-            element.style.overflow = 'hidden';
-          } else {
-            // On desktop, ensure the collapse is shown if necessary
-            if (!element.classList.contains('show-initial')) {
-              element.classList.add('show');
-              element.style.maxHeight = element.scrollHeight + 'px'; // Ensure content is shown
-            }
-          }
+            collapseElements.forEach(function(element) {
+                if (isMobile) {
+                    // On mobile, ensure accordion collapses are handled correctly
+                    element.style.maxHeight = '0'; // Collapse all on mobile
+                    element.style.overflow = 'hidden';
+                } else {
+                    // On desktop, ensure the collapse is shown if necessary
+                    if (!element.classList.contains('show-initial')) {
+                        element.classList.add('show');
+                        element.style.maxHeight = element.scrollHeight + 'px'; // Ensure content is shown
+                    }
+                }
+            });
+        }
+
+        // Initial call to handle responsive behavior
+        handleResponsiveDisplay();
+
+        // Add resize listener for responsive behavior
+        window.addEventListener('resize', handleResponsiveDisplay);
+
+        // Ensure that Bootstrap's dropdown works on mobile (for navbar)
+        var bootstrapDropdowns = document.querySelectorAll('.navbar .dropdown-toggle');
+        bootstrapDropdowns.forEach(function(dropdown) {
+            dropdown.addEventListener('click', function(e) {
+                var menu = this.nextElementSibling;
+                if (menu && menu.classList.contains('dropdown-menu')) {
+                    e.preventDefault();
+                    menu.classList.toggle('show');
+                }
+            });
         });
-      }
-
-      // Initial call to handle responsive behavior
-      handleResponsiveDisplay();
-
-      // Add resize listener for responsive behavior
-      window.addEventListener('resize', handleResponsiveDisplay);
-
-      // Ensure that Bootstrap's dropdown works on mobile (for navbar)
-      var bootstrapDropdowns = document.querySelectorAll('.navbar .dropdown-toggle');
-      bootstrapDropdowns.forEach(function (dropdown) {
-        dropdown.addEventListener('click', function (e) {
-          var menu = this.nextElementSibling;
-          if (menu && menu.classList.contains('dropdown-menu')) {
-            e.preventDefault();
-            menu.classList.toggle('show');
-          }
-        });
-      });
     });
-  </script>
+</script>

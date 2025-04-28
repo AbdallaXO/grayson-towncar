@@ -36,7 +36,7 @@ SECRET_KEY = os.environ.get(
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 
 ALLOWED_HOSTS = [
@@ -168,8 +168,6 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = "en-us"
 
 
-
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 STATIC_ROOT = CONTENT_DIR / "staticfiles"
@@ -240,57 +238,59 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
-DATE_FORMAT = 'Y-m-d'
-TIME_FORMAT = 'g:i A'  # 12-hour format with AM/PM
-DATETIME_FORMAT = 'Y-m-d g:i A'
-SHORT_DATE_FORMAT = 'm/d/Y'
-SHORT_DATETIME_FORMAT = 'm/d/Y g:i A'
+DATE_FORMAT = "Y-m-d"
+TIME_FORMAT = "g:i A"  # 12-hour format with AM/PM
+DATETIME_FORMAT = "Y-m-d g:i A"
+SHORT_DATE_FORMAT = "m/d/Y"
+SHORT_DATETIME_FORMAT = "m/d/Y g:i A"
 TIME_ZONE = "America/New_York"
 USE_I18N = False
 USE_TZ = True
 USE_L10N = False
-ADMIN_DATETIME_FORMAT = 'g:i A' 
-ADMIN_DATE_FORMAT = 'm/d/Y'      # 
-ADMIN_TIME_FORMAT = 'g:i A'
+ADMIN_DATETIME_FORMAT = "g:i A"
+ADMIN_DATE_FORMAT = "m/d/Y"  #
+ADMIN_TIME_FORMAT = "g:i A"
 
-CKEDITOR_UPLOAD_PATH = 'uploads/'
-CKEDITOR_JQUERY_URL = 'https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'
+CKEDITOR_UPLOAD_PATH = "uploads/"
+CKEDITOR_JQUERY_URL = "https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"
 
 CKEDITOR_CONFIGS = {
-    'default': {
-        'skin': 'moono-lisa',
-        'toolbar': 'full',
-        'height': 300,
-        'width': '100%',
+    "default": {
+        "skin": "moono-lisa",
+        "toolbar": "full",
+        "height": 300,
+        "width": "100%",
     },
-    'awesome_ckeditor': {
-        'toolbar': 'Custom',
-        'toolbar_Custom': [
-            ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript'],
-            ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', 'Blockquote'],
-            ['JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock'],
-            ['Link', 'Unlink', 'Anchor'],
-            ['Image', 'Table', 'HorizontalRule', 'SpecialChar', 'Iframe'],
-            ['Styles', 'Format', 'Font', 'FontSize'],
-            ['TextColor', 'BGColor'],
-            ['Maximize', 'ShowBlocks', 'Source']
+    "awesome_ckeditor": {
+        "toolbar": "Custom",
+        "toolbar_Custom": [
+            ["Bold", "Italic", "Underline", "Strike", "Subscript", "Superscript"],
+            ["NumberedList", "BulletedList", "-", "Outdent", "Indent", "Blockquote"],
+            ["JustifyLeft", "JustifyCenter", "JustifyRight", "JustifyBlock"],
+            ["Link", "Unlink", "Anchor"],
+            ["Image", "Table", "HorizontalRule", "SpecialChar", "Iframe"],
+            ["Styles", "Format", "Font", "FontSize"],
+            ["TextColor", "BGColor"],
+            ["Maximize", "ShowBlocks", "Source"],
         ],
-        'filebrowserBrowseUrl': '/ckeditor/browse/',
-        'filebrowserUploadUrl': '/ckeditor/upload/',
-        'extraPlugins': ','.join([
-            'uploadimage',
-            'autolink',
-            'image2',
-            'autoembed',
-            'embedsemantic',
-            'autogrow',
-            'widget',
-            'lineutils',
-            'dialog',
-            'dialogui',
-            'elementspath'
-        ]),
-        'height': 400,
-        'width': '100%',
-    }
+        "filebrowserBrowseUrl": "/ckeditor/browse/",
+        "filebrowserUploadUrl": "/ckeditor/upload/",
+        "extraPlugins": ",".join(
+            [
+                "uploadimage",
+                "autolink",
+                "image2",
+                "autoembed",
+                "embedsemantic",
+                "autogrow",
+                "widget",
+                "lineutils",
+                "dialog",
+                "dialogui",
+                "elementspath",
+            ]
+        ),
+        "height": 400,
+        "width": "100%",
+    },
 }

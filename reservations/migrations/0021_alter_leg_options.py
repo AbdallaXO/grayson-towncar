@@ -4,14 +4,16 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0020_alter_flight_airline_alter_flight_flight_number_and_more'),
+        (
+            "reservations",
+            "0020_alter_flight_airline_alter_flight_flight_number_and_more",
+        ),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='leg',
-            options={'ordering': ['pickup_date', 'pickup_time']},
+            name="leg",
+            options={"ordering": ["pickup_date", "pickup_time"]},
         ),
     ]

@@ -5,7 +5,7 @@
   <div class="container-fluid my-4">
     <!-- Header and User info -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4">
-      <h1 class="mb-2 mb-md-0">Dispatcher Dashboard</h1>
+      <h1 class="mb-2 mb-md-0">Legs Dashboard - Can Filter by Date</h1>
 
       <div class="alert alert-light d-flex justify-content-between align-items-center border py-1 px-3 m-0">
         <div>
@@ -22,6 +22,9 @@
       <div class="col-12 col-md-6 d-flex gap-2">
         <a href="{% url 'reservations_list' %}" class="btn btn-outline-primary">
           <i class="bi bi-list-ul me-2"></i>View All Reservations
+        </a>
+        <a href="{% url 'legs_list' %}" class="btn btn-outline-primary">
+          <i class="bi bi-list-ul me-2"></i>View All Legs
         </a>
       </div>
     </div>

@@ -4,15 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0024_leg_driver'),
+        ("reservations", "0024_leg_driver"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='reservation',
-            name='status',
-            field=models.CharField(choices=[('pending', 'Pending'), ('canceled', 'Canceled'), ('confirmed', 'Confirmed'), ('completed', 'Completed')], default='pending', max_length=20),
+            model_name="reservation",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("pending", "Pending"),
+                    ("canceled", "Canceled"),
+                    ("confirmed", "Confirmed"),
+                    ("completed", "Completed"),
+                ],
+                default="pending",
+                max_length=20,
+            ),
         ),
     ]

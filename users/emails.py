@@ -60,7 +60,6 @@ def thankyou_email(instance):
         logger.error(f"Error sending confirmation email: {e}")
 
 
-
 def send_internal_confirmation(reservation):
     """Emails Self when a reservation gets made in case of any errors and customer does not get an email"""
     logger.info(f"Preparing to send reservation confirmation for {reservation.uuid}")
@@ -74,7 +73,7 @@ def send_internal_confirmation(reservation):
 
         subject = "Grayson Towncar Reservation Submission "
         from_email = "reservations@graysontowncar.com"
-        to = ['reservations@graysontowncar.com']
+        to = ["reservations@graysontowncar.com"]
         logger.info(f"Email subject: {subject}")
         logger.info(f"Sending to: {to}")
         html_content = render_to_string("users/confirmation_email.html", context)

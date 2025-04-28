@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0022_leg_private_notes'),
+        ("reservations", "0022_leg_private_notes"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='reservation',
-            name='private_notes',
+            model_name="reservation",
+            name="private_notes",
             field=models.TextField(blank=True, null=True),
         ),
     ]

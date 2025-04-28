@@ -47,7 +47,7 @@ def handle_checkout_session(session):
     logger.info(f"Processing checkout for reservation: {reservation_id}")
     logger.info(f"Session details: {session}")
 
-    if not reservation_id:  
+    if not reservation_id:
         logger.error("No Reservation ID in session metadata")
         return
     try:
@@ -56,8 +56,10 @@ def handle_checkout_session(session):
         )
         customer = reservation.customer
 
-        amount_total = session.get('amount_total')
-        session_total_amount = Decimal(amount_total if amount_total is not None else 0) / 100
+        amount_total = session.get("amount_total")
+        session_total_amount = (
+            Decimal(amount_total if amount_total is not None else 0) / 100
+        )
 
         payment, created = Payment.objects.get_or_create(
             reservation=reservation,
@@ -100,25 +102,23 @@ def handle_checkout_session(session):
             if payment_intent:
                 full_payment_intent = stripe.PaymentIntent.retrieve(payment_intent)
                 payment_method_id = full_payment_intent.payment_method
-                
+
                 final_amount = Decimal(full_payment_intent.amount) / 100
                 if save_card_to_customer(
                     customer.stripe_customer_id, payment_method_id
                 ):  # Fixed indentation and added check
                     payment.stripe_payment_intent_id = payment_intent
                     payment.status = "paid"
-                    payment.payment_type = "pay_now"  
+                    payment.payment_type = "pay_now"
                     payment.amount = final_amount
-                    reservation.status = "Confirmed"  
+                    reservation.status = "Confirmed"
                     reservation.base_price = final_amount
                     reservation.total_price = final_amount
                     with transaction.atomic():
-                        payment.save()  
+                        payment.save()
                         reservation.save()
 
-                    send_reservation_confirmation(
-                        reservation
-                    )  
+                    send_reservation_confirmation(reservation)
                     logger.info(f"Payment processed for reservation {reservation_id}")
                 else:
                     logger.error("Failed to save card to customer")

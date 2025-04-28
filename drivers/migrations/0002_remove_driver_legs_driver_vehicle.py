@@ -4,19 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('drivers', '0001_initial'),
+        ("drivers", "0001_initial"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='driver',
-            name='legs',
+            model_name="driver",
+            name="legs",
         ),
         migrations.AddField(
-            model_name='driver',
-            name='vehicle',
+            model_name="driver",
+            name="vehicle",
             field=models.CharField(blank=True, max_length=55, null=True),
         ),
     ]

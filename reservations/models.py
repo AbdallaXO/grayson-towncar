@@ -60,7 +60,7 @@ class Reservation(models.Model):
         "rates.vehicle", on_delete=models.PROTECT, null=True, blank=True
     )
     passenger_count = models.PositiveIntegerField(default=1)
-    
+
     luggage_count = models.PositiveIntegerField(default=1)
     need_carseats = models.BooleanField(default=False)  #
     rf_carseats = models.PositiveIntegerField(default=0)
@@ -82,7 +82,6 @@ class Reservation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     private_notes = models.TextField(null=True, blank=True)
-    
 
     class Meta:
         indexes = [
@@ -135,12 +134,16 @@ class Leg(models.Model):
     pickup_location = models.CharField(max_length=255)
     dropoff_location = models.CharField(max_length=255)
     private_notes = models.TextField(null=True, blank=True)
-    driver = models.ForeignKey("drivers.Driver", null=True, on_delete=models.SET_NULL, blank=True, related_name='legs')
-    
-    
+    driver = models.ForeignKey(
+        "drivers.Driver",
+        null=True,
+        on_delete=models.SET_NULL,
+        blank=True,
+        related_name="legs",
+    )
 
     class Meta:
-        ordering = ['pickup_date', 'pickup_time']
+        ordering = ["pickup_date", "pickup_time"]
         indexes = [
             models.Index(fields=["reservation"]),
             models.Index(fields=["flight_information"]),

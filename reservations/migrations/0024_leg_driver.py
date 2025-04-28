@@ -5,16 +5,21 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('drivers', '0002_remove_driver_legs_driver_vehicle'),
-        ('reservations', '0023_reservation_private_notes'),
+        ("drivers", "0002_remove_driver_legs_driver_vehicle"),
+        ("reservations", "0023_reservation_private_notes"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='leg',
-            name='driver',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='legs', to='drivers.driver'),
+            model_name="leg",
+            name="driver",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="legs",
+                to="drivers.driver",
+            ),
         ),
     ]

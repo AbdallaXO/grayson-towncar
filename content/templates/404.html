@@ -1,1 +1,29 @@
-<h1>404</h1>
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+  <div class="container my-5 text-center">
+    <div class="row justify-content-center">
+      <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+          <div class="card-body p-5">
+            <h1 class="display-1 fw-bold text-secondary">404</h1>
+            <h2 class="mb-4 text-muted">Page Not Found</h2>
+
+            <p class="lead mb-4">
+              We couldn't find the page you're looking for. The page may have been moved, deleted, or never existed.
+            </p>
+
+            <hr class="my-4">
+
+            <p>Let's get you back on the road.</p>
+
+            <a href="{% url 'rates' %}" class="btn btn-dark btn-lg px-4 mt-3">
+              <i class="bi bi-house-door me-2"></i>Return to Home
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
