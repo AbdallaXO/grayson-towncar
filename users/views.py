@@ -45,8 +45,6 @@ def registerUser(request):
 
 def loginUser(request):
     page = "login"
-    if request.user.is_authenticated:
-        return redirect("home")
     if request.method == "POST":
         username = request.POST["username"]
         password = request.POST["password"]
@@ -54,7 +52,10 @@ def loginUser(request):
         if user is not None:
             login(request, user)
             messages.success(request, "Successfully logged in", extra_tags="success")
-            return redirect("dispatcher_dashboard")
+            if request.user.is_superuser:
+                return redirect("dashboard")
+            else:
+                return redirect("driver")
         else:
             messages.error(
                 request, "Please Enter Valid Credentials", extra_tags="danger"

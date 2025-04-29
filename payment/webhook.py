@@ -68,7 +68,7 @@ def handle_checkout_session(session):
             defaults={
                 "amount": session_total_amount,
                 "payment_type": "pay_now",
-                "status":"pending",
+                "status": "pending",
             },  # Fixed syntax
         )
 
@@ -167,7 +167,9 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
 
             try:
                 customer.save()
-                logger.info(f"Customer card details saved successfully for {customer.get_full_name()}")
+                logger.info(
+                    f"Customer card details saved successfully for {customer.get_full_name()}"
+                )
             except Exception as save_error:
                 logger.error(f"Error saving customer: {save_error}")
                 return False

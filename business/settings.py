@@ -294,3 +294,16 @@ CKEDITOR_CONFIGS = {
         "width": "100%",
     },
 }
+
+JAZZMIN_SETTINGS = {
+    "changeform_format": "single",
+    "custom_links": {
+        "reservations": [
+            {
+                "name": "Today's Trips",
+                "url": "/admin/reservations/reservation/?pickup_date__gte=today",
+                "icon": "fa fa-calendar-day",
+            }
+        ],
+    },
+}

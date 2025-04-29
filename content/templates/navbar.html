@@ -19,7 +19,7 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        {% if request.user.is_authenticated %}
+        {% if request.user.is_superuser %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle text-white"
                href="#"
@@ -80,13 +80,6 @@
         <li class="nav-item">
           <a class="nav-link text-white" href="{% url 'contact' %}">Contact</a>
         </li>
-
-        {% comment %} {% if request.user.is_authenticated %}
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'dispatcher_dashboard' %}">Dashboard</a>
-            <a class="nav-link" href="{% url 'logout' %}">Log out</a>
-          </li>
-        {% endif %} {% endcomment %}
       </ul>
     </div>
   </div>

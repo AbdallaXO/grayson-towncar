@@ -142,7 +142,9 @@ def extra_charges(reservation):
     for leg in reservation.legs.all():
         if leg.pickup_time >= time(22, 0) or leg.pickup_time < time(6, 0):
             extra_charge += Decimal(20.00)
-            logger.info(f"Added a {extra_charge} On Reservation #{reservation.id} For {reservation.customer.get_full_name()}")
+            logger.info(
+                f"Added a {extra_charge} On Reservation #{reservation.id} For {reservation.customer.get_full_name()}"
+            )
 
     if extra_charge:
         reservation.additional_charges += extra_charge

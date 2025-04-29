@@ -25,6 +25,8 @@ def index(request):
     """
     Dispatcher Dashboard Shows All Legs-Lets you Filter by Date
     """
+    if not request.user.is_superuser:
+        return redirect('home')
 
     selected_date = request.GET.get("date")
     try:
@@ -56,7 +58,10 @@ def index(request):
 
 
 @login_required(login_url="login")
+
 def all_reservations(request):
+    if not request.user.is_superuser:
+            return redirect('home')
     """
     List all reservations with pagination and overview statistics
     """
@@ -90,6 +95,8 @@ def all_reservations(request):
 
 @login_required(login_url="login")
 def reservation_details(request, id):
+    if not request.user.is_superuser:
+            return redirect('home')
     """
     Detailed view for a reservation
     """
@@ -115,6 +122,8 @@ def reservation_details(request, id):
 
 @login_required(login_url="login")
 def modify_reservation(request, id):
+    if not request.user.is_superuser:
+            return redirect('home')
     reservation = get_object_or_404(
         Reservation.objects.prefetch_related("legs"), uuid=id
     )
@@ -195,7 +204,8 @@ def modify_reservation(request, id):
 
 @login_required(login_url="login")
 def legs_list(request):
-    # Get the date filter from request (optional filter)
+    if not request.user.is_superuser:
+            return redirect('home')
     date_filter = request.GET.get("date")
 
     # Get today's date for comparison

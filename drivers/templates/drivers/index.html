@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Driver Legs Dashboard</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+          rel="stylesheet" />
+
+    <style>
+        /* Card border colors by status */
+        .card.status-pending {
+            border-left: 6px solid #0d6efd;
+        }
+
+        .card.status-en-route {
+            border-left: 6px solid #ffc107;
+        }
+
+        .card.status-completed {
+            border-left: 6px solid #198754;
+        }
+
+        /* Break long phone numbers */
+        .text-break {
+            word-break: break-word;
+        }
+    </style>
+  </head>
+
+  <body class="bg-light">
+    <div class="container-fluid py-4">
+
+      <!-- Header -->
+      <div class="text-center mb-5">
+        <h1 class="fs-1 fw-bold mb-2">
+          Welcome, <span class="text-warning">{{ request.user|title }}</span>
+        </h1>
+
+        <div class="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3">
+          <div class="alert alert-light border py-2 px-4 mb-0">
+            <i class="bi bi-calendar-date me-2"></i>Today's Schedule
+          </div>
+          <a href="#" class="btn btn-outline-success ">
+            <i class="bi bi-check-circle-fill me-1"></i> View Completed Legs
+          </a>
+        </div>
+      </div>
+
+      <!-- Date Filter -->
+      <div class="d-flex justify-content-center mb-5">
+        <div class="input-group" style="max-width: 400px;">
+          <span class="input-group-text fs-5">
+            <i class="bi bi-calendar-date"></i>
+          </span>
+          <input type="date"
+                 id="dateFilter"
+                 class="form-control form-control-lg"
+                 value="{{ selected_date|date:'Y-m-d' }}" />
+          <button id="submitDateFilter" class="btn btn-primary btn-lg">Go</button>
+        </div>
+      </div>
+
+      <!-- Cards Container -->
+      <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 justify-content-center">
+        {% for leg in legs %}
+          <div class="col">
+            <div class="card h-100 shadow-sm bg-white border mb-4 status-pending"
+                 data-leg-id="{{ leg.id }}">
+              <div class="card-header bg-dark p-3 text-white">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h5 class="fs-4 fw-bold mb-0">Res ID: GT0{{ leg.id }}</h5>
+                    <p class="h4">{{ leg.pickup_date|date:'m/d/Y' }} at {{ leg.pickup_time|date:'g:i A' }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body p-3">
+
+                <div class="mb-3">
+                  <label for="statusSelect-{{ leg.id }}" class="form-label fw-bold fs-5">My Status:</label>
+                  <select id="statusSelect-{{ leg.id }}"
+                          class="form-select form-select-lg status-select">
+                    <option value="pending" selected>Pending</option>
+                    <option value="en-route">En Route</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+
+                <hr />
+
+                <div class="mb-3">
+                  <p class="mb-2 fs-5">
+                    <strong><i class="bi bi-person-fill me-1"></i> Customer:</strong>
+                    <span class="ms-2">{{ leg.reservation.customer.get_full_name }}</span>
+                  </p>
+                  <p class="mb-2 fs-5 text-break">
+                    <strong><i class="bi bi-telephone-fill me-1"></i> Phone:</strong>
+                    <span class="ms-2">{{ leg.reservation.customer.phone_number }}</span>
+                  </p>
+                </div>
+
+                <div class="mb-3">
+                  <h5 class="fs-5 fw-bold mb-2">
+                    <i class="bi bi-geo-alt-fill me-1"></i> Trip Information
+                  </h5>
+                  <p class="mb-2 fs-5">
+                    <strong><i class="bi bi-airplane me-1"></i> Flight:</strong>
+                    <span class="ms-2">{{ leg.flight_information|default:"—" }}</span>
+                  </p>
+                  <p class="mb-2 fs-5">
+                    <strong>P/U Date & Time:</strong>
+                    <span class="ms-2">{{ leg.pickup_date }} {{ leg.pickup_time }}</span>
+                  </p>
+                  <p class="mb-2 fs-5">
+                    <strong>P/U Location:</strong>
+                    <span class="ms-2">{{ leg.pickup_location }} IN ORLANDO, FLORIDA 32837</span>
+                  </p>
+                  <p class="mb-2 fs-5">
+                    <strong>D/O Location:</strong>
+                    <span class="ms-2">{{ leg.dropoff_location }}</span>
+                  </p>
+                </div>
+
+                <div class="mb-3">
+                  <h5 class="fs-5 fw-bold mb-2">
+                    <i class="bi bi-car-front-fill me-1"></i> Vehicle & Passengers
+                  </h5>
+                  <p class="mb-2 fs-5">
+                    <strong>Passengers:</strong>
+                    <span class="ms-2">{{ leg.reservation.passenger_count }}</span>
+                  </p>
+                  <p class="mb-2 fs-5">
+                    <strong>Car Seats:</strong>
+                    <span class="ms-2">{{ leg.reservation.display_carseats|default:"None" }}</span>
+                  </p>
+                  <p class="mb-2 fs-5">
+                    <strong>Vehicle:</strong>
+                    <span class="ms-2">{{ leg.reservation.vehicle }}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <h5 class="fs-5 fw-bold mb-2">
+                    <i class="bi bi-chat-left-text-fill me-1"></i> Notes
+                  </h5>
+                  {% if leg.reservation.special_requests %}
+                    <p class="mb-2 fs-5">
+                      <strong>Customer Requests:</strong>
+                      <div class="p-2 border rounded bg-light mt-1 fs-5">{{ leg.reservation.special_requests }}</div>
+                    </p>
+                  {% endif %}
+                  {% if leg.reservation.private_notes %}
+                    <p class="mb-2 fs-5">
+                      <strong>Company Notes:</strong>
+                      <div class="p-2 border rounded bg-light mt-1 fs-5">{{ leg.reservation.private_notes }}</div>
+                    </p>
+                  {% endif %}
+                </div>
+
+              </div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="col-12">
+            <div class="alert alert-info fs-5 text-center">No trips scheduled for {{ selected_date|date:'F j, Y' }}.</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Bootstrap JS bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Date picker element
+            const dp = document.getElementById("dateFilter");
+
+            // Filter button handler
+            document.getElementById("submitDateFilter").onclick = () => {
+                if (dp.value) {
+                    window.location.href = `?date=${dp.value}`;
+                }
+            };
+
+            // Handle Enter key press
+            dp.addEventListener("keyup", (e) => {
+                if (e.key === "Enter") {
+                    document.getElementById("submitDateFilter").click();
+                }
+            });
+
+            // Status dropdown changes card color
+            document.querySelectorAll(".status-select").forEach((sel) => {
+                sel.addEventListener("change", function() {
+                    const card = this.closest(".card");
+                    card.classList.remove("status-pending", "status-en-route", "status-completed");
+                    card.classList.add(`status-${this.value}`);
+                });
+            });
+        });
+    </script>
+  </body>
+</html>
