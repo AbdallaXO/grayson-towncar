@@ -262,7 +262,7 @@ class LegAdmin(ImportExportModelAdmin):
         "reservation__customer__first_name",
         "reservation__customer__last_name",
     )
-    ordering = ("-pickup_date", "-pickup_time")
+    ordering = ("pickup_date", "pickup_time")
     list_per_page = 50
     autocomplete_fields = ("reservation",)
 

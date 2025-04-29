@@ -3,6 +3,7 @@ from .constants import (
     FLIGHT_TYPE_CHOICES,
     TRIP_CHOICES,
     RESERVTION_STATUS,
+    DRIVER_STATUS
 )
 import uuid
 
@@ -141,6 +142,7 @@ class Leg(models.Model):
         blank=True,
         related_name="legs",
     )
+    status = models.CharField(choices=DRIVER_STATUS ,null=True, blank=True, max_length=255)
 
     class Meta:
         ordering = ["pickup_date", "pickup_time"]

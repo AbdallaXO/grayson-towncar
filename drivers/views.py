@@ -12,10 +12,7 @@ def index(request):
     """
     Driver Dashboard Shows All Legs - Lets you Filter by Date
     """
-    # Get the logged-in driver
     driver = get_object_or_404(Driver, profile=request.user)
-
-    # Get date from query parameters or use today
     selected_date = request.GET.get("date")
     try:
         if selected_date:
@@ -30,3 +27,23 @@ def index(request):
     return render(
         request, "drivers/index.html", {"legs": legs, "selected_date": selected_date}
     )
+
+
+def all_legs(request):
+    driver = get_object_or_404(Driver, profile=request.user)
+    legs = Leg.objects.filter(driver=driver)
+    return render(request, "drivers/all_legs.html", {"legs":legs})
+
+def week_schedule(request):
+    driver = get_object_or_404(Driver, profile=request.user)
+    today = timezone.localdate()
+    next_week = today + timezone.timedelta(days=7)
+    legs = Leg.objects.filter(driver=driver, pickup_date__gte=today, pickup_date__lte=next_week).order_by('pickup_date', 'pickup_time')
+    return render(request, "drivers/weekly_schedule.html", {
+        "legs": legs,
+        "today": today,
+        "next_week": next_week
+    })
+
+
+

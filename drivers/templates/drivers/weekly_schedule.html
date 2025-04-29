@@ -1,9 +1,10 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Driver Dashboard</title>
+    <title>Week's Schedule</title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -34,42 +35,24 @@
         }
     </style>
   </head>
-
   <body class="bg-light">
     {% include "drivers/navbar.html" %}
 
     <div class="container-fluid py-4">
+
+      <!-- Header Card -->
       <div class="card mb-4 shadow-sm">
         <div class="card-header card-header-dark">
-          <h1 class="mb-0">My Trips</h1>
+          <h1 class="mb-0">Trips For The Week</h1>
         </div>
         <div class="card-body">
-          <div class="alert alert-light d-flex align-items-center border p-2 w-100 mx-auto"
+          <div class="alert alert-light d-flex justify-content-between align-items-center border p-2"
                style="max-width:450px">
             <strong class="me-1">Logged in as:</strong>
             <span>{{ request.user|title }}</span>
-            <span class="text-muted small ms-auto">{% now "l, F j, Y" %}</span>
+            <span class="text-muted small ms-auto"><i class="bi bi-calendar3 me-1"></i>{% now 'l, F j, Y' %}</span>
           </div>
-        </div>
-      </div>
-
-      <!-- Controls Filter Card -->
-      <div class="card mb-4 shadow-sm">
-        <div class="card-header card-header-dark">
-          <h2 class="mb-0">Choose a Date</h2>
-        </div>
-        <div class="card-body">
           <div class="row g-3">
-            <div class="col-sm-6 col-md-8 col-lg-6">
-              <div class="input-group">
-                <input type="date"
-                       id="dateFilter"
-                       class="form-control"
-                       value="{{ selected_date|date:'Y-m-d' }}"
-                       placeholder="Choose a date" />
-                <button id="submitDateFilter" class="btn btn-dark">Go</button>
-              </div>
-            </div>
             <div class="col-sm-6 col-md-4 col-lg-3">
               <div class="input-group">
                 <span class="input-group-text"># of Legs</span>
@@ -79,7 +62,6 @@
           </div>
         </div>
       </div>
-
       {% if legs %}
         <!-- Desktop Table Card -->
         <div class="card shadow-sm mb-4">
@@ -89,9 +71,9 @@
                 <thead class="table-dark sticky-top">
                   <tr>
                     <th>Reservation Info</th>
-                    <th>Pickup &amp; Fare</th>
+                    <th>Pickup</th>
                     <th>Locations</th>
-                    <th>Vehicle &amp; Passengers</th>
+                    <th>Vehicle & Passengers</th>
                     <th>Notes</th>
                     <th>Status</th>
                   </tr>
@@ -105,8 +87,7 @@
                         <div class="text-muted small">{{ leg.reservation.customer.phone_number }}</div>
                       </td>
                       <td>
-                        <div>{{ leg.pickup_date|date:"l, F j" }}, {{ leg.pickup_time|date:"g:i A" }}</div>
-                        <div class="badge bg-success">${{ leg.reservation.total_price|default:"0" }}</div>
+                        <div class="fw-bold h4">{{ leg.pickup_date|date:"l, F j" }}, {{ leg.pickup_time|date:"g:i A" }}</div>
                       </td>
                       <td>
                         <div>
@@ -161,11 +142,11 @@
         <div class="d-md-none">
           {% for leg in legs %}
             <div class="card mb-3 shadow-sm">
-              <div class="card-header card-header-dark d-flex justify-content-between align-items-center">
-                <div class="fw-bold h5 mb-0">
-                  {{ leg.pickup_date|date:"l, F j" }},
+              <div class="card-header card-header-dark d-flex justify-content-between">
+                <div class="fw-bold h4">
+                  {{ leg.pickup_date|date:'m/d/Y' }}
                   <br>
-                  {{ leg.pickup_time|date:"g:i A" }}
+                  {{ leg.pickup_time|date:'g:i A' }}
                 </div>
                 <div>
                   <strong>Res ID: GT0{{ leg.id }}</strong>
@@ -178,11 +159,11 @@
                 <div class="mb-2">
                   <strong>Phone:</strong> {{ leg.reservation.customer.phone_number }}
                 </div>
-                <div class="mb-1">
-                  <strong># Of Passengers:</strong> {{ leg.reservation.passenger_count }}
+                <div class="mb-2">
+                  <strong>Pickup:</strong> {{ leg.pickup_location }}
                 </div>
-                <div class="mb-1">
-                  <strong>Carseats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
+                <div class="mb-2">
+                  <strong>Drop-off:</strong> {{ leg.dropoff_location }}
                 </div>
                 {% if leg.flight_information %}
                   <div class="mb-2">
@@ -190,13 +171,13 @@
                   </div>
                 {% endif %}
                 <div class="mb-2">
-                  <strong>Start Location:</strong> {{ leg.pickup_location }}
+                  <strong>Vehicle:</strong> {{ leg.reservation.vehicle }}
                 </div>
                 <div class="mb-2">
-                  <strong>End Location:</strong> {{ leg.dropoff_location }}
+                  <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
                 </div>
                 <div class="mb-2">
-                  <strong>Preferred Vehicle:</strong> {{ leg.reservation.vehicle }}
+                  <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"None" }}
                 </div>
                 {% if leg.reservation.special_requests %}
                   <div class="mb-2">
@@ -222,24 +203,11 @@
           {% endfor %}
         </div>
       {% else %}
-        <div class="alert alert-danger">No trips scheduled for {{ selected_date|date:'F j, Y' }}.</div>
+        <div class="alert alert-info">No trips scheduled for {{ selected_date|date:'F j, Y' }}.</div>
       {% endif %}
     </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const dp = document.getElementById('dateFilter');
-            document.getElementById('submitDateFilter').onclick = () => {
-                if (dp.value) {
-                    window.location.href = `?date=${dp.value}`;
-                }
-            };
-            dp.addEventListener('keyup', (e) => {
-                if (e.key === 'Enter') document.getElementById('submitDateFilter').click();
-            });
-        });
-    </script>
   </body>
 </html>

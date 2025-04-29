@@ -17,3 +17,9 @@ RESERVTION_STATUS = [
     ("confirmed", "Confirmed"),
     ("completed", "Completed"),
 ]
+
+DRIVER_STATUS = [
+    ("Assigned", "Assigned"),
+    ("At Pickup Location", "At Pickup Location"),
+    ("Completed", "Completed"),
+]

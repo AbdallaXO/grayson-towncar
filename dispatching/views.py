@@ -64,17 +64,17 @@ def all_reservations(request):
     """
     List all reservations with pagination and overview statistics
     """
-    # Base queryset with optimized related field selections
+    search = ''
+    if request.GET.get('search_q'):
+        search = request.GET.get('search_q')
     reservations_query = Reservation.objects.select_related(
         "customer", "rate", "vehicle"
-    ).order_by("-created_at")
-
-    # Pagination
-    paginator = Paginator(reservations_query, 10)  # 10 reservations per page
+    ).order_by("-created_at").filter(customer__first_name__icontains=search)
+    
+    paginator = Paginator(reservations_query, 10)  
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    # Calculate overview statistics
     total_reservations = reservations_query.count()
     pending_reservations = reservations_query.filter(status="pending").count()
     confirmed_reservations = reservations_query.filter(status="confirmed").count()
@@ -211,8 +211,6 @@ def legs_list(request):
     legs_query = Leg.objects.select_related(
         "reservation", "reservation__customer", "reservation__vehicle"
     )
-
-    # Always filter legs to show only today and future legs
     legs_query = legs_query.filter(pickup_date__gte=today)
 
     # If a specific date filter is provided, apply it as an additional filter
