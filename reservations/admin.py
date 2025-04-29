@@ -182,7 +182,6 @@ class ReservationAdmin(ImportExportModelAdmin):
     )
     list_per_page = 50
 
-    # single fieldset (legs inline follows right after)
     fieldsets = (
         (
             "Reservation",
@@ -191,8 +190,10 @@ class ReservationAdmin(ImportExportModelAdmin):
                     "customer",
                     "trip_type",
                     "vehicle",
-                    ("total_price", "additional_charges"),
-                    ("status"),
+                    "total_price", "additional_charges",
+                    "status",
+                    "special_requests",
+                    "private_notes",
                 ),
             },
         ),

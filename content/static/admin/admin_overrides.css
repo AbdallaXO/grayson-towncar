@@ -1,0 +1,26 @@
+/* Main content stays large */
+body,
+input,
+select,
+textarea,
+label,
+th,
+td {
+  font-size: 1.6rem !important; /* Slightly reduced from 2rem */
+}
+
+/* Sidebar size normalization */
+.sidebar {
+  font-size: 1rem !important;
+  overflow-x: hidden !important; /* Hide horizontal scroll */
+  white-space: nowrap; /* Prevent text wrapping */
+}
+
+/* Sidebar links and labels */
+.sidebar .nav-link,
+.sidebar .brand-link,
+.sidebar .nav-header {
+  font-size: 1rem !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

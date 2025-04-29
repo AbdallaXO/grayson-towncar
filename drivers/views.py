@@ -1,5 +1,4 @@
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
 from django.shortcuts import render
 from .models import Driver
 from datetime import datetime
@@ -15,7 +14,7 @@ def index(request):
     """
     # Get the logged-in driver
     driver = get_object_or_404(Driver, profile=request.user)
-    
+
     # Get date from query parameters or use today
     selected_date = request.GET.get("date")
     try:
@@ -25,10 +24,9 @@ def index(request):
             selected_date = timezone.localdate()
     except ValueError:
         selected_date = timezone.localdate()
-    
+
     legs = Leg.objects.filter(driver=driver, pickup_date=selected_date)
-    
-    return render(request, 'drivers/index.html', {
-        'legs': legs,
-        'selected_date': selected_date
-    })
+
+    return render(
+        request, "drivers/index.html", {"legs": legs, "selected_date": selected_date}
+    )
