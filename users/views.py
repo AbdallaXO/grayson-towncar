@@ -55,7 +55,7 @@ def loginUser(request):
             if request.user.is_superuser:
                 return redirect("dashboard")
             else:
-                return redirect("driver")
+                return redirect("drivers_dashboard")
         else:
             messages.error(
                 request, "Please Enter Valid Credentials", extra_tags="danger"
