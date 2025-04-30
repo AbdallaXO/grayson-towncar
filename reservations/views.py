@@ -102,6 +102,8 @@ def reservation_form(
         "trip_type": trip_type.replace("_", " "),
         "vehicle": rate.vehicle,
         "airlines": AIRLINES,
+        'canonical_url': request.build_absolute_uri('/rates-booking/'),
+
     }
     return render(request, "reservations/book_form.html", context)
 
