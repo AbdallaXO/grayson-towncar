@@ -212,6 +212,7 @@ def legs_list(request):
         "reservation", "reservation__customer", "reservation__vehicle"
     )
     legs_query = legs_query.filter(pickup_date__gte=today)
+    today_count = legs_query.filter(pickup_date=today).count()
 
     # If a specific date filter is provided, apply it as an additional filter
     if date_filter:
@@ -234,6 +235,6 @@ def legs_list(request):
         {"id": 6, "name": "Place Holder 3"},
     ]
 
-    context = {"legs": legs, "filter_date": date_filter, "drivers": drivers}
+    context = {"legs": legs, "filter_date": date_filter, "drivers": drivers, "today_count":today_count,}
 
     return render(request, "dispatching/legs_list.html", context)

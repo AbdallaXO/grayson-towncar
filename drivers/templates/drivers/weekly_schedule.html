@@ -21,7 +21,7 @@
       <div class="card mb-3 rounded-3 shadow-sm">
         <div class="card-header bg-dark text-white py-3">
           <div class="d-flex justify-content-between align-items-center">
-            <h1 class="h3 mb-0">Upcoming Week's Schedule</h1>
+            <h1 class="h3 mb-0">My Assigned Trips</h1>
           </div>
         </div>
         <div class="card-body py-2">
@@ -147,7 +147,7 @@
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
-                    <div>{{ leg.pickup_date|date:"l, F j" }}</div>
+                    <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
                   </div>
                   <div>
                     <span class="badge rounded-pill {% if leg.status == 'in-progress' %}bg-warning text-dark{% endif %} {% if leg.status == 'picked-up' %}bg-primary{% endif %} {% if leg.status == 'completed' %}bg-success{% endif %}">
@@ -161,7 +161,6 @@
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <div>
                       <h5 class="mb-0">{{ leg.reservation.customer.get_full_name }}</h5>
-                      <div class="text-muted small">Res ID: GT0{{ leg.id }}</div>
                       <div class="mt-1 text-secondary">
                         <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
                       </div>
@@ -180,17 +179,21 @@
                 </div>
 
                 <div class="mb-3 pb-3 border-bottom">
+                  {% if leg.flight_information %}
+                  <div class="mt-1">
+                    <strong>Flight:</strong> {{ leg.flight_information }}
+                  </div>
+                {% endif %}
                   <div class="mb-1">
-                    <strong>Pickup:</strong> {{ leg.pickup_location }}
+                    <strong>P/U Date & Time:</strong> {{ leg.pickup_date|date:"l, F j" }} {{ leg.pickup_time|date:"g:i A" }}
+                  </div>
+                  <div class="mb-1">
+                    <strong>P/U Location:</strong> {{ leg.pickup_location }}
                   </div>
                   <div>
-                    <strong>Dropoff:</strong> {{ leg.dropoff_location }}
+                    <strong>D/O  Location:</strong> {{ leg.dropoff_location }}
                   </div>
-                  {% if leg.flight_information %}
-                    <div class="mt-1">
-                      <strong>Flight:</strong> {{ leg.flight_information }}
-                    </div>
-                  {% endif %}
+                
                 </div>
 
                 <div class="mb-3 pb-3 border-bottom">

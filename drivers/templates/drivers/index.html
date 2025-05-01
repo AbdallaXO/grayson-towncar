@@ -121,8 +121,7 @@
     <div class="container-fluid py-3">
       <div class="card mb-4">
         <div class="card-header card-header-dark d-flex justify-content-between align-items-center">
-          <h1 class="h3 mb-0">My Trips</h1>
-          <div class="text-white small">{% now "l, F j, Y" %}</div>
+          <h1 class="h3 mb-0">Search Trips By Date</h1>
         </div>
         <div class="card-body py-2">
           <div class="alert alert-light d-flex align-items-center border p-2 w-100 mx-auto mb-0"
@@ -195,7 +194,6 @@
                   {% for leg in legs %}
                     <tr>
                       <td>
-                        <div class="fw-bold mb-1">Res ID: GT0{{ leg.id }}</div>
                         <div>{{ leg.reservation.customer.get_full_name }}</div>
                         <div class="mb-1 mt-1">
                           <i class="bi bi-telephone-fill text-secondary me-1"></i>

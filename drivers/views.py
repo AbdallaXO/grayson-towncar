@@ -67,10 +67,10 @@ def completed_trips(request):
     )
 
 @login_required
-def week_schedule(request):
+def schedule(request):
     driver = get_object_or_404(Driver, profile=request.user)
     today = timezone.localdate()
-    next_week = today + timezone.timedelta(days=7)
+    next_week = today + timezone.timedelta(days=10)
     
     # Use select_related to fetch related data efficiently
     legs = Leg.objects.select_related(
