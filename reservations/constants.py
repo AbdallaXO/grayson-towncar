@@ -19,7 +19,7 @@ RESERVTION_STATUS = [
 ]
 
 DRIVER_STATUS = [
-    ("Assigned", "Assigned"),
-    ("At Pickup Location", "At Pickup Location"),
-    ("Completed", "Completed"),
+    ("in-progress", "In-Progress"),
+    ("picked-up", "Picked-Up"),
+    ("completed", "Completed"),
 ]

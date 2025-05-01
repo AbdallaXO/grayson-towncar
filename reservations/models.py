@@ -64,9 +64,9 @@ class Reservation(models.Model):
 
     luggage_count = models.PositiveIntegerField(default=1)
     need_carseats = models.BooleanField(default=False)  #
-    rf_carseats = models.PositiveIntegerField(default=0)
-    ff_carseats = models.PositiveBigIntegerField(default=0)
-    booster_seats = models.PositiveIntegerField(default=0)
+    rf_carseats = models.PositiveIntegerField("RF-Seat",default=0)
+    ff_carseats = models.PositiveBigIntegerField("FF-Seat", default=0)
+    booster_seats = models.PositiveIntegerField("Booster",default=0)
     uuid = models.UUIDField(blank=True, unique=True, default=uuid.uuid4, editable=False)
 
     # Special Requests
@@ -93,7 +93,7 @@ class Reservation(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        self.total_price += self.additional_charges
+        self.total_price = self.base_price
         super().save(*args, **kwargs)
 
     def display_carseats(self):
@@ -113,7 +113,7 @@ class Reservation(models.Model):
         Returns a simple string representation, showing the reservation's ID
         and its customer for clarity.
         """
-        return f"Reservation #{self.id} - Customer: {self.customer}"
+        return f"Reservation #{self.id} - {self.customer.get_full_name()}"
 
 
 class Leg(models.Model):
@@ -141,7 +141,8 @@ class Leg(models.Model):
         blank=True,
         related_name="legs",
     )
-    status = models.CharField(choices=DRIVER_STATUS ,null=True, blank=True, max_length=255)
+    status = models.CharField(choices=DRIVER_STATUS ,null=True, blank=True, max_length=255, default="in-progress"
+)
 
     class Meta:
         ordering = ["pickup_date", "pickup_time"]

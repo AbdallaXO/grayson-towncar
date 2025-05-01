@@ -12,10 +12,83 @@
           rel="stylesheet">
 
     <style>
+        :root {
+            --primary-dark: #343a40;
+            --accent-color: #0d6efd;
+        }
+
+        body {
+            background-color: #f8f9fa;
+        }
+
         .sticky-top {
             position: sticky;
             top: 0;
             z-index: 1;
+        }
+
+        .card {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+            margin-bottom: 20px;
+        }
+
+        .card-header-dark {
+            background-color: var(--primary-dark);
+            color: white;
+            padding: 15px;
+        }
+
+        .table th {
+            font-weight: 600;
+        }
+
+        .contact-btn {
+            padding: 2px 8px;
+            border-radius: 50px;
+            transition: all 0.2s;
+        }
+
+        .contact-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-in-progress {
+            background-color: #ffc107;
+        }
+
+        .status-picked-up {
+            background-color: #0d6efd;
+        }
+
+        .status-completed {
+            background-color: #198754;
+        }
+
+        .trip-card-mobile {
+            border-left: 5px solid var(--accent-color);
+        }
+
+        .quick-action-btn {
+            border-radius: 50px;
+            padding: 6px 12px;
+            margin-right: 5px;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .quick-action-btn i {
+            margin-right: 5px;
         }
 
         @media (max-width: 768px) {
@@ -26,37 +99,44 @@
             td {
                 padding: 8px;
             }
-        }
 
-        .card-header-dark {
-            background-color: #343a40;
-            color: white;
+            .mobile-section {
+                margin-bottom: 12px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid #eee;
+            }
+
+            .mobile-section:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
         }
     </style>
   </head>
 
-  <body class="bg-light">
+  <body>
     {% include "drivers/navbar.html" %}
 
-    <div class="container-fluid py-4">
-      <div class="card mb-4 shadow-sm">
-        <div class="card-header card-header-dark">
-          <h1 class="mb-0">My Trips</h1>
+    <div class="container-fluid py-3">
+      <div class="card mb-4">
+        <div class="card-header card-header-dark d-flex justify-content-between align-items-center">
+          <h1 class="h3 mb-0">My Trips</h1>
+          <div class="text-white small">{% now "l, F j, Y" %}</div>
         </div>
-        <div class="card-body">
-          <div class="alert alert-light d-flex align-items-center border p-2 w-100 mx-auto"
+        <div class="card-body py-2">
+          <div class="alert alert-light d-flex align-items-center border p-2 w-100 mx-auto mb-0"
                style="max-width:450px">
             <strong class="me-1">Logged in as:</strong>
             <span>{{ request.user|title }}</span>
-            <span class="text-muted small ms-auto">{% now "l, F j, Y" %}</span>
           </div>
         </div>
       </div>
 
       <!-- Controls Filter Card -->
-      <div class="card mb-4 shadow-sm">
+      <div class="card mb-4">
         <div class="card-header card-header-dark">
-          <h2 class="mb-0">Choose a Date</h2>
+          <h2 class="h5 mb-0">Choose a Date</h2>
         </div>
         <div class="card-body">
           <div class="row g-3">
@@ -72,7 +152,7 @@
             </div>
             <div class="col-sm-6 col-md-4 col-lg-3">
               <div class="input-group">
-                <span class="input-group-text"># of Legs</span>
+                <span class="input-group-text bg-dark text-white"># of Legs</span>
                 <input type="text" class="form-control" value="{{ legs.count }}" readonly />
               </div>
             </div>
@@ -80,16 +160,31 @@
         </div>
       </div>
 
+      {% if messages %}
+        <div class="container-fluid mt-3">
+          {% for message in messages %}
+            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show"
+                 role="alert">
+              {{ message }}
+              <button type="button"
+                      class="btn-close"
+                      data-bs-dismiss="alert"
+                      aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       {% if legs %}
         <!-- Desktop Table Card -->
-        <div class="card shadow-sm mb-4">
+        <div class="card d-none d-md-block">
           <div class="card-body p-0">
-            <div class="table-responsive d-none d-md-block">
+            <div class="table-responsive">
               <table class="table table-striped table-hover align-middle border mb-0">
                 <thead class="table-dark sticky-top">
                   <tr>
                     <th>Reservation Info</th>
-                    <th>Pickup &amp; Fare</th>
+                    <th>Start Location</th>
                     <th>Locations</th>
                     <th>Vehicle &amp; Passengers</th>
                     <th>Notes</th>
@@ -100,24 +195,37 @@
                   {% for leg in legs %}
                     <tr>
                       <td>
-                        <div class="fw-bold">Res ID: GT0{{ leg.id }}</div>
+                        <div class="fw-bold mb-1">Res ID: GT0{{ leg.id }}</div>
                         <div>{{ leg.reservation.customer.get_full_name }}</div>
-                        <div class="text-muted small">{{ leg.reservation.customer.phone_number }}</div>
+                        <div class="mb-1 mt-1">
+                          <i class="bi bi-telephone-fill text-secondary me-1"></i>
+                          <span>{{ leg.reservation.customer.phone_number }}</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                          <a href="tel:{{ leg.reservation.customer.phone_number }}"
+                             class="btn btn-sm btn-outline-primary contact-btn me-2">
+                            <i class="bi bi-telephone"></i> Call
+                          </a>
+                          <a href="sms:{{ leg.reservation.customer.phone_number }}"
+                             class="btn btn-sm btn-outline-success contact-btn">
+                            <i class="bi bi-chat"></i> Text
+                          </a>
+                        </div>
                       </td>
                       <td>
-                        <div>{{ leg.pickup_date|date:"l, F j" }}, {{ leg.pickup_time|date:"g:i A" }}</div>
-                        <div class="badge bg-success">${{ leg.reservation.total_price|default:"0" }}</div>
+                        <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
+                        <div>{{ leg.pickup_time|date:"g:i A" }}</div>
                       </td>
                       <td>
-                        <div>
-                          <strong>P/U:</strong> {{ leg.pickup_location }}
+                        <div class="mb-1">
+                          <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
                         </div>
                         <div>
-                          <strong>D/O:</strong> {{ leg.dropoff_location }}
+                          <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                         </div>
                         {% if leg.flight_information %}
-                          <div>
-                            <strong>Flight:</strong> {{ leg.flight_information }}
+                          <div class="mt-1">
+                            <span class="fw-bold">Flight:</span> {{ leg.flight_information }}
                           </div>
                         {% endif %}
                       </td>
@@ -128,25 +236,31 @@
                       </td>
                       <td>
                         {% if leg.reservation.special_requests %}
-                          <div>
-                            <span class="text-muted small">Guest Notes:</span> {{ leg.reservation.special_requests }}
+                          <div class="mb-2">
+                            <span class="text-muted small fw-bold">Guest Notes:</span>
+                            <div>{{ leg.reservation.special_requests }}</div>
                           </div>
                         {% endif %}
                         {% if leg.reservation.private_notes %}
                           <div>
-                            <span class="text-muted small">Company Notes:</span> {{ leg.reservation.private_notes }}
+                            <span class="text-muted small fw-bold">Company Notes:</span>
+                            <div>{{ leg.reservation.private_notes }}</div>
                           </div>
                         {% endif %}
                       </td>
                       <td>
+                        <div class="d-flex align-items-center mb-2">
+                          <span class="status-indicator {% if leg.status == 'in-progress' %}status-in-progress{% endif %} {% if leg.status == 'picked-up' %}status-picked-up{% endif %} {% if leg.status == 'completed' %}status-completed{% endif %}"></span>
+                          <span class="text-capitalize">{{ leg.status }}</span>
+                        </div>
                         <select id="statusSelect-{{ leg.id }}"
                                 class="form-select form-select-sm status-select">
-                          <option value="pending"
-                                  {% if leg.DRIVER_STATUS == "pending" %}selected{% endif %}>Pending</option>
-                          <option value="en-route"
-                                  {% if leg.DRIVER_STATUS == "en-route" %}selected{% endif %}>En Route</option>
+                          <option value="in-progress"
+                                  {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                          <option value="picked-up"
+                                  {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
                           <option value="completed"
-                                  {% if leg.DRIVER_STATUS == "completed" %}selected{% endif %}>Completed</option>
+                                  {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
                         </select>
                       </td>
                     </tr>
@@ -157,66 +271,102 @@
           </div>
         </div>
 
-        <!-- Mobile Card View -->
+        <!-- Mobile Card View - Enhanced -->
         <div class="d-md-none">
           {% for leg in legs %}
-            <div class="card mb-3 shadow-sm">
+            <div class="card trip-card-mobile">
               <div class="card-header card-header-dark d-flex justify-content-between align-items-center">
-                <div class="fw-bold h5 mb-0">
-                  {{ leg.pickup_date|date:"l, F j" }},
-                  <br>
-                  {{ leg.pickup_time|date:"g:i A" }}
-                </div>
                 <div>
-                  <strong>Res ID: GT0{{ leg.id }}</strong>
+                  <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
+                  <div>{{ leg.pickup_date|date:"l, F j" }}</div>
+                </div>
+                <div class="d-flex align-items-center">
+                  <span class="status-indicator {% if leg.status == 'in-progress' %}status-in-progress{% endif %} {% if leg.status == 'picked-up' %}status-picked-up{% endif %} {% if leg.status == 'completed' %}status-completed{% endif %}"></span>
+                  <span class="text-capitalize">{{ leg.status }}</span>
                 </div>
               </div>
               <div class="card-body">
-                <div class="mb-2">
-                  <strong>Customer:</strong> {{ leg.reservation.customer.get_full_name }}
+                <div class="mobile-section">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                    <div>
+                      <h5 class="mb-0">{{ leg.reservation.customer.get_full_name }}</h5>
+                      <div class="mt-1">
+                        <i class="bi bi-telephone-fill text-secondary me-1"></i>
+                        <span class="fw-semibold">{{ leg.reservation.customer.phone_number }}</span>
+                      </div>
+                      <div class="text-muted">Reservation ID: GT0{{ leg.id }}</div>
+                    </div>
+                    <div>
+                      <a href="tel:{{ leg.reservation.customer.phone_number }}"
+                         class="btn btn-sm btn-danger quick-action-btn">
+                        <i class="bi bi-telephone-fill"></i> Call
+                      </a>
+                      <a href="sms:{{ leg.reservation.customer.phone_number }}"
+                         class="btn btn-sm btn-warning quick-action-btn">
+                        <i class="bi bi-chat-fill"></i> Text
+                      </a>
+                    </div>
+                  </div>
                 </div>
-                <div class="mb-2">
-                  <strong>Phone:</strong> {{ leg.reservation.customer.phone_number }}
+
+                <div class="mobile-section">
+                  {% if leg.flight_information %}
+                    <div class="mt-1">
+                      <strong>Flight:</strong> {{ leg.flight_information }}
+                    </div>
+                  {% endif %}
+                  <div class="mb-1">
+                    <strong>Pickup From:</strong> {{ leg.pickup_location }}
+                  </div>
+                  <div>
+                    <strong>Dropoff To:</strong> {{ leg.dropoff_location }}
+                  </div>
+
                 </div>
-                <div class="mb-1">
-                  <strong># Of Passengers:</strong> {{ leg.reservation.passenger_count }}
+
+                <div class="mobile-section">
+                  <div class="mb-1">
+                    <strong>Vehicle:</strong> {{ leg.reservation.vehicle }}
+                  </div>
+                  <div class="d-flex">
+                    <div class="me-3">
+                      <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
+                    </div>
+                    <div>
+                      <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
+                    </div>
+                  </div>
                 </div>
-                <div class="mb-1">
-                  <strong>Carseats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
-                </div>
-                {% if leg.flight_information %}
-                  <div class="mb-2">
-                    <strong>Flight:</strong> {{ leg.flight_information }}
+
+                {% if leg.reservation.special_requests or leg.reservation.private_notes %}
+                  <div class="mobile-section">
+                    {% if leg.reservation.special_requests %}
+                      <div class="mb-2">
+                        <div class="text-muted small fw-bold">Guest Notes:</div>
+                        <div>{{ leg.reservation.special_requests }}</div>
+                      </div>
+                    {% endif %}
+
+                    {% if leg.reservation.private_notes %}
+                      <div>
+                        <div class="text-muted small fw-bold">Company Notes:</div>
+                        <div>{{ leg.reservation.private_notes }}</div>
+                      </div>
+                    {% endif %}
                   </div>
                 {% endif %}
-                <div class="mb-2">
-                  <strong>Start Location:</strong> {{ leg.pickup_location }}
+
+                <div>
+                  <label class="fw-bold mb-1">Update Status:</label>
+                  <select id="statusSelect-{{ leg.id }}" class="form-select status-select">
+                    <option value="in-progress"
+                            {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                    <option value="picked-up"
+                            {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
+                    <option value="completed"
+                            {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
+                  </select>
                 </div>
-                <div class="mb-2">
-                  <strong>End Location:</strong> {{ leg.dropoff_location }}
-                </div>
-                <div class="mb-2">
-                  <strong>Preferred Vehicle:</strong> {{ leg.reservation.vehicle }}
-                </div>
-                {% if leg.reservation.special_requests %}
-                  <div class="mb-2">
-                    <span class="text-muted small">Guest Notes:</span> {{ leg.reservation.special_requests }}
-                  </div>
-                {% endif %}
-                {% if leg.reservation.private_notes %}
-                  <div class="mb-2">
-                    <span class="text-muted small">Company Notes:</span> {{ leg.reservation.private_notes }}
-                  </div>
-                {% endif %}
-                <select id="statusSelectMobile-{{ leg.id }}"
-                        class="form-select form-select-sm mt-2 status-select">
-                  <option value="pending"
-                          {% if leg.DRIVER_STATUS == "pending" %}selected{% endif %}>Pending</option>
-                  <option value="en-route"
-                          {% if leg.DRIVER_STATUS == "en-route" %}selected{% endif %}>En Route</option>
-                  <option value="completed"
-                          {% if leg.DRIVER_STATUS == "completed" %}selected{% endif %}>Completed</option>
-                </select>
               </div>
             </div>
           {% endfor %}
@@ -230,14 +380,56 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const dp = document.getElementById('dateFilter');
-            document.getElementById('submitDateFilter').onclick = () => {
-                if (dp.value) {
-                    window.location.href = `?date=${dp.value}`;
+            const csrfToken = "{{ csrf_token }}";
+            const statusSelects = document.querySelectorAll('.status-select');
+
+            statusSelects.forEach(select => {
+                select.addEventListener('change', (event) => {
+                    const legId = event.target.id.split('-')[1];
+                    const newStatus = event.target.value;
+                    const updateUrl = `${window.location.origin}/drivers/update_leg_status/${legId}/`;
+
+                    fetch(updateUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            },
+                            body: JSON.stringify({
+                                status: newStatus
+                            })
+                        })
+                        .then(response => {
+                            if (!response.ok) throw new Error('Status update failed');
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                window.location.reload();
+                            } else {
+                                // This will show the server-side message
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Update error:', error);
+                            window.location.reload();
+                        });
+                });
+            });
+
+            // Date Filter Functionality
+            const dateFilter = document.getElementById('dateFilter');
+            const submitDateFilter = document.getElementById('submitDateFilter');
+
+            submitDateFilter.onclick = () => {
+                if (dateFilter.value) {
+                    window.location.href = `?date=${dateFilter.value}`;
                 }
             };
-            dp.addEventListener('keyup', (e) => {
-                if (e.key === 'Enter') document.getElementById('submitDateFilter').click();
+
+            dateFilter.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') submitDateFilter.click();
             });
         });
     </script>

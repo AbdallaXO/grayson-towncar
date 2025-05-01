@@ -36,7 +36,7 @@ SECRET_KEY = os.environ.get(
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 
 ALLOWED_HOSTS = [
@@ -294,7 +294,7 @@ CKEDITOR_CONFIGS = {
         "width": "100%",
     },
 }
-
+# logo.png
 JAZZMIN_SETTINGS = {
     "changeform_format": "single",
       "show_ui_builder": True,

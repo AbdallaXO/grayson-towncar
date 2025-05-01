@@ -147,7 +147,7 @@ class CustomerAdmin(ImportExportModelAdmin):
 class ReservationAdmin(ImportExportModelAdmin):
     resource_class = ReservationResource
     inlines = [LegInline]
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at", "payment_status_display")
 
     # ── queryset with annotations
     def get_queryset(self, request):
@@ -164,15 +164,15 @@ class ReservationAdmin(ImportExportModelAdmin):
         "customer_link",
         "first_pickup_date",
         "first_pickup_time",
-        "status",
-        "trip_type",  
-        "payment_status_badge",
+        "trip_type",
+        "payment_status_display",  # Keep it here for list view
         "total_price_display",
         "vehicle",
         "created_at",
+        "status",
     )
     list_display_links = ("id", "customer_link")
-    list_editable = ("status",)  # ← only fields safe to inline-edit
+    list_editable = ("status",)
     list_filter = (FirstPickupDateFilter, "trip_type", "status")
     search_fields = (
         "customer__first_name",
@@ -188,14 +188,18 @@ class ReservationAdmin(ImportExportModelAdmin):
             {
                 "fields": (
                     "customer",
-                    "trip_type",
                     "vehicle",
-                    "total_price", 
-                    "additional_charges",
-                    "base_price",
-                    "status",
+                    "passenger_count",
+                    "need_carseats",
+                    "store_stop",
+                    ("ff_carseats", "rf_carseats", "booster_seats"),
                     "special_requests",
                     "private_notes",
+                    "total_price",
+                    "additional_charges",
+                    "trip_type",
+                    "status",
+                    "payment_status_display",  # Keep it in fieldsets to show in form
                 ),
             },
         ),
@@ -228,21 +232,41 @@ class ReservationAdmin(ImportExportModelAdmin):
     def total_price_display(self, obj):
         return f"${obj.total_price:.2f}"
 
-    @admin.display(description="Payment")
-    def payment_status_badge(self, obj):
+    @admin.display(description="Payment Status")
+    def payment_status_display(self, obj):
         # Check if payments related manager exists and has items
         if not hasattr(obj, 'payments') or not obj.payments.exists():
             return "-"
-        
+
+        # Get the last payment
         payment = obj.payments.last()
-        colour = {"paid": "green", "pending": "orange", "failed": "red"}.get(
-            payment.status, "gray"
-        )
+
+        # Generate the correct URL to the Payment admin page
+        payment_url = f"/admin/payment/payment/{payment.id}/change/"
+
+        # Define status to color mapping
+        status_color = {
+            "paid": "green",
+            "pending": "orange",
+            "failed": "red",
+            "card_saved": "blue",  # New status for 'card saved'
+        }
+
+        # Get color based on payment status
+        colour = status_color.get(payment.status, "gray")  # Default to gray for unknown statuses
+
+        # Return a formatted display with a clickable link to the Payment page
         return format_html(
-            '<span style="color:{};font-weight:bold;">{}</span>',
+            '<a href="{}" style="color:{};font-weight:bold;">{}</a><br/>Amount: ${}<br/>Type: {}',
+            payment_url,  # Link to the Payment admin page
             colour,
             payment.status.capitalize(),
+            payment.amount,
+            payment.payment_type.replace("_", " ").title(),
         )
+
+
+
 
 
 @admin.register(Leg)
@@ -255,6 +279,7 @@ class LegAdmin(ImportExportModelAdmin):
         "reservation",
         "pickup_location",
         "dropoff_location",
+        "driver",
         "get_status",
     )
     list_filter = ("pickup_date", "reservation__status")
@@ -265,8 +290,11 @@ class LegAdmin(ImportExportModelAdmin):
         "reservation__customer__last_name",
     )
     ordering = ("pickup_date", "pickup_time")
+    list_editable = ("driver",)
     list_per_page = 50
     autocomplete_fields = ("reservation",)
+    list_display_links = ("pickup_date","reservation",)
+
 
     @admin.display(description="Status")
     def get_status(self, obj):
