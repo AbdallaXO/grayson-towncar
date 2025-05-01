@@ -81,7 +81,7 @@
                       </td>
                       <td>
                         <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
-                        <div>{{ leg.pickup_time|date:"g:i A" }}</div>
+                        <div >{{ leg.pickup_time|date:"g:i A" }}</div>
                       </td>
                       <td>
                         <div class="mb-1">
@@ -242,7 +242,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <div class="alert alert-danger">No trips scheduled for {{ selected_date|date:'F j, Y' }}.</div>
+        <div class="alert alert-danger">No trips scheduled for This Week</div>
       {% endif %}
     </div>
 

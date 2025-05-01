@@ -10,7 +10,7 @@ def send_reservation_confirmation(reservation):
     """This Reservation is Called in the View
     When a Reservation is created with the reservation Object
     Renders a nicely formatted HTML and emails a Confirmation"""
-    logger.info(f"Preparing to send reservation confirmation for {reservation.uuid}")
+    logger.info(f"Preparing to send reservation confirmation for {reservation.customer}")
 
     try:
         context = {
@@ -62,7 +62,7 @@ def thankyou_email(instance):
 
 def send_internal_confirmation(reservation):
     """Emails Self when a reservation gets made in case of any errors and customer does not get an email"""
-    logger.info(f"Preparing to send reservation confirmation for {reservation.uuid}")
+    logger.info(f"Preparing to send reservation confirmation for {reservation.customer}")
 
     try:
         context = {
@@ -71,7 +71,7 @@ def send_internal_confirmation(reservation):
             "date": timezone.now().date(),
         }
 
-        subject = "Grayson Towncar Reservation Submission "
+        subject = "Reservation Submission"
         from_email = "reservations@graysontowncar.com"
         to = ["reservations@graysontowncar.com"]
         logger.info(f"Email subject: {subject}")

@@ -2,262 +2,96 @@
 {% load static %}
 
 {% block content %}
-  <div class="container-fluid mt-4">
-    {% if messages %}
-      <div class="row">
-        <div class="col-12">
-          {% for message in messages %}
-            <div class="alert {% if message.tags %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show"
-                 role="alert">
-              {{ message }}
-              <button type="button"
-                      class="btn-close"
-                      data-bs-dismiss="alert"
-                      aria-label="Close"></button>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    {% endif %}
 
-    <div class="row">
-      <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-          <h1 class="h3">Reservation Details</h1>
-          <div>
-            <a href="{% url 'reservations_list' %}"
-               class="btn btn-outline-secondary me-2">
-              <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
-            </a>
-            <a href="{% url 'modify_reservation' reservation.uuid %}"
-               class="btn btn-primary">
-              <i class="bi bi-pencil me-1"></i>Edit Reservation
-            </a>
-          </div>
-        </div>
-      </div>
+  <div class="container mt-4">
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-start mb-3">
+      <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-dark me-2">Edit Reservation</a>
+      <a href="https://www.graysontowncar.com/admin/reservations/reservation/{{ reservation.id }}/change/" target="_blank" class="btn btn-outline-dark me-2">Edit in Admin</a>
+      <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/" target="_blank" class="btn btn-outline-dark me-2">Edit Customer</a>
+      <button class="btn btn-success me-2">Email Confirmation</button>
     </div>
 
-    <div class="row">
-      <div class="col-md-8">
-        <div class="card mb-4">
-          <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">
-              Reservation #{{ reservation.id }}
-              <span class="badge bg-info ms-2">{{ reservation.status|title }}</span>
-            </h5>
-            <small>Created: {{ reservation.created_at|date:"F d, Y H:i" }}</small>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-6">
-                <h6 class="text-muted">Customer Information</h6>
-                <dl class="row">
-                  <dt class="col-sm-4">Name</dt>
-                  <dd class="col-sm-8">
-                    {{ reservation.customer.get_full_name }}
-                  </dd>
+    <!-- Reservation Header -->
+    <div class="mb-4">
+      <h1 class="h3">Reservation ID: {{ reservation.id }}</h1>
+    </div>
 
-                  <dt class="col-sm-4">Phone</dt>
-                  <dd class="col-sm-8">
-                    {{ reservation.customer.phone_number }}
-                  </dd>
-
-                  <dt class="col-sm-4">Email</dt>
-                  <dd class="col-sm-8">
-                    {{ reservation.customer.email }}
-                  </dd>
-                </dl>
-              </div>
-              <div class="col-md-6">
-                <h6 class="text-muted">Reservation Details</h6>
-                <dl class="row">
-                  <dt class="col-sm-4">Trip Type</dt>
-                  <dd class="col-sm-8">
-                    {{ reservation.get_trip_type_display }}
-                  </dd>
-
-                  <dt class="col-sm-4">Passengers</dt>
-                  <dd class="col-sm-8">
-                    {{ reservation.passenger_count }}
-                    {% if reservation.display_carseats %}(Carseats: {{ reservation.display_carseats }}){% endif %}
-                  </dd>
-
-                  <dt class="col-sm-4">Vehicle</dt>
-                  <dd class="col-sm-8">
-                    {{ reservation.vehicle.name|default:"Not Assigned" }}
-                  </dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {% for leg in reservation.legs.all %}
-          <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">
-                Leg #{{ forloop.counter }}
-                <span class="badge bg-secondary ms-2">{{ reservation.rate.route }}</span>
-              </h5>
-              <small>{{ leg.pickup_date|date:"F d, Y" }}</small>
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-4">
-                  <h6 class="text-muted">Pickup Details</h6>
-                  <dl class="row">
-                    <dt class="col-sm-4">Time</dt>
-                    <dd class="col-sm-8">
-                      {{ leg.pickup_time|time:"h:i A" }}
-                    </dd>
-
-                    <dt class="col-sm-4">Location</dt>
-                    <dd class="col-sm-8">
-                      {{ leg.pickup_location }}
-                    </dd>
-
-                    <dt class="col-sm-4">Dropoff</dt>
-                    <dd class="col-sm-8">
-                      {{ leg.dropoff_location }}
-                    </dd>
-                  </dl>
-                </div>
-                <div class="col-md-4">
-                  <h6 class="text-muted">Flight Information</h6>
-                  <dl class="row">
-                    <dt class="col-sm-4">Flight</dt>
-                    <dd class="col-sm-8">
-                      {{ leg.flight_information|default:"No Flight Info" }}
-                    </dd>
-                  </dl>
-                </div>
-                <div class="col-md-4">
-                  <h6 class="text-muted">Driver Assignment</h6>
-                  <form method="post" class="mb-2">
-                    {% csrf_token %}
-                    <input type="hidden" name="leg_id" value="{{ leg.id }}">
-                    <div class="input-group">
-                      <select name="driver"
-                              class="form-select form-select-sm"
-                              onchange="this.form.submit()">
-                        <option value="">Assign Driver</option>
-                        {% for driver in available_drivers %}
-                          <option value="{{ driver.id }}"
-                                  {% if driver == leg.driver %}selected{% endif %}>{{ driver.name }}</option>
-                        {% endfor %}
-                      </select>
-                    </div>
-                  </form>
-                  {% if leg.driver %}
-                    <div class="alert alert-info py-1 px-2">
-                      <small>Assigned: {{ leg.driver.name }}</small>
-                    </div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-
-      <div class="col-md-4">
-        <div class="card mb-4">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Pricing & Payments</h5>
-          </div>
-          <div class="card-body">
-            <dl class="row">
-              <dt class="col-sm-6">Base Price</dt>
-              <dd class="col-sm-6 text-end">
-                ${{ total_cost.base|floatformat:2 }}
-              </dd>
-
-              <dt class="col-sm-6">Additional Charges</dt>
-              <dd class="col-sm-6 text-end">
-                ${{ total_cost.additional|floatformat:2 }}
-              </dd>
-
-              <hr>
-
-              <dt class="col-sm-6 fw-bold">Total Price</dt>
-              <dd class="col-sm-6 text-end fw-bold text-primary">
-                ${{ total_cost.total|floatformat:2 }}
-              </dd>
-            </dl>
-
-            <div class="d-grid gap-2">
-              <button type="button"
-                      class="btn btn-outline-success"
-                      data-bs-toggle="modal"
-                      data-bs-target="#paymentModal">Process Payment</button>
-
-              <button type="button"
-                      class="btn btn-outline-danger"
-                      data-bs-toggle="modal"
-                      data-bs-target="#cancelModal">Cancel Reservation</button>
-            </div>
-          </div>
-        </div>
-
+    <!-- Contact & Comments -->
+    <div class="row mb-4">
+      <div class="col-md-6">
         <div class="card">
-          <div class="card-header">
-            <h5 class="mb-0">Notes</h5>
-          </div>
+          <div class="card-header bg-dark text-white fw-bold h5">Contact Information</div>
           <div class="card-body">
-            <h6 class="text-muted">Private Notes</h6>
-            <p>{{ reservation.private_notes|default:"No private notes" }}</p>
-
-            <h6 class="text-muted mt-3">Special Requests</h6>
-            <p>{{ reservation.special_requests|default:"No special requests" }}</p>
+            <p>
+              <strong>Full Name:</strong> {{ reservation.customer.get_full_name }}
+            </p>
+            <p>
+              <strong>Email:</strong> {{ reservation.customer.email }}
+            </p>
+            <p>
+              <strong>Phone:</strong> {{ reservation.customer.phone_number }}
+            </p>
+            <p>
+              <strong>Address:</strong> {{ reservation.customer.address|default:'N/A' }}
+            </p>
+            <p>
+              <strong>CC Last 4:</strong> {{ reservation.cc_last4|default:'N/A' }}
+            </p>
+            <p>
+              <strong>Payment Status:</strong> {{ reservation.payment_status|default:'Unpaid' }}
+            </p>
+            <p>
+              <strong>Customer Notes:</strong> {{ reservation.special_requests|default:'N/A' }}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header bg-dark text-white fw-bold h5">Private Comments</div>
+          <div class="card-body">
+            <p>{{ reservation.private_notes|default:'No private notes' }}</p>
+            <button class="btn btn-outline-secondary btn-sm">Edit Comments</button>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Payment Modal -->
-  <div class="modal fade" id="paymentModal" tabindex="-1">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Process Payment</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <!-- Trip Legs -->
+    <div class="row">
+      {% for leg in reservation.legs.all %}
+        <div class="col-md-6 mb-4">
+          <div class="card h-100 shadow-sm" style="min-height: 100%;">
+            <div class="card-header bg-dark text-white fw-bold h5 d-flex justify-content-between align-items-center" style="font-size: 1.15rem; padding: 1rem;">
+              <span>Pickup: {{ leg.pickup_date|date:'l, F d, Y' }} {{ leg.pickup_time|time:'g:i A' }}</span>
+              <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
+                 target="_blank"
+                 class="btn btn-sm btn-outline-light">Edit Leg</a>
+            </div>
+            <div class="card-body px-4 py-3" style="font-size: 1.1rem;">
+              <ul class="list-unstyled mb-0">
+                <li><strong>Assigned Driver:</strong> {{ leg.driver.name|default:'Not Assigned' }}</li>
+                <li class="mb-3"><strong>Driver Status:</strong> {{ leg.driver_status|default:'Pending' }}</li>
+                <li><strong>Flight:</strong> {{ leg.flight_information|default:'No Flight Info' }}</li>
+                <li><strong>P/U Location:</strong> {{ leg.pickup_location }}</li>
+                <li><strong>Drop-off Location:</strong> {{ leg.dropoff_location }}</li>
+                <li>
+                  <strong>Passengers:</strong> {{ reservation.passenger_count }}
+                  {% if reservation.display_carseats %}, {{ reservation.display_carseats }} Car Seats{% endif %}
+                </li>
+                <li><strong>Vehicle:</strong> {{ reservation.vehicle.name|default:'Not Assigned' }}</li>
+                <li><strong>Comments:</strong> {{ leg.leg_notes|default:'None' }}</li>
+              </ul>
+            </div>
+          </div>
         </div>
-        <div class="modal-body">
-          <!-- Payment form or integration would go here -->
-          <p>Total due: ${{ total_cost.total|floatformat:2 }}</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="button" class="btn btn-primary">Pay Now</button>
-        </div>
-      </div>
+      {% endfor %}
     </div>
-  </div>
+    
 
-  {% comment %} <!-- Cancellation Modal -->
-          <div class="modal fade" id="cancelModal" tabindex="-1">
-            <div class="modal-dialog">
-              <div class="modal-content">
-                <div class="modal-header">
-          <h5 class="modal-title">Cancel Reservation</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <p>Are you sure you want to cancel this reservation?</p>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Keep Reservation</button>
-          <form method="post"
-                action="{% url 'cancel_reservation' reservation.uuid %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger">Yes, Cancel Reservation</button>
-          </form>
-        </div>
-      </div>
-    </div>
-</div> {% endcomment %}
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}
 {% block footer %}
-{% endblock footer %}
+{% endblock %}

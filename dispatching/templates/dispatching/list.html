@@ -1,4 +1,4 @@
-{% extends "main.html" %}
+{% extends 'main.html' %}
 
 {% block content %}
   <div class="container-fluid py-4">
@@ -8,12 +8,8 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap">
           <h1 class="mb-3 mb-md-0 fs-1 fw-bold">Reservations</h1>
           <div class="d-flex flex-wrap gap-3">
-            <a href="{% url 'dashboard' %}" class="btn btn-outline-primary btn-lg">
-              <i class="bi bi-calendar-date me-2"></i>Filter by Date
-            </a>
-            <a href="{% url 'legs_list' %}" class="btn btn-outline-primary btn-lg">
-              <i class="bi bi-list-ul me-2"></i>View All Legs
-            </a>
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-primary btn-lg"><i class="bi bi-calendar-date me-2"></i>Filter by Date</a>
+            <a href="{% url 'legs_list' %}" class="btn btn-outline-primary btn-lg"><i class="bi bi-list-ul me-2"></i>View All Legs</a>
           </div>
         </div>
       </div>
@@ -24,242 +20,215 @@
       <div class="col-12">
         <form action="#" method="get" class="d-flex gap-2">
           <div class="input-group input-group-lg">
-            <input type="text"
-                   name="search_q"
-                   class="form-control form-control-lg fs-5"
-                   placeholder="Search reservations...">
-            <button type="submit" class="btn btn-primary btn-lg px-4">
-              <i class="bi bi-search me-2"></i> Search
-            </button>
+            <input type="text" name="search_q" class="form-control form-control-lg fs-5" placeholder="Search reservations..." />
+            <button type="submit" class="btn btn-primary btn-lg px-4"><i class="bi bi-search me-2"></i> Search</button>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Reservations Section -->
-    <div class="row mb-4">
-      <div class="col-12">
-        {% if reservations %}
-          <!-- Desktop Table (hidden on small screens) -->
-          <div class="d-none d-lg-block">
-            <div class="table-responsive rounded shadow-sm">
-              <table class="table table-bordered table-striped table-hover mb-0">
-                <thead class="table-dark">
-                  <tr>
-                    <th class="text-center fs-5" style="width: 2%;">ID</th>
-                    <th class="fs-5" style="width: 10%;">Customer</th>
-                    <th class="fs-5" style="width: 5%;">Trip Type</th>
-                    <th class="fs-5" style="width: 5%;">Vehicle</th>
-                    <th class="fs-5" style="width: 3%;">Pax</th>
-                    <th class="fs-5" style="width: 3%;">Status</th>
-                    <th class="fs-5" style="width: 5%;">Price</th>
-                    <th class="fs-5" style="width: 7%;">Payment</th>
-                    <th class="text-center fs-5" style="width: 8%;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for reservation in reservations %}
-                    <tr class="align-middle">
-                      <td class="text-center">
-                        <span class="badge bg-primary fs-6 p-2">{{ reservation.id }}</span>
-                      </td>
-                      <td>
-                        <div class="d-flex align-items-center">
-                          <div>
-                            <h5 class="mb-1 fw-bold">{{ reservation.customer.get_full_name }}</h5>
-                            <div class="fs-6 text-muted">{{ reservation.customer.email }}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span class="badge bg-warning text-dark fs-6 p-2">{{ reservation.get_trip_type_display }}</span>
-                      </td>
-                      <td>
-                        <span class="fs-6 fw-semibold">{{ reservation.vehicle }}</span>
-                      </td>
-                      <td>
-                        <span class="badge bg-secondary fs-6 p-2">{{ reservation.passenger_count }}</span>
-                        {% if reservation.display_carseats %}
-                          <div class="fs-6 text-muted mt-2">
-                            <i class="bi bi-car-front"></i> {{ reservation.display_carseats }}
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td>
-                        {% if reservation.status == 'pending' %}
-                          <span class="badge bg-warning text-dark fs-6 p-2">{{ reservation.get_status_display }}</span>
-                        {% elif reservation.status == 'confirmed' %}
-                          <span class="badge bg-success fs-6 p-2">{{ reservation.get_status_display }}</span>
-                        {% else %}
-                          <span class="badge bg-danger fs-6 p-2">{{ reservation.get_status_display }}</span>
-                        {% endif %}
-                      </td>
-                      <td>
-                        <span class="text-success fs-5 fw-bold">${{ reservation.total_price|floatformat:2 }}</span>
-                      </td>
-                      <td>
-                        {% if reservation.payments.last %}
-                          <span class="text-success fs-6 fw-bold">{{ reservation.payments.last }}</span>
-                        {% else %}
-                          <span class="badge bg-warning text-dark fs-6 p-2">Unpaid</span>
-                        {% endif %}
-                      </td>
-                      <td class="text-center">
-                        <div class="btn-group" role="group">
-                          <a href="{% url 'reservation_details' reservation.uuid %}"
-                             class="btn btn-outline-primary">
-                            <i class="bi bi-eye"></i><span class="ms-2">View</span>
-                          </a>
-                          <a href="{% url 'modify_reservation' reservation.uuid %}"
-                             class="btn btn-outline-secondary">
-                            <i class="bi bi-pencil"></i><span class="ms-2">Edit</span>
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
+    {% if reservations %}
+      <!-- Full-width desktop table -->
+      <div class="table-responsive rounded shadow-sm mb-4" style="width: 100%;">
+        <table class="table table-bordered table-striped table-hover w-100 mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th class="text-center fs-5" style="width: 1%;">ID</th>
+              <th class="fs-5" style="width: 8%;">Customer</th>
+              <th class="fs-5" style="width: 6%;">Trip Type</th>
+              <th class="fs-5" style="width: 8%;">1st Trip</th>
+              <th class="fs-5" style="width: 4%;">Vehicle</th>
+              <th class="fs-5" style="width: 4%;">Passengers</th>
+              <th class="fs-5" style="width: 4%;">Status</th>
+              <th class="fs-5" style="width: 4%;">Price</th>
+              <th class="fs-5" style="width: 5%;">Payment</th>
+              <th class="text-center fs-5" style="width: 8%;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for reservation in reservations %}
+              <tr class="align-middle">
+                <td class="text-center">
+                  <span class="fw-bolder">{{ reservation.id }}</span>
+                </td>
+                <td>
+                  <div class="d-flex align-items-center">
+                    <div>
+                      <h5 class="mb-1 fw-bold">{{ reservation.customer.get_full_name }}</h5>
+                      <div class="fs-6 text-muted">{{ reservation.customer.email }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <span class="badge bg-warning text-dark fs-6 p-2">{{ reservation.get_trip_type_display }}</span>
+                </td>
+                <td>
+                  <span class="fs-6 fw-semibold">
+                    {{ reservation.legs.first.pickup_date }}
+                    {{ reservation.legs.first.pickup_time|date:'g:i A' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="fs-6 fw-semibold">{{ reservation.vehicle }}</span>
+                </td>
+                <td>
+                  <strong class="fs-5 fw-bolder">{{ reservation.passenger_count }}</strong>
+                  {% if reservation.display_carseats %}
+                    &nbsp;<i class="bi bi-car-front text-muted"></i>
+                    <span class="text-muted">{{ reservation.display_carseats }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if reservation.status == 'pending' %}
+                    <span class="badge bg-warning text-dark fs-6 p-2">{{ reservation.get_status_display }}</span>
+                  {% elif reservation.status == 'confirmed' %}
+                    <span class="badge bg-success fs-6 p-2">{{ reservation.get_status_display }}</span>
+                  {% else %}
+                    <span class="badge bg-danger fs-6 p-2">{{ reservation.get_status_display }}</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="text-success fs-5 fw-bold">${{ reservation.total_price|floatformat:2 }}</span>
+                </td>
+                <td>
+                  {% if reservation.payments.last %}
+                    <span class="text-success fs-6 fw-bold">{{ reservation.payments.last }}</span>
+                  {% else %}
+                    <span class="badge bg-warning text-dark fs-6 p-2">Unpaid</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  <div class="btn-group" role="group">
+                    <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-outline-primary"><i class="bi bi-eye"></i><span class="ms-2">View</span></a>
+                    <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-outline-secondary"><i class="bi bi-pencil"></i><span class="ms-2">Edit</span></a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-          <!-- Mobile Card View (visible only on small screens) -->
-          <div class="d-lg-none">
-            <div class="row g-3">
-              {% for reservation in reservations %}
-                <div class="col-12">
-                  <div class="card shadow-sm">
-                    <div class="card-header d-flex justify-content-between align-items-center p-3">
-                      <span class="badge bg-primary fs-6 p-2">ID: {{ reservation.id }}</span>
-                      {% if reservation.status == 'pending' %}
-                        <span class="badge bg-warning text-dark fs-6 p-2">{{ reservation.get_status_display }}</span>
-                      {% elif reservation.status == 'confirmed' %}
-                        <span class="badge bg-success fs-6 p-2">{{ reservation.get_status_display }}</span>
+      <!-- Mobile Card View -->
+      <div class="d-lg-none">
+        <div class="row g-3">
+          {% for reservation in reservations %}
+            <div class="col-12">
+              <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center p-3">
+                  <span class="badge bg-primary fs-6 p-2">ID: {{ reservation.id }}</span>
+                  {% if reservation.status == 'pending' %}
+                    <span class="badge bg-warning text-dark fs-6 p-2">{{ reservation.get_status_display }}</span>
+                  {% elif reservation.status == 'confirmed' %}
+                    <span class="badge bg-success fs-6 p-2">{{ reservation.get_status_display }}</span>
+                  {% else %}
+                    <span class="badge bg-danger fs-6 p-2">{{ reservation.get_status_display }}</span>
+                  {% endif %}
+                </div>
+                <div class="card-body p-4">
+                  <!-- Customer Info -->
+                  <div class="mb-3 pb-3 border-bottom">
+                    <h5 class="mb-1 fw-bold">{{ reservation.customer.get_full_name }}</h5>
+                    <div class="fs-6 text-muted">{{ reservation.customer.email }}</div>
+                  </div>
+
+                  <div class="row g-3">
+                    <!-- Trip Type -->
+                    <div class="col-6 border-end">
+                      <div class="fs-6 text-muted mb-2 fw-bold">Trip Type:</div>
+                      <span class="badge bg-info text-dark fs-6 p-2">{{ reservation.get_trip_type_display }}</span>
+                    </div>
+
+                    <!-- Vehicle -->
+                    <div class="col-6">
+                      <div class="fs-6 text-muted mb-2 fw-bold">Vehicle:</div>
+                      {% if reservation.vehicle %}
+                        <span class="fs-8 fw-semibold">{{ reservation.vehicle.name }}</span>
                       {% else %}
-                        <span class="badge bg-danger fs-6 p-2">{{ reservation.get_status_display }}</span>
+                        <span class="text-muted fs-6">No Vehicle</span>
                       {% endif %}
                     </div>
-                    <div class="card-body p-4">
-                      <!-- Customer Info -->
-                      <div class="mb-3 pb-3 border-bottom">
-                        <h5 class="mb-1 fw-bold">{{ reservation.customer.get_full_name }}</h5>
-                        <div class="fs-6 text-muted">{{ reservation.customer.email }}</div>
-                      </div>
 
-                      <div class="row g-3">
-                        <!-- Trip Type -->
-                        <div class="col-6 border-end">
-                          <div class="fs-6 text-muted mb-2 fw-bold">Trip Type:</div>
-                          <span class="badge bg-info text-dark fs-6 p-2">{{ reservation.get_trip_type_display }}</span>
-                        </div>
-
-                        <!-- Vehicle -->
-                        <div class="col-6">
-                          <div class="fs-6 text-muted mb-2 fw-bold">Vehicle:</div>
-                          {% if reservation.vehicle %}
-                            <span class="fs-8 fw-semibold">{{ reservation.vehicle.name }}</span>
-                          {% else %}
-                            <span class="text-muted fs-6">No Vehicle</span>
-                          {% endif %}
-                        </div>
-
-                        <!-- Divider -->
-                        <div class="col-12">
-                          <hr class="my-2">
-                        </div>
-
-                        <!-- Passengers & Carseats -->
-                        <div class="col-6 border-end">
-                          <div class="fs-6 text-muted mb-2 fw-bold">Pax:</div>
-                          <span class="badge bg-secondary fs-6 p-2">{{ reservation.passenger_count }}</span>
-                          {% if reservation.display_carseats %}
-                            <div class="fs-6 mt-2">
-                              <i class="bi bi-car-front"></i> {{ reservation.display_carseats }}
-                            </div>
-                          {% endif %}
-                        </div>
-
-                        <!-- Price & Payment -->
-                        <div class="col-6">
-                          <div class="fs-6 text-muted mb-2 fw-bold">Price:</div>
-                          <div class="text-success fs-5 fw-bold">${{ reservation.total_price|floatformat:2 }}</div>
-
-                          <div class="fs-6 text-muted mt-3 fw-bold">Payment:</div>
-                          {% if reservation.payments.last %}
-                            <span class="text-success fs-6 fw-bold">{{ reservation.payments.last }}</span>
-                          {% else %}
-                            <span class="badge bg-warning text-dark fs-6 p-2">Unpaid</span>
-                          {% endif %}
-                        </div>
-                      </div>
+                    <!-- 1st Trip -->
+                    <div class="col-6 border-end">
+                      <div class="fs-6 text-muted mb-2 fw-bold">1st Trip:</div>
+                      <span class="fs-6 fw-semibold">
+                        {{ reservation.legs.first.pickup_date }}
+                        {{ reservation.legs.first.pickup_time|date:'g:i A' }}
+                      </span>
                     </div>
-                    <div class="card-footer d-flex justify-content-end gap-3 p-3">
-                      <a href="{% url 'reservation_details' reservation.uuid %}"
-                         class="btn btn-outline-primary">
-                        <i class="bi bi-eye me-2"></i>View
-                      </a>
-                      <a href="{% url 'modify_reservation' reservation.uuid %}"
-                         class="btn btn-outline-secondary">
-                        <i class="bi bi-pencil me-2"></i>Edit
-                      </a>
+
+                    <div class="col-12">
+                      <hr class="my-2" />
+                    </div>
+
+                    <!-- Pax & Carseats -->
+                    <div class="col-6 border-end">
+                      <div class="fs-6 text-muted mb-2 fw-bold">Passengers:</div>
+                      <strong class="fs-6">{{ reservation.passenger_count }}</strong>
+                      {% if reservation.display_carseats %}
+                        &nbsp;<i class="bi bi-car-front text-muted"></i>
+                        <span class="text-muted">{{ reservation.display_carseats }}</span>
+                      {% endif %}
+                    </div>
+
+                    <!-- Price & Payment -->
+                    <div class="col-6">
+                      <div class="fs-6 text-muted mb-2 fw-bold">Price:</div>
+                      <div class="text-success fs-5 fw-bold">${{ reservation.total_price|floatformat:2 }}</div>
+                      <div class="fs-6 text-muted mt-3 fw-bold">Payment:</div>
+                      {% if reservation.payments.last %}
+                        <span class="text-success fs-6 fw-bold">{{ reservation.payments.last }}</span>
+                      {% else %}
+                        <span class="badge bg-warning text-dark fs-6 p-2">Unpaid</span>
+                      {% endif %}
                     </div>
                   </div>
                 </div>
-              {% endfor %}
+                <div class="card-footer d-flex justify-content-end gap-3 p-3">
+                  <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-outline-primary"><i class="bi bi-eye me-2"></i>View</a>
+                  <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-outline-secondary"><i class="bi bi-pencil me-2"></i>Edit</a>
+                </div>
+              </div>
             </div>
-          </div>
-
-          <!-- Pagination -->
-          <nav aria-label="Reservation pagination" class="mt-3">
-            <ul class="pagination justify-content-center">
-              {% if page_obj.has_previous %}
-                <li class="page-item">
-                  <a class="page-link" href="?page=1" aria-label="First">
-                    <i class="bi bi-chevron-double-left"></i>
-                  </a>
-                </li>
-                <li class="page-item">
-                  <a class="page-link"
-                     href="?page={{ page_obj.previous_page_number }}"
-                     aria-label="Previous">
-                    <i class="bi bi-chevron-left"></i>
-                  </a>
-                </li>
-              {% endif %}
-
-              <li class="page-item active">
-                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-              </li>
-
-              {% if page_obj.has_next %}
-                <li class="page-item">
-                  <a class="page-link"
-                     href="?page={{ page_obj.next_page_number }}"
-                     aria-label="Next">
-                    <i class="bi bi-chevron-right"></i>
-                  </a>
-                </li>
-                <li class="page-item">
-                  <a class="page-link"
-                     href="?page={{ page_obj.paginator.num_pages }}"
-                     aria-label="Last">
-                    <i class="bi bi-chevron-double-right"></i>
-                  </a>
-                </li>
-              {% endif %}
-            </ul>
-          </nav>
-
-        {% else %}
-          <div class="alert alert-info shadow-sm" role="alert">
-            <div class="d-flex align-items-center">
-              <i class="bi bi-info-circle fs-4 me-3"></i>
-              <span>No reservations found. Create your first reservation!</span>
-            </div>
-          </div>
-        {% endif %}
+          {% endfor %}
+        </div>
       </div>
-    </div>
+
+      <!-- Pagination -->
+      <nav aria-label="Reservation pagination" class="mt-3">
+        <ul class="pagination justify-content-center">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page=1" aria-label="First"><i class="bi bi-chevron-double-left"></i></a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
+            </li>
+          {% endif %}
+
+          <li class="page-item active">
+            <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+          </li>
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
+            </li>
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last"><i class="bi bi-chevron-double-right"></i></a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% else %}
+      <div class="alert alert-info shadow-sm" role="alert">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-info-circle fs-4 me-3"></i>
+          <span>No reservations found. Create your first reservation!</span>
+        </div>
+      </div>
+    {% endif %}
 
     <!-- Stats Cards Section -->
     <div class="row mt-4">
@@ -282,7 +251,6 @@
                   </div>
                 </div>
               </div>
-
               <!-- Pending Reservations -->
               <div class="col-6 col-md-3">
                 <div class="card h-100 bg-light border shadow-sm">
@@ -295,7 +263,6 @@
                   </div>
                 </div>
               </div>
-
               <!-- Confirmed Reservations -->
               <div class="col-6 col-md-3">
                 <div class="card h-100 bg-light border shadow-sm">
@@ -308,7 +275,6 @@
                   </div>
                 </div>
               </div>
-
               <!-- Total Revenue -->
               <div class="col-6 col-md-3">
                 <div class="card h-100 bg-light border shadow-sm">
@@ -327,7 +293,8 @@
       </div>
     </div>
   </div>
-{% endblock content %}
+{% endblock %}
 
 {% block footer %}
-{% endblock footer %}
+
+{% endblock %}
