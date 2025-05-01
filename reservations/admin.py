@@ -276,7 +276,7 @@ class LegAdmin(ImportExportModelAdmin):
     list_display = (
         "pickup_date",
         "pickup_time",
-        "reservation",
+        "reservation_link",  # Use a custom method for the reservation link
         "pickup_location",
         "dropoff_location",
         "driver",
@@ -293,7 +293,13 @@ class LegAdmin(ImportExportModelAdmin):
     list_editable = ("driver",)
     list_per_page = 50
     autocomplete_fields = ("reservation",)
-    list_display_links = ("pickup_date","reservation",)
+
+    @admin.display(description="Reservation")
+    def reservation_link(self, obj):
+        if obj.reservation:
+            url = f"/admin/reservations/reservation/{obj.reservation.id}/change/"
+            return format_html('<a href="{}">{}</a>', url, obj.reservation)
+        return "-"
 
 
     @admin.display(description="Status")

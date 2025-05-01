@@ -239,6 +239,11 @@
                             <div>{{ leg.reservation.special_requests }}</div>
                           </div>
                         {% endif %}
+                        {% if leg.reservation.store_stop %}
+                        <div class="mb-2">
+                          <div>Publix Stop @9930 Universal Blvd</div>
+                        </div>
+                      {% endif %}
                         {% if leg.reservation.private_notes %}
                           <div>
                             <span class="text-muted small fw-bold">Company Notes:</span>
@@ -345,6 +350,11 @@
                       </div>
                     {% endif %}
 
+                    {% if leg.reservation.store_stop %}
+                    <div class="mb-2">
+                      <div>Publix Stop @9930 Universal Blvd</div>
+                    </div>
+                  {% endif %}
                     {% if leg.reservation.private_notes %}
                       <div>
                         <div class="text-muted small fw-bold">Company Notes:</div>
