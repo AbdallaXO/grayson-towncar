@@ -93,7 +93,7 @@ class Reservation(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        self.total_price = self.base_price
+        self.base_price = self.total_price
         super().save(*args, **kwargs)
 
     def display_carseats(self):

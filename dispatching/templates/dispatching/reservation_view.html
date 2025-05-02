@@ -2,13 +2,20 @@
 {% load static %}
 
 {% block content %}
-
+  {% block navbar %}
+  {% endblock navbar %}
+  {% include "dispatching/dispatcher_navbar.html" %}
   <div class="container mt-4">
     <!-- Action Buttons -->
     <div class="d-flex justify-content-start mb-3">
-      <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-dark me-2">Edit Reservation</a>
-      <a href="https://www.graysontowncar.com/admin/reservations/reservation/{{ reservation.id }}/change/" target="_blank" class="btn btn-outline-dark me-2">Edit in Admin</a>
-      <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/" target="_blank" class="btn btn-outline-dark me-2">Edit Customer</a>
+      <a href="{% url 'modify_reservation' reservation.uuid %}"
+         class="btn btn-dark me-2">Edit Reservation</a>
+      <a href="https://www.graysontowncar.com/admin/reservations/reservation/{{ reservation.id }}/change/"
+         target="_blank"
+         class="btn btn-outline-dark me-2">Edit in Admin</a>
+      <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/"
+         target="_blank"
+         class="btn btn-outline-dark me-2">Edit Customer</a>
       <button class="btn btn-success me-2">Email Confirmation</button>
     </div>
 
@@ -63,7 +70,9 @@
       {% for leg in reservation.legs.all %}
         <div class="col-md-6 mb-4">
           <div class="card h-100 shadow-sm" style="min-height: 100%;">
-            <div class="card-header bg-dark text-white fw-bold h5 d-flex justify-content-between align-items-center" style="font-size: 1.15rem; padding: 1rem;">
+            <div class="card-header bg-dark text-white fw-bold h5 d-flex justify-content-between align-items-center"
+                 style="font-size: 1.15rem;
+                        padding: 1rem">
               <span>Pickup: {{ leg.pickup_date|date:'l, F d, Y' }} {{ leg.pickup_time|time:'g:i A' }}</span>
               <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
                  target="_blank"
@@ -71,27 +80,40 @@
             </div>
             <div class="card-body px-4 py-3" style="font-size: 1.1rem;">
               <ul class="list-unstyled mb-0">
-                <li><strong>Assigned Driver:</strong> {{ leg.driver.name|default:'Not Assigned' }}</li>
-                <li class="mb-3"><strong>Driver Status:</strong> {{ leg.driver_status|default:'Pending' }}</li>
-                <li><strong>Flight:</strong> {{ leg.flight_information|default:'No Flight Info' }}</li>
-                <li><strong>P/U Location:</strong> {{ leg.pickup_location }}</li>
-                <li><strong>Drop-off Location:</strong> {{ leg.dropoff_location }}</li>
+                <li>
+                  <strong>Assigned Driver:</strong> {{ leg.driver.name|default:'Not Assigned' }}
+                </li>
+                <li class="mb-3">
+                  <strong>Driver Status:</strong> {{ leg.driver_status|default:'Pending' }}
+                </li>
+                <li>
+                  <strong>Flight:</strong> {{ leg.flight_information|default:'No Flight Info' }}
+                </li>
+                <li>
+                  <strong>P/U Location:</strong> {{ leg.pickup_location }}
+                </li>
+                <li>
+                  <strong>Drop-off Location:</strong> {{ leg.dropoff_location }}
+                </li>
                 <li>
                   <strong>Passengers:</strong> {{ reservation.passenger_count }}
                   {% if reservation.display_carseats %}, {{ reservation.display_carseats }} Car Seats{% endif %}
                 </li>
-                <li><strong>Vehicle:</strong> {{ reservation.vehicle.name|default:'Not Assigned' }}</li>
-                <li><strong>Comments:</strong> {{ leg.leg_notes|default:'None' }}</li>
+                <li>
+                  <strong>Vehicle:</strong> {{ reservation.vehicle.name|default:'Not Assigned' }}
+                </li>
+                <li>
+                  <strong>Comments:</strong> {{ leg.leg_notes|default:'None' }}
+                </li>
               </ul>
             </div>
           </div>
         </div>
       {% endfor %}
     </div>
-    
 
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-{% endblock %}
-{% block footer %}
-{% endblock %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  {% endblock %}
+  {% block footer %}{% endblock %}

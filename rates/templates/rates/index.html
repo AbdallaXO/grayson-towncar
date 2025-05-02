@@ -2,16 +2,18 @@
 {% load static %}
 {% load seo_tags %}
 {% block head_extra %}
-<link rel="canonical" href="https://www.graysontowncar.com/rates-booking/" />
+  <link rel="canonical" href="https://www.graysontowncar.com/rates-booking/" />
 {% endblock head_extra %}
-{% block title %}Rates & Booking | Orlando Airport Car Service | Grayson Towncar{% endblock title %}
+{% block title %}
+  Rates & Booking | Orlando Airport Car Service | Grayson Towncar
+{% endblock title %}
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/rates_test.css' %}" media="all" />
 {% endblock extra_css %}
 {% block content %}
-{% block schema %}
-{% structured_data additional_data=structured_data %}
-{% endblock schema %}
+  {% block schema %}
+    {% structured_data additional_data=structured_data %}
+  {% endblock schema %}
 
   <!-- Enhanced hero section with visual impact -->
   <section class="py-5 position-relative hero-section"

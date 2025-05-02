@@ -52,7 +52,7 @@ def handle_checkout_session(session):
         return
     try:
         reservation = Reservation.objects.select_related("customer").get(
-            uuid=reservation_id
+            id=reservation_id
         )
         customer = reservation.customer
 
