@@ -138,16 +138,16 @@ AIRLINES = [
 
 
 def extra_charges(reservation):
-    extra_charge = 0
+    total_extra = Decimal(0)
     for leg in reservation.legs.all():
         if leg.pickup_time >= time(22, 0) or leg.pickup_time < time(6, 0):
-            extra_charge += Decimal(20.00)
+            total_extra += Decimal(20.00)
             logger.info(
-                f"Added a {extra_charge} On Reservation #{reservation.id} For {reservation.customer.get_full_name()}"
+                f"Added ${total_extra} on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
             )
 
-    if extra_charge:
-        reservation.additional_charges += extra_charge
-        reservation.base_price += extra_charge
-        reservation.save()
-    return extra_charge
+    reservation.additional_charges = total_extra
+    reservation.total_price = reservation.base_price + total_extra
+    reservation.base_price = reservation.total_price
+    reservation.save(update_fields=["additional_charges", "total_price", "base_price"])
+    return total_extra

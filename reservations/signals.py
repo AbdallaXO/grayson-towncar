@@ -14,6 +14,7 @@ def reservation_updated(sender, instance, created, **kwargs):
     Only sends email for updates, not for newly created reservations.
     """
     if not created:
+        
         try:
             if (
                 hasattr(instance, "private_notes")

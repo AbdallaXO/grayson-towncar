@@ -78,7 +78,7 @@ def reservation_form(
                 leg2.save()
 
             extra_charges(reservation)
-            send_internal_confirmation(reservation)
+            # send_internal_confirmation(reservation)
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (

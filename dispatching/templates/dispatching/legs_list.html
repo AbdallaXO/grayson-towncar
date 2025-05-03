@@ -138,10 +138,11 @@
                     {% endif %}
                   </td>
                   <td>
-                    {% if leg.private_notes %}
+                    {% if leg.private_notes or leg.reservation.private_notes %}
                       <div class="mb-1">
                         <div class="text-muted small fw-bold">Private Notes:</div>
-                        <div>{{ leg.private_notes }}</div>
+                        <div>Leg Notes:{{ leg.private_notes }}</div>
+                        <div>Res Notes:{{ leg.reservation.private_notes }}</div>
                       </div>
                     {% endif %}
                     {% if leg.special_requests %}

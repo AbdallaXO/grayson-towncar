@@ -65,6 +65,7 @@ class LegResource(resources.ModelResource):
             "pickup_time",
             "pickup_location",
             "dropoff_location",
+            
         )
         export_order = fields
 
@@ -195,8 +196,9 @@ class ReservationAdmin(ImportExportModelAdmin):
                     ("ff_carseats", "rf_carseats", "booster_seats"),
                     "special_requests",
                     "private_notes",
-                    "total_price",
-                    "additional_charges",
+                    ("total_price",
+                    "additional_charges"),
+                    "base_price",
                     "trip_type",
                     "status",
                     "payment_status_display",  # Keep it in fieldsets to show in form

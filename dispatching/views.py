@@ -16,6 +16,7 @@ from drivers.models import Driver
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 import json
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,10 @@ def all_reservations(request):
     search = ''
     if request.GET.get('search_q'):
         search = request.GET.get('search_q')
+    
     reservations_query = Reservation.objects.select_related(
         "customer", "rate", "vehicle"
-    ).order_by("-created_at").filter(customer__first_name__icontains=search)
+    ).order_by("legs__pickup_date").filter(Q(customer__first_name__icontains=search) & ~Q(status='completed'))
     
     paginator = Paginator(reservations_query, 10)  
     page_number = request.GET.get("page")
@@ -82,8 +84,7 @@ def all_reservations(request):
     total_reservations = reservations_query.count()
     pending_reservations = reservations_query.filter(status="pending").count()
     confirmed_reservations = reservations_query.filter(status="confirmed").count()
-    total_revenue = reservations_query.aggregate(total=Sum("total_price"))["total"] or 0
-
+    total_revenue = reservations_query.aggregate(total=Sum("total_price"))["total"] or 0    
     context = {
         "reservations": page_obj,
         "page_obj": page_obj,
@@ -142,16 +143,7 @@ def modify_reservation(request, id):
             # Save reservation with commit=False first
             updated_reservation = reservation_form.save(commit=False)
             
-            # Manually assign customer
             updated_reservation.customer = customer
-            
-            # You can't pass these as arguments to save(), so we preserve them manually if needed
-            # Only do this if you want these values to remain unchanged regardless of form input
-            # updated_reservation.trip_type = reservation.trip_type
-            # updated_reservation.base_price = reservation.base_price
-            # updated_reservation.rate = reservation.rate
-            # updated_reservation.vehicle = reservation.vehicle
-            
             # Save the reservation
             updated_reservation.save()
             

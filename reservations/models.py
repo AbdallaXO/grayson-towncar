@@ -93,7 +93,12 @@ class Reservation(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        self.total_price = self.base_price
+        if not self.base_price:
+            self.base_price = (self.total_price - self.additional_charges) if self.total_price else 0
+        
+        if not self.total_price:
+            self.total_price = self.base_price + (self.additional_charges or 0)
+        
         super().save(*args, **kwargs)
 
     def display_carseats(self):
