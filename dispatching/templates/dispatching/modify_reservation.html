@@ -2,68 +2,146 @@
 {% load crispy_forms_tags %}
 
 {% block content %}
-{% block navbar %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
 
-{% endblock %}
-{% include 'dispatching/dispatcher_navbar.html' %}
   <div class="container my-4">
-    <div class="row justify-content-center">
+    <div class="row">
       <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-            <h3 class="mb-0">Modify Reservation #{{ reservation.uuid }}</h3>
-            <a href="{% url 'reservation_details' reservation.uuid %}"
-               class="btn btn-outline-light">Back to Details</a>
+        <!-- Page Header with Breadcrumbs -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2 class="mb-0">Modify Reservation #{{ reservation.id }}</h2>
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item">
+                <a href="{% url 'dashboard' %}">Dashboard</a>
+              </li>
+              <li class="breadcrumb-item">
+                <a href="{% url 'reservation_details' reservation.uuid %}">Reservation Details</a>
+              </li>
+              <li class="breadcrumb-item active" aria-current="page">Modify</li>
+            </ol>
+          </nav>
+        </div>
+
+        <!-- Main Form Card -->
+        <div class="card shadow border-0 mb-4">
+          <div class="card-header bg-dark text-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <h3 class="mb-0">Reservation Details</h3>
+              <a href="{% url 'reservation_details' reservation.uuid %}"
+                 class="btn btn-outline-light btn-sm">
+                <i class="bi bi-arrow-left"></i> Back to Details
+              </a>
+            </div>
           </div>
-          <div class="card-body">
+
+          <div class="card-body p-4">
             <form method="post" novalidate>
               {% csrf_token %}
 
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="card mb-4">
-                    <div class="card-header bg-dark text-white">
-                      <h4 class="mb-0">Customer Information</h4>
+              <!-- Custom CSS for text areas -->
+
+              <!-- Customer & Reservation Sections -->
+              <div class="row g-4 mb-4">
+                <!-- Customer Information Section -->
+                <div class="col-md-5">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-dark text-white py-2">
+                      <h5 class="mb-0">
+                        <i class="bi bi-person-circle me-2"></i>Customer Information
+                      </h5>
                     </div>
                     <div class="card-body">{{ customer_form|crispy }}</div>
                   </div>
-
-                  <div class="card">
-                    <div class="card-header bg-dark text-white">
-                      <h4 class="mb-0">Reservation Details</h4>
-                    </div>
-                    <div class="card-body">{{ reservation_form|crispy }}</div>
-                  </div>
                 </div>
 
-                <div class="col-md-6">
-                  <div class="card">
-                    <div class="card-header bg-dark text-white">
-                      <h4 class="mb-0">Leg Details</h4>
+                <!-- Reservation Details Section -->
+                <div class="col-md-7">
+                  <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-dark text-white py-2">
+                      <h5 class="mb-0">
+                        <i class="bi bi-calendar-check me-2"></i>Reservation Details
+                      </h5>
                     </div>
                     <div class="card-body">
-                      {% for leg_form in leg_forms %}
-                        {% if leg_form.instance.pk or leg_form.data %}
-                          <div class="card mb-3">
-                            <div class="card-header">Leg {{ forloop.counter }}</div>
-                            <div class="card-body">{{ leg_form|crispy }}</div>
-                          </div>
-                        {% endif %}
-                      {% endfor %}
+                      <div class="reservation-form-compact">{{ reservation_form|crispy }}</div>
                     </div>
                   </div>
-
-                  <div class="d-flex justify-content-between mt-4">
-                    <a href="{% url 'reservation_details' reservation.uuid %}"
-                       class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-dark">Save Changes</button>
-                  </div>
-                </form>
+                </div>
               </div>
-            </div>
+
+              <!-- Leg Details Section -->
+              <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-dark text-white py-2">
+                  <h5 class="mb-0">
+                    <i class="bi bi-signpost-split me-2"></i>Leg Details
+                  </h5>
+                </div>
+                <div class="card-body">
+                  {% with leg_count=leg_forms|length %}
+                    {% if leg_count <= 2 %}
+                      <div class="row g-3">
+                        {% for leg_form in leg_forms %}
+                          {% if leg_form.instance.pk or leg_form.data %}
+                            <div class="col-md-{% if leg_count == 1 %}12{% else %}6{% endif %}">
+                              <div class="card border mb-0">
+                                <div class="card-header bg-light py-2">
+                                  <h6 class="mb-0">Leg {{ forloop.counter }}</h6>
+                                </div>
+                                <div class="card-body">{{ leg_form|crispy }}</div>
+                              </div>
+                            </div>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="accordion" id="legAccordion">
+                        {% for leg_form in leg_forms %}
+                          {% if leg_form.instance.pk or leg_form.data %}
+                            <div class="accordion-item border mb-3">
+                              <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+                                <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#collapse-{{ forloop.counter }}"
+                                        aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                                        aria-controls="collapse-{{ forloop.counter }}">
+                                  <strong>Leg {{ forloop.counter }}</strong>
+                                </button>
+                              </h2>
+                              <div id="collapse-{{ forloop.counter }}"
+                                   class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                                   aria-labelledby="heading-{{ forloop.counter }}"
+                                   data-bs-parent="#legAccordion">
+                                <div class="accordion-body">{{ leg_form|crispy }}</div>
+                              </div>
+                            </div>
+                          {% endif %}
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                  {% endwith %}
+                </div>
+              </div>
+
+              <!-- Form Actions -->
+              <div class="d-flex justify-content-end gap-2 mt-4">
+                <a href="{% url 'reservation_details' reservation.uuid %}"
+                   class="btn btn-secondary">
+                  <i class="bi bi-x-circle me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check-circle me-1"></i> Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
-    {% endblock content %}
-    {% block footer %}
-    {% endblock footer %}
+    </div>
+  </div>
+{% endblock content %}
+
+{% block footer %}
+{% endblock footer %}

@@ -24,9 +24,3 @@ td {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-textarea {
-  min-height: 60px !important;
-  max-height: 120px !important;
-  height: 60px !important;
-  resize: vertical; /* or none if you want to disable resizing */
-}

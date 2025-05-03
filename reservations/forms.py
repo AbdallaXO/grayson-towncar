@@ -219,3 +219,11 @@ class FlightForm(forms.ModelForm):
             ),
             "flight_number": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+
+class ReservationAdminForm(forms.ModelForm):
+    """Form for reservation details"""
+
+    class Meta:
+        model = Reservation
+        fields = '__all__'
