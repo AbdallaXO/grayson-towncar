@@ -112,7 +112,10 @@
                       {{ leg.pickup_date|date:'m/d/Y' }}
                       <br>
                       {{ leg.pickup_time|date:'g:i A' }}
+                      <br>
+                      {{ leg.reservation.vehicle }}
                     </span>
+
                   </td>
                   <td>
                     <div>
@@ -197,6 +200,8 @@
           </table>
         </div>
       </div>
+
+
       <div class="d-lg-none">
         <div class="row g-3">
           {% for leg in legs %}

@@ -119,7 +119,7 @@ def get_base_structured_data(request, additional_data=None):
             "@type": "ReserveAction",
             "target": {
                 "@type": "EntryPoint",
-                "urlTemplate": f"{request.scheme}://{request.get_host()}/rates/",
+                "urlTemplate": f"{request.scheme}://{request.get_host()}/rates-booking/",
                 "inLanguage": ["en-US", "ar-SA"],
             },
         },

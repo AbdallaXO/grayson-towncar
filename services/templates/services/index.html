@@ -2,35 +2,40 @@
 {% load seo_tags %}
 {% load static %}
 {% block head_extra %}
-<link rel="canonical" href="https://www.graysontowncar.com/services/" />
+  <link rel="canonical" href="https://www.graysontowncar.com/services/" />
 {% endblock head_extra %}
 {% block title %}Our Services | Disney, Universal & Port Canaveral Rides | Grayson Towncar{% endblock %}
 {% block meta_description %}
-<meta name="description" content="Premium Orlando transportation services to Disney, Universal, and Port Canaveral with family-friendly options, car seats, and professional drivers.">
-<link rel="preload" href="{% static 'images/services-bg.webp' %}" as="image" type="image/webp">
+  <meta name="description"
+        content="Premium Orlando transportation services to Disney, Universal, and Port Canaveral with family-friendly options, car seats, and professional drivers.">
+  <link rel="preload"
+        href="{% static 'images/services-bg.webp' %}"
+        as="image"
+        type="image/webp">
 {% endblock %}
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
 {% endblock %}
 {% block content %}
-{% block schema %}
-{% structured_data additional_data=structured_data %}
-{% endblock schema %}
+  {% block schema %}
+    {% structured_data additional_data=structured_data %}
+  {% endblock schema %}
   <script src="{% static 'js/area-selector.js' %}" defer></script>
-  <!-- Modern Hero with Optimized Background -->
   <section class="position-relative overflow-hidden vh-100 d-flex align-items-center"
            id="hero">
     <!-- Optimized background image - move to actual img tag for better LCP -->
     <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/services-bg.webp' %}" 
-           width="1920" 
+      <img src="{% static 'images/services-bg.webp' %}"
+           width="1920"
            height="1080"
-           alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night, with colorful lights reflecting across the water, symbolizing the magical transportation experience to Disney destinations." 
-           class="w-100 h-100 object-fit-cover" 
-           style="position: absolute; z-index: 0;" 
+           alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night, with colorful lights reflecting across the water, symbolizing the magical transportation experience to Disney destinations."
+           class="w-100 h-100 object-fit-cover"
+           style="position: absolute;
+                  z-index: 0"
            fetchpriority="high">
-      <div class="position-absolute top-0 start-0 w-100 h-100" 
-           style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4)); z-index: 1;"></div>
+      <div class="position-absolute top-0 start-0 w-100 h-100"
+           style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4));
+                  z-index: 1"></div>
     </div>
     <div class="container position-relative z-1 py-5">
       <div class="row justify-content-center">
@@ -47,7 +52,7 @@
       </div>
     </div>
   </section>
- <!-- Simplified Service Areas Section -->
+  <!-- Simplified Service Areas Section -->
   <section class="py-6" id="explore">
     <div class="container">
       <div class="row align-items-center">
@@ -988,67 +993,5 @@
   </div>
 </section>
 {% include 'call-to-action.html' %}
-
-<script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "LocalBusiness",
-        "name": "Grayson Towncar",
-        "image": "",
-        "@id": "",
-        "url": "",
-        "telephone": "555-123-4567",
-        "priceRange": "$",
-        "address": {
-            "@type": "PostalAddress",
-            "streetAddress": "",
-            "addressLocality": "Orlando",
-            "addressRegion": "FL",
-            "postalCode": "",
-            "addressCountry": "US"
-        },
-        "geo": {
-            "@type": "GeoCoordinates",
-            "latitude": 28.5383,
-            "longitude": 81.3792
-        },
-        "openingHoursSpecification": {
-            "@type": "OpeningHoursSpecification",
-            "dayOfWeek": [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday"
-            ],
-            "opens": "00:00",
-            "closes": "23:59"
-        },
-        "sameAs": [],
-        "service": [{
-            "@type": "Service",
-            "name": "Orlando Airport to Disney Hotel Transportation",
-            "description": "Private luxury transportation from Orlando International Airport (MCO) to all Disney Resort Hotels."
-        }, {
-            "@type": "Service",
-            "name": "Orlando Airport to Universal Hotel Transportation",
-            "description": "Direct transportation from MCO to all Universal Orlando hotels and nearby accommodations."
-        }, {
-            "@type": "Service",
-            "name": "Orlando Airport to International Drive Hotel Transportation",
-            "description": "Comfortable transfers from Orlando Airport to all International Drive hotels and resorts."
-        }, {
-            "@type": "Service",
-            "name": "Hotel to Hotel Transportation in Orlando",
-            "description": "Private transfers between any Orlando area hotels and resorts."
-        }, {
-            "@type": "Service",
-            "name": "Hotel to Port Canaveral Cruise Transportation in Orlando",
-            "description": "Private transfers between any Orlando area hotels and Port Canaveral Cruises."
-        }]
-    }
-</script>
 <script src="{% static 'js/services-page.js' %}" defer></script>
 {% endblock %}
