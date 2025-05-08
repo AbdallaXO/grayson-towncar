@@ -124,14 +124,14 @@
       }
     </style>
 
-    <!-- [if mso]>
+    <!--   [if mso]>
     <xml>
         <o:OfficeDocumentSettings>
             <o:AllowPNG/>
             <o:PixelsPerInch>96</o:PixelsPerInch>
         </o:OfficeDocumentSettings>
     </xml>
-    <![endif] -->
+    <![endif]   -->
   </head>
   <body style="margin:0; padding:0; background-color:#242424; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
     <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; background-color:#242424;">
@@ -191,7 +191,7 @@
                   <!-- Booking Date -->
                   <tr>
                     <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Booking Date: {{ date|date:'F j, Y' }}</p>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Booking Date: {{ date|date:'l, F d Y' }}</p>
                     </td>
                   </tr>
 
@@ -281,7 +281,7 @@
                     <!-- Pickup Date and Time -->
                     <tr>
                       <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Pickup Date And Time: {{ leg.pickup_date|date:'F j, Y' }} {{ leg.pickup_time|time:'g:i A' }}</p>
+                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Pickup Date And Time: {{ leg.pickup_date|date:'l, F d Y' }} {{ leg.pickup_time|time:'g:i A' }}</p>
                       </td>
                     </tr>
 
@@ -344,11 +344,23 @@
                         Payment Status:{% if reservation.payments.all.exists %}
                           {% for payment in reservation.payments.all %}
                             <span class="{% if payment.status == 'paid' %}
+                                
+                                
                                 status-paid
+
+
                               {% elif payment.status == 'save_card' %}
+                                
+                                
                                 status-saved
+
+
                               {% else %}
+                                
+                                
                                 status-pending
+
+
                               {% endif %}">
                               {{ payment.status|format_status }}
                             </span>
