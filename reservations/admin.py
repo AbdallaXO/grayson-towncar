@@ -91,10 +91,39 @@ class LegInline(admin.StackedInline):
     extra = 1
     show_change_link = True
     fieldsets = (
-        ("Pick-up", {"fields": ("pickup_date", "pickup_time", "pickup_location")}),
-        ("Drop-off", {"fields": ("dropoff_location",)}),
+        ("Pick-up Details", {
+            "fields": (
+                "pickup_date",
+                "pickup_time",
+                "pickup_location",
+                "flight_information"
+            )
+        }),
+        ("Drop-off", {
+            "fields": (
+                "dropoff_location",
+            )
+        }),
+        ("Driver & Status", {
+            "fields": (
+                "driver",
+                "status",
+            )
+        }),
+        ("Notes", {
+            "fields": (
+                "private_notes",
+            ),
+            "classes": ("collapse",)
+        }),
     )
     classes = ("wide",)
+    readonly_fields = ("status",)
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        formset.form.base_fields['driver'].widget.attrs['style'] = 'width: 100%;'
+        return formset
 
 
 # ─── Custom list filter for pick-up ranges ──────────────────────────────

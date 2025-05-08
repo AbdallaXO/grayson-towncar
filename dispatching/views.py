@@ -59,7 +59,7 @@ def index(request):
         "total_revenue": sum(leg.reservation.total_price for leg in legs) / 2,
     }
 
-    return render(request, "dispatching/index.html", context)
+    return render(request, "dispatching/legs_filter.html", context)
 
 
 @login_required(login_url="login")
@@ -94,7 +94,7 @@ def all_reservations(request):
         "total_revenue": total_revenue,
     }
 
-    return render(request, "dispatching/list.html", context)
+    return render(request, "dispatching/all_reservations.html", context)
 
 
 @login_required(login_url="login")

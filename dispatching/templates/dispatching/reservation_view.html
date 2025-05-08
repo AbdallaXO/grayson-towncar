@@ -1,4 +1,4 @@
-{% extends 'main.html' %}
+{% extends "main.html" %}
 {% load static %}
 
 {% block content %}
@@ -43,10 +43,18 @@
               <strong>Address:</strong> {{ reservation.customer.address|default:'N/A' }}
             </p>
             <p>
-              <strong>CC Last 4:</strong> {{ reservation.cc_last4|default:'N/A' }}
+              <strong>CC Last 4:</strong> {{ reservation.customer.card_last4|default:'N/A' }}
             </p>
             <p>
-              <strong>Payment Status:</strong> {{ reservation.payment_status|default:'Unpaid' }}
+              <strong>Card Brand:</strong> {{ reservation.customer.card_brand|default:'N/A' }}
+            </p>
+            <p>
+              <strong>Card Expiry:</strong>
+              {% if reservation.customer.card_exp_month and reservation.customer.card_exp_year %}
+                {{ reservation.customer.card_exp_month }}/{{ reservation.customer.card_exp_year }}
+              {% else %}
+                N/A
+              {% endif %}
             </p>
             <p>
               <strong>Customer Notes:</strong> {{ reservation.special_requests|default:'N/A' }}
@@ -79,41 +87,103 @@
                  class="btn btn-sm btn-outline-light">Edit Leg</a>
             </div>
             <div class="card-body px-4 py-3" style="font-size: 1.1rem;">
-              <ul class="list-unstyled mb-0">
-                <li>
-                  <strong>Assigned Driver:</strong> {{ leg.driver.name|default:'Not Assigned' }}
-                </li>
-                <li class="mb-3">
-                  <strong>Driver Status:</strong> {{ leg.driver_status|default:'Pending' }}
-                </li>
-                <li>
-                  <strong>Flight:</strong> {{ leg.flight_information|default:'No Flight Info' }}
-                </li>
-                <li>
-                  <strong>P/U Location:</strong> {{ leg.pickup_location }}
-                </li>
-                <li>
-                  <strong>Drop-off Location:</strong> {{ leg.dropoff_location }}
-                </li>
-                <li>
-                  <strong>Passengers:</strong> {{ reservation.passenger_count }}
-                  {% if reservation.display_carseats %}, {{ reservation.display_carseats }} Car Seats{% endif %}
-                </li>
-                <li>
-                  <strong>Vehicle:</strong> {{ reservation.vehicle.name|default:'Not Assigned' }}
-                </li>
-                <li>
-                  <strong>Comments:</strong> {{ leg.leg_notes|default:'None' }}
-                </li>
-              </ul>
+              <div class="row">
+                <div class="col-md-6">
+                  <ul class="list-unstyled mb-0">
+                    <li>
+                      <strong>Flight:</strong> {{ leg.flight_information|default:'No Flight Info' }}
+                    </li>
+                    <li>
+                      <strong>P/U Location:</strong> {{ leg.pickup_location }}
+                    </li>
+                    <li>
+                      <strong>Drop-off Location:</strong> {{ leg.dropoff_location }}
+                    </li>
+                    <li>
+                      <strong>Vehicle:</strong> {{ reservation.vehicle.name|default:'Not Assigned' }}
+                    </li>
+                    <li>
+                      <strong>Comments:</strong> {{ leg.private_notes|default:'None' }}
+                    </li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <ul class="list-unstyled mb-0">
+                    <li>
+                      <strong>Passengers:</strong> {{ reservation.passenger_count }}
+                    </li>
+                    {% if reservation.need_carseats %}
+                      <li>
+                        <strong>Car Seats:</strong>
+                      </li>
+                      {% if reservation.rf_carseats %}<li class="ms-3">Rear-Facing: {{ reservation.rf_carseats }}</li>{% endif %}
+                      {% if reservation.ff_carseats %}<li class="ms-3">Forward-Facing: {{ reservation.ff_carseats }}</li>{% endif %}
+                      {% if reservation.booster_seats %}<li class="ms-3">Booster: {{ reservation.booster_seats }}</li>{% endif %}
+                    {% endif %}
+                  </ul>
+                </div>
+              </div>
+              <hr>
+              <div class="row mt-3">
+                <div class="col-12 text-end">
+                  <ul class="list-unstyled mb-0">
+                    <li>
+                      <strong>Assigned Driver:</strong> {{ leg.driver.name|default:'Not Assigned' }}
+                    </li>
+                    <li>
+                      <strong>Driver Status:</strong> {{ leg.status|default:'Pending' }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       {% endfor %}
     </div>
 
+    <!-- Payment Information -->
+    <div class="row mb-4">
+      <div class="col-8">
+        <div class="card">
+          <div class="card-header bg-dark text-white fw-bold h5">Payment Information</div>
+          <div class="card-body">
+            {% with payment=reservation.payments.first %}
+              <div class="row">
+                <div class="col-md-4">
+                  <p>
+                    <strong>Payment Status:</strong> {{ payment.status|title|default:'Unpaid' }}
+                  </p>
+                  <p>
+                    <strong>Payment Type:</strong> {{ payment.payment_type|title|default:'N/A' }}
+                  </p>
+                </div>
+                <div class="col-md-4">
+                  <p>
+                    <strong>Base Price:</strong> ${{ reservation.base_price }}
+                  </p>
+                  <p>
+                    <strong>Additional Charges:</strong> ${{ reservation.additional_charges }}
+                  </p>
+                </div>
+                <div class="col-md-4">
+                  <p>
+                    <strong>Total Price:</strong> ${{ reservation.total_price }}
+                  </p>
+                  <p>
+                    <strong>Stripe Payment ID:</strong> {{ payment.stripe_payment_intent_id|default:'N/A' }}
+                  </p>
+                </div>
+              </div>
+            {% endwith %}
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  {% endblock %}
-  {% block footer %}{% endblock %}
+  </div>
+{% endblock content %}
+{% block footer %}
+{% endblock footer %}
