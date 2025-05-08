@@ -49,7 +49,7 @@
                                     width: auto" />
                       </div>
                       <div class="card-body text-center d-flex flex-column position-relativ px-3 pt-3 pb-2">
-                        <h2 class="card-title h5 fw-light mb-3">{{ vehicle.get_vehicle_type_display }}</h2>
+                        <h2 class="card-title h5 fw-semibold mb-3">{{ vehicle.get_vehicle_type_display }}</h2>
                         <div class="vehicle-details mb-3">
                           <p class="mb-2 text-muted d-flex align-items-center justify-content-center">
                             <img src="{% static 'images/passengers.webp' %}"
@@ -239,26 +239,26 @@
                         <div class="d-md-none">
                           {% for v in vehicle.rates.all %}
                             <div class="mobile-rate-card p-3 border-bottom">
-                              <h3 class="h6 fw-normal mb-3">{{ v.route }}</h3>
+                              <h3 class="h5 fw-semibold mb-3">{{ v.route }}</h3>
                               <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div>
                                   <small class="text-muted d-block fw-bolder">One Way</small>
-                                  <span class="fw-light pricing-text">${{ v.oneway_price }}</span>
+                                  <span class="fw-semibold pricing-text">${{ v.oneway_price }}</span>
                                 </div>
                                 <a href="{% url 'reserve' v.id %}?round=1"
                                    class="btn btn-dark btn-sm rounded-pill shadow-sm"
                                    aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                  Book One Way
+                                  Reserve One Way
                                 </a>
                               </div>
                               <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                  <small class="text-muted d-block">Round Trip</small>
-                                  <span class="fw-light pricing-text">${{ v.round_trip_price }}</span>
+                                  <small class="text-muted  fw-bold d-block">Round Trip</small>
+                                  <span class="fw-semibold pricing-text">${{ v.round_trip_price }}</span>
                                 </div>
                                 <a href="{% url 'reserve' v.id %}?round=2"
-                                   class="btn btn-dark btn-sm rounded-pill shadow-sm px-2"
-                                   aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}"> Book Round-Trip
+                                   class="btn btn-dark btn-sm rounded-pill shadow-sm px-2 fw-semibold"
+                                   aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}"> Reserve Round-Trip
                                 </a>
                               </div>
                             </div>
@@ -279,15 +279,15 @@
                               {% for v in vehicle.rates.all %}
                                 <tr class="rate-row">
                                   <td class="align-middle py-3">
-                                    <span class="fw-light">{{ v.route }}</span>
+                                    <span class="fw-bold fs-5">{{ v.route }}</span>
                                   </td>
                                   <td class="text-center py-3">
                                     <div class="d-flex align-items-center justify-content-center">
-                                      <span class="one-way-price fs-6 py-2 px-3 align-middle">${{ v.oneway_price }}</span>
+                                      <span class="one-way-price fw-bold py-2 px-3 align-middle">${{ v.oneway_price }}</span>
                                       <a href="{% url 'reserve' v.id %}?round=1"
                                          class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
                                          aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                        Book Now
+                                        Reserve Now
                                       </a>
                                     </div>
                                   </td>
@@ -297,7 +297,7 @@
                                       <a href="{% url 'reserve' v.id %}?round=2"
                                          class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
                                          aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                        Book Now
+                                        Reserve Now
                                       </a>
                                     </div>
                                   </td>
