@@ -69,7 +69,7 @@ def handle_checkout_session(session):
                 "amount": session_total_amount,
                 "payment_type": "pay_now",
                 "status": "pending",
-            },  # Fixed syntax
+            },
         )
 
         if session.get("mode") == "setup":
@@ -90,7 +90,7 @@ def handle_checkout_session(session):
                     payment.status = "card_saved"
                     reservation.status = "confirmed"
 
-                    with transaction.atomic():  # Added for consistency
+                    with transaction.atomic():
                         payment.save()
                         reservation.save()
 
@@ -104,26 +104,50 @@ def handle_checkout_session(session):
             if payment_intent:
                 full_payment_intent = stripe.PaymentIntent.retrieve(payment_intent)
                 payment_method_id = full_payment_intent.payment_method
+                payment_method_type = None
+
+                # Check the payment method type if available
+                if payment_method_id:
+                    try:
+                        payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+                        payment_method_type = payment_method.type
+                        logger.info(f"Payment method type: {payment_method_type}")
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve payment method details: {e}")
 
                 final_amount = Decimal(full_payment_intent.amount) / 100
-                if save_card_to_customer(
-                    customer.stripe_customer_id, payment_method_id
-                ):  # Fixed indentation and added check
-                    payment.stripe_payment_intent_id = payment_intent
-                    payment.payment_type = "pay_now"
-                    payment.status = "paid"
-                    payment.amount = final_amount
-                    reservation.status = "confirmed"
-                    reservation.base_price = final_amount
-                    reservation.total_price = final_amount
-                    with transaction.atomic():
-                        payment.save()
-                        reservation.save()
-
-                    send_reservation_confirmation(reservation)
-                    logger.info(f"Payment processed for reservation {reservation_id}")
+                
+                # Handle card payments - try to save card details
+                if payment_method_type == 'card':
+                    card_saved = save_card_to_customer(
+                        customer.stripe_customer_id, payment_method_id
+                    )
+                    if not card_saved:
+                        logger.warning("Could not save card details, but continuing with payment processing")
                 else:
-                    logger.error("Failed to save card to customer")
+                    # Non-card payment method (Link, SEPA, etc.) - just log it
+                    logger.info(f"Non-card payment method used: {payment_method_type}")
+                
+                # Process the payment regardless of card saving success
+                payment.stripe_payment_intent_id = payment_intent
+                payment.payment_type = "pay_now"
+                payment.status = "paid"
+                payment.amount = final_amount
+                
+                # If we have payment method info, still record it
+                if payment_method_id:
+                    payment.stripe_payment_method_id = payment_method_id
+                
+                reservation.status = "confirmed"
+                reservation.base_price = final_amount
+                reservation.total_price = final_amount
+                
+                with transaction.atomic():
+                    payment.save()
+                    reservation.save()
+
+                send_reservation_confirmation(reservation)
+                logger.info(f"Payment processed for reservation {reservation_id}")
             else:
                 logger.error("No payment_intent in session")
 
@@ -131,7 +155,6 @@ def handle_checkout_session(session):
         logger.error(f"Reservation {reservation_id} Not Found")
     except Exception as e:
         logger.exception(f"Error processing checkout session: {e}")
-
 
 def save_card_to_customer(customer_id: str, payment_method_id: str):
     """
@@ -150,6 +173,12 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         logger.info("Payment method attached successfully")
 
         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+        
+        # Check if this is a card payment method
+        if payment_method.type != 'card':
+            logger.info(f"Payment method is not a card, it's: {payment_method.type}")
+            return False
+            
         card = payment_method.card
 
         logger.info(f"Retrieved card details: {card}")
