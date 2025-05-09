@@ -58,9 +58,7 @@ NATIVE_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.sites",
     "django.contrib.sitemaps",
-
 ]
 
 THIRD_PARTY_APPS = [
@@ -173,7 +171,7 @@ LANGUAGE_CODE = "en-us"
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 STATIC_ROOT = CONTENT_DIR / "staticfiles"
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 
 STATICFILES_DIRS = [CONTENT_DIR / "static"]
 
@@ -296,7 +294,7 @@ CKEDITOR_CONFIGS = {
         "width": "100%",
     },
 }
-# logo.png
+
 JAZZMIN_SETTINGS = {
     "changeform_format": "single",
       "show_ui_builder": True,

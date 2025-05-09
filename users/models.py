@@ -65,3 +65,23 @@ class ContactUsForm(models.Model):
 
     def __str__(self):
         return f"{self.first_name} - {self.last_name}"
+
+class NewsLetter(models.Model):
+    email = models.EmailField(unique=True)
+    
+    def __str__(self):
+        return self.email
+
+class NewsletterSubscriptionAttempt(models.Model):
+    ip_address = models.GenericIPAddressField()
+    email = models.EmailField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    success = models.BooleanField(default=False)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['ip_address', 'timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.ip_address} - {self.email} - {self.timestamp}"

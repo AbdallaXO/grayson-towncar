@@ -10,6 +10,7 @@ from .forms import (
 )
 from .emails import thankyou_email
 from django.db import transaction
+from .models import NewsLetter, NewsletterSubscriptionAttempt
 
 
 def thankYou(request):
@@ -100,3 +101,35 @@ def contact(request):
     context = {"form": form}
 
     return render(request, "reservations/contact.html", context)
+
+
+def newsletter_subscribe(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        if email:
+            # Get client IP
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip_address = x_forwarded_for.split(',')[0]
+            else:
+                ip_address = request.META.get('REMOTE_ADDR')
+            
+            # Record the attempt
+            attempt = NewsletterSubscriptionAttempt.objects.create(
+                ip_address=ip_address,
+                email=email
+            )
+            
+            # Check if email already exists
+            if not NewsLetter.objects.filter(email=email).exists():
+                NewsLetter.objects.create(email=email)
+                attempt.success = True
+                attempt.save()
+                messages.success(request, 'Thank you for subscribing to our newsletter!', extra_tags='newsletter_success')
+            else:
+                messages.info(request, 'You are already subscribed to our newsletter!', extra_tags='newsletter_info')
+        else:
+            messages.error(request, 'Please provide a valid email address.', extra_tags='newsletter_error')
+    
+    # Redirect back to the previous page
+    return redirect(request.META.get('HTTP_REFERER', '/'))

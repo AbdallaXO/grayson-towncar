@@ -4,91 +4,93 @@
   <head>
     <!-- Google Tag Manager -->
     <script>
-      ;(function (w, d, s, l, i) {
-        w[l] = w[l] || []
-        w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' })
-        var f = d.getElementsByTagName(s)[0],
-          j = d.createElement(s),
-          dl = l != 'dataLayer' ? '&l=' + l : ''
-        j.async = true
-        j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
-        f.parentNode.insertBefore(j, f)
-      })(window, document, 'script', 'dataLayer', 'GTM-PQC5M3M3')
+        ;
+        (function(w, d, s, l, i) {
+            w[l] = w[l] || []
+            w[l].push({
+                'gtm.start': new Date().getTime(),
+                event: 'gtm.js'
+            })
+            var f = d.getElementsByTagName(s)[0],
+                j = d.createElement(s),
+                dl = l != 'dataLayer' ? '&l=' + l : ''
+            j.async = true
+            j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl
+            f.parentNode.insertBefore(j, f)
+        })(window, document, 'script', 'dataLayer', 'GTM-PQC5M3M3')
     </script>
     <!-- End Google Tag Manager -->
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-E999VVT9CE"></script>
     <script>
-      window.dataLayer = window.dataLayer || []
-      
-      function gtag() {
-        dataLayer.push(arguments)
-      }
-      gtag('js', new Date())
-      
-      gtag('config', 'G-E999VVT9CE')
+        window.dataLayer = window.dataLayer || []
+
+        function gtag() {
+            dataLayer.push(arguments)
+        }
+        gtag('js', new Date())
+
+        gtag('config', 'G-E999VVT9CE')
     </script>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
-    {% if canonical_url %}
-      <link rel="canonical" href="{{ canonical_url }}" />
-    {% endif %}
+    {% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}" />{% endif %}
 
-    {% block extra_css %}
-
-    {% endblock %}
+    {% block extra_css %}{% endblock %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"
+          rel="stylesheet"
+          media="print"
+          onload="this.media='all'" />
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet" />
-    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.png' %}" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+          rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+          rel="stylesheet" />
+    <link rel="icon"
+          type="image/x-icon"
+          href="{% static 'images/favicon.png' %}" />
     <link href="{% static 'css/styles.css' %}" rel="stylesheet" />
     <link href="{% static 'css/app.css' %}" rel="stylesheet" />
 
-    {% block head_extra %}
-
-    {% endblock %}
-    <meta name="description" content="Grayson Towncar offers premium transportation from Orlando Airport to Disney, Universal, and Port Canaveral. Safe, reliable, and family-friendly rides." />
+    {% block head_extra %}{% endblock %}
+    <meta name="description"
+          content="Grayson Towncar provides premium private transportation services in Orlando, specializing in luxury airport transfers, theme park transportation, and cruise port transfers with professional drivers and family-friendly amenities." />
     <meta name="author" content="Grayson Towncar" />
     <title>
-      {% block title %}
-        Orlando Airport Transportation | Grayson Towncar - Disney, Cruises & More
-      {% endblock %}
+      {% block title %}Orlando Airport Transportation | Grayson Towncar - Disney, Cruises & More{% endblock %}
     </title>
   </head>
 
   <body>
     <!-- Google Tag Manager (noscript) -->
     <noscript>
-      <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PQC5M3M3" height="0" width="0" style="display:none;visibility:hidden"></iframe>
+      <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PQC5M3M3"
+              height="0"
+              width="0"
+              style="display:none;
+                     visibility:hidden"></iframe>
     </noscript>
     <!-- End Google Tag Manager (noscript) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    {% block schema %}
-
-    {% endblock %}
+    {% block schema %}{% endblock %}
     {% block navbar %}
       {% include 'navbar.html' %}
     {% endblock %}
     {% block messages %}
       {% if messages %}
         <div class="notification-wrapper">
-          {% for message in messages %}
-            <div class="notification {{ message.extra_tags }}">{{ message }}</div>
-          {% endfor %}
+          {% for message in messages %}<div class="notification {{ message.extra_tags }}">{{ message }}</div>{% endfor %}
         </div>
       {% endif %}
     {% endblock %}
-    {% block content %}
+    {% block content %}{% endblock %}
 
-    {% endblock %}
-
-    {% block extra_js %}
-
-    {% endblock %}
+    {% block extra_js %}{% endblock %}
+    {% include "users/newsletter.html" %}
     {% block footer %}
       {% include 'footer.html' %}
     {% endblock %}

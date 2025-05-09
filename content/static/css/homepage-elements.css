@@ -1,29 +1,254 @@
 /*hover over animation*/
 .hover-elevate {
-    transition: transform 0.3s ease-in-out;
+  transition: transform 0.3s ease-in-out;
 }
 
 .hover-elevate:hover {
-    transform: translateY(-5px);
+  transform: translateY(-5px);
 }
 
 #fleet .card-img-top {
-    height: 200px;
-    object-fit: cover;
-    object-position: center;
+  height: 200px;
+  object-fit: cover;
+  object-position: center;
 }
 
-#fleet .row>div:nth-child(2) .card-img-top {
-    object-fit: contain;
-    padding: 1px;
+#fleet .row > div:nth-child(2) .card-img-top {
+  object-fit: contain;
+  padding: 1px;
 }
 
-#fleet .row>div:nth-child(3) .card-img-top {
-    object-fit: contain;
-    padding: 1px;
+#fleet .row > div:nth-child(3) .card-img-top {
+  object-fit: contain;
+  padding: 1px;
 }
 
-#fleet .row>div:nth-child(1) .card-img-top {
-    object-fit: contain;
-    padding: 0px;
+#fleet .row > div:nth-child(1) .card-img-top {
+  object-fit: contain;
+  padding: 0px;
+}
+/* Enhanced Hover Effects */
+.hover-elevate {
+  transition: all 0.3s ease;
+}
+
+.hover-elevate:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175) !important;
+}
+.floating-quote-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 9999; /* Higher z-index to ensure it's on top */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.floating-quote-btn.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.floating-quote-btn .btn {
+  width: 3.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: linear-gradient(45deg, #ffc107, #ff9800);
+  border: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.2);
+}
+
+.floating-quote-btn .btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.3);
+}
+
+/* Review Card Styling */
+.review-card {
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+
+/* Fixed FAQ Accordion Styling */
+.accordion-button {
+  background-color: #fff !important;
+  color: #0a1428 !important;
+  border: none;
+  font-size: 1.1rem;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.accordion-button:focus {
+  box-shadow: none;
+  border-color: rgba(0, 0, 0, 0.125);
+}
+
+.accordion-button:not(.collapsed) {
+  color: #0a1428 !important;
+  background-color: #f8f9fa !important;
+  box-shadow: none;
+}
+
+.accordion-button::after {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%230A1428'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e");
+}
+
+.accordion-body {
+  padding: 1.25rem;
+  background-color: #f8f9fa;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .accordion-button {
+    font-size: 1rem;
+    padding: 1rem;
+  }
+
+  .floating-quote-btn {
+    bottom: 1rem;
+    right: 1rem;
+  }
+
+  .floating-quote-btn .btn {
+    width: 3rem;
+    height: 3rem;
+    font-size: 1.25rem;
+  }
+}
+
+/* Trip Type Button Styling */
+.btn-check:checked + .btn-outline-dark,
+#quote-btn:not(:disabled) {
+  background-color: #0a1428 !important;
+  border-color: #0a1428 !important;
+  color: white !important;
+}
+
+.btn-outline-dark {
+  background-color: transparent;
+  border-color: #0a1428;
+  color: #0a1428;
+}
+
+.btn-outline-dark:hover:not(:disabled) {
+  background-color: #152238;
+  border-color: #152238;
+  color: white;
+}
+
+#quote-btn {
+  background-color: transparent;
+  border-color: #0a1428;
+  color: #0a1428;
+  transition: all 0.3s ease;
+}
+
+#quote-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+#quote-btn:not(:disabled) {
+  background-color: #0a1428 !important;
+  border-color: #0a1428 !important;
+  color: white !important;
+}
+
+#quote-btn:not(:disabled):hover {
+  background-color: #152238 !important;
+  border-color: #152238 !important;
+  color: white !important;
+  transform: translateY(-3px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Reserve Now Button Styling */
+.btn.bg-button-dark {
+  background-color: #0a1428;
+  color: white !important;
+  transition: all 0.3s ease;
+}
+
+.btn.bg-button-dark:hover {
+  background-color: #152238;
+  color: white !important;
+  transform: translateY(-3px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Badge Enhancement */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* General Enhancements */
+.shadow {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.card {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Carousel Controls */
+.carousel-control-prev,
+.carousel-control-next {
+  position: relative;
+  width: auto;
+  padding: 0 1rem;
+}
+
+.carousel-control-prev i,
+.carousel-control-next i {
+  font-size: 1.5rem;
+}
+
+/* Quote Form Enhancements */
+.quote-box {
+  max-width: 680px;
+  transition: all 0.3s ease;
+}
+
+.quote-box:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175) !important;
+}
+
+#quote-display-container {
+  background-color: rgba(10, 20, 40, 0.1);
+  transition: all 0.3s ease;
+}
+
+/* Animation Classes */
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

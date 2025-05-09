@@ -14,12 +14,44 @@ from .utils import (
     extra_charges,
 )
 from users.emails import send_internal_confirmation
+from django.shortcuts import render, reverse
+from django.db.models import Prefetch
+from rates.models import Rate, Vehicle
+import json
+
 # Create your views here.
 
 
 def index(request):
     """Returns the Landing Page"""
-    return render(request, "reservations/index.html")
+    vehicles = (
+        Vehicle.objects.prefetch_related(
+            Prefetch(
+                "rates",
+                queryset=Rate.objects.select_related("route", "route__origin", "route__destination"),
+            )
+        )
+        .all()
+    )
+    rates_json: dict[str, dict[str, dict]] = {}
+    for v in vehicles:
+        routes: dict[str, dict] = {}
+        for r in v.rates.all():
+            routes[str(r.id)] = {
+                "id": r.id,
+                "name": str(r.route),
+                "oneway": float(r.oneway_price),
+                "round": float(r.round_trip_price),
+                "reserve_url": reverse("reserve", args=[r.id]),  # Changed to snake_case to match JS
+            }
+        rates_json[str(v.id)] = routes
+
+    
+    context = {
+        "vehicles": vehicles,
+        "rates_json": json.dumps(rates_json),  # safe‑dump for JS
+    }
+    return render(request, "reservations/index.html", context)
 
 
 def reservation_form(

@@ -15,19 +15,19 @@
              target="_blank"
              class="social-icon bg-primary"
              aria-label="Visit our Facebook page">
-             <i class="fab fa-facebook-f"></i>
+            <i class="fab fa-facebook-f"></i>
           </a>
           <a href="https://x.com/GraysonTowncar"
              target="_blank"
              class="social-icon bg-info"
              aria-label="Visit our X (Twitter) page">
-             <i class="fab fa-twitter"></i>
+            <i class="fab fa-twitter"></i>
           </a>
           <a href="https://www.instagram.com/graysontowncar"
              target="_blank"
              class="social-icon bg-danger"
              aria-label="Visit our Instagram page">
-             <i class="fab fa-instagram"></i>
+            <i class="fab fa-instagram"></i>
           </a>
         </div>
       </div>
@@ -39,16 +39,16 @@
             <a href="{% url 'home' %}" class="footer-link">Home</a>
           </li>
           <li class="mb-2">
-            <a href="{% url 'about-us' %}" class="footer-link">About</a>
-          </li>
-          <li class="mb-2">
             <a href="{% url 'services' %}" class="footer-link">Services</a>
           </li>
           <li class="mb-2">
-            <a href="{% url 'faqs' %}" class="footer-link">FAQs</a>
+            <a href="{% url 'rates' %}" class="footer-link">Rates</a>
           </li>
           <li class="mb-2">
-            <a href="{% url 'blog-list' %}" class="footer-link">View Our Blog</a>
+            <a href="{% url 'contact' %}" class="footer-link">Contact</a>
+          </li>
+          <li class="mb-2">
+            <a href="{% url 'blog-list' %}" class="footer-link">Blog</a>
           </li>
         </ul>
       </div>
@@ -57,13 +57,17 @@
         <h2 class="mb-4">Services</h2>
         <ul class="list-unstyled">
           <li class="mb-2">
-            <a href="{% url 'services' %}#explore" class="footer-link">Airport Transfers</a>
+            <a href="{% url 'services' %}#airport-transfers" class="footer-link">Airport Transfers</a>
           </li>
           <li class="mb-2">
-            <a href="{% url 'services' %}#explore" class="footer-link">Hotel Transfers</a>
+            <a href="{% url 'services' %}#theme-park-transfers" class="footer-link">Theme Park Transfers</a>
           </li>
           <li class="mb-2">
-            <a href="{% url 'services' %}#explore" class="footer-link">Cruise Transfers</a>
+            <a href="{% url 'services' %}#cruise-transfers" class="footer-link">Cruise Transfers</a>
+          </li>
+          <li class="mb-2">
+            <a href="{% url 'services' %}#corporate-transportation"
+               class="footer-link">Corporate Transportation</a>
           </li>
         </ul>
       </div>

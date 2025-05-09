@@ -1,0 +1,49 @@
+{% load static %}
+
+<div class="container my-5">
+  <div class="card mx-auto shadow-sm border-0"
+       style="max-width: 600px;
+              background-color: #f2f2f2;
+              border-radius: 1rem">
+    <div class="card-body text-center px-4 py-4">
+      <h5 class="fw-bold mb-2" style="color: #0A1428;">Join Grayson Towncar's Insider List</h5>
+      <p class="text-muted mb-3">
+        Get VIP access to exclusive offers, Disney travel tips, and surprise giveaways — straight to your inbox.
+      </p>
+
+      <form method="POST" action="{% url 'newsletter_subscribe' %}">
+        {% csrf_token %}
+        <div class="input-group input-group-lg mb-3">
+          <input type="email"
+                 name="email"
+                 class="form-control"
+                 placeholder="Your email address"
+                 aria-label="Your email"
+                 required>
+          <button type="submit"
+                  class="btn"
+                  style="background-color: #0A1428;
+                         color: white">Get Insider Access</button>
+        </div>
+
+        {% if messages %}
+          {% for message in messages %}
+            {% if 'newsletter' in message.tags %}
+              <div class="alert {% if message.tags == 'newsletter_success' %}alert-success{% else %}alert-danger{% endif %} mt-2 mb-2">
+                {{ message }}
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+
+        <div class="d-flex justify-content-center small text-muted gap-3 mt-3">
+          <div>🎁 Exclusive Deals</div>
+          <div>✨ Giveaways</div>
+          <div>🏰 Disney Tips</div>
+        </div>
+
+        <p class="small text-muted mt-3 mb-0">No spam ever. Unsubscribe with one click anytime.</p>
+      </form>
+    </div>
+  </div>
+</div>
