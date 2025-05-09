@@ -5,69 +5,107 @@
   {% block navbar %}
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
-  <div class="container mt-4">
-    <!-- Action Buttons -->
-    <div class="d-flex justify-content-start mb-3">
-      <a href="{% url 'modify_reservation' reservation.uuid %}"
-         class="btn btn-dark me-2">Edit Reservation</a>
-      <a href="https://www.graysontowncar.com/admin/reservations/reservation/{{ reservation.id }}/change/"
-         target="_blank"
-         class="btn btn-outline-dark me-2">Edit in Admin</a>
-      <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/"
-         target="_blank"
-         class="btn btn-outline-dark me-2">Edit Customer</a>
-      <button class="btn btn-success me-2">Email Confirmation</button>
+  
+  <div class="container py-3">
+    <!-- Header with Reservation ID -->
+    <div class="page-header">
+      <h1>Reservation ID: <span class="fw-semibold">{{ reservation.id }}</span></h1>
+    </div>
+    <hr class="mb-4">
+
+    <!-- Action buttons -->
+    <div class="mb-3">
+      <div class="btn-toolbar" role="toolbar">
+        <div class="btn-group me-2" role="group">
+          <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+            {{ reservation.status|title }}
+            <span class="caret"></span>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#">Test </a></li>
+            <li><a class="dropdown-item" href="#">Test 1</a></li>
+          </ul>
+        </div>
+        <div class="btn-group me-2" role="group">
+          <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-outline-secondary">Edit Reservation</a>
+          <button id="emailConfirmation" class="btn btn-outline-success">Email Confirmation</button>
+          <a href="{% url 'dashboard' %}" class="btn btn-outline-dark">Back to Dashboard</a>
+        </div>
+      </div>
     </div>
 
-    <!-- Reservation Header -->
-    <div class="mb-4">
-      <h1 class="h3">Reservation ID: {{ reservation.id }}</h1>
-    </div>
-
-    <!-- Contact & Comments -->
-    <div class="row mb-4">
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header bg-dark text-white fw-bold h5">Contact Information</div>
-          <div class="card-body">
-            <p>
-              <strong>Full Name:</strong> {{ reservation.customer.get_full_name }}
-            </p>
-            <p>
-              <strong>Email:</strong> {{ reservation.customer.email }}
-            </p>
-            <p>
-              <strong>Phone:</strong> {{ reservation.customer.phone_number }}
-            </p>
-            <p>
-              <strong>Address:</strong> {{ reservation.customer.address|default:'N/A' }}
-            </p>
-            <p>
-              <strong>CC Last 4:</strong> {{ reservation.customer.card_last4|default:'N/A' }}
-            </p>
-            <p>
-              <strong>Card Brand:</strong> {{ reservation.customer.card_brand|default:'N/A' }}
-            </p>
-            <p>
-              <strong>Card Expiry:</strong>
-              {% if reservation.customer.card_exp_month and reservation.customer.card_exp_year %}
-                {{ reservation.customer.card_exp_month }}/{{ reservation.customer.card_exp_year }}
-              {% else %}
-                N/A
-              {% endif %}
-            </p>
-            <p>
-              <strong>Customer Notes:</strong> {{ reservation.special_requests|default:'N/A' }}
-            </p>
+    <!-- Row with contact and comments -->
+    <div class="row mb-3">
+      <!-- Contact Information -->
+      <div class="col-lg-6">
+        <div class="panel panel-primary">
+          <div class="panel-heading bg-secondary text-white p-2">
+            Contact Information
+          </div>
+          <div class="panel-body p-3 border border-top-0 bg-white">
+            <dl class="row mb-0">
+              <dt class="col-sm-3">Full Name</dt>
+                              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.get_full_name }}</dd>
+              
+              <dt class="col-sm-3">Email</dt>
+              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.email }}</dd>
+              
+              <dt class="col-sm-3">Phone</dt>
+              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.phone_number }}</dd>
+              
+              <dt class="col-sm-3">Zipcode</dt>
+              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.zipcode }}</dd>
+              
+              <dt class="col-sm-3">CC Last 4</dt>
+              <dd class="col-sm-9">
+                <span class="fw-semibold">{{ reservation.customer.card_last4|default:'' }}</span>
+                <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/" 
+                   class="btn btn-default btn-sm ms-2" 
+                   title="Update Credit Card Information"
+                   target="_blank">
+                  <i class="bi bi-credit-card"></i>
+                </a>
+              </dd>
+            </dl>
+            <div class="btn-toolbar" role="toolbar">
+              <div class="btn-group" role="group">
+                <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/" 
+                   class="btn btn-outline-dark"
+                   target="_blank">Edit Contact</a>
+              </div>
+            </div>
+          </div>
+          <div class="panel-footer border border-top-0 bg-light p-2">
+            <small>
+              <strong>Date Modified:</strong> 
+              <span class="fw-semibold">{{ reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
+            </small>
+            <small>({{ request.user }})</small>
           </div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div class="card">
-          <div class="card-header bg-dark text-white fw-bold h5">Private Comments</div>
-          <div class="card-body">
-            <p>{{ reservation.private_notes|default:'No private notes' }}</p>
-            <button class="btn btn-outline-secondary btn-sm">Edit Comments</button>
+      
+      <!-- Private Comments -->
+      <div class="col-lg-6">
+        <div class="panel panel-primary">
+          <div class="panel-heading bg-dark text-white p-2">
+            Private Comments
+          </div>
+          <div class="panel-body p-3 border border-top-0 bg-white">
+            <span class="help-block">These comments are never shown to the customer.</span>
+            <textarea class="form-control mb-3" rows="3" readonly>{{ reservation.private_notes|default:"No private notes" }}</textarea>
+            <div class="btn-toolbar" role="toolbar">
+              <div class="btn-group" role="group">
+                <button id="editPrivateNotes" class="btn btn-outline-dark btn-sm">Edit private comments</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-footer border border-top-0 bg-light p-2">
+            <small>
+              <strong>Date Modified:</strong> 
+              {{ reservation.updated_at|date:"n/j/Y g:i:s A" }}
+            </small>
+            <small>({{ request.user }})</small>
           </div>
         </div>
       </div>
@@ -76,114 +114,202 @@
     <!-- Trip Legs -->
     <div class="row">
       {% for leg in reservation.legs.all %}
-        <div class="col-md-6 mb-4">
-          <div class="card h-100 shadow-sm" style="min-height: 100%;">
-            <div class="card-header bg-dark text-white fw-bold h5 d-flex justify-content-between align-items-center"
-                 style="font-size: 1.15rem;
-                        padding: 1rem">
-              <span>Pickup: {{ leg.pickup_date|date:'l, F d, Y' }} {{ leg.pickup_time|time:'g:i A' }}</span>
-              <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
-                 target="_blank"
-                 class="btn btn-sm btn-outline-light">Edit Leg</a>
+        <div class="col-lg-6 mb-3">
+          <div class="panel panel-primary">
+            <div class="panel-heading bg-dark text-white p-2">
+              <div class="h6">
+                Pickup: <span class="fw-semibold">{{ leg.pickup_date|date:"l, F j, Y" }} {{ leg.pickup_time|time:"g:i A" }}</span>
+              </div>
             </div>
-            <div class="card-body px-4 py-3" style="font-size: 1.1rem;">
-              <div class="row">
-                <div class="col-md-6">
-                  <ul class="list-unstyled mb-0">
-                    <li>
-                      <strong>Flight:</strong> {{ leg.flight_information|default:'No Flight Info' }}
-                    </li>
-                    <li>
-                      <strong>P/U Location:</strong> {{ leg.pickup_location }}
-                    </li>
-                    <li>
-                      <strong>Drop-off Location:</strong> {{ leg.dropoff_location }}
-                    </li>
-                    <li>
-                      <strong>Vehicle:</strong> {{ reservation.vehicle.name|default:'Not Assigned' }}
-                    </li>
-                    <li>
-                      <strong>Comments:</strong> {{ leg.private_notes|default:'None' }}
-                    </li>
-                  </ul>
-                </div>
-                <div class="col-md-6">
-                  <ul class="list-unstyled mb-0">
-                    <li>
-                      <strong>Passengers:</strong> {{ reservation.passenger_count }}
-                    </li>
-                    {% if reservation.need_carseats %}
-                      <li>
-                        <strong>Car Seats:</strong>
-                      </li>
-                      {% if reservation.rf_carseats %}<li class="ms-3">Rear-Facing: {{ reservation.rf_carseats }}</li>{% endif %}
-                      {% if reservation.ff_carseats %}<li class="ms-3">Forward-Facing: {{ reservation.ff_carseats }}</li>{% endif %}
-                      {% if reservation.booster_seats %}<li class="ms-3">Booster: {{ reservation.booster_seats }}</li>{% endif %}
-                    {% endif %}
-                  </ul>
+            <div class="panel-body p-3 border border-top-0 bg-white">
+              <dl class="row mb-0">
+                <dt class="col-sm-4">Assigned Driver</dt>
+                <dd class="col-sm-8">
+                  <form class="driver-form" data-leg-id="{{ leg.id }}">
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-center">
+                      <div class="col">
+                        <select class="form-select driver-select" 
+                                name="driver" 
+                                data-leg-id="{{ leg.id }}">
+                          <option value="">Select Driver</option>
+                          {% for driver in drivers %}
+                            <option value="{{ driver.id }}"
+                                    {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                              {{ driver.profile.username }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    </div>
+                  </form>
+                </dd>
+
+                <dt class="col-sm-4">Driver Status</dt>
+                <dd class="col-sm-8">
+                  <form>
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-center">
+                      <div class="col">
+                        <select class="form-select status-select"
+                                name="status"
+                                data-leg-id="{{ leg.id }}">
+                          <option value="in-progress"
+                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In-Progress</option>
+                          <option value="picked-up"
+                                  {% if leg.status == 'picked-up' %}selected{% endif %}>Picked-Up</option>
+                          <option value="completed"
+                                  {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="update-status mt-2"></div>
+                  </form>
+                </dd>
+              </dl>
+
+              <dl class="row mb-0">
+                <dt class="col-sm-4">Start</dt>
+                <dd class="col-sm-8 fw-semibold">{{ leg.pickup_location }}</dd>
+
+                <dt class="col-sm-4">End</dt>
+                <dd class="col-sm-8 fw-semibold">{{ leg.dropoff_location }}</dd>
+
+                <dt class="col-sm-4">Passengers</dt>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ reservation.passenger_count }} Passengers
+                  {% if reservation.display_carseats %}
+                    <br>{{ reservation.display_carseats }}
+                  {% endif %}
+                </dd>
+
+                <dt class="col-sm-4">Vehicle</dt>
+                <dd class="col-sm-8 fw-semibold">{{ reservation.vehicle.vehicle_type|title }}</dd>
+                
+                {% if leg.flight_information %}
+                <dt class="col-sm-4">Flight</dt>
+                <dd class="col-sm-8 fw-semibold">{{ leg.flight_information }}</dd>
+                {% endif %}
+                
+                <dt class="col-sm-4">Private Notes</dt>
+                <dd class="col-sm-8 fw-semibold">{{ leg.private_notes|default:"None" }}</dd>
+              </dl>
+              
+              <div class="btn-toolbar mt-3" role="toolbar">
+                <div class="btn-group" role="group">
+                  <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
+                     target="_blank" class="btn btn-dark btn-sm">Edit Leg</a>
                 </div>
               </div>
-              <hr>
-              <div class="row mt-3">
-                <div class="col-12 text-end">
-                  <ul class="list-unstyled mb-0">
-                    <li>
-                      <strong>Assigned Driver:</strong> {{ leg.driver.name|default:'Not Assigned' }}
-                    </li>
-                    <li>
-                      <strong>Driver Status:</strong> {{ leg.status|default:'Pending' }}
-                    </li>
-                  </ul>
-                </div>
-              </div>
+            </div>
+            <div class="panel-footer border border-top-0 bg-light p-2">
+              <small>
+                <strong>Date Modified:</strong> 
+                <span class="fw-semibold">{{ leg.updated_at|date:"n/j/Y g:i:s A"|default:reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
+              </small>
+              <small>({{ request.user }})</small>
             </div>
           </div>
         </div>
       {% endfor %}
     </div>
-
-    <!-- Payment Information -->
+    
     <div class="row mb-4">
-      <div class="col-8">
+      <div class="col-6">
         <div class="card">
-          <div class="card-header bg-dark text-white fw-bold h5">Payment Information</div>
+          <div class="card-header bg-dark text-white fw-normal h6">Payment Information</div>
           <div class="card-body">
             {% with payment=reservation.payments.first %}
-              <div class="row">
-                <div class="col-md-4">
-                  <p>
-                    <strong>Payment Status:</strong> {{ payment.status|title|default:'Unpaid' }}
-                  </p>
-                  <p>
-                    <strong>Payment Type:</strong> {{ payment.payment_type|title|default:'N/A' }}
-                  </p>
-                </div>
-                <div class="col-md-4">
-                  <p>
-                    <strong>Base Price:</strong> ${{ reservation.base_price }}
-                  </p>
-                  <p>
-                    <strong>Additional Charges:</strong> ${{ reservation.additional_charges }}
-                  </p>
-                </div>
-                <div class="col-md-4">
-                  <p>
-                    <strong>Total Price:</strong> ${{ reservation.total_price }}
-                  </p>
-                  <p>
-                    <strong>Stripe Payment ID:</strong> {{ payment.stripe_payment_intent_id|default:'N/A' }}
-                  </p>
-                </div>
-              </div>
+              <dl class="row mb-0">
+                <dt class="col-sm-4">Payment Status</dt>
+                <dd class="col-sm-8 fw-semibold">{{ payment.status|title|default:'Unpaid' }}</dd>
+                
+                <dt class="col-sm-4">Payment Type</dt>
+                <dd class="col-sm-8 fw-semibold">{{ payment.payment_type|title|default:'N/A' }}</dd>
+                
+                <dt class="col-sm-4">Total Price</dt>
+                <dd class="col-sm-8 fw-semibold">${{ reservation.total_price }}</dd>
+                
+                <dt class="col-sm-4">Base Price</dt>
+                <dd class="col-sm-8 fw-semibold">${{ reservation.base_price }}</dd>
+                
+                <dt class="col-sm-4">Additional Charges</dt>
+                <dd class="col-sm-8 fw-semibold">${{ reservation.additional_charges }}</dd>
+                
+                <dt class="col-sm-4">Stripe Payment ID</dt>
+                <dd class="col-sm-8 fw-semibold">{{ payment.stripe_payment_intent_id|default:'N/A' }}</dd>
+                
+                <dt class="col-sm-4">Created At</dt>
+                <dd class="col-sm-8 fw-semibold">{{ payment.created_at }}</dd>
+              </dl>
             {% endwith %}
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Driver and status selection handlers
+        document.querySelectorAll('.driver-select, .status-select').forEach(select => {
+            select.addEventListener('change', function() {
+                const legId = this.dataset.legId;
+                const selectName = this.name;
+                const selectValue = this.value;
+                const form = this.closest('form');
+                const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+                const statusElement = form.querySelector('.update-status');
+
+                // Send the update to the server via AJAX
+                fetch('/dispatching/update_leg_assignment/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            leg_id: legId,
+                            field: selectName,
+                            value: selectValue
+                        })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(data => {
+                                throw new Error(data.error || 'Server error: ' + response.status);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                            setTimeout(() => {
+                                statusElement.innerHTML = '';
+                            }, 3000);
+                        } else {
+                            statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                        }
+                    })
+                    .catch(error => {
+                        statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                    });
+            });
+        });
+        
+        // Email confirmation button
+        document.getElementById('emailConfirmation').addEventListener('click', function() {
+            alert('Email confirmation functionality will be implemented here');
+        });
+        
+        // Edit private notes button
+        document.getElementById('editPrivateNotes').addEventListener('click', function() {
+            alert('Private notes editing functionality will be implemented here');
+        });
+    });
+  </script>
 {% endblock content %}
+
 {% block footer %}
 {% endblock footer %}

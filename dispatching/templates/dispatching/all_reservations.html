@@ -1,7 +1,8 @@
 {% extends 'main.html' %}
 
 {% block content %}
-  {% block navbar %}{% endblock %}
+  {% block navbar %}
+  {% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
   <div class="container-fluid py-4">
     <!-- Header Section -->
@@ -22,13 +23,8 @@
       <div class="col-lg-4 col-md-6">
         <form action="#" method="get">
           <div class="input-group input-group-lg">
-            <input type="text"
-                   name="search_q"
-                   class="form-control"
-                   placeholder="Search reservations..." />
-            <button type="submit" class="btn btn-outline-dark px-4">
-              <i class="bi bi-search me-2"></i>Search
-            </button>
+            <input type="text" name="search_q" class="form-control" placeholder="Search reservations..." />
+            <button type="submit" class="btn btn-outline-dark px-4"><i class="bi bi-search me-2"></i>Search</button>
           </div>
         </form>
       </div>
@@ -67,8 +63,8 @@
 
                 <!-- Trip Details Consolidated -->
                 <td>
-                  <div class="fw-bold">{{ reservation.legs.first.pickup_date|date:"l, F d, Y" }}</div>
-                  <div class="fw-bold">{{ reservation.legs.first.pickup_time|date:"g:i A" }}</div>
+                  <div class="fw-bold">{{ reservation.legs.first.pickup_date|date:'l, F d, Y' }}</div>
+                  <div class="fw-bold">{{ reservation.legs.first.pickup_time|date:'g:i A' }}</div>
                   <span class="badge bg-dark text-white mt-1">{{ reservation.get_trip_type_display|title }}</span>
                 </td>
 
@@ -79,7 +75,9 @@
                     <div>
                       <div class="fw-bold">{{ reservation.vehicle }}</div>
                       <div>{{ reservation.passenger_count }} Passengers</div>
-                      {% if reservation.display_carseats %}<div>{{ reservation.display_carseats }}</div>{% endif %}
+                      {% if reservation.display_carseats %}
+                        <div>{{ reservation.display_carseats }}</div>
+                      {% endif %}
                     </div>
                   </div>
                 </td>
@@ -87,7 +85,15 @@
                 <!-- Status & Payment Consolidated -->
                 <td>
                   <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-tag-fill fs-5 me-2 {% if reservation.status == 'confirmed' %}text-success{% elif reservation.status == 'pending' %}text-warning{% else %}text-danger{% endif %}"></i>
+                    <i class="bi bi-tag-fill fs-5 me-2 {% if reservation.status == 'confirmed' %}
+                        text-success
+                      {% elif reservation.status == 'pending' %}
+                        text-warning
+                      {% else %}
+                        text-danger
+                      {% endif %}">
+
+                    </i>
                     <div>
                       {% if reservation.status == 'pending' %}
                         <span class="badge bg-warning text-dark p-2">Pending</span>
@@ -100,7 +106,13 @@
                   </div>
 
                   <div class="d-flex align-items-center">
-                    <i class="bi bi-cash-coin fs-5 me-2 {% if reservation.payments.last %}text-success{% else %}text-danger{% endif %}"></i>
+                    <i class="bi bi-cash-coin fs-5 me-2 {% if reservation.payments.last %}
+                        text-success
+                      {% else %}
+                        text-danger
+                      {% endif %}">
+
+                    </i>
                     <div class="fw-bold">
                       ${{ reservation.total_price|floatformat:2 }}
                       {% if reservation.payments.last %}
@@ -115,24 +127,22 @@
                 <td>
                   <div class="mb-3">
                     <div class="fw-bold text-secondary mb-1">Customer's Requests:</div>
-                    <p class="mb-0">{{ reservation.special_requests|default:"No special requests" }}</p>
+                    <p class="mb-0">{{ reservation.special_requests|default:'No special requests' }}</p>
                   </div>
 
                   <div>
                     <div class="fw-bold text-secondary mb-1">Private Notes:</div>
-                    <p class="mb-0">{{ reservation.private_notes|default:"No private notes" }}</p>
+                    <p class="mb-0">{{ reservation.private_notes|default:'No private notes' }}</p>
                   </div>
                 </td>
 
                 <td class="text-center">
                   <div class="d-flex justify-content-center gap-2">
-                    <a href="{% url 'reservation_details' reservation.uuid %}"
-                       class="btn btn-primary">
+                    <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-primary">
                       <i class="bi bi-eye"></i>
                       <span class="d-none d-xl-inline ms-1">View</span>
                     </a>
-                    <a href="{% url 'modify_reservation' reservation.uuid %}"
-                       class="btn btn-secondary">
+                    <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-secondary">
                       <i class="bi bi-pencil"></i>
                       <span class="d-none d-xl-inline ms-1">Edit</span>
                     </a>
@@ -171,16 +181,14 @@
                         <i class="bi bi-calendar-event fs-4 text-primary me-3"></i>
                         <div>
                           <div class="text-muted small">Trip Details:</div>
-                          <div class="fw-bold">
-                            {{ reservation.legs.first.pickup_date|date:"l, F d, Y" }} at {{ reservation.legs.first.pickup_time|date:"g:i A" }}
-                          </div>
+                          <div class="fw-bold">{{ reservation.legs.first.pickup_date|date:'l, F d, Y' }} at {{ reservation.legs.first.pickup_time|date:'g:i A' }}</div>
                           <span class="badge bg-info text-dark mt-1">{{ reservation.get_trip_type_display }}</span>
                         </div>
                       </div>
                     </div>
 
                     <div class="col-12">
-                      <hr class="my-1">
+                      <hr class="my-1" />
                     </div>
 
                     <!-- Vehicle & Passengers -->
@@ -190,20 +198,30 @@
                         <div>
                           <div class="text-muted small">Vehicle & Passengers:</div>
                           <div class="fw-bold">{{ reservation.vehicle }} - {{ reservation.passenger_count }} Passengers</div>
-                          {% if reservation.display_carseats %}<div>{{ reservation.display_carseats }}</div>{% endif %}
+                          {% if reservation.display_carseats %}
+                            <div>{{ reservation.display_carseats }}</div>
+                          {% endif %}
                         </div>
                       </div>
                     </div>
 
                     <div class="col-12">
-                      <hr class="my-1">
+                      <hr class="my-1" />
                     </div>
 
                     <!-- Status & Payment -->
                     <div class="col-12">
                       <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex">
-                          <i class="bi bi-tag-fill fs-4 {% if reservation.status == 'confirmed' %}text-success {% elif reservation.status == 'pending' %}text-warning {% else %}text-danger{% endif %} me-3"></i>
+                          <i class="bi bi-tag-fill fs-4 {% if reservation.status == 'confirmed' %}
+                              text-success
+                            {% elif reservation.status == 'pending' %}
+                              text-warning
+                            {% else %}
+                              text-danger
+                            {% endif %} me-3">
+
+                          </i>
                           <div>
                             <div class="text-muted small">Status:</div>
                             {% if reservation.status == 'pending' %}
@@ -217,7 +235,13 @@
                         </div>
 
                         <div class="d-flex">
-                          <i class="bi bi-cash-coin fs-4 {% if reservation.payments.last %}text-success {% else %}text-danger{% endif %} me-2"></i>
+                          <i class="bi bi-cash-coin fs-4 {% if reservation.payments.last %}
+                              text-success
+                            {% else %}
+                              text-danger
+                            {% endif %} me-2">
+
+                          </i>
                           <div>
                             <div class="text-muted small">Payment:</div>
                             <div class="fw-bold">
@@ -234,7 +258,7 @@
                     </div>
 
                     <div class="col-12">
-                      <hr class="my-1">
+                      <hr class="my-1" />
                     </div>
 
                     <!-- Notes -->
@@ -267,14 +291,8 @@
 
                 <div class="card-footer bg-light p-3">
                   <div class="d-flex justify-content-between">
-                    <a href="{% url 'reservation_details' reservation.uuid %}"
-                       class="btn btn-primary">
-                      <i class="bi bi-eye me-2"></i>View
-                    </a>
-                    <a href="{% url 'modify_reservation' reservation.uuid %}"
-                       class="btn btn-secondary">
-                      <i class="bi bi-pencil me-2"></i>Edit
-                    </a>
+                    <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-primary"><i class="bi bi-eye me-2"></i>View</a>
+                    <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-secondary"><i class="bi bi-pencil me-2"></i>Edit</a>
                   </div>
                 </div>
               </div>
@@ -288,16 +306,10 @@
         <ul class="pagination justify-content-center">
           {% if page_obj.has_previous %}
             <li class="page-item">
-              <a class="page-link" href="?page=1" aria-label="First">
-                <i class="bi bi-chevron-double-left"></i>
-              </a>
+              <a class="page-link" href="?page=1" aria-label="First"><i class="bi bi-chevron-double-left"></i></a>
             </li>
             <li class="page-item">
-              <a class="page-link"
-                 href="?page={{ page_obj.previous_page_number }}"
-                 aria-label="Previous">
-                <i class="bi bi-chevron-left"></i>
-              </a>
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
             </li>
           {% endif %}
 
@@ -307,18 +319,10 @@
 
           {% if page_obj.has_next %}
             <li class="page-item">
-              <a class="page-link"
-                 href="?page={{ page_obj.next_page_number }}"
-                 aria-label="Next">
-                <i class="bi bi-chevron-right"></i>
-              </a>
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
             </li>
             <li class="page-item">
-              <a class="page-link"
-                 href="?page={{ page_obj.paginator.num_pages }}"
-                 aria-label="Last">
-                <i class="bi bi-chevron-double-right"></i>
-              </a>
+              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last"><i class="bi bi-chevron-double-right"></i></a>
             </li>
           {% endif %}
         </ul>
@@ -387,7 +391,8 @@
       </div>
     </div>
   </div>
-{% endblock content %}
+{% endblock %}
 
 {% block footer %}
-{% endblock footer %}
+
+{% endblock %}

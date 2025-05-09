@@ -24,11 +24,11 @@ logger = logging.getLogger(__name__)
 class DateForm(forms.Form):
     date = forms.DateField(widget=forms.SelectDateWidget)
 
-
 @login_required(login_url="login")
 def index(request):
     """
-    Dispatcher Dashboard Shows All Legs-Lets you Filter by Date
+    Dispatcher Dashboard: Shows all legs with date filtering functionality.
+    Includes driver assignment and status update capabilities.
     """
     if not request.user.is_superuser:
         return redirect("home")
@@ -42,21 +42,31 @@ def index(request):
         )
     except ValueError:
         selected_date = timezone.localdate()
+        
+    # Get all legs for the selected date
     legs = (
         Leg.objects.filter(pickup_date=selected_date)
         .select_related(
             "reservation",
             "reservation__customer",
             "reservation__vehicle",
-            "flight_information",
+            "driver",
         )
         .order_by("pickup_time")
     )
+    
+    # Get all drivers for assignment dropdown
+    drivers = Driver.objects.all()
+    
+    # Calculate total revenue from legs on this day
+    total_revenue = sum(leg.reservation.total_price for leg in legs)
+    
     context = {
         "legs": legs,
         "selected_date": selected_date,
         "total_legs": legs.count(),
-        "total_revenue": sum(leg.reservation.total_price for leg in legs) / 2,
+        "total_revenue": total_revenue,
+        "drivers": drivers,  # Added for driver assignment dropdown
     }
 
     return render(request, "dispatching/legs_filter.html", context)
@@ -96,24 +106,42 @@ def all_reservations(request):
 
     return render(request, "dispatching/all_reservations.html", context)
 
-
 @login_required(login_url="login")
 def reservation_details(request, id):
+    """
+    Detailed view for a reservation with all relevant information.
+    """
     if not request.user.is_superuser:
         return redirect("home")
-    """
-    Detailed view for a reservation
-    """
+        
+    # Get the reservation with all related data
     reservation = get_object_or_404(
-        Reservation.objects.prefetch_related("legs__flight_information").select_related(
-            "customer", "vehicle", "rate"
+        Reservation.objects.prefetch_related(
+            "legs__flight_information",
+            "legs__driver",
+            "payments"
+        ).select_related(
+            "customer", 
+            "vehicle", 
+            "rate"
         ),
         uuid=id,
     )
-
+    
+    # Get all drivers for assignment dropdown
+    drivers = Driver.objects.all()
+    
+    # Calculate payment details
+    payments = reservation.payments.all()
+    payment_status = "Paid" if payments.exists() else "Unpaid"
+    payment_method = payments.first().payment_type.title() if payments.exists() else "N/A"
+    
     context = {
         "reservation": reservation,
         "total_legs": reservation.legs.count(),
+        "drivers": drivers,
+        "payment_status": payment_status,
+        "payment_method": payment_method,
         "total_cost": {
             "base": reservation.base_price,
             "additional": reservation.additional_charges,

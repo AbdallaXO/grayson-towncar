@@ -17,7 +17,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 @csrf_exempt
 def stripe_webhook(request):
-    logger.info("⚠️ Webhook received")
+    logger.info(f"⚠️ Webhook received")
     payload = request.body
     signature = request.META.get("HTTP_STRIPE_SIGNATURE")
     try:
