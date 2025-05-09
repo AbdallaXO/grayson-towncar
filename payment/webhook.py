@@ -17,6 +17,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 @csrf_exempt
 def stripe_webhook(request):
+    logger.info("⚠️ Webhook received")
     payload = request.body
     signature = request.META.get("HTTP_STRIPE_SIGNATURE")
     try:
@@ -78,7 +79,6 @@ def handle_checkout_session(session):
                 setup_intent = stripe.SetupIntent.retrieve(setup_intent_id)
                 payment_method_id = setup_intent.payment_method
 
-                # Save card to customer in Stripe and database
                 if save_card_to_customer(
                     customer.stripe_customer_id, payment_method_id
                 ):
@@ -106,7 +106,6 @@ def handle_checkout_session(session):
                 payment_method_id = full_payment_intent.payment_method
                 payment_method_type = None
 
-                # Check the payment method type if available
                 if payment_method_id:
                     try:
                         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)

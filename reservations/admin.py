@@ -172,7 +172,6 @@ class CustomerAdmin(ImportExportModelAdmin):
     ordering = ("-created_at",)
     list_per_page = 50
 
-
 @admin.register(Reservation)
 class ReservationAdmin(ImportExportModelAdmin):
     resource_class = ReservationResource
@@ -192,10 +191,9 @@ class ReservationAdmin(ImportExportModelAdmin):
     list_display = (
         "id",
         "customer_link",
-        "first_pickup_date",
-        "first_pickup_time",
+        "legs_display",  # New method to display all legs
         "trip_type",
-        "payment_status_display",  # Keep it here for list view
+        "payment_status_display",
         "total_price_display",
         "vehicle",
         "created_at",
@@ -208,7 +206,7 @@ class ReservationAdmin(ImportExportModelAdmin):
         "customer__first_name",
         "customer__last_name",
         "id",
-        "vehicle__name",
+        "vehicle__vehicle_type",   
     )
     list_per_page = 50
 
@@ -220,6 +218,7 @@ class ReservationAdmin(ImportExportModelAdmin):
                     "customer",
                     "vehicle",
                     "passenger_count",
+                    "luggage_count",
                     "need_carseats",
                     "store_stop",
                     ("ff_carseats", "rf_carseats", "booster_seats"),
@@ -230,22 +229,43 @@ class ReservationAdmin(ImportExportModelAdmin):
                     "base_price",
                     "trip_type",
                     "status",
-                    "payment_status_display",  # Keep it in fieldsets to show in form
+                    "payment_status_display",
                 ),
             },
         ),
     )
 
     # ── helpers ────────────────────────────────────────────
-    @admin.display(description="First pick-up", ordering="earliest_leg_date")
-    def first_pickup_date(self, obj):
-        return obj.earliest_leg_date or "-"
-
-    @admin.display(description="Time", ordering="earliest_leg_time")
-    def first_pickup_time(self, obj):
-        return (
-            obj.earliest_leg_time.strftime("%I:%M %p") if obj.earliest_leg_time else "-"
-        )
+    @admin.display(description="Pick-ups")
+    def legs_display(self, obj):
+        """Display all legs with their dates and times combined in a single field with clickable links"""
+        legs = obj.legs.all().order_by('pickup_date', 'pickup_time')
+        if not legs:
+            return "-"
+        
+        result = []
+        for i, leg in enumerate(legs):
+            # Format date as "Saturday, May 9"
+            formatted_date = leg.pickup_date.strftime("%A, %B %d") if leg.pickup_date else "-"
+            pickup_time_str = leg.pickup_time.strftime("%I:%M %p") if leg.pickup_time else "-"
+            
+            # Create a link to the leg admin page
+            leg_url = f"/admin/reservations/leg/{leg.id}/change/"
+            
+            # Format the link with HTML
+            result.append(
+                format_html(
+                    '<a href="{}">{}: {} {} - {} to {}</a>',
+                    leg_url,
+                    f"Leg {i+1}",
+                    formatted_date,
+                    pickup_time_str,
+                    leg.pickup_location,
+                    leg.dropoff_location
+                )
+            )
+        
+        return format_html("<br>".join(result))
 
     @admin.display(description="Customer")
     def customer_link(self, obj):
@@ -297,9 +317,6 @@ class ReservationAdmin(ImportExportModelAdmin):
         )
 
 
-
-
-
 @admin.register(Leg)
 class LegAdmin(ImportExportModelAdmin):
     resource_class = LegResource
@@ -308,6 +325,7 @@ class LegAdmin(ImportExportModelAdmin):
         "pickup_date",
         "pickup_time",
         "reservation_link",  # Use a custom method for the reservation link
+        "vehicle",
         "pickup_location",
         "dropoff_location",
         "driver",
@@ -336,6 +354,12 @@ class LegAdmin(ImportExportModelAdmin):
     @admin.display(description="Status")
     def get_status(self, obj):
         return obj.reservation.status if obj.reservation else "-"
+    @admin.display(description="Reservation Vehicle")
+    def vehicle(self, obj):
+        if obj.reservation and obj.reservation.vehicle:
+            return obj.reservation.vehicle.get_vehicle_type_display()  # Adjust based on your Vehicle model
+        return "-"
+    
 
 
 @admin.register(Flight)
