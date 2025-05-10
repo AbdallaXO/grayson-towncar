@@ -66,41 +66,55 @@ class ContactUsForm(models.Model):
     def __str__(self):
         return f"{self.first_name} - {self.last_name}"
 
+
 class NewsLetter(models.Model):
     email = models.EmailField(unique=True)
-    
+
     def __str__(self):
         return self.email
+
 
 class NewsletterSubscriptionAttempt(models.Model):
     ip_address = models.GenericIPAddressField()
     email = models.EmailField()
     timestamp = models.DateTimeField(auto_now_add=True)
     success = models.BooleanField(default=False)
-    
+
     class Meta:
         indexes = [
-            models.Index(fields=['ip_address', 'timestamp']),
+            models.Index(fields=["ip_address", "timestamp"]),
         ]
-    
+
     def __str__(self):
         return f"{self.ip_address} - {self.email} - {self.timestamp}"
 
+
 class TravelAgent(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    agent_name = models.CharField(max_length=100, help_text="Your full name", null=True, blank=True)
+    agent_name = models.CharField(
+        max_length=100, help_text="Your full name", null=True, blank=True
+    )
     agency_name = models.CharField(max_length=100, null=True, blank=True)
-    agency_email = models.EmailField(help_text="Your agency's email address", blank=True, null=True)
     phone = models.CharField(max_length=20)
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=10.00)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
     
-    # Payment Information
     payment_info = models.CharField(
         max_length=200,
-        help_text="Enter your payment information (e.g., PayPal email, Venmo username, Cash App $username, Zelle email/phone, or bank details)", null=True, blank=True
+        help_text="Preferred Way to Get Paid & Information - Paypal/Zelle/CashApp/Bank Info etc.",
+        null=True,
+        blank=True,
     )
+    last_payment_date = models.DateTimeField(null=True, blank=True)
+    total_earned_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
+    total_paid_commission = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
+
 
     def __str__(self):
         return f"{self.agency_name} - {self.user.username}"
@@ -108,3 +122,17 @@ class TravelAgent(models.Model):
     class Meta:
         verbose_name = "Travel Agent"
         verbose_name_plural = "Travel Agents"
+
+
+class CommissionPayout(models.Model):
+    agent = models.ForeignKey(TravelAgent, on_delete=models.CASCADE)
+    reservations = models.ManyToManyField("reservations.Reservation")
+
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payout_period_start = models.DateField()
+    payout_period_end = models.DateField()
+    paid_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.agent.agency_name or self.agent.agent_name or self.agent.user.username} – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"

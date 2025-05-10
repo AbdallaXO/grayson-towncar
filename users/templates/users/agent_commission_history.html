@@ -1,0 +1,261 @@
+{% extends 'main.html' %}
+
+{% block content %}
+  <div class="container py-5">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="h2 mb-1">Commission History</h1>
+            <p class="text-muted mb-0">{{ travel_agent.agency_name }}</p>
+          </div>
+          <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item">
+        <a class="nav-link" href="{% url 'agent_dashboard' %}">Dashboard</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="{% url 'agent_commission_history' %}">Commission History</a>
+      </li>
+    </ul>
+
+    <!-- Commission Stats -->
+    <div class="row mb-4">
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Total Paid</h6>
+            <h3 class="mb-0 text-success">${{ total_paid|floatformat:2 }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Total Unpaid</h6>
+            <h3 class="mb-0 text-warning">${{ total_unpaid|floatformat:2 }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Grand Total</h6>
+            <h3 class="mb-0">${{ total_paid|add:total_unpaid|floatformat:2 }}</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unpaid Commissions -->
+    {% if unpaid_reservations %}
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Unpaid Commissions</h5>
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Trip Type</th>
+                  <th>Total Price</th>
+                  <th>Commission (10%)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for reservation in unpaid_reservations %}
+                  <tr>
+                    <td>{{ reservation.created_at|date:'M d, Y' }}</td>
+                    <td>{{ reservation.customer.get_full_name }}</td>
+                    <td>{{ reservation.get_trip_type_display }}</td>
+                    <td>${{ reservation.total_price|floatformat:2 }}</td>
+                    <td class="text-warning">${{ reservation.commission_amount|floatformat:2 }}</td>
+                    <td>
+                      <span class="badge bg-warning">Unpaid</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="4" class="text-end fw-bold">Total Unpaid:</td>
+                  <td class="text-warning fw-bold">${{ total_unpaid|floatformat:2 }}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Paid Commission History -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Paid Commission History</h5>
+        {% if payouts %}
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Payout Date</th>
+                  <th>Period</th>
+                  <th>Number of Reservations</th>
+                  <th>Total Amount</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for payout in payouts %}
+                  <tr>
+                    <td>{{ payout.paid_at|date:'M d, Y' }}</td>
+                    <td>{{ payout.payout_period_start|date:'M d' }} - {{ payout.payout_period_end|date:'M d, Y' }}</td>
+                    <td>{{ payout.reservations.count }}</td>
+                    <td class="text-success">${{ payout.total_amount|floatformat:2 }}</td>
+                    <td>{{ payout.notes|truncatewords:10 }}</td>
+                    <td>
+                      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" class="text-end fw-bold">Total Paid:</td>
+                  <td class="text-success fw-bold">${{ total_paid|floatformat:2 }}</td>
+                  <td colspan="2"></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          {% if payouts.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+              <ul class="pagination justify-content-center">
+                {% if payouts.has_previous %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ payouts.previous_page_number }}">Previous</a>
+                  </li>
+                {% endif %}
+
+                {% for num in payouts.paginator.page_range %}
+                  {% if payouts.number == num %}
+                    <li class="page-item active">
+                      <span class="page-link">{{ num }}</span>
+                    </li>
+                  {% elif num > payouts.number|add:'-3' and num < payouts.number|add:'3' %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                  {% endif %}
+                {% endfor %}
+
+                {% if payouts.has_next %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ payouts.next_page_number }}">Next</a>
+                  </li>
+                {% endif %}
+              </ul>
+            </nav>
+          {% endif %}
+        {% else %}
+          <p class="text-muted mb-0">No paid commissions found.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Payout Detail Modals -->
+  {% for payout in payouts %}
+    <div class="modal fade" id="payoutModal{{ payout.id }}" tabindex="-1" aria-labelledby="payoutModalLabel{{ payout.id }}" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <h6>Payout Information</h6>
+              <p>
+                <strong>Paid On:</strong> {{ payout.paid_at|date:'F d, Y g:i A' }}
+              </p>
+              <p>
+                <strong>Total Amount:</strong> ${{ payout.total_amount|floatformat:2 }}
+              </p>
+              {% if payout.notes %}
+                <p>
+                  <strong>Notes:</strong> {{ payout.notes }}
+                </p>
+              {% endif %}
+            </div>
+
+            <h6 class="mb-3">Reservations Included</h6>
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Trip Type</th>
+                    <th>Commission</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for reservation in payout.reservations.all %}
+                    <tr>
+                      <td>{{ reservation.created_at|date:'M d, Y' }}</td>
+                      <td>{{ reservation.customer.get_full_name }}</td>
+                      <td>{{ reservation.get_trip_type_display }}</td>
+                      <td>{{ reservation.commission_amount|floatformat:2 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+
+  <style>
+    .badge {
+      font-weight: 500;
+      padding: 0.5em 0.75em;
+    }
+    
+    .badge.bg-warning {
+      background-color: #ffc107;
+      color: #000;
+    }
+    
+    .badge.bg-success {
+      background-color: #198754;
+    }
+    
+    .nav-tabs .nav-link {
+      color: #495057;
+    }
+    
+    .nav-tabs .nav-link.active {
+      font-weight: 600;
+    }
+  </style>
+  {% block footer %}
+
+  {% endblock %}
+{% endblock %}

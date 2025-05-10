@@ -8,6 +8,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def index(request):
     vehicles = Vehicle.objects.prefetch_related(
         Prefetch(
@@ -23,6 +24,7 @@ def index(request):
     }
     context = {"vehicles": vehicles, "additional_data": structured_data}
     return render(request, "rates/index.html", context)
+
 
 # def quote_page(request):
 #     """Render the quote page with available locations and vehicles."""

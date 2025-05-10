@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("rates", "0012_alter_vehicle_carseats_display"),
         ("reservations", "0029_alter_reservation_booster_seats_and_more"),

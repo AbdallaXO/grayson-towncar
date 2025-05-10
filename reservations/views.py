@@ -25,15 +25,14 @@ from users.models import TravelAgent
 
 def index(request):
     """Returns the Landing Page"""
-    vehicles = (
-        Vehicle.objects.prefetch_related(
-            Prefetch(
-                "rates",
-                queryset=Rate.objects.select_related("route", "route__origin", "route__destination"),
-            )
+    vehicles = Vehicle.objects.prefetch_related(
+        Prefetch(
+            "rates",
+            queryset=Rate.objects.select_related(
+                "route", "route__origin", "route__destination"
+            ),
         )
-        .all()
-    )
+    ).all()
     rates_json: dict[str, dict[str, dict]] = {}
     for v in vehicles:
         routes: dict[str, dict] = {}
@@ -43,11 +42,12 @@ def index(request):
                 "name": str(r.route),
                 "oneway": float(r.oneway_price),
                 "round": float(r.round_trip_price),
-                "reserve_url": reverse("reserve", args=[r.id]),  # Changed to snake_case to match JS
+                "reserve_url": reverse(
+                    "reserve", args=[r.id]
+                ),  # Changed to snake_case to match JS
             }
         rates_json[str(v.id)] = routes
 
-    
     context = {
         "vehicles": vehicles,
         "rates_json": json.dumps(rates_json),  # safe‑dump for JS
@@ -145,7 +145,7 @@ def reservation_form(
         "trip_type": trip_type.replace("_", " "),
         "vehicle": rate.vehicle,
         "airlines": AIRLINES,
-        'canonical_url': request.build_absolute_uri('/rates-booking/'),
+        "canonical_url": request.build_absolute_uri("/rates-booking/"),
     }
     return render(request, "reservations/book_form.html", context)
 

@@ -4,25 +4,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('reservations', '0028_alter_leg_status'),
+        ("reservations", "0028_alter_leg_status"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='reservation',
-            name='booster_seats',
-            field=models.PositiveIntegerField(default=0, verbose_name='Booster'),
+            model_name="reservation",
+            name="booster_seats",
+            field=models.PositiveIntegerField(default=0, verbose_name="Booster"),
         ),
         migrations.AlterField(
-            model_name='reservation',
-            name='ff_carseats',
-            field=models.PositiveBigIntegerField(default=0, verbose_name='FF-Seat'),
+            model_name="reservation",
+            name="ff_carseats",
+            field=models.PositiveBigIntegerField(default=0, verbose_name="FF-Seat"),
         ),
         migrations.AlterField(
-            model_name='reservation',
-            name='rf_carseats',
-            field=models.PositiveIntegerField(default=0, verbose_name='RF-Seat'),
+            model_name="reservation",
+            name="rf_carseats",
+            field=models.PositiveIntegerField(default=0, verbose_name="RF-Seat"),
         ),
     ]

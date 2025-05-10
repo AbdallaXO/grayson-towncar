@@ -45,4 +45,4 @@ class Payment(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.payment_type.replace("_", " ").title()} - {self.status.title()}"  
+        return f"{self.payment_type.replace('_', ' ').title()} - {self.status.title()}"

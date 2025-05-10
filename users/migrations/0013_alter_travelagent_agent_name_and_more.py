@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("users", "0012_travelagent_agency_email_travelagent_agent_name_and_more"),
     ]

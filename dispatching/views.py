@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 class DateForm(forms.Form):
     date = forms.DateField(widget=forms.SelectDateWidget)
 
+
 @login_required(login_url="login")
 def index(request):
     """
@@ -42,7 +43,7 @@ def index(request):
         )
     except ValueError:
         selected_date = timezone.localdate()
-        
+
     # Get all legs for the selected date
     legs = (
         Leg.objects.filter(pickup_date=selected_date)
@@ -54,13 +55,13 @@ def index(request):
         )
         .order_by("pickup_time")
     )
-    
+
     # Get all drivers for assignment dropdown
     drivers = Driver.objects.all()
-    
+
     # Calculate total revenue from legs on this day
     total_revenue = sum(leg.reservation.total_price for leg in legs)
-    
+
     context = {
         "legs": legs,
         "selected_date": selected_date,
@@ -79,22 +80,24 @@ def all_reservations(request):
     """
     List all reservations with pagination and overview statistics
     """
-    search = ''
-    if request.GET.get('search_q'):
-        search = request.GET.get('search_q')
-    
-    reservations_query = Reservation.objects.select_related(
-        "customer", "rate", "vehicle"
-    ).order_by("legs__pickup_date").filter(Q(customer__first_name__icontains=search) & ~Q(status='completed'))
-    
-    paginator = Paginator(reservations_query, 10)  
+    search = ""
+    if request.GET.get("search_q"):
+        search = request.GET.get("search_q")
+
+    reservations_query = (
+        Reservation.objects.select_related("customer", "rate", "vehicle")
+        .order_by("legs__pickup_date")
+        .filter(Q(customer__first_name__icontains=search) & ~Q(status="completed"))
+    )
+
+    paginator = Paginator(reservations_query, 10)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     total_reservations = reservations_query.count()
     pending_reservations = reservations_query.filter(status="pending").count()
     confirmed_reservations = reservations_query.filter(status="confirmed").count()
-    total_revenue = reservations_query.aggregate(total=Sum("total_price"))["total"] or 0    
+    total_revenue = reservations_query.aggregate(total=Sum("total_price"))["total"] or 0
     context = {
         "reservations": page_obj,
         "page_obj": page_obj,
@@ -106,6 +109,7 @@ def all_reservations(request):
 
     return render(request, "dispatching/all_reservations.html", context)
 
+
 @login_required(login_url="login")
 def reservation_details(request, id):
     """
@@ -113,29 +117,25 @@ def reservation_details(request, id):
     """
     if not request.user.is_superuser:
         return redirect("home")
-        
+
     # Get the reservation with all related data
     reservation = get_object_or_404(
         Reservation.objects.prefetch_related(
-            "legs__flight_information",
-            "legs__driver",
-            "payments"
-        ).select_related(
-            "customer", 
-            "vehicle", 
-            "rate"
-        ),
+            "legs__flight_information", "legs__driver", "payments"
+        ).select_related("customer", "vehicle", "rate"),
         uuid=id,
     )
-    
+
     # Get all drivers for assignment dropdown
     drivers = Driver.objects.all()
-    
+
     # Calculate payment details
     payments = reservation.payments.all()
     payment_status = "Paid" if payments.exists() else "Unpaid"
-    payment_method = payments.first().payment_type.title() if payments.exists() else "N/A"
-    
+    payment_method = (
+        payments.first().payment_type.title() if payments.exists() else "N/A"
+    )
+
     context = {
         "reservation": reservation,
         "total_legs": reservation.legs.count(),
@@ -167,32 +167,34 @@ def modify_reservation(request, id):
         if customer_form.is_valid() and reservation_form.is_valid():
             # Save customer
             customer = customer_form.save()
-            
+
             # Save reservation with commit=False first
             updated_reservation = reservation_form.save(commit=False)
-            
+
             updated_reservation.customer = customer
             # Save the reservation
             updated_reservation.save()
-            
+
             # Process leg forms
             leg_forms = []
             for i in range(1, 3):  # Support up to 2 legs
                 leg_prefix = f"leg_{i}"
-                
+
                 # Create a dictionary with all possible leg form fields
                 leg_data = {}
                 for field in request.POST:
                     if field.startswith(leg_prefix):
                         leg_data[field] = request.POST.get(field)
-                
+
                 # Check if any meaningful data was submitted
                 has_data = False
                 for key, value in leg_data.items():
-                    if value and not key.endswith('-id'):  # Ignore empty values and ID fields
+                    if value and not key.endswith(
+                        "-id"
+                    ):  # Ignore empty values and ID fields
                         has_data = True
                         break
-                
+
                 if has_data:
                     leg_instance = (
                         reservation.legs.all()[i - 1]
@@ -258,7 +260,12 @@ def legs_list(request):
 
     drivers = Driver.objects.all()
 
-    context = {"legs": legs, "filter_date": date_filter, "drivers": drivers, "today_count":today_count,}
+    context = {
+        "legs": legs,
+        "filter_date": date_filter,
+        "drivers": drivers,
+        "today_count": today_count,
+    }
 
     return render(request, "dispatching/legs_list.html", context)
 
@@ -270,59 +277,81 @@ def update_leg_assignment(request):
     Update a leg's driver assignment or status via AJAX.
     """
     logger.info("Received update_leg_assignment request")
-    
+
     if not request.user.is_superuser:
         logger.warning(f"Permission denied for user {request.user.username}")
-        return JsonResponse({'success': False, 'error': 'Permission denied'}, status=403)
-    
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
     try:
         try:
             data = json.loads(request.body)
             logger.info(f"Received data: {data}")
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error: {str(e)}")
-            return JsonResponse({'success': False, 'error': f'Invalid JSON: {str(e)}'}, status=400)
-        
-        leg_id = data.get('leg_id')
-        field = data.get('field')
-        value = data.get('value')
-        
-        logger.info(f"Processing request - leg_id: {leg_id}, field: {field}, value: {value}")
-        
+            return JsonResponse(
+                {"success": False, "error": f"Invalid JSON: {str(e)}"}, status=400
+            )
+
+        leg_id = data.get("leg_id")
+        field = data.get("field")
+        value = data.get("value")
+
+        logger.info(
+            f"Processing request - leg_id: {leg_id}, field: {field}, value: {value}"
+        )
+
         if not leg_id or not field:
             logger.warning("Missing required fields")
-            return JsonResponse({'success': False, 'error': 'Missing required data'}, status=400)
-        
+            return JsonResponse(
+                {"success": False, "error": "Missing required data"}, status=400
+            )
+
         # Get the leg
         try:
             leg = Leg.objects.get(id=leg_id)
             logger.info(f"Found leg for {leg.reservation}")
         except Leg.DoesNotExist:
             logger.warning(f"Leg with ID {leg_id} not found")
-            return JsonResponse({'success': False, 'error': 'Leg not found'}, status=404)
-        
-        if field == 'driver':
+            return JsonResponse(
+                {"success": False, "error": "Leg not found"}, status=404
+            )
+
+        if field == "driver":
             if value:
                 try:
                     driver = Driver.objects.get(id=value)
                     logger.info(f"Found driver with ID {value}")
                     leg.driver = driver
                     leg.save()
-                    logger.info(f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id}")
+                    logger.info(
+                        f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id}"
+                    )
                 except Driver.DoesNotExist:
                     logger.warning(f"Driver with ID {value} not found")
-                    return JsonResponse({'success': False, 'error': 'Driver not found'}, status=404)
+                    return JsonResponse(
+                        {"success": False, "error": "Driver not found"}, status=404
+                    )
                 except AttributeError as e:
-                    logger.error(f"Attribute error: {str(e)} - check if driver has profile attribute")
-                    return JsonResponse({'success': False, 'error': f'Driver profile error: {str(e)}'}, status=500)
+                    logger.error(
+                        f"Attribute error: {str(e)} - check if driver has profile attribute"
+                    )
+                    return JsonResponse(
+                        {"success": False, "error": f"Driver profile error: {str(e)}"},
+                        status=500,
+                    )
                 except Exception as e:
                     logger.error(f"Error updating driver: {str(e)}")
-                    return JsonResponse({'success': False, 'error': f'Error updating driver: {str(e)}'}, status=500)
+                    return JsonResponse(
+                        {"success": False, "error": f"Error updating driver: {str(e)}"},
+                        status=500,
+                    )
             else:
                 leg.driver = None
                 leg.save()
                 logger.info(f"Removed driver from leg {leg_id}")
-        elif field == 'status':
+        elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
                 valid_statuses = ["in-progress", "picked-up", "completed"]
@@ -332,16 +361,26 @@ def update_leg_assignment(request):
                     logger.info(f"Updated leg {leg_id} status to {value}")
                 else:
                     logger.warning(f"Invalid status value: {value}")
-                    return JsonResponse({'success': False, 'error': f'Invalid status value: {value}'}, status=400)
+                    return JsonResponse(
+                        {"success": False, "error": f"Invalid status value: {value}"},
+                        status=400,
+                    )
             except Exception as e:
                 logger.error(f"Error updating status: {str(e)}")
-                return JsonResponse({'success': False, 'error': f'Error updating status: {str(e)}'}, status=500)
+                return JsonResponse(
+                    {"success": False, "error": f"Error updating status: {str(e)}"},
+                    status=500,
+                )
         else:
             logger.warning(f"Invalid field: {field}")
-            return JsonResponse({'success': False, 'error': 'Invalid field'}, status=400)
-        
-        return JsonResponse({'success': True})
-        
+            return JsonResponse(
+                {"success": False, "error": "Invalid field"}, status=400
+            )
+
+        return JsonResponse({"success": True})
+
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
-        return JsonResponse({'success': False, 'error': f'Server error: {str(e)}'}, status=500)
+        return JsonResponse(
+            {"success": False, "error": f"Server error: {str(e)}"}, status=500
+        )

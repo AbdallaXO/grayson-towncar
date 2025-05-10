@@ -108,39 +108,45 @@ def handle_checkout_session(session):
 
                 if payment_method_id:
                     try:
-                        payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+                        payment_method = stripe.PaymentMethod.retrieve(
+                            payment_method_id
+                        )
                         payment_method_type = payment_method.type
                         logger.info(f"Payment method type: {payment_method_type}")
                     except Exception as e:
-                        logger.warning(f"Could not retrieve payment method details: {e}")
+                        logger.warning(
+                            f"Could not retrieve payment method details: {e}"
+                        )
 
                 final_amount = Decimal(full_payment_intent.amount) / 100
-                
+
                 # Handle card payments - try to save card details
-                if payment_method_type == 'card':
+                if payment_method_type == "card":
                     card_saved = save_card_to_customer(
                         customer.stripe_customer_id, payment_method_id
                     )
                     if not card_saved:
-                        logger.warning("Could not save card details, but continuing with payment processing")
+                        logger.warning(
+                            "Could not save card details, but continuing with payment processing"
+                        )
                 else:
                     # Non-card payment method (Link, SEPA, etc.) - just log it
                     logger.info(f"Non-card payment method used: {payment_method_type}")
-                
+
                 # Process the payment regardless of card saving success
                 payment.stripe_payment_intent_id = payment_intent
                 payment.payment_type = "pay_now"
                 payment.status = "paid"
                 payment.amount = final_amount
-                
+
                 # If we have payment method info, still record it
                 if payment_method_id:
                     payment.stripe_payment_method_id = payment_method_id
-                
+
                 reservation.status = "confirmed"
                 reservation.base_price = final_amount
                 reservation.total_price = final_amount
-                
+
                 with transaction.atomic():
                     payment.save()
                     reservation.save()
@@ -154,6 +160,7 @@ def handle_checkout_session(session):
         logger.error(f"Reservation {reservation_id} Not Found")
     except Exception as e:
         logger.exception(f"Error processing checkout session: {e}")
+
 
 def save_card_to_customer(customer_id: str, payment_method_id: str):
     """
@@ -172,12 +179,12 @@ def save_card_to_customer(customer_id: str, payment_method_id: str):
         logger.info("Payment method attached successfully")
 
         payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
-        
+
         # Check if this is a card payment method
-        if payment_method.type != 'card':
+        if payment_method.type != "card":
             logger.info(f"Payment method is not a card, it's: {payment_method.type}")
             return False
-            
+
         card = payment_method.card
 
         logger.info(f"Retrieved card details: {card}")

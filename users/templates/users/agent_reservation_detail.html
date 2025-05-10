@@ -1,0 +1,387 @@
+{% extends 'main.html' %}
+
+{% block content %}
+  <div class="container py-5">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="h2 mb-1">Reservation Detail</h1>
+            <p class="text-muted mb-0">Booking #{{ reservation.uuid|truncatechars:8 }}</p>
+          </div>
+          <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status and Commission -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Status</h6>
+            <span class="fw-bold fs-6">{{ reservation.get_status_display }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Trip Type</h6>
+            <p class="mb-0 fw-bold">{{ reservation.get_trip_type_display }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Total Price</h6>
+            <h4 class="mb-0">${{ reservation.total_price|floatformat:2 }}</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Your Commission (10%)</h6>
+            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}
+                
+                
+                
+                             
+                text-success
+
+
+
+
+
+
+
+
+
+
+
+              {% else %}
+
+              {% endif %}">
+              ${{ reservation.commission_amount|floatformat:2 }}
+            </h4>
+            <small class="fw-semibold {% if reservation.commission_paid %}
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                text-success
+
+
+
+
+
+
+
+
+
+
+
+              {% else %}
+
+              {% endif %}">
+              {% if reservation.commission_paid %}
+                Paid
+              {% else %}
+                Unpaid
+              {% endif %}
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Customer Information -->
+      <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Customer Information</h5>
+            <div class="mb-3">
+              <label class="text-muted small">Full Name</label>
+              <p class="mb-0">{{ reservation.customer.get_full_name }}</p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Email</label>
+              <p class="mb-0">{{ reservation.customer.email }}</p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Phone</label>
+              <p class="mb-0">{{ reservation.customer.phone }}</p>
+            </div>
+            {% if reservation.customer.address_line1 %}
+              <div class="mb-3">
+                <label class="text-muted small">Address</label>
+                <p class="mb-0">
+                  {{ reservation.customer.address_line1 }}<br />
+                  {% if reservation.customer.address_line2 %}
+                    {{ reservation.customer.address_line2 }}<br />
+                  {% endif %}
+                  {{ reservation.customer.city }}, {{ reservation.customer.state }} {{ reservation.customer.zip_code }}
+                </p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Trip Details -->
+      <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Trip Details</h5>
+            <div class="mb-3">
+              <label class="text-muted small">Vehicle</label>
+              <p class="mb-0">{{ reservation.vehicle }}</p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Passengers</label>
+              <p class="mb-0">
+                {{ reservation.passenger_count }} passenger{% if reservation.passenger_count != 1 %}s{% endif %}
+              </p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Luggage</label>
+              <p class="mb-0">
+                {{ reservation.luggage_count }} piece{% if reservation.luggage_count != 1 %}s{% endif %}
+              </p>
+            </div>
+            {% if reservation.need_carseats %}
+              <div class="mb-3">
+                <label class="text-muted small">Car Seats</label>
+                <p class="mb-0">
+                  {% if reservation.rf_carseats %}
+                    RF Seats: {{ reservation.rf_carseats }}<br />
+                  {% endif %}
+                  {% if reservation.ff_carseats %}
+                    FF Seats: {{ reservation.ff_carseats }}<br />
+                  {% endif %}
+                  {% if reservation.booster_seats %}
+                    Booster Seats: {{ reservation.booster_seats }}
+                  {% endif %}
+                </p>
+              </div>
+            {% endif %}
+            {% if reservation.store_stop %}
+              <div class="mb-3">
+                <label class="text-muted small">Store Stop</label>
+                <p class="mb-0">Yes</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leg Details -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Trip Legs</h5>
+        {% for leg in reservation.legs.all %}
+          <div class="{% if not forloop.last %}mb-4 pb-4 border-bottom{% endif %}">
+            <h6 class="mb-3">Leg {{ forloop.counter }}</h6>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="text-muted small">Pickup Date & Time</label>
+                  <p class="mb-0">{{ leg.pickup_date|date:'F d, Y' }} at {{ leg.pickup_time|time:'g:i A' }}</p>
+                </div>
+                <div class="mb-3">
+                  <label class="text-muted small">Pickup Location</label>
+                  <p class="mb-0">{{ leg.pickup_address }}</p>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="text-muted small">Dropoff Location</label>
+                  <p class="mb-0">{{ leg.dropoff_address }}</p>
+                </div>
+                {% if leg.flight_information %}
+                  <div class="mb-3">
+                    <label class="text-muted small">Flight Information</label>
+                    <p class="mb-0">
+                      Flight: {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}<br />
+                      {% if leg.flight_information.departure_airport %}
+                        From: {{ leg.flight_information.departure_airport }}<br />
+                      {% endif %}
+                      {% if leg.flight_information.arrival_airport %}
+                        To: {{ leg.flight_information.arrival_airport }}<br />
+                      {% endif %}
+                      {% if leg.flight_information.scheduled_arrival_time %}
+                        Arrival: {{ leg.flight_information.scheduled_arrival_time|time:'g:i A' }}
+                      {% endif %}
+                    </p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Special Requests and Notes -->
+    {% if reservation.special_requests or reservation.private_notes %}
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          {% if reservation.special_requests %}
+            <h5 class="card-title mb-3">Special Requests</h5>
+            <p class="mb-3">{{ reservation.special_requests }}</p>
+          {% endif %}
+          {% if reservation.private_notes %}
+            <h5 class="card-title mb-3">Private Notes</h5>
+            <p class="mb-0">{{ reservation.private_notes }}</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Commission Details -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Commission Details</h5>
+        <div class="row">
+          <div class="col-md-6">
+            <table class="table table-sm">
+              <tr>
+                <td>Base Price:</td>
+                <td class="text-end">${{ reservation.base_price|floatformat:2 }}</td>
+              </tr>
+              <tr>
+                <td>Additional Charges:</td>
+                <td class="text-end">${{ reservation.additional_charges|floatformat:2 }}</td>
+              </tr>
+              <tr class="fw-bold">
+                <td>Total Price:</td>
+                <td class="text-end">${{ reservation.total_price|floatformat:2 }}</td>
+              </tr>
+              <tr class="fw-bold">
+                <td>Commission (10%):</td>
+                <td class="text-end">${{ reservation.commission_amount|floatformat:2 }}</td>
+              </tr>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="text-muted small">Commission Status</label>
+              <p class="mb-0">
+                <span class="badge bg-{% if reservation.commission_paid %}
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    success
+
+
+
+
+
+
+
+
+
+
+
+                  {% else %}
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    warning
+
+
+
+
+
+
+
+
+
+
+
+                  {% endif %}">
+                  {% if reservation.commission_paid %}
+                    Paid
+                  {% else %}
+                    Unpaid
+                  {% endif %}
+                </span>
+              </p>
+            </div>
+            {% if reservation.commission_paid %}
+              <div class="mb-3">
+                <label class="text-muted small">Paid On</label>
+                <p class="mb-0">{{ reservation.commission_paid_at|date:'F d, Y g:i A' }}</p>
+              </div>
+            {% endif %}
+            <div>
+              <label class="text-muted small">Reservation Created</label>
+              <p class="mb-0">{{ reservation.created_at|date:'F d, Y g:i A' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .badge {
+      font-weight: 500;
+      padding: 0.5em 0.75em;
+    }
+    
+    .badge.bg-pending {
+      background-color: #ffc107;
+      color: #000;
+    }
+    
+    .badge.bg-confirmed {
+      background-color: #0dcaf0;
+      color: #000;
+    }
+    
+    .badge.bg-completed {
+      background-color: #198754;
+    }
+    
+    .badge.bg-cancelled {
+      background-color: #dc3545;
+    }
+    
+    .badge.bg-warning {
+      background-color: #ffc107;
+      color: #000;
+    }
+  </style>
+  {% block footer %}
+
+  {% endblock %}
+{% endblock %}

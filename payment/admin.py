@@ -3,6 +3,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from .models import Payment
 
+
 @admin.register(Payment)
 class UserPaymentAdmin(admin.ModelAdmin):
     list_display = (
@@ -13,7 +14,7 @@ class UserPaymentAdmin(admin.ModelAdmin):
         "amount_display",
         "created_at_display",
     )
-    list_display_links = ("status_badge", "customer", 'reservation_link')
+    list_display_links = ("status_badge", "customer", "reservation_link")
     list_filter = ("payment_type", "status", "created_at")
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
@@ -49,7 +50,9 @@ class UserPaymentAdmin(admin.ModelAdmin):
     def reservation_link(self, obj):
         if not obj.reservation_id:
             return "-"
-        url = reverse("admin:reservations_reservation_change", args=(obj.reservation_id,))
+        url = reverse(
+            "admin:reservations_reservation_change", args=(obj.reservation_id,)
+        )
         return format_html('<a href="{}">{}</a>', url, obj.reservation_id)
 
     @admin.display(ordering="amount", description="Amount")

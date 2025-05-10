@@ -3,7 +3,7 @@ from .constants import (
     FLIGHT_TYPE_CHOICES,
     TRIP_CHOICES,
     RESERVTION_STATUS,
-    DRIVER_STATUS
+    DRIVER_STATUS,
 )
 import uuid
 from decimal import Decimal
@@ -65,9 +65,9 @@ class Reservation(models.Model):
 
     luggage_count = models.PositiveIntegerField(default=1)
     need_carseats = models.BooleanField(default=False)  #
-    rf_carseats = models.PositiveIntegerField("RF-Seat",default=0)
+    rf_carseats = models.PositiveIntegerField("RF-Seat", default=0)
     ff_carseats = models.PositiveBigIntegerField("FF-Seat", default=0)
-    booster_seats = models.PositiveIntegerField("Booster",default=0)
+    booster_seats = models.PositiveIntegerField("Booster", default=0)
     uuid = models.UUIDField(blank=True, unique=True, default=uuid.uuid4, editable=False)
 
     # Special Requests
@@ -86,8 +86,14 @@ class Reservation(models.Model):
     private_notes = models.TextField(null=True, blank=True)
 
     # Travel Agent fields
-    travel_agent = models.ForeignKey("users.TravelAgent", on_delete=models.SET_NULL, null=True, blank=True)
-    commission_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    travel_agent = models.ForeignKey(
+        "users.TravelAgent", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    commission_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    commission_paid = models.BooleanField(default=False)
+    commission_paid_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -100,15 +106,19 @@ class Reservation(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.base_price:
-            self.base_price = (self.total_price - self.additional_charges) if self.total_price else 0
-        
+            self.base_price = (
+                (self.total_price - self.additional_charges) if self.total_price else 0
+            )
+
         if not self.total_price:
             self.total_price = self.base_price + (self.additional_charges or 0)
-        
+
         # Calculate commission if this is a travel agent reservation
         if self.travel_agent and not self.commission_amount:
-            self.commission_amount = self.total_price * Decimal('0.10')  # 10% commission
-        
+            self.commission_amount = self.total_price * Decimal(
+                "0.10"
+            )  # 10% commission
+
         super().save(*args, **kwargs)
 
     def display_carseats(self):
@@ -156,8 +166,13 @@ class Leg(models.Model):
         blank=True,
         related_name="legs",
     )
-    status = models.CharField(choices=DRIVER_STATUS ,null=True, blank=True, max_length=255, default="in-progress"
-)
+    status = models.CharField(
+        choices=DRIVER_STATUS,
+        null=True,
+        blank=True,
+        max_length=255,
+        default="in-progress",
+    )
 
     class Meta:
         ordering = ["pickup_date", "pickup_time"]

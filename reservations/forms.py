@@ -226,4 +226,4 @@ class ReservationAdminForm(forms.ModelForm):
 
     class Meta:
         model = Reservation
-        fields = '__all__'
+        fields = "__all__"

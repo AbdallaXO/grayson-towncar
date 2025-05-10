@@ -297,10 +297,9 @@ CKEDITOR_CONFIGS = {
 
 JAZZMIN_SETTINGS = {
     "changeform_format": "single",
-      "show_ui_builder": True,
-      "custom_css": "admin/admin_overrides.css",
-
-     "custom_links": {
+    "show_ui_builder": True,
+    "custom_css": "admin/admin_overrides.css",
+    "custom_links": {
         "reservations": [
             {
                 "name": "Today's Trips",
@@ -339,7 +338,7 @@ JAZZMIN_UI_TWEAKS = {
         "info": "btn-outline-info",
         "warning": "btn-warning",
         "danger": "btn-outline-danger",
-        "success": "btn-success"
+        "success": "btn-success",
     },
-    "actions_sticky_top": True
+    "actions_sticky_top": True,
 }

@@ -65,7 +65,6 @@ class LegResource(resources.ModelResource):
             "pickup_time",
             "pickup_location",
             "dropoff_location",
-            
         )
         export_order = fields
 
@@ -91,38 +90,35 @@ class LegInline(admin.StackedInline):
     extra = 1
     show_change_link = True
     fieldsets = (
-        ("Pick-up Details", {
-            "fields": (
-                "pickup_date",
-                "pickup_time",
-                "pickup_location",
-                "flight_information"
-            )
-        }),
-        ("Drop-off", {
-            "fields": (
-                "dropoff_location",
-            )
-        }),
-        ("Driver & Status", {
-            "fields": (
-                "driver",
-                "status",
-            )
-        }),
-        ("Notes", {
-            "fields": (
-                "private_notes",
-            ),
-            "classes": ("collapse",)
-        }),
+        (
+            "Pick-up Details",
+            {
+                "fields": (
+                    "pickup_date",
+                    "pickup_time",
+                    "pickup_location",
+                    "flight_information",
+                )
+            },
+        ),
+        ("Drop-off", {"fields": ("dropoff_location",)}),
+        (
+            "Driver & Status",
+            {
+                "fields": (
+                    "driver",
+                    "status",
+                )
+            },
+        ),
+        ("Notes", {"fields": ("private_notes",), "classes": ("collapse",)}),
     )
     classes = ("wide",)
     readonly_fields = ("status",)
 
     def get_formset(self, request, obj=None, **kwargs):
         formset = super().get_formset(request, obj, **kwargs)
-        formset.form.base_fields['driver'].widget.attrs['style'] = 'width: 100%;'
+        formset.form.base_fields["driver"].widget.attrs["style"] = "width: 100%;"
         return formset
 
 
@@ -146,7 +142,9 @@ class FirstPickupDateFilter(admin.SimpleListFilter):
         if self.value() == "tomorrow":
             return qs.filter(earliest_leg_date=today + timedelta(days=1))
         if self.value() == "next7":
-            return qs.filter(earliest_leg_date__range=(today, today + timedelta(days=7)))
+            return qs.filter(
+                earliest_leg_date__range=(today, today + timedelta(days=7))
+            )
         if self.value() == "past":
             return qs.filter(earliest_leg_date__lt=today)
         return qs
@@ -171,6 +169,7 @@ class CustomerAdmin(ImportExportModelAdmin):
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
     list_per_page = 50
+
 
 @admin.register(Reservation)
 class ReservationAdmin(ImportExportModelAdmin):
@@ -206,7 +205,7 @@ class ReservationAdmin(ImportExportModelAdmin):
         "customer__first_name",
         "customer__last_name",
         "id",
-        "vehicle__vehicle_type",   
+        "vehicle__vehicle_type",
     )
     list_per_page = 50
 
@@ -224,12 +223,14 @@ class ReservationAdmin(ImportExportModelAdmin):
                     ("ff_carseats", "rf_carseats", "booster_seats"),
                     "special_requests",
                     "private_notes",
-                    ("total_price",
-                    "additional_charges"),
+                    ("total_price", "additional_charges"),
                     "base_price",
                     "trip_type",
                     "status",
                     "payment_status_display",
+                    "commission_amount",
+                    "travel_agent",
+                    "commission_paid",
                 ),
             },
         ),
@@ -239,32 +240,36 @@ class ReservationAdmin(ImportExportModelAdmin):
     @admin.display(description="Pick-ups")
     def legs_display(self, obj):
         """Display all legs with their dates and times combined in a single field with clickable links"""
-        legs = obj.legs.all().order_by('pickup_date', 'pickup_time')
+        legs = obj.legs.all().order_by("pickup_date", "pickup_time")
         if not legs:
             return "-"
-        
+
         result = []
         for i, leg in enumerate(legs):
             # Format date as "Saturday, May 9"
-            formatted_date = leg.pickup_date.strftime("%A, %B %d") if leg.pickup_date else "-"
-            pickup_time_str = leg.pickup_time.strftime("%I:%M %p") if leg.pickup_time else "-"
-            
+            formatted_date = (
+                leg.pickup_date.strftime("%A, %B %d") if leg.pickup_date else "-"
+            )
+            pickup_time_str = (
+                leg.pickup_time.strftime("%I:%M %p") if leg.pickup_time else "-"
+            )
+
             # Create a link to the leg admin page
             leg_url = f"/admin/reservations/leg/{leg.id}/change/"
-            
+
             # Format the link with HTML
             result.append(
                 format_html(
                     '<a href="{}">{}: {} {} - {} to {}</a>',
                     leg_url,
-                    f"Leg {i+1}",
+                    f"Leg {i + 1}",
                     formatted_date,
                     pickup_time_str,
                     leg.pickup_location,
-                    leg.dropoff_location
+                    leg.dropoff_location,
                 )
             )
-        
+
         return format_html("<br>".join(result))
 
     @admin.display(description="Customer")
@@ -286,7 +291,7 @@ class ReservationAdmin(ImportExportModelAdmin):
     @admin.display(description="Payment Status")
     def payment_status_display(self, obj):
         # Check if payments related manager exists and has items
-        if not hasattr(obj, 'payments') or not obj.payments.exists():
+        if not hasattr(obj, "payments") or not obj.payments.exists():
             return "-"
 
         # Get the last payment
@@ -304,7 +309,9 @@ class ReservationAdmin(ImportExportModelAdmin):
         }
 
         # Get color based on payment status
-        colour = status_color.get(payment.status, "gray")  # Default to gray for unknown statuses
+        colour = status_color.get(
+            payment.status, "gray"
+        )  # Default to gray for unknown statuses
 
         # Return a formatted display with a clickable link to the Payment page
         return format_html(
@@ -350,16 +357,17 @@ class LegAdmin(ImportExportModelAdmin):
             return format_html('<a href="{}">{}</a>', url, obj.reservation)
         return "-"
 
-
     @admin.display(description="Status")
     def get_status(self, obj):
         return obj.reservation.status if obj.reservation else "-"
+
     @admin.display(description="Reservation Vehicle")
     def vehicle(self, obj):
         if obj.reservation and obj.reservation.vehicle:
-            return obj.reservation.vehicle.get_vehicle_type_display()  # Adjust based on your Vehicle model
+            return (
+                obj.reservation.vehicle.get_vehicle_type_display()
+            )  # Adjust based on your Vehicle model
         return "-"
-    
 
 
 @admin.register(Flight)

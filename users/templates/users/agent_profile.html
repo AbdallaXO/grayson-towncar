@@ -1,0 +1,138 @@
+{% extends 'main.html' %}
+
+{% block content %}
+  <div class="container py-5">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="h2 mb-1">Agent Profile</h1>
+            <p class="text-muted mb-0">Manage your agency information</p>
+          </div>
+          <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Form -->
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-4">Update Profile Information</h5>
+
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <form method="post">
+              {% csrf_token %}
+
+              <div class="mb-3">
+                <label for="agent_name" class="form-label">Your Full Name</label>
+                <input type="text" class="form-control" id="agent_name" name="agent_name" value="{{ travel_agent.agent_name }}" required />
+              </div>
+
+              <div class="mb-3">
+                <label for="agency_name" class="form-label">Agency Name</label>
+                <input type="text" class="form-control" id="agency_name" name="agency_name" value="{{ travel_agent.agency_name }}" required />
+              </div>
+
+              <div class="mb-3">
+                <label for="phone" class="form-label">Phone</label>
+                <input type="tel" class="form-control" id="phone" name="phone" value="{{ travel_agent.phone }}" required />
+              </div>
+
+              <div class="mb-3">
+                <label for="payment_info" class="form-label">Payment Information</label>
+                <textarea class="form-control" id="payment_info" name="payment_info" rows="3" placeholder="Preferred Way to Get Paid & Information - Paypal/Zelle/CashApp/Bank Info etc.">{{ travel_agent.payment_info }}</textarea>
+                <div class="form-text">This information will be used to process your commission payments.</div>
+              </div>
+
+              <hr class="my-4" />
+
+              <div class="mb-4">
+                <h6 class="text-muted mb-3">Commission Information</h6>
+                <div class="row">
+                  <div class="col-md-6">
+                    <label class="text-muted small">Commission Rate</label>
+                    <p class="mb-0 fs-5">{{ travel_agent.commission_rate }}%</p>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="text-muted small">Account Status</label>
+                    <p class="mb-0">
+                      <span class="badge bg-{% if travel_agent.is_active %}
+                          
+                          
+                          
+                          
+                          success
+
+
+
+
+                        {% else %}
+                          
+                          
+                          
+                          
+                          danger
+
+
+
+
+                        {% endif %}">
+                        {% if travel_agent.is_active %}
+                          Active
+                        {% else %}
+                          Inactive
+                        {% endif %}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-dark fw-semibold">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Account Information -->
+        <div class="card border-0 shadow-sm mt-4">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Account Information</h5>
+            <div class="row">
+              <div class="col-md-6">
+                <label class="text-muted small">Username</label>
+                <p class="mb-3">{{ travel_agent.user.username }}</p>
+              </div>
+              <div class="col-md-6">
+                <label class="text-muted small">Account Created</label>
+                <p class="mb-3">{{ travel_agent.created_at|date:'F d, Y' }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .badge {
+      font-weight: 500;
+      padding: 0.5em 0.75em;
+    }
+  </style>
+  {% block footer %}
+
+  {% endblock %}
+{% endblock %}

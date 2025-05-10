@@ -11,6 +11,7 @@ import json
 from django.contrib import messages
 from django.db.models import Q, Prefetch
 
+
 @login_required(login_url="login")
 def index(request):
     """
@@ -18,7 +19,7 @@ def index(request):
     """
     # Get the driver object only once
     driver = get_object_or_404(Driver, profile=request.user)
-    
+
     # Parse selected date
     selected_date = request.GET.get("date")
     try:
@@ -31,63 +32,64 @@ def index(request):
 
     # Use select_related to fetch related reservation and customer data in a single query
     # This prevents N+1 query problems
-    legs = Leg.objects.select_related(
-        'reservation', 
-        'reservation__customer',
-        'reservation__vehicle'
-    ).filter(
-        driver=driver, 
-        pickup_date=selected_date
-    ).order_by('pickup_time')
+    legs = (
+        Leg.objects.select_related(
+            "reservation", "reservation__customer", "reservation__vehicle"
+        )
+        .filter(driver=driver, pickup_date=selected_date)
+        .order_by("pickup_time")
+    )
 
     return render(
         request, "drivers/index.html", {"legs": legs, "selected_date": selected_date}
     )
 
+
 @login_required
 def completed_trips(request):
     driver = get_object_or_404(Driver, profile=request.user)
-    
+
     # Use select_related to fetch related data efficiently
-    legs = Leg.objects.select_related(
-        'reservation', 
-        'reservation__customer',
-        'reservation__vehicle'
-    ).filter(
-        driver=driver, 
-        status='completed'
-    ).order_by('-pickup_date', '-pickup_time')  # Order by most recent first
-    
+    legs = (
+        Leg.objects.select_related(
+            "reservation", "reservation__customer", "reservation__vehicle"
+        )
+        .filter(driver=driver, status="completed")
+        .order_by("-pickup_date", "-pickup_time")
+    )  # Order by most recent first
+
     return render(
-        request, "drivers/completed_trips.html", 
-        {
-            "legs": legs,
-            "title": "Completed Trips"
-        }
+        request,
+        "drivers/completed_trips.html",
+        {"legs": legs, "title": "Completed Trips"},
     )
+
 
 @login_required
 def schedule(request):
     driver = get_object_or_404(Driver, profile=request.user)
     today = timezone.localdate()
-    next_week = today + timezone.timedelta(days=10)
-    
+    next_week = today + timezone.timedelta(days=15)
+
     # Use select_related to fetch related data efficiently
-    legs = Leg.objects.select_related(
-        'reservation', 
-        'reservation__customer',
-        'reservation__vehicle'
-    ).filter(
-        driver=driver,
-        pickup_date__gte=today, 
-        pickup_date__lte=next_week
-    ).order_by('pickup_date', 'pickup_time')
-    
-    return render(request, "drivers/weekly_schedule.html", {
-        "legs": legs,
-        "today": today,
-        "next_week": next_week
-    })
+    legs = (
+        Leg.objects.select_related(
+            "reservation", "reservation__customer", "reservation__vehicle"
+        )
+        .filter(
+            driver=driver,
+            pickup_date__gte=today,
+            pickup_date__lte=next_week,
+            status__in=["picked-up", "in-progress"],
+        )
+        .order_by("pickup_date", "pickup_time")
+    )
+
+    return render(
+        request,
+        "drivers/weekly_schedule.html",
+        {"legs": legs, "today": today, "next_week": next_week},
+    )
 
 
 @login_required
@@ -96,37 +98,32 @@ def update_leg_status(request, leg_id):
     try:
         # Ensure the leg belongs to the current driver - no need to fetch related objects here
         leg = get_object_or_404(Leg, id=leg_id, driver__profile=request.user)
-        
+
         # Parse the request body
         data = json.loads(request.body)
-        new_status = data.get('status')
-        
+        new_status = data.get("status")
+
         # Validate status
-        VALID_STATUSES = ['in-progress', 'picked-up', 'completed']
+        VALID_STATUSES = ["in-progress", "picked-up", "completed"]
         if new_status not in VALID_STATUSES:
-            return JsonResponse({
-                'success': False, 
-                'error': 'Invalid status'
-            }, status=400)
-        
+            return JsonResponse(
+                {"success": False, "error": "Invalid status"}, status=400
+            )
+
         # Update and save the leg
         leg.status = new_status
-        leg.save(update_fields=['status']) 
-        
-        return JsonResponse({
-            'success': True, 
-            'message': 'Status updated successfully',
-            'new_status': new_status
-        })
-    
+        leg.save(update_fields=["status"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Status updated successfully",
+                "new_status": new_status,
+            }
+        )
+
     except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False, 
-            'error': 'Invalid JSON'
-        }, status=400)
-    
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
     except Exception as e:
-        return JsonResponse({
-            'success': False, 
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)

@@ -135,9 +135,6 @@
                     <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
                     <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
                   </div>
-                  <div>
-                    <span class="badge rounded-pill {% if leg.status == 'in-progress' %}bg-warning text-dark{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% endif %}">{{ leg.status }}</span>
-                  </div>
                 </div>
               </div>
               <div class="card-body">
@@ -185,8 +182,8 @@
                     {% endif %}
                   </div>
                 {% endif %}
-                {% if leg.reservation.store_stop %}
-                  <div class="mb-2"><div>Publix Stop @9930 Universal Blvd</div></div>
+             {% if leg.reservation.store_stop and leg == leg.reservation.legs.first %}
+        <div class="mb-2"><div>Publix Stop @9930 Universal Blvd</div></div>
                 {% endif %}
 
                 <div>

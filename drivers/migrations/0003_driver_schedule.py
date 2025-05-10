@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('drivers', '0002_remove_driver_legs_driver_vehicle'),
+        ("drivers", "0002_remove_driver_legs_driver_vehicle"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='driver',
-            name='schedule',
+            model_name="driver",
+            name="schedule",
             field=models.CharField(blank=True, max_length=255, null=True),
         ),
     ]
