@@ -1,0 +1,185 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}
+  Get a Quote | Orlando Transportation | Grayson Towncar
+{% endblock title %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Get an instant quote for your Orlando transportation needs. Choose your pickup and dropoff locations to see our competitive rates." />
+{% endblock meta_description %}
+
+{% block content %}
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <h1 class="h3 mb-4 text-center">Get a Quote</h1>
+
+            <form id="quoteForm" class="needs-validation" novalidate>
+              <div class="mb-3">
+                <label for="origin" class="form-label">Pickup Location</label>
+                <select class="form-select" id="origin" name="origin" required>
+                  <option value="">Select pickup location</option>
+                  {% for location in locations %}<option value="{{ location.id }}">{{ location.name }}</option>{% endfor %}
+                </select>
+                <div class="invalid-feedback">Please select a pickup location</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="destination" class="form-label">Dropoff Location</label>
+                <select class="form-select" id="destination" name="destination" required>
+                  <option value="">Select dropoff location</option>
+                  {% for location in locations %}<option value="{{ location.id }}">{{ location.name }}</option>{% endfor %}
+                </select>
+                <div class="invalid-feedback">Please select a dropoff location</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="vehicle" class="form-label">Vehicle Type</label>
+                <select class="form-select" id="vehicle" name="vehicle" required>
+                  <option value="">Select vehicle type</option>
+                  {% for vehicle in vehicles %}
+                    <option value="{{ vehicle.id }}">{{ vehicle.get_vehicle_type_display }}</option>
+                  {% endfor %}
+                </select>
+                <div class="invalid-feedback">Please select a vehicle type</div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Trip Type</label>
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="radio"
+                         name="tripType"
+                         id="oneWay"
+                         value="oneway"
+                         checked>
+                  <label class="form-check-label" for="oneWay">One Way</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="radio"
+                         name="tripType"
+                         id="roundTrip"
+                         value="roundtrip">
+                  <label class="form-check-label" for="roundTrip">Round Trip</label>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100">Get Quote</button>
+            </form>
+
+            <!-- Quote Results -->
+            <div id="quoteResults" class="mt-4 d-none">
+              <div class="alert alert-success">
+                <h4 class="alert-heading">Your Quote</h4>
+                <p class="mb-0">
+                  <span id="quoteRoute" class="d-block mb-2"></span>
+                  <span id="quoteVehicle" class="d-block mb-2"></span>
+                  Estimated price: <span id="quotePrice" class="fw-bold">$0.00</span>
+                </p>
+              </div>
+              <a href="#" id="bookNowBtn" class="btn btn-success w-100">Book Now</a>
+            </div>
+
+            <!-- Error Message -->
+            <div id="errorMessage" class="mt-4 d-none">
+              <div class="alert alert-info">
+                <h4 class="alert-heading">Custom Quote Required</h4>
+                <p id="errorText" class="mb-2"></p>
+                <div id="contactInfo" class="d-none">
+                  <hr>
+                  <p class="mb-2">You can reach us at:</p>
+                  <a href="tel:4072127190" class="btn btn-outline-primary btn-sm me-2">
+                    <i class="bi bi-telephone me-1"></i> (407) 212-7190
+                  </a>
+                  <a href="mailto:reservations@graysontowncar.com"
+                     class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-envelope me-1"></i> Email Us
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% block extra_js %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('quoteForm');
+            const quoteResults = document.getElementById('quoteResults');
+            const quotePrice = document.getElementById('quotePrice');
+            const bookNowBtn = document.getElementById('bookNowBtn');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const formData = new FormData(form);
+                const data = {
+                    origin: formData.get('origin'),
+                    destination: formData.get('destination'),
+                    vehicle: formData.get('vehicle'),
+                    tripType: formData.get('tripType')
+                };
+
+                try {
+                    const response = await fetch('{% url "get_quote" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        quotePrice.textContent = `$${result.price}`;
+                        document.getElementById('quoteRoute').textContent = result.route;
+                        document.getElementById('quoteVehicle').textContent = result.vehicle;
+                        quoteResults.classList.remove('d-none');
+                        document.getElementById('errorMessage').classList.add('d-none');
+                        bookNowBtn.href = result.booking_url;
+                    } else {
+                        document.getElementById('errorText').textContent = result.error;
+                        document.getElementById('errorMessage').classList.remove('d-none');
+                        quoteResults.classList.add('d-none');
+
+                        if (result.show_contact) {
+                            document.getElementById('contactInfo').classList.remove('d-none');
+                        } else {
+                            document.getElementById('contactInfo').classList.add('d-none');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                }
+            });
+
+            // Function to get CSRF token
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+        });
+    </script>
+  {% endblock extra_js %}
+{% endblock content %}

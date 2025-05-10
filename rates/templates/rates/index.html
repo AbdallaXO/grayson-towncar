@@ -29,8 +29,6 @@
                style="max-width: 700px;
                       letter-spacing: 0.3px">Choose the perfect vehicle for your Orlando transportation needs</p>
           </div>
-
-          {# Premium Vehicle Cards with Flip Animation #}
           <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-5">
             {% for vehicle in vehicles %}
               <div class="col mb-4 fade-in-up"
@@ -226,50 +224,57 @@
             </div>
           </div>
 
-          {# THIS IS FOR MOBILE #}
+          {# THIS IS FOR MOBILE AND DESKTOP #}
           <section class="py-4" aria-labelledby="vehicle-rates-heading">
             <div class="container p-0">
               <div class="row">
                 <div class="col-12">
                   {% for vehicle in vehicles %}
-                    <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in ">
+                    <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in">
                       <header id="{{ vehicle.get_vehicle_type_display|slugify }}-heading"
                               class="card-header bg-rates-dark text-white text-center py-3 position-relative">
-                        <div class="header-accent "></div>
+                        <div class="header-accent"></div>
                         <h2 class="h4 fw-light mb-0">{{ vehicle.get_vehicle_type_display }} Rates</h2>
                       </header>
                       <div class="card-body p-0">
                         <!-- Mobile-friendly price cards-->
                         <div class="d-md-none">
-                          {% for v in vehicle.rates.all %}
-                            <div class="mobile-rate-card p-3 border-bottom">
-                              <h3 class="h5 fw-semibold mb-3">{{ v.route }}</h3>
-                              <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                  <small class="text-muted d-block fw-bolder">One Way</small>
-                                  <span class="fw-semibold pricing-text">${{ v.oneway_price }}</span>
+                          {% regroup vehicle.rates.all by get_route_category as grouped_rates %}
+                          {% for category_group in grouped_rates %}
+                            <!-- Mobile Section Header -->
+
+
+                            {% for v in category_group.list %}
+                              <div class="mobile-rate-card p-3 border-bottom"
+                                   data-section="{{ category_group.grouper|slugify }}">
+                                <h3 class="h5 fw-semibold mb-3">{{ v.route }}</h3>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                  <div>
+                                    <small class="text-muted d-block fw-bolder">One Way</small>
+                                    <span class="fw-semibold pricing-text">${{ v.oneway_price }}</span>
+                                  </div>
+                                  <a href="{% url 'reserve' v.id %}?round=1"
+                                     class="btn btn-dark btn-sm rounded-pill shadow-sm"
+                                     aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                    Reserve One Way
+                                  </a>
                                 </div>
-                                <a href="{% url 'reserve' v.id %}?round=1"
-                                   class="btn btn-dark btn-sm rounded-pill shadow-sm"
-                                   aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                  Reserve One Way
-                                </a>
-                              </div>
-                              <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                  <small class="text-muted  fw-bold d-block">Round Trip</small>
-                                  <span class="fw-semibold pricing-text">${{ v.round_trip_price }}</span>
+                                <div class="d-flex justify-content-between align-items-center">
+                                  <div>
+                                    <small class="text-muted fw-bold d-block">Round Trip</small>
+                                    <span class="fw-semibold pricing-text">${{ v.round_trip_price }}</span>
+                                  </div>
+                                  <a href="{% url 'reserve' v.id %}?round=2"
+                                     class="btn btn-dark btn-sm rounded-pill shadow-sm px-2 fw-semibold"
+                                     aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                    Reserve Round-Trip
+                                  </a>
                                 </div>
-                                <a href="{% url 'reserve' v.id %}?round=2"
-                                   class="btn btn-dark btn-sm rounded-pill shadow-sm px-2 fw-semibold"
-                                   aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}"> Reserve Round-Trip
-                                </a>
                               </div>
-                            </div>
+                            {% endfor %}
                           {% endfor %}
                         </div>
 
-                        <!-- Desktop table ONLY NOT MOBILE (hidden on small screens) -->
                         <div class="table-responsive d-none d-md-block">
                           <table class="table table-striped table-hover align-middle mb-0">
                             <thead class="bg-light">
@@ -280,32 +285,39 @@
                               </tr>
                             </thead>
                             <tbody>
-                              {% for v in vehicle.rates.all %}
-                                <tr class="rate-row">
-                                  <td class="align-middle py-3">
-                                    <span class="fw-bold fs-5">{{ v.route }}</span>
-                                  </td>
-                                  <td class="text-center py-3">
-                                    <div class="d-flex align-items-center justify-content-center">
-                                      <span class="one-way-price fw-bold py-2 px-3 align-middle">${{ v.oneway_price }}</span>
-                                      <a href="{% url 'reserve' v.id %}?round=1"
-                                         class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
-                                         aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                        Reserve Now
-                                      </a>
-                                    </div>
-                                  </td>
-                                  <td class="text-center py-3">
-                                    <div class="d-flex align-items-center justify-content-center">
-                                      <span class="round-trip-price fs-6 py-2 px-3 align-middle">${{ v.round_trip_price }}</span>
-                                      <a href="{% url 'reserve' v.id %}?round=2"
-                                         class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
-                                         aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
-                                        Reserve Now
-                                      </a>
-                                    </div>
-                                  </td>
-                                </tr>
+                              {% regroup vehicle.rates.all by get_route_category as grouped_rates %}
+                              {% for category_group in grouped_rates %}
+                                <!-- Section Header with Bootstrap Classes -->
+
+
+                                <!-- Routes in this category -->
+                                {% for v in category_group.list %}
+                                  <tr class="rate-row" data-section="{{ category_group.grouper|slugify }}">
+                                    <td class="align-middle py-3">
+                                      <span class="fw-bold fs-5">{{ v.route }}</span>
+                                    </td>
+                                    <td class="text-center py-3">
+                                      <div class="d-flex align-items-center justify-content-center">
+                                        <span class="one-way-price fw-bold py-2 px-3 align-middle">${{ v.oneway_price }}</span>
+                                        <a href="{% url 'reserve' v.id %}?round=1"
+                                           class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
+                                           aria-label="Book one-way {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                          Reserve Now
+                                        </a>
+                                      </div>
+                                    </td>
+                                    <td class="text-center py-3">
+                                      <div class="d-flex align-items-center justify-content-center">
+                                        <span class="round-trip-price fs-6 py-2 px-3 align-middle">${{ v.round_trip_price }}</span>
+                                        <a href="{% url 'reserve' v.id %}?round=2"
+                                           class="btn2 text-secondary rounded-pill px-3 py-2 fs-6 align-middle"
+                                           aria-label="Book round trip {{ vehicle.get_vehicle_type_display }} trip to {{ v.route }}">
+                                          Reserve Now
+                                        </a>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                {% endfor %}
                               {% endfor %}
                             </tbody>
                           </table>
