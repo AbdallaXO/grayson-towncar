@@ -9,4 +9,6 @@ urlpatterns = [
     path("thank-you/", views.thankYou, name="thankyou"),
     path("contact-grayson-towncar/", views.contact, name="contact"),
     path('newsletter/subscribe/', views.newsletter_subscribe, name='newsletter_subscribe'),
+    path('agent/register/', views.register_agent, name='register_agent'),
+    path('agent/dashboard/', views.agent_dashboard, name='agent_dashboard'),
 ]

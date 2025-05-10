@@ -18,6 +18,7 @@ from django.shortcuts import render, reverse
 from django.db.models import Prefetch
 from rates.models import Rate, Vehicle
 import json
+from users.models import TravelAgent
 
 # Create your views here.
 
@@ -88,6 +89,16 @@ def reservation_form(
                 base_price=price,
                 vehicle=rate.vehicle,
             )
+
+            # If user is logged in and is a travel agent, tag the reservation
+            if request.user.is_authenticated:
+                try:
+                    travel_agent = TravelAgent.objects.get(user=request.user)
+                    reservation.travel_agent = travel_agent
+                    reservation.save()  # This will trigger commission calculation
+                except TravelAgent.DoesNotExist:
+                    pass  # User is not a travel agent, continue normally
+
             leg1 = leg1_form.save(commit=False)
             leg1.reservation = reservation
 
@@ -110,7 +121,7 @@ def reservation_form(
                 leg2.save()
 
             extra_charges(reservation)
-            send_internal_confirmation(reservation)
+            # send_internal_confirmation(reservation)
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (
@@ -135,7 +146,6 @@ def reservation_form(
         "vehicle": rate.vehicle,
         "airlines": AIRLINES,
         'canonical_url': request.build_absolute_uri('/rates-booking/'),
-
     }
     return render(request, "reservations/book_form.html", context)
 

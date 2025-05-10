@@ -6,6 +6,7 @@ from .constants import (
     DRIVER_STATUS
 )
 import uuid
+from decimal import Decimal
 
 
 class Customer(models.Model):
@@ -84,12 +85,17 @@ class Reservation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     private_notes = models.TextField(null=True, blank=True)
 
+    # Travel Agent fields
+    travel_agent = models.ForeignKey("users.TravelAgent", on_delete=models.SET_NULL, null=True, blank=True)
+    commission_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
     class Meta:
         indexes = [
             models.Index(fields=["customer"]),
             models.Index(fields=["trip_type"]),
             models.Index(fields=["rate"]),
             models.Index(fields=["uuid"]),
+            models.Index(fields=["travel_agent"]),
         ]
 
     def save(self, *args, **kwargs):
@@ -98,6 +104,10 @@ class Reservation(models.Model):
         
         if not self.total_price:
             self.total_price = self.base_price + (self.additional_charges or 0)
+        
+        # Calculate commission if this is a travel agent reservation
+        if self.travel_agent and not self.commission_amount:
+            self.commission_amount = self.total_price * Decimal('0.10')  # 10% commission
         
         super().save(*args, **kwargs)
 

@@ -10,7 +10,9 @@ from .forms import (
 )
 from .emails import thankyou_email
 from django.db import transaction
-from .models import NewsLetter, NewsletterSubscriptionAttempt
+from .models import NewsLetter, NewsletterSubscriptionAttempt, TravelAgent
+from reservations.models import Reservation
+from django.contrib.auth.models import User
 
 
 def thankYou(request):
@@ -133,3 +135,142 @@ def newsletter_subscribe(request):
     
     # Redirect back to the previous page
     return redirect(request.META.get('HTTP_REFERER', '/'))
+
+
+def register_agent(request):
+    if request.method == 'POST':
+        # Get form data
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
+        agent_name = request.POST.get('agent_name')
+        agency_name = request.POST.get('agency_name')
+        agency_email = request.POST.get('agency_email')
+        phone = request.POST.get('phone')
+        payment_info = request.POST.get('payment_info')
+        
+        # Validate passwords match
+        if password1 != password2:
+            messages.error(request, 'Passwords do not match.')
+            context = {
+                'form_data': {
+                    'username': username,
+                    'email': email,
+                    'agent_name': agent_name,
+                    'agency_name': agency_name,
+                    'agency_email': agency_email,
+                    'phone': phone,
+                    'payment_info': payment_info
+                }
+            }
+            return render(request, 'users/register_agent.html', context)
+            
+        # Check if username or email already exists
+        if User.objects.filter(username=username).exists():
+            messages.error(request, 'Username already exists.')
+            context = {
+                'form_data': {
+                    'username': username,
+                    'email': email,
+                    'agent_name': agent_name,
+                    'agency_name': agency_name,
+                    'agency_email': agency_email,
+                    'phone': phone,
+                    'payment_info': payment_info
+                }
+            }
+            return render(request, 'users/register_agent.html', context)
+            
+        if User.objects.filter(email=email).exists():
+            messages.error(request, 'Email already exists.')
+            context = {
+                'form_data': {
+                    'username': username,
+                    'email': email,
+                    'agent_name': agent_name,
+                    'agency_name': agency_name,
+                    'agency_email': agency_email,
+                    'phone': phone,
+                    'payment_info': payment_info
+                }
+            }
+            return render(request, 'users/register_agent.html', context)
+            
+        try:
+            # Create user account
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password1
+            )
+            
+            # Create travel agent profile
+            TravelAgent.objects.create(
+                user=user,
+                agent_name=agent_name,
+                agency_name=agency_name,
+                agency_email=agency_email,
+                phone=phone,
+                payment_info=payment_info
+            )
+            
+            # Log them in
+            login(request, user)
+            messages.success(request, 'Successfully registered as a travel agent!')
+            return redirect('agent_dashboard')
+            
+        except Exception as e:
+            messages.error(request, f'Error creating account: {str(e)}')
+            context = {
+                'form_data': {
+                    'username': username,
+                    'email': email,
+                    'agent_name': agent_name,
+                    'agency_name': agency_name,
+                    'agency_email': agency_email,
+                    'phone': phone,
+                    'payment_info': payment_info
+                }
+            }
+            return render(request, 'users/register_agent.html', context)
+            
+    return render(request, 'users/register_agent.html')
+
+
+@login_required
+def agent_dashboard(request):
+    try:
+        travel_agent = TravelAgent.objects.get(user=request.user)
+        
+        # Get status filter from query params
+        status = request.GET.get('status', 'all')
+        
+        # Base queryset
+        reservations = Reservation.objects.filter(travel_agent=travel_agent)
+        
+        # Apply status filter
+        if status == 'pending':
+            reservations = reservations.filter(status='pending')
+        elif status == 'completed':
+            reservations = reservations.filter(status='completed')
+            
+        # Get counts for stats
+        pending_count = Reservation.objects.filter(travel_agent=travel_agent, status='pending').count()
+        completed_count = Reservation.objects.filter(travel_agent=travel_agent, status='completed').count()
+        
+        # Calculate total commission
+        total_commission = sum(r.commission_amount or 0 for r in reservations)
+        
+        context = {
+            'travel_agent': travel_agent,
+            'reservations': reservations.order_by('-created_at'),
+            'total_commission': total_commission,
+            'pending_count': pending_count,
+            'completed_count': completed_count,
+            'status': status
+        }
+        return render(request, 'users/agent_dashboard.html', context)
+    except TravelAgent.DoesNotExist:
+        messages.error(request, 'You are not registered as a travel agent.')
+        return redirect('register_agent')

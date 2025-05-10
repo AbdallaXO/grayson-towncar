@@ -45,6 +45,24 @@
             </ul>
           </li>
         {% endif %}
+        {% if request.user.is_authenticated and request.user.travelagent %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle text-white"
+               href="#"
+               id="agentDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">Travel Agent</a>
+            <ul class="dropdown-menu bg-light" aria-labelledby="agentDropdown">
+              <li>
+                <a class="dropdown-item" href="{% url 'agent_dashboard' %}">Dashboard</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'logout' %}">Logout</a>
+              </li>
+            </ul>
+          </li>
+        {% endif %}
         <li class="nav-item">
           <a class="nav-link text-white" href="{% url 'home' %}">Home</a>
         </li>

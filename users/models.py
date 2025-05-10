@@ -85,3 +85,26 @@ class NewsletterSubscriptionAttempt(models.Model):
     
     def __str__(self):
         return f"{self.ip_address} - {self.email} - {self.timestamp}"
+
+class TravelAgent(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    agent_name = models.CharField(max_length=100, help_text="Your full name", null=True, blank=True)
+    agency_name = models.CharField(max_length=100, null=True, blank=True)
+    agency_email = models.EmailField(help_text="Your agency's email address", blank=True, null=True)
+    phone = models.CharField(max_length=20)
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=10.00)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Payment Information
+    payment_info = models.CharField(
+        max_length=200,
+        help_text="Enter your payment information (e.g., PayPal email, Venmo username, Cash App $username, Zelle email/phone, or bank details)", null=True, blank=True
+    )
+
+    def __str__(self):
+        return f"{self.agency_name} - {self.user.username}"
+
+    class Meta:
+        verbose_name = "Travel Agent"
+        verbose_name_plural = "Travel Agents"

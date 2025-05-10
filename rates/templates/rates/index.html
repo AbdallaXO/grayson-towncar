@@ -29,7 +29,7 @@
                style="max-width: 700px;
                       letter-spacing: 0.3px">Choose the perfect vehicle for your Orlando transportation needs</p>
           </div>
-          <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 mb-5">
+          <div class="row row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-4 g-4 mb-5 justify-content-center">
             {% for vehicle in vehicles %}
               <div class="col mb-4 fade-in-up"
                    style="--animation-delay: {{ forloop.counter0|add:1 }}00ms">
@@ -194,35 +194,6 @@
           </div>
 
           <!-- Enhanced Contact Information Box -->
-          <div class="bg-white p-4 rounded shadow-sm mb-5 position-relative overflow-hidden contact-box fade-in">
-            <div class="contact-box-decoration"></div>
-            <div class="position-relative">
-              <div class="d-flex align-items-center mb-3">
-                <div class="bg-warning text-white d-flex align-items-center justify-content-center rounded-circle"
-                     style="width: 38px;
-                            height: 38px"
-                     aria-hidden="true">
-                  <i class="bi bi-info fs-1" aria-hidden="true"></i>
-                </div>
-                <h2 class="h4 fw-light mb-0 ms-3">Don't See Your Route Listed?</h2>
-              </div>
-              <p class="text-muted mb-4" style="letter-spacing: 0.2px;">
-                Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
-              </p>
-              <div class="d-flex flex-column flex-md-row gap-2">
-                <a href="tel:+14072127190"
-                   aria-label="Call Grayson Town Car at 407-212-7190"
-                   class="btn btn-sm btn-warning me-md-2 mb-2 mb-md-0 d-flex align-items-center justify-content-center">
-                  <i class="bi bi-telephone me-2" aria-hidden="true"></i> (407) 212-7190
-                </a>
-                <a href="mailto:reservations@graysontowncar.com"
-                   aria-label="Email Grayson Town Car for reservations"
-                   class="btn btn-sm btn-outline-dark d-flex align-items-center justify-content-center">
-                  <i class="bi bi-envelope me-2" aria-hidden="true"></i> reservations@graysontowncar.com
-                </a>
-              </div>
-            </div>
-          </div>
 
           {# THIS IS FOR MOBILE AND DESKTOP #}
           <section class="py-4" aria-labelledby="vehicle-rates-heading">
@@ -331,6 +302,35 @@
             </div>
           </section>
 
+          <div class="bg-white p-4 rounded shadow-sm mb-5 position-relative overflow-hidden contact-box fade-in">
+            <div class="contact-box-decoration"></div>
+            <div class="position-relative">
+              <div class="d-flex align-items-center mb-3">
+                <div class="bg-warning text-white d-flex align-items-center justify-content-center rounded-circle"
+                     style="width: 38px;
+                            height: 38px"
+                     aria-hidden="true">
+                  <i class="bi bi-info fs-1" aria-hidden="true"></i>
+                </div>
+                <h2 class="h4 fw-light mb-0 ms-3">Don't See Your Route Listed?</h2>
+              </div>
+              <p class="text-muted mb-4" style="letter-spacing: 0.2px;">
+                Not to worry! We accommodate all transportation needs throughout Central Florida. Contact us for a tailored route for you.
+              </p>
+              <div class="d-flex flex-column flex-md-row gap-2">
+                <a href="tel:+14072127190"
+                   aria-label="Call Grayson Town Car at 407-212-7190"
+                   class="btn btn-sm btn-warning me-md-2 mb-2 mb-md-0 d-flex align-items-center justify-content-center">
+                  <i class="bi bi-telephone me-2" aria-hidden="true"></i> (407) 212-7190
+                </a>
+                <a href="mailto:reservations@graysontowncar.com"
+                   aria-label="Email Grayson Town Car for reservations"
+                   class="btn btn-sm btn-outline-dark d-flex align-items-center justify-content-center">
+                  <i class="bi bi-envelope me-2" aria-hidden="true"></i> reservations@graysontowncar.com
+                </a>
+              </div>
+            </div>
+          </div>
           <!-- Inclusions Section -->
           <section class="container my-4 fade-in">
             <h2 class="text-center mb-3">All Rates Include</h2>

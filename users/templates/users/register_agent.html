@@ -1,0 +1,138 @@
+{% extends 'main.html' %}
+
+{% block content %}
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-7 col-xl-6">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="text-center mb-4">
+              <h1 class="h3 fw-bold mb-2">Travel Agent Registration</h1>
+              <p class="text-muted mb-0">
+                Welcome to <strong>Grayson Towncar</strong> — we're excited to partner with you.
+              </p>
+              <small class="text-muted">
+                We offer <strong>10% commission</strong> on completed rides, paid directly to independent agents or to the agency for agency bookings.
+              </small>
+            </div>
+
+            {% if messages %}
+              {% for message in messages %}<div class="alert alert-{{ message.tags }} text-center">{{ message }}</div>{% endfor %}
+            {% endif %}
+
+            <form method="post" novalidate>
+              {% csrf_token %}
+
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="username" class="form-label">Username</label>
+                  <input type="text"
+                         class="form-control"
+                         id="username"
+                         name="username"
+                         value="{{ form_data.username|default:'' }}"
+                         required>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="email" class="form-label">Email</label>
+                  <input type="email"
+                         class="form-control"
+                         id="email"
+                         name="email"
+                         value="{{ form_data.email|default:'' }}"
+                         required>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="password1" class="form-label">Password</label>
+                  <input type="password"
+                         class="form-control"
+                         id="password1"
+                         name="password1"
+                         required>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="password2" class="form-label">Confirm Password</label>
+                  <input type="password"
+                         class="form-control"
+                         id="password2"
+                         name="password2"
+                         required>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="agent_name" class="form-label">Your Full Name</label>
+                  <input type="text"
+                         class="form-control"
+                         id="agent_name"
+                         name="agent_name"
+                         value="{{ form_data.agent_name|default:'' }}"
+                         required>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="agency_name" class="form-label">Agency Name</label>
+                  <input type="text"
+                         class="form-control"
+                         id="agency_name"
+                         name="agency_name"
+                         value="{{ form_data.agency_name|default:'' }}"
+                         required>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="agency_email" class="form-label">Agency Email (Optional)</label>
+                  <input type="email"
+                         class="form-control"
+                         id="agency_email"
+                         name="agency_email"
+                         value="{{ form_data.agency_email|default:'' }}">
+                </div>
+
+                <div class="col-md-6 mb-3">
+                  <label for="phone" class="form-label">Phone Number</label>
+                  <input type="tel"
+                         class="form-control"
+                         id="phone"
+                         name="phone"
+                         value="{{ form_data.phone|default:'' }}"
+                         required>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="payment_info" class="form-label">Commission Payment Info</label>
+                <input type="text"
+                       class="form-control"
+                       id="payment_info"
+                       name="payment_info"
+                       value="{{ form_data.payment_info|default:'' }}"
+                       placeholder="e.g. PayPal email, Venmo @username, Zelle phone"
+                       required>
+                <div class="form-text">Please enter the payment method where you'd like to receive commissions.</div>
+              </div>
+
+              <div class="d-grid">
+                <button type="submit" class="btn btn-primary">Register Account</button>
+              </div>
+            </form>
+
+            <div class="text-center mt-4">
+              <small class="text-muted">
+                Questions? Contact our agent support team at <a href="mailto:reservations@graysontowncar.com">reservations@graysontowncar.com</a>.
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

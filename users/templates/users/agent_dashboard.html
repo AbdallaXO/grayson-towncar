@@ -1,0 +1,213 @@
+{% extends 'main.html' %}
+
+{% block content %}
+  <div class="container py-5">
+    <!-- Welcome Section -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="h2 mb-1">Welcome, {{ travel_agent.agent_name }}</h1>
+            <p class="text-muted mb-0">{{ travel_agent.agency_name }}</p>
+          </div>
+          <a href="{% url 'rates' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>New Reservation
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h6 class="text-muted mb-2">Total Commission</h6>
+            <h3 class="mb-0">${{ total_commission|floatformat:2 }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h6 class="text-muted mb-2">Total Reservations</h6>
+            <h3 class="mb-0">{{ reservations|length }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h6 class="text-muted mb-2">Pending Reservations</h6>
+            <h3 class="mb-0">{{ pending_count }}</h3>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h6 class="text-muted mb-2">Completed Reservations</h6>
+            <h3 class="mb-0">{{ completed_count }}</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agency Information -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Agency Information</h5>
+            <div class="mb-3">
+              <label class="text-muted small">Agency Name</label>
+              <p class="mb-0">{{ travel_agent.agency_name }}</p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Your Name</label>
+              <p class="mb-0">{{ travel_agent.agent_name }}</p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Phone</label>
+              <p class="mb-0">{{ travel_agent.phone }}</p>
+            </div>
+            {% if travel_agent.agency_email %}
+              <div class="mb-3">
+                <label class="text-muted small">Agency Email</label>
+                <p class="mb-0">{{ travel_agent.agency_email }}</p>
+              </div>
+            {% endif %}
+            <div>
+              <label class="text-muted small">Payment Information</label>
+              <p class="mb-0">{{ travel_agent.payment_info }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Recent Activity</h5>
+            {% if reservations %}
+              <div class="list-group list-group-flush">
+                {% for reservation in reservations|slice:":5" %}
+                  <div class="list-group-item px-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h6 class="mb-1">{{ reservation.customer.get_full_name }}</h6>
+                        <small class="text-muted">{{ reservation.legs.last.pickup_date|date:"M d, Y" }}</small>
+                      </div>
+                      <span class="badge bg-{{ reservation.status|lower }}">{{ reservation.get_status_display }}</span>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-muted mb-0">No recent activity.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reservations Table -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">All Reservations</h5>
+          <div class="btn-group">
+            <a href="?status=all"
+               class="btn btn-outline-secondary btn-sm {% if status == 'all' %}active{% endif %}">All</a>
+            <a href="?status=pending"
+               class="btn btn-outline-secondary btn-sm {% if status == 'pending' %}active{% endif %}">Pending</a>
+            <a href="?status=completed"
+               class="btn btn-outline-secondary btn-sm {% if status == 'completed' %}active{% endif %}">Completed</a>
+          </div>
+        </div>
+
+        {% if reservations %}
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Trip Details</th>
+                  <th>Customer</th>
+                  <th>Vehicle</th>
+                  <th>Status</th>
+                  <th>Commission</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for reservation in reservations %}
+                  <tr>
+                    <td>
+                      <div class="d-flex flex-column">
+                        <span class="fw-bold">{{ reservation.get_trip_type_display }}</span>
+                        {% for leg in reservation.legs.all %}
+                          <small class="text-muted">
+                            {{ leg.pickup_date|date:"M d, Y" }} {{ leg.pickup_time|time:"g:i A" }}
+                            {% if leg.flight_information %}
+                              <br>
+                              Flight: {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                            {% endif %}
+                          </small>
+                        {% endfor %}
+                      </div>
+                    </td>
+                    <td>
+                      <div class="d-flex flex-column">
+                        <span>{{ reservation.customer.get_full_name }}</span>
+                        <small class="text-muted">{{ reservation.customer.email }}</small>
+                        <small class="text-muted">{{ reservation.customer.phone }}</small>
+                      </div>
+                    </td>
+                    <td>{{ reservation.vehicle }}</td>
+                    <td>
+                      <span class="badge bg-{{ reservation.status|lower }}">{{ reservation.get_status_display }}</span>
+                    </td>
+                    <td>${{ reservation.commission_amount|default:"0.00"|floatformat:2 }}</td>
+                    <td>
+                      <a href="#" class="btn btn-sm btn-outline-primary">View</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">No reservations found.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <style>
+      .badge {
+          font-weight: 500;
+          padding: 0.5em 0.75em;
+      }
+
+      .badge.bg-pending {
+          background-color: #ffc107;
+          color: #000;
+      }
+
+      .badge.bg-confirmed {
+          background-color: #0dcaf0;
+          color: #000;
+      }
+
+      .badge.bg-completed {
+          background-color: #198754;
+      }
+
+      .badge.bg-cancelled {
+          background-color: #dc3545;
+      }
+  </style>
+  {% block footer %}
+  {% endblock footer %}
+{% endblock %}
