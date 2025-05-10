@@ -1,11 +1,8 @@
 document.addEventListener('DOMContentLoaded', function () {
-  console.log('Vehicle card script initialized');
+  console.log('Rates page script initialized');
 
-  // Cache elements and constants
+  // Cache elements
   const DOM_ELEMENTS = {
-    vehicleCards: document.querySelectorAll('.vehicle-card-container'),
-    flipButtons: document.querySelectorAll('.flip-card-btn'),
-    viewRateButtons: document.querySelectorAll('.view-rates-btn'),
     rateSections: document.querySelectorAll('.rate-card'),
     mobileRateCards: document.querySelectorAll('.mobile-rate-card'),
     smoothScrollAnchors: document.querySelectorAll('a[href^="#"]'),
@@ -17,42 +14,25 @@ document.addEventListener('DOMContentLoaded', function () {
   initializeFeatures();
 
   function initializeFeatures() {
-    ensureCardsAreVisible();
-    setupCardFlip();
-    setupSmoothScrolling();
     setupScrollAnimations();
-
-    // Initialize new features
     initializeVehicleTabs();
     initializeRouteFilters();
-    setupViewRatesNavigation();
-
-    if (isMobile) {
-      applyMobileOptimizations();
-    } else {
-      setupHoverEffects();
-    }
   }
 
   // Vehicle Tab Navigation System
   function initializeVehicleTabs() {
     const ratesContainer = document.querySelector('.container.p-0');
-    if (!ratesContainer) return;
-
-    // First, ensure all rate cards are visible initially
-    DOM_ELEMENTS.rateSections.forEach((card) => {
-      card.style.display = 'block';
-    });
+    if (!ratesContainer || !DOM_ELEMENTS.rateSections.length) return;
 
     // Create tab navigation HTML
     const tabNavHTML = `
       <div class="vehicle-tabs-container mb-4">
         <nav class="vehicle-tabs" role="tablist" aria-label="Vehicle type navigation">
           ${Array.from(DOM_ELEMENTS.rateSections)
-            .map((card, index) => {
-              const vehicleType = card.querySelector('h2').textContent.replace(' Rates', '');
-              const activeClass = index === 0 ? 'active' : '';
-              return `
+        .map((card, index) => {
+          const vehicleType = card.dataset.vehicleType || card.querySelector('h2').textContent.replace(' Rates', '');
+          const activeClass = index === 0 ? 'active' : '';
+          return `
               <button class="vehicle-tab ${activeClass}" 
                       role="tab" 
                       aria-selected="${index === 0 ? 'true' : 'false'}"
@@ -62,12 +42,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 ${vehicleType}
               </button>
             `;
-            })
-            .join('')}
+        })
+        .join('')}
         </nav>
         
-        <div class="vehicle-preview" id="vehicle-preview">
-          <!-- Preview content will be inserted dynamically -->
+        <div class="vehicle-preview mb-4 bg-white shadow-sm fade-in" id="vehicle-preview" style="display: none;">
+          <div class="card border-0">
+            <div class="row g-0">
+              <div class="col-md-6 p-4">
+                <div class="preview-image text-center">
+                  <img src="" alt="" class="img-fluid" style="max-height: 200px; width: auto; border-radius: 8px;" />
+                </div>
+              </div>
+              <div class="col-md-6 p-4">
+                <div class="preview-details">
+                  <h3 class="preview-title h4 fw-bold mb-4"></h3>
+                  <div class="preview-specs d-flex flex-column gap-3">
+                    <div class="spec-item d-flex align-items-center">
+                      <img src="/static/images/passengers.webp" class="vehicle-icon me-3" alt="Passengers icon" aria-hidden="true" style="width: 1.5em; height: 1.5em;" />
+                      <span class="preview-capacity fs-5"></span>
+                    </div>
+                    <div class="spec-item d-flex align-items-center">
+                      <img src="/static/images/luggage.webp" class="vehicle-icon me-3" alt="Luggage icon" aria-hidden="true" style="width: 1.5em; height: 1.5em;" />
+                      <span class="preview-luggage fs-5"></span>
+                    </div>
+                    <div class="spec-item d-flex align-items-center">
+                      <img src="/static/images/carseat.webp" class="vehicle-icon me-3" alt="Car Seats icon" aria-hidden="true" style="width: 1.5em; height: 1.5em;" />
+                      <span class="preview-carseats fs-5"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -111,14 +118,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function showVehicleRates(vehicleType) {
     DOM_ELEMENTS.rateSections.forEach((card) => {
-      const cardTitle = card.querySelector('h2').textContent;
-      const cardVehicleType = cardTitle.replace(' Rates', '').replace(/\s*-.*$/, '');
+      const cardVehicleType = card.dataset.vehicleType || card.querySelector('h2').textContent.replace(' Rates', '');
 
-      // Use exact matching instead of includes
-      const isMatch = cardVehicleType === vehicleType;
-
-      // Ensure the card is displayed with proper opacity
-      if (isMatch) {
+      if (cardVehicleType === vehicleType) {
         card.style.display = 'block';
         card.style.opacity = '1';
         card.classList.add('fade-in');
@@ -131,44 +133,44 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function updateVehiclePreview(vehicleType) {
-    const vehicleCard = Array.from(document.querySelectorAll('.vehicle-card-front')).find(
-      (card) => {
-        const title = card.querySelector('.card-title').textContent;
-        return title === vehicleType;
-      }
-    );
+    // Find the rate card for this vehicle type
+    const rateCard = Array.from(DOM_ELEMENTS.rateSections).find((card) => {
+      const cardVehicleType = card.dataset.vehicleType || card.querySelector('h2').textContent.replace(' Rates', '');
+      return cardVehicleType === vehicleType;
+    });
 
-    if (!vehicleCard) return;
-
-    const image = vehicleCard.querySelector('img').src;
-    const title = vehicleCard.querySelector('.card-title').textContent;
-    const details = vehicleCard.querySelectorAll('.vehicle-details p');
-
-    const previewHTML = `
-      <div class="preview-content">
-        <div class="preview-image">
-          <img src="${image}" alt="${title}" class="img-fluid" />
-        </div>
-        <div class="preview-details">
-          <h3 class="preview-title">${title}</h3>
-          <div class="preview-specs">
-            ${Array.from(details)
-              .map(
-                (detail) => `
-              <div class="spec-item">
-                ${detail.innerHTML}
-              </div>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-      </div>
-    `;
+    if (!rateCard) return;
 
     const preview = document.getElementById('vehicle-preview');
-    preview.innerHTML = previewHTML;
-    preview.style.opacity = '1';
+    if (!preview) return;
+
+    // Show the preview container
+    preview.style.display = 'block';
+    preview.classList.add('fade-in');
+
+    // Update preview content using data attributes from the rate card
+    const previewImg = preview.querySelector('.preview-image img');
+    const previewTitle = preview.querySelector('.preview-title');
+    const previewCapacity = preview.querySelector('.preview-capacity');
+    const previewLuggage = preview.querySelector('.preview-luggage');
+    const previewCarseats = preview.querySelector('.preview-carseats');
+
+    if (previewImg && previewTitle && previewCapacity && previewLuggage && previewCarseats) {
+      // Get data from rate card attributes
+      previewImg.src = rateCard.dataset.vehicleImage || '';
+      previewImg.alt = `${vehicleType} - Orlando Luxury Transportation`;
+      previewTitle.textContent = vehicleType;
+      previewCapacity.textContent = `${rateCard.dataset.capacity || '3'} Passengers`;
+      previewLuggage.textContent = `${rateCard.dataset.luggage || '3'} Suitcases`;
+      previewCarseats.textContent = rateCard.dataset.carseats || 'Car Seats Available';
+
+      // Add transition effect
+      preview.style.opacity = '0';
+      requestAnimationFrame(() => {
+        preview.style.transition = 'opacity 0.3s ease-in-out';
+        preview.style.opacity = '1';
+      });
+    }
   }
 
   // Route Filtering System
@@ -180,13 +182,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const filterHTML = `
     <div class="route-filters-container mb-4">
       <div class="filter-buttons" role="group" aria-label="Route filters">
-        <button class="filter-btn active" data-filter="all">All Routes</button>
-        <button class="filter-btn" data-filter="airport">Airport</button>
-        <button class="filter-btn" data-filter="disney">Disney</button>
-        <button class="filter-btn" data-filter="universal">Universal</button>
-        <button class="filter-btn" data-filter="cruise">Cruise Port</button>
-        <button class="filter-btn" data-filter="popular">Popular</button>
-        <button class="filter-btn clear-filter" data-filter="clear">Clear All</button>
+        <button class="fw-bold fs-6 filter-btn active" data-filter="all">All Routes</button>
+        <button class="fw-bold fs-6 filter-btn" data-filter="airport">Airport</button>
+        <button class="fw-bold fs-6 filter-btn" data-filter="disney">Disney</button>
+        <button class="fw-bold fs-6 filter-btn" data-filter="universal">Universal</button>
+        <button class="fw-bold fs-6 filter-btn" data-filter="cruise">Port Canaveral</button>
+        <button class="fw-bold fs-6 filter-btn" data-filter="popular">Popular</button>
+        <button class="fw-bold fs-6 filter-btn clear-filter" data-filter="clear">Clear All</button>
       </div>
     </div>
   `;
@@ -323,134 +325,13 @@ document.addEventListener('DOMContentLoaded', function () {
       airport: 'Airport',
       disney: 'Disney',
       universal: 'Universal',
-      cruise: 'Cruise Port',
+      cruise: 'Port Canaveral',
       popular: 'Popular',
     };
     return filterNames[filter] || filter;
   }
 
-  // Enhanced View Rates Navigation
-  function setupViewRatesNavigation() {
-    DOM_ELEMENTS.viewRateButtons.forEach((button) => {
-      button.addEventListener('click', function (e) {
-        e.preventDefault();
-
-        const vehicleCard = this.closest('.vehicle-card-front');
-        const vehicleType = vehicleCard.querySelector('.card-title').textContent;
-        const targetId = this.getAttribute('href').substring(1);
-
-        // Find the corresponding tab
-        const tabs = document.querySelectorAll('.vehicle-tab');
-        const targetTab = Array.from(tabs).find((tab) => {
-          return tab.textContent === vehicleType;
-        });
-
-        // Activate the tab
-        if (targetTab) {
-          targetTab.click();
-        }
-
-        // Scroll to the rates section after tab change
-        setTimeout(() => {
-          const targetElement = document.getElementById(targetId);
-          if (targetElement) {
-            const offset = isMobile ? 60 : 80;
-            const targetPosition =
-              targetElement.getBoundingClientRect().top + window.pageYOffset - offset;
-
-            window.scrollTo({
-              top: targetPosition,
-              behavior: 'smooth',
-            });
-          }
-        }, 300);
-      });
-    });
-  }
-
-  // Existing functions with enhancements
-  function ensureCardsAreVisible() {
-    document.querySelectorAll('.vehicle-card-container').forEach((container) => {
-      container.style.display = 'block';
-      container.style.height = '100%';
-    });
-    document.querySelectorAll('.vehicle-card-front').forEach((front) => {
-      front.style.display = 'flex';
-      front.style.position = 'relative';
-      front.style.zIndex = '1';
-    });
-    document.querySelectorAll('.vehicle-card-back').forEach((back) => {
-      back.style.position = 'absolute';
-      back.style.top = '0';
-      back.style.left = '0';
-      back.style.right = '0';
-      back.style.bottom = '0';
-    });
-  }
-
-  function setupCardFlip() {
-    DOM_ELEMENTS.flipButtons.forEach((button) => {
-      button.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const container = this.closest('.vehicle-card-container');
-        if (container) {
-          // Close other flipped cards
-          document.querySelectorAll('.vehicle-card-container.flipped').forEach((card) => {
-            if (card !== container) {
-              card.classList.remove('flipped');
-            }
-          });
-
-          container.classList.toggle('flipped');
-          const isFlipped = container.classList.contains('flipped');
-          this.setAttribute('aria-expanded', isFlipped ? 'true' : 'false');
-
-          if (isMobile && isFlipped) {
-            document.body.classList.add('card-flipped');
-          } else {
-            document.body.classList.remove('card-flipped');
-          }
-        }
-      });
-    });
-
-    if (isMobile) {
-      document.addEventListener('click', function (e) {
-        const flippedContainer = document.querySelector('.vehicle-card-container.flipped');
-        if (
-          flippedContainer &&
-          !e.target.closest('.vehicle-card-back') &&
-          !e.target.closest('.flip-card-btn')
-        ) {
-          flippedContainer.classList.remove('flipped');
-          document.body.classList.remove('card-flipped');
-        }
-      });
-    }
-  }
-
-  function setupSmoothScrolling() {
-    DOM_ELEMENTS.smoothScrollAnchors.forEach((anchor) => {
-      anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-          document.querySelectorAll('.vehicle-card-container.flipped').forEach((card) => {
-            card.classList.remove('flipped');
-          });
-          const offset = isMobile ? 60 : 80;
-          const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - offset;
-          window.scrollTo({
-            top: targetPosition,
-            behavior: 'smooth',
-          });
-        }
-      });
-    });
-  }
-
+  // Scroll animations
   function setupScrollAnimations() {
     function animateElements() {
       const elements = document.querySelectorAll('.fade-in, .rate-card, .inclusion-item');
@@ -462,53 +343,15 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
     }
+
+    // Initial animation
     setTimeout(animateElements, 100);
+
+    // Animate on scroll
     window.addEventListener('scroll', animateElements);
   }
 
-  function applyMobileOptimizations() {
-    document.querySelectorAll('.flip-indicator').forEach((indicator) => {
-      indicator.style.opacity = '1';
-      indicator.style.transform = 'rotate(180deg)';
-    });
-    document.querySelectorAll('.flip-card-btn, .view-rates-btn').forEach((btn) => {
-      btn.style.minHeight = '36px';
-      btn.addEventListener('touchstart', function () {
-        this.style.transform = 'scale(0.97)';
-      });
-      btn.addEventListener('touchend', function () {
-        this.style.transform = 'scale(1)';
-        setTimeout(() => {
-          this.blur();
-        }, 300);
-      });
-    });
-  }
-
-  function setupHoverEffects() {
-    document.querySelectorAll('.vehicle-card').forEach((card) => {
-      const front = card.querySelector('.vehicle-card-front');
-      if (front) {
-        front.addEventListener('mouseenter', function () {
-          this.style.boxShadow = '0 0.5rem 1rem rgba(0,0,0,0.1)';
-          const indicator = this.querySelector('.flip-indicator');
-          if (indicator) {
-            indicator.style.opacity = '1';
-            indicator.style.transform = 'rotate(180deg)';
-          }
-        });
-        front.addEventListener('mouseleave', function () {
-          this.style.boxShadow = '0 0.125rem 0.25rem rgba(0,0,0,0.075)';
-          const indicator = this.querySelector('.flip-indicator');
-          if (indicator) {
-            indicator.style.opacity = '0';
-            indicator.style.transform = 'rotate(0deg)';
-          }
-        });
-      }
-    });
-  }
-
+  // Mobile device detection
   function isMobileDevice() {
     return (
       window.innerWidth < 768 ||

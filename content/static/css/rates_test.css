@@ -1,9 +1,9 @@
 /* ================================
    Grayson Towncar Rates Page - CSS
-   Modern, cleaner styles with reduced redundancy
+   Clean, optimized styles
    ================================ */
 
-/* Enhanced Global Animations */
+/* Core Animations */
 .fade-in {
   opacity: 0;
   animation: fadeIn 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -16,29 +16,16 @@
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
-/* 
 
-/* Enhanced Vehicle Card Structure */
+/* Vehicle Cards */
 .vehicle-card-container {
   perspective: 1200px;
   height: 440px;
@@ -59,7 +46,6 @@
   transform: rotateY(180deg);
 }
 
-/* Enhanced Shared styles for card faces */
 .vehicle-card-front,
 .vehicle-card-back {
   width: 100%;
@@ -75,7 +61,6 @@
   background-color: white;
 }
 
-/* Enhanced Front face specific rules */
 .vehicle-card-front {
   z-index: 1;
   position: relative;
@@ -86,7 +71,6 @@
   transform: translateY(-5px);
 }
 
-/* Enhanced Back face specific rules */
 .vehicle-card-back {
   transform: rotateY(180deg);
   background-color: #fcfcfc;
@@ -97,23 +81,16 @@
   bottom: 0;
 }
 
-/* Enhanced Accent decoration for cards */
 .vehicle-card-accent {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 4px;
-  background: linear-gradient(
-    90deg,
-    rgba(108, 117, 125, 0.7),
-    rgba(108, 117, 125, 0.3) 50%,
-    rgba(255, 255, 255, 0)
-  );
+  background: linear-gradient(90deg, rgba(108, 117, 125, 0.7), rgba(108, 117, 125, 0.3) 50%, rgba(255, 255, 255, 0));
 }
-*/
 
-/* Enhanced Image Zoom Effect */
+/* Image and Button Styles */
 .img-zoom {
   transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 100%;
@@ -128,7 +105,6 @@
   filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.15));
 }
 
-/* Enhanced Flip Button & Indicator */
 .flip-card-btn {
   z-index: 10;
   cursor: pointer;
@@ -154,11 +130,6 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-.flip-icon {
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Enhanced Show indicator when hovered or focused */
 .vehicle-card-front:hover .flip-indicator,
 .flip-card-btn:hover .flip-indicator,
 .flip-card-btn:focus .flip-indicator {
@@ -166,7 +137,7 @@
   transform: rotate(180deg) scale(1);
 }
 
-/* Enhanced Button Styling */
+/* Button Styles */
 .btn-outline-secondary,
 .btn-outline-dark,
 .view-rates-btn {
@@ -203,7 +174,7 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* Enhanced Contact Box */
+/* Contact Box */
 .contact-box {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 1rem;
@@ -291,7 +262,6 @@
   color: #28a745;
 }
 
-/* Optional: Add card hover effect */
 .inclusion-item {
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -301,60 +271,8 @@
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 767.98px) {
-  .vehicle-card-front,
-  .vehicle-card-back {
-    position: relative;
-  }
-  .vehicle-card-back {
-    position: absolute;
-  }
-  .vehicle-card {
-    min-height: 380px;
-  }
-  .flip-indicator {
-    opacity: 1;
-    transform: rotate(180deg);
-  }
-  .flip-card-btn {
-    min-width: 40px;
-    min-height: 36px;
-  }
-  .view-rates-btn {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.875rem;
-  }
-  .display-4 {
-    font-size: 2.25rem;
-  }
-  .lead {
-    font-size: 1.1rem;
-  }
-}
-
-/* Accessibility Focus */
-.btn:focus-visible {
-  outline: 3px solid rgba(108, 117, 125, 0.4);
-  outline-offset: 2px;
-}
-
-.bg-rates-dark {
-  background-color: #091428 !important;
-}
-
-/* One Way price styling */
-.one-way-price {
-  font-weight: bold;
-  color: #1e282d;
-  background-color: transparent;
-  border: none;
-  padding: 0;
-  margin-right: 10px;
-  text-align: center;
-}
-
-/* Round Trip price styling */
+/* Price Styling */
+.one-way-price,
 .round-trip-price {
   font-weight: bold;
   color: #1e282d;
@@ -364,45 +282,66 @@
   text-align: center;
 }
 
-/* Removes hover effect */
+.one-way-price {
+  margin-right: 10px;
+}
+
 .one-way-price:hover,
 .round-trip-price:hover {
   color: #1e282dc2 !important;
   background-color: transparent !important;
 }
 
-/* Add a border to the right of the One Way column */
-.table th:nth-child(2),
-.table td:nth-child(2) {
-  border-right: 1px solid #ccc !important;
+/* Table Styling */
+.table-responsive {
+  margin: 0;
+  padding: 0;
+  border: none;
+  overflow-x: hidden;
 }
 
-/* Optional: Adding spacing between the columns */
+.table {
+  margin-bottom: 0;
+  width: 100%;
+}
+
 .table th,
 .table td {
-  padding-right: 15px;
-  padding-left: 15px;
+  padding: 0.75rem;
+  vertical-align: middle;
 }
 
-/* Remove background color, make text smaller, and adjust padding */
+.table th:nth-child(2),
+.table td:nth-child(2) {
+  border-right: 1px solid #dee2e6;
+}
+
+/* Price and Button Container */
+.table td .d-flex {
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+/* Reserve Button */
 .btn2 {
   background-color: transparent !important;
-  color: #6c757d;
+  color: #0A1428 ;
   font-size: 0.875rem;
   padding: 0.5rem 1rem;
   border: 1px solid #6c757d;
-  min-width: 90px;
   white-space: nowrap;
   text-decoration: none;
+  transition: all 0.3s ease;
 }
 
 .btn2:hover {
-  background-color: transparent;
-  color: #49505795;
+  background-color: #0A1428  !important;
+  color: #c4a104;
+  border-color: #6c757d;
   text-decoration: none;
 }
 
-/* Vehicle Tab Navigation - Enhanced Styling */
+/* Vehicle Tabs */
 .vehicle-tabs-container {
   margin-bottom: 2rem;
   padding: 0;
@@ -453,7 +392,7 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-/* Vehicle Preview Box - Enhanced Card Style */
+/* Vehicle Preview */
 .vehicle-preview {
   background: white;
   border-radius: 0.75rem;
@@ -527,7 +466,7 @@
   margin-right: 0.5rem;
 }
 
-/* Route Filters - Enhanced Bootstrap Card Style */
+/* Route Filters */
 .route-filters-container {
   margin-bottom: 1.5rem;
   padding: 0;
@@ -555,7 +494,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 0.3px;
 }
 
@@ -588,6 +527,28 @@
   color: white;
 }
 
+/* Filter Label */
+.filter-label {
+  font-size: 0.8em;
+  font-weight: 400;
+  opacity: 0.9;
+  color: rgba(255, 255, 255, 0.85);
+  margin-left: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.15);
+  padding: 0.2rem 0.6rem;
+  border-radius: 1rem;
+  display: inline-block;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.card-header h2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 991.98px) {
   .preview-content {
@@ -601,9 +562,61 @@
   .preview-image img {
     max-height: 70px;
   }
+
+  .table th,
+  .table td {
+    padding: 0.5rem;
+  }
+
+  .one-way-price,
+  .round-trip-price {
+    min-width: 70px;
+  }
+
+  .btn2 {
+    min-width: 80px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+  }
 }
 
 @media (max-width: 767.98px) {
+  .vehicle-card-front,
+  .vehicle-card-back {
+    position: relative;
+  }
+
+  .vehicle-card-back {
+    position: absolute;
+  }
+
+  .vehicle-card {
+    min-height: 380px;
+  }
+
+  .flip-indicator {
+    opacity: 1;
+    transform: rotate(180deg);
+  }
+
+  .flip-card-btn {
+    min-width: 40px;
+    min-height: 36px;
+  }
+
+  .view-rates-btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .display-4 {
+    font-size: 2.25rem;
+  }
+
+  .lead {
+    font-size: 1.1rem;
+  }
+
   .vehicle-tabs {
     gap: 0.4rem;
     padding: 0.6rem;
@@ -662,6 +675,38 @@
     margin-left: 0;
     margin-top: 0.5rem;
   }
+
+  .card-header h2 {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .filter-label {
+    font-size: 0.7em;
+    margin-left: 0;
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.4rem;
+  }
+
+  .one-way-price,
+  .round-trip-price {
+    min-width: 60px;
+    font-size: 0.9rem;
+  }
+
+  .btn2 {
+    min-width: 70px;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+  }
 }
 
 @media (max-width: 575.98px) {
@@ -678,65 +723,12 @@
   }
 }
 
-/* Consistent with existing hover animations */
-.vehicle-tab,
-.filter-btn,
-.preview-specs .spec-item {
-  position: relative;
-  overflow: hidden;
+/* Accessibility */
+.btn:focus-visible {
+  outline: 3px solid rgba(108, 117, 125, 0.4);
+  outline-offset: 2px;
 }
 
-/* Fade animations for new elements */
-.vehicle-tabs,
-.vehicle-preview,
-.filter-buttons {
-  opacity: 0;
-  animation: fadeIn 0.6s ease forwards;
-}
-
-.vehicle-tabs {
-  animation-delay: 0.1s;
-}
-
-.vehicle-preview {
-  animation-delay: 0.2s;
-}
-
-.filter-buttons {
-  animation-delay: 0.3s;
-}
-
-/* Filter label styling */
-.filter-label {
-  font-size: 0.8em;
-  font-weight: 400;
-  opacity: 0.9;
-  color: rgba(255, 255, 255, 0.85);
-  margin-left: 0.5rem;
-  background-color: rgba(255, 255, 255, 0.15);
-  padding: 0.2rem 0.6rem;
-  border-radius: 1rem;
-  display: inline-block;
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-.card-header h2 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-/* Mobile responsiveness for the filter label */
-@media (max-width: 576px) {
-  .card-header h2 {
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .filter-label {
-    font-size: 0.7em;
-    margin-left: 0;
-  }
+.bg-rates-dark {
+  background-color: #091428 !important;
 }
