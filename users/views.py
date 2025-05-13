@@ -98,7 +98,6 @@ def partner(request):
         form = PartnerFormSubmission(request.POST)
         if form.is_valid():
             instance = form.save()
-            thankyou_email(instance)
             return redirect("thankyou")
     else:
         form = PartnerFormSubmission()
@@ -113,7 +112,6 @@ def contact(request):
         form = ContactUsFormSubmission(request.POST)
         if form.is_valid():
             instance = form.save()
-            thankyou_email(instance)
             return redirect("thankyou")
     else:
         form = ContactUsFormSubmission()

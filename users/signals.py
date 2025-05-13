@@ -2,7 +2,7 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .emails import thankyou_email
-from .models import PartnerForm, ContactUsForm, NewsLetter
+from .models import PartnerForm, ContactUsForm
 
 logger = logging.getLogger(__name__)
 
