@@ -118,4 +118,6 @@ def payment_success(request):
 
 
 def payment_cancel(request):
-    return render(request, "stripe/cancel.html")
+    reservation_uuid = request.GET.get('q')
+    source = request.GET.get('source')
+    return render(request, "stripe/cancel.html", {'reservation_uuid':str(reservation_uuid), 'source':source,})

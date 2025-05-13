@@ -26,7 +26,7 @@
     {% if legs %}
       <!-- Desktop View -->
       <div class="table-responsive rounded shadow-sm mb-3 d-none d-lg-block">
-        <table class="table table-bordered table-hover mb-0">
+        <table class="table table-bordered table-hover mb-0 fw-semibold">
           <thead class="table-dark">
             <tr>
               <th class="customer-col">Customer</th>
@@ -45,7 +45,8 @@
                 <td>
                   <div class="d-flex align-items-center mb-1">
                     <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
-                    <a href="{% url 'reservation_details' leg.reservation.uuid %}" class="badge bg-warning  text-dark ms-2 fs-6">#{{ leg.reservation.id }}</a>
+                    <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                       class="badge bg-warning  text-dark ms-2 fs-6">#{{ leg.reservation.id }}</a>
                   </div>
                   <div class="text-muted small">
                     <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
@@ -109,18 +110,24 @@
                 <!-- Notes -->
                 <td>
                   <div class="small w-100">
-                    <div><strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}</div>
-                    <div><strong>Private Notes:</strong> {{ leg.reservation.private_notes|default:"" }}</div>
-                    <div><strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}</div>
+                    <div>
+                      <strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}
+                    </div>
+                    <div>
+                      <strong>Private Notes:</strong> {{ leg.reservation.private_notes|default:"" }}
+                    </div>
+                    <div>
+                      <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
+                    </div>
                     {% if leg.reservation.store_stop %}
                       <span class="badge bg-success text-white">
-                        <i class="bi bi-shop me-1"></i> Publix Stop 
+                        <i class="bi bi-shop me-1"></i> Publix Stop
                       </span>
-                      {% else %}
+                    {% else %}
                       <span class="badge bg-danger text-white">
-                        <i class="bi bi-shop me-1"></i>No Store 
+                        <i class="bi bi-shop me-1"></i>No Store
                       </span>
-                      {% endif %}
+                    {% endif %}
                   </div>
                 </td>
 
@@ -167,9 +174,10 @@
                 <div class="card-header bg-light p-2">
                   <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
-                    <a href="{% url 'reservation_details' leg.reservation.uuid %}" class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
+                    <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                       class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
                   </div>
-                  <div class="text-muted small">
+                  <div class="fw-semibold">
                     <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
                   </div>
                   <div class="text-muted small">
@@ -245,12 +253,18 @@
                       <div class="d-flex">
                         <i class="bi bi-journal-text text-primary me-2"></i>
                         <div class="small w-100">
-                         <div><strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}</div>
-                         <div><strong>Res Notes:</strong> {{ leg.reservation.private_notes|default:"" }}</div>
-                          <div><strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}</div>
-                            <span class="badge bg-info text-dark">
-                              <i class="bi bi-shop me-1"></i>{{leg.reservation.store_stop}}
-                            </span>
+                          <div>
+                            <strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}
+                          </div>
+                          <div>
+                            <strong>Res Notes:</strong> {{ leg.reservation.private_notes|default:"" }}
+                          </div>
+                          <div>
+                            <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
+                          </div>
+                          <span class="badge bg-info text-dark">
+                            <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
+                          </span>
                         </div>
                       </div>
                     </div>

@@ -68,6 +68,7 @@ class ContactUsForm(models.Model):
 
 
 class NewsLetter(models.Model):
+    name = models.CharField(max_length=60, null=True, blank=True)
     email = models.EmailField(unique=True)
 
     def __str__(self):
@@ -100,7 +101,6 @@ class TravelAgent(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    
     payment_info = models.CharField(
         max_length=200,
         help_text="Preferred Way to Get Paid & Information - Paypal/Zelle/CashApp/Bank Info etc.",
@@ -114,7 +114,22 @@ class TravelAgent(models.Model):
     total_paid_commission = models.DecimalField(
         max_digits=10, decimal_places=2, default=0.00
     )
-
+    PAYMENT_METHOD_CHOICES = [
+        ("paypal", "PayPal"),
+        ("venmo", "Venmo"),
+        ("zelle", "Zelle"),
+        ("cashapp", "Cash App"),
+        ("bank", "Bank Transfer"),
+        ("check", "Check"),
+        ("other", "Other"),  # Added this option
+    ]
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Select your preferred payment method",
+    )
 
     def __str__(self):
         return f"{self.agency_name} - {self.user.username}"

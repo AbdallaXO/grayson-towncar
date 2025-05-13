@@ -2,11 +2,11 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Sum, Q, Count, Prefetch
+from django.db.models import Sum, Q, Count, Prefetch, Max
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
@@ -126,8 +126,8 @@ def newsletter_subscribe(request):
     """Handle newsletter subscription."""
     if request.method == "POST":
         email = request.POST.get("email")
+        name = request.POST.get("name")
         if email:
-            # Get client IP
             x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
             if x_forwarded_for:
                 ip_address = x_forwarded_for.split(",")[0]
@@ -141,7 +141,7 @@ def newsletter_subscribe(request):
 
             # Check if email already exists
             if not NewsLetter.objects.filter(email=email).exists():
-                NewsLetter.objects.create(email=email)
+                NewsLetter.objects.create(email=email, name=name)
                 attempt.success = True
                 attempt.save()
                 messages.success(
@@ -168,6 +168,7 @@ def newsletter_subscribe(request):
 
 from django.db import transaction
 
+
 def register_agent(request):
     """Handle travel agent registration."""
     if request.method == "POST":
@@ -179,6 +180,7 @@ def register_agent(request):
             "agency_name": request.POST.get("agency_name"),
             "phone": request.POST.get("phone"),
             "payment_info": request.POST.get("payment_info"),
+            "payment_method": request.POST.get("payment_method"),  # New field
         }
 
         password1 = request.POST.get("password1")
@@ -217,6 +219,7 @@ def register_agent(request):
                     agent_name=form_data["agent_name"],
                     agency_name=form_data["agency_name"],
                     phone=form_data["phone"],
+                    payment_method=form_data["payment_method"],
                     payment_info=form_data["payment_info"],
                 )
 
@@ -231,6 +234,7 @@ def register_agent(request):
             return render(request, "users/register_agent.html", error_context)
 
     return render(request, "users/register_agent.html")
+
 
 @login_required
 def agent_dashboard(request):
@@ -457,3 +461,58 @@ def agent_profile(request):
     except TravelAgent.DoesNotExist:
         messages.error(request, "You are not registered as a travel agent.")
         return redirect("register_agent")
+
+
+def agent_login(request):
+    """Dedicated login view for travel agents."""
+    if request.user.is_authenticated:
+        try:
+            TravelAgent.objects.get(user=request.user)
+            return redirect("agent_dashboard")
+        except TravelAgent.DoesNotExist:
+            messages.error(request, "You are not registered as a travel agent.")
+            logout(request)
+
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            try:
+                TravelAgent.objects.get(user=user)
+                login(request, user)
+                messages.success(request, "Successfully logged in as travel agent")
+                return redirect("agent_dashboard")
+            except TravelAgent.DoesNotExist:
+                messages.error(
+                    request, "This account is not registered as a travel agent."
+                )
+        else:
+            messages.error(request, "Invalid credentials")
+
+    return render(request, "users/agent_login.html")
+
+
+# Add a helper function to check if user is agent
+def is_agent(user):
+    """Check if user is a travel agent."""
+    if not user.is_authenticated:
+        return False
+    return TravelAgent.objects.filter(user=user).exists()
+
+
+# Create a decorator for agent-only views
+def agent_required(view_func):
+    """Decorator to ensure only agents can access certain views."""
+
+    @login_required
+    def wrapper(request, *args, **kwargs):
+        if not is_agent(request.user):
+            messages.error(
+                request, "You must be a registered travel agent to access this page."
+            )
+            return redirect("agent_login")
+        return view_func(request, *args, **kwargs)
+
+    return wrapper

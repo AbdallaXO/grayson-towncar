@@ -9,27 +9,48 @@
           <div class="card-body text-center py-5">
             <!-- Error Icon -->
             <div class="mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="none" stroke="red" stroke-width="2" viewBox="0 0 24 24">
+              <svg xmlns="http://www.w3.org/2000/svg"
+                   width="64"
+                   height="64"
+                   fill="none"
+                   stroke="red"
+                   stroke-width="2"
+                   viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             </div>
             <!-- Error Message -->
-            <h1 class="h4 fw-bold text-danger mb-3">Payment Failed</h1>
-            <p class="text-muted mb-3">Unfortunately, your payment was not successful. However, this does not mean your reservation has been canceled.</p>
-            <p class="text-secondary mb-4">Please contact our office as soon as possible to resolve the payment issue and confirm your booking details:</p>
+            <h1 class="h4 fw-bold text-danger mb-3">Payment Process Interrupted</h1>
+            <p class="text-muted mb-3">
+              Your payment was not completed, but don't worry - your reservation is still in our system.
+            </p>
+            <p class="fw-semibold mb-2">We recommend trying the payment again by clicking the button below.</p>
+            <p class="text-secondary mb-4">If you continue to experience difficulties, please contact our office:</p>
             <!-- Contact Information -->
             <div class="mb-4">
               <p class="mb-1">
                 📞 <a href="tel:+14072127190" class="text-decoration-none">+1 (407) 212-7190</a>
               </p>
               <p>
-                📧 <a href="mailto:reservations@graysontowncar.com" class="text-decoration-none">reservations@graysontowncar.com</a>
+                📧 <a href="mailto:reservations@graysontowncar.com"
+    class="text-decoration-none">reservations@graysontowncar.com</a>
               </p>
             </div>
-            <!-- Return to Homepage Button -->
-            <a href="{% url 'home' %}" class="btn btn-danger px-4 py-2 fw-semibold">Return to Homepage</a>
+            <!-- Return Buttons - Better aligned with d-grid -->
+            <div class="d-grid gap-2 mb-2">
+              {% if source == 'dispatcher_portal' %}
+                <a href="{% url 'dispatcher_payment_portal' reservation_uuid %}"
+                   class="btn btn-danger py-2 fw-semibold">Try Payment Again</a>
+              {% else %}
+                <a href="{% url 'create_checkout_session' reservation_uuid %}"
+                   class="btn btn-danger py-2 fw-semibold">Try Payment Again</a>
+              {% endif %}
+            </div>
+            <div class="d-grid">
+              <a href="{% url 'home' %}" class="btn btn-outline-secondary py-2">Return to Homepage</a>
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 # urls.py
 from django.urls import path
 from . import views
+from users.emails import send_reservation_confirmation
 
 urlpatterns = [
     path("", views.partner, name="partner"),
@@ -25,4 +26,5 @@ urlpatterns = [
         name="agent_reservation_detail",
     ),
     path("agent/profile/", views.agent_profile, name="agent_profile"),
+    path("agent-login/", views.agent_login, name="agent_login"),
 ]

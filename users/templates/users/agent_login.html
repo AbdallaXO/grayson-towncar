@@ -1,0 +1,73 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block content %}
+  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+
+  <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
+
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-4">
+        <div class="form-container">
+          <div id="login-form">
+            <p class="title">Travel Agent Portal</p>
+            <p class="text-center text-muted mb-4">Access your reservations and commissions</p>
+
+            <form class="form" method="POST">
+              {% csrf_token %}
+              <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text"
+                       name="username"
+                       id="username"
+                       class="input"
+                       placeholder="Enter username"
+                       required />
+              </div>
+              <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password"
+                       name="password"
+                       id="password"
+                       class="input"
+                       placeholder="Enter password"
+                       required />
+              </div>
+              <div class="button-wrapper">
+                <button type="submit">
+                  Log In
+                  <div class="arrow-wrapper">
+                    <div class="arrow"></div>
+                  </div>
+                </button>
+              </div>
+            </form>
+
+            <p class="signup mt-4 text-center">
+              New agent?
+              <a href="{% url 'register_agent' %}">Create an account</a>
+            </p>
+
+            <p class="text-center mt-2">
+              <a href="{% url 'login' %}" class="text-muted">Staff login</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer style="text-align: center;
+                 padding: 20px 0;
+                 margin-top: 40px;
+                 border-top: 1px solid #e5e7eb">
+    <p style="margin: 0; color: #6b7280; font-size: 14px;">
+      Questions? Call us at <a href="tel:407-212-7190" style="color: #3b82f6; text-decoration: none">407-212-7190</a>
+    </p>
+    <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 12px;">
+      © {% now "Y" %} Grayson Towncar. All rights reserved.
+    </p>
+  </footer>
+{% endblock %}
+{% block footer %}
+{% endblock footer %}

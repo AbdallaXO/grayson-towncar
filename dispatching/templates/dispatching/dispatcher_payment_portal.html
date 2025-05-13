@@ -1,0 +1,119 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block content %}
+  <div class="container py-5">
+    <div class="row">
+      <div class="col-md-8 offset-md-2">
+        <h2 class="mb-4">Dispatcher Payment Actions</h2>
+        <div class="card">
+          <div class="card-header">
+            Reservation ID: <strong>{{ reservation.id }}</strong> ({{ reservation.uuid }})
+          </div>
+          <div class="card-body">
+            <p>
+              <strong>Customer:</strong> {{ reservation.customer.get_full_name }}
+            </p>
+            <p>
+              <strong>Current Total Price:</strong> ${{ reservation.total_price|stringformat:".2f" }}
+            </p>
+            <p>
+              <strong>Card on File:</strong> {{ reservation.customer.card_brand|title }} ending in {{ reservation.customer.card_last4|default:"None" }} (Exp: {{ reservation.customer.card_exp_month }}/{{ reservation.customer.card_exp_year }})
+            </p>
+            <hr>
+
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                  {{ message }}
+                  <button type="button"
+                          class="btn-close"
+                          data-bs-dismiss="alert"
+                          aria-label="Close"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+
+            <form method="POST" id="dispatcherActionForm">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label for="action" class="form-label">
+                  <strong>Select Action:</strong>
+                </label>
+                <select name="action" id="action" class="form-select form-select-lg" required>
+                  <option value="">-- Please choose --</option>
+                  <option value="make_payment"
+                          {% if selected_action == 'make_payment' %}selected{% endif %}>Make a Payment</option>
+                  <option value="save_card"
+                          {% if selected_action == 'save_card' %}selected{% endif %}>
+                    Save / Update Card on File
+                  </option>
+                </select>
+              </div>
+
+              <div class="mb-3" id="amount_field_group" style="display: none;">
+                <label for="amount" class="form-label">
+                  <strong>Payment Amount (USD):</strong>
+                </label>
+                <input type="number"
+                       name="amount"
+                       id="amount"
+                       class="form-control form-control-lg"
+                       step="0.01"
+                       min="0.01"
+                       value="{{ entered_amount|default:reservation.total_price|stringformat:'.2f' }}">
+              </div>
+
+              <div class="mb-3" id="description_field_group" style="display: none;">
+                <label for="description" class="form-label">
+                  <strong>Receipt Description:</strong>
+                </label>
+                <input type="text"
+                       name="description"
+                       id="description"
+                       class="form-control form-control-lg"
+                       placeholder="e.g., Payment for reservation service"
+                       value="{{ entered_description|default:'Payment for reservation #'|add:reservation.id|stringformat:'d' }}">
+                <div class="form-text">This will appear on the customer's receipt</div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-lg w-100">Proceed to Stripe</button>
+              <a href="#"
+                 onclick="window.history.back(); return false;"
+                 class="btn btn-outline-secondary btn-lg w-100 mt-2">Cancel</a>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const actionSelect = document.getElementById('action');
+          const amountFieldGroup = document.getElementById('amount_field_group');
+          const amountInput = document.getElementById('amount');
+          const descriptionFieldGroup = document.getElementById('description_field_group');
+          const descriptionInput = document.getElementById('description');
+
+          function togglePaymentFields() {
+              if (actionSelect.value === 'make_payment') {
+                  amountFieldGroup.style.display = 'block';
+                  descriptionFieldGroup.style.display = 'block';
+                  amountInput.required = true;
+                  descriptionInput.required = true;
+              } else {
+                  amountFieldGroup.style.display = 'none';
+                  descriptionFieldGroup.style.display = 'none';
+                  amountInput.required = false;
+                  descriptionInput.required = false;
+              }
+          }
+
+          actionSelect.addEventListener('change', togglePaymentFields);
+
+          // Initial state on page load (e.g. if form re-rendered after error)
+          togglePaymentFields();
+      });
+  </script>
+{% endblock %}

@@ -2,8 +2,63 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 import logging
 from django.utils import timezone
+from django.contrib.auth.decorators import login_required
+from reservations.models import Reservation
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+import logging
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+import json
 
 logger = logging.getLogger(__name__)
+
+
+@login_required
+@require_POST
+def send_reservation_confirmation_ajax(request):
+    """
+    AJAX endpoint to send reservation confirmation email.
+    Uses the existing send_reservation_confirmation function.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        reservation_id = data.get("reservation_id")
+
+        if not reservation_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing reservation ID"}, status=400
+            )
+
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_id)
+
+        # Use the existing function to send the email
+        send_reservation_confirmation(reservation)
+
+        # Log the action in private notes
+        timestamp = timezone.now().strftime("%Y-%m-%d %H:%M")
+        note_addition = (
+            f"\n[{timestamp}] Confirmation email sent by {request.user.username}"
+        )
+
+        if reservation.private_notes:
+            reservation.private_notes += note_addition
+        else:
+            reservation.private_notes = note_addition
+
+        reservation.save(update_fields=["private_notes"])
+
+        return JsonResponse({"success": True})
+
+    except Exception as e:
+        logger.error(f"Error sending confirmation email via AJAX: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)})
 
 
 def send_reservation_confirmation(reservation):
@@ -52,7 +107,7 @@ def thankyou_email(instance):
         subject = f"Hello {name}, We've Recieved Your Message."
         from_email = "info@graysontowncar.com"
         logger.info(f"Sending Email to ... {instance.email}")
-        to = [instance.email]
+        to = [instance.email, "info@graysontowncar.com"]
         html_content = render_to_string("users/partner_contact_email.html")
 
         msg = EmailMultiAlternatives(subject, "", from_email, to)

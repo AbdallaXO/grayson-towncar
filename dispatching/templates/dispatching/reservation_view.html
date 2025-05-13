@@ -1,33 +1,43 @@
 {% extends "main.html" %}
 {% load static %}
 
+{% block extra_head %}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}
+
 {% block content %}
   {% block navbar %}
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
-  
   <div class="container py-3">
-    <!-- Header with Reservation ID -->
     <div class="page-header">
-      <h1>Reservation ID: <span class="fw-semibold">{{ reservation.id }}</span></h1>
+      <h1>
+        Reservation ID: <span class="fw-semibold">{{ reservation.id }}</span>
+      </h1>
     </div>
     <hr class="mb-4">
-
     <!-- Action buttons -->
     <div class="mb-3">
       <div class="btn-toolbar" role="toolbar">
         <div class="btn-group me-2" role="group">
-          <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown">
+          <button type="button"
+                  class="btn btn-success dropdown-toggle"
+                  data-bs-toggle="dropdown">
             {{ reservation.status|title }}
             <span class="caret"></span>
           </button>
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="#">Test </a></li>
-            <li><a class="dropdown-item" href="#">Test 1</a></li>
+            <li>
+              <a class="dropdown-item" href="#">Test</a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="#">Test 1</a>
+            </li>
           </ul>
         </div>
         <div class="btn-group me-2" role="group">
-          <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-outline-secondary">Edit Reservation</a>
+          <a href="{% url 'modify_reservation' reservation.uuid %}"
+             class="btn btn-outline-secondary">Edit Reservation</a>
           <button id="emailConfirmation" class="btn btn-outline-success">Email Confirmation</button>
           <a href="{% url 'dashboard' %}" class="btn btn-outline-dark">Back to Dashboard</a>
         </div>
@@ -39,37 +49,41 @@
       <!-- Contact Information -->
       <div class="col-lg-6">
         <div class="panel panel-primary">
-          <div class="panel-heading bg-secondary text-white p-2">
-            Contact Information
-          </div>
+          <div class="panel-heading bg-secondary text-white p-2">Contact Information</div>
           <div class="panel-body p-3 border border-top-0 bg-white">
             <dl class="row mb-0">
               <dt class="col-sm-3">Full Name</dt>
-                              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.get_full_name }}</dd>
-              
+              <dd class="col-sm-9 fw-semibold">
+                {{ reservation.customer.get_full_name }}
+              </dd>
+
               <dt class="col-sm-3">Email</dt>
-              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.email }}</dd>
-              
+              <dd class="col-sm-9 fw-semibold">
+                {{ reservation.customer.email }}
+              </dd>
+
               <dt class="col-sm-3">Phone</dt>
-              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.phone_number }}</dd>
-              
+              <dd class="col-sm-9 fw-semibold">
+                {{ reservation.customer.phone_number }}
+              </dd>
+
               <dt class="col-sm-3">Zipcode</dt>
-              <dd class="col-sm-9 fw-semibold">{{ reservation.customer.zipcode }}</dd>
-              
+              <dd class="col-sm-9 fw-semibold">
+                {{ reservation.customer.zipcode }}
+              </dd>
+
               <dt class="col-sm-3">CC Last 4</dt>
               <dd class="col-sm-9">
                 <span class="fw-semibold">{{ reservation.customer.card_last4|default:'' }}</span>
-                <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/" 
-                   class="btn btn-default btn-sm ms-2" 
-                   title="Update Credit Card Information"
-                   target="_blank">
+                <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
+                   class="btn btn-outline-dark btn-sm ms-2">
                   <i class="bi bi-credit-card"></i>
                 </a>
               </dd>
             </dl>
             <div class="btn-toolbar" role="toolbar">
               <div class="btn-group" role="group">
-                <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/" 
+                <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/"
                    class="btn btn-outline-dark"
                    target="_blank">Edit Contact</a>
               </div>
@@ -77,23 +91,21 @@
           </div>
           <div class="panel-footer border border-top-0 bg-light p-2">
             <small>
-              <strong>Date Modified:</strong> 
+              <strong>Date Modified:</strong>
               <span class="fw-semibold">{{ reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
             </small>
             <small>({{ request.user }})</small>
           </div>
         </div>
       </div>
-      
+
       <!-- Private Comments -->
       <div class="col-lg-6">
         <div class="panel panel-primary">
-          <div class="panel-heading bg-dark text-white p-2">
-            Private Comments
-          </div>
+          <div class="panel-heading bg-dark text-white p-2">Private Comments</div>
           <div class="panel-body p-3 border border-top-0 bg-white">
             <span class="help-block">These comments are never shown to the customer.</span>
-            <textarea class="form-control mb-3" rows="3" readonly>{{ reservation.private_notes|default:"No private notes" }}</textarea>
+            <textarea class="form-control mb-3" rows="3" readonly>{{ reservation.private_notes|default:"No private notes" }} {{reservation.special_requests | default:'No Customer Notes'}}</textarea>
             <div class="btn-toolbar" role="toolbar">
               <div class="btn-group" role="group">
                 <button id="editPrivateNotes" class="btn btn-outline-dark btn-sm">Edit private comments</button>
@@ -102,7 +114,7 @@
           </div>
           <div class="panel-footer border border-top-0 bg-light p-2">
             <small>
-              <strong>Date Modified:</strong> 
+              <strong>Date Modified:</strong>
               {{ reservation.updated_at|date:"n/j/Y g:i:s A" }}
             </small>
             <small>({{ request.user }})</small>
@@ -129,8 +141,8 @@
                     {% csrf_token %}
                     <div class="row g-2 align-items-center">
                       <div class="col">
-                        <select class="form-select driver-select" 
-                                name="driver" 
+                        <select class="form-select driver-select"
+                                name="driver"
                                 data-leg-id="{{ leg.id }}">
                           <option value="">Select Driver</option>
                           {% for driver in drivers %}
@@ -169,42 +181,54 @@
               </dl>
 
               <dl class="row mb-0">
-                <dt class="col-sm-4">Start</dt>
-                <dd class="col-sm-8 fw-semibold">{{ leg.pickup_location }}</dd>
+                <dt class="col-sm-4">Pickup Location</dt>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ leg.pickup_location }}
+                </dd>
 
-                <dt class="col-sm-4">End</dt>
-                <dd class="col-sm-8 fw-semibold">{{ leg.dropoff_location }}</dd>
+                <dt class="col-sm-4">Drop-off Location</dt>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ leg.dropoff_location }}
+                </dd>
 
                 <dt class="col-sm-4">Passengers</dt>
                 <dd class="col-sm-8 fw-semibold">
                   {{ reservation.passenger_count }} Passengers
                   {% if reservation.display_carseats %}
-                    <br>{{ reservation.display_carseats }}
+                    <br>
+                    {{ reservation.display_carseats }}
                   {% endif %}
                 </dd>
 
                 <dt class="col-sm-4">Vehicle</dt>
-                <dd class="col-sm-8 fw-semibold">{{ reservation.vehicle.vehicle_type|title }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  {{ reservation.vehicle.vehicle_type|title }}
+                </dd>
+
                 {% if leg.flight_information %}
-                <dt class="col-sm-4">Flight</dt>
-                <dd class="col-sm-8 fw-semibold">{{ leg.flight_information }}</dd>
+                  <dt class="col-sm-4">Flight</dt>
+                  <dd class="col-sm-8 fw-semibold">
+                    {{ leg.flight_information }}
+                  </dd>
                 {% endif %}
-                
+
                 <dt class="col-sm-4">Private Notes</dt>
-                <dd class="col-sm-8 fw-semibold">{{ leg.private_notes|default:"None" }}</dd>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ leg.private_notes|default:"None" }}
+                </dd>
               </dl>
-              
+
               <div class="btn-toolbar mt-3" role="toolbar">
                 <div class="btn-group" role="group">
                   <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
-                     target="_blank" class="btn btn-dark btn-sm">Edit Leg</a>
+                     target="_blank"
+                     class="btn btn-dark btn-sm">Edit Leg</a>
                 </div>
               </div>
             </div>
             <div class="panel-footer border border-top-0 bg-light p-2">
               <small>
-                <strong>Date Modified:</strong> 
+                <strong>Date Modified:</strong>
                 <span class="fw-semibold">{{ leg.updated_at|date:"n/j/Y g:i:s A"|default:reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
               </small>
               <small>({{ request.user }})</small>
@@ -213,7 +237,7 @@
         </div>
       {% endfor %}
     </div>
-    
+
     <div class="row mb-4">
       <div class="col-6">
         <div class="card">
@@ -222,25 +246,44 @@
             {% with payment=reservation.payments.first %}
               <dl class="row mb-0">
                 <dt class="col-sm-4">Payment Status</dt>
-                <dd class="col-sm-8 fw-semibold">{{ payment.status|title|default:'Unpaid' }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  {{ payment.status|title|default:'Unpaid' }}
+                </dd>
+
                 <dt class="col-sm-4">Payment Type</dt>
-                <dd class="col-sm-8 fw-semibold">{{ payment.payment_type|title|default:'N/A' }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  {{ payment.payment_type|title|default:'N/A' }}
+                </dd>
+
                 <dt class="col-sm-4">Total Price</dt>
-                <dd class="col-sm-8 fw-semibold">${{ reservation.total_price }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  ${{ reservation.total_price }}
+                </dd>
+
                 <dt class="col-sm-4">Base Price</dt>
-                <dd class="col-sm-8 fw-semibold">${{ reservation.base_price }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  ${{ reservation.base_price }}
+                </dd>
+
                 <dt class="col-sm-4">Additional Charges</dt>
-                <dd class="col-sm-8 fw-semibold">${{ reservation.additional_charges }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  ${{ reservation.additional_charges }}
+                </dd>
+
                 <dt class="col-sm-4">Stripe Payment ID</dt>
-                <dd class="col-sm-8 fw-semibold">{{ payment.stripe_payment_intent_id|default:'N/A' }}</dd>
-                
+                <dd class="col-sm-8 fw-semibold">
+                  {{ payment.stripe_payment_intent_id|default:'N/A' }}
+                </dd>
+
                 <dt class="col-sm-4">Created At</dt>
-                <dd class="col-sm-8 fw-semibold">{{ payment.created_at }}</dd>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ payment.created_at }}
+                </dd>
+                <dt class="col-sm-4">Stripe Customer ID</dt>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ reservation.customer.stripe_customer_id|default:'No ID' }}
+                </dd>
+
               </dl>
             {% endwith %}
           </div>
@@ -249,65 +292,172 @@
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Driver and status selection handlers
-        document.querySelectorAll('.driver-select, .status-select').forEach(select => {
-            select.addEventListener('change', function() {
-                const legId = this.dataset.legId;
-                const selectName = this.name;
-                const selectValue = this.value;
-                const form = this.closest('form');
-                const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
-                const statusElement = form.querySelector('.update-status');
+  <!-- Private Notes Modal -->
+  <div class="modal fade"
+       id="privateNotesModal"
+       tabindex="-1"
+       aria-labelledby="privateNotesModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="privateNotesModalLabel">Edit Private Notes</h5>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="private-notes-form">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="private-notes" class="form-label">Private Notes</label>
+              <textarea class="form-control" id="private-notes" rows="5">{{ reservation.private_notes }}</textarea>
+            </div>
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">Save Notes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 
-                // Send the update to the server via AJAX
-                fetch('/dispatching/update_leg_assignment/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({
-                            leg_id: legId,
-                            field: selectName,
-                            value: selectValue
-                        })
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(data => {
-                                throw new Error(data.error || 'Server error: ' + response.status);
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                            setTimeout(() => {
-                                statusElement.innerHTML = '';
-                            }, 3000);
-                        } else {
-                            statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
-                        }
-                    })
-                    .catch(error => {
-                        statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
-                    });
-            });
-        });
-        
-        // Email confirmation button
-        document.getElementById('emailConfirmation').addEventListener('click', function() {
-            alert('Email confirmation functionality will be implemented here');
-        });
-        
-        // Edit private notes button
-        document.getElementById('editPrivateNotes').addEventListener('click', function() {
-            alert('Private notes editing functionality will be implemented here');
-        });
-    });
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          // Driver and status selection handlers
+          document.querySelectorAll('.driver-select, .status-select').forEach(select => {
+              select.addEventListener('change', function() {
+                  const legId = this.dataset.legId;
+                  const selectName = this.name;
+                  const selectValue = this.value;
+                  const form = this.closest('form');
+                  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+                  const statusElement = form.querySelector('.update-status');
+
+                  // Send the update to the server via AJAX
+                  fetch('/dispatching/update_leg_assignment/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId,
+                              field: selectName,
+                              value: selectValue
+                          })
+                      })
+                      .then(response => {
+                          if (!response.ok) {
+                              return response.json().then(data => {
+                                  throw new Error(data.error || 'Server error: ' + response.status);
+                              });
+                          }
+                          return response.json();
+                      })
+                      .then(data => {
+                          if (data.success) {
+                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                              setTimeout(() => {
+                                  statusElement.innerHTML = '';
+                              }, 3000);
+                          } else {
+                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                          }
+                      })
+                      .catch(error => {
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                      });
+              });
+          });
+
+          // Email confirmation button handler
+          document.getElementById('emailConfirmation').addEventListener('click', function() {
+              if (confirm('Send confirmation email to {{ reservation.customer.email }}?')) {
+                  // Show loading indicator or disable the button
+                  const emailButton = this;
+                  emailButton.disabled = true;
+                  emailButton.innerHTML = 'Sending...';
+
+                  fetch('/dispatching/send_confirmation_email/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                          },
+                          body: JSON.stringify({
+                              reservation_id: '{{ reservation.uuid }}'
+                          })
+                      })
+                      .then(response => response.json())
+                      .then(data => {
+                          // Re-enable the button
+                          emailButton.disabled = false;
+                          emailButton.innerHTML = 'Email Confirmation';
+
+                          if (data.success) {
+                              // Show success message
+                              alert('Confirmation email sent successfully!');
+
+                              // Update the UI to reflect the email was sent
+                              const notesTextarea = document.querySelector('.panel-body textarea');
+                              if (notesTextarea && notesTextarea.value) {
+                                  const timestamp = new Date().toLocaleString();
+                                  notesTextarea.value += `\n[${timestamp}] Confirmation email sent by {{ request.user.username }}`;
+                              }
+                          } else {
+                              // Show error message
+                              alert('Error sending email: ' + (data.error || 'Unknown error'));
+                          }
+                      })
+                      .catch(error => {
+                          // Re-enable the button and show error
+                          emailButton.disabled = false;
+                          emailButton.innerHTML = 'Email Confirmation';
+                          alert('Error: ' + error);
+                      });
+              }
+          });
+
+          // Edit private notes button
+          document.getElementById('editPrivateNotes').addEventListener('click', function() {
+              $('#privateNotesModal').modal('show');
+          });
+
+          // Private notes form submission
+          document.getElementById('private-notes-form').addEventListener('submit', function(e) {
+              e.preventDefault();
+
+              const notes = document.getElementById('private-notes').value;
+
+              fetch('/dispatching/update_private_notes/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({
+                          reservation_id: '{{ reservation.uuid }}',
+                          private_notes: notes
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          alert('Private notes updated!');
+                          $('#privateNotesModal').modal('hide');
+                          // Update the textarea in the main view
+                          document.querySelector('.panel-body textarea').value = notes;
+                      } else {
+                          alert('Error updating notes: ' + data.error);
+                      }
+                  })
+                  .catch(error => {
+                      alert('Error: ' + error);
+                  });
+          });
+      });
   </script>
 {% endblock content %}
 

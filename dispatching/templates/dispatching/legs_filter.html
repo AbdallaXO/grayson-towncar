@@ -98,7 +98,7 @@
       <div class="card-body p-0">
         <!-- Desktop View of Legs Table -->
         <div class="table-responsive d-none d-lg-block">
-          <table class="table table-hover table-bordered mb-0">
+          <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
             <thead class="table-dark">
               <tr>
                 <th style="width: 15%;">Customer</th>
@@ -129,9 +129,10 @@
 
                   <!-- Pickup Info -->
                   <td>
-                    {% if leg.flight_information %}
-                      <div class="badge bg-secondary text-white mt-1">{{ leg.flight_information }}</div>
-                    {% endif %}
+
+                    <div class="text-danger">
+                      <i class="bi bi-airplane me-1"></i>{{ leg.flight_information|default:'' }}
+                    </div>
                     <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
                     <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
                   </td>
@@ -272,7 +273,8 @@
                   <div class="card-header bg-light p-2">
                     <div class="d-flex justify-content-between align-items-center">
                       <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
-                      <a href="{% url 'reservation_details' leg.reservation.uuid %}" class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
+                      <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                         class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
                     </div>
                     <div class="text-muted small">
                       <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
@@ -350,11 +352,15 @@
                         <div class="d-flex">
                           <i class="bi bi-journal-text text-primary me-2"></i>
                           <div class="small w-100">
-                            <div><strong>Leg Notes:</strong> {{ leg.private_notes|default:"None" }}</div>
-                            <div><strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}</div>
+                            <div>
+                              <strong>Leg Notes:</strong> {{ leg.private_notes|default:"None" }}
+                            </div>
+                            <div>
+                              <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}
+                            </div>
                             {% if leg.reservation.store_stop %}
                               <span class="badge bg-success text-white">
-                                <i class="bi bi-shop me-1"></i>Publix Stop 
+                                <i class="bi bi-shop me-1"></i>Publix Stop
                               </span>
                             {% endif %}
                           </div>
@@ -463,76 +469,77 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Date Filter functionality
-        const datePicker = document.getElementById('dateFilter')
-        const submitButton = document.getElementById('submitDateFilter')
+      document.addEventListener('DOMContentLoaded', function() {
+          // Date Filter functionality
+          const datePicker = document.getElementById('dateFilter')
+          const submitButton = document.getElementById('submitDateFilter')
 
-        submitButton.addEventListener('click', function() {
-            const selectedDate = datePicker.value
-            window.location.href = `?date=${selectedDate}`
-        })
+          submitButton.addEventListener('click', function() {
+              const selectedDate = datePicker.value
+              window.location.href = `?date=${selectedDate}`
+          })
 
-        // Allow filtering by pressing Enter
-        datePicker.addEventListener('keyup', function(event) {
-            if (event.key === 'Enter') {
-                submitButton.click()
-            }
-        })
+          // Allow filtering by pressing Enter
+          datePicker.addEventListener('keyup', function(event) {
+              if (event.key === 'Enter') {
+                  submitButton.click()
+              }
+          })
 
-        // Driver and status selection handlers
-        document.querySelectorAll('.driver-select, .status-select').forEach(select => {
-            select.addEventListener('change', function() {
-                const legId = this.dataset.legId;
-                const selectName = this.name;
-                const selectValue = this.value;
-                const form = this.closest('form');
-                const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
-                const statusElement = form.querySelector('.update-status');
+          // Driver and status selection handlers
+          document.querySelectorAll('.driver-select, .status-select').forEach(select => {
+              select.addEventListener('change', function() {
+                  const legId = this.dataset.legId;
+                  const selectName = this.name;
+                  const selectValue = this.value;
+                  const form = this.closest('form');
+                  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+                  const statusElement = form.querySelector('.update-status');
 
-                console.log('Updating', selectName, 'to', selectValue, 'for leg:', legId);
+                  console.log('Updating', selectName, 'to', selectValue, 'for leg:', legId);
 
-                // Send the update to the server via AJAX
-                fetch('/dispatching/update_leg_assignment/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({
-                            leg_id: legId,
-                            field: selectName,
-                            value: selectValue
-                        })
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(data => {
-                                throw new Error(data.error || 'Server error: ' + response.status);
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            console.log('Update successful');
-                            statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                            setTimeout(() => {
-                                statusElement.innerHTML = '';
-                            }, 3000);
-                        } else {
-                            console.error('Update failed:', data.error);
-                            statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
-                    });
-            });
-        });
-    });
+                  // Send the update to the server via AJAX
+                  fetch('/dispatching/update_leg_assignment/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId,
+                              field: selectName,
+                              value: selectValue
+                          })
+                      })
+                      .then(response => {
+                          if (!response.ok) {
+                              return response.json().then(data => {
+                                  throw new Error(data.error || 'Server error: ' + response.status);
+                              });
+                          }
+                          return response.json();
+                      })
+                      .then(data => {
+                          if (data.success) {
+                              console.log('Update successful');
+                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                              setTimeout(() => {
+                                  statusElement.innerHTML = '';
+                              }, 3000);
+                          } else {
+                              console.error('Update failed:', data.error);
+                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                          }
+                      })
+                      .catch(error => {
+                          console.error('Error:', error);
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                      });
+              });
+          });
+      });
   </script>
 {% endblock %}
 
-{% block footer %}{% endblock %}
+{% block footer %}
+{% endblock %}

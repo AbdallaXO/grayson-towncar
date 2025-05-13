@@ -1,5 +1,10 @@
 {% extends 'main.html' %}
 {% load static %}
+{% block title %}
+  Payment Successful | Grayson Towncar
+{% endblock title %}
+
+
 
 {% block content %}
   <div class="container py-5">
@@ -8,7 +13,13 @@
         <div class="card border-success shadow-lg">
           <div class="card-body text-center py-5">
             <div class="mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="none" stroke="green" stroke-width="2" viewBox="0 0 24 24">
+              <svg xmlns="http://www.w3.org/2000/svg"
+                   width="64"
+                   height="64"
+                   fill="none"
+                   stroke="green"
+                   stroke-width="2"
+                   viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -26,7 +37,8 @@
                 📞 <a href="tel:+14072127190" class="text-decoration-none">+1 (407) 212-7190</a>
               </p>
               <p>
-                📧 <a href="mailto:reservations@graysontowncar.com" class="text-decoration-none">reservations@graysontowncar.com</a>
+                📧 <a href="mailto:reservations@graysontowncar.com"
+    class="text-decoration-none">reservations@graysontowncar.com</a>
               </p>
             </div>
             <a href="{% url 'home' %}" class="btn btn-success px-4 py-2 fw-semibold">Return to Homepage</a>

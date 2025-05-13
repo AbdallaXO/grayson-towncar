@@ -1,0 +1,187 @@
+{% extends "main.html" %}
+{% load seo_tags %}
+{% load static %}
+
+{% block head_extra %}
+  <link rel="canonical"
+        href="https://www.graysontowncar.com/services/corporate-transportation/" />
+{% endblock head_extra %}
+
+{% block title %}Corporate Transportation Orlando | Business Travel & Events | Grayson Towncar{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Premium corporate transportation in Orlando for business travel, corporate events, and executive transfers. Professional chauffeurs, luxury vehicles, and reliable service for your business needs.">
+{% endblock meta_description %}
+
+{% block content %}
+  {% block schema %}
+    {% structured_data additional_data=structured_data %}
+  {% endblock schema %}
+  <section class="bg-dark text-white py-5" id="hero">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 text-center">
+          <h1 class="display-4 fw-bold mb-3">Corporate Transportation Orlando</h1>
+          <p class="lead mb-4">Premium business transportation services for executives, corporate events, and business travel</p>
+          <a href="{% url 'rates' %}"
+             class="btn btn-outline-light btn-lg px-4 rounded-pill">Book Your Corporate Transfers</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- Main Content -->
+  <section class="py-5">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <h2 class="h2 mb-4 text-center">Premium Corporate Transportation Services</h2>
+          <p class="lead mb-5 text-center">
+            Professional and reliable transportation services tailored for business travelers and corporate events in Orlando.
+          </p>
+
+          <!-- Service Cards -->
+          <div class="row g-4 mb-5">
+            <div class="col-md-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body p-4">
+                  <h3 class="h4 mb-3">Business Travel Services</h3>
+                  <ul class="list-unstyled">
+                    <li class="mb-2">✓ Airport Transfers</li>
+                    <li class="mb-2">✓ Hotel to Office</li>
+                    <li>✓ Business Meetings</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body p-4">
+                  <h3 class="h4 mb-3">Corporate Event Services</h3>
+                  <ul class="list-unstyled">
+                    <li class="mb-2">✓ Conferences</li>
+                    <li class="mb-2">✓ Team Building</li>
+                    <li>✓ Corporate Retreats</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service Features -->
+          <div class="card shadow-sm mb-5">
+            <div class="card-body p-4">
+              <h3 class="h4 mb-3">Our Corporate Transportation Service Includes:</h3>
+              <div class="row">
+                <div class="col-md-6">
+                  <ul class="list-unstyled">
+                    <li class="mb-3">
+                      ✓ <strong>Professional Chauffeurs</strong>
+                    </li>
+                    <li class="mb-3">
+                      ✓ <strong>Luxury Fleet</strong>
+                    </li>
+                    <li class="mb-3">
+                      ✓ <strong>Corporate Accounts</strong>
+                    </li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <ul class="list-unstyled">
+                    <li class="mb-3">
+                      ✓ <strong>Flight Tracking</strong>
+                    </li>
+                    <li class="mb-3">
+                      ✓ <strong>24/7 Support</strong>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vehicle Options -->
+          <h3 class="h4 mb-4">Vehicle Options for Corporate Transportation:</h3>
+          <div class="row g-4 mb-5">
+            <div class="col-md-4">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h5 mb-3">Executive Sedan</h4>
+                  <p class="mb-0">Perfect for individual executives or small groups (up to 3 passengers).</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h5 mb-3">Luxury SUV</h4>
+                  <p class="mb-0">Ideal for executive teams (up to 6 passengers).</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                  <h4 class="h5 mb-3">Executive Van</h4>
+                  <p class="mb-0">Perfect for larger groups (up to 10 passengers).</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-center mb-5">
+            <a href="{% url 'rates' %}"
+               class="btn btn-primary btn-lg px-4 rounded-pill">View Transportation Rates</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Choose Us -->
+  <section class="py-5 bg-light">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <h2 class="h2 mb-4 text-center">Why Choose Our Corporate Transportation Service?</h2>
+          <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <h4 class="h5 mb-3">Professional Service</h4>
+                  <p class="mb-0">Experienced chauffeurs and well-maintained vehicles.</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <h4 class="h5 mb-3">Reliability</h4>
+                  <p class="mb-0">Punctual service with real-time tracking.</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <h4 class="h5 mb-3">Corporate Accounts</h4>
+                  <p class="mb-0">Easy billing and account management.</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <h4 class="h5 mb-3">Flexible Solutions</h4>
+                  <p class="mb-0">Customized transportation for any business need.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {% include "call-to-action.html" %}
+{% endblock content %}

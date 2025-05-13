@@ -1,8 +1,7 @@
 {% extends 'main.html' %}
 
 {% block content %}
-  {% block navbar %}
-  {% endblock %}
+  {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
   <div class="container-fluid py-4">
     <!-- Header Section -->
@@ -23,8 +22,13 @@
       <div class="col-lg-4 col-md-6">
         <form action="#" method="get">
           <div class="input-group input-group-lg">
-            <input type="text" name="search_q" class="form-control" placeholder="Search reservations..." />
-            <button type="submit" class="btn btn-outline-dark px-4"><i class="bi bi-search me-2"></i>Search</button>
+            <input type="text"
+                   name="search_q"
+                   class="form-control"
+                   placeholder="Search reservations..." />
+            <button type="submit" class="btn btn-outline-dark px-4">
+              <i class="bi bi-search me-2"></i>Search
+            </button>
           </div>
         </form>
       </div>
@@ -32,7 +36,7 @@
 
     {% if reservations %}
       <!-- Desktop View -->
-      <div class="table-responsive rounded shadow-sm mb-4 d-none d-lg-block">
+      <div class="table-responsive rounded shadow-sm mb-4 d-none d-lg-block fw-semibold fs-4">
         <table class="table table-bordered table-hover mb-0">
           <thead class="table-dark">
             <tr>
@@ -75,9 +79,7 @@
                     <div>
                       <div class="fw-bold">{{ reservation.vehicle }}</div>
                       <div>{{ reservation.passenger_count }} Passengers</div>
-                      {% if reservation.display_carseats %}
-                        <div>{{ reservation.display_carseats }}</div>
-                      {% endif %}
+                      {% if reservation.display_carseats %}<div>{{ reservation.display_carseats }}</div>{% endif %}
                     </div>
                   </div>
                 </td>
@@ -85,13 +87,7 @@
                 <!-- Status & Payment Consolidated -->
                 <td>
                   <div class="d-flex align-items-center mb-2">
-                    <i class="bi bi-tag-fill fs-5 me-2 {% if reservation.status == 'confirmed' %}
-                        text-success
-                      {% elif reservation.status == 'pending' %}
-                        text-warning
-                      {% else %}
-                        text-danger
-                      {% endif %}">
+                    <i class="bi bi-tag-fill fs-5 me-2 {% if reservation.status == 'confirmed' %} text-success {% elif reservation.status == 'pending' %} text-warning {% else %} text-danger {% endif %}">
 
                     </i>
                     <div>
@@ -106,11 +102,7 @@
                   </div>
 
                   <div class="d-flex align-items-center">
-                    <i class="bi bi-cash-coin fs-5 me-2 {% if reservation.payments.last %}
-                        text-success
-                      {% else %}
-                        text-danger
-                      {% endif %}">
+                    <i class="bi bi-cash-coin fs-5 me-2 {% if reservation.payments.last %} text-success {% else %} text-danger {% endif %}">
 
                     </i>
                     <div class="fw-bold">
@@ -138,11 +130,13 @@
 
                 <td class="text-center">
                   <div class="d-flex justify-content-center gap-2">
-                    <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-primary">
+                    <a href="{% url 'reservation_details' reservation.uuid %}"
+                       class="btn btn-primary">
                       <i class="bi bi-eye"></i>
                       <span class="d-none d-xl-inline ms-1">View</span>
                     </a>
-                    <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-secondary">
+                    <a href="{% url 'modify_reservation' reservation.uuid %}"
+                       class="btn btn-secondary">
                       <i class="bi bi-pencil"></i>
                       <span class="d-none d-xl-inline ms-1">Edit</span>
                     </a>
@@ -181,7 +175,9 @@
                         <i class="bi bi-calendar-event fs-4 text-primary me-3"></i>
                         <div>
                           <div class="text-muted small">Trip Details:</div>
-                          <div class="fw-bold">{{ reservation.legs.first.pickup_date|date:'l, F d, Y' }} at {{ reservation.legs.first.pickup_time|date:'g:i A' }}</div>
+                          <div class="fw-bold">
+                            {{ reservation.legs.first.pickup_date|date:'l, F d, Y' }} at {{ reservation.legs.first.pickup_time|date:'g:i A' }}
+                          </div>
                           <span class="badge bg-info text-dark mt-1">{{ reservation.get_trip_type_display }}</span>
                         </div>
                       </div>
@@ -198,9 +194,7 @@
                         <div>
                           <div class="text-muted small">Vehicle & Passengers:</div>
                           <div class="fw-bold">{{ reservation.vehicle }} - {{ reservation.passenger_count }} Passengers</div>
-                          {% if reservation.display_carseats %}
-                            <div>{{ reservation.display_carseats }}</div>
-                          {% endif %}
+                          {% if reservation.display_carseats %}<div>{{ reservation.display_carseats }}</div>{% endif %}
                         </div>
                       </div>
                     </div>
@@ -213,13 +207,7 @@
                     <div class="col-12">
                       <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex">
-                          <i class="bi bi-tag-fill fs-4 {% if reservation.status == 'confirmed' %}
-                              text-success
-                            {% elif reservation.status == 'pending' %}
-                              text-warning
-                            {% else %}
-                              text-danger
-                            {% endif %} me-3">
+                          <i class="bi bi-tag-fill fs-4 {% if reservation.status == 'confirmed' %} text-success {% elif reservation.status == 'pending' %} text-warning {% else %} text-danger {% endif %} me-3">
 
                           </i>
                           <div>
@@ -235,11 +223,7 @@
                         </div>
 
                         <div class="d-flex">
-                          <i class="bi bi-cash-coin fs-4 {% if reservation.payments.last %}
-                              text-success
-                            {% else %}
-                              text-danger
-                            {% endif %} me-2">
+                          <i class="bi bi-cash-coin fs-4 {% if reservation.payments.last %} text-success {% else %} text-danger {% endif %} me-2">
 
                           </i>
                           <div>
@@ -291,8 +275,10 @@
 
                 <div class="card-footer bg-light p-3">
                   <div class="d-flex justify-content-between">
-                    <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-primary"><i class="bi bi-eye me-2"></i>View</a>
-                    <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-secondary"><i class="bi bi-pencil me-2"></i>Edit</a>
+                    <a href="{% url 'reservation_details' reservation.uuid %}"
+                       class="btn btn-primary"><i class="bi bi-eye me-2"></i>View</a>
+                    <a href="{% url 'modify_reservation' reservation.uuid %}"
+                       class="btn btn-secondary"><i class="bi bi-pencil me-2"></i>Edit</a>
                   </div>
                 </div>
               </div>
@@ -309,7 +295,9 @@
               <a class="page-link" href="?page=1" aria-label="First"><i class="bi bi-chevron-double-left"></i></a>
             </li>
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
+              <a class="page-link"
+                 href="?page={{ page_obj.previous_page_number }}"
+                 aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
             </li>
           {% endif %}
 
@@ -319,10 +307,14 @@
 
           {% if page_obj.has_next %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
+              <a class="page-link"
+                 href="?page={{ page_obj.next_page_number }}"
+                 aria-label="Next"><i class="bi bi-chevron-right"></i></a>
             </li>
             <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last"><i class="bi bi-chevron-double-right"></i></a>
+              <a class="page-link"
+                 href="?page={{ page_obj.paginator.num_pages }}"
+                 aria-label="Last"><i class="bi bi-chevron-double-right"></i></a>
             </li>
           {% endif %}
         </ul>
@@ -356,7 +348,7 @@
                 </div>
               </div>
               <!-- Pending Reservations -->
-              <div class="col-6 col-md-3">
+              <div class="col-3 col-md-2">
                 <div class="card h-100 bg-light border shadow-sm">
                   <div class="card-body text-center p-2">
                     <i class="bi bi-hourglass-split fs-3 text-warning"></i>
@@ -366,7 +358,7 @@
                 </div>
               </div>
               <!-- Confirmed Reservations -->
-              <div class="col-6 col-md-3">
+              <div class="col-3 col-md-2">
                 <div class="card h-100 bg-light border shadow-sm">
                   <div class="card-body text-center p-2">
                     <i class="bi bi-check-circle fs-3 text-success"></i>
@@ -376,7 +368,7 @@
                 </div>
               </div>
               <!-- Total Revenue -->
-              <div class="col-6 col-md-3">
+              <div class="col-3 col-md-2">
                 <div class="card h-100 bg-light border shadow-sm">
                   <div class="card-body text-center p-2">
                     <i class="bi bi-currency-dollar fs-3 text-dark"></i>
@@ -385,6 +377,17 @@
                   </div>
                 </div>
               </div>
+
+              <div class="col-3 col-md-2">
+                <div class="card h-100 bg-light border shadow-sm">
+                  <div class="card-body text-center p-2">
+                    <i class="bi bi-currency-dollar fs-3 text-dark"></i>
+                    <h6 class="card-title my-2 fw-bold">Pending Payments</h6>
+                    <p class="card-text fs-3 fw-bold mb-0 text-danger">${{ pending_payments|floatformat:2 }}</p>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -393,6 +396,4 @@
   </div>
 {% endblock %}
 
-{% block footer %}
-
-{% endblock %}
+{% block footer %}{% endblock %}

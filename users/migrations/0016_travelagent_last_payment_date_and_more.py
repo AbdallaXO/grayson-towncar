@@ -4,25 +4,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0015_remove_travelagent_agency_email_and_more'),
+        ("users", "0015_remove_travelagent_agency_email_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='travelagent',
-            name='last_payment_date',
+            model_name="travelagent",
+            name="last_payment_date",
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='travelagent',
-            name='total_earned_commission',
+            model_name="travelagent",
+            name="total_earned_commission",
             field=models.DecimalField(decimal_places=2, default=0.0, max_digits=10),
         ),
         migrations.AddField(
-            model_name='travelagent',
-            name='total_paid_commission',
+            model_name="travelagent",
+            name="total_paid_commission",
             field=models.DecimalField(decimal_places=2, default=0.0, max_digits=10),
         ),
     ]
