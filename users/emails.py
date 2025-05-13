@@ -105,9 +105,9 @@ def thankyou_email(instance):
     try:
         name = instance.first_name if instance.first_name else instance.name
         subject = f"Hello {name}, We've Recieved Your Message."
-        from_email = "info@graysontowncar.com"
+        from_email = "contact@graysontowncar.com"
         logger.info(f"Sending Email to ... {instance.email}")
-        to = [instance.email, "info@graysontowncar.com"]
+        to = [instance.email, "contact@graysontowncar.com"]
         html_content = render_to_string("users/partner_contact_email.html")
 
         msg = EmailMultiAlternatives(subject, "", from_email, to)

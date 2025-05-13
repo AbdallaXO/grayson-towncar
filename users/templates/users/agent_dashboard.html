@@ -1,5 +1,7 @@
 {% extends 'main.html' %}
-
+{% block title %}
+  Travel Agent Dashboard | Grayson Towncar
+{% endblock title %}
 {% block content %}
   <div class="container-fluid py-4">
     <!-- Header Section -->
@@ -105,7 +107,11 @@
               <div class="d-flex gap-2">
                 <!-- Date Filter Dropdown -->
                 <div class="dropdown">
-                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="fas fa-calendar me-2"></i>{{ date_filter|title }}</button>
+                  <button class="btn btn-outline-secondary dropdown-toggle"
+                          type="button"
+                          data-bs-toggle="dropdown">
+                    <i class="fas fa-calendar me-2"></i>{{ date_filter|title }}
+                  </button>
                   <ul class="dropdown-menu">
                     <li>
                       <a class="dropdown-item" href="?status={{ status }}&date_filter=all">All Time</a>
@@ -127,11 +133,16 @@
 
                 <!-- Status Filters -->
                 <div class="btn-group">
-                  <a href="?status=all&date_filter={{ date_filter }}" class="fw-bold btn btn-outline-dark {% if status == 'all' %}active{% endif %}">All</a>
-                  <a href="?status=pending&date_filter={{ date_filter }}" class="fw-bold btn btn-outline-dark {% if status == 'pending' %}active{% endif %}">Pending <span class="badge bg-dark text-white ms-2">{{ pending_count }}</span></a>
-                  <a href="?status=confirmed&date_filter={{ date_filter }}" class="fw-bold btn btn-outline-dark {% if status == 'confirmed' %}active{% endif %}">Confirmed <span class="badge bg-dark text-white ms-2">{{ confirmed_count }}</span></a>
-                  <a href="?status=completed&date_filter={{ date_filter }}" class="fw-bold btn btn-outline-dark {% if status == 'completed' %}active{% endif %}">Completed <span class="badge bg-dark text-white ms-2">{{ completed_count }}</span></a>
-                  <a href="?status=cancelled&date_filter={{ date_filter }}" class="fw-bold btn btn-outline-dark {% if status == 'cancelled' %}active{% endif %}">Cancelled <span class="badge bg-dark ms-2">{{ cancelled_count }}</span></a>
+                  <a href="?status=all&date_filter={{ date_filter }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'all' %}active{% endif %}">All</a>
+                  <a href="?status=pending&date_filter={{ date_filter }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'pending' %}active{% endif %}">Pending <span class="badge bg-dark text-white ms-2">{{ pending_count }}</span></a>
+                  <a href="?status=confirmed&date_filter={{ date_filter }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'confirmed' %}active{% endif %}">Confirmed <span class="badge bg-dark text-white ms-2">{{ confirmed_count }}</span></a>
+                  <a href="?status=completed&date_filter={{ date_filter }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'completed' %}active{% endif %}">Completed <span class="badge bg-dark text-white ms-2">{{ completed_count }}</span></a>
+                  <a href="?status=cancelled&date_filter={{ date_filter }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'cancelled' %}active{% endif %}">Cancelled <span class="badge bg-dark ms-2">{{ cancelled_count }}</span></a>
                 </div>
               </div>
             </div>
@@ -190,43 +201,7 @@
                         </td>
                         <td>
                           <div class="fw-bold">${{ reservation.commission_amount|default:'0.00'|floatformat:2 }}</div>
-                          <div class="small {% if reservation.commission_paid %}
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              
-                              text-success
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                            {% else %}
-
-                            {% endif %}">
+                          <div class="small {% if reservation.commission_paid %}                 text-success                 {% else %}  {% endif %}">
                             {% if reservation.commission_paid %}
                               <i class="fas fa-check-circle me-1"></i>Paid
                             {% else %}
@@ -235,7 +210,8 @@
                           </div>
                         </td>
                         <td class="text-end">
-                          <a href="{% url 'agent_reservation_detail' reservation.uuid %}" class="btn btn-sm btn-dark fw-semibold">View Details</a>
+                          <a href="{% url 'agent_reservation_detail' reservation.uuid %}"
+                             class="btn btn-sm btn-dark fw-semibold">View Details</a>
                         </td>
                       </tr>
                     {% endfor %}
@@ -250,7 +226,8 @@
                     <ul class="pagination justify-content-center mb-0">
                       {% if reservations.has_previous %}
                         <li class="page-item">
-                          <a class="page-link" href="?page={{ reservations.previous_page_number }}&status={{ status }}&date_filter={{ date_filter }}"><i class="fas fa-chevron-left me-2"></i>Previous</a>
+                          <a class="page-link"
+                             href="?page={{ reservations.previous_page_number }}&status={{ status }}&date_filter={{ date_filter }}"><i class="fas fa-chevron-left me-2"></i>Previous</a>
                         </li>
                       {% endif %}
 
@@ -261,14 +238,16 @@
                           </li>
                         {% elif num > reservations.number|add:'-3' and num < reservations.number|add:'3' %}
                           <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}&status={{ status }}&date_filter={{ date_filter }}">{{ num }}</a>
+                            <a class="page-link"
+                               href="?page={{ num }}&status={{ status }}&date_filter={{ date_filter }}">{{ num }}</a>
                           </li>
                         {% endif %}
                       {% endfor %}
 
                       {% if reservations.has_next %}
                         <li class="page-item">
-                          <a class="page-link" href="?page={{ reservations.next_page_number }}&status={{ status }}&date_filter={{ date_filter }}">Next<i class="fas fa-chevron-right ms-2"></i></a>
+                          <a class="page-link"
+                             href="?page={{ reservations.next_page_number }}&status={{ status }}&date_filter={{ date_filter }}">Next<i class="fas fa-chevron-right ms-2"></i></a>
                         </li>
                       {% endif %}
                     </ul>
@@ -327,22 +306,31 @@
           <div class="card-header bg-white border-0 pt-4 pb-0">
             <div class="d-flex justify-content-between align-items-center">
               <h5 class="mb-0">Agency Information</h5>
-              <a href="{% url 'agent_profile' %}" class="btn btn-sm btn-outline-dark fw-semibold"><i class="fas fa-edit me-1"></i>Edit Profile</a>
+              <a href="{% url 'agent_profile' %}"
+                 class="btn btn-sm btn-outline-dark fw-semibold"><i class="fas fa-edit me-1"></i>Edit Profile</a>
             </div>
           </div>
           <div class="card-body pt-3">
             <dl class="row mb-0">
               <dt class="col-4 text-muted">Agency Name</dt>
-              <dd class="col-8">{{ travel_agent.agency_name }}</dd>
+              <dd class="col-8">
+                {{ travel_agent.agency_name }}
+              </dd>
 
               <dt class="col-4 text-muted">Agent Name</dt>
-              <dd class="col-8">{{ travel_agent.agent_name }}</dd>
+              <dd class="col-8">
+                {{ travel_agent.agent_name }}
+              </dd>
 
               <dt class="col-4 text-muted">Phone</dt>
-              <dd class="col-8">{{ travel_agent.phone }}</dd>
+              <dd class="col-8">
+                {{ travel_agent.phone }}
+              </dd>
 
               <dt class="col-4 text-muted">Payment Info</dt>
-              <dd class="col-8"><span class="text-truncate d-inline-block" style="max-width: 250px;">{{ travel_agent.payment_info|truncatewords:10 }}</span></dd>
+              <dd class="col-8">
+                <span class="text-truncate d-inline-block" style="max-width: 250px;">{{ travel_agent.payment_info|truncatewords:10 }}</span>
+              </dd>
             </dl>
           </div>
         </div>
@@ -352,53 +340,64 @@
 
   <!-- Custom Styles -->
   <style>
-    body {
-      background-color: #f4f6f9;
-    }
-    .card {
-      border-radius: 0.75rem;
-    }
-    .card-header {
-      border-bottom: none;
-    }
-    .table th {
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #6c757d;
-    }
-    .badge {
-      font-weight: 500;
-    }
-    .btn-group > .btn {
-      padding: 0.375rem 0.75rem;
-    }
-    .badge.bg-pending {
-      background-color: #ffc107;
-      color: #000;
-    }
-    .badge.bg-confirmed {
-      background-color: #0dcaf0;
-      color: #000;
-    }
-    .badge.bg-completed {
-      background-color: #198754;
-    }
-    .badge.bg-cancelled {
-      background-color: #dc3545;
-    }
-    .table td {
-      vertical-align: middle;
-      padding: 0.75rem;
-    }
-    .nav-tabs .nav-link {
-      color: #495057;
-      border-radius: 0.5rem 0.5rem 0 0;
-    }
-    
-    .nav-tabs .nav-link.active {
-      font-weight: 600;
-      border-color: #dee2e6 #dee2e6 #fff;
-    }
+      body {
+          background-color: #f4f6f9;
+      }
+
+      .card {
+          border-radius: 0.75rem;
+      }
+
+      .card-header {
+          border-bottom: none;
+      }
+
+      .table th {
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #6c757d;
+      }
+
+      .badge {
+          font-weight: 500;
+      }
+
+      .btn-group>.btn {
+          padding: 0.375rem 0.75rem;
+      }
+
+      .badge.bg-pending {
+          background-color: #ffc107;
+          color: #000;
+      }
+
+      .badge.bg-confirmed {
+          background-color: #0dcaf0;
+          color: #000;
+      }
+
+      .badge.bg-completed {
+          background-color: #198754;
+      }
+
+      .badge.bg-cancelled {
+          background-color: #dc3545;
+      }
+
+      .table td {
+          vertical-align: middle;
+          padding: 0.75rem;
+      }
+
+      .nav-tabs .nav-link {
+          color: #495057;
+          border-radius: 0.5rem 0.5rem 0 0;
+      }
+
+      .nav-tabs .nav-link.active {
+          font-weight: 600;
+          border-color: #dee2e6 #dee2e6 #fff;
+      }
   </style>
 {% endblock %}

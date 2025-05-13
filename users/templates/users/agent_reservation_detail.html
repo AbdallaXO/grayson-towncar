@@ -1,5 +1,7 @@
 {% extends 'main.html' %}
-
+{% block title %}
+  Travel Agent Reservation Details | Grayson Towncar
+{% endblock title %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
@@ -45,55 +47,10 @@
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Your Commission (10%)</h6>
-            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}
-                
-                
-                
-                             
-                text-success
-
-
-
-
-
-
-
-
-
-
-
-              {% else %}
-
-              {% endif %}">
+            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}     text-success            {% else %}  {% endif %}">
               ${{ reservation.commission_amount|floatformat:2 }}
             </h4>
-            <small class="fw-semibold {% if reservation.commission_paid %}
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                text-success
-
-
-
-
-
-
-
-
-
-
-
-              {% else %}
-
-              {% endif %}">
+            <small class="fw-semibold {% if reservation.commission_paid %}            text-success            {% else %}  {% endif %}">
               {% if reservation.commission_paid %}
                 Paid
               {% else %}
@@ -127,9 +84,11 @@
               <div class="mb-3">
                 <label class="text-muted small">Address</label>
                 <p class="mb-0">
-                  {{ reservation.customer.address_line1 }}<br />
+                  {{ reservation.customer.address_line1 }}
+                  <br />
                   {% if reservation.customer.address_line2 %}
-                    {{ reservation.customer.address_line2 }}<br />
+                    {{ reservation.customer.address_line2 }}
+                    <br />
                   {% endif %}
                   {{ reservation.customer.city }}, {{ reservation.customer.state }} {{ reservation.customer.zip_code }}
                 </p>
@@ -151,13 +110,15 @@
             <div class="mb-3">
               <label class="text-muted small">Passengers</label>
               <p class="mb-0">
-                {{ reservation.passenger_count }} passenger{% if reservation.passenger_count != 1 %}s{% endif %}
+                {{ reservation.passenger_count }} passenger
+                {% if reservation.passenger_count != 1 %}s{% endif %}
               </p>
             </div>
             <div class="mb-3">
               <label class="text-muted small">Luggage</label>
               <p class="mb-0">
-                {{ reservation.luggage_count }} piece{% if reservation.luggage_count != 1 %}s{% endif %}
+                {{ reservation.luggage_count }} piece
+                {% if reservation.luggage_count != 1 %}s{% endif %}
               </p>
             </div>
             {% if reservation.need_carseats %}
@@ -165,14 +126,14 @@
                 <label class="text-muted small">Car Seats</label>
                 <p class="mb-0">
                   {% if reservation.rf_carseats %}
-                    RF Seats: {{ reservation.rf_carseats }}<br />
+                    RF Seats: {{ reservation.rf_carseats }}
+                    <br />
                   {% endif %}
                   {% if reservation.ff_carseats %}
-                    FF Seats: {{ reservation.ff_carseats }}<br />
+                    FF Seats: {{ reservation.ff_carseats }}
+                    <br />
                   {% endif %}
-                  {% if reservation.booster_seats %}
-                    Booster Seats: {{ reservation.booster_seats }}
-                  {% endif %}
+                  {% if reservation.booster_seats %}Booster Seats: {{ reservation.booster_seats }}{% endif %}
                 </p>
               </div>
             {% endif %}
@@ -214,12 +175,15 @@
                   <div class="mb-3">
                     <label class="text-muted small">Flight Information</label>
                     <p class="mb-0">
-                      Flight: {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}<br />
+                      Flight: {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                      <br />
                       {% if leg.flight_information.departure_airport %}
-                        From: {{ leg.flight_information.departure_airport }}<br />
+                        From: {{ leg.flight_information.departure_airport }}
+                        <br />
                       {% endif %}
                       {% if leg.flight_information.arrival_airport %}
-                        To: {{ leg.flight_information.arrival_airport }}<br />
+                        To: {{ leg.flight_information.arrival_airport }}
+                        <br />
                       {% endif %}
                       {% if leg.flight_information.scheduled_arrival_time %}
                         Arrival: {{ leg.flight_information.scheduled_arrival_time|time:'g:i A' }}
@@ -279,55 +243,7 @@
             <div class="mb-3">
               <label class="text-muted small">Commission Status</label>
               <p class="mb-0">
-                <span class="badge bg-{% if reservation.commission_paid %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    success
-
-
-
-
-
-
-
-
-
-
-
-                  {% else %}
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    warning
-
-
-
-
-
-
-
-
-
-
-
-                  {% endif %}">
+                <span class="badge bg-{% if reservation.commission_paid %}            success            {% else %}            warning            {% endif %}">
                   {% if reservation.commission_paid %}
                     Paid
                   {% else %}
@@ -353,35 +269,33 @@
   </div>
 
   <style>
-    .badge {
-      font-weight: 500;
-      padding: 0.5em 0.75em;
-    }
-    
-    .badge.bg-pending {
-      background-color: #ffc107;
-      color: #000;
-    }
-    
-    .badge.bg-confirmed {
-      background-color: #0dcaf0;
-      color: #000;
-    }
-    
-    .badge.bg-completed {
-      background-color: #198754;
-    }
-    
-    .badge.bg-cancelled {
-      background-color: #dc3545;
-    }
-    
-    .badge.bg-warning {
-      background-color: #ffc107;
-      color: #000;
-    }
-  </style>
-  {% block footer %}
+      .badge {
+          font-weight: 500;
+          padding: 0.5em 0.75em;
+      }
 
-  {% endblock %}
+      .badge.bg-pending {
+          background-color: #ffc107;
+          color: #000;
+      }
+
+      .badge.bg-confirmed {
+          background-color: #0dcaf0;
+          color: #000;
+      }
+
+      .badge.bg-completed {
+          background-color: #198754;
+      }
+
+      .badge.bg-cancelled {
+          background-color: #dc3545;
+      }
+
+      .badge.bg-warning {
+          background-color: #ffc107;
+          color: #000;
+      }
+  </style>
+  {% block footer %}{% endblock %}
 {% endblock %}

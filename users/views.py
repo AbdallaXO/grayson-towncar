@@ -180,7 +180,7 @@ def register_agent(request):
             "agency_name": request.POST.get("agency_name"),
             "phone": request.POST.get("phone"),
             "payment_info": request.POST.get("payment_info"),
-            "payment_method": request.POST.get("payment_method"),  # New field
+            "payment_method": request.POST.get("payment_method"),
         }
 
         password1 = request.POST.get("password1")
@@ -236,7 +236,7 @@ def register_agent(request):
     return render(request, "users/register_agent.html")
 
 
-@login_required
+@login_required(login_url="agent_login")
 def agent_dashboard(request):
     """Display travel agent dashboard."""
     try:
@@ -348,7 +348,7 @@ def agent_dashboard(request):
         return redirect("register_agent")
 
 
-@login_required
+@login_required(login_url="agent_login")
 def agent_commission_history(request):
     """Display travel agent commission history."""
     try:
@@ -403,7 +403,7 @@ def agent_commission_history(request):
         return redirect("register_agent")
 
 
-@login_required
+@login_required(login_url="agent_login")
 def agent_reservation_detail(request, uuid):
     """Display travel agent reservation detail."""
     try:
@@ -436,7 +436,7 @@ def agent_reservation_detail(request, uuid):
         return redirect("register_agent")
 
 
-@login_required
+@login_required(login_url="agent_login")
 def agent_profile(request):
     """Handle travel agent profile management."""
     try:
@@ -494,7 +494,6 @@ def agent_login(request):
     return render(request, "users/agent_login.html")
 
 
-# Add a helper function to check if user is agent
 def is_agent(user):
     """Check if user is a travel agent."""
     if not user.is_authenticated:

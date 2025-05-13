@@ -1,5 +1,7 @@
 {% extends 'main.html' %}
-
+{% block title %}
+  Travel Agent Commission Overview | Grayson Towncar
+{% endblock title %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
@@ -123,7 +125,10 @@
                     <td class="text-success">${{ payout.total_amount|floatformat:2 }}</td>
                     <td>{{ payout.notes|truncatewords:10 }}</td>
                     <td>
-                      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-primary"
+                              data-bs-toggle="modal"
+                              data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
                     </td>
                   </tr>
                 {% endfor %}
@@ -177,12 +182,21 @@
 
   <!-- Payout Detail Modals -->
   {% for payout in payouts %}
-    <div class="modal fade" id="payoutModal{{ payout.id }}" tabindex="-1" aria-labelledby="payoutModalLabel{{ payout.id }}" aria-hidden="true">
+    <div class="modal fade"
+         id="payoutModal{{ payout.id }}"
+         tabindex="-1"
+         aria-labelledby="payoutModalLabel{{ payout.id }}"
+         aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">
+              Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}
+            </h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <div class="mb-3">
@@ -233,29 +247,27 @@
   {% endfor %}
 
   <style>
-    .badge {
-      font-weight: 500;
-      padding: 0.5em 0.75em;
-    }
-    
-    .badge.bg-warning {
-      background-color: #ffc107;
-      color: #000;
-    }
-    
-    .badge.bg-success {
-      background-color: #198754;
-    }
-    
-    .nav-tabs .nav-link {
-      color: #495057;
-    }
-    
-    .nav-tabs .nav-link.active {
-      font-weight: 600;
-    }
-  </style>
-  {% block footer %}
+      .badge {
+          font-weight: 500;
+          padding: 0.5em 0.75em;
+      }
 
-  {% endblock %}
+      .badge.bg-warning {
+          background-color: #ffc107;
+          color: #000;
+      }
+
+      .badge.bg-success {
+          background-color: #198754;
+      }
+
+      .nav-tabs .nav-link {
+          color: #495057;
+      }
+
+      .nav-tabs .nav-link.active {
+          font-weight: 600;
+      }
+  </style>
+  {% block footer %}{% endblock %}
 {% endblock %}

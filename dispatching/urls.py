@@ -27,6 +27,9 @@ urlpatterns = [
         name="process_payment",
     ),
     path("save-card/<str:reservation_id>", views.save_card, name="save_card"),
-        path('reservations/<uuid:reservation_id>/dispatcher-actions/', views.dispatcher_payment_portal, name='dispatcher_payment_portal'),
-
+    path(
+        "reservations/<uuid:reservation_id>/dispatcher-actions/",
+        views.dispatcher_payment_portal,
+        name="dispatcher_payment_portal",
+    ),
 ]

@@ -1,14 +1,14 @@
 {% extends "main.html" %}
 {% load static %}
-
+{% block head_extra %}
+  <link rel="canonical"
+        href="https://www.graysontowncar.com/orlando-transportation-faqs/" />
+{% endblock head_extra %}
 {% block title %}
   FAQs | Orlando Airport Transportation & Shuttle Info
 {% endblock title %}
 
 {% block content %}
-  <!-- ================================================================ -->
-  <!-- Link to CSS for FAQs Page -->
-  <!-- ================================================================ -->
   <link rel="stylesheet" href="{% static 'css/faqs.css' %}">
 
   <!-- ================================================================ -->

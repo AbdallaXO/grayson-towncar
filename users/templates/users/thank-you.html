@@ -4,18 +4,21 @@
 {% block messages %}{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-12 col-md-10 col-lg-8 text-center">
-      <h2 class="mb-3">Thank you for reaching out to Grayson Towncar!</h2>
-      <p class="lead mb-4">
-        Hang tight! We’ve received your message and will be in touch with you shortly.
-      </p>
+  <div class="container py-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-10 col-lg-8 text-center">
+        <h2 class="mb-3">Thank you for reaching out to Grayson Towncar!</h2>
+        <p class="lead mb-4">Hang tight! We’ve received your message and will be in touch with you shortly.</p>
 
-      <img src="{% static 'images/thank-you-mm.webp' %}" alt="Thank You" class="img-fluid rounded mb-4" style="max-width: 100%; height: auto;">
+        <img src="{% static 'images/thank-you-mm.webp' %}"
+             alt="Thank You"
+             class="img-fluid rounded mb-4"
+             style="max-width: 100%;
+                    height: auto">
 
-      <a href="{% url 'home' %}" class="btn btn-warning text-black rounded-pill">Back to Homepage</a>
+        <a href="{% url 'home' %}"
+           class="btn btn-warning text-black rounded-pill">Back to Homepage</a>
+      </div>
     </div>
   </div>
-</div>
 {% endblock %}

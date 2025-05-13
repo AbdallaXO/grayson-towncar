@@ -28,6 +28,7 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class DateForm(forms.Form):
     """Simple form for date selection."""
+
     date = forms.DateField(widget=forms.SelectDateWidget)
 
 
@@ -36,10 +37,10 @@ def index(request):
     """
     Dispatcher Dashboard: Shows all legs with date filtering functionality.
     Includes driver assignment and status update capabilities.
-    
+
     Args:
         request: The HTTP request
-        
+
     Returns:
         Rendered template with legs for the selected date
     """
@@ -89,16 +90,16 @@ def index(request):
 def all_reservations(request):
     """
     List all reservations with pagination and overview statistics.
-    
+
     Args:
         request: The HTTP request
-        
+
     Returns:
         Rendered template with paginated reservation list and stats
     """
     if not request.user.is_superuser:
         return redirect("home")
-    
+
     search = ""
     if request.GET.get("search_q"):
         search = request.GET.get("search_q")
@@ -108,7 +109,7 @@ def all_reservations(request):
         .prefetch_related("legs")
         .filter(Q(customer__first_name__icontains=search) & ~Q(status="completed"))
         .distinct()
-        .order_by('-id')
+        .order_by("-id")
     )
 
     paginator = Paginator(reservations_query, 10)
@@ -118,9 +119,19 @@ def all_reservations(request):
     total_reservations = reservations_query.count()
     pending_reservations = reservations_query.filter(status="pending").count()
     confirmed_reservations = reservations_query.filter(status="confirmed").count()
-    total_revenue = reservations_query.filter(payments__status='paid').aggregate(total=Sum("total_price"))["total"] or 0
-    pending_payments = reservations_query.filter(~Q(payments__status='paid')).aggregate(total=Sum("total_price"))["total"] or 0
-    
+    total_revenue = (
+        reservations_query.filter(payments__status="paid").aggregate(
+            total=Sum("total_price")
+        )["total"]
+        or 0
+    )
+    pending_payments = (
+        reservations_query.filter(~Q(payments__status="paid")).aggregate(
+            total=Sum("total_price")
+        )["total"]
+        or 0
+    )
+
     context = {
         "reservations": page_obj,
         "page_obj": page_obj,
@@ -138,11 +149,11 @@ def all_reservations(request):
 def reservation_details(request, id):
     """
     Detailed view for a reservation with all relevant information.
-    
+
     Args:
         request: The HTTP request
         id: The UUID of the reservation
-        
+
     Returns:
         Rendered template with detailed reservation information
     """
@@ -195,17 +206,17 @@ def reservation_details(request, id):
 def modify_reservation(request, id):
     """
     Update an existing reservation, its customer, and legs.
-    
+
     Args:
         request: The HTTP request
         id: The UUID of the reservation
-        
+
     Returns:
         Redirect to reservation details on success or form with errors
     """
     if not request.user.is_superuser:
         return redirect("home")
-        
+
     reservation = get_object_or_404(
         Reservation.objects.prefetch_related("legs"), uuid=id
     )
@@ -289,16 +300,16 @@ def modify_reservation(request, id):
 def legs_list(request):
     """
     Display a filterable list of all upcoming legs.
-    
+
     Args:
         request: The HTTP request
-        
+
     Returns:
         Rendered template with filtered legs
     """
     if not request.user.is_superuser:
         return redirect("home")
-        
+
     date_filter = request.GET.get("date")
     today = timezone.localdate()
 
@@ -335,10 +346,10 @@ def legs_list(request):
 def update_leg_assignment(request):
     """
     Update a leg's driver assignment or status via AJAX.
-    
+
     Args:
         request: The HTTP request with JSON payload
-        
+
     Returns:
         JsonResponse indicating success or failure
     """
@@ -457,33 +468,37 @@ def update_leg_assignment(request):
 def update_private_notes(request):
     """
     Updates the private notes for a reservation.
-    
+
     Args:
         request: The HTTP request with JSON payload
-        
+
     Returns:
         JsonResponse indicating success or failure
     """
     if not request.user.is_superuser:
-        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
-    
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
     try:
         data = json.loads(request.body)
-        reservation_id = data.get('reservation_id')
-        private_notes = data.get('private_notes')
-        
+        reservation_id = data.get("reservation_id")
+        private_notes = data.get("private_notes")
+
         if not reservation_id:
-            return JsonResponse({"success": False, "error": "Missing reservation ID"}, status=400)
-        
+            return JsonResponse(
+                {"success": False, "error": "Missing reservation ID"}, status=400
+            )
+
         # Get the reservation
         reservation = get_object_or_404(Reservation, uuid=reservation_id)
-        
+
         # Update private notes
         reservation.private_notes = private_notes
-        reservation.save(update_fields=['private_notes'])
-        
+        reservation.save(update_fields=["private_notes"])
+
         return JsonResponse({"success": True})
-        
+
     except Exception as e:
         logger.error(f"Error updating private notes: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)})
@@ -492,17 +507,17 @@ def update_private_notes(request):
 def create_checkout_session(request, reservation_id):
     """
     Create a Stripe checkout session for a reservation payment.
-    
+
     Args:
         request: The HTTP request
         reservation_id: The UUID of the reservation
-        
+
     Returns:
         Redirect to Stripe checkout or error response
     """
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
     logger.info(f"{request.user} Making a Checkout Session for {reservation.customer}")
-    
+
     stripe_customer = get_or_create_stripe_customer(reservation)
     success_url = request.build_absolute_uri(
         reverse("payment_success") + f"?q={reservation.uuid}"
@@ -510,47 +525,49 @@ def create_checkout_session(request, reservation_id):
     cancel_url = request.build_absolute_uri(
         reverse("payment_cancel") + f"?q={reservation.uuid}"
     )
-    
+
     try:
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer.id,
-            line_items=[{
-                'price_data': {
-                    'currency': 'usd',
-                    'unit_amount': int(reservation.total_price * 100),
-                    'product_data': {
-                        'name': f'Reservation #{reservation.id}',
-                        'description': f'Transportation service'
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "unit_amount": int(reservation.total_price * 100),
+                        "product_data": {
+                            "name": f"Reservation #{reservation.id}",
+                            "description": f"Transportation service",
+                        },
                     },
-                },
-                'quantity': 1,
-            }],
-            mode='payment',
+                    "quantity": 1,
+                }
+            ],
+            mode="payment",
             success_url=success_url,
             cancel_url=cancel_url,
             metadata={
-                'reservation_id': reservation.id,
-                'customer_id': reservation.customer.id,
+                "reservation_id": reservation.id,
+                "customer_id": reservation.customer.id,
             },
         )
-        logger.info(f"Created checkout session: {checkout_session.id}")           
+        logger.info(f"Created checkout session: {checkout_session.id}")
         return redirect(checkout_session.url, code=303)
     except stripe.error.StripeError as e:
         logger.error(f"Stripe error: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({"error": str(e)}, status=400)
     except Exception as e:
         logger.error(f"Error creating checkout session: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({"error": str(e)}, status=400)
 
 
 def save_card(request, reservation_id):
     """
     Create a Stripe checkout session for saving a card.
-    
+
     Args:
         request: The HTTP request
         reservation_id: The UUID of the reservation
-        
+
     Returns:
         Redirect to Stripe checkout or error page
     """
@@ -561,10 +578,10 @@ def save_card(request, reservation_id):
     cancel_url = request.build_absolute_uri(
         reverse("payment_cancel") + f"?q={reservation.uuid}"
     )
-    
+
     try:
         stripe_customer = get_or_create_stripe_customer(reservation)
-        
+
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer.id,
             payment_method_types=["card"],
@@ -586,33 +603,41 @@ def save_card(request, reservation_id):
         return render(request, "stripe/error.html", {"error": e})
     except Exception as e:
         logger.error(f"Unexpected error in save_card: {e}")
-        return render(request, "stripe/error.html", {"error": "An unexpected error occurred"})
+        return render(
+            request, "stripe/error.html", {"error": "An unexpected error occurred"}
+        )
 
 
 def dispatcher_payment_portal(request, reservation_id):
     """
     A portal for dispatchers to process payments or save cards for reservations.
-    
+
     Args:
         request: The HTTP request
         reservation_id: The UUID of the reservation
-        
+
     Returns:
         Rendered form or redirect to Stripe checkout
     """
     reservation = get_object_or_404(Reservation, uuid=reservation_id)
     # Redirect URLs: These are where Stripe sends the user back.
-    base_success_url = request.build_absolute_uri(reverse('payment_success'))
-    base_cancel_url = request.build_absolute_uri(reverse('payment_cancel'))
+    base_success_url = request.build_absolute_uri(reverse("payment_success"))
+    base_cancel_url = request.build_absolute_uri(reverse("payment_cancel"))
 
-    success_url_with_context = f"{base_success_url}?q={reservation.uuid}&source=dispatcher_portal"
-    cancel_url_with_context = f"{base_cancel_url}?q={reservation.uuid}&source=dispatcher_portal"
+    success_url_with_context = (
+        f"{base_success_url}?q={reservation.uuid}&source=dispatcher_portal"
+    )
+    cancel_url_with_context = (
+        f"{base_cancel_url}?q={reservation.uuid}&source=dispatcher_portal"
+    )
 
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        amount_str = request.POST.get('amount')
-        description = request.POST.get('description', f'Payment for Reservation #{reservation.id}')
-        
+    if request.method == "POST":
+        action = request.POST.get("action")
+        amount_str = request.POST.get("amount")
+        description = request.POST.get(
+            "description", f"Payment for Reservation #{reservation.id}"
+        )
+
         try:
             stripe_customer = get_or_create_stripe_customer(reservation)
             checkout_session_params = {
@@ -624,18 +649,22 @@ def dispatcher_payment_portal(request, reservation_id):
                     "reservation_id": reservation.id,
                     "customer_id": reservation.customer.id,
                     "initiated_by": "dispatcher",
-                    "dispatcher_action": action
-                }
+                    "dispatcher_action": action,
+                },
             }
 
-            if action == 'make_payment':
+            if action == "make_payment":
                 if not amount_str:
                     messages.error(request, "Amount is required for making a payment.")
-                    return render(request, 'dispatching/dispatcher_payment_portal.html', {
-                        'reservation': reservation, 
-                        'selected_action': action,
-                        'entered_description': description
-                    })
+                    return render(
+                        request,
+                        "dispatching/dispatcher_payment_portal.html",
+                        {
+                            "reservation": reservation,
+                            "selected_action": action,
+                            "entered_description": description,
+                        },
+                    )
                 try:
                     amount_decimal = Decimal(amount_str)
                     if amount_decimal <= 0:
@@ -643,20 +672,24 @@ def dispatcher_payment_portal(request, reservation_id):
                     amount_in_cents = int(amount_decimal * 100)
                 except ValueError as e:
                     messages.error(request, str(e))
-                    return render(request, 'dispatching/dispatcher_payment_portal.html', {
-                        'reservation': reservation, 
-                        'selected_action': action, 
-                        'entered_amount': amount_str,
-                        'entered_description': description
-                    })
+                    return render(
+                        request,
+                        "dispatching/dispatcher_payment_portal.html",
+                        {
+                            "reservation": reservation,
+                            "selected_action": action,
+                            "entered_amount": amount_str,
+                            "entered_description": description,
+                        },
+                    )
 
                 # Create a new product with the custom description
                 product = stripe.Product.create(
                     name=description,  # Use the description from the form
                     metadata={
-                        'reservation_uuid': str(reservation.uuid),
-                        'reservation_id': reservation.id,
-                    }
+                        "reservation_uuid": str(reservation.uuid),
+                        "reservation_id": reservation.id,
+                    },
                 )
 
                 # Create price for the new product
@@ -666,46 +699,70 @@ def dispatcher_payment_portal(request, reservation_id):
                     product=product.id,
                 )
 
-                checkout_session_params.update({
-                    "line_items": [{'price': price.id, 'quantity': 1}],
-                    "mode": "payment",
-                    "payment_intent_data": {
-                        "setup_future_usage": "off_session"  # Allow saving the card for future use
+                checkout_session_params.update(
+                    {
+                        "line_items": [{"price": price.id, "quantity": 1}],
+                        "mode": "payment",
+                        "payment_intent_data": {
+                            "setup_future_usage": "off_session"  # Allow saving the card for future use
+                        },
                     }
-                })
-                checkout_session_params["metadata"].update({
-                    "payment_amount_cents": amount_in_cents,
-                    "payment_description": description  # Store the description in metadata for reference
-                })
+                )
+                checkout_session_params["metadata"].update(
+                    {
+                        "payment_amount_cents": amount_in_cents,
+                        "payment_description": description,  # Store the description in metadata for reference
+                    }
+                )
 
-            elif action == 'save_card':
-                checkout_session_params.update({
-                    "payment_method_types": ["card"],
-                    "mode": "setup",
-                })
+            elif action == "save_card":
+                checkout_session_params.update(
+                    {
+                        "payment_method_types": ["card"],
+                        "mode": "setup",
+                    }
+                )
             else:
                 messages.error(request, "Invalid action selected.")
-                return render(request, 'dispatching/dispatcher_payment_portal.html', {'reservation': reservation})
+                return render(
+                    request,
+                    "dispatching/dispatcher_payment_portal.html",
+                    {"reservation": reservation},
+                )
 
             session = stripe.checkout.Session.create(**checkout_session_params)
             return redirect(session.url, code=303)
 
         except stripe.error.StripeError as e:
-            logger.error(f"Stripe error for dispatcher action on reservation {reservation.uuid}: {e}")
+            logger.error(
+                f"Stripe error for dispatcher action on reservation {reservation.uuid}: {e}"
+            )
             messages.error(request, f"Payment system error: {str(e)}")
         except ValueError as e:  # Catch our own validation errors for amount
             messages.error(request, str(e))
         except Exception as e:
-            logger.error(f"Unexpected error during dispatcher payment action for {reservation.uuid}: {e}")
+            logger.error(
+                f"Unexpected error during dispatcher payment action for {reservation.uuid}: {e}"
+            )
             messages.error(request, "An unexpected error occurred. Please try again.")
-        
+
         # If any error, re-render form with messages
-        return render(request, 'dispatching/dispatcher_payment_portal.html', {
-            'reservation': reservation,
-            'selected_action': action,  # Preserve selected action on error
-            'entered_amount': amount_str if action == 'make_payment' else None,
-            'entered_description': description if action == 'make_payment' else None
-        })
+        return render(
+            request,
+            "dispatching/dispatcher_payment_portal.html",
+            {
+                "reservation": reservation,
+                "selected_action": action,  # Preserve selected action on error
+                "entered_amount": amount_str if action == "make_payment" else None,
+                "entered_description": description
+                if action == "make_payment"
+                else None,
+            },
+        )
 
     # GET request
-    return render(request, 'dispatching/dispatcher_payment_portal.html', {'reservation': reservation})
+    return render(
+        request,
+        "dispatching/dispatcher_payment_portal.html",
+        {"reservation": reservation},
+    )

@@ -14,8 +14,7 @@
         as="image"
         type="image/webp">
 {% endblock %}
-{% block extra_css %}
-{% endblock %}
+{% block extra_css %}{% endblock %}
 {% block content %}
   {% block schema %}
     {% structured_data additional_data=structured_data %}
@@ -43,7 +42,7 @@
           </p>
           <div class="d-flex flex-wrap justify-content-center gap-2">
             <a href="{% url 'rates' %}"
-               class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Book Your Ride</a>
+               class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Check Our Airport Rates</a>
           </div>
         </div>
       </div>
@@ -51,7 +50,7 @@
   </section>
 
 
-  <section class="py-6">
+  <section class="py-6 mt-5">
     <div class="container">
       <div class="row">
         <div class="col-lg-8 mx-auto">
@@ -217,7 +216,7 @@
 
           <div class="text-center mt-5">
             <a href="{% url 'rates' %}"
-               class="btn btn-primary btn-lg px-5 py-3 rounded-pill">View Our Rates</a>
+               class="btn btn-dark btn-lg px-5 py-3 rounded-pill">View Our Rates</a>
           </div>
         </div>
       </div>

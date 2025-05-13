@@ -43,6 +43,7 @@ class PartnerForm(models.Model):
         max_length=60, choices=REFERRAL_SOURCES, default="other"
     )
     additional_info = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} - {self.agency_name}"
@@ -62,6 +63,7 @@ class ContactUsForm(models.Model):
         max_length=10, choices=CONTACT_METHODS, default="email"
     )
     about = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.first_name} - {self.last_name}"
@@ -130,6 +132,7 @@ class TravelAgent(models.Model):
         blank=True,
         help_text="Select your preferred payment method",
     )
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.agency_name} - {self.user.username}"
@@ -148,6 +151,7 @@ class CommissionPayout(models.Model):
     payout_period_end = models.DateField()
     paid_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return f"{self.agent.agency_name or self.agent.agent_name or self.agent.user.username} – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"
