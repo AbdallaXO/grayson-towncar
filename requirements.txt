@@ -39,3 +39,4 @@ django-jazzmin
 django-ckeditor
 django-unfold
 hubspot
+simplejson
