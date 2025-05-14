@@ -14,6 +14,7 @@
         type="image/webp">
 {% endblock %}
 {% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
 {% endblock %}
 {% block content %}
   {% block schema %}
@@ -166,7 +167,7 @@
                   </li>
                 </ul>
                 <p class="mt-4 mb-0">
-                  For pricing details or to reserve a ride, please visit our <a href="/orlando-transportation-faqs/" class="text-primary">MCO to Disney transportation</a> page for more information.
+                  For pricing details or to reserve a ride, please visit our <a href="{% url "disney_world_transportation" %}" class="text-primary">MCO to Disney transportation</a> page for more information.
                 </p>
               </div>
 
@@ -211,7 +212,8 @@
                   </li>
                 </ul>
                 <p class="mt-4 mb-0">
-                  For more information on pickups or to arrange a ride, see our <a href="/orlando-transportation-faqs/" class="text-primary">Orlando airport transportation</a> options on the booking page.
+                  For more information on pickups or to arrange a ride, see our <a href="{% url "orlando_airport_transportation" %}"
+    class="text-primary">Orlando airport transportation</a> options on the booking page.
                 </p>
               </div>
 
@@ -346,7 +348,7 @@
                   </li>
                 </ul>
                 <p class="mt-4 mb-0">
-                  You can check our <a href="/orlando-transportation-faqs/" class="text-primary">Port Canaveral cruise transfers</a> page for rates and booking options for cruise transportation.
+                  You can check our <a href="{% url "port_canaveral_transportation" %}" class="text-primary">Port Canaveral cruise transfers</a> page for rates and booking options for cruise transportation.
                 </p>
               </div>
             </div>
@@ -357,10 +359,10 @@
   </section>
 
   <!-- Fleet Section -->
-  <section class="py-6 bg-custom-light-gold" id="fleet">
+  <section class="py-6 fleet-gradient" id="fleet">
     <div class="container">
       <div class="text-center mb-5">
-        <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3 fs-5">Transportation</span>
+        <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">Transportation</span>
         <h2 class="display-5 fw-normal">An Insight About Our Fleet</h2>
         <p class="lead mb-1">Premium vehicles for your Orlando transportation needs</p>
         {% comment %} <p class="small text-muted">
@@ -442,12 +444,12 @@
     <div class="row">
       <div class="col-lg-5 mb-4">
         <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded-4 shadow-sm p-2 mb-4 bg-dark">
+          <div class="rounded shadow-sm p-2 mb-4">
             <img src="{% static 'images/towncar.webp' %}"
                  alt="Town Car"
                  class="img-fluid rounded">
           </div>
-          <div class="card h-100 border-0 rounded-4 mt-auto shadow-md">
+          <div class="card h-100 border-0 bg-light mt-auto">
             <div class="card-body">
               <h5 class="card-title">
                 <strong>Need a specific accommodation?</strong>
@@ -528,12 +530,12 @@
     <div class="row">
       <div class="col-lg-5 mb-4">
         <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded-4 shadow-lg p-2 mb-4 bg-dark">
+          <div class="rounded shadow-sm p-2 mb-4">
             <img src="{% static 'images/minivan.webp' %}"
                  alt="Minivan"
                  class="img-fluid rounded">
           </div>
-          <div class="card h-100 border-0 rounded-4 mt-auto shadow-md">
+          <div class="card h-100 border-0 bg-light mt-auto">
             <div class="card-body">
               <h5 class="card-title">
                 <strong>Need a specific accommodation?</strong>
@@ -616,7 +618,7 @@
     <div class="row">
       <div class="col-lg-5 mb-4">
         <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded-4 shadow-lg p-2 mb-4 bg-dark">
+          <div class="rounded shadow-sm p-2 mb-4">
             <img src="{% static 'images/suv-new.webp' %}"
                  alt="SUV"
                  class="img-fluid rounded">
@@ -703,12 +705,12 @@
     <div class="row">
       <div class="col-lg-5 mb-4">
         <div class="d-flex flex-column h-100 align-items-center">
-          <div class="rounded-4 bg-dark shadow-sm p-2 mb-4">
+          <div class="rounded shadow-sm p-2 mb-4">
             <img src="{% static 'images/van.webp' %}"
                  alt="Van"
                  class="img-fluid rounded">
           </div>
-          <div class="card h-100 border-0 rounded-4 mt-auto shadow-md">
+          <div class="card h-100 border-0 bg-light mt-auto">
             <div class="card-body">
               <h5 class="card-title">
                 <strong>Need a specific accommodation?</strong>
@@ -862,7 +864,7 @@
   <div class="position-absolute top-0 start-0 w-100 h-100"
        style="z-index: 0;
               opacity: 0.15">
-    <img src="{% static 'images/photo2.avif' %}"
+    <img src="{% static 'images/photo2.webp' %}"
          alt="Background"
          class="w-100 h-100 object-fit-cover">
   </div>
@@ -938,7 +940,74 @@
 </section>
 
 <!-- Enhanced Travel Agent Partnership Section -->
+<section class="py-4" id="travel-agents">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-10 col-md-12">
+        <!-- Reduced width for smaller overall box -->
+        <div class="card border-0 shadow-lg">
+          <div class="card-body p-4">
+            <!-- Reduced padding -->
+            <div class="row">
+              <div class="col-12">
+                <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">For Travel Professionals</span>
+                <h2 class="display-5 fw-normal mb-3">Travel Agent Partnerships</h2>
+                <!-- Reduced margin -->
+                <p class="lead mb-3">
+                  <!-- Reduced margin -->
+                  Partner with us to offer your clients luxurious Orlando transportation while unlocking these exclusive benefits:
+                </p>
 
+                <!-- Benefits list -->
+                <div class="mb-3">
+                  <!-- Reduced margin -->
+                  <p class="mb-2">
+                    <i class="bi bi-shield-check text-secondary me-2"></i> <span class="fw-medium">Trusted Client Care</span>
+                  </p>
+                  <p class="mb-2">
+                    <i class="bi bi-cash-coin text-secondary me-2"></i> <span class="fw-medium">High-Earning Commissions</span>
+                  </p>
+                  <p class="mb-2">
+                    <i class="bi bi-tag text-secondary me-2"></i> <span class="fw-medium">Exclusive Travel Discounts</span>
+                  </p>
+                  <p class="mb-2">
+                    <i class="bi bi-star text-secondary me-2"></i> <span class="fw-medium">Spotlight on You</span>
+                  </p>
+                  <p class="mb-2">
+                    <i class="bi bi-headset text-secondary me-2"></i> <span class="fw-medium">Always-On Support</span>
+                  </p>
+                </div>
+
+                <!-- Added text-center class to center the button -->
+                <div class="text-center">
+                  <a href="{% url 'partner' %}"
+                     class="btn btn-custom rounded-pill btn-secondary btn-m">Discover Grayson Partnership Benefits</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- FAQ Link Section - Compact Version -->
+<section class="py-4 bg-dark text-white text-center" id="faq-link">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <!-- Reduced from col-lg-8 -->
+        <h3 class="mb-3">Frequently Asked Questions</h3>
+        <!-- Changed from display-5 to h3 -->
+        <p class="mb-3">Get answers to common transportation questions</p>
+        <!-- Shortened text, reduced margin -->
+        <a href="{% url 'faqs' %}" class="btn btn-light px-4 py-2 rounded-pill">View All FAQs</a> <!-- Smaller button -->
+      </div>
+    </div>
+  </div>
+</section>
 {% include 'call-to-action.html' %}
 <script src="{% static 'js/services-page.js' %}" defer></script>
 {% endblock %}
