@@ -19,6 +19,11 @@ from django.db.models import Prefetch
 from rates.models import Rate, Vehicle
 import json
 from users.models import TravelAgent
+import logging
+from .hubspot_service import sync_reservation_to_hubspot
+
+logger = logging.getLogger(__name__)
+
 
 # Create your views here.
 
@@ -122,6 +127,19 @@ def reservation_form(
 
             extra_charges(reservation)
             send_internal_confirmation(reservation)
+            try:
+                hubspot_result = sync_reservation_to_hubspot(reservation)
+                if hubspot_result["success"]:
+                    logger.info(
+                        f"Reservation #{reservation.id} synced to HubSpot: {hubspot_result}"
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to sync reservation #{reservation.id} to HubSpot: {hubspot_result}"
+                    )
+            except Exception as e:
+                logger.error(f"Error syncing reservation to HubSpot: {e}")
+
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (

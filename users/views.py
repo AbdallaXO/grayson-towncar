@@ -168,6 +168,7 @@ from django.db import transaction
 
 
 def register_agent(request):
+    from .emails import agent_register_email
     """Handle travel agent registration."""
     if request.method == "POST":
         # Get form data
@@ -221,7 +222,6 @@ def register_agent(request):
                     payment_info=form_data["payment_info"],
                 )
 
-            # Only log them in if both user and agent were created successfully
             login(request, user)
             messages.success(request, "Successfully registered as a travel agent!")
             return redirect("agent_dashboard")

@@ -8,6 +8,7 @@ from reservations.models import Reservation, Customer
 from .models import Payment
 from users.emails import send_reservation_confirmation  # Added import
 from decimal import Decimal  # Added import
+from reservations.hubspot_service import update_deal_payment_status
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +39,35 @@ def stripe_webhook(request):
     logger.info(f"Received Webhook {event_type}")
 
     if event_type == "checkout.session.completed":
-        handle_checkout_session(event_object)
+        payment_result = handle_checkout_session(event_object)
+
+        if payment_result:
+            reservation_id = payment_result.get("reservation_id")
+            status_map = {
+                "paid": "Paid",
+                "card_saved": "Card On File",
+                "pending": "Pending",
+                "failed": "Failed",
+            }
+            payment_status = status_map.get(payment_result.get("status", ""), "Unknown")
+            payment_method = None
+            if payment_result.get("payment_method_type") == "card":
+                card_brand = payment_result.get("card_brand", "")
+                card_last4 = payment_result.get("card_last4", "")
+                if card_brand and card_last4:
+                    payment_method = f"{card_brand.title()} ending in {card_last4}"
+
+            # Update HubSpot deal
+            update_deal_payment_status(
+                reservation_id=reservation_id,
+                payment_status=payment_status,
+                payment_amount=payment_result.get("amount"),
+                payment_method=payment_method,
+            )
+
+            logger.info(
+                f"Updated HubSpot deal for reservation #{reservation_id} with payment status: {payment_status}"
+            )
 
     return HttpResponse(status=200)
 
@@ -156,6 +185,20 @@ def handle_checkout_session(session):
             else:
                 logger.error("No payment_intent in session")
 
+        payment_result = {
+            "reservation_id": reservation_id,
+            "status": payment.status,
+            "amount": payment.amount,
+            "payment_method_type": None,
+            "card_brand": None,
+            "card_last4": None,
+        }
+        if hasattr(customer, "card_brand") and customer.card_brand:
+            payment_result["payment_method_type"] = "card"
+            payment_result["card_brand"] = customer.card_brand
+            payment_result["card_last4"] = customer.card_last4
+
+        return payment_result
     except Reservation.DoesNotExist:
         logger.error(f"Reservation {reservation_id} Not Found")
     except Exception as e:

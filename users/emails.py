@@ -150,3 +150,22 @@ def send_internal_confirmation(reservation):
         logger.exception(
             f"Error sending confirmation email for reservation {reservation.uuid}: {e}"
         )
+
+
+
+def agent_register_email(instance):
+    """When a travelAgent Succesfully Registers this is a Thank You Email
+    And Some Instructions Sent Along with it"""
+    try:
+        name = instance.agent_name.split(' ')[0]
+        subject = f"Welcome to Grayson Towncar! Your Agent Account is Now Live!"
+        from_email = "contact@graysontowncar.com"
+        logger.info(f"Sending Email to ... {instance.user.email}")
+        to = [instance.user.email, "contact@graysontowncar.com"]
+        html_content = render_to_string("users/agent_register_email.html", {'name':name})
+
+        msg = EmailMultiAlternatives(subject, "", from_email, to)
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+    except Exception as e:
+        logger.error(f"Error sending confirmation email: {e}")

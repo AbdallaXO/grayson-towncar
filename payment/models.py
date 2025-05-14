@@ -1,5 +1,6 @@
 from django.db import models
-
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 # Create your models here.
 
@@ -46,3 +47,35 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.payment_type.replace('_', ' ').title()} - {self.status.title()}"
+
+
+
+
+@receiver(post_save, sender=Payment)
+def payment_saved(sender, instance, created, **kwargs):
+    """Sync payment to HubSpot when saved"""
+    if not instance.reservation:
+        return
+    
+    from reservations.hubspot_service import update_deal_payment_status
+    
+    status_map = {
+        "pending": "Pending",
+        "card_saved": "Card On File",
+        "paid": "Paid",
+        "failed": "Failed"
+    }
+    hubspot_status = status_map.get(instance.status, "Unknown")
+    
+    # Get payment method if available
+    payment_method = None
+    if instance.customer and hasattr(instance.customer, 'card_brand') and instance.customer.card_brand and instance.customer.card_last4:
+        payment_method = f"{instance.customer.card_brand.title()} ending in {instance.customer.card_last4}"
+    
+    # Update HubSpot
+    update_deal_payment_status(
+        reservation_id=instance.reservation.id,
+        payment_status=hubspot_status,
+        payment_amount=instance.amount,
+        payment_method=payment_method
+    )
