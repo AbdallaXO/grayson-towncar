@@ -5,20 +5,32 @@ from datetime import datetime, timezone
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-from hubspot import HubSpot
-from hubspot.crm.contacts import SimplePublicObjectInput as ContactInput
-from hubspot.crm.deals import SimplePublicObjectInput as DealInput
-
+# Set this to False if HubSpot imports fail
+HUBSPOT_AVAILABLE = False
 HUBSPOT_TOKEN = os.environ.get('HUBSPOT_TOKEN')
 PIPELINE_ID = "default"  
-DEAL_STAGE_ID = "appointmentscheduled"  
+DEAL_STAGE_ID = "appointmentscheduled"
 
-client = HubSpot(access_token=HUBSPOT_TOKEN)
+# Try to import HubSpot, but catch import errors
+try:
+    from hubspot import HubSpot
+    from hubspot.crm.contacts import SimplePublicObjectInput as ContactInput
+    from hubspot.crm.deals import SimplePublicObjectInput as DealInput
+    
+    # Only create the client if token exists
+    if HUBSPOT_TOKEN:
+        client = HubSpot(access_token=HUBSPOT_TOKEN)
+        HUBSPOT_AVAILABLE = True
+    else:
+        logger.warning("HUBSPOT_TOKEN not found, HubSpot integration disabled")
+except ImportError as e:
+    logger.warning(f"HubSpot import failed: {e}. HubSpot integration disabled.")
+
 
 def find_deal_by_reservation_id(reservation_id):
     """Find an existing deal by reservation_id property"""
-    if not HUBSPOT_TOKEN:
-        logger.error("HUBSPOT_TOKEN not found in environment variables")
+    if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
+        logger.info("HubSpot integration not available - skipping deal lookup")
         return None
 
     body = {
@@ -46,8 +58,8 @@ def find_deal_by_reservation_id(reservation_id):
 
 def create_or_find_contact(customer):
     """Find or create a contact in HubSpot"""
-    if not HUBSPOT_TOKEN:
-        logger.error("HUBSPOT_TOKEN not found in environment variables")
+    if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
+        logger.info("HubSpot integration not available - skipping contact creation")
         return None
 
     # Search by email
@@ -93,8 +105,8 @@ def create_or_find_contact(customer):
 
 def create_deal(reservation, contact_id):
     """Create a deal in HubSpot for the reservation"""
-    if not HUBSPOT_TOKEN:
-        logger.error("HUBSPOT_TOKEN not found in environment variables")
+    if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
+        logger.info("HubSpot integration not available - skipping deal creation")
         return None
 
     # Gather all legs and sort
@@ -225,6 +237,10 @@ def create_deal(reservation, contact_id):
 
 def sync_reservation_to_hubspot(reservation):
     """Main function to sync a reservation to HubSpot"""
+    if not HUBSPOT_AVAILABLE:
+        logger.info("HubSpot integration not available - skipping HubSpot sync")
+        return {"success": False, "error": "HubSpot integration not available"}
+        
     if not HUBSPOT_TOKEN:
         logger.warning(
             "HUBSPOT_TOKEN not found in environment variables - skipping HubSpot sync"
@@ -291,6 +307,10 @@ def update_deal_payment_status(
         payment_amount: Amount paid (optional)
         payment_method: Method of payment (optional)
     """
+    if not HUBSPOT_AVAILABLE:
+        logger.info("HubSpot integration not available - skipping payment status update")
+        return {"success": False, "error": "HubSpot integration not available"}
+        
     if not HUBSPOT_TOKEN:
         logger.warning(
             "HUBSPOT_TOKEN not found in environment variables - skipping HubSpot sync"
@@ -342,6 +362,10 @@ def update_reservation_payment(reservation_id, **kwargs):
             - amount: Payment amount
             - method: Payment method (e.g., "Visa ending in 4242")
     """
+    if not HUBSPOT_AVAILABLE:
+        logger.info("HubSpot integration not available - skipping payment update")
+        return {"success": False, "error": "HubSpot integration not available"}
+        
     if not HUBSPOT_TOKEN:
         logger.warning("HUBSPOT_TOKEN not found - skipping HubSpot update")
         return {"success": False, "error": "HUBSPOT_TOKEN not found"}

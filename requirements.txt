@@ -36,7 +36,7 @@ dj-database-url
 django-ckeditor
 django-scheduler
 django-jazzmin
-django-ckeditor
 django-unfold
 hubspot
 simplejson
+delorean
