@@ -106,6 +106,32 @@ class Reservation(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        """
+        Override save method to calculate prices and track changed fields
+        """
+        # Initialize changed fields list
+        self._changed_fields = []
+        
+        # Check for changes if this is an existing instance
+        if self.pk:
+            try:
+                # Get the current state from the database
+                old_instance = Reservation.objects.get(pk=self.pk)
+                
+                # Compare all fields and track which ones changed
+                for field in self._meta.fields:
+                    old_value = getattr(old_instance, field.name)
+                    new_value = getattr(self, field.name)
+                    
+                    # Check if the field has changed
+                    if old_value != new_value:
+                        self._changed_fields.append(field.name)
+                        
+            except Reservation.DoesNotExist:
+                # This is technically a new instance
+                pass
+        
+        # Business logic for pricing
         if not self.base_price:
             self.base_price = (
                 (self.total_price - self.additional_charges) if self.total_price else 0
@@ -120,6 +146,7 @@ class Reservation(models.Model):
                 "0.10"
             )  # 10% commission
 
+        # Call the original save() method
         super().save(*args, **kwargs)
 
     def display_carseats(self):

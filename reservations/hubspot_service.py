@@ -1,6 +1,8 @@
 import os
 import logging
 from datetime import datetime, timezone
+from functools import wraps
+from django.core.cache import cache
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -8,8 +10,8 @@ logger = logging.getLogger(__name__)
 # Set this to False if HubSpot imports fail
 HUBSPOT_AVAILABLE = False
 HUBSPOT_TOKEN = os.environ.get('HUBSPOT_TOKEN')
-PIPELINE_ID = "default"  
-DEAL_STAGE_ID = "appointmentscheduled"
+PIPELINE_ID = os.environ.get('HUBSPOT_PIPELINE_ID', "default")  
+DEAL_STAGE_ID = os.environ.get('HUBSPOT_DEAL_STAGE_ID', "appointmentscheduled")
 
 # Try to import HubSpot, but catch import errors
 try:
@@ -26,12 +28,56 @@ try:
 except ImportError as e:
     logger.warning(f"HubSpot import failed: {e}. HubSpot integration disabled.")
 
+# Cache timeouts
+CACHE_TIMEOUT = {
+    'deal': 60*60*12,  # 12 hours for deals
+    'contact': 60*60*24  # 24 hours for contacts
+}
 
-def find_deal_by_reservation_id(reservation_id):
-    """Find an existing deal by reservation_id property"""
+# Retry decorator for transient errors
+def with_retries(max_attempts=3, retry_on=(Exception,)):
+    """Decorator to retry functions on certain exceptions"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempts = 0
+            last_error = None
+            
+            while attempts < max_attempts:
+                try:
+                    return func(*args, **kwargs)
+                except retry_on as e:
+                    attempts += 1
+                    last_error = e
+                    if attempts < max_attempts:
+                        # Exponential backoff: 1s, 2s, 4s, etc.
+                        wait_time = 2 ** (attempts - 1)
+                        logger.warning(f"Retrying {func.__name__} after error: {e}. "
+                                      f"Attempt {attempts}/{max_attempts} in {wait_time}s")
+                        import time
+                        time.sleep(wait_time)
+            
+            # If we get here, all retries failed
+            logger.error(f"All {max_attempts} attempts failed for {func.__name__}: {last_error}")
+            raise last_error
+        
+        return wrapper
+    return decorator
+
+
+def find_deal_by_reservation_id(reservation_id, use_cache=True):
+    """Find an existing deal by reservation_id property with caching"""
     if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
         logger.info("HubSpot integration not available - skipping deal lookup")
         return None
+    
+    # Check cache first if enabled
+    cache_key = f"hubspot_deal:{reservation_id}"
+    if use_cache:
+        cached_deal_id = cache.get(cache_key)
+        if cached_deal_id:
+            logger.debug(f"Cache hit for deal ID of reservation #{reservation_id}")
+            return cached_deal_id
 
     body = {
         "filterGroups": [
@@ -49,20 +95,88 @@ def find_deal_by_reservation_id(reservation_id):
     try:
         resp = client.crm.deals.search_api.do_search(public_object_search_request=body)
         if resp.results:
-            return resp.results[0].id
+            deal_id = resp.results[0].id
+            # Cache the result
+            if use_cache:
+                cache.set(cache_key, deal_id, CACHE_TIMEOUT['deal'])
+            return deal_id
         return None
     except Exception as e:
         logger.error(f"Error searching for deal: {e}")
         return None
 
 
-def create_or_find_contact(reservation):
-    """Find or create a contact in HubSpot"""
+def invalidate_deal_cache(reservation_id):
+    """Clear the cache for a specific deal"""
+    cache_key = f"hubspot_deal:{reservation_id}"
+    cache.delete(cache_key)
+
+
+def get_reservation_payment_info(reservation):
+    """
+    Get payment information for a reservation,
+    falling back to reservation.total_price if no payments exist
+    """
+    payment_status = "Pending"  # Default status
+    payment_amount = float(reservation.total_price)  # Default amount
+    payment_method = "N/A"  # Default method
+    
+    try:
+        # Check if the reservation has payments
+        if hasattr(reservation, 'payments') and reservation.payments.exists():
+            latest_payment = reservation.payments.last()
+            
+            if latest_payment:
+                # Map payment status
+                status_map = {
+                    "pending": "Pending",
+                    "card_saved": "Card On File", 
+                    "paid": "Paid",
+                    "failed": "Failed"
+                }
+                payment_status = status_map.get(latest_payment.status, "Pending")
+                
+                # Use payment amount if available
+                if hasattr(latest_payment, 'amount') and latest_payment.amount is not None:
+                    payment_amount = float(latest_payment.amount)
+                    
+                # Get payment method if available
+                if hasattr(latest_payment, 'customer') and latest_payment.customer:
+                    if hasattr(latest_payment.customer, 'card_brand') and latest_payment.customer.card_brand:
+                        card_brand = latest_payment.customer.card_brand
+                        card_last4 = latest_payment.customer.card_last4
+                        if card_brand and card_last4:
+                            payment_method = f"{card_brand.title()} ending in {card_last4}"
+            
+            logger.info(f"Found payment for reservation #{reservation.id}: status={payment_status}, amount={payment_amount}, method={payment_method}")
+        else:
+            logger.info(f"No payments found for reservation #{reservation.id}, using total_price {payment_amount}")
+    except Exception as e:
+        logger.warning(f"Error getting payment info for reservation #{reservation.id}: {e}")
+    
+    return {
+        "status": payment_status,
+        "amount": payment_amount,
+        "method": payment_method
+    }
+
+
+@with_retries(max_attempts=3, retry_on=(Exception,))
+def create_or_find_contact(reservation, use_cache=True):
+    """Find or create a contact in HubSpot with improved caching and conflict handling"""
     if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
         logger.info("HubSpot integration not available - skipping contact creation")
         return None
     
     customer = reservation.customer
+    cache_key = f"hubspot_contact:{customer.email}"
+    
+    # Check cache first if enabled
+    if use_cache:
+        cached_contact_id = cache.get(cache_key)
+        if cached_contact_id:
+            logger.debug(f"Cache hit for contact ID of {customer.email}")
+            return cached_contact_id
 
     # Search by email
     body = {
@@ -80,8 +194,14 @@ def create_or_find_contact(reservation):
             public_object_search_request=body
         )
         if resp.results:
-            logger.info(f"Found contact {resp.results[0].id}")
-            return resp.results[0].id
+            contact_id = resp.results[0].id
+            logger.info(f"Found contact {contact_id}")
+            
+            # Cache the result
+            if use_cache:
+                cache.set(cache_key, contact_id, CACHE_TIMEOUT['contact'])
+            
+            return contact_id
         
         # If no contact found, create a new one
         props = {
@@ -91,12 +211,20 @@ def create_or_find_contact(reservation):
             "phone": customer.phone_number,
             "zip": customer.zipcode,
         }
+        if reservation.travel_agent:
+            props['travel_agent'] = reservation.travel_agent.agent_name
         
         new_ct = client.crm.contacts.basic_api.create(
             simple_public_object_input_for_create=ContactInput(properties=props)
         )
-        logger.info(f"Created contact {new_ct.id}")
-        return new_ct.id
+        contact_id = new_ct.id
+        logger.info(f"Created contact {contact_id}")
+        
+        # Cache the new contact ID
+        if use_cache:
+            cache.set(cache_key, contact_id, CACHE_TIMEOUT['contact'])
+            
+        return contact_id
     except Exception as e:
         # Check if the error is a conflict (contact already exists)
         if "Contact already exists" in str(e):
@@ -106,17 +234,28 @@ def create_or_find_contact(reservation):
             if match:
                 contact_id = match.group(1)
                 logger.info(f"Contact already exists, using ID: {contact_id}")
+                
+                # Cache the result
+                if use_cache:
+                    cache.set(cache_key, contact_id, CACHE_TIMEOUT['contact'])
+                
                 return contact_id
         
         logger.error(f"Error searching/creating contact: {e}")
         return None
 
-def create_deal(reservation, contact_id):
-    """Create a deal in HubSpot for the reservation"""
+
+@with_retries(max_attempts=3, retry_on=(Exception,))
+def create_or_update_deal(reservation, contact_id):
+    """Create or update a deal in HubSpot for the reservation with conflict handling"""
     if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
         logger.info("HubSpot integration not available - skipping deal creation")
         return None
 
+    # Check if deal already exists
+    existing_deal_id = find_deal_by_reservation_id(reservation.id)
+    is_update = existing_deal_id is not None
+    
     # Gather all legs and sort
     legs = list(reservation.legs.order_by("pickup_date", "pickup_time"))
     if not legs:
@@ -181,100 +320,76 @@ def create_deal(reservation, contact_id):
             f"- Drop-off: {with_flight(last_leg, last_leg.dropoff_location, is_dropoff=True)}\n"
         )
 
-    # Check for existing payments and use payment data if available
-    payment_status = "Pending"  # Default status if no payments
-    payment_amount = float(reservation.total_price)  # Default to reservation total
-    payment_method = "N/A"  # Default method
-    
-    try:
-        # Check if the reservation has payments
-        if hasattr(reservation, 'payments') and reservation.payments.exists():
-            latest_payment = reservation.payments.last()
-            
-            if latest_payment:
-                # Map payment status
-                status_map = {
-                    "pending": "Pending",
-                    "card_saved": "Card On File", 
-                    "paid": "Paid",
-                    "failed": "Failed"
-                }
-                payment_status = status_map.get(latest_payment.status, "Pending")
-                
-                # Use payment amount if available
-                if hasattr(latest_payment, 'amount') and latest_payment.amount is not None:
-                    payment_amount = float(latest_payment.amount)
-                    
-                # Get payment method if available
-                if hasattr(latest_payment, 'customer') and latest_payment.customer:
-                    if hasattr(latest_payment.customer, 'card_brand') and latest_payment.customer.card_brand:
-                        card_brand = latest_payment.customer.card_brand
-                        card_last4 = latest_payment.customer.card_last4
-                        if card_brand and card_last4:
-                            payment_method = f"{card_brand.title()} ending in {card_last4}"
-            
-            logger.info(f"Found payment for reservation #{reservation.id}: status={payment_status}, amount={payment_amount}, method={payment_method}")
-        else:
-            logger.info(f"No payments found for reservation #{reservation.id}, using defaults")
-    except Exception as e:
-        logger.warning(f"Error getting payment info for reservation #{reservation.id}: {e}")
+    # Get payment info using the helper function
+    payment_info = get_reservation_payment_info(reservation)
 
     # Deal properties
     deal_props = {
-        "dealname": f"{reservation.vehicle.vehicle_type.title()}— {trip_type_display} - #{reservation.id}",
-        "amount": payment_amount,  # Total price as deal amount
+        "dealname": f"{reservation.vehicle} | {reservation.trip_type} | #{reservation.id} | {reservation.customer.get_full_name()}",
+        "amount": payment_info["amount"],  # Use payment helper
         "pipeline": PIPELINE_ID,
         "dealstage": DEAL_STAGE_ID,
         "closedate": close_ms,
         "reservation_id": str(reservation.id),
         "reservation_status": reservation.status,
         "description": description_text,
-        "payment_status": payment_status,
-        "payment_amount": payment_amount,  # Use payment amount (from payment or default)
-        "payment_method": payment_method   # Use payment method (from payment or default)
+        "payment_status": payment_info["status"],  # Use payment helper
+        "payment_amount": payment_info["amount"],  # Use payment helper
+        "payment_method": payment_info["method"]   # Use payment helper
     }
 
     # Add travel agent info if available
     if hasattr(reservation, "travel_agent") and reservation.travel_agent:
         try:
-            deal_props["travel_agent"] = reservation.travel_agent.user.get_full_name()
+            deal_props["travel_agent"] = reservation.travel_agent.agent_name
         except:
             pass  # Skip travel agent info if there's an error
 
     try:
-        logger.info(f"Creating deal with properties: {deal_props}")
-        deal = client.crm.deals.basic_api.create(
-            simple_public_object_input_for_create=DealInput(properties=deal_props)
-        )
-        deal_id = deal.id
-        logger.info(f"Deal created {deal_id}")
-
-        # Associate contact ↔ deal
-        try:
-            client.crm.associations.batch_api.create(
-                from_object_type="deals",
-                to_object_type="contacts",
-                batch_input_public_association={
-                    "inputs": [
-                        {
-                            "from": {"id": deal_id},
-                            "to": {"id": contact_id},
-                            "type": "deal_to_contact",
-                        }
-                    ]
-                },
+        if is_update:
+            logger.info(f"Updating deal {existing_deal_id} with new properties")
+            client.crm.deals.basic_api.update(
+                deal_id=existing_deal_id, 
+                simple_public_object_input=DealInput(properties=deal_props)
             )
-            logger.info(f"Associated deal {deal_id} ↔ contact {contact_id}")
-        except Exception as e:
-            logger.error(f"Failed to create association: {str(e)}")
+            deal_id = existing_deal_id
+        else:
+            logger.info(f"Creating deal with properties: {deal_props}")
+            deal = client.crm.deals.basic_api.create(
+                simple_public_object_input_for_create=DealInput(properties=deal_props)
+            )
+            deal_id = deal.id
+            
+            # Associate contact ↔ deal (only needed for new deals)
+            try:
+                client.crm.associations.batch_api.create(
+                    from_object_type="deals",
+                    to_object_type="contacts",
+                    batch_input_public_association={
+                        "inputs": [
+                            {
+                                "from": {"id": deal_id},
+                                "to": {"id": contact_id},
+                                "type": "deal_to_contact",
+                            }
+                        ]
+                    },
+                )
+                logger.info(f"Associated deal {deal_id} ↔ contact {contact_id}")
+            except Exception as e:
+                logger.error(f"Failed to create association: {str(e)}")
 
+        # Invalidate cache for this deal
+        invalidate_deal_cache(reservation.id)
+        
         return deal_id
     except Exception as e:
-        logger.error(f"Error creating deal: {e}")
+        logger.error(f"Error creating/updating deal: {e}")
         return None
 
-def sync_reservation_to_hubspot(reservation):
-    """Main function to sync a reservation to HubSpot"""
+
+def sync_reservation_to_hubspot(reservation, force=False):
+    """Main function to sync a reservation to HubSpot with better error handling"""
     if not HUBSPOT_AVAILABLE:
         logger.info("HubSpot integration not available - skipping HubSpot sync")
         return {"success": False, "error": "HubSpot integration not available"}
@@ -291,7 +406,9 @@ def sync_reservation_to_hubspot(reservation):
 
         # Check if deal already exists for this reservation
         existing_deal_id = find_deal_by_reservation_id(reservation.id)
-        if existing_deal_id:
+        
+        # If we have a deal and we're not forcing an update, return early
+        if existing_deal_id and not force:
             logger.info(
                 f"Found existing deal {existing_deal_id} for reservation #{reservation.id}"
             )
@@ -309,13 +426,14 @@ def sync_reservation_to_hubspot(reservation):
 
         logger.info(f"Using contact {contact_id} for customer {cust.get_full_name()}")
 
-        # Create deal
-        deal_id = create_deal(reservation, contact_id)
+        # Create or update deal
+        deal_id = create_or_update_deal(reservation, contact_id)
         if not deal_id:
-            logger.error(f"Failed to create deal for reservation {reservation.id}")
-            return {"success": False, "error": "Failed to create deal"}
+            logger.error(f"Failed to create/update deal for reservation {reservation.id}")
+            return {"success": False, "error": "Failed to create/update deal"}
 
-        logger.info(f"Created deal {deal_id} for reservation #{reservation.id}")
+        action = "Updated" if existing_deal_id else "Created"
+        logger.info(f"{action} deal {deal_id} for reservation #{reservation.id}")
         logger.info(
             f"✅ Successfully synced reservation #{reservation.id} → deal {deal_id}"
         )
@@ -324,7 +442,7 @@ def sync_reservation_to_hubspot(reservation):
             "success": True,
             "contact_id": contact_id,
             "deal_id": deal_id,
-            "status": "created",
+            "status": "updated" if existing_deal_id else "created",
         }
     except Exception as e:
         logger.error(
@@ -333,6 +451,7 @@ def sync_reservation_to_hubspot(reservation):
         return {"success": False, "error": str(e)}
 
 
+@with_retries(max_attempts=3, retry_on=(Exception,))
 def update_deal_payment_status(
     reservation_id, payment_status, payment_amount=None, payment_method=None
 ):
@@ -375,13 +494,15 @@ def update_deal_payment_status(
         # Add payment method if provided
         if payment_method:
             props["payment_method"] = payment_method
-            props["amount"] = float(payment_amount)
-
+            props["amount"] = float(payment_amount) if payment_amount is not None else None
 
         # Update the deal
         client.crm.deals.basic_api.update(
             deal_id=deal_id, simple_public_object_input=DealInput(properties=props)
         )
+
+        # Invalidate cache for this deal
+        invalidate_deal_cache(reservation_id)
 
         logger.info(f"Updated payment status to {payment_status} for deal {deal_id}")
         return {"success": True, "deal_id": deal_id}
@@ -438,6 +559,9 @@ def update_reservation_payment(reservation_id, **kwargs):
         client.crm.deals.basic_api.update(
             deal_id=deal_id, simple_public_object_input=DealInput(properties=props)
         )
+        
+        # Invalidate cache for this deal
+        invalidate_deal_cache(reservation_id)
 
         logger.info(f"Updated payment information for deal {deal_id}")
         return {"success": True, "deal_id": deal_id}

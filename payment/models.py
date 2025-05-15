@@ -55,9 +55,10 @@ class Payment(models.Model):
 def payment_saved(sender, instance, created, **kwargs):
     """Sync payment to HubSpot when saved"""
     if not instance.reservation:
+        logger.warning(f"Payment #{instance.id} has no associated reservation - skipping HubSpot sync")
         return
     
-    from reservations.hubspot_service import update_deal_payment_status
+    from reservations.hubspot_service import update_deal_payment_status, invalidate_deal_cache
     
     status_map = {
         "pending": "Pending",
@@ -72,10 +73,21 @@ def payment_saved(sender, instance, created, **kwargs):
     if instance.customer and hasattr(instance.customer, 'card_brand') and instance.customer.card_brand and instance.customer.card_last4:
         payment_method = f"{instance.customer.card_brand.title()} ending in {instance.customer.card_last4}"
     
-    # Update HubSpot
-    update_deal_payment_status(
-        reservation_id=instance.reservation.id,
-        payment_status=hubspot_status,
-        payment_amount=instance.amount,
-        payment_method=payment_method
-    )
+    try:
+        # Update HubSpot
+        result = update_deal_payment_status(
+            reservation_id=instance.reservation.id,
+            payment_status=hubspot_status,
+            payment_amount=instance.amount,
+            payment_method=payment_method
+        )
+        
+        if result["success"]:
+            logger.info(f"Updated payment status for reservation #{instance.reservation.id} in HubSpot")
+        else:
+            logger.warning(f"Failed to update payment status in HubSpot: {result.get('error', 'unknown error')}")
+            
+        # Invalidate the deal cache to ensure fresh data
+        invalidate_deal_cache(instance.reservation.id)
+    except Exception as e:
+        logger.error(f"Error updating HubSpot payment for reservation #{instance.reservation.id}: {e}")

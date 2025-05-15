@@ -100,7 +100,7 @@ def reservation_form(
                 try:
                     travel_agent = TravelAgent.objects.get(user=request.user)
                     reservation.travel_agent = travel_agent
-                    reservation.save()  # This will trigger commission calculation
+                    reservation.save() 
                 except TravelAgent.DoesNotExist:
                     pass  # User is not a travel agent, continue normally
 
@@ -124,21 +124,6 @@ def reservation_form(
                 else:
                     leg2.flight_information = None
                 leg2.save()
-
-            extra_charges(reservation)
-            send_internal_confirmation(reservation)
-            try:
-                hubspot_result = sync_reservation_to_hubspot(reservation)
-                if hubspot_result["success"]:
-                    logger.info(
-                        f"Reservation #{reservation.id} synced to HubSpot: {hubspot_result}"
-                    )
-                else:
-                    logger.warning(
-                        f"Failed to sync reservation #{reservation.id} to HubSpot: {hubspot_result}"
-                    )
-            except Exception as e:
-                logger.error(f"Error syncing reservation to HubSpot: {e}")
 
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
