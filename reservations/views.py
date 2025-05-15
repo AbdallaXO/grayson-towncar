@@ -13,7 +13,6 @@ from .utils import (
     AIRLINES,
     extra_charges,
 )
-from users.emails import send_internal_confirmation
 from django.shortcuts import render, reverse
 from django.db.models import Prefetch
 from rates.models import Rate, Vehicle
@@ -125,6 +124,7 @@ def reservation_form(
                     leg2.flight_information = None
                 leg2.save()
 
+            extra_charges(reservation)
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (

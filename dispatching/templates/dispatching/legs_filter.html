@@ -119,11 +119,11 @@
                       <div class="fw-bold">{{ leg.reservation.customer.get_full_name }}</div>
                       <div class="small text-muted">
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"
-                           class="text-decoration-underline">Res #{{ leg.reservation.id }}</a>
+                           class="text-decoration-underline">Reservation ID #{{ leg.reservation.id }}</a>
                       </div>
                       <div class="border-top my-1"></div>
                       <div class="small">{{ leg.reservation.customer.phone_number }}</div>
-                      <div class="small text-truncate" style="max-width: 200px;">{{ leg.reservation.customer.email }}</div>
+                      <div class="small">{{ leg.reservation.customer.email }}</div>
                     </div>
                   </td>
 

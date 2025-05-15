@@ -348,7 +348,7 @@ def create_or_update_deal(reservation, contact_id):
 
     # Deal properties
     deal_props = {
-        "dealname": f"{reservation.vehicle} | {reservation.trip_type} | #{reservation.id} | {reservation.customer.get_full_name()}",
+        "dealname": f"{reservation.status} | {reservation.vehicle} | {reservation.trip_type} | #{reservation.id} | {reservation.customer.get_full_name()}",
         "amount": payment_info["amount"],  # Use payment helper
         "pipeline": PIPELINE_ID,
         "dealstage": DEAL_STAGE_ID,
@@ -377,7 +377,7 @@ def create_or_update_deal(reservation, contact_id):
             )
             deal_id = existing_deal_id
         else:
-            logger.info(f"Creating deal with properties: {deal_props}")
+            logger.info(f"Creating deal For: {reservation.customer} - {reservation.id}")
             deal = client.crm.deals.basic_api.create(
                 simple_public_object_input_for_create=DealInput(properties=deal_props)
             )

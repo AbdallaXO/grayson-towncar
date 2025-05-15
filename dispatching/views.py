@@ -183,7 +183,7 @@ def reservation_details(request, id):
     if not stripe_key:
         logger.error("Stripe public key is not configured")
     else:
-        logger.info(f"Stripe public key is configured: {stripe_key[:10]}...")
+        logger.info(f"Stripe public key is configured ✅")
 
     context = {
         "reservation": reservation,
@@ -607,7 +607,6 @@ def save_card(request, reservation_id):
             request, "stripe/error.html", {"error": "An unexpected error occurred"}
         )
 
-
 def dispatcher_payment_portal(request, reservation_id):
     """
     A portal for dispatchers to process payments or save cards for reservations.
@@ -631,29 +630,40 @@ def dispatcher_payment_portal(request, reservation_id):
         f"{base_cancel_url}?q={reservation.uuid}&source=dispatcher_portal"
     )
 
+    # Check if customer has saved payment methods
+    customer = reservation.customer
+    has_saved_cards = False
+    payment_methods = []
+    
+    if hasattr(customer, 'stripe_customer_id') and customer.stripe_customer_id:
+        try:
+            payment_methods = stripe.PaymentMethod.list(
+                customer=customer.stripe_customer_id,
+                type='card'
+            )
+            has_saved_cards = len(payment_methods.data) > 0
+        except Exception as e:
+            logger.error(f"Error fetching payment methods: {e}")
+
     if request.method == "POST":
         action = request.POST.get("action")
         amount_str = request.POST.get("amount")
         description = request.POST.get(
             "description", f"Payment for Reservation #{reservation.id}"
         )
+        selected_payment_method = request.POST.get("payment_method_id")
 
         try:
-            stripe_customer = get_or_create_stripe_customer(reservation)
-            checkout_session_params = {
-                "customer": stripe_customer.id,
-                "success_url": success_url_with_context,
-                "cancel_url": cancel_url_with_context,
-                "metadata": {
-                    "reservation_uuid": str(reservation.uuid),
-                    "reservation_id": reservation.id,
-                    "customer_id": reservation.customer.id,
-                    "initiated_by": "dispatcher",
-                    "dispatcher_action": action,
-                },
-            }
+            # Check for existing stripe customer ID first
+            if hasattr(customer, 'stripe_customer_id') and customer.stripe_customer_id:
+                stripe_customer_id = customer.stripe_customer_id
+            else:
+                # Only create if doesn't exist
+                stripe_customer = get_or_create_stripe_customer(reservation)
+                stripe_customer_id = stripe_customer.id
 
             if action == "make_payment":
+                # Validate amount
                 if not amount_str:
                     messages.error(request, "Amount is required for making a payment.")
                     return render(
@@ -663,6 +673,8 @@ def dispatcher_payment_portal(request, reservation_id):
                             "reservation": reservation,
                             "selected_action": action,
                             "entered_description": description,
+                            "has_saved_cards": has_saved_cards,
+                            "payment_methods": payment_methods.data if has_saved_cards else [],
                         },
                     )
                 try:
@@ -680,12 +692,14 @@ def dispatcher_payment_portal(request, reservation_id):
                             "selected_action": action,
                             "entered_amount": amount_str,
                             "entered_description": description,
+                            "has_saved_cards": has_saved_cards,
+                            "payment_methods": payment_methods.data if has_saved_cards else [],
                         },
                     )
 
                 # Create a new product with the custom description
                 product = stripe.Product.create(
-                    name=description,  # Use the description from the form
+                    name=description,
                     metadata={
                         "reservation_uuid": str(reservation.uuid),
                         "reservation_id": reservation.id,
@@ -699,40 +713,143 @@ def dispatcher_payment_portal(request, reservation_id):
                     product=product.id,
                 )
 
-                checkout_session_params.update(
-                    {
-                        "line_items": [{"price": price.id, "quantity": 1}],
-                        "mode": "payment",
-                        "payment_intent_data": {
-                            "setup_future_usage": "off_session"  # Allow saving the card for future use
-                        },
-                    }
-                )
-                checkout_session_params["metadata"].update(
-                    {
+                checkout_session_params = {
+                    "customer": stripe_customer_id,
+                    "line_items": [{"price": price.id, "quantity": 1}],
+                    "mode": "payment",
+                    "success_url": success_url_with_context,
+                    "cancel_url": cancel_url_with_context,
+                    "payment_intent_data": {
+                        "setup_future_usage": "off_session"  # Allow saving the card for future use
+                    },
+                    "metadata": {
+                        "reservation_uuid": str(reservation.uuid),
+                        "reservation_id": reservation.id,
+                        "customer_id": reservation.customer.id,
+                        "initiated_by": "dispatcher",
+                        "dispatcher_action": action,
                         "payment_amount_cents": amount_in_cents,
-                        "payment_description": description,  # Store the description in metadata for reference
+                        "payment_description": description,
                     }
-                )
+                }
+
+                session = stripe.checkout.Session.create(**checkout_session_params)
+                return redirect(session.url, code=303)
 
             elif action == "save_card":
-                checkout_session_params.update(
-                    {
-                        "payment_method_types": ["card"],
-                        "mode": "setup",
+                checkout_session_params = {
+                    "customer": stripe_customer_id,
+                    "payment_method_types": ["card"],
+                    "mode": "setup",
+                    "success_url": success_url_with_context,
+                    "cancel_url": cancel_url_with_context,
+                    "metadata": {
+                        "reservation_uuid": str(reservation.uuid),
+                        "reservation_id": reservation.id,
+                        "customer_id": reservation.customer.id,
+                        "initiated_by": "dispatcher",
+                        "dispatcher_action": action,
                     }
-                )
+                }
+                
+                session = stripe.checkout.Session.create(**checkout_session_params)
+                return redirect(session.url, code=303)
+                
+            elif action == "use_saved_card":
+                # Validate that we have saved cards
+                if not has_saved_cards:
+                    messages.error(request, "No saved payment methods found for this customer.")
+                    return render(
+                        request,
+                        "dispatching/dispatcher_payment_portal.html",
+                        {
+                            "reservation": reservation,
+                            "has_saved_cards": False,
+                        },
+                    )
+                
+                # Validate amount
+                if not amount_str:
+                    messages.error(request, "Amount is required for making a payment.")
+                    return render(
+                        request,
+                        "dispatching/dispatcher_payment_portal.html",
+                        {
+                            "reservation": reservation,
+                            "selected_action": action,
+                            "entered_description": description,
+                            "has_saved_cards": has_saved_cards,
+                            "payment_methods": payment_methods.data,
+                        },
+                    )
+                
+                try:
+                    amount_decimal = Decimal(amount_str)
+                    if amount_decimal <= 0:
+                        raise ValueError("Payment amount must be positive.")
+                    amount_in_cents = int(amount_decimal * 100)
+                except ValueError as e:
+                    messages.error(request, str(e))
+                    return render(
+                        request,
+                        "dispatching/dispatcher_payment_portal.html",
+                        {
+                            "reservation": reservation,
+                            "selected_action": action,
+                            "entered_amount": amount_str,
+                            "entered_description": description,
+                            "has_saved_cards": has_saved_cards,
+                            "payment_methods": payment_methods.data,
+                        },
+                    )
+                
+                # Use selected payment method or default to first one
+                payment_method_id = selected_payment_method or payment_methods.data[0].id
+                
+                # Create and confirm payment intent with saved card
+                try:
+                    payment_intent = stripe.PaymentIntent.create(
+                        amount=amount_in_cents,
+                        currency='usd',
+                        customer=stripe_customer_id,
+                        payment_method=payment_method_id,
+                        off_session=True,  # Important for using saved card
+                        confirm=True,      # Confirm the payment immediately
+                        metadata={
+                            "reservation_uuid": str(reservation.uuid),
+                            "reservation_id": reservation.id,
+                            "customer_id": reservation.customer.id,
+                            "initiated_by": "dispatcher",
+                            "payment_description": description,
+                            "payment_type": "saved_card"
+                        }
+                    )
+                    
+                    # Handle successful payment
+                    if payment_intent.status == 'succeeded':
+                        messages.success(request, "Payment processed successfully!")
+                        # Update your reservation payment status here if needed
+                        return redirect(success_url_with_context)
+                    else:
+                        messages.warning(request, f"Payment requires additional action: {payment_intent.status}")
+                        # For payment requiring authentication, you'd need to handle this
+                        # Usually by redirecting to a payment confirmation page
+                        return render(
+                            request,
+                            "dispatching/dispatcher_payment_portal.html",
+                            {
+                                "reservation": reservation,
+                                "payment_intent": payment_intent,
+                                "has_saved_cards": has_saved_cards,
+                                "payment_methods": payment_methods.data,
+                            }
+                        )
+                except stripe.error.CardError as e:
+                    # Handle declined card
+                    messages.error(request, f"Card declined: {e.error.message}")
             else:
                 messages.error(request, "Invalid action selected.")
-                return render(
-                    request,
-                    "dispatching/dispatcher_payment_portal.html",
-                    {"reservation": reservation},
-                )
-
-            session = stripe.checkout.Session.create(**checkout_session_params)
-            return redirect(session.url, code=303)
-
+                
         except stripe.error.StripeError as e:
             logger.error(
                 f"Stripe error for dispatcher action on reservation {reservation.uuid}: {e}"
@@ -753,10 +870,10 @@ def dispatcher_payment_portal(request, reservation_id):
             {
                 "reservation": reservation,
                 "selected_action": action,  # Preserve selected action on error
-                "entered_amount": amount_str if action == "make_payment" else None,
-                "entered_description": description
-                if action == "make_payment"
-                else None,
+                "entered_amount": amount_str if action in ["make_payment", "use_saved_card"] else None,
+                "entered_description": description if action in ["make_payment", "use_saved_card"] else None,
+                "has_saved_cards": has_saved_cards,
+                "payment_methods": payment_methods.data if has_saved_cards else [],
             },
         )
 
@@ -764,5 +881,94 @@ def dispatcher_payment_portal(request, reservation_id):
     return render(
         request,
         "dispatching/dispatcher_payment_portal.html",
-        {"reservation": reservation},
+        {
+            "reservation": reservation,
+            "has_saved_cards": has_saved_cards,
+            "payment_methods": payment_methods.data if has_saved_cards else [],
+        },
     )
+    
+    
+def charge_saved_card(request, reservation_id):
+    """
+    Charge a previously saved card for a reservation.
+    
+    Args:
+        request: The HTTP request
+        reservation_id: The UUID of the reservation
+        
+    Returns:
+        JSON response with result or error
+    """
+    reservation = get_object_or_404(Reservation, uuid=reservation_id)
+    customer = reservation.customer
+    
+    # First check if customer already has a Stripe ID
+    if not hasattr(customer, 'stripe_customer_id') or not customer.stripe_customer_id:
+        return JsonResponse({
+            "error": "Customer has no saved payment methods. Please collect payment information first."
+        }, status=400)
+    
+    try:
+        # Use existing customer ID instead of creating a new one
+        stripe_customer_id = customer.stripe_customer_id
+        
+        # Get saved payment methods for this customer
+        payment_methods = stripe.PaymentMethod.list(
+            customer=stripe_customer_id,
+            type='card'
+        )
+        
+        # Check if customer has any saved payment methods
+        if not payment_methods.data:
+            return JsonResponse({
+                "error": "No saved payment methods found for this customer."
+            }, status=400)
+        
+        # Use the most recent payment method by default
+        payment_method_id = payment_methods.data[0].id
+        
+        # Create a payment intent
+        payment_intent = stripe.PaymentIntent.create(
+            amount=int(reservation.total_price * 100),
+            currency='usd',
+            customer=stripe_customer_id,
+            payment_method=payment_method_id,
+            off_session=True,  # Important for using saved card
+            confirm=True,      # Confirm the payment immediately
+            metadata={
+                "reservation_id": reservation.id,
+                "customer_id": reservation.customer.id,
+                "payment_type": "saved_card"
+            }
+        )
+        
+        # Handle the payment result
+        if payment_intent.status == 'succeeded':
+            # Update your reservation status or create payment record
+            # ...
+            
+            return JsonResponse({
+                "success": True,
+                "message": "Payment processed successfully",
+                "payment_intent_id": payment_intent.id
+            })
+        else:
+            return JsonResponse({
+                "success": False,
+                "status": payment_intent.status,
+                "message": "Payment requires additional action or failed"
+            })
+            
+    except stripe.error.CardError as e:
+        # Card was declined
+        err = e.error
+        return JsonResponse({
+            "error": f"Card error: {err.message}"
+        }, status=400)
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:
+        logger.error(f"Error charging saved card: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=400)

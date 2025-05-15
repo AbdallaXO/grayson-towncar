@@ -48,8 +48,29 @@
                           {% if selected_action == 'save_card' %}selected{% endif %}>
                     Save / Update Card on File
                   </option>
+                  {% if has_saved_cards %}
+                  <option value="use_saved_card"
+                          {% if selected_action == 'use_saved_card' %}selected{% endif %}>
+                    Use Saved Card
+                  </option>
+                  {% endif %}
                 </select>
               </div>
+
+              {% if has_saved_cards %}
+              <div class="mb-3" id="saved_cards_field_group" style="display: none;">
+                <label for="payment_method_id" class="form-label">
+                  <strong>Select Saved Card:</strong>
+                </label>
+                <select name="payment_method_id" id="payment_method_id" class="form-select form-select-lg">
+                  {% for method in payment_methods %}
+                    <option value="{{ method.id }}">
+                      {{ method.card.brand|title }} ending in {{ method.card.last4 }} (Exp: {{ method.card.exp_month }}/{{ method.card.exp_year }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              {% endif %}
 
               <div class="mb-3" id="amount_field_group" style="display: none;">
                 <label for="amount" class="form-label">
@@ -77,7 +98,7 @@
                 <div class="form-text">This will appear on the customer's receipt</div>
               </div>
 
-              <button type="submit" class="btn btn-primary btn-lg w-100">Proceed to Stripe</button>
+              <button type="submit" class="btn btn-primary btn-lg w-100" id="submit_button">Proceed to Stripe</button>
               <a href="#"
                  onclick="window.history.back(); return false;"
                  class="btn btn-outline-secondary btn-lg w-100 mt-2">Cancel</a>
@@ -95,18 +116,40 @@
           const amountInput = document.getElementById('amount');
           const descriptionFieldGroup = document.getElementById('description_field_group');
           const descriptionInput = document.getElementById('description');
+          const savedCardsFieldGroup = document.getElementById('saved_cards_field_group');
+          const submitButton = document.getElementById('submit_button');
 
           function togglePaymentFields() {
-              if (actionSelect.value === 'make_payment') {
+              const selectedAction = actionSelect.value;
+              
+              // Reset display for all fields
+              amountFieldGroup.style.display = 'none';
+              descriptionFieldGroup.style.display = 'none';
+              if (savedCardsFieldGroup) {
+                  savedCardsFieldGroup.style.display = 'none';
+              }
+              
+              // Required fields reset
+              amountInput.required = false;
+              descriptionInput.required = false;
+              
+              // Set button text
+              submitButton.textContent = 'Proceed to Stripe';
+              
+              if (selectedAction === 'make_payment') {
                   amountFieldGroup.style.display = 'block';
                   descriptionFieldGroup.style.display = 'block';
                   amountInput.required = true;
                   descriptionInput.required = true;
-              } else {
-                  amountFieldGroup.style.display = 'none';
-                  descriptionFieldGroup.style.display = 'none';
-                  amountInput.required = false;
-                  descriptionInput.required = false;
+              } else if (selectedAction === 'use_saved_card') {
+                  amountFieldGroup.style.display = 'block';
+                  descriptionFieldGroup.style.display = 'block';
+                  savedCardsFieldGroup.style.display = 'block';
+                  amountInput.required = true;
+                  descriptionInput.required = true;
+                  submitButton.textContent = 'Process Payment';
+              } else if (selectedAction === 'save_card') {
+                  submitButton.textContent = 'Save Card Details';
               }
           }
 
