@@ -50,12 +50,16 @@ def stripe_webhook(request):
                 "failed": "Failed",
             }
             payment_status = status_map.get(payment_result.get("status", ""), "Unknown")
+            # Simple enhancement for non-card payment methods
             payment_method = None
             if payment_result.get("payment_method_type") == "card":
                 card_brand = payment_result.get("card_brand", "")
                 card_last4 = payment_result.get("card_last4", "")
                 if card_brand and card_last4:
                     payment_method = f"{card_brand.title()} ending in {card_last4}"
+            elif payment_result.get("payment_method_type"):
+                # Just use the payment method type as is
+                payment_method = payment_result.get("payment_method_type").replace('_', ' ').title()
 
             # Update HubSpot deal
             update_deal_payment_status(

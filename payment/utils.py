@@ -57,3 +57,5 @@ def create_stripe_customer(customer, reservation):
     )
     logger.debug(f"Stripe customer created inside helper: {stripe_customer.id}")
     return stripe_customer
+
+

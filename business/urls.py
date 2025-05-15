@@ -19,8 +19,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+from users.hubspot_admin_dashboard import hubspot_dashboard, hubspot_status
 
 urlpatterns = [
+    path('admin/hubspot-dashboard/', hubspot_dashboard, name='hubspot_dashboard'),
+    path('admin/hubspot-status/', hubspot_status, name='hubspot_status'),
     path("admin/", admin.site.urls),
     path("", include("reservations.urls")),
     path("users/", include("users.urls")),
@@ -30,6 +33,7 @@ urlpatterns = [
     path("payment/", include("payment.urls")),
     path("drivers/", include("drivers.urls")),
     path("dispatching/", include("dispatching.urls")),
+
 ]
 
 if settings.DEBUG:

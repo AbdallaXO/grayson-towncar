@@ -56,11 +56,13 @@ def find_deal_by_reservation_id(reservation_id):
         return None
 
 
-def create_or_find_contact(customer):
+def create_or_find_contact(reservation):
     """Find or create a contact in HubSpot"""
     if not HUBSPOT_AVAILABLE or not HUBSPOT_TOKEN:
         logger.info("HubSpot integration not available - skipping contact creation")
         return None
+    
+    customer = reservation.customer
 
     # Search by email
     body = {
@@ -80,11 +82,8 @@ def create_or_find_contact(customer):
         if resp.results:
             logger.info(f"Found contact {resp.results[0].id}")
             return resp.results[0].id
-    except Exception as e:
-        logger.error(f"Error searching for contact: {e}")
-
-    # Create new contact if not found
-    try:
+        
+        # If no contact found, create a new one
         props = {
             "email": customer.email,
             "firstname": customer.first_name,
@@ -92,16 +91,25 @@ def create_or_find_contact(customer):
             "phone": customer.phone_number,
             "zip": customer.zipcode,
         }
-
+        
         new_ct = client.crm.contacts.basic_api.create(
             simple_public_object_input_for_create=ContactInput(properties=props)
         )
         logger.info(f"Created contact {new_ct.id}")
         return new_ct.id
     except Exception as e:
-        logger.error(f"Error creating contact: {e}")
+        # Check if the error is a conflict (contact already exists)
+        if "Contact already exists" in str(e):
+            # Extract the existing contact ID from the error message
+            import re
+            match = re.search(r'Existing ID: (\d+)', str(e))
+            if match:
+                contact_id = match.group(1)
+                logger.info(f"Contact already exists, using ID: {contact_id}")
+                return contact_id
+        
+        logger.error(f"Error searching/creating contact: {e}")
         return None
-
 
 def create_deal(reservation, contact_id):
     """Create a deal in HubSpot for the reservation"""
@@ -138,8 +146,8 @@ def create_deal(reservation, contact_id):
 
     # Get vehicle type
     vehicle_type = (
-        reservation.rate.vehicle.vehicle_type.title()
-        if hasattr(reservation.rate, "vehicle")
+        reservation.vehicle.vehicle_type.title()
+        if hasattr(reservation.vehicle, "vehicle")
         else "Vehicle"
     )
 
@@ -151,8 +159,6 @@ def create_deal(reservation, contact_id):
         f"**Trip Details**\n"
         f"- Vehicle: {vehicle_type}\n"
         f"- Trip Type: {trip_type_display}\n"
-        f"- Passengers: {reservation.passenger_count}\n"
-        f"- Luggage: {reservation.luggage_count}\n"
         f"- Reservation ID: {reservation.id}\n"
     )
 
@@ -175,30 +181,63 @@ def create_deal(reservation, contact_id):
             f"- Drop-off: {with_flight(last_leg, last_leg.dropoff_location, is_dropoff=True)}\n"
         )
 
+    # Check for existing payments and use payment data if available
+    payment_status = "Pending"  # Default status if no payments
+    payment_amount = float(reservation.total_price)  # Default to reservation total
+    payment_method = "N/A"  # Default method
+    
+    try:
+        # Check if the reservation has payments
+        if hasattr(reservation, 'payments') and reservation.payments.exists():
+            latest_payment = reservation.payments.last()
+            
+            if latest_payment:
+                # Map payment status
+                status_map = {
+                    "pending": "Pending",
+                    "card_saved": "Card On File", 
+                    "paid": "Paid",
+                    "failed": "Failed"
+                }
+                payment_status = status_map.get(latest_payment.status, "Pending")
+                
+                # Use payment amount if available
+                if hasattr(latest_payment, 'amount') and latest_payment.amount is not None:
+                    payment_amount = float(latest_payment.amount)
+                    
+                # Get payment method if available
+                if hasattr(latest_payment, 'customer') and latest_payment.customer:
+                    if hasattr(latest_payment.customer, 'card_brand') and latest_payment.customer.card_brand:
+                        card_brand = latest_payment.customer.card_brand
+                        card_last4 = latest_payment.customer.card_last4
+                        if card_brand and card_last4:
+                            payment_method = f"{card_brand.title()} ending in {card_last4}"
+            
+            logger.info(f"Found payment for reservation #{reservation.id}: status={payment_status}, amount={payment_amount}, method={payment_method}")
+        else:
+            logger.info(f"No payments found for reservation #{reservation.id}, using defaults")
+    except Exception as e:
+        logger.warning(f"Error getting payment info for reservation #{reservation.id}: {e}")
+
     # Deal properties
     deal_props = {
-        "dealname": f"{vehicle_type} — {trip_type_display} - #{reservation.id}",
-        "amount": float(
-            reservation.total_price
-        ),  # Convert Decimal to float for HubSpot
+        "dealname": f"{reservation.vehicle.vehicle_type.title()}— {trip_type_display} - #{reservation.id}",
+        "amount": payment_amount,  # Total price as deal amount
         "pipeline": PIPELINE_ID,
         "dealstage": DEAL_STAGE_ID,
         "closedate": close_ms,
         "reservation_id": str(reservation.id),
         "reservation_status": reservation.status,
         "description": description_text,
-        "Payment Status": "Pending",  # Default payment status for new reservations
+        "payment_status": payment_status,
+        "payment_amount": payment_amount,  # Use payment amount (from payment or default)
+        "payment_method": payment_method   # Use payment method (from payment or default)
     }
 
     # Add travel agent info if available
     if hasattr(reservation, "travel_agent") and reservation.travel_agent:
         try:
             deal_props["travel_agent"] = reservation.travel_agent.user.get_full_name()
-            if reservation.commission_amount:
-                deal_props["commission_amount"] = float(reservation.commission_amount)
-            deal_props["commission_paid"] = (
-                "Yes" if reservation.commission_paid else "No"
-            )
         except:
             pass  # Skip travel agent info if there's an error
 
@@ -234,7 +273,6 @@ def create_deal(reservation, contact_id):
         logger.error(f"Error creating deal: {e}")
         return None
 
-
 def sync_reservation_to_hubspot(reservation):
     """Main function to sync a reservation to HubSpot"""
     if not HUBSPOT_AVAILABLE:
@@ -264,7 +302,7 @@ def sync_reservation_to_hubspot(reservation):
             }
 
         # Create or find contact
-        contact_id = create_or_find_contact(cust)
+        contact_id = create_or_find_contact(reservation)
         if not contact_id:
             logger.error(f"Failed to create or find contact for customer {cust.id}")
             return {"success": False, "error": "Failed to create or find contact"}
@@ -337,6 +375,8 @@ def update_deal_payment_status(
         # Add payment method if provided
         if payment_method:
             props["payment_method"] = payment_method
+            props["amount"] = float(payment_amount)
+
 
         # Update the deal
         client.crm.deals.basic_api.update(
@@ -380,13 +420,13 @@ def update_reservation_payment(reservation_id, **kwargs):
     props = {}
 
     if "status" in kwargs:
-        props["Payment Status"] = kwargs["status"]
+        props["payment_status"] = kwargs["status"]
 
     if "amount" in kwargs and kwargs["amount"] is not None:
-        props["Payment Amount"] = float(kwargs["amount"])
+        props["payment_amount"] = float(kwargs["amount"])
 
     if "method" in kwargs and kwargs["method"]:
-        props["Payment Method"] = kwargs["method"]
+        props["payment_method"] = kwargs["method"]
 
     # Only proceed if we have properties to update
     if not props:

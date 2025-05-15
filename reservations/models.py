@@ -43,7 +43,8 @@ class Customer(models.Model):
         """
         Returns the customer's first name for easy identification.
         """
-        return self.first_name
+        return f"{self.first_name.title()} {self.last_name.title()}"
+
 
     def get_full_name(self):
         return f"{self.first_name.title()} {self.last_name.title()}"
