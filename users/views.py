@@ -169,6 +169,7 @@ from django.db import transaction
 
 def register_agent(request):
     from .emails import agent_register_email
+
     """Handle travel agent registration."""
     if request.method == "POST":
         # Get form data
@@ -513,5 +514,3 @@ def agent_required(view_func):
         return view_func(request, *args, **kwargs)
 
     return wrapper
-
-

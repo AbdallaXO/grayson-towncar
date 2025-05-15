@@ -4,30 +4,29 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0017_newsletter_name_travelagent_payment_method'),
+        ("users", "0017_newsletter_name_travelagent_payment_method"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='commissionpayout',
-            name='created_at',
+            model_name="commissionpayout",
+            name="created_at",
             field=models.DateTimeField(auto_now_add=True, null=True),
         ),
         migrations.AddField(
-            model_name='contactusform',
-            name='created_at',
+            model_name="contactusform",
+            name="created_at",
             field=models.DateTimeField(auto_now_add=True, null=True),
         ),
         migrations.AddField(
-            model_name='partnerform',
-            name='created_at',
+            model_name="partnerform",
+            name="created_at",
             field=models.DateTimeField(auto_now_add=True, null=True),
         ),
         migrations.AlterField(
-            model_name='travelagent',
-            name='created_at',
+            model_name="travelagent",
+            name="created_at",
             field=models.DateTimeField(auto_now_add=True, null=True),
         ),
     ]

@@ -100,7 +100,7 @@ def reservation_form(
                 try:
                     travel_agent = TravelAgent.objects.get(user=request.user)
                     reservation.travel_agent = travel_agent
-                    reservation.save() 
+                    reservation.save()
                 except TravelAgent.DoesNotExist:
                     pass  # User is not a travel agent, continue normally
 

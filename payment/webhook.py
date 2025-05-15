@@ -59,7 +59,9 @@ def stripe_webhook(request):
                     payment_method = f"{card_brand.title()} ending in {card_last4}"
             elif payment_result.get("payment_method_type"):
                 # Just use the payment method type as is
-                payment_method = payment_result.get("payment_method_type").replace('_', ' ').title()
+                payment_method = (
+                    payment_result.get("payment_method_type").replace("_", " ").title()
+                )
 
             # Update HubSpot deal
             update_deal_payment_status(

@@ -20,12 +20,13 @@ def handle_form_submission(sender, instance, created, **kwargs):
             thankyou_email(instance)
         except Exception as e:
             logger.error(f"Error sending email for {sender.__name__}: {e}")
+
+
 @receiver(post_save, sender=TravelAgent)
 def travel_agent_email(sender, instance, created, **kwargs):
-    if  created:
+    if created:
         try:
             logger.info(f"Attempting to Email {instance} from {sender.__name__}")
             agent_register_email(instance)
         except Exception as e:
             logger.error(f"Error sending email for {sender.__name__}: {e}")
-
