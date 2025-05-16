@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import Sum, Count, Q
+
 # Create your models here.
 
 
@@ -133,6 +135,19 @@ class TravelAgent(models.Model):
         help_text="Select your preferred payment method",
     )
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    def get_unpaid_commissions(self):
+        """Get reservations with unpaid commissions."""
+        return self.reservations.filter(
+            status='completed',
+            commission_paid=False,
+            commission_amount__gt=0
+        )
+    
+    def get_unpaid_amount(self):
+        """Get total unpaid commission amount."""
+        return self.get_unpaid_commissions().aggregate(
+            total=Sum('commission_amount')
+        )['total'] or 0
 
     def __str__(self):
         return f"{self.agency_name} - {self.user.username}"

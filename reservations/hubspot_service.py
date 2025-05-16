@@ -517,13 +517,14 @@ def update_deal_payment_status(
         # Add payment amount if provided
         if payment_amount is not None:
             props["payment_amount"] = float(payment_amount)
+            props["amount"] = (
+                float(payment_amount) if payment_amount is not None else None
+            )
 
         # Add payment method if provided
         if payment_method:
             props["payment_method"] = payment_method
-            props["amount"] = (
-                float(payment_amount) if payment_amount is not None else None
-            )
+
 
         # Update the deal
         client.crm.deals.basic_api.update(

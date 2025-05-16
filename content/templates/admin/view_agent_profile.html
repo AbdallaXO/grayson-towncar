@@ -1,0 +1,257 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div class="container-fluid">
+    <!-- Back Button -->
+    <div class="mb-3">
+      <a href="{% url 'manage_agent_commissions' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to All Agents
+      </a>
+    </div>
+
+    <!-- Agent Profile Card -->
+    <div class="row">
+      <div class="col-md-4">
+        <div class="card mb-4">
+          <div class="card-header">
+            <h3>Agent Profile</h3>
+          </div>
+          <div class="card-body">
+            <h4>{{ agent.agency_name|default:"" }}</h4>
+            <p class="mb-1">
+              <strong>Agent Name:</strong> {{ agent.agent_name|default:"Not provided" }}
+            </p>
+            <p class="mb-1">
+              <strong>Email:</strong> {{ agent.user.email }}
+            </p>
+            <p class="mb-1">
+              <strong>Phone:</strong> {{ agent.phone }}
+            </p>
+            <p class="mb-1">
+              <strong>Account Created:</strong> {{ agent.created_at|date:"F d, Y" }}
+            </p>
+            <p class="mb-1">
+              <strong>Last Payment:</strong> {{ agent.last_payment_date|date:"F d, Y"|default:"Never" }}
+            </p>
+            <p class="mb-1">
+              <strong>Commission Rate:</strong> {{ agent.commission_rate }}%
+            </p>
+            <p class="mb-1">
+              <strong>Status:</strong>
+              {% if agent.is_active %}
+                <span class="badge badge-success">Active</span>
+              {% else %}
+                <span class="badge badge-danger">Inactive</span>
+              {% endif %}
+            </p>
+            <hr>
+            <h5>Payment Information</h5>
+            <p class="mb-1">
+              <strong>Method:</strong> {{ agent.get_payment_method_display }}
+            </p>
+            <p class="mb-1">
+              <strong>Details:</strong> {{ agent.payment_info|default:"Not provided" }}
+            </p>
+            <p class="mb-1">
+              <strong>Total Paid Commission:</strong> ${{ agent.total_paid_commission }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Commission Summary Card -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h3>Commission Summary</h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="text-center mb-3">
+                  <h5>Total Commission</h5>
+                  <h3>${{ commission_stats.total }}</h3>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="text-center mb-3">
+                  <h5>Reservations</h5>
+                  <h3>{{ reservation_count }}</h3>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="text-center mb-3">
+                  <h5>Paid</h5>
+                  <h3>${{ commission_stats.paid }}</h3>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="text-center mb-3">
+                  <h5>Unpaid</h5>
+                  <h3>${{ commission_stats.unpaid }}</h3>
+                </div>
+              </div>
+            </div>
+
+            {% if commission_stats.unpaid > 0 %}
+              <div class="text-center mt-3">
+                <form method="post" action="{% url 'manage_agent_commissions' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="agent_id" value="{{ agent.id }}">
+                  <button type="submit"
+                          class="btn btn-primary"
+                          onclick="return confirm('Process payout of ${{ commission_stats.unpaid }} for {{ agent.agency_name|default:agent.agent_name }}?');">
+                    Process Payout (${{ commission_stats.unpaid }})
+                  </button>
+                </form>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Recent Payouts Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Recent Payouts</h3>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for payout in payouts %}
+                  <tr>
+                    <td>{{ payout.paid_at|date:"M d, Y" }}</td>
+                    <td>${{ payout.total_amount }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="2" class="text-center">No payouts yet</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reservations Section -->
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h3>Reservations</h3>
+            <div class="filters">
+              <form method="get" class="form-inline">
+                <select name="status" class="form-control form-control-sm mr-2">
+                  <option value="all" {% if status == 'all' %}selected{% endif %}>All Statuses</option>
+                  <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
+                  <option value="confirmed" {% if status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                  <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+                  <option value="cancelled" {% if status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                </select>
+                <select name="payment" class="form-control form-control-sm mr-2">
+                  <option value="all" {% if payment_filter == 'all' %}selected{% endif %}>All Payments</option>
+                  <option value="paid" {% if payment_filter == 'paid' %}selected{% endif %}>Paid Commission</option>
+                  <option value="unpaid" {% if payment_filter == 'unpaid' %}selected{% endif %}>Unpaid Commission</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+              </form>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Trip Type</th>
+                    <th>Status</th>
+                    <th>Total Price</th>
+                    <th>Commission</th>
+                    <th>Paid</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for reservation in reservations %}
+                    <tr>
+                      <td>{{ reservation.id }}</td>
+                      <td>{{ reservation.created_at|date:"M d, Y" }}</td>
+                      <td>{{ reservation.customer }}</td>
+                      <td>{{ reservation.get_trip_type_display }}</td>
+                      <td>
+                        <span class="badge badge- {% if reservation.status == 'confirmed' %}primary {% elif reservation.status == 'completed' %}success {% elif reservation.status == 'cancelled' %}danger {% else %}warning{% endif %}">
+                          {{ reservation.get_status_display }}
+                        </span>
+                      </td>
+                      <td>${{ reservation.total_price }}</td>
+                      <td>${{ reservation.commission_amount }}</td>
+                      <td>
+                        {% if reservation.commission_paid %}
+                          <span class="badge badge-success">Paid</span>
+                        {% else %}
+                          <span class="badge badge-warning">Unpaid</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="8" class="text-center">No reservations found</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if reservations.has_other_pages %}
+              <nav>
+                <ul class="pagination justify-content-center">
+                  {% if reservations.has_previous %}
+                    <li class="page-item">
+                      <a class="page-link"
+                         href="?page={{ reservations.previous_page_number }}&status={{ status }}&payment={{ payment_filter }}">Previous</a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled">
+                      <span class="page-link">Previous</span>
+                    </li>
+                  {% endif %}
+
+                  {% for num in reservations.paginator.page_range %}
+                    {% if reservations.number == num %}
+                      <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                      </li>
+                    {% else %}
+                      <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ num }}&status={{ status }}&payment={{ payment_filter }}">{{ num }}</a>
+                      </li>
+                    {% endif %}
+                  {% endfor %}
+
+                  {% if reservations.has_next %}
+                    <li class="page-item">
+                      <a class="page-link"
+                         href="?page={{ reservations.next_page_number }}&status={{ status }}&payment={{ payment_filter }}">Next</a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled">
+                      <span class="page-link">Next</span>
+                    </li>
+                  {% endif %}
+                </ul>
+              </nav>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

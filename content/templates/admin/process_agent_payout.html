@@ -1,0 +1,70 @@
+<!-- templates/admin/process_agent_payout.html -->
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div class="container">
+    <div class="row">
+      <div class="col-md-8 offset-md-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>Process Payout for {{ agent.agency_name|default:agent.agent_name }}</h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              <h4>Payment Details</h4>
+              <p>
+                <strong>Total Amount:</strong> ${{ total_amount }}
+              </p>
+              <p>
+                <strong>Payment Method:</strong> {{ agent.get_payment_method_display }}
+              </p>
+              <p>
+                <strong>Payment Info:</strong> {{ agent.payment_info }}
+              </p>
+            </div>
+
+            <h4>Unpaid Reservations ({{ unpaid_reservations.count }})</h4>
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Date</th>
+                  <th>Customer</th>
+                  <th>Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for reservation in unpaid_reservations %}
+                  <tr>
+                    <td>{{ reservation.id }}</td>
+                    <td>{{ reservation.created_at|date:"M d, Y" }}</td>
+                    <td>{{ reservation.customer }}</td>
+                    <td>${{ reservation.commission_amount }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+
+            <form method="post">
+              {% csrf_token %}
+              <div class="form-group">
+                <label for="notes">Payment Notes (optional)</label>
+                <textarea name="notes"
+                          id="notes"
+                          class="form-control"
+                          rows="3"
+                          placeholder="Add any notes about this payment"></textarea>
+              </div>
+
+              <div class="form-group d-flex justify-content-between">
+                <a href="{% url 'view_agent_profile' agent.id %}"
+                   class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Process Payout of ${{ total_amount }}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

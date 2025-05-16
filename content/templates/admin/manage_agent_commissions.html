@@ -1,0 +1,95 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <div class="card">
+    <div class="card-header">
+      <h3>Travel Agent Commissions</h3>
+    </div>
+    <div class="card-body">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Agent/Agency</th>
+            <th>Total Earned</th>
+            <th>Unpaid Commission</th>
+            <th>Last Payment</th>
+            <th>Payment Method</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for agent in agents %}
+            <tr>
+              <td>
+                <strong>{{ agent.agency_name|default:agent.agent_name }}</strong>
+                <br>
+                <small>{{ agent.user.email }}</small>
+              </td>
+              <td>${{ agent.total_commission|default:"0.00" }}</td>
+              <td>${{ agent.unpaid_commission|default:"0.00" }}</td>
+              <td>{{ agent.last_payment_date|date:"M d, Y"|default:"Never" }}</td>
+              <td>
+                {{ agent.get_payment_method_display }}
+                <br>
+                {{ agent.payment_info }}
+              </td>
+              <td>
+                <a href="{% url 'view_agent_profile' agent.id %}"
+                   class="btn btn-info btn-sm mb-2">View Profile</a>
+
+                {% if agent.unpaid_commission > 0 %}
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="agent_id" value="{{ agent.id }}">
+                    <button type="submit"
+                            class="btn btn-primary btn-sm"
+                            onclick="return confirm('Process payout of ${{ agent.unpaid_commission }} for {{ agent.agency_name|default:agent.agent_name }}?');">
+                      Process Payout
+                    </button>
+                  </form>
+                {% else %}
+                  <span class="badge badge-secondary">No unpaid commissions</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Recent Payouts Section -->
+  <div class="card mt-4">
+    <div class="card-header">
+      <h3>Recent Payouts</h3>
+    </div>
+    <div class="card-body">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Agent</th>
+            <th>Amount</th>
+            <th>Period</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payout in recent_payouts %}
+            <tr>
+              <td>{{ payout.paid_at|date:"M d, Y" }}</td>
+              <td>{{ payout.agent.agency_name|default:payout.agent.agent_name }}</td>
+              <td>${{ payout.total_amount }}</td>
+              <td>{{ payout.payout_period_start|date:"M d" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
+              <td>{{ payout.notes|truncatechars:50 }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center">No recent payouts</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

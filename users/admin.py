@@ -58,7 +58,8 @@ class TravelAgentAdmin(admin.ModelAdmin):
     )
 
     def total_reservations(self, obj):
-        count = obj.reservation_set.count()
+        # Changed from reservation_set to reservations
+        count = obj.reservations.count()
         url = f"/admin/reservations/reservation/?travel_agent__id__exact={obj.id}"
         return format_html('<a href="{}">{}</a>', url, count)
 
@@ -75,8 +76,9 @@ class TravelAgentAdmin(admin.ModelAdmin):
     total_paid.short_description = "Total Paid"
 
     def unpaid_commission(self, obj):
+        # Changed from reservation_set to reservations
         unpaid = (
-            obj.reservation_set.filter(
+            obj.reservations.filter(
                 commission_paid=False, status="completed"
             ).aggregate(total=Sum("commission_amount"))["total"]
             or 0
@@ -105,7 +107,8 @@ class TravelAgentAdmin(admin.ModelAdmin):
         total_amount = 0
 
         for agent in queryset:
-            unpaid_reservations = agent.reservation_set.filter(
+            # Changed from reservation_set to reservations
+            unpaid_reservations = agent.reservations.filter(
                 commission_paid=False, status="completed"
             )
 
@@ -174,12 +177,15 @@ class TravelAgentAdmin(admin.ModelAdmin):
             super()
             .get_queryset(request)
             .annotate(
-                reservation_count=Count("reservation"),
+                # Changed from reservation to reservations
+                reservation_count=Count("reservations"),
                 unpaid_amount=Sum(
-                    "reservation__commission_amount",
+                    # Changed from reservation__ to reservations__
+                    "reservations__commission_amount",
                     filter=Q(
-                        reservation__commission_paid=False,
-                        reservation__status="completed",
+                        # Changed from reservation__ to reservations__
+                        reservations__commission_paid=False,
+                        reservations__status="completed",
                     ),
                 ),
             )
