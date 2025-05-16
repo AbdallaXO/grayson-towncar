@@ -1,7 +1,7 @@
 {% extends 'main.html' %}
 {% block title %}
   Travel Agent Commission Overview | Grayson Towncar
-{% endblock title %}
+{% endblock %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
@@ -41,7 +41,7 @@
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Total Unpaid</h6>
-            <h3 class="mb-0 text-warning">${{ total_unpaid|floatformat:2 }}</h3>
+            <h3 class="mb-0 text-danger">${{ total_unpaid|floatformat:2 }}</h3>
           </div>
         </div>
       </div>
@@ -79,9 +79,9 @@
                     <td>{{ reservation.customer.get_full_name }}</td>
                     <td>{{ reservation.get_trip_type_display }}</td>
                     <td>${{ reservation.total_price|floatformat:2 }}</td>
-                    <td class="text-warning">${{ reservation.commission_amount|floatformat:2 }}</td>
+                    <td class="text-danger fw-semibold">${{ reservation.commission_amount|floatformat:2 }}</td>
                     <td>
-                      <span class="badge bg-warning">Unpaid</span>
+                      <span class="fw-semibold text-danger">Unpaid</span>
                     </td>
                   </tr>
                 {% endfor %}
@@ -89,7 +89,7 @@
               <tfoot>
                 <tr>
                   <td colspan="4" class="text-end fw-bold">Total Unpaid:</td>
-                  <td class="text-warning fw-bold">${{ total_unpaid|floatformat:2 }}</td>
+                  <td class="text-danger fw-bold">${{ total_unpaid|floatformat:2 }}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -125,10 +125,7 @@
                     <td class="text-success">${{ payout.total_amount|floatformat:2 }}</td>
                     <td>{{ payout.notes|truncatewords:10 }}</td>
                     <td>
-                      <button type="button"
-                              class="btn btn-sm btn-outline-primary"
-                              data-bs-toggle="modal"
-                              data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
+                      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
                     </td>
                   </tr>
                 {% endfor %}
@@ -182,21 +179,12 @@
 
   <!-- Payout Detail Modals -->
   {% for payout in payouts %}
-    <div class="modal fade"
-         id="payoutModal{{ payout.id }}"
-         tabindex="-1"
-         aria-labelledby="payoutModalLabel{{ payout.id }}"
-         aria-hidden="true">
+    <div class="modal fade" id="payoutModal{{ payout.id }}" tabindex="-1" aria-labelledby="payoutModalLabel{{ payout.id }}" aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">
-              Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}
-            </h5>
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <div class="mb-3">
@@ -231,7 +219,7 @@
                       <td>{{ reservation.created_at|date:'M d, Y' }}</td>
                       <td>{{ reservation.customer.get_full_name }}</td>
                       <td>{{ reservation.get_trip_type_display }}</td>
-                      <td>{{ reservation.commission_amount|floatformat:2 }}</td>
+                      <td>${{ payout.total_amount|floatformat:2 }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -246,28 +234,7 @@
     </div>
   {% endfor %}
 
-  <style>
-      .badge {
-          font-weight: 500;
-          padding: 0.5em 0.75em;
-      }
+  {% block footer %}
 
-      .badge.bg-warning {
-          background-color: #ffc107;
-          color: #000;
-      }
-
-      .badge.bg-success {
-          background-color: #198754;
-      }
-
-      .nav-tabs .nav-link {
-          color: #495057;
-      }
-
-      .nav-tabs .nav-link.active {
-          font-weight: 600;
-      }
-  </style>
-  {% block footer %}{% endblock %}
+  {% endblock %}
 {% endblock %}

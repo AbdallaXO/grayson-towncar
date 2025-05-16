@@ -5,6 +5,7 @@ from django.dispatch import receiver
 from .models import Reservation
 from users.emails import send_reservation_confirmation
 from django.db import transaction
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)  # Get a logger instance
 
@@ -34,7 +35,7 @@ def reservation_saved(sender, instance, created, **kwargs):
 
             # Send internal confirmation email
             try:
-                send_internal_confirmation(instance)
+                # send_internal_confirmation(instance)
                 local_logger.info(
                     f"Internal confirmation sent for reservation #{instance.id}"
                 )
@@ -232,3 +233,134 @@ def reservation_saved(sender, instance, created, **kwargs):
         # Log error but don't raise - we don't want to break the save operation
         # Log error but don't raise - we don't want to break the save operation
         logger.error(f"Error updating HubSpot for reservation #{instance.id}: {e}")
+
+
+# In reservations/models.py or a new file reservations/signals.py
+from django.db.models.signals import post_save, pre_delete
+from django.dispatch import receiver
+from reservations.models import Reservation
+from django.db.models import Sum
+
+
+@receiver(post_save, sender=Reservation)
+def update_agent_commission_data(sender, instance, created, **kwargs):
+    """
+    Update the travel agent's commission data when a reservation is saved.
+    Handles commission-related fields: pending and unpaid
+    """
+    if instance.travel_agent:
+        agent = instance.travel_agent
+        update_fields = []
+
+        # Track if status changed
+        status_changed = False
+        old_status = None
+        if (
+            not created
+            and hasattr(instance, "_changed_fields")
+            and "status" in instance._changed_fields
+        ):
+            try:
+                old_instance = Reservation.objects.get(pk=instance.pk)
+                old_status = old_instance.status
+                status_changed = True
+            except Reservation.DoesNotExist:
+                pass
+
+        # Handle status changes specifically
+        if status_changed:
+            logger.info(
+                f"Reservation #{instance.id} status changed from {old_status} to {instance.status}"
+            )
+
+            # If changed from confirmed to something else, recalculate pending
+            if old_status == "confirmed":
+                recalculate_pending = True
+
+            # If changed from completed to something else, recalculate unpaid
+            if old_status == "completed" and not instance.commission_paid:
+                recalculate_unpaid = True
+
+            # If changed to cancelled, ensure commission is properly handled
+            if instance.status == "cancelled":
+                logger.info(
+                    f"Reservation #{instance.id} cancelled - adjusting commission data"
+                )
+                # No commissions for cancelled reservations
+                instance.commission_amount = Decimal("0.00")
+                # This will save the instance again, but that's OK
+                instance.save(update_fields=["commission_amount"])
+
+        # Calculate pending commissions (confirmed but not completed)
+        pending_total = Reservation.objects.filter(
+            travel_agent=agent, status="confirmed"
+        ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+
+        # Update pending commissions if changed
+        if agent.pending_commissions != pending_total:
+            logger.info(
+                f"Updating agent {agent} pending commissions from ${agent.pending_commissions} to ${pending_total}"
+            )
+            agent.pending_commissions = pending_total
+            update_fields.append("pending_commissions")
+
+        # Calculate unpaid commissions (completed but not paid)
+        unpaid_total = Reservation.objects.filter(
+            travel_agent=agent, commission_paid=False, status="completed"
+        ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+
+        # Update unpaid commissions if changed
+        if agent.unpaid_commissions != unpaid_total:
+            logger.info(
+                f"Updating agent {agent} unpaid commissions from ${agent.unpaid_commissions} to ${unpaid_total}"
+            )
+            agent.unpaid_commissions = unpaid_total
+            update_fields.append("unpaid_commissions")
+
+        # Save agent if any fields were updated
+        if update_fields:
+            agent.save(update_fields=update_fields)
+
+
+@receiver(pre_delete, sender=Reservation)
+def update_agent_commission_on_delete(sender, instance, **kwargs):
+    """
+    Update the travel agent's commission data when a reservation is deleted.
+    """
+    if instance.travel_agent:
+        agent = instance.travel_agent
+        update_fields = []
+
+        logger.info(
+            f"Deleting reservation #{instance.id} with status {instance.status} - adjusting commission data"
+        )
+
+        # For confirmed reservations, adjust pending commissions
+        if instance.status == "confirmed":
+            # Either recalculate or subtract directly
+            new_pending = max(
+                Decimal("0"), agent.pending_commissions - instance.commission_amount
+            )
+
+            logger.info(
+                f"Updating agent {agent} pending commissions from ${agent.pending_commissions} to ${new_pending}"
+            )
+            agent.pending_commissions = new_pending
+            update_fields.append("pending_commissions")
+
+        # For completed & unpaid reservations, adjust unpaid commissions
+        if instance.status == "completed" and not instance.commission_paid:
+            # Either recalculate or subtract directly
+            new_unpaid = max(
+                Decimal("0"), agent.unpaid_commissions - instance.commission_amount
+            )
+
+            logger.info(
+                f"Updating agent {agent} unpaid commissions from ${agent.unpaid_commissions} to ${new_unpaid}"
+            )
+            agent.unpaid_commissions = new_unpaid
+            update_fields.append("unpaid_commissions")
+
+        # Save agent if any fields were updated
+        if update_fields:
+            agent.save(update_fields=update_fields)

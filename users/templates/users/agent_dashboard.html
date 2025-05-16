@@ -1,7 +1,7 @@
 {% extends 'main.html' %}
 {% block title %}
   Travel Agent Dashboard | Grayson Towncar
-{% endblock title %}
+{% endblock %}
 {% block content %}
   <div class="container-fluid py-4">
     <!-- Header Section -->
@@ -34,12 +34,12 @@
 
     <!-- Financial Overview -->
     <div class="row g-4 mb-4">
-      <div class="col-md-2 col-sm-6">
+      <div class="col-md-3 col-sm-6">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2">Total Commission</h6>
+                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="The sum of all your pending, unpaid, and paid commissions">Total Commission <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
                 <div class="h4 mb-0">${{ total_commission|floatformat:2 }}</div>
               </div>
               <div class="ms-3 text-primary">
@@ -49,12 +49,12 @@
           </div>
         </div>
       </div>
-      <div class="col-md-2 col-sm-6">
+      <div class="col-md-3 col-sm-6">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2">Paid Commission</h6>
+                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Commission already paid to you from completed reservations">Paid Commissions <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
                 <div class="h4 mb-0 text-success">${{ paid_commission|floatformat:2 }}</div>
               </div>
               <div class="ms-3 text-success">
@@ -64,31 +64,73 @@
           </div>
         </div>
       </div>
-      <div class="col-md-2 col-sm-6">
+      <div class="col-md-3 col-sm-6">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2">Unpaid Commission</h6>
-                <div class="h4 mb-0">${{ unpaid_commission|floatformat:2 }}</div>
+                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Commission from confirmed reservations that are not yet completed">Pending Commission <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
+                <div class="h4 mb-0 text-primary">${{ pending_commission|floatformat:2 }}</div>
               </div>
-              <div class="ms-2">
+              <div class="ms-3 text-primary">
+                <i class="fas fa-hourglass-half fa-2x opacity-75"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="flex-grow-1">
+                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Commission from completed reservations awaiting payment">Due to Pay Commissions <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
+                <div class="h4 mb-0 text-danger">${{ unpaid_commission|floatformat:2 }}</div>
+              </div>
+              <div class="ms-3 text-danger">
                 <i class="fas fa-clock fa-2x opacity-100"></i>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div class="col-md-2 col-sm-6">
-        <div class="card border-0 shadow-sm h-100">
+    </div>
+
+    <!-- Commission Pipeline Card -->
+    <div class="row mb-4">
+      <div class="col-6">
+        <div class="card border-0 shadow-sm">
           <div class="card-body">
-            <div class="d-flex align-items-center">
-              <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2">Total Reservations</h6>
-                <div class="h4 mb-0">{{ reservations.paginator.count }}</div>
-              </div>
-              <div class="ms-3 text-dark">
-                <i class="fas fa-suitcase fa-2x opacity-100"></i>
+            <h5 class="card-title mb-3">Your Commissions Pipeline</h5>
+            <div class="row">
+              <div class="col-6">
+                <div class="commission-pipeline">
+                  <div class="pipeline-stage position-relative">
+                    <div class="pipeline-bar d-flex">
+                      {% if total_commission > 0 %}
+                        <div class="pipeline-segment bg-primary" style="width: {{ pending_commission|floatformat:0 }}%;" data-bs-toggle="tooltip" data-bs-placement="top" title="Pending: ${{ pending_commission|floatformat:2 }}"></div>
+                        <div class="pipeline-segment bg-danger" style="width: {{ unpaid_commission|floatformat:0 }}%;" data-bs-toggle="tooltip" data-bs-placement="top" title="Unpaid: ${{ unpaid_commission|floatformat:2 }}"></div>
+                        <div class="pipeline-segment bg-success" style="width: {{ paid_commission|floatformat:0 }}%;" data-bs-toggle="tooltip" data-bs-placement="top" title="Paid: ${{ paid_commission|floatformat:2 }}"></div>
+                      {% else %}
+                        <div class="pipeline-segment bg-light" style="width: 100%;">No commissions data</div>
+                      {% endif %}
+                    </div>
+                  </div>
+                  <div class="pipeline-legend mt-3 d-flex justify-content-between">
+                    <div class="legend-item">
+                      <span class="legend-color bg-primary"></span>
+                      <span class="legend-text">Pending: ${{ pending_commission|floatformat:2 }}</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color bg-danger"></span>
+                      <span class="legend-text">Due to Pay: ${{ unpaid_commission|floatformat:2 }}</span>
+                    </div>
+                    <div class="legend-item">
+                      <span class="legend-color bg-success"></span>
+                      <span class="legend-text">Paid: ${{ paid_commission|floatformat:2 }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -102,47 +144,51 @@
         <!-- Reservations Section -->
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-white border-0 pt-4 pb-0">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
               <h5 class="mb-0">Reservations</h5>
-              <div class="d-flex gap-2">
+              <div class="d-flex gap-2 flex-wrap">
+                <!-- Search Bar -->
+                <form class="d-flex" method="get">
+                  <input type="hidden" name="status" value="{{ status }}" />
+                  <input type="hidden" name="date_filter" value="{{ date_filter }}" />
+                  <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Search reservations..." name="search" value="{{ search_query }}" />
+                    <button class="btn btn-outline-secondary" type="submit"><i class="fas fa-search"></i></button>
+                    {% if search_query %}
+                      <a href="?status={{ status }}&date_filter={{ date_filter }}" class="btn btn-outline-secondary"><i class="fas fa-times"></i></a>
+                    {% endif %}
+                  </div>
+                </form>
+
                 <!-- Date Filter Dropdown -->
                 <div class="dropdown">
-                  <button class="btn btn-outline-secondary dropdown-toggle"
-                          type="button"
-                          data-bs-toggle="dropdown">
-                    <i class="fas fa-calendar me-2"></i>{{ date_filter|title }}
-                  </button>
+                  <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="fas fa-calendar me-2"></i>{{ date_filter|title }}</button>
                   <ul class="dropdown-menu">
                     <li>
-                      <a class="dropdown-item" href="?status={{ status }}&date_filter=all">All Time</a>
+                      <a class="dropdown-item" href="?status={{ status }}&date_filter=all&search={{ search_query }}">All Time</a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="?status={{ status }}&date_filter=today">Today</a>
+                      <a class="dropdown-item" href="?status={{ status }}&date_filter=today&search={{ search_query }}">Today</a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="?status={{ status }}&date_filter=week">Last 7 Days</a>
+                      <a class="dropdown-item" href="?status={{ status }}&date_filter=week&search={{ search_query }}">Last 7 Days</a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="?status={{ status }}&date_filter=month">Last 30 Days</a>
+                      <a class="dropdown-item" href="?status={{ status }}&date_filter=month&search={{ search_query }}">Last 30 Days</a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="?status={{ status }}&date_filter=year">Last Year</a>
+                      <a class="dropdown-item" href="?status={{ status }}&date_filter=year&search={{ search_query }}">Last Year</a>
                     </li>
                   </ul>
                 </div>
 
                 <!-- Status Filters -->
                 <div class="btn-group">
-                  <a href="?status=all&date_filter={{ date_filter }}"
-                     class="fw-bold btn btn-outline-dark {% if status == 'all' %}active{% endif %}">All</a>
-                  <a href="?status=pending&date_filter={{ date_filter }}"
-                     class="fw-bold btn btn-outline-dark {% if status == 'pending' %}active{% endif %}">Pending <span class="badge bg-dark text-white ms-2">{{ pending_count }}</span></a>
-                  <a href="?status=confirmed&date_filter={{ date_filter }}"
-                     class="fw-bold btn btn-outline-dark {% if status == 'confirmed' %}active{% endif %}">Confirmed <span class="badge bg-dark text-white ms-2">{{ confirmed_count }}</span></a>
-                  <a href="?status=completed&date_filter={{ date_filter }}"
-                     class="fw-bold btn btn-outline-dark {% if status == 'completed' %}active{% endif %}">Completed <span class="badge bg-dark text-white ms-2">{{ completed_count }}</span></a>
-                  <a href="?status=cancelled&date_filter={{ date_filter }}"
-                     class="fw-bold btn btn-outline-dark {% if status == 'cancelled' %}active{% endif %}">Cancelled <span class="badge bg-dark ms-2">{{ cancelled_count }}</span></a>
+                  <a href="?status=all&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'all' %}active{% endif %}">All</a>
+                  <a href="?status=pending&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'pending' %}active{% endif %}">Pending <span class="badge bg-dark text-white ms-2">{{ pending_count }}</span></a>
+                  <a href="?status=confirmed&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'confirmed' %}active{% endif %}">Confirmed <span class="badge bg-dark text-white ms-2">{{ confirmed_count }}</span></a>
+                  <a href="?status=completed&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'completed' %}active{% endif %}">Completed <span class="badge bg-dark text-white ms-2">{{ completed_count }}</span></a>
+                  <a href="?status=cancelled&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'cancelled' %}active{% endif %}">Cancelled <span class="badge bg-dark ms-2">{{ cancelled_count }}</span></a>
                 </div>
               </div>
             </div>
@@ -188,30 +234,243 @@
                           {% endfor %}
                         </td>
                         <td>
-                          <div>{{ reservation.customer.get_full_name }}</div>
-                          <div class="text-muted small">
-                            <i class="fas fa-envelope me-1"></i>{{ reservation.customer.email }}
-                            <br />
-                            <i class="fas fa-phone me-1"></i>{{ reservation.customer.phone }}
-                          </div>
-                        </td>
-                        <td class="fw-bold">{{ reservation.vehicle }}</td>
-                        <td>
-                          <span class="fw-bold">{{ reservation.get_status_display }}</span>
+                          <div class="fw-bold">{{ reservation.customer.get_full_name }}</div>
+                          <div class="text-muted small">{{ reservation.customer.email }}</div>
                         </td>
                         <td>
-                          <div class="fw-bold">${{ reservation.commission_amount|default:'0.00'|floatformat:2 }}</div>
-                          <div class="small {% if reservation.commission_paid %}                 text-success                 {% else %}  {% endif %}">
+                          <div class="fw-bold">{{ reservation.vehicle }}</div>
+                        </td>
+                        <td>
+                          <span class="fw-semibold">{{ reservation.get_status_display }}</span>
+                        </td>
+                        <td>
+                          <div class="fw-bold">${{ reservation.commission_amount|floatformat:2 }}</div>
+                          <div class="small {% if reservation.commission_paid %}
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              text-success
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                            {% elif reservation.status == 'completed' %}
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              text-danger
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                            {% elif reservation.status == 'confirmed' %}
+
+                            {% else %}
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              
+                              text-muted
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                            {% endif %}">
                             {% if reservation.commission_paid %}
                               <i class="fas fa-check-circle me-1"></i>Paid
+                            {% elif reservation.status == 'completed' %}
+                              <i class="fas fa-clock me-1"></i>Due to Pay
+                            {% elif reservation.status == 'confirmed' %}
+                              <i class="fas fa-hourglass-half me-1"></i>Pending
                             {% else %}
-                              <i class="fas fa-clock me-1"></i>Unpaid
+                              <i class="fas fa-minus-circle me-1"></i>Not Available
                             {% endif %}
                           </div>
                         </td>
                         <td class="text-end">
-                          <a href="{% url 'agent_reservation_detail' reservation.uuid %}"
-                             class="btn btn-sm btn-dark fw-semibold">View Details</a>
+                          <a href="{% url 'agent_reservation_detail' reservation.uuid %}" class="btn btn-sm btn-outline-dark"><i class="fas fa-eye me-1"></i>View</a>
                         </td>
                       </tr>
                     {% endfor %}
@@ -220,34 +479,37 @@
               </div>
 
               <!-- Pagination -->
-              {% if reservations.has_other_pages %}
-                <div class="card-footer bg-white border-0 pt-3">
-                  <nav aria-label="Page navigation">
+              {% if reservations.paginator.num_pages > 1 %}
+                <div class="card-footer bg-white border-0 py-3">
+                  <nav aria-label="Reservation pagination">
                     <ul class="pagination justify-content-center mb-0">
                       {% if reservations.has_previous %}
                         <li class="page-item">
-                          <a class="page-link"
-                             href="?page={{ reservations.previous_page_number }}&status={{ status }}&date_filter={{ date_filter }}"><i class="fas fa-chevron-left me-2"></i>Previous</a>
+                          <a class="page-link" href="?page=1&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"><i class="fas fa-angle-double-left"></i></a>
+                        </li>
+                        <li class="page-item">
+                          <a class="page-link" href="?page={{ reservations.previous_page_number }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"><i class="fas fa-angle-left"></i></a>
                         </li>
                       {% endif %}
 
                       {% for num in reservations.paginator.page_range %}
-                        {% if reservations.number == num %}
+                        {% if num == reservations.number %}
                           <li class="page-item active">
                             <span class="page-link">{{ num }}</span>
                           </li>
                         {% elif num > reservations.number|add:'-3' and num < reservations.number|add:'3' %}
                           <li class="page-item">
-                            <a class="page-link"
-                               href="?page={{ num }}&status={{ status }}&date_filter={{ date_filter }}">{{ num }}</a>
+                            <a class="page-link" href="?page={{ num }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}">{{ num }}</a>
                           </li>
                         {% endif %}
                       {% endfor %}
 
                       {% if reservations.has_next %}
                         <li class="page-item">
-                          <a class="page-link"
-                             href="?page={{ reservations.next_page_number }}&status={{ status }}&date_filter={{ date_filter }}">Next<i class="fas fa-chevron-right ms-2"></i></a>
+                          <a class="page-link" href="?page={{ reservations.next_page_number }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"><i class="fas fa-angle-right"></i></a>
+                        </li>
+                        <li class="page-item">
+                          <a class="page-link" href="?page={{ reservations.paginator.num_pages }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                       {% endif %}
                     </ul>
@@ -287,7 +549,7 @@
                       {% endif %}
                     </div>
                     <div class="text-end">
-                      <span class="fw-bold text-dark">{{ reservation.get_status_display }}</span>
+                      <span class="fw-semibold">{{ reservation.get_status_display }}</span>
                       <div class="small text-muted mt-1">${{ reservation.commission_amount|floatformat:2 }}</div>
                     </div>
                   </div>
@@ -306,32 +568,48 @@
           <div class="card-header bg-white border-0 pt-4 pb-0">
             <div class="d-flex justify-content-between align-items-center">
               <h5 class="mb-0">Agency Information</h5>
-              <a href="{% url 'agent_profile' %}"
-                 class="btn btn-sm btn-outline-dark fw-semibold"><i class="fas fa-edit me-1"></i>Edit Profile</a>
+              <a href="{% url 'agent_profile' %}" class="btn btn-sm btn-outline-dark fw-semibold"><i class="fas fa-edit me-1"></i>Edit Profile</a>
             </div>
           </div>
           <div class="card-body pt-3">
             <dl class="row mb-0">
               <dt class="col-4 text-muted">Agency Name</dt>
-              <dd class="col-8">
-                {{ travel_agent.agency_name }}
-              </dd>
+              <dd class="col-8">{{ travel_agent.agency_name }}</dd>
 
               <dt class="col-4 text-muted">Agent Name</dt>
-              <dd class="col-8">
-                {{ travel_agent.agent_name }}
-              </dd>
+              <dd class="col-8">{{ travel_agent.agent_name }}</dd>
 
               <dt class="col-4 text-muted">Phone</dt>
-              <dd class="col-8">
-                {{ travel_agent.phone }}
-              </dd>
+              <dd class="col-8">{{ travel_agent.phone }}</dd>
 
               <dt class="col-4 text-muted">Payment Info</dt>
-              <dd class="col-8">
-                <span class="text-truncate d-inline-block" style="max-width: 250px;">{{ travel_agent.payment_info|truncatewords:10 }}</span>
-              </dd>
+              <dd class="col-8"><span class="text-truncate d-inline-block" style="max-width: 250px;">{{ travel_agent.payment_info|truncatewords:10 }}</span></dd>
             </dl>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commission Info Card -->
+      <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-0 pt-4 pb-0">
+            <h5 class="mb-0">Commission Guide</h5>
+          </div>
+          <div class="card-body pt-3">
+            <div class="commission-info">
+              <div class="mb-3">
+                <h6 class="mb-2"><i class="fas fa-hourglass-half text-dark me-2 fw-semibold"></i> Pending Commission</h6>
+                <p class="mb-0">Earnings from confirmed reservations that haven't been completed yet. These will move to unpaid when the trip is completed.</p>
+              </div>
+              <div class="mb-3">
+                <h6 class="mb-2"><i class="fas fa-clock text-danger me-2 fw-semibold"></i> Due to Pay Commission</h6>
+                <p class="mb-0">Earnings from completed trips that are waiting for payout. These will be processed in regular payment cycles.</p>
+              </div>
+              <div>
+                <h6 class="mb-2"><i class="fas fa-check-circle text-success me-2 fw-semibold"></i> Paid Commission</h6>
+                <p class="mb-0">Commissions that have already been paid to you. You can view payment history in the Commission History tab.</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -340,64 +618,138 @@
 
   <!-- Custom Styles -->
   <style>
-      body {
-          background-color: #f4f6f9;
-      }
-
-      .card {
-          border-radius: 0.75rem;
-      }
-
-      .card-header {
-          border-bottom: none;
-      }
-
-      .table th {
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          color: #6c757d;
-      }
-
-      .badge {
-          font-weight: 500;
-      }
-
-      .btn-group>.btn {
-          padding: 0.375rem 0.75rem;
-      }
-
-      .badge.bg-pending {
-          background-color: #ffc107;
-          color: #000;
-      }
-
-      .badge.bg-confirmed {
-          background-color: #0dcaf0;
-          color: #000;
-      }
-
-      .badge.bg-completed {
-          background-color: #198754;
-      }
-
-      .badge.bg-cancelled {
-          background-color: #dc3545;
-      }
-
-      .table td {
-          vertical-align: middle;
-          padding: 0.75rem;
-      }
-
-      .nav-tabs .nav-link {
-          color: #495057;
-          border-radius: 0.5rem 0.5rem 0 0;
-      }
-
-      .nav-tabs .nav-link.active {
-          font-weight: 600;
-          border-color: #dee2e6 #dee2e6 #fff;
-      }
+    body {
+      background-color: #f4f6f9;
+    }
+    
+    .card {
+      border-radius: 0.75rem;
+    }
+    
+    .card-header {
+      border-bottom: none;
+    }
+    
+    .table th {
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6c757d;
+    }
+    
+    .badge {
+      font-weight: 500;
+    }
+    
+    .btn-group > .btn {
+      padding: 0.375rem 0.75rem;
+    }
+    
+    .badge.bg-pending {
+      background-color: #ffc107;
+      color: #000;
+    }
+    
+    .badge.bg-confirmed {
+      background-color: #0dcaf0;
+      color: #000;
+    }
+    
+    .badge.bg-completed {
+      background-color: #198754;
+    }
+    
+    .badge.bg-cancelled {
+      background-color: #dc3545;
+    }
+    
+    .table td {
+      vertical-align: middle;
+      padding: 0.75rem;
+    }
+    
+    .nav-tabs .nav-link {
+      color: #495057;
+      border-radius: 0.5rem 0.5rem 0 0;
+    }
+    
+    .nav-tabs .nav-link.active {
+      font-weight: 600;
+      border-color: #dee2e6 #dee2e6 #fff;
+    }
+    
+    .input-group {
+      width: auto;
+      min-width: 250px;
+    }
+    
+    .pagination {
+      margin-bottom: 0;
+    }
+    
+    .page-link {
+      color: #495057;
+      border: none;
+      padding: 0.5rem 0.75rem;
+    }
+    
+    .page-item.active .page-link {
+      background-color: #495057;
+      border-color: #495057;
+    }
+    
+    .page-link:hover {
+      color: #000;
+      background-color: #e9ecef;
+    }
+    
+    /* Commission pipeline styles */
+    .commission-pipeline {
+      width: 100%;
+    }
+    
+    .pipeline-bar {
+      height: 30px;
+      background-color: #f0f0f0;
+      border-radius: 15px;
+      overflow: hidden;
+    }
+    
+    .pipeline-segment {
+      height: 100%;
+      transition: width 0.5s ease;
+    }
+    
+    .pipeline-legend {
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+    }
+    
+    .legend-color {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      border-radius: 3px;
+    }
+    
+    .info-tooltip {
+      cursor: help;
+    }
   </style>
+
+  <!-- Initialize tooltips -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+      })
+    })
+  </script>
 {% endblock %}

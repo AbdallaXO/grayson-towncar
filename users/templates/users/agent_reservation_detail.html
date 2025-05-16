@@ -1,7 +1,7 @@
 {% extends 'main.html' %}
 {% block title %}
   Travel Agent Reservation Details | Grayson Towncar
-{% endblock title %}
+{% endblock %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
@@ -10,7 +10,6 @@
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <h1 class="h2 mb-1">Reservation Detail</h1>
-            <p class="text-muted mb-0">Booking #{{ reservation.uuid|truncatechars:8 }}</p>
           </div>
           <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
         </div>
@@ -47,10 +46,74 @@
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Your Commission (10%)</h6>
-            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}     text-success            {% else %}  {% endif %}">
+            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                     text-success
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+              {% else %}
+
+              {% endif %}">
               ${{ reservation.commission_amount|floatformat:2 }}
             </h4>
-            <small class="fw-semibold {% if reservation.commission_paid %}            text-success            {% else %}  {% endif %}">
+            <small class="fw-semibold {% if reservation.commission_paid %}
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                            text-success
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+              {% else %}
+
+              {% endif %}">
               {% if reservation.commission_paid %}
                 Paid
               {% else %}
@@ -78,22 +141,13 @@
             </div>
             <div class="mb-3">
               <label class="text-muted small">Phone</label>
-              <p class="mb-0">{{ reservation.customer.phone }}</p>
+              <p class="mb-0">{{ reservation.customer.phone_number }}</p>
             </div>
-            {% if reservation.customer.address_line1 %}
-              <div class="mb-3">
-                <label class="text-muted small">Address</label>
-                <p class="mb-0">
-                  {{ reservation.customer.address_line1 }}
-                  <br />
-                  {% if reservation.customer.address_line2 %}
-                    {{ reservation.customer.address_line2 }}
-                    <br />
-                  {% endif %}
-                  {{ reservation.customer.city }}, {{ reservation.customer.state }} {{ reservation.customer.zip_code }}
-                </p>
-              </div>
-            {% endif %}
+            <div class="mb-3">
+              <label class="text-muted small">Zipcode</label>
+              <br />
+              {{ reservation.customer.zipcode }}
+            </div>
           </div>
         </div>
       </div>
@@ -110,15 +164,19 @@
             <div class="mb-3">
               <label class="text-muted small">Passengers</label>
               <p class="mb-0">
-                {{ reservation.passenger_count }} passenger
-                {% if reservation.passenger_count != 1 %}s{% endif %}
+                {{ reservation.passenger_count }} passenger{% if reservation.passenger_count != 1 %}s{% endif %}
               </p>
             </div>
+            {% if reservation.needs_carseaets %}
+              <div class="mb-3">
+                <label class="text-muted small">Children</label>
+                <p class="mb-0">{{ reservation.display_carseats }}</p>
+              </div>
+            {% endif %}
             <div class="mb-3">
               <label class="text-muted small">Luggage</label>
               <p class="mb-0">
-                {{ reservation.luggage_count }} piece
-                {% if reservation.luggage_count != 1 %}s{% endif %}
+                {{ reservation.luggage_count }} piece{% if reservation.luggage_count != 1 %}s{% endif %}
               </p>
             </div>
             {% if reservation.need_carseats %}
@@ -133,7 +191,9 @@
                     FF Seats: {{ reservation.ff_carseats }}
                     <br />
                   {% endif %}
-                  {% if reservation.booster_seats %}Booster Seats: {{ reservation.booster_seats }}{% endif %}
+                  {% if reservation.booster_seats %}
+                    Booster Seats: {{ reservation.booster_seats }}
+                  {% endif %}
                 </p>
               </div>
             {% endif %}
@@ -203,7 +263,7 @@
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
           {% if reservation.special_requests %}
-            <h5 class="card-title mb-3">Special Requests</h5>
+            <h5 class="card-title mb-3">Comments/Requests</h5>
             <p class="mb-3">{{ reservation.special_requests }}</p>
           {% endif %}
           {% if reservation.private_notes %}
@@ -243,7 +303,7 @@
             <div class="mb-3">
               <label class="text-muted small">Commission Status</label>
               <p class="mb-0">
-                <span class="badge bg-{% if reservation.commission_paid %}            success            {% else %}            warning            {% endif %}">
+                <span class="">
                   {% if reservation.commission_paid %}
                     Paid
                   {% else %}
@@ -269,33 +329,35 @@
   </div>
 
   <style>
-      .badge {
-          font-weight: 500;
-          padding: 0.5em 0.75em;
-      }
-
-      .badge.bg-pending {
-          background-color: #ffc107;
-          color: #000;
-      }
-
-      .badge.bg-confirmed {
-          background-color: #0dcaf0;
-          color: #000;
-      }
-
-      .badge.bg-completed {
-          background-color: #198754;
-      }
-
-      .badge.bg-cancelled {
-          background-color: #dc3545;
-      }
-
-      .badge.bg-warning {
-          background-color: #ffc107;
-          color: #000;
-      }
+    .badge {
+      font-weight: 500;
+      padding: 0.5em 0.75em;
+    }
+    
+    .badge.bg-pending {
+      background-color: #ffc107;
+      color: #000;
+    }
+    
+    .badge.bg-confirmed {
+      background-color: #0dcaf0;
+      color: #000;
+    }
+    
+    .badge.bg-completed {
+      background-color: #198754;
+    }
+    
+    .badge.bg-cancelled {
+      background-color: #dc3545;
+    }
+    
+    .badge.bg-warning {
+      background-color: #ffc107;
+      color: #000;
+    }
   </style>
-  {% block footer %}{% endblock %}
+  {% block footer %}
+
+  {% endblock %}
 {% endblock %}

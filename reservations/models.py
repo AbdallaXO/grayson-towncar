@@ -87,7 +87,11 @@ class Reservation(models.Model):
 
     # Travel Agent fields
     travel_agent = models.ForeignKey(
-        "users.TravelAgent", on_delete=models.SET_NULL, null=True, blank=True, related_name='reservations'
+        "users.TravelAgent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reservations",
     )
     commission_amount = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True

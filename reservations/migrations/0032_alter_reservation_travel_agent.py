@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("reservations", "0031_reservation_commission_paid_and_more"),
         ("users", "0018_commissionpayout_created_at_contactusform_created_at_and_more"),

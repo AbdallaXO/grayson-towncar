@@ -525,7 +525,6 @@ def update_deal_payment_status(
         if payment_method:
             props["payment_method"] = payment_method
 
-
         # Update the deal
         client.crm.deals.basic_api.update(
             deal_id=deal_id, simple_public_object_input=DealInput(properties=props)

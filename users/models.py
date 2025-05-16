@@ -103,7 +103,6 @@ class TravelAgent(models.Model):
     phone = models.CharField(max_length=20)
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=10.00)
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     payment_info = models.CharField(
         max_length=200,
@@ -112,12 +111,18 @@ class TravelAgent(models.Model):
         blank=True,
     )
     last_payment_date = models.DateTimeField(null=True, blank=True)
-    total_earned_commission = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0.00
-    )
+
+    # Commission tracking fieldss
     total_paid_commission = models.DecimalField(
         max_digits=10, decimal_places=2, default=0.00
     )
+    unpaid_commissions = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
+    pending_commissions = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0.00
+    )
+
     PAYMENT_METHOD_CHOICES = [
         ("paypal", "PayPal"),
         ("venmo", "Venmo"),
@@ -125,7 +130,7 @@ class TravelAgent(models.Model):
         ("cashapp", "Cash App"),
         ("bank", "Bank Transfer"),
         ("check", "Check"),
-        ("other", "Other"),  # Added this option
+        ("other", "Other"),
     ]
     payment_method = models.CharField(
         max_length=20,
@@ -135,22 +140,115 @@ class TravelAgent(models.Model):
         help_text="Select your preferred payment method",
     )
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
-    def get_unpaid_commissions(self):
-        """Get reservations with unpaid commissions."""
-        return self.reservations.filter(
-            status='completed',
-            commission_paid=False,
-            commission_amount__gt=0
+
+    def update_commission_stats(self):
+        """Calculate and update all commission statistics for this agent."""
+        from django.db.models import Sum
+        from reservations.models import Reservation
+
+        # Calculate pending commissions (confirmed but not completed)
+        pending_amount = (
+            Reservation.objects.filter(travel_agent=self, status="confirmed").aggregate(
+                total=Sum("commission_amount")
+            )["total"]
+            or 0
         )
-    
-    def get_unpaid_amount(self):
-        """Get total unpaid commission amount."""
-        return self.get_unpaid_commissions().aggregate(
-            total=Sum('commission_amount')
-        )['total'] or 0
+
+        # Calculate unpaid commissions (completed but not paid)
+        unpaid_amount = (
+            Reservation.objects.filter(
+                travel_agent=self, commission_paid=False, status="completed"
+            ).aggregate(total=Sum("commission_amount"))["total"]
+            or 0
+        )
+
+        # Update the fields
+        self.pending_commissions = pending_amount
+        self.unpaid_commissions = unpaid_amount
+        self.save(update_fields=["pending_commissions", "unpaid_commissions"])
+
+        return {"pending": pending_amount, "unpaid": unpaid_amount}
+
+    def update_unpaid_commissions(self):
+        """Calculate and update the unpaid commissions for this agent."""
+        from django.db.models import Sum
+        from reservations.models import Reservation
+
+        # Calculate the sum of unpaid commissions from completed reservations
+        unpaid_amount = (
+            Reservation.objects.filter(
+                travel_agent=self, commission_paid=False, status="completed"
+            ).aggregate(total=Sum("commission_amount"))["total"]
+            or 0
+        )
+
+        # Update the field
+        self.unpaid_commissions = unpaid_amount
+        self.save(update_fields=["unpaid_commissions"])
+        return unpaid_amount
+
+    def process_commission_payment(self):
+        """Process payment for all unpaid commissions."""
+        from django.db.models import Sum
+        from django.utils import timezone
+        from django.db import transaction
+        from reservations.models import Reservation
+
+        with transaction.atomic():
+            # Get all unpaid completed reservations
+            unpaid_reservations = Reservation.objects.filter(
+                travel_agent=self, commission_paid=False, status="completed"
+            )
+
+            if unpaid_reservations.exists():
+                # Calculate total amount
+                commission_total = (
+                    unpaid_reservations.aggregate(total=Sum("commission_amount"))[
+                        "total"
+                    ]
+                    or 0
+                )
+
+                # Create payout record
+                from .models import CommissionPayout
+
+                payout = CommissionPayout.objects.create(
+                    agent=self,
+                    total_amount=commission_total,
+                    payout_period_start=unpaid_reservations.earliest(
+                        "created_at"
+                    ).created_at.date(),
+                    payout_period_end=unpaid_reservations.latest(
+                        "created_at"
+                    ).created_at.date(),
+                )
+
+                # Add reservations to payout
+                payout.reservations.set(unpaid_reservations)
+
+                # Mark reservations as paid
+                unpaid_reservations.update(
+                    commission_paid=True, commission_paid_at=timezone.now()
+                )
+
+                # Update agent totals
+                self.total_paid_commission += commission_total
+                self.last_payment_date = timezone.now()
+                self.unpaid_commissions = 0
+                self.save(
+                    update_fields=[
+                        "total_paid_commission",
+                        "last_payment_date",
+                        "unpaid_commissions",
+                    ]
+                )
+
+                return payout, commission_total
+
+            return None, 0
 
     def __str__(self):
-        return f"{self.agency_name} - {self.user.username}"
+        return f"{self.agency_name or self.agent_name or self.user.username}"
 
     class Meta:
         verbose_name = "Travel Agent"
@@ -166,7 +264,6 @@ class CommissionPayout(models.Model):
     payout_period_end = models.DateField()
     paid_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.agent.agency_name or self.agent.agent_name or self.agent.user.username} – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"
+        return f"{self.agent} – {self.payout_period_start.strftime('%b %Y')} – ${self.total_amount}"
