@@ -28,11 +28,10 @@ class TravelAgentAdmin(admin.ModelAdmin):
         "agency_name",
         "phone",
         "commission_rate",
-        "total_reservations",
-        "total_earned",
-        "total_paid",
-        "pending_commission",
         "unpaid_commission",
+        "pending_commission",
+        "total_paid",
+        "total_reservations",
         "is_active",
     ]
     list_filter = ["is_active", "created_at"]
@@ -45,7 +44,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
         ),
         (
             "Payment Information",
-            {"fields": ("payment_info", "payment_method", "commission_rate")},
+            {"fields": ( "payment_method","payment_info", "commission_rate")},
         ),
         (
             "Commission Tracking",
@@ -75,12 +74,6 @@ class TravelAgentAdmin(admin.ModelAdmin):
 
     total_reservations.short_description = "Total Reservations"
 
-    def total_earned(self, obj):
-        # Calculate total earned as sum of paid and unpaid
-        total = obj.total_paid_commission + obj.unpaid_commissions
-        return format_html("${}", f"{total:,.2f}")
-
-    total_earned.short_description = "Total Earned"
 
     def total_paid(self, obj):
         return format_html("${}", f"{obj.total_paid_commission:,.2f}")

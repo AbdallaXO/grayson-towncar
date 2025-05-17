@@ -93,7 +93,6 @@ class NewsletterSubscriptionAttempt(models.Model):
     def __str__(self):
         return f"{self.ip_address} - {self.email} - {self.timestamp}"
 
-
 class TravelAgent(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     agent_name = models.CharField(
@@ -112,7 +111,7 @@ class TravelAgent(models.Model):
     )
     last_payment_date = models.DateTimeField(null=True, blank=True)
 
-    # Commission tracking fieldss
+    # Commission tracking fields
     total_paid_commission = models.DecimalField(
         max_digits=10, decimal_places=2, default=0.00
     )
@@ -141,26 +140,57 @@ class TravelAgent(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
-    def update_commission_stats(self):
-        """Calculate and update all commission statistics for this agent."""
-        from django.db.models import Sum
+    def calculate_unpaid_commissions(self):
+        """Calculate unpaid commissions based on commission_rate without saving."""
+        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
         from reservations.models import Reservation
 
-        # Calculate pending commissions (confirmed but not completed)
-        pending_amount = (
-            Reservation.objects.filter(travel_agent=self, status="confirmed").aggregate(
-                total=Sum("commission_amount")
-            )["total"]
-            or 0
-        )
+        # Calculate the sum of unpaid commissions from completed reservations
+        # This applies the agent's commission rate to each reservation total_price
+        unpaid_commissions = Reservation.objects.filter(
+            travel_agent=self, commission_paid=False, status="completed"
+        ).annotate(
+            calculated_commission=ExpressionWrapper(
+                F('total_price') * (self.commission_rate / 100),
+                output_field=DecimalField(max_digits=10, decimal_places=2)
+            )
+        ).aggregate(
+            total=Sum('calculated_commission')
+        )['total'] or 0
+        
+        return unpaid_commissions
 
-        # Calculate unpaid commissions (completed but not paid)
-        unpaid_amount = (
-            Reservation.objects.filter(
-                travel_agent=self, commission_paid=False, status="completed"
-            ).aggregate(total=Sum("commission_amount"))["total"]
-            or 0
-        )
+    def calculate_pending_commissions(self):
+        """Calculate pending commissions based on commission_rate without saving."""
+        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+        from reservations.models import Reservation
+        
+        # Calculate pending commissions (confirmed but not completed)
+        pending_commissions = Reservation.objects.filter(
+            travel_agent=self, status="confirmed"
+        ).annotate(
+            calculated_commission=ExpressionWrapper(
+                F('total_price') * (self.commission_rate / 100),
+                output_field=DecimalField(max_digits=10, decimal_places=2)
+            )
+        ).aggregate(
+            total=Sum('calculated_commission')
+        )['total'] or 0
+        
+        return pending_commissions
+
+    def update_unpaid_commissions(self):
+        """Calculate and update the unpaid commissions for this agent."""
+        unpaid_amount = self.calculate_unpaid_commissions()
+        self.unpaid_commissions = unpaid_amount
+        self.save(update_fields=["unpaid_commissions"])
+        return unpaid_amount
+
+    def update_commission_stats(self):
+        """Calculate and update all commission statistics for this agent."""
+        # Reuse the calculation methods
+        pending_amount = self.calculate_pending_commissions()
+        unpaid_amount = self.calculate_unpaid_commissions()
 
         # Update the fields
         self.pending_commissions = pending_amount
@@ -169,27 +199,9 @@ class TravelAgent(models.Model):
 
         return {"pending": pending_amount, "unpaid": unpaid_amount}
 
-    def update_unpaid_commissions(self):
-        """Calculate and update the unpaid commissions for this agent."""
-        from django.db.models import Sum
-        from reservations.models import Reservation
-
-        # Calculate the sum of unpaid commissions from completed reservations
-        unpaid_amount = (
-            Reservation.objects.filter(
-                travel_agent=self, commission_paid=False, status="completed"
-            ).aggregate(total=Sum("commission_amount"))["total"]
-            or 0
-        )
-
-        # Update the field
-        self.unpaid_commissions = unpaid_amount
-        self.save(update_fields=["unpaid_commissions"])
-        return unpaid_amount
-
     def process_commission_payment(self):
         """Process payment for all unpaid commissions."""
-        from django.db.models import Sum
+        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
         from django.utils import timezone
         from django.db import transaction
         from reservations.models import Reservation
@@ -201,13 +213,15 @@ class TravelAgent(models.Model):
             )
 
             if unpaid_reservations.exists():
-                # Calculate total amount
-                commission_total = (
-                    unpaid_reservations.aggregate(total=Sum("commission_amount"))[
-                        "total"
-                    ]
-                    or 0
-                )
+                # Calculate total commission amount using the agent's commission rate
+                commission_total = unpaid_reservations.annotate(
+                    calculated_commission=ExpressionWrapper(
+                        F('total_price') * (self.commission_rate / 100),
+                        output_field=DecimalField(max_digits=10, decimal_places=2)
+                    )
+                ).aggregate(
+                    total=Sum('calculated_commission')
+                )['total'] or 0
 
                 # Create payout record
                 from .models import CommissionPayout
@@ -226,10 +240,13 @@ class TravelAgent(models.Model):
                 # Add reservations to payout
                 payout.reservations.set(unpaid_reservations)
 
-                # Mark reservations as paid
-                unpaid_reservations.update(
-                    commission_paid=True, commission_paid_at=timezone.now()
-                )
+                # Mark reservations as paid and record the actual commission amount
+                for reservation in unpaid_reservations:
+                    # Calculate the exact commission amount for this reservation
+                    reservation.commission_amount = reservation.total_price * (self.commission_rate / 100)
+                    reservation.commission_paid = True
+                    reservation.commission_paid_at = timezone.now()
+                    reservation.save(update_fields=['commission_amount', 'commission_paid', 'commission_paid_at'])
 
                 # Update agent totals
                 self.total_paid_commission += commission_total

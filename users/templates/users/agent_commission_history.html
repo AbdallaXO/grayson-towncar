@@ -1,18 +1,18 @@
 {% extends 'main.html' %}
-{% block title %}
-  Travel Agent Commission Overview | Grayson Towncar
-{% endblock %}
+{% block title %}Travel Agent Commission Overview | Grayson Towncar{% endblock %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <div class="mb-3 mb-md-0">
             <h1 class="h2 mb-1">Commission History</h1>
             <p class="text-muted mb-0">{{ travel_agent.agency_name }}</p>
           </div>
-          <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+          <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+          </a>
         </div>
       </div>
     </div>
@@ -23,7 +23,9 @@
         <a class="nav-link" href="{% url 'agent_dashboard' %}">Dashboard</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link active" href="{% url 'agent_commission_history' %}">Commission History</a>
+        <a class="nav-link active"
+           href="{% url 'agent_commission_history' %}"
+           aria-current="page">Commission History</a>
       </li>
     </ul>
 
@@ -50,6 +52,40 @@
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Grand Total</h6>
             <h3 class="mb-0">${{ total_paid|add:total_unpaid|floatformat:2 }}</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commission Trend Visualization -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Commission Trend</h5>
+            <div class="chart-container" style="height: 200px;">
+              <!-- Simple inline bar chart using HTML/CSS -->
+              <div class="d-flex align-items-end h-100 justify-content-between flex-wrap">
+                {% for payout in payouts %}
+                  {% if forloop.counter <= 12 %}
+                    <div class="d-flex flex-column align-items-center mx-1 mb-3"
+                         style="width: 30px">
+                      <div class="bg-success rounded-top"
+                           style="width: 100%;
+                                  height: {% widthratio payout.total_amount total_paid 150 %}px;
+                                  min-height: 5px"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="${{ payout.total_amount|floatformat:2 }}"></div>
+                      <small class="text-muted mt-1"
+                             style="font-size: 0.7rem;
+                                    writing-mode: vertical-lr;
+                                    transform: rotate(180deg)">{{ payout.paid_at|date:'M y' }}</small>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -125,7 +161,11 @@
                     <td class="text-success">${{ payout.total_amount|floatformat:2 }}</td>
                     <td>{{ payout.notes|truncatewords:10 }}</td>
                     <td>
-                      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-primary"
+                              data-bs-toggle="modal"
+                              data-bs-target="#payoutModal{{ payout.id }}"
+                              aria-label="View payout details">View Details</button>
                     </td>
                   </tr>
                 {% endfor %}
@@ -143,16 +183,18 @@
           <!-- Pagination -->
           {% if payouts.has_other_pages %}
             <nav aria-label="Page navigation" class="mt-4">
-              <ul class="pagination justify-content-center">
+              <ul class="pagination justify-content-center flex-wrap">
                 {% if payouts.has_previous %}
                   <li class="page-item">
-                    <a class="page-link" href="?page={{ payouts.previous_page_number }}">Previous</a>
+                    <a class="page-link"
+                       href="?page={{ payouts.previous_page_number }}"
+                       aria-label="Previous page">Previous</a>
                   </li>
                 {% endif %}
 
                 {% for num in payouts.paginator.page_range %}
                   {% if payouts.number == num %}
-                    <li class="page-item active">
+                    <li class="page-item active" aria-current="page">
                       <span class="page-link">{{ num }}</span>
                     </li>
                   {% elif num > payouts.number|add:'-3' and num < payouts.number|add:'3' %}
@@ -164,7 +206,9 @@
 
                 {% if payouts.has_next %}
                   <li class="page-item">
-                    <a class="page-link" href="?page={{ payouts.next_page_number }}">Next</a>
+                    <a class="page-link"
+                       href="?page={{ payouts.next_page_number }}"
+                       aria-label="Next page">Next</a>
                   </li>
                 {% endif %}
               </ul>
@@ -179,12 +223,21 @@
 
   <!-- Payout Detail Modals -->
   {% for payout in payouts %}
-    <div class="modal fade" id="payoutModal{{ payout.id }}" tabindex="-1" aria-labelledby="payoutModalLabel{{ payout.id }}" aria-hidden="true">
+    <div class="modal fade"
+         id="payoutModal{{ payout.id }}"
+         tabindex="-1"
+         aria-labelledby="payoutModalLabel{{ payout.id }}"
+         aria-hidden="true">
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">
+              Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}
+            </h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <div class="mb-3">
@@ -219,7 +272,7 @@
                       <td>{{ reservation.created_at|date:'M d, Y' }}</td>
                       <td>{{ reservation.customer.get_full_name }}</td>
                       <td>{{ reservation.get_trip_type_display }}</td>
-                      <td>${{ payout.total_amount|floatformat:2 }}</td>
+                      <td>${{ reservation.commission_amount|floatformat:2 }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -234,7 +287,69 @@
     </div>
   {% endfor %}
 
-  {% block footer %}
+  <!-- Custom Styles -->
+  <style>
+      body {
+          background-color: #f4f6f9;
+      }
 
-  {% endblock %}
+      .card {
+          border-radius: 0.75rem;
+      }
+
+      .chart-container {
+          overflow-x: auto;
+      }
+
+      @media (max-width: 767.98px) {
+          .chart-container {
+              height: 150px !important;
+          }
+
+          .chart-container .d-flex {
+              min-width: 500px;
+          }
+      }
+
+      @media print {
+
+          .btn,
+          .nav-tabs,
+          .modal,
+          .pagination {
+              display: none !important;
+          }
+
+          body {
+              background-color: white !important;
+          }
+
+          .card {
+              border: 1px solid #dee2e6 !important;
+              box-shadow: none !important;
+          }
+
+          .container {
+              width: 100% !important;
+              max-width: 100% !important;
+              padding: 0 !important;
+          }
+
+          .table {
+              font-size: 10pt;
+          }
+      }
+  </style>
+
+  <!-- Initialize tooltips -->
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+          tooltipTriggerList.map(function(tooltipTriggerEl) {
+              return new bootstrap.Tooltip(tooltipTriggerEl)
+          })
+      })
+  </script>
+
+  {% block footer %}{% endblock %}
 {% endblock %}

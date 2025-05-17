@@ -35,7 +35,7 @@ def reservation_saved(sender, instance, created, **kwargs):
 
             # Send internal confirmation email
             try:
-                # send_internal_confirmation(instance)
+                send_internal_confirmation(instance)
                 local_logger.info(
                     f"Internal confirmation sent for reservation #{instance.id}"
                 )
