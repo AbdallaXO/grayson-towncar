@@ -240,7 +240,7 @@ class CustomerAdmin(ImportExportModelAdmin):
         "last_name",
         "email",
         "phone_number",
-        "reservation_count",
+        "reservation_link_count",
         "is_returning",
         "created_at",
     )
@@ -253,11 +253,13 @@ class CustomerAdmin(ImportExportModelAdmin):
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.annotate(reservation_count=Count('reservation'))
+        # Use a different name for the annotation to avoid conflicts
+        return qs.annotate(total_reservations=Count('reservation'))
     
     @admin.display(description="Reservations")
-    def reservation_count(self, obj):
-        count = getattr(obj, 'reservation_count', 0)
+    def reservation_link_count(self, obj):
+        # Use the annotation or fallback to the model field
+        count = getattr(obj, 'total_reservations', obj.reservation_count)
         if count:
             url = reverse('admin:reservations_reservation_changelist') + f'?customer={obj.id}'
             return format_html('<a href="{}">{}</a>', url, count)

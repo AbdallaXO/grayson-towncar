@@ -144,7 +144,7 @@ class Reservation(models.Model):
             self.total_price = self.base_price + (self.additional_charges or 0)
 
         # Calculate commission if this is a travel agent reservation
-        if self.travel_agent and not self.commission_amount:
+        if self.travel_agent and self.commission_amount is None:
             self.commission_amount = self.total_price * Decimal(
                 "0.10"
             )  # 10% commission
