@@ -15,12 +15,12 @@ from .utils import (
 )
 from django.shortcuts import render, reverse
 from django.db.models import Prefetch
-from rates.models import Rate, Vehicle
+from rates.models import Rate, Vehicle, Location, Route, Lead
 import json
 from users.models import TravelAgent
 import logging
 from .hubspot_service import sync_reservation_to_hubspot
-
+from rates.forms import LeadForm
 logger = logging.getLogger(__name__)
 
 
@@ -28,33 +28,62 @@ logger = logging.getLogger(__name__)
 
 
 def index(request):
-    """Returns the Landing Page"""
+    """
+    Home page view that includes the quote widget in the hero section.
+    """
+    # Get all vehicles, locations, and rates with efficient prefetching
     vehicles = Vehicle.objects.prefetch_related(
-        Prefetch(
-            "rates",
-            queryset=Rate.objects.select_related(
-                "route", "route__origin", "route__destination"
-            ),
-        )
+        Prefetch("rates", queryset=Rate.objects.select_related("route", "route__origin", "route__destination"))
     ).all()
-    rates_json: dict[str, dict[str, dict]] = {}
-    for v in vehicles:
-        routes: dict[str, dict] = {}
-        for r in v.rates.all():
-            routes[str(r.id)] = {
-                "id": r.id,
-                "name": str(r.route),
-                "oneway": float(r.oneway_price),
-                "round": float(r.round_trip_price),
-                "reserve_url": reverse(
-                    "reserve", args=[r.id]
-                ),  # Changed to snake_case to match JS
+    
+    locations = Location.objects.all()
+    
+    # Initialize an empty form
+    form = LeadForm()
+    
+    # Prepare data for the quote widget
+    rates_json = {}
+    for vehicle in vehicles:
+        routes = {}
+        for rate in vehicle.rates.all():
+            route = rate.route
+            routes[str(rate.id)] = {
+                "id": rate.id,
+                "name": str(route),
+                "origin_id": route.origin_id,
+                "destination_id": route.destination_id,
+                "origin_name": route.origin.name,
+                "destination_name": route.destination.name,
+                "oneway": float(rate.oneway_price),
+                "round": float(rate.round_trip_price),
+                "reserve_url": reverse("reserve", args=[rate.id]),
             }
-        rates_json[str(v.id)] = routes
-
+        rates_json[str(vehicle.id)] = routes
+    
+    # Prepare locations for the quote widget
+    locations_json = {str(loc.id): {"id": loc.id, "name": loc.name} for loc in locations}
+    
+    # Prepare routes for the quote widget
+    routes = Route.objects.all().select_related('origin', 'destination')
+    populated_routes = [
+        {
+            "origin_id": route.origin_id,
+            "destination_id": route.destination_id,
+            "origin_name": route.origin.name,
+            "destination_name": route.destination.name,
+        }
+        for route in routes
+    ]
+    
+    # Context for template
     context = {
+        "page_title": "Home",
         "vehicles": vehicles,
-        "rates_json": json.dumps(rates_json),  # safe‑dump for JS
+        "locations": locations,
+        "rates_json": json.dumps(rates_json),
+        "locations_json": json.dumps(locations_json),
+        "populated_routes": json.dumps(populated_routes),
+        "form": form,
     }
     return render(request, "reservations/index.html", context)
 

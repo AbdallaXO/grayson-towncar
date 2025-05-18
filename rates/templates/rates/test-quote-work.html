@@ -1,0 +1,906 @@
+{% extends 'main.html' %}
+{% load static %}
+{% block content %}
+  <section class="py-5 position-relative hero-section text-dark"
+           aria-labelledby="quote-heading">
+    <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
+    <div class="container position-relative">
+      <div class="row justify-content-center">
+        <div class="col-12 col-lg-10 text-center">
+          <!-- Quote Widget Header -->
+          <div class="text-center mb-4">
+            <h2 id="quote-heading" class="display-5 fw-bold mb-2">Get Your Instant Quote</h2>
+            <p class="lead text-muted">Compare rates for your perfect ride in seconds</p>
+          </div>
+          <!-- Quote Form -->
+          <div id="quote-form"
+               class="quote-box shadow-lg p-4 p-md-5 mx-auto bg-white rounded-4"
+               style="max-width:800px;
+                      border-top: 5px solid #0d6efd">
+            <!-- Progress Indicator -->
+            <div class="progress mb-4"
+                 style="height: 10px;
+                        border-radius: 10px;
+                        background-color: #f0f0f0">
+              <div id="progress-bar"
+                   class="progress-bar"
+                   role="progressbar"
+                   style="width: 0%;
+                          background: linear-gradient(90deg, #0d6efd, #0dcaf0);
+                          border-radius: 10px;
+                          transition: width 0.5s ease-in-out"
+                   aria-valuenow="0"
+                   aria-valuemin="0"
+                   aria-valuemax="100"></div>
+            </div>
+
+            <!-- Step Counter -->
+            <div class="text-end mb-3">
+              <small class="text-muted fw-bold" id="step-counter">Step <span id="current-step">1</span> of 3</small>
+            </div>
+
+            <!-- Form Steps Container -->
+            <div class="form-steps">
+              <!-- Step 1: Vehicle Selection -->
+              <div id="step-1" class="step active">
+                <h4 class="mb-4 fw-bold text-primary">Select Your Vehicle</h4>
+                <div class="mb-4">
+                  <label class="form-label fw-bold" for="vehicle-selector">Choose from our premium fleet</label>
+                  <select id="vehicle-selector"
+                          class="form-select form-select-lg border-0 shadow-sm"
+                          style="transition: all 0.3s ease;
+                                 border-left: 4px solid #0d6efd !important"
+                          required>
+                    <option value="" disabled selected>Select a vehicle type</option>
+                    {% for v in vehicles %}
+                      <option value="{{ v.id }}"
+                              data-image="{{ v.image.url }}"
+                              data-passengers="{{ v.capacity }}"
+                              data-luggage="{{ v.luggage_capacity }}"
+                              data-carseats="{{ v.carseats_display }}">{{ v.get_vehicle_type_display }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <!-- Vehicle Preview -->
+                <div id="vehicle-preview"
+                     class="mt-4 d-none animate__animated animate__fadeIn">
+                  <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                    <div class="row g-0">
+                      <div class="col-md-5 bg-light p-4 text-center"
+                           style="background: linear-gradient(145deg, #f8f9fa, #e9ecef)">
+                        <img id="vehicle-image"
+                             src=""
+                             alt="Selected Vehicle"
+                             class="img-fluid img-zoom mx-auto vehicle-img-lg"
+                             style="max-height: 300px;
+                                    width: auto;
+                                    transition: transform 0.5s" />
+                      </div>
+                      <div class="col-md-7">
+                        <div class="card-body p-4">
+                          <h5 id="vehicle-name" class="card-title fw-bold mb-3 text-primary"></h5>
+                          <div class="vehicle-details">
+                            <p class="mb-3 text-muted d-flex align-items-center">
+                              <span class="me-3 d-flex justify-content-center align-items-center bg-light rounded-circle p-2"
+                                    style="width: 40px;
+                                           height: 40px">
+                                <img src="{% static 'images/passengers.webp' %}"
+                                     class="vehicle-icon"
+                                     alt="Passengers icon"
+                                     aria-hidden="true"
+                                     width="20"
+                                     height="20" />
+                              </span>
+                              <span id="passenger-capacity" class="fw-bold"></span>
+                            </p>
+                            <p class="mb-3 text-muted d-flex align-items-center">
+                              <span class="me-3 d-flex justify-content-center align-items-center bg-light rounded-circle p-2"
+                                    style="width: 40px;
+                                           height: 40px">
+                                <img src="{% static 'images/luggage.webp' %}"
+                                     class="vehicle-icon"
+                                     alt="Luggage icon"
+                                     aria-hidden="true"
+                                     width="20"
+                                     height="20" />
+                              </span>
+                              <span id="luggage-capacity" class="fw-bold"></span>
+                            </p>
+                            <p class="mb-3 text-muted d-flex align-items-center">
+                              <span class="me-3 d-flex justify-content-center align-items-center bg-light rounded-circle p-2"
+                                    style="width: 40px;
+                                           height: 40px">
+                                <img src="{% static 'images/carseat.webp' %}"
+                                     class="vehicle-icon"
+                                     alt="Car Seats icon"
+                                     aria-hidden="true"
+                                     width="20"
+                                     height="20" />
+                              </span>
+                              <span id="carseats-display" class="fw-bold"></span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="text-end mt-4">
+                    <button type="button"
+                            class="btn btn-primary btn-lg next-step px-4 py-3 fw-bold"
+                            data-step="2"
+                            style="transition: all 0.3s ease;
+                                   box-shadow: 0 4px 15px rgba(13, 110, 253, 0.2)">
+                      Continue <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Step 2: Location Selection -->
+              <div id="step-2" class="step d-none">
+                <h4 class="mb-4 fw-bold text-primary">Select Your Locations</h4>
+
+                <!-- Location Groups Info -->
+                <div class="alert alert-info rounded-4 border-0 shadow-sm mb-4"
+                     style="background-color: rgba(13, 202, 240, 0.1);
+                            border-left: 4px solid #0dcaf0">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-info-circle text-info fs-4 me-2"></i>
+                    <strong>Helpful Information:</strong>
+                  </div>
+                  <ul class="mb-0 small ps-4">
+                    <li class="mb-1">
+                      <strong>Disney Property:</strong> All Disney resorts are priced the same (Magic Kingdom, Animal Kingdom, EPCOT, etc.)
+                    </li>
+                    <li>
+                      <strong>Universal Studios Area:</strong> Includes all hotels near Universal parks
+                    </li>
+                  </ul>
+                </div>
+
+                <!-- Origin Location -->
+                <div class="mb-4">
+                  <label class="form-label fw-bold" for="origin-selector">Pickup Location</label>
+                  <select id="origin-selector"
+                          class="form-select form-select-lg border-0 shadow-sm"
+                          style="transition: all 0.3s ease;
+                                 border-left: 4px solid #0d6efd !important"
+                          required>
+                    <option value="" selected>Select pickup location</option>
+                    {% for location in locations %}<option value="{{ location.id }}">{{ location.name }}</option>{% endfor %}
+                  </select>
+                </div>
+
+                <!-- Destination Location -->
+                <div class="mb-4">
+                  <label class="form-label fw-bold" for="destination-selector">Dropoff Location</label>
+                  <select id="destination-selector"
+                          class="form-select form-select-lg border-0 shadow-sm"
+                          style="transition: all 0.3s ease;
+                                 border-left: 4px solid #0d6efd !important"
+                          required>
+                    <option value="" selected>Select dropoff location</option>
+                    {% for location in locations %}<option value="{{ location.id }}">{{ location.name }}</option>{% endfor %}
+                  </select>
+                  <div id="route-help-text" class="form-text mt-2 d-none text-danger">
+                    <i class="bi bi-exclamation-circle me-1"></i><span id="route-help-message"></span>
+                  </div>
+                  <div id="route-availability" class="form-text mt-2 d-none">
+                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>This is a popular route with available rates!</span>
+                  </div>
+                </div>
+
+                <!-- Trip Type Selection -->
+                <div class="mt-4">
+                  <label class="form-label fw-bold d-block mb-2">Trip Type</label>
+                  <div class="btn-group w-100"
+                       role="group"
+                       style="box-shadow: 0 2px 10px rgba(0,0,0,0.1)">
+                    <input type="radio"
+                           class="btn-check"
+                           name="trip_type_selector"
+                           id="ow"
+                           value="oneway"
+                           checked />
+                    <label class="btn btn-outline-primary btn-lg rounded-start-3 py-3" for="ow">
+                      <i class="bi bi-arrow-right-circle me-2"></i>One Way
+                    </label>
+                    <input type="radio"
+                           class="btn-check"
+                           name="trip_type_selector"
+                           id="rt"
+                           value="round" />
+                    <label class="btn btn-outline-primary btn-lg rounded-end-3 py-3" for="rt">
+                      <i class="bi bi-arrow-repeat me-2"></i>Round Trip
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Navigation Buttons -->
+                <div class="d-flex justify-content-between mt-4">
+                  <button type="button"
+                          class="btn btn-outline-secondary btn-lg prev-step px-4 py-3"
+                          data-step="1"
+                          style="transition: all 0.3s ease">
+                    <i class="bi bi-arrow-left me-2"></i> Back
+                  </button>
+                  <button type="button"
+                          class="btn btn-primary btn-lg next-step px-4 py-3 fw-bold"
+                          data-step="3"
+                          style="transition: all 0.3s ease;
+                                 box-shadow: 0 4px 15px rgba(13, 110, 253, 0.2)">
+                    Continue <i class="bi bi-arrow-right ms-2"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Step 3: Your Information and Final Quote -->
+              <div id="step-3" class="step d-none">
+                <h4 class="mb-4 fw-bold text-primary">Your Information</h4>
+                <form method="POST" action="{% url 'save_lead' %}" id="lead-form">
+                  {% csrf_token %}
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold" for="{{ form.first_name.id_for_label }}">First Name</label>
+                      {{ form.first_name }}
+                      {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold" for="{{ form.last_name.id_for_label }}">Last Name</label>
+                      {{ form.last_name }}
+                      {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold" for="{{ form.email.id_for_label }}">Email Address</label>
+                      {{ form.email }}
+                      {% if form.email.errors %}<div class="invalid-feedback d-block">{{ form.email.errors }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label fw-bold" for="{{ form.phone.id_for_label }}">Phone Number</label>
+                      {{ form.phone }}
+                      {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors }}</div>{% endif %}
+                    </div>
+                  </div>
+
+                  <!-- Hidden fields for vehicle, origin, destination, and trip type -->
+                  {{ form.vehicle }}
+                  {{ form.origin }}
+                  {{ form.destination }}
+                  {{ form.trip_type }}
+                  {{ form.quoted_price }}
+                  <input type="hidden" name="return_url" id="return-url" value="">
+
+                  <!-- Navigation Buttons -->
+                  <div class="d-flex justify-content-between mt-4">
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-lg prev-step px-4 py-3"
+                            data-step="2"
+                            style="transition: all 0.3s ease">
+                      <i class="bi bi-arrow-left me-2"></i> Back
+                    </button>
+                    <button type="button"
+                            id="calculate-quote-btn"
+                            class="btn btn-primary btn-lg px-4 py-3 fw-bold"
+                            style="transition: all 0.3s ease;
+                                   box-shadow: 0 4px 15px rgba(13, 110, 253, 0.2)">
+                      Get Your Quote <i class="bi bi-calculator ms-2"></i>
+                    </button>
+                  </div>
+                </form>
+
+                <!-- Summary Card -->
+                <div id="quote-summary-section"
+                     class="mt-5 animate__animated animate__fadeIn d-none">
+                  <h4 class="mb-4 fw-bold text-primary">Trip Summary</h4>
+                  <div class="card border-0 shadow-lg rounded-4 mb-4">
+                    <div class="card-body p-4">
+                      <div class="row mb-3">
+                        <div class="col-sm-4 text-muted fw-bold">Vehicle:</div>
+                        <div class="col-sm-8 fw-bold text-primary" id="summary-vehicle"></div>
+                      </div>
+
+                      <div class="row mb-3">
+                        <div class="col-sm-4 text-muted fw-bold">Pickup:</div>
+                        <div class="col-sm-8 fw-bold" id="summary-origin"></div>
+                      </div>
+
+                      <div class="row mb-3">
+                        <div class="col-sm-4 text-muted fw-bold">Dropoff:</div>
+                        <div class="col-sm-8 fw-bold" id="summary-destination"></div>
+                      </div>
+
+                      <div class="row mb-3">
+                        <div class="col-sm-4 text-muted fw-bold">Trip Type:</div>
+                        <div class="col-sm-8 fw-bold" id="summary-trip-type"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Quote Result Display -->
+                  <div id="quote-display-wrapper" class="mt-4">
+                    <div class="rounded-4 p-4 shadow-lg"
+                         id="quote-display-container"
+                         style="background: linear-gradient(145deg, #f8f9fa, #e9ecef)">
+                      <div class="text-center">
+                        <span class="text-muted d-block mb-1 fw-bold">YOUR TOTAL PRICE</span>
+                        <span id="quote-display"
+                              class="display-3 fw-bold text-primary"
+                              style="text-shadow: 0 2px 10px rgba(13, 110, 253, 0.2)"></span>
+                        <small id="quote-note" class="text-muted d-block mt-3">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
+                      </div>
+
+                      <div class="mt-4">
+                        <a id="reserve-btn"
+                           href="#"
+                           class="btn btn-success btn-lg fw-bold w-100 py-3 rounded-3 animate__animated animate__pulse animate__infinite animate__slow"
+                           style="background: linear-gradient(to right, #198754, #20c997);
+                                  border: none;
+                                  box-shadow: 0 4px 15px rgba(25, 135, 84, 0.3);
+                                  transition: all 0.3s ease">
+                          <i class="bi bi-check-circle me-2"></i>Reserve Now
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Custom Quote Message -->
+                  <div id="custom-quote-message"
+                       class="alert rounded-4 border-0 shadow-lg mt-4 d-none"
+                       style="background-color: rgba(13, 110, 253, 0.1);
+                              border-left: 4px solid #0d6efd">
+                    <div class="d-flex align-items-center mb-2">
+                      <i class="bi bi-info-circle text-primary fs-4 me-2"></i>
+                      <h5 class="alert-heading mb-0 fw-bold">Route Quote</h5>
+                    </div>
+                    <p id="custom-quote-text" class="mb-3">
+                      Sorry, we don't have this route available online. One of our team will be in contact with you. If you need it now, please call our office at 407-212-7190.
+                    </p>
+                    <div class="d-flex justify-content-between mt-3">
+                      <a href="tel:4072127190"
+                         class="btn btn-primary px-4 py-2 rounded-3"
+                         style="box-shadow: 0 4px 15px rgba(13, 110, 253, 0.2);
+                                transition: all 0.3s ease">
+                        <i class="bi bi-telephone me-2"></i> Call Now
+                      </a>
+                      <a href="mailto:reservations@graysontowncar.com"
+                         class="btn btn-outline-primary px-4 py-2 rounded-3"
+                         style="transition: all 0.3s ease">
+                        <i class="bi bi-envelope me-2"></i> Email Us
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <style>
+      /* Form styling improvements */
+      .form-control,
+      .form-select {
+          padding: 0.75rem 1rem;
+          font-size: 1rem;
+          border-radius: 0.5rem;
+          background-color: #f8f9fa;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+          transition: all 0.3s ease;
+      }
+
+      .form-control:focus,
+      .form-select:focus {
+          background-color: #fff;
+          box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+          border-color: #86b7fe;
+      }
+
+      /* Button hover effects */
+      .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 15px rgba(13, 110, 253, 0.3) !important;
+      }
+
+      .btn-success:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 15px rgba(25, 135, 84, 0.4) !important;
+      }
+
+      .btn-outline-secondary:hover {
+          background-color: #f8f9fa;
+          color: #495057;
+      }
+
+      /* Vehicle image hover effect */
+      .img-zoom:hover {
+          transform: scale(1.05);
+      }
+
+      /* Step transitions */
+      .step {
+          transition: opacity 0.4s ease-in-out;
+      }
+
+      /* Progress bar animation */
+      @keyframes progress-bar-stripes {
+          from {
+              background-position: 1rem 0;
+          }
+
+          to {
+              background-position: 0 0;
+          }
+      }
+
+      #progress-bar {
+          background-size: 1rem 1rem;
+          background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
+          animation: progress-bar-stripes 1s linear infinite;
+      }
+  </style>
+
+  <!-- Store locations data -->
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          // Form elements
+          const vehicleSel = document.getElementById('vehicle-selector');
+          const originSel = document.getElementById('origin-selector');
+          const destinationSel = document.getElementById('destination-selector');
+          const displayEl = document.getElementById('quote-display');
+          const displayContainer = document.getElementById('quote-display-container');
+          const noteEl = document.getElementById('quote-note');
+          const customQuoteMessage = document.getElementById('custom-quote-message');
+          const routeAvailability = document.getElementById('route-availability');
+          const routeHelpText = document.getElementById('route-help-text');
+          const routeHelpMessage = document.getElementById('route-help-message');
+          const tripRadios = document.querySelectorAll('input[name="trip_type_selector"]');
+          const progressBar = document.getElementById('progress-bar');
+          const currentStepEl = document.getElementById('current-step');
+          const calculateQuoteBtn = document.getElementById('calculate-quote-btn');
+          const quoteSummarySection = document.getElementById('quote-summary-section');
+          const reserveBtn = document.getElementById('reserve-btn');
+          const leadForm = document.getElementById('lead-form');
+          const returnUrlInput = document.getElementById('return-url');
+
+          // Hidden form fields
+          const vehicleInput = document.getElementById('id_vehicle');
+          const originInput = document.getElementById('id_origin');
+          const destinationInput = document.getElementById('id_destination');
+          const tripTypeInput = document.getElementById('id_trip_type');
+          const quotedPriceInput = document.getElementById('id_quoted_price');
+
+          // Summary elements
+          const summaryVehicle = document.getElementById('summary-vehicle');
+          const summaryOrigin = document.getElementById('summary-origin');
+          const summaryDestination = document.getElementById('summary-destination');
+          const summaryTripType = document.getElementById('summary-trip-type');
+
+          // Multi-step form navigation
+          const nextBtns = document.querySelectorAll('.next-step');
+          const prevBtns = document.querySelectorAll('.prev-step');
+          const steps = document.querySelectorAll('.step');
+
+          // Initialize form
+          let currentStep = 1;
+          let leadSaved = false;
+          let bookingUrl = '';
+          updateProgressBar();
+
+          // Add subtle animations to form elements on page load
+          document.querySelectorAll('.form-control, .form-select').forEach(el => {
+              el.addEventListener('focus', function() {
+                  this.style.transform = 'translateY(-2px)';
+              });
+              el.addEventListener('blur', function() {
+                  this.style.transform = 'translateY(0)';
+              });
+          });
+
+          // Parse rates, locations, and routes data
+          const ratesJson = JSON.parse('{{ rates_json|escapejs }}');
+          const locationsData = JSON.parse('{{ locations_json|escapejs }}');
+          const populatedRoutes = JSON.parse('{{ populated_routes|escapejs }}');
+
+          // Create location name to ID mappings for validation
+          const locationNameMap = {};
+          const locationIdMap = {};
+          for (const locId in locationsData) {
+              const locName = locationsData[locId].name;
+              locationNameMap[locName] = locId;
+              locationIdMap[locId] = locName;
+          }
+
+          // Vehicle selection change handler
+          vehicleSel.addEventListener('change', function() {
+              const selectedOption = this.options[this.selectedIndex];
+              const previewDiv = document.getElementById('vehicle-preview');
+              const vehicleImage = document.getElementById('vehicle-image');
+              const vehicleName = document.getElementById('vehicle-name');
+              const passengerCapacity = document.getElementById('passenger-capacity');
+              const luggageCapacity = document.getElementById('luggage-capacity');
+              const carSeatsDisplay = document.getElementById('carseats-display');
+
+              // Reset quote display
+              resetQuote();
+
+              if (this.value) {
+                  // Show vehicle preview with animation
+                  previewDiv.classList.remove('d-none');
+                  previewDiv.classList.add('animate__fadeIn');
+
+                  // Update vehicle details
+                  let imageUrl = selectedOption.dataset.image;
+                  if (!imageUrl.startsWith('http')) {
+                      imageUrl = window.location.origin + imageUrl;
+                  }
+                  vehicleImage.src = imageUrl;
+                  vehicleName.textContent = selectedOption.text;
+                  passengerCapacity.textContent = `${selectedOption.dataset.passengers} Passengers`;
+                  luggageCapacity.textContent = `${selectedOption.dataset.luggage} Suitcases`;
+                  carSeatsDisplay.textContent = `${selectedOption.dataset.carseats || 'N/A'}`;
+
+                  // Update hidden form field
+                  vehicleInput.value = this.value;
+              } else {
+                  previewDiv.classList.add('d-none');
+              }
+          });
+
+          // Origin and Destination change handlers
+          originSel.addEventListener('change', function() {
+              resetRouteMessages();
+              checkLocationsSame();
+              resetQuote();
+
+              // Update hidden form field
+              originInput.value = this.value;
+
+              // Visual feedback on selection
+              if (this.value) {
+                  this.style.borderLeft = '4px solid #198754';
+              } else {
+                  this.style.borderLeft = '4px solid #0d6efd';
+              }
+          });
+
+          destinationSel.addEventListener('change', function() {
+              resetRouteMessages();
+              checkLocationsSame();
+              resetQuote();
+
+              // Update hidden form field
+              destinationInput.value = this.value;
+
+              // Visual feedback on selection
+              if (this.value) {
+                  this.style.borderLeft = '4px solid #198754';
+              } else {
+                  this.style.borderLeft = '4px solid #0d6efd';
+              }
+          });
+
+          // Trip type change handler
+          tripRadios.forEach(radio => {
+              radio.addEventListener('change', function() {
+                  // Update hidden form field
+                  tripTypeInput.value = this.value;
+
+                  // Add visual highlight effect when changed
+                  const label = document.querySelector(`label[for="${this.id}"]`);
+                  label.classList.add('animate__animated', 'animate__pulse');
+                  setTimeout(() => {
+                      label.classList.remove('animate__animated', 'animate__pulse');
+                  }, 1000);
+              });
+          });
+
+          // Check if pickup and dropoff are the same
+          function checkLocationsSame() {
+              if (!originSel.value || !destinationSel.value) {
+                  return;
+              }
+
+              const originId = parseInt(originSel.value);
+              const destinationId = parseInt(destinationSel.value);
+
+              if (originId === destinationId) {
+                  routeHelpText.classList.remove('d-none');
+                  routeHelpMessage.textContent = "Pickup and dropoff locations cannot be the same. Please select different locations.";
+                  return;
+              }
+
+              checkRouteAvailability();
+          }
+
+          // Check if a route is available
+          function checkRouteAvailability() {
+              if (!originSel.value || !destinationSel.value) {
+                  return;
+              }
+
+              const originId = parseInt(originSel.value);
+              const destinationId = parseInt(destinationSel.value);
+
+              const isValidRouteCombo = populatedRoutes.some(route =>
+                  (route.origin_id === originId && route.destination_id === destinationId) ||
+                  (route.origin_id === destinationId && route.destination_id === originId)
+              );
+
+              if (isValidRouteCombo) {
+                  routeAvailability.classList.remove('d-none');
+                  routeAvailability.classList.add('animate__animated', 'animate__fadeIn');
+              }
+          }
+
+          // Reset route availability messages
+          function resetRouteMessages() {
+              routeAvailability.classList.add('d-none');
+              routeHelpText.classList.add('d-none');
+          }
+
+          // Step navigation
+          nextBtns.forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const nextStep = parseInt(this.dataset.step);
+
+                  if (currentStep === 1 && !vehicleSel.value) {
+                      showToast('Please select a vehicle first');
+                      shakeDom(vehicleSel);
+                      return;
+                  }
+
+                  if (currentStep === 2 && (!originSel.value || !destinationSel.value)) {
+                      showToast('Please select both pickup and dropoff locations');
+                      if (!originSel.value) shakeDom(originSel);
+                      if (!destinationSel.value) shakeDom(destinationSel);
+                      return;
+                  }
+
+                  if (currentStep === 2 && nextStep === 3) {
+                      const originId = parseInt(originSel.value);
+                      const destinationId = parseInt(destinationSel.value);
+                      if (originId === destinationId) {
+                          showToast('Pickup and dropoff locations cannot be the same');
+                          shakeDom(destinationSel);
+                          return;
+                      }
+
+                      // Update hidden form fields before moving to step 3
+                      vehicleInput.value = vehicleSel.value;
+                      originInput.value = originSel.value;
+                      destinationInput.value = destinationSel.value;
+                      tripTypeInput.value = document.querySelector('input[name="trip_type_selector"]:checked').value;
+                  }
+
+                  goToStep(nextStep);
+              });
+          });
+
+          prevBtns.forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const prevStep = parseInt(this.dataset.step);
+                  goToStep(prevStep);
+              });
+          });
+
+          // Go to specific step
+          function goToStep(stepNumber) {
+              const currentStepEl = document.getElementById(`step-${currentStep}`);
+              const nextStepEl = document.getElementById(`step-${stepNumber}`);
+
+              // Add animation to transition between steps
+              currentStepEl.classList.add('animate__animated', 'animate__fadeOut');
+
+              setTimeout(() => {
+                  steps.forEach(step => step.classList.add('d-none'));
+                  currentStepEl.classList.remove('animate__animated', 'animate__fadeOut');
+
+                  nextStepEl.classList.remove('d-none');
+                  nextStepEl.classList.add('animate__animated', 'animate__fadeIn');
+
+                  currentStep = stepNumber;
+                  document.getElementById('current-step').textContent = stepNumber;
+                  updateProgressBar();
+
+                  setTimeout(() => {
+                      nextStepEl.classList.remove('animate__animated', 'animate__fadeIn');
+                  }, 500);
+              }, 300);
+          }
+
+          // Update progress bar
+          function updateProgressBar() {
+              const progress = ((currentStep - 1) / 2) * 100;
+              progressBar.style.width = `${progress}%`;
+              progressBar.setAttribute('aria-valuenow', progress);
+          }
+
+          // Update trip summary
+          function updateSummary() {
+              const vehicleOption = vehicleSel.options[vehicleSel.selectedIndex];
+              const originOption = originSel.options[originSel.selectedIndex];
+              const destinationOption = destinationSel.options[destinationSel.selectedIndex];
+
+              if (vehicleOption) summaryVehicle.textContent = vehicleOption.text;
+              if (originOption) summaryOrigin.textContent = originOption.text;
+              if (destinationOption) summaryDestination.textContent = destinationOption.text;
+
+              const tripType = document.querySelector('input[name="trip_type_selector"]:checked').value === 'oneway' ? 'One Way' : 'Round Trip';
+              summaryTripType.textContent = tripType;
+          }
+
+          // Reset quote display
+          function resetQuote() {
+              displayEl.textContent = '';
+              quoteSummarySection.classList.add('d-none');
+              customQuoteMessage.classList.add('d-none');
+              leadSaved = false;
+          }
+
+          // Calculate quote and save lead
+          function calculateQuote() {
+              // Validate contact information
+              const firstName = document.getElementById('id_first_name').value.trim();
+              const lastName = document.getElementById('id_last_name').value.trim();
+              const email = document.getElementById('id_email').value.trim();
+              const phone = document.getElementById('id_phone').value.trim();
+
+              if (!firstName || !lastName || !email || !phone) {
+                  showToast('Please fill in all contact information fields');
+                  if (!firstName) shakeDom(document.getElementById('id_first_name'));
+                  if (!lastName) shakeDom(document.getElementById('id_last_name'));
+                  if (!email) shakeDom(document.getElementById('id_email'));
+                  if (!phone) shakeDom(document.getElementById('id_phone'));
+                  return;
+              }
+
+              // Make sure hidden fields are up to date
+              const vehicleId = vehicleSel.value;
+              const originId = originSel.value;
+              const destinationId = destinationSel.value;
+              const tripType = document.querySelector('input[name="trip_type_selector"]:checked').value;
+
+              vehicleInput.value = vehicleId;
+              originInput.value = originId;
+              destinationInput.value = destinationId;
+              tripTypeInput.value = tripType;
+
+              // Show loading animation on button
+              const originalBtnText = calculateQuoteBtn.innerHTML;
+              calculateQuoteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Processing...';
+              calculateQuoteBtn.disabled = true;
+
+              // Update summary information
+              updateSummary();
+
+              // Find rate for the selected route
+              const rateInfo = findRate(vehicleId, originId, destinationId);
+
+              // Prepare for showing quote
+              setTimeout(() => {
+                  // Set button back to normal
+                  calculateQuoteBtn.innerHTML = originalBtnText;
+                  calculateQuoteBtn.disabled = false;
+
+                  if (rateInfo) {
+                      // We have a rate for this route
+                      const price = tripType === 'oneway' ? rateInfo.oneway : rateInfo.round;
+                      displayEl.textContent = '$' + price;
+                      quotedPriceInput.value = price; // Set the quoted price in the form
+
+                      // Save the booking URL for later
+                      bookingUrl = rateInfo.reserve_url + '?round=' + (tripType === 'oneway' ? '1' : '2');
+                      returnUrlInput.value = bookingUrl;
+
+                      // Set reserve button
+                      reserveBtn.href = bookingUrl;
+
+                      // Show the price display, hide custom quote message
+                      displayContainer.classList.remove('d-none');
+                      customQuoteMessage.classList.add('d-none');
+                  } else {
+                      // No rate found for this route
+                      displayContainer.classList.add('d-none');
+                      customQuoteMessage.classList.remove('d-none');
+                  }
+
+                  // Save the lead data
+                  saveLead();
+              }, 1000); // Simulated delay for better UX
+          }
+
+          // Save lead data to database
+          function saveLead() {
+              const formData = new FormData(leadForm);
+
+              fetch(leadForm.action, {
+                      method: 'POST',
+                      body: formData,
+                      headers: {
+                          'X-Requested-With': 'XMLHttpRequest'
+                      }
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          // Lead saved successfully
+                          leadSaved = true;
+
+                          // Show the quote summary section with animation
+                          quoteSummarySection.classList.remove('d-none');
+                          quoteSummarySection.classList.add('animate__fadeIn');
+
+                          // Scroll to the quote summary with smooth animation
+                          quoteSummarySection.scrollIntoView({
+                              behavior: 'smooth'
+                          });
+                      } else {
+                          // Handle errors
+                          showToast('There was a problem saving your information. Please try again.');
+                          console.error('Lead save errors:', data.errors);
+                      }
+                  })
+                  .catch(error => {
+                      console.error('Error saving lead:', error);
+                      showToast('There was a problem saving your information. Please try again.');
+                  });
+          }
+
+          // Helper functions for improved interactivity
+          function showToast(message) {
+              // Create a toast element
+              const toast = document.createElement('div');
+              toast.className = 'position-fixed top-0 start-50 translate-middle-x p-3';
+              toast.style.zIndex = '1070';
+              toast.innerHTML = `
+                  <div class="toast show align-items-center text-white bg-danger border-0 rounded-3" role="alert" aria-live="assertive" aria-atomic="true">
+                      <div class="d-flex">
+                          <div class="toast-body">
+                              <i class="bi bi-exclamation-circle me-2"></i> ${message}
+                          </div>
+                          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                      </div>
+                  </div>
+              `;
+              document.body.appendChild(toast);
+
+              // Remove toast after 3 seconds
+              setTimeout(() => {
+                  toast.remove();
+              }, 3000);
+          }
+
+          function shakeDom(element) {
+              element.classList.add('animate__animated', 'animate__headShake');
+              setTimeout(() => {
+                  element.classList.remove('animate__animated', 'animate__headShake');
+              }, 1000);
+          }
+
+          // Handle quote button click
+          calculateQuoteBtn.addEventListener('click', calculateQuote);
+
+          // Find rate for origin-destination pair
+          function findRate(vehicleId, originId, destinationId) {
+              if (!ratesJson[vehicleId]) return null;
+
+              for (const rateId in ratesJson[vehicleId]) {
+                  const rate = ratesJson[vehicleId][rateId];
+                  if ((rate.origin_id === parseInt(originId) && rate.destination_id === parseInt(destinationId)) ||
+                      (rate.origin_id === parseInt(destinationId) && rate.destination_id === parseInt(originId))) {
+                      return rate;
+                  }
+              }
+
+              return null;
+          }
+
+          // Set initial values for the trip type
+          tripTypeInput.value = 'oneway'; // Default value
+      });
+  </script>
+
+{% endblock content %}

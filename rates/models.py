@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+from django.utils import timezone
 
 
 class Vehicle(models.Model):
@@ -130,3 +131,56 @@ class Rate(models.Model):
         Returns a combination of Vehicle and Route for pricing details.
         """
         return f"{self.vehicle} - {self.route}"
+
+from django.db import models
+from django.utils import timezone
+
+class Lead(models.Model):
+    """
+    Lead model to capture customer interest in transportation services.
+    Uses proper relationships to relevant models instead of string fields.
+    """
+    TRIP_TYPES = [
+        ('oneway', 'One-Way Trip'),
+        ('round', 'Round Trip'),
+    ]
+    
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    
+    # Use proper relationships to existing models
+    vehicle = models.ForeignKey('Vehicle', on_delete=models.SET_NULL, null=True)
+    origin = models.ForeignKey('Location', related_name='lead_origins', on_delete=models.SET_NULL, null=True)
+    destination = models.ForeignKey('Location', related_name='lead_destinations', on_delete=models.SET_NULL, null=True)
+    route = models.ForeignKey('Route', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    trip_type = models.CharField(max_length=20, choices=TRIP_TYPES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Store the quoted price for reference
+    quoted_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.created_at.strftime('%Y-%m-%d')}"
+    
+    def save(self, *args, **kwargs):
+        """
+        If origin and destination are set but route is not,
+        try to find the matching route automatically.
+        """
+        if self.origin and self.destination and not self.route:
+            try:
+                self.route = Route.objects.get(origin=self.origin, destination=self.destination)
+            except Route.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['created_at']),
+        ]

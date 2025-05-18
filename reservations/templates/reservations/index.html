@@ -1,31 +1,34 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load seo_tags %}
-{% block meta %}
-
-{% endblock %}
-<meta name="description" content="Grayson Towncar offers luxury airport, Disney, and Port Canaveral transportation in Orlando with private, family-friendly car service." />
+{% block meta %}{% endblock %}
+<meta name="description"
+      content="Grayson Towncar offers luxury airport, Disney, and Port Canaveral transportation in Orlando with private, family-friendly car service." />
 <meta name="author" content="Grayson Town Car" />
 {% block head_extra %}
   <link rel="canonical" href="https://www.graysontowncar.com/" />
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+        rel="stylesheet" />
 {% endblock %}
 {% block extra_css %}
-  <link rel="preload" href="{% static 'css/homepage-elements.css' %}" as="style" />
+  <link rel="preload"
+        href="{% static 'css/homepage-elements.css' %}"
+        as="style" />
 {% endblock %}
 {% block content %}
   {% structured_data %}
   <link rel="preload" href="{% static 'images/full-fleet.webp' %}" as="image" />
   <main class="flex-shrink-0">
-    <!-- Hero Section with Enhanced Value Proposition -->
+    <!-- Hero Section with Quote Widget Integration -->
     <section class="hero bg-hero-dark py-5">
       <div class="container px-4">
         <div class="row gx-4 align-items-center justify-content-center">
-          <div class="col-lg-7 col-xl-6">
-            <div class="my-4 text-center text-xl-start">
+          <div class="col-lg-6">
+            <div class="my-4 text-center text-lg-start hero-content-wrapper">
               <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-3">PRIVATE ORLANDO TRANSPORTATION</span>
-              <h1 class="fw-light text-white mb-3 display-4"><strong>Skip The Shuttle Lines. Arrive In Style.</strong></h1>
-
+              <h1 class="fw-light text-white mb-3 display-4">
+                <strong>Skip The Shuttle Lines. Arrive In Style.</strong>
+              </h1>
               <!-- Clearer value propositions as bullet points -->
               <ul class="text-white mb-4 list-unstyled">
                 <li class="mb-2">
@@ -43,1084 +46,1285 @@
               </ul>
 
               <!-- Primary CTA buttons - larger, more eye-catching -->
-              <div class="d-grid gap-2 d-sm-flex justify-content-sm-center justify-content-xl-start">
-                <a class="btn btn-warning px-5 py-3 me-sm-3 fw-bold rounded-pill btn-lg" href="{% url 'rates' %}" aria-label="View Our Rates">View our Rates</a>
+              {% comment %} <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4 mb-lg-3">
+                <a class="btn btn-warning px-5 py-3 me-md-3 fw-bold rounded-pill btn-lg" href="{% url 'rates' %}" aria-label="View Our Rates">View our Rates</a>
                 <a class="btn btn-outline-light px-4 py-3 rounded-pill" href="tel:+14072127190" aria-label="Call for Booking"><i class="bi bi-telephone-fill me-2"></i>407-212-7190</a>
               </div>
             </div>
-          </div>
-          <div class="col-xl-5 d-none d-md-block text-center">
-            <!-- Optimized image with explicit dimensions -->
-            <img class="card-img-container img-fluid rounded-4 shadow-lg" src="{% static 'images/full-fleet.webp' %}" alt="Luxury Transportation Fleet" width="500" height="300" loading="eager" />
-          </div>
-        </div>
-      </div>
-    </section>
+              </div> {% endcomment %}
 
-    <!-- Modern Floating Quote Button -->
-
-    <!-- Trust Badges Section - NEW -->
-    <section class="trust-badges py-3 bg-white border-bottom">
-      <div class="container">
-        <div class="row justify-content-center align-items-center g-3">
-          <div class="col-6 col-md-3 text-center">
-            <div class="d-flex align-items-center justify-content-center">
-              <i class="fas fa-clipboard-check text-warning me-2" style="font-size: 1.5rem"></i>
-              <span class="fw-bold">Licensed & Insured</span>
-            </div>
-          </div>
-          <div class="col-6 col-md-3 text-center">
-            <div class="d-flex align-items-center justify-content-center">
-              <i class="fas fa-credit-card text-warning me-2" style="font-size: 1.5rem"></i>
-              <span class="fw-bold">Secure Booking</span>
-            </div>
-          </div>
-          <div class="col-6 col-md-3 text-center">
-            <div class="d-flex align-items-center justify-content-center">
-              <i class="fas fa-shield-alt text-warning me-2" style="font-size: 1.5rem"></i>
-              <span class="fw-bold">No Hidden Fees</span>
-            </div>
-          </div>
-          <div class="col-6 col-md-3 text-center">
-            <div class="d-flex align-items-center justify-content-center">
-              <i class="fas fa-clock text-warning me-2" style="font-size: 1.5rem;"></i>
-              <span class="fw-bold">24/7 Service</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    <!-- Social Proof Section - Vertical Stack -->
-    <section class="social-proof py-5 bg-white">
-      <div class="container">
-        <!-- Google Rating Centered at Top -->
-        <div class="row justify-content-center mb-4">
-          <div class="col-12 text-center">
-            <div class="d-inline-flex align-items-center">
-              <span class="fw-bold display-6 mb-0 me-2">5.0</span>
-              <div>
-                <div class="text-warning">
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
-                  <i class="bi bi-star-fill"></i>
+              <!-- Quote Widget Integration -->
+              <div class="col-lg-6 quote-form-wrapper">
+                <div class="quote-form-container p-0">
+                  {% include 'rates/partials/quote_form.html' with vehicles=vehicles locations=locations rates_json=rates_json locations_json=locations_json populated_routes=populated_routes form=form %}
                 </div>
-                <small class="text-muted">Google Reviews</small>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Reviews in Carousel Format - ENHANCED -->
-        <div class="row justify-content-center">
-          <div class="col-md-8">
-            <div id="reviewCarousel" class="carousel slide" data-bs-ride="carousel">
-              <div class="carousel-inner">
-                <div class="carousel-item active">
-                  <div class="text-center review-card p-4 shadow-sm rounded bg-light">
-                    <p class="mb-2 fst-italic">"After our cruise at Port Canaveral, we needed a last-minute time change for our ride to MCO, and Grayson Town Car was incredibly accommodating. They quickly adjusted the pick-up time without any issues, and the ride was smooth and comfortable. Their express service got us to the airport on time. Highly recommend for hassle-free transportation from Port Canaveral to MCO!" "</p>
-                    <div class="text-warning mb-2">
+        <!-- Trust Badges Section - Maintained from original -->
+        <section class="trust-badges py-3 bg-white border-bottom">
+          <div class="container">
+            <div class="row justify-content-center align-items-center g-3">
+              <div class="col-6 col-md-3 text-center">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="fas fa-clipboard-check text-warning me-2"
+                     style="font-size: 1.5rem"></i>
+                  <span class="fw-bold">Licensed & Insured</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 text-center">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="fas fa-credit-card text-warning me-2"
+                     style="font-size: 1.5rem"></i>
+                  <span class="fw-bold">Secure Booking</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 text-center">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="fas fa-shield-alt text-warning me-2" style="font-size: 1.5rem"></i>
+                  <span class="fw-bold">No Hidden Fees</span>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 text-center">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="fas fa-clock text-warning me-2" style="font-size: 1.5rem;"></i>
+                  <span class="fw-bold">24/7 Service</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <!-- Social Proof Section - Vertical Stack -->
+        <section class="social-proof py-5 bg-white">
+          <div class="container">
+            <!-- Google Rating Centered at Top -->
+            <div class="row justify-content-center mb-4">
+              <div class="col-12 text-center">
+                <div class="d-inline-flex align-items-center">
+                  <span class="fw-bold display-6 mb-0 me-2">5.0</span>
+                  <div>
+                    <div class="text-warning">
                       <i class="bi bi-star-fill"></i>
                       <i class="bi bi-star-fill"></i>
                       <i class="bi bi-star-fill"></i>
                       <i class="bi bi-star-fill"></i>
                       <i class="bi bi-star-fill"></i>
                     </div>
-                    <small class="text-muted">- Amanda W., Port Canaveral Cruise Traveler</small>
-                  </div>
-                </div>
-                <div class="carousel-item">
-                  <div class="text-center review-card p-4 shadow-sm rounded bg-light">
-                    <p class="mb-2 fst-italic">"Our amazing experience with Grayson Towncar started off with the meet and greet by our driver that put us at complete ease. We were escorted to our ride that already had car seats installed for our kids to get comfy in. The ride was very comfortable, the car was great and our quick grocery pit stop before reaching the hotel was the icing on the cake. Recommend 100% to anyone looking for airport transfer. "</p>
-                    <div class="text-warning mb-2">
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                    </div>
-                    <small class="text-muted">- Jamila V, Family Traveler</small>
-                  </div>
-                </div>
-                <div class="carousel-item">
-                  <div class="text-center review-card p-4 shadow-sm rounded bg-light">
-                    <p class="mb-2 fst-italic">"We had an amazing experience with Grayson Town Car! As a family traveling with a young child, the included car seat made all the difference. The vehicle was spacious, comfortable, and spotless. The driver was professional and met us at baggage claim without any hassle. Highly recommend for families or anyone looking for a smooth, stress-free ride!</p>
-                    <div class="text-warning mb-2">
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                    </div>
-                    <small class="text-muted">- Jennifer L., Universal Studios Visitor</small>
+                    <small class="text-muted">Google Reviews</small>
                   </div>
                 </div>
               </div>
-              <div class="d-flex justify-content-center mt-3">
-                <button class="carousel-control-prev position-relative" type="button" data-bs-target="#reviewCarousel" data-bs-slide="prev">
-                  <i class="fas fa-chevron-left text-warning"></i>
-                  <span class="visually-hidden">Previous</span>
-                </button>
-                <button class="carousel-control-next position-relative" type="button" data-bs-target="#reviewCarousel" data-bs-slide="next">
-                  <i class="fas fa-chevron-right text-warning"></i>
-                  <span class="visually-hidden">Next</span>
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <section class="py-5 position-relative hero-section text-dark" aria-labelledby="quote-heading">
-      <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
-      <div class="container position-relative">
-        <div class="row justify-content-center">
-          <div class="col-12 col-lg-10 text-center">
-            <!-- Instant‑Quote Widget -->
-            <div class="text-center mb-4">
-              <h2 id="quote-heading" class="display-5 fw-bold mb-2">Get Your Instant Quote</h2>
-              <p class="lead text-muted">Compare rates for your perfect ride in seconds</p>
-            </div>
-            <form id="quote-form" class="quote-box shadow p-4 p-md-5 mx-auto bg-white bg-opacity-75 rounded-3" style="max-width:800px">
-              <div class="row g-3">
-                <!-- Vehicle Selection Column -->
-                <div class="col-12 col-md-6">
-                  <label class="form-label fw-bold" for="vehicle">Select Vehicle</label>
-                  <select id="vehicle" class="form-select form-select-lg" required>
-                    <option value="" disabled selected>Choose your vehicle</option>
-                    {% for v in vehicles %}
-                      <option value="{{ v.id }}" data-image="{{ v.image.url }}" data-passengers="{{ v.capacity }}" data-luggage="{{ v.luggage_capacity }}" data-carseats="{{ v.carseats_display }}">{{ v.get_vehicle_type_display }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-
-                <!-- Route Selection Column -->
-                <div class="col-12 col-md-6">
-                  <label class="form-label fw-bold" for="route">Select Route</label>
-                  <select id="route" class="form-select form-select-lg" disabled required>
-                    <option value="" selected>Choose your route</option>
-                  </select>
-                </div>
-
-                <!-- Vehicle Preview -->
-                <div id="vehicle-preview" class="col-12 mt-4 d-none">
-                  <div class="card border-0 shadow-sm">
-                    <div class="row g-0">
-                      <div class="col-md-5 bg-light p-4 text-center">
-                        <img id="vehicle-image" src="" alt="Selected Vehicle" class="img-fluid img-zoom mx-auto vehicle-img-lg" style="max-height: 300px;
-                                    width: auto" />
+            <!-- Reviews in Carousel Format - ENHANCED -->
+            <div class="row justify-content-center">
+              <div class="col-md-8">
+                <div id="reviewCarousel" class="carousel slide" data-bs-ride="carousel">
+                  <div class="carousel-inner">
+                    <div class="carousel-item active">
+                      <div class="text-center review-card p-4 shadow-sm rounded bg-light">
+                        <p class="mb-2 fst-italic">
+                          "After our cruise at Port Canaveral, we needed a last-minute time change for our ride to MCO, and Grayson Town Car was incredibly accommodating. They quickly adjusted the pick-up time without any issues, and the ride was smooth and comfortable. Their express service got us to the airport on time. Highly recommend for hassle-free transportation from Port Canaveral to MCO!" "
+                        </p>
+                        <div class="text-warning mb-2">
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                        </div>
+                        <small class="text-muted">- Amanda W., Port Canaveral Cruise Traveler</small>
                       </div>
-                      <div class="col-md-7">
-                        <div class="card-body p-4">
-                          <h5 id="vehicle-name" class="card-title fw-bold mb-3"></h5>
-                          <div class="vehicle-details">
-                            <p class="mb-2 text-muted d-flex align-items-center">
-                              <img src="{% static 'images/passengers.webp' %}" class="me-2 vehicle-icon" alt="Passengers icon" aria-hidden="true" width="20" height="20" />
-                              <span id="passenger-capacity"></span>
-                            </p>
-                            <p class="mb-2 text-muted d-flex align-items-center">
-                              <img src="{% static 'images/luggage.webp' %}" class="me-2 vehicle-icon" alt="Luggage icon" aria-hidden="true" width="20" height="20" />
-                              <span id="luggage-capacity"></span>
-                            </p>
-                            <p class="mb-2 text-muted d-flex align-items-center">
-                              <img src="{% static 'images/carseat.webp' %}" class="me-2 vehicle-icon" alt="Car Seats icon" aria-hidden="true" width="20" height="20" />
-                              <span id="carseats-display"></span>
-                            </p>
+                    </div>
+                    <div class="carousel-item">
+                      <div class="text-center review-card p-4 shadow-sm rounded bg-light">
+                        <p class="mb-2 fst-italic">
+                          "Our amazing experience with Grayson Towncar started off with the meet and greet by our driver that put us at complete ease. We were escorted to our ride that already had car seats installed for our kids to get comfy in. The ride was very comfortable, the car was great and our quick grocery pit stop before reaching the hotel was the icing on the cake. Recommend 100% to anyone looking for airport transfer. "
+                        </p>
+                        <div class="text-warning mb-2">
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                        </div>
+                        <small class="text-muted">- Jamila V, Family Traveler</small>
+                      </div>
+                    </div>
+                    <div class="carousel-item">
+                      <div class="text-center review-card p-4 shadow-sm rounded bg-light">
+                        <p class="mb-2 fst-italic">
+                          "We had an amazing experience with Grayson Town Car! As a family traveling with a young child, the included car seat made all the difference. The vehicle was spacious, comfortable, and spotless. The driver was professional and met us at baggage claim without any hassle. Highly recommend for families or anyone looking for a smooth, stress-free ride!
+                        </p>
+                        <div class="text-warning mb-2">
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                          <i class="bi bi-star-fill"></i>
+                        </div>
+                        <small class="text-muted">- Jennifer L., Universal Studios Visitor</small>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="d-flex justify-content-center mt-3">
+                    <button class="carousel-control-prev position-relative"
+                            type="button"
+                            data-bs-target="#reviewCarousel"
+                            data-bs-slide="prev">
+                      <i class="fas fa-chevron-left text-warning"></i>
+                      <span class="visually-hidden">Previous</span>
+                    </button>
+                    <button class="carousel-control-next position-relative"
+                            type="button"
+                            data-bs-target="#reviewCarousel"
+                            data-bs-slide="next">
+                      <i class="fas fa-chevron-right text-warning"></i>
+                      <span class="visually-hidden">Next</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="py-5 position-relative hero-section text-dark"
+                 aria-labelledby="quote-heading">
+          <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
+          <div class="container position-relative">
+            <div class="row justify-content-center">
+              <div class="col-12 col-lg-10 text-center">
+                <!-- Instant‑Quote Widget -->
+                <div class="text-center mb-4">
+                  <h2 id="quote-heading" class="display-5 fw-bold mb-2">Get Your Instant Quote</h2>
+                  <p class="lead text-muted">Compare rates for your perfect ride in seconds</p>
+                </div>
+                <form id="quote-form"
+                      class="quote-box shadow p-4 p-md-5 mx-auto bg-white bg-opacity-75 rounded-3"
+                      style="max-width:800px">
+                  <div class="row g-3">
+                    <!-- Vehicle Selection Column -->
+                    <div class="col-12 col-md-6">
+                      <label class="form-label fw-bold" for="vehicle">Select Vehicle</label>
+                      <select id="vehicle" class="form-select form-select-lg" required>
+                        <option value="" disabled selected>Choose your vehicle</option>
+                        {% for v in vehicles %}
+                          <option value="{{ v.id }}"
+                                  data-image="{{ v.image.url }}"
+                                  data-passengers="{{ v.capacity }}"
+                                  data-luggage="{{ v.luggage_capacity }}"
+                                  data-carseats="{{ v.carseats_display }}">{{ v.get_vehicle_type_display }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <!-- Route Selection Column -->
+                    <div class="col-12 col-md-6">
+                      <label class="form-label fw-bold" for="route">Select Route</label>
+                      <select id="route" class="form-select form-select-lg" disabled required>
+                        <option value="" selected>Choose your route</option>
+                      </select>
+                    </div>
+
+                    <!-- Vehicle Preview -->
+                    <div id="vehicle-preview" class="col-12 mt-4 d-none">
+                      <div class="card border-0 shadow-sm">
+                        <div class="row g-0">
+                          <div class="col-md-5 bg-light p-4 text-center">
+                            <img id="vehicle-image"
+                                 src=""
+                                 alt="Selected Vehicle"
+                                 class="img-fluid img-zoom mx-auto vehicle-img-lg"
+                                 style="max-height: 300px;
+                                        width: auto" />
+                          </div>
+                          <div class="col-md-7">
+                            <div class="card-body p-4">
+                              <h5 id="vehicle-name" class="card-title fw-bold mb-3"></h5>
+                              <div class="vehicle-details">
+                                <p class="mb-2 text-muted d-flex align-items-center">
+                                  <img src="{% static 'images/passengers.webp' %}"
+                                       class="me-2 vehicle-icon"
+                                       alt="Passengers icon"
+                                       aria-hidden="true"
+                                       width="20"
+                                       height="20" />
+                                  <span id="passenger-capacity"></span>
+                                </p>
+                                <p class="mb-2 text-muted d-flex align-items-center">
+                                  <img src="{% static 'images/luggage.webp' %}"
+                                       class="me-2 vehicle-icon"
+                                       alt="Luggage icon"
+                                       aria-hidden="true"
+                                       width="20"
+                                       height="20" />
+                                  <span id="luggage-capacity"></span>
+                                </p>
+                                <p class="mb-2 text-muted d-flex align-items-center">
+                                  <img src="{% static 'images/carseat.webp' %}"
+                                       class="me-2 vehicle-icon"
+                                       alt="Car Seats icon"
+                                       aria-hidden="true"
+                                       width="20"
+                                       height="20" />
+                                  <span id="carseats-display"></span>
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <!-- Trip Type -->
-                <div class="col-12">
-                  <label class="form-label fw-bold d-block mb-2">Trip Type</label>
-                  <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="trip" id="ow" value="1" checked />
-                    <label class="btn btn-outline-dark btn-lg" for="ow"><i class="bi bi-arrow-right-circle me-2"></i>One Way</label>
-                    <input type="radio" class="btn-check" name="trip" id="rt" value="2" />
-                    <label class="btn btn-outline-dark btn-lg" for="rt"><i class="bi bi-arrow-repeat me-2"></i>Round Trip</label>
-                  </div>
-                </div>
+                    <!-- Trip Type -->
+                    <div class="col-12">
+                      <label class="form-label fw-bold d-block mb-2">Trip Type</label>
+                      <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="trip" id="ow" value="1" checked />
+                        <label class="btn btn-outline-dark btn-lg" for="ow">
+                          <i class="bi bi-arrow-right-circle me-2"></i>One Way
+                        </label>
+                        <input type="radio" class="btn-check" name="trip" id="rt" value="2" />
+                        <label class="btn btn-outline-dark btn-lg" for="rt">
+                          <i class="bi bi-arrow-repeat me-2"></i>Round Trip
+                        </label>
+                      </div>
+                    </div>
 
-                <!-- Button -->
-                <div class="col-12">
-                  <button id="quote-btn" type="submit" class="btn btn-outline-dark btn-lg w-100 fw-bold text-dark py-3" disabled><i class="bi bi-calculator me-2"></i>Calculate Price</button>
+                    <!-- Button -->
+                    <div class="col-12">
+                      <button id="quote-btn"
+                              type="submit"
+                              class="btn btn-outline-dark btn-lg w-100 fw-bold text-dark py-3"
+                              disabled>
+                        <i class="bi bi-calculator me-2"></i>Calculate Price
+                      </button>
+                    </div>
+                  </div>
+                  <div id="quote-display-wrapper" class="mt-4 text-center">
+                    <div class="rounded-3 p-4 d-none"
+                         id="quote-display-container"
+                         style="background-color: rgba(10, 20, 40, 0.1)">
+                      <span class="text-muted d-block mb-1">Your Total Price</span>
+                      <span id="quote-display" class="display-3 fw-bold text-dark"></span>
+                      <small id="quote-note" class="text-muted d-none d-block mt-3">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Most Popular Services Section - RESTRUCTURED -->
+        <section class="most-popular-services py-5 bg-light bg-opacity-50"
+                 aria-labelledby="popular-services-heading">
+          <div class="container px-4 py-4">
+            <div class="row justify-content-center mb-4">
+              <div class="col-lg-8 text-center">
+                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-2">MOST REQUESTED</span>
+                <h2 id="popular-services-heading" class="display-5 fw-bold mb-3">Top Orlando Transportation Services</h2>
+                <p class="lead text-muted">All-inclusive pricing with no hidden fees. All taxes, gratuities, and tolls included!</p>
+              </div>
+            </div>
+
+            <div class="row g-4 mb-5">
+              <!-- MCO to Disney -->
+              <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="position-absolute top-0 start-0 ms-2 mt-2">
+                      <span class="badge rounded-pill bg-navbar-dark text-white py-2 px-2 fs-7">POPULAR</span>
+                    </div>
+                    <div class="text-center mb-3">
+                      <img src="{% static 'images/disney-castle.webp' %}"
+                           alt="Disney Transportation"
+                           width="60"
+                           height="60"
+                           class="mb-3" />
+                      <h3 class="h4 fw-bold">Orlando Airport to Disney</h3>
+                    </div>
+                    <ul class="list-unstyled mb-4">
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Direct, non-stop service
+                      </li>
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Inside airport meet & greet
+                      </li>
+                      <li class="mb-5">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Free car seats available
+                      </li>
+                    </ul>
+                    <div class="d-flex justify-content-between align-items-end">
+                      <div>
+                        <span class="d-block">From</span>
+                        <span class="h3 fw-bold">$195</span>
+                        <span class="text-muted">round trip</span>
+                      </div>
+                      <a href="{% url 'rates' %}"
+                         class="btn bg-button-dark text-white fw-semibold px-4 py-2 rounded-pill">Book Now</a>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div id="quote-display-wrapper" class="mt-4 text-center">
-                <div class="rounded-3 p-4 d-none" id="quote-display-container" style="background-color: rgba(10, 20, 40, 0.1)">
-                  <span class="text-muted d-block mb-1">Your Total Price</span>
-                  <span id="quote-display" class="display-3 fw-bold text-dark"></span>
-                  <small id="quote-note" class="text-muted d-none d-block mt-3">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
+
+              <!-- MCO to Universal -->
+              <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="text-center mb-3">
+                      <img src="{% static 'images/universal-studios.webp' %}"
+                           alt="Universal Transportation"
+                           width="60"
+                           height="60"
+                           class="mb-3" />
+                      <h3 class="h4 fw-bold">Orlando Airport to Universal</h3>
+                    </div>
+                    <ul class="list-unstyled mb-4">
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Direct, non-stop service
+                      </li>
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Inside airport meet & greet
+                      </li>
+                      <li class="mb-5">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Free car seats available
+                      </li>
+                    </ul>
+                    <div class="d-flex justify-content-between align-items-end">
+                      <div>
+                        <span class="d-block">From</span>
+                        <span class="h3 fw-bold">$195</span>
+                        <span class="text-muted">round trip</span>
+                      </div>
+                      <a href="{% url 'rates' %}"
+                         class="btn bg-button-dark text-white fw-semibold px-4 py-2 rounded-pill">Book Now</a>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Most Popular Services Section - RESTRUCTURED -->
-    <section class="most-popular-services py-5 bg-light bg-opacity-50" aria-labelledby="popular-services-heading">
-      <div class="container px-4 py-4">
-        <div class="row justify-content-center mb-4">
-          <div class="col-lg-8 text-center">
-            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-2">MOST REQUESTED</span>
-            <h2 id="popular-services-heading" class="display-5 fw-bold mb-3">Top Orlando Transportation Services</h2>
-            <p class="lead text-muted">All-inclusive pricing with no hidden fees. All taxes, gratuities, and tolls included!</p>
-          </div>
-        </div>
-
-        <div class="row g-4 mb-5">
-          <!-- MCO to Disney -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4">
-                <div class="position-absolute top-0 start-0 ms-2 mt-2">
-                  <span class="badge rounded-pill bg-navbar-dark text-white py-2 px-2 fs-7">POPULAR</span>
-                </div>
-                <div class="text-center mb-3">
-                  <img src="{% static 'images/disney-castle.webp' %}" alt="Disney Transportation" width="60" height="60" class="mb-3" />
-                  <h3 class="h4 fw-bold">Orlando Airport to Disney</h3>
-                </div>
-                <ul class="list-unstyled mb-4">
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Direct, non-stop service
-                  </li>
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Inside airport meet & greet
-                  </li>
-                  <li class="mb-5">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Free car seats available
-                  </li>
-                </ul>
-                <div class="d-flex justify-content-between align-items-end">
-                  <div>
-                    <span class="d-block">From</span>
-                    <span class="h3 fw-bold">$195</span>
-                    <span class="text-muted">round trip</span>
+              <!-- MCO to Port Canaveral -->
+              <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="text-center mb-3">
+                      <img src="{% static 'images/cruise.webp' %}"
+                           alt="Cruise Transportation"
+                           width="60"
+                           height="60"
+                           class="mb-3" />
+                      <h3 class="h4 fw-bold">Orlando Airport to Cruise Port</h3>
+                    </div>
+                    <ul class="list-unstyled mb-4">
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Direct service to cruise terminal
+                      </li>
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Flexible scheduling for cruise times
+                      </li>
+                      <li class="mb-2">
+                        <i class="bi bi-check-circle-fill text-warning me-2"></i> Spacious vehicles for luggage
+                      </li>
+                    </ul>
+                    <div class="d-flex justify-content-between align-items-end">
+                      <div>
+                        <span class="d-block">From</span>
+                        <span class="h3 fw-bold">$270</span>
+                        <span class="text-muted">round trip</span>
+                      </div>
+                      <a href="{% url 'rates' %}"
+                         class="btn bg-button-dark text-white fw-semibold px-4 py-2 rounded-pill">Book Now</a>
+                    </div>
                   </div>
-                  <a href="{% url 'rates' %}" class="btn bg-button-dark text-white fw-semibold px-4 py-2 rounded-pill">Book Now</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- CTA Button -->
+            <div class="text-center">
+              <a href="{% url 'rates' %}"
+                 class="btn btn-lg bg-button-dark text-white px-5 py-3 rounded-pill shadow">See All Routes & Pricing <i class="bi bi-arrow-right ms-2"></i></a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Why Choose Us Section - IMPROVED -->
+        <section class="why-choose-us py-5 bg-white"
+                 aria-labelledby="why-choose-heading">
+          <div class="container px-4 py-4">
+            <div class="row justify-content-center mb-5">
+              <div class="col-lg-8 text-center">
+                <h2 id="why-choose-heading" class="display-5 fw-bold mb-3">
+                  Why Families Choose <span class="text-warning">Grayson Towncar</span>
+                </h2>
+                <p class="lead">We solve the biggest transportation headaches for Orlando visitors</p>
+              </div>
+            </div>
+
+            <div class="row g-4 justify-content-center">
+              <!-- No Shared Shuttles -->
+              <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4 text-center">
+                    <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4"
+                         style="width: 80px;
+                                height: 80px">
+                      <i class="bi bi-person-check-fill text-dark" style="font-size: 2.5rem;"></i>
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">No Shared Shuttles</h3>
+                    <p>Private vehicles exclusively for your group. No waiting for other passengers or stops at multiple hotels.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Free Car Seats -->
+              <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4 text-center">
+                    <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4"
+                         style="width: 80px;
+                                height: 80px">
+                      <img src="{% static 'images/carseat.webp' %}"
+                           alt="Car Seats"
+                           width="50"
+                           height="50" />
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">Free Car Seats</h3>
+                    <p>Complimentary car seats (infant, toddler, or booster) professionally installed by our drivers. No rental fees!</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Inside Airport Meet & Greet -->
+              <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4 text-center">
+                    <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4"
+                         style="width: 80px;
+                                height: 80px">
+                      <i class="bi bi-signpost-split-fill text-dark" style="font-size: 2.5rem"></i>
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">Inside Airport Greeting</h3>
+                    <p>Your driver meets you inside the terminal with a sign. No curbside confusion or searching for your ride.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Free Grocery Stop -->
+              <div class="col-md-6 col-lg-3">
+                <div class="card h-100 border-0 shadow hover-elevate">
+                  <div class="card-body p-4 text-center">
+                    <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4"
+                         style="width: 80px;
+                                height: 80px">
+                      <img src="{% static 'images/groceries.webp' %}"
+                           alt="Grocery Stop"
+                           width="50"
+                           height="50" />
+                    </div>
+                    <h3 class="h4 fw-bold mb-3">Free Grocery Stop</h3>
+                    <p>Complimentary 20-minute stop at Publix to stock up on vacation essentials on your way to your hotel.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CTA Button -->
+            <div class="text-center mt-5">
+              <a href="{% url 'rates' %}"
+                 class="btn btn-warning btn-lg px-5 py-3 fw-bold rounded-pill shadow">See Our Prices</a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Our Fleet Section - ENHANCED -->
+        <section class="fleet py-5 bg-custom-light-gold"
+                 id="fleet"
+                 aria-labelledby="fleet-heading">
+          <div class="container px-5 my-5">
+            <div class="text-center mb-5">
+              <span class="badge bg-button-dark text-white fw-semibold px-3 py-3 rounded-pill mb-2 fs-6">LUXURY VEHICLES</span>
+              <h2 id="fleet-heading" class="display-5 fw-bold mb-3">Our Premium Fleet</h2>
+              <p class="lead">Vehicles for every group size, perfectly maintained for your comfort</p>
+            </div>
+
+            <div class="row row-cols-1 row-cols-md-4 g-4">
+              <!-- Executive Town Car -->
+              <div class="col">
+                <div class="card h-100 shadow border-0 hover-elevate">
+                  <img class="card-img-top"
+                       src="{% static 'images/towncar.webp' %}"
+                       alt="Executive Sedan for Orlando Airport Transportation"
+                       width="300"
+                       height="200"
+                       loading="lazy" />
+                  <div class="card-body p-4">
+                    <div class="badge bg-button-dark rounded-pill text-light mb-2">Executive Sedan</div>
+                    <h3 class="h5 fw-bold card-title mb-3">Towncar Service</h3>
+                    <p class="card-text mb-3">Perfect for couples and small families.</p>
+                    <div class="mb-3">
+                      <ul class="list-unstyled fw-semibold">
+                        <li class="mb-2">
+                          <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 4 passengers
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 4 suitcases
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 1 car seat
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                    <div class="d-flex flex-column">
+                      <div class="pricing-info mb-3">
+                        <div class="fw-bold fs-5 text-dark">$195 Round Trip</div>
+                        <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                      </div>
+                      <a href="{% url 'reserve' 2 %}?round=2"
+                         class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Luxury SUV -->
+              <div class="col">
+                <div class="card h-100 shadow border-0 hover-elevate">
+                  <img class="card-img-top pt-4 mb-4"
+                       src="{% static 'images/suv-new.webp' %}"
+                       alt="Luxury SUV for Orlando Hotel Transfers"
+                       width="300"
+                       height="200"
+                       loading="lazy" />
+                  <div class="card-body p-4">
+                    <div class="badge bg-button-dark rounded-pill text-light mb-2">Luxury SUV</div>
+                    <h3 class="fw-bold h5 card-title mb-3">Luxury SUV Service</h3>
+                    <p class="card-text mb-3">Spacious transportation for larger families.</p>
+                    <div class="mb-3">
+                      <ul class="list-unstyled fw-semibold">
+                        <li class="mb-2">
+                          <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 6 passengers
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 6 suitcases
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 4 car seats
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                    <div class="d-flex flex-column">
+                      <div class="pricing-info mb-3">
+                        <div class="fw-bold fs-5 text-dark">$275 Round Trip</div>
+                        <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                      </div>
+                      <a href="{% url 'reserve' 16 %}?round=2"
+                         class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Minivan -->
+              <div class="col">
+                <div class="card h-100 shadow border-0 hover-elevate">
+                  <img class="card-img-top"
+                       src="{% static 'images/minivan.webp' %}"
+                       alt="Mini Van for Orlando Airport Transportation"
+                       width="300"
+                       height="200"
+                       loading="lazy" />
+                  <div class="card-body p-4">
+                    <div class="badge bg-button-dark rounded-pill text-light mb-2">Comfortable Mini Van</div>
+                    <h3 class="h5 fw-bold card-title mb-3">Mini Van Service</h3>
+                    <p class="card-text mb-3">Perfect for families of up to 5 passengers.</p>
+                    <div class="mb-3">
+                      <ul class="list-unstyled fw-semibold">
+                        <li class="mb-2">
+                          <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 5 passengers
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 5 suitcases
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 2 car seats
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                    <div class="d-flex flex-column">
+                      <div class="pricing-info mb-3">
+                        <div class="fw-bold fs-5 text-dark">$230 Round Trip</div>
+                        <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                      </div>
+                      <a href="{% url 'reserve' 30 %}?round=2"
+                         class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Passenger Van -->
+              <div class="col">
+                <div class="card h-100 shadow border-0 hover-elevate">
+                  <img class="card-img-top"
+                       src="{% static 'images/van.webp' %}"
+                       alt="Passenger Van for Orlando Group Transportation"
+                       width="300"
+                       height="200"
+                       loading="lazy" />
+                  <div class="card-body p-4">
+                    <div class="badge bg-button-dark rounded-pill text-light mb-3 mt-2">Group Transport</div>
+                    <h3 class="fw-bold h5 card-title mb-3">Van Service</h3>
+                    <p class="card-text mb-3">Premium group transportation.</p>
+                    <div class="mb-3">
+                      <ul class="list-unstyled fw-semibold">
+                        <li class="mb-2">
+                          <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 10 passengers
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 11 suitcases
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1"
+                             aria-hidden="true"></i>Up to 4 car seats
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
+                    <div class="d-flex flex-column">
+                      <div class="pricing-info mb-3">
+                        <div class="fw-bold fs-5 text-dark">$305 Round Trip</div>
+                        <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                      </div>
+                      <a href="{% url 'reserve' 44 %}?round=2"
+                         class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- MCO to Universal -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4">
-                <div class="text-center mb-3">
-                  <img src="{% static 'images/universal-studios.webp' %}" alt="Universal Transportation" width="60" height="60" class="mb-3" />
-                  <h3 class="h4 fw-bold">Orlando Airport to Universal</h3>
-                </div>
-                <ul class="list-unstyled mb-4">
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Direct, non-stop service
-                  </li>
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Inside airport meet & greet
-                  </li>
-                  <li class="mb-5">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Free car seats available
-                  </li>
-                </ul>
-                <div class="d-flex justify-content-between align-items-end">
-                  <div>
-                    <span class="d-block">From</span>
-                    <span class="h3 fw-bold">$195</span>
-                    <span class="text-muted">round trip</span>
-                  </div>
-                  <a href="{% url 'rates' %}" class="btn bg-button-dark text-white fw-semibold px-4 py-2 rounded-pill">Book Now</a>
-                </div>
+          <!-- Car Selection Help -->
+          <div class="col-12 text-center mt-5">
+            <div class="card shadow border-0 p-4 bg-dark bg-opacity-80 text-white">
+              <div class="card-body">
+                <h3 class="fw-bold mb-3 display-6">Not Sure Which Vehicle Is Right For You?</h3>
+                <p class="lead mb-4 fw-semibold h4">
+                  We'll help you choose the perfect transportation for your Orlando vacation needs.
+                </p>
+                <a href="{% url 'rates' %}"
+                   class="btn bg-button-dark text-white btn-lg px-5 rounded-pill">Compare Our Vehicles <i class="bi bi-arrow-right ms-2"></i></a>
               </div>
             </div>
           </div>
+        </section>
 
-          <!-- MCO to Port Canaveral -->
-          <div class="col-md-6 col-lg-4">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4">
-                <div class="text-center mb-3">
-                  <img src="{% static 'images/cruise.webp' %}" alt="Cruise Transportation" width="60" height="60" class="mb-3" />
-                  <h3 class="h4 fw-bold">Orlando Airport to Cruise Port</h3>
-                </div>
-                <ul class="list-unstyled mb-4">
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Direct service to cruise terminal
-                  </li>
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Flexible scheduling for cruise times
-                  </li>
-                  <li class="mb-2">
-                    <i class="bi bi-check-circle-fill text-warning me-2"></i> Spacious vehicles for luggage
-                  </li>
-                </ul>
-                <div class="d-flex justify-content-between align-items-end">
-                  <div>
-                    <span class="d-block">From</span>
-                    <span class="h3 fw-bold">$270</span>
-                    <span class="text-muted">round trip</span>
-                  </div>
-                  <a href="{% url 'rates' %}" class="btn bg-button-dark text-white fw-semibold px-4 py-2 rounded-pill">Book Now</a>
-                </div>
+        <!-- FAQS -->
+        <section class="faq py-4 bg-light" aria-labelledby="faq-heading">
+          <div class="container px-4">
+            <div class="row justify-content-center mb-4">
+              <div class="col-lg-8 text-center">
+                <h2 id="faq-heading" class="display-6 fw-bold mb-2">Frequently Asked Questions</h2>
+                <p class="text-muted mb-4">Everything you need to know about our Orlando transportation services</p>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- CTA Button -->
-        <div class="text-center">
-          <a href="{% url 'rates' %}" class="btn btn-lg bg-button-dark text-white px-5 py-3 rounded-pill shadow">See All Routes & Pricing <i class="bi bi-arrow-right ms-2"></i></a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Why Choose Us Section - IMPROVED -->
-    <section class="why-choose-us py-5 bg-white" aria-labelledby="why-choose-heading">
-      <div class="container px-4 py-4">
-        <div class="row justify-content-center mb-5">
-          <div class="col-lg-8 text-center">
-            <h2 id="why-choose-heading" class="display-5 fw-bold mb-3">Why Families Choose <span class="text-warning">Grayson Towncar</span></h2>
-            <p class="lead">We solve the biggest transportation headaches for Orlando visitors</p>
-          </div>
-        </div>
-
-        <div class="row g-4 justify-content-center">
-          <!-- No Shared Shuttles -->
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4 text-center">
-                <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 80px;
-                            height: 80px">
-                  <i class="bi bi-person-check-fill text-dark" style="font-size: 2.5rem;"></i>
-                </div>
-                <h3 class="h4 fw-bold mb-3">No Shared Shuttles</h3>
-                <p>Private vehicles exclusively for your group. No waiting for other passengers or stops at multiple hotels.</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Free Car Seats -->
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4 text-center">
-                <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 80px;
-                            height: 80px">
-                  <img src="{% static 'images/carseat.webp' %}" alt="Car Seats" width="50" height="50" />
-                </div>
-                <h3 class="h4 fw-bold mb-3">Free Car Seats</h3>
-                <p>Complimentary car seats (infant, toddler, or booster) professionally installed by our drivers. No rental fees!</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Inside Airport Meet & Greet -->
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4 text-center">
-                <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 80px;
-                            height: 80px">
-                  <i class="bi bi-signpost-split-fill text-dark" style="font-size: 2.5rem"></i>
-                </div>
-                <h3 class="h4 fw-bold mb-3">Inside Airport Greeting</h3>
-                <p>Your driver meets you inside the terminal with a sign. No curbside confusion or searching for your ride.</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Free Grocery Stop -->
-          <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow hover-elevate">
-              <div class="card-body p-4 text-center">
-                <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center mx-auto mb-4" style="width: 80px;
-                            height: 80px">
-                  <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop" width="50" height="50" />
-                </div>
-                <h3 class="h4 fw-bold mb-3">Free Grocery Stop</h3>
-                <p>Complimentary 20-minute stop at Publix to stock up on vacation essentials on your way to your hotel.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- CTA Button -->
-        <div class="text-center mt-5">
-          <a href="{% url 'rates' %}" class="btn btn-warning btn-lg px-5 py-3 fw-bold rounded-pill shadow">See Our Prices</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Our Fleet Section - ENHANCED -->
-    <section class="fleet py-5 bg-custom-light-gold" id="fleet" aria-labelledby="fleet-heading">
-      <div class="container px-5 my-5">
-        <div class="text-center mb-5">
-          <span class="badge bg-button-dark text-white fw-semibold px-3 py-3 rounded-pill mb-2 fs-6">LUXURY VEHICLES</span>
-          <h2 id="fleet-heading" class="display-5 fw-bold mb-3">Our Premium Fleet</h2>
-          <p class="lead">Vehicles for every group size, perfectly maintained for your comfort</p>
-        </div>
-
-        <div class="row row-cols-1 row-cols-md-4 g-4">
-          <!-- Executive Town Car -->
-          <div class="col">
-            <div class="card h-100 shadow border-0 hover-elevate">
-              <img class="card-img-top" src="{% static 'images/towncar.webp' %}" alt="Executive Sedan for Orlando Airport Transportation" width="300" height="200" loading="lazy" />
-              <div class="card-body p-4">
-                <div class="badge bg-button-dark rounded-pill text-light mb-2">Executive Sedan</div>
-                <h3 class="h5 fw-bold card-title mb-3">Towncar Service</h3>
-                <p class="card-text mb-3">Perfect for couples and small families.</p>
-                <div class="mb-3">
-                  <ul class="list-unstyled fw-semibold">
-                    <li class="mb-2">
-                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 passengers
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 suitcases
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 1 car seat
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-                <div class="d-flex flex-column">
-                  <div class="pricing-info mb-3">
-                    <div class="fw-bold fs-5 text-dark">$195 Round Trip</div>
-                    <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+            <div class="row justify-content-center">
+              <div class="col-lg-8">
+                <div class="accordion" id="faqAccordion">
+                  <!-- Question 1 -->
+                  <div class="accordion-item border-0 mb-2 shadow-sm">
+                    <h3 class="accordion-header" id="headingOne">
+                      <button class="accordion-button collapsed py-2 fw-semibold"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseOne"
+                              aria-expanded="false"
+                              aria-controls="collapseOne">How does the airport pickup process work?</button>
+                    </h3>
+                    <div id="collapseOne"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="headingOne"
+                         data-bs-parent="#faqAccordion">
+                      <div class="accordion-body py-2">
+                        Our driver will <strong>track your flight and text you once you land.</strong>
+                        They will meet you inside the airport terminal at baggage claim with a sign displaying your name. After you collect your luggage, the driver will assist you and take you to the vehicle.
+                      </div>
+                    </div>
                   </div>
-                  <a href="{% url 'reserve' 2 %}?round=2" class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Luxury SUV -->
-          <div class="col">
-            <div class="card h-100 shadow border-0 hover-elevate">
-              <img class="card-img-top pt-4 mb-4" src="{% static 'images/suv-new.webp' %}" alt="Luxury SUV for Orlando Hotel Transfers" width="300" height="200" loading="lazy" />
-              <div class="card-body p-4">
-                <div class="badge bg-button-dark rounded-pill text-light mb-2">Luxury SUV</div>
-                <h3 class="fw-bold h5 card-title mb-3">Luxury SUV Service</h3>
-                <p class="card-text mb-3">Spacious transportation for larger families.</p>
-                <div class="mb-3">
-                  <ul class="list-unstyled fw-semibold">
-                    <li class="mb-2">
-                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 6 passengers
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 6 suitcases
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 car seats
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-                <div class="d-flex flex-column">
-                  <div class="pricing-info mb-3">
-                    <div class="fw-bold fs-5 text-dark">$275 Round Trip</div>
-                    <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                  <!-- Question 2 -->
+                  <div class="accordion-item border-0 mb-2 shadow-sm">
+                    <h3 class="accordion-header" id="headingTwo">
+                      <button class="accordion-button collapsed py-2 fw-semibold"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseTwo"
+                              aria-expanded="false"
+                              aria-controls="collapseTwo">Are car seats really included for free?</button>
+                    </h3>
+                    <div id="collapseTwo"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="headingTwo"
+                         data-bs-parent="#faqAccordion">
+                      <div class="accordion-body py-2">
+                        Yes, <strong>each car</strong> is equipped with a specific number of car seats and booster seats, and they're completely free of charge! Just request the type you need—booster, forward-facing, or rear-facing—when filling out your booking form.
+                      </div>
+                    </div>
                   </div>
-                  <a href="{% url 'reserve' 16 %}?round=2" class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Minivan -->
-          <div class="col">
-            <div class="card h-100 shadow border-0 hover-elevate">
-              <img class="card-img-top" src="{% static 'images/minivan.webp' %}" alt="Mini Van for Orlando Airport Transportation" width="300" height="200" loading="lazy" />
-              <div class="card-body p-4">
-                <div class="badge bg-button-dark rounded-pill text-light mb-2">Comfortable Mini Van</div>
-                <h3 class="h5 fw-bold card-title mb-3">Mini Van Service</h3>
-                <p class="card-text mb-3">Perfect for families of up to 5 passengers.</p>
-                <div class="mb-3">
-                  <ul class="list-unstyled fw-semibold">
-                    <li class="mb-2">
-                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 5 passengers
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 5 suitcases
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 2 car seats
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-                <div class="d-flex flex-column">
-                  <div class="pricing-info mb-3">
-                    <div class="fw-bold fs-5 text-dark">$230 Round Trip</div>
-                    <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                  <!-- Question 3 -->
+                  <div class="accordion-item border-0 mb-2 shadow-sm">
+                    <h3 class="accordion-header" id="headingThree">
+                      <button class="accordion-button collapsed py-2 fw-semibold"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseThree"
+                              aria-expanded="false"
+                              aria-controls="collapseThree">
+                        What if I am staying at 2 different hotels, can I still do a round trip?
+                      </button>
+                    </h3>
+                    <div id="collapseThree"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="headingThree"
+                         data-bs-parent="#faqAccordion">
+                      <div class="accordion-body py-2">
+                        Yes, you can! As long as the hotels are in the Disney, Universal, or Lake Buena Vista areas (areas with the same rates), you can do a round trip. For the <strong>arrival, enter your initial hotel as the drop-off location,</strong> and for the <strong>return, just provide the other hotel as the pick-up location.</strong>
+                      </div>
+                    </div>
                   </div>
-                  <a href="{% url 'reserve' 30 %}?round=2" class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Passenger Van -->
-          <div class="col">
-            <div class="card h-100 shadow border-0 hover-elevate">
-              <img class="card-img-top" src="{% static 'images/van.webp' %}" alt="Passenger Van for Orlando Group Transportation" width="300" height="200" loading="lazy" />
-              <div class="card-body p-4">
-                <div class="badge bg-button-dark rounded-pill text-light mb-3 mt-2">Group Transport</div>
-                <h3 class="fw-bold h5 card-title mb-3">Van Service</h3>
-                <p class="card-text mb-3">Premium group transportation.</p>
-                <div class="mb-3">
-                  <ul class="list-unstyled fw-semibold">
-                    <li class="mb-2">
-                      <i class="bi bi-person bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 10 passengers
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-suitcase bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 11 suitcases
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-car-front bg-warning text-dark rounded-circle me-2 d-inline-flex justify-content-center align-items-center p-1" aria-hidden="true"></i>Up to 4 car seats
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="card-footer p-4 pt-0 bg-transparent border-top-0">
-                <div class="d-flex flex-column">
-                  <div class="pricing-info mb-3">
-                    <div class="fw-bold fs-5 text-dark">$305 Round Trip</div>
-                    <div class="text-muted fw-semibold">MCO to All WDW Property Resorts</div>
+                  <!-- Question 4 -->
+                  <div class="accordion-item border-0 mb-2 shadow-sm">
+                    <h3 class="accordion-header" id="headingFour">
+                      <button class="accordion-button collapsed py-2 fw-semibold"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseFour"
+                              aria-expanded="false"
+                              aria-controls="collapseFour">Can we stop for groceries on the way to our hotel?</button>
+                    </h3>
+                    <div id="collapseFour"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="headingFour"
+                         data-bs-parent="#faqAccordion">
+                      <div class="accordion-body py-2">
+                        Absolutely! We offer a complimentary 20-minute stop at Publix, located at <a href="https://www.publix.com/locations/1191-lake-cay-commons"
+    target="_blank">9930 Universal Blvd, Orlando, FL 32819</a>, <strong>exclusively for airport pick-ups.</strong>
+                        For your convenience, we recommend preordering and selecting curbside pick-up. Just let us know you'd like this stop when making your booking, and we'll take care of the rest!
+                      </div>
+                    </div>
                   </div>
-                  <a href="{% url 'reserve' 44 %}?round=2" class="btn bg-button-dark text-white fw-semibold rounded-pill">Reserve Now</a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Car Selection Help -->
-      <div class="col-12 text-center mt-5">
-        <div class="card shadow border-0 p-4 bg-dark bg-opacity-80 text-white">
-          <div class="card-body">
-            <h3 class="fw-bold mb-3 display-6">Not Sure Which Vehicle Is Right For You?</h3>
-            <p class="lead mb-4 fw-semibold h4">We'll help you choose the perfect transportation for your Orlando vacation needs.</p>
-            <a href="{% url 'rates' %}" class="btn bg-button-dark text-white btn-lg px-5 rounded-pill">Compare Our Vehicles <i class="bi bi-arrow-right ms-2"></i></a>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FAQS -->
-    <section class="faq py-4 bg-light" aria-labelledby="faq-heading">
-      <div class="container px-4">
-        <div class="row justify-content-center mb-4">
-          <div class="col-lg-8 text-center">
-            <h2 id="faq-heading" class="display-6 fw-bold mb-2">Frequently Asked Questions</h2>
-            <p class="text-muted mb-4">Everything you need to know about our Orlando transportation services</p>
-          </div>
-        </div>
-
-        <div class="row justify-content-center">
-          <div class="col-lg-8">
-            <div class="accordion" id="faqAccordion">
-              <!-- Question 1 -->
-              <div class="accordion-item border-0 mb-2 shadow-sm">
-                <h3 class="accordion-header" id="headingOne"><button class="accordion-button collapsed py-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">How does the airport pickup process work?</button></h3>
-                <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#faqAccordion">
-                  <div class="accordion-body py-2">
-                    Our driver will <strong>track your flight and text you once you land.</strong>
-                    They will meet you inside the airport terminal at baggage claim with a sign displaying your name. After you collect your luggage, the driver will assist you and take you to the vehicle.
-                  </div>
-                </div>
-              </div>
-
-              <!-- Question 2 -->
-              <div class="accordion-item border-0 mb-2 shadow-sm">
-                <h3 class="accordion-header" id="headingTwo"><button class="accordion-button collapsed py-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">Are car seats really included for free?</button></h3>
-                <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#faqAccordion">
-                  <div class="accordion-body py-2">
-                    Yes, <strong>each car</strong> is equipped with a specific number of car seats and booster seats, and they're completely free of charge! Just request the type you need—booster, forward-facing, or rear-facing—when filling out your booking form.
-                  </div>
-                </div>
-              </div>
-
-              <!-- Question 3 -->
-              <div class="accordion-item border-0 mb-2 shadow-sm">
-                <h3 class="accordion-header" id="headingThree"><button class="accordion-button collapsed py-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">What if I am staying at 2 different hotels, can I still do a round trip?</button></h3>
-                <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#faqAccordion">
-                  <div class="accordion-body py-2">
-                    Yes, you can! As long as the hotels are in the Disney, Universal, or Lake Buena Vista areas (areas with the same rates), you can do a round trip. For the <strong>arrival, enter your initial hotel as the drop-off location,</strong> and for the <strong>return, just provide the other hotel as the pick-up location.</strong>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Question 4 -->
-              <div class="accordion-item border-0 mb-2 shadow-sm">
-                <h3 class="accordion-header" id="headingFour"><button class="accordion-button collapsed py-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">Can we stop for groceries on the way to our hotel?</button></h3>
-                <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#faqAccordion">
-                  <div class="accordion-body py-2">
-                    Absolutely! We offer a complimentary 20-minute stop at Publix, located at <a href="https://www.publix.com/locations/1191-lake-cay-commons" target="_blank">9930 Universal Blvd, Orlando, FL 32819</a>, <strong>exclusively for airport pick-ups.</strong>
-                    For your convenience, we recommend preordering and selecting curbside pick-up. Just let us know you'd like this stop when making your booking, and we'll take care of the rest!
-                  </div>
-                </div>
-              </div>
-
-              <!-- Question 5 -->
-              <div class="accordion-item border-0 mb-2 shadow-sm">
-                <h3 class="accordion-header" id="headingFive"><button class="accordion-button collapsed py-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">How do I know which vehicle type is best for my family?</button></h3>
-                <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive" data-bs-parent="#faqAccordion">
-                  <div class="accordion-body py-2">
-                    We recommend selecting your vehicle based on the <strong>number of passengers, amount of luggage, and car seats needed</strong>. For a family of 4 with standard luggage, our Executive Sedan is perfect. For families of 5-6 or those with extra luggage, our Mini Van or Luxury SUV offers more space. For larger groups of 7-10, our Passenger Van is ideal. If you're still unsure, just <a href="tel:+14072127190">give us a call</a> and we'll help you choose!
+                  <!-- Question 5 -->
+                  <div class="accordion-item border-0 mb-2 shadow-sm">
+                    <h3 class="accordion-header" id="headingFive">
+                      <button class="accordion-button collapsed py-2 fw-semibold"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#collapseFive"
+                              aria-expanded="false"
+                              aria-controls="collapseFive">
+                        How do I know which vehicle type is best for my family?
+                      </button>
+                    </h3>
+                    <div id="collapseFive"
+                         class="accordion-collapse collapse"
+                         aria-labelledby="headingFive"
+                         data-bs-parent="#faqAccordion">
+                      <div class="accordion-body py-2">
+                        We recommend selecting your vehicle based on the <strong>number of passengers, amount of luggage, and car seats needed</strong>. For a family of 4 with standard luggage, our Executive Sedan is perfect. For families of 5-6 or those with extra luggage, our Mini Van or Luxury SUV offers more space. For larger groups of 7-10, our Passenger Van is ideal. If you're still unsure, just <a href="tel:+14072127190">give us a call</a> and we'll help you choose!
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+
+            <!-- CTA Button -->
+            <div class="text-center mt-4">
+              <a href="{% url 'faqs' %}"
+                 class="btn btn-warning btn-lg px-4 py-2 fw-bold rounded-pill shadow">View All FAQs</a>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <!-- CTA Button -->
-        <div class="text-center mt-4">
-          <a href="{% url 'faqs' %}" class="btn btn-warning btn-lg px-4 py-2 fw-bold rounded-pill shadow">View All FAQs</a>
-        </div>
-      </div>
-    </section>
+        <!-- Complementary Services Section - ENHANCED -->
+        <section class="benefits py-5 bg-light"
+                 id="complimentary-services"
+                 aria-labelledby="services-benefits-heading">
+          <div class="container px-4 py-5">
+            <div class="row justify-content-center mb-5">
+              <div class="col-lg-8 text-center">
+                <span class="badge bg-navbar-dark text-white fw-bold px-3 py-3 fs-6 rounded-pill mb-2">INCLUDED WITH EVERY RIDE</span>
+                <h2 id="services-benefits-heading" class="display-5 fw-bold mb-3">Premium Complimentary Services</h2>
+                <p class="lead text-muted">Enjoy these valuable extras at no additional cost with Grayson Towncar</p>
+              </div>
+            </div>
 
-    <!-- Complementary Services Section - ENHANCED -->
-    <section class="benefits py-5 bg-light" id="complimentary-services" aria-labelledby="services-benefits-heading">
-      <div class="container px-4 py-5">
-        <div class="row justify-content-center mb-5">
-          <div class="col-lg-8 text-center">
-            <span class="badge bg-navbar-dark text-white fw-bold px-3 py-3 fs-6 rounded-pill mb-2">INCLUDED WITH EVERY RIDE</span>
-            <h2 id="services-benefits-heading" class="display-5 fw-bold mb-3">Premium Complimentary Services</h2>
-            <p class="lead text-muted">Enjoy these valuable extras at no additional cost with Grayson Towncar</p>
-          </div>
-        </div>
-
-        <div class="row g-4">
-          <!-- MCO Meet & Greet -->
-          <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100 border-0 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px;
-                              height: 48px;
-                              padding: 10px">
-                    <img src="{% static 'images/handshake.webp' %}" alt="MCO Meet & Greet" class="img-fluid" />
+            <div class="row g-4">
+              <!-- MCO Meet & Greet -->
+              <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow h-100 border-0 hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                           style="width: 48px;
+                                  height: 48px;
+                                  padding: 10px">
+                        <img src="{% static 'images/handshake.webp' %}"
+                             alt="MCO Meet & Greet"
+                             class="img-fluid" />
+                      </div>
+                      <h3 class="h5 fw-bold mb-0">MCO Meet & Greet</h3>
+                    </div>
+                    <div>
+                      <ul class="list-unstyled mt-3 mb-0">
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Inside airport terminal greeting
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Personalized sign with your name
+                        </li>
+                        <li>
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Luggage assistance to your vehicle
+                        </li>
+                      </ul>
+                    </div>
                   </div>
-                  <h3 class="h5 fw-bold mb-0">MCO Meet & Greet</h3>
                 </div>
-                <div>
-                  <ul class="list-unstyled mt-3 mb-0">
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Inside airport terminal greeting
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Personalized sign with your name
-                    </li>
-                    <li>
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Luggage assistance to your vehicle
-                    </li>
-                  </ul>
+              </div>
+
+              <!-- Free Car Seats -->
+              <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow h-100 border-0 hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                           style="width: 48px;
+                                  height: 48px;
+                                  padding: 10px">
+                        <img src="{% static 'images/carseat.webp' %}"
+                             alt="Free Car Seats"
+                             class="img-fluid" />
+                      </div>
+                      <h3 class="h5 fw-bold mb-0">Free Car Seats</h3>
+                    </div>
+                    <div>
+                      <ul class="list-unstyled mt-3 mb-0">
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Infant, toddler, and booster seats
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> No additional cost (unlike rentals)
+                        </li>
+                        <li>
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Professional installation by our drivers
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Grocery Stop -->
+              <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow h-100 border-0 hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                           style="width: 48px;
+                                  height: 48px;
+                                  padding: 10px">
+                        <img src="{% static 'images/groceries.webp' %}"
+                             alt="Grocery Stop"
+                             class="img-fluid" />
+                      </div>
+                      <h3 class="h5 fw-bold mb-0">Free Grocery Stop</h3>
+                    </div>
+                    <div>
+                      <ul class="list-unstyled mt-3 mb-0">
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> 20-minute Publix stop included
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Stock up on vacation essentials
+                        </li>
+                        <li>
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Save money on hotel convenience stores
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Professional Drivers -->
+              <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow h-100 border-0 hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                           style="width: 48px;
+                                  height: 48px;
+                                  padding: 10px">
+                        <img src="{% static 'images/driver.webp' %}"
+                             alt="Professional Drivers"
+                             class="img-fluid" />
+                      </div>
+                      <h3 class="h5 fw-bold mb-0">Professional Drivers</h3>
+                    </div>
+                    <div>
+                      <ul class="list-unstyled mt-3 mb-0">
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Experienced, professional chauffeurs
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Courteous and knowledgeable about Orlando
+                        </li>
+                        <li>
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Clean, well-maintained vehicles
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 24/7 Availability -->
+              <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow h-100 border-0 hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                           style="width: 48px;
+                                  height: 48px;
+                                  padding: 10px">
+                        <img src="{% static 'images/247.webp' %}"
+                             alt="24/7 Availability"
+                             class="img-fluid" />
+                      </div>
+                      <h3 class="h5 fw-bold mb-0">24/7 Availability</h3>
+                    </div>
+                    <div>
+                      <ul class="list-unstyled mt-3 mb-0">
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Early morning or late night flights
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Real-time flight monitoring
+                        </li>
+                        <li>
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> No extra charge for delayed flights
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Roundtrip Discount -->
+              <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card shadow h-100 border-0 hover-elevate">
+                  <div class="card-body p-4">
+                    <div class="d-flex align-items-center mb-3">
+                      <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3"
+                           style="width: 48px;
+                                  height: 48px;
+                                  padding: 10px">
+                        <img src="{% static 'images/offer.webp' %}"
+                             alt="Roundtrip Discount"
+                             class="img-fluid" />
+                      </div>
+                      <h3 class="h5 fw-bold mb-0">Roundtrip Discount</h3>
+                    </div>
+                    <div>
+                      <ul class="list-unstyled mt-3 mb-0">
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Save by booking arrival & departure
+                        </li>
+                        <li class="mb-2">
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> Guaranteed return service
+                        </li>
+                        <li>
+                          <i class="bi bi-check-circle-fill text-warning me-2"></i> One simple booking process
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Free Car Seats -->
-          <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100 border-0 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px;
-                              height: 48px;
-                              padding: 10px">
-                    <img src="{% static 'images/carseat.webp' %}" alt="Free Car Seats" class="img-fluid" />
-                  </div>
-                  <h3 class="h5 fw-bold mb-0">Free Car Seats</h3>
-                </div>
-                <div>
-                  <ul class="list-unstyled mt-3 mb-0">
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Infant, toddler, and booster seats
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> No additional cost (unlike rentals)
-                    </li>
-                    <li>
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Professional installation by our drivers
-                    </li>
-                  </ul>
-                </div>
-              </div>
+            <!-- CTA Button -->
+            <div class="text-center mt-5">
+              <a href="{% url 'rates' %}"
+                 class="btn btn-warning btn-lg px-5 py-3 fw-bold rounded-pill shadow">Get The Grayson Experience</a>
             </div>
           </div>
+        </section>
 
-          <!-- Grocery Stop -->
-          <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100 border-0 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px;
-                              height: 48px;
-                              padding: 10px">
-                    <img src="{% static 'images/groceries.webp' %}" alt="Grocery Stop" class="img-fluid" />
-                  </div>
-                  <h3 class="h5 fw-bold mb-0">Free Grocery Stop</h3>
-                </div>
-                <div>
-                  <ul class="list-unstyled mt-3 mb-0">
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> 20-minute Publix stop included
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Stock up on vacation essentials
-                    </li>
-                    <li>
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Save money on hotel convenience stores
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
+        {% include 'call-to-action.html' %}
+      </main>
 
-          <!-- Professional Drivers -->
-          <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100 border-0 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px;
-                              height: 48px;
-                              padding: 10px">
-                    <img src="{% static 'images/driver.webp' %}" alt="Professional Drivers" class="img-fluid" />
-                  </div>
-                  <h3 class="h5 fw-bold mb-0">Professional Drivers</h3>
-                </div>
-                <div>
-                  <ul class="list-unstyled mt-3 mb-0">
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Experienced, professional chauffeurs
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Courteous and knowledgeable about Orlando
-                    </li>
-                    <li>
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Clean, well-maintained vehicles
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 24/7 Availability -->
-          <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100 border-0 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px;
-                              height: 48px;
-                              padding: 10px">
-                    <img src="{% static 'images/247.webp' %}" alt="24/7 Availability" class="img-fluid" />
-                  </div>
-                  <h3 class="h5 fw-bold mb-0">24/7 Availability</h3>
-                </div>
-                <div>
-                  <ul class="list-unstyled mt-3 mb-0">
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Early morning or late night flights
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Real-time flight monitoring
-                    </li>
-                    <li>
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> No extra charge for delayed flights
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Roundtrip Discount -->
-          <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card shadow h-100 border-0 hover-elevate">
-              <div class="card-body p-4">
-                <div class="d-flex align-items-center mb-3">
-                  <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px;
-                              height: 48px;
-                              padding: 10px">
-                    <img src="{% static 'images/offer.webp' %}" alt="Roundtrip Discount" class="img-fluid" />
-                  </div>
-                  <h3 class="h5 fw-bold mb-0">Roundtrip Discount</h3>
-                </div>
-                <div>
-                  <ul class="list-unstyled mt-3 mb-0">
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Save by booking arrival & departure
-                    </li>
-                    <li class="mb-2">
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> Guaranteed return service
-                    </li>
-                    <li>
-                      <i class="bi bi-check-circle-fill text-warning me-2"></i> One simple booking process
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- CTA Button -->
-        <div class="text-center mt-5">
-          <a href="{% url 'rates' %}" class="btn btn-warning btn-lg px-5 py-3 fw-bold rounded-pill shadow">Get The Grayson Experience</a>
-        </div>
-      </div>
-    </section>
-
-    {% include 'call-to-action.html' %}
-  </main>
-
-  <script id="rate-data" type="application/json">
-      {
-          %
-          if rates_json %
-      } {
+      <script id="rate-data" type="application/json">
           {
-              rates_json | safe
-          }
-      } {
-          %
-          else %
-      } {} {
-          %
-          endif %
-      }
-  </script>
-  <!-- Load JavaScript -->
-  <script>
-      const rateData = JSON.parse('{{ rates_json|escapejs }}');
-      const vehicleSel = document.getElementById('vehicle');
-      const routeSel = document.getElementById('route');
-      const quoteBtn = document.getElementById('quote-btn');
-      const displayEl = document.getElementById('quote-display');
-      const displayContainer = document.getElementById('quote-display-container');
-      const noteEl = document.getElementById('quote-note');
-      const tripRadios = document.querySelectorAll('input[name="trip"]');
-
-      function updateQuoteDisplay() {
-          const vehicleId = vehicleSel.value;
-          const routeId = routeSel.value;
-          const trip = document.querySelector('input[name="trip"]:checked').value;
-
-          if (vehicleId && routeId && rateData[vehicleId] && rateData[vehicleId][routeId]) {
-              const r = rateData[vehicleId][routeId];
-              const price = trip === '1' ? r.oneway : r.round;
-              displayEl.textContent = '$' + price;
-              displayContainer.classList.remove('d-none');
-              noteEl.classList.remove('d-none');
-              quoteBtn.disabled = false;
-              quoteBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Reserve Now';
-              quoteBtn.classList.add('bg-button-dark', 'text-white');
-              quoteBtn.onclick = function(e) {
-                  e.preventDefault();
-                  window.location = r.reserve_url + '?round=' + trip;
-              };
-          } else {
-              resetQuote();
-          }
-      }
-
-      function resetQuote() {
-          displayEl.textContent = '';
-          displayContainer.classList.add('d-none');
-          noteEl.classList.add('d-none');
-          quoteBtn.disabled = true;
-          quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Calculate Price';
-          quoteBtn.classList.remove('bg-button-dark', 'text-white');
-          quoteBtn.onclick = null;
-      }
-
-      vehicleSel.addEventListener('change', function() {
-          const selectedOption = this.options[this.selectedIndex];
-          const previewDiv = document.getElementById('vehicle-preview');
-          const vehicleImage = document.getElementById('vehicle-image');
-          const vehicleName = document.getElementById('vehicle-name');
-          const passengerCapacity = document.getElementById('passenger-capacity');
-          const luggageCapacity = document.getElementById('luggage-capacity');
-          const carSeatsDisplay = document.getElementById('carseats-display');
-
-          if (this.value) {
-              previewDiv.classList.remove('d-none');
-              let imageUrl = selectedOption.dataset.image;
-              if (!imageUrl.startsWith('http')) {
-                  imageUrl = window.location.origin + imageUrl;
+              %
+              if rates_json %
+          } {
+              {
+                  rates_json | safe
               }
-              vehicleImage.src = imageUrl;
-              vehicleName.textContent = selectedOption.text;
-              passengerCapacity.textContent = `${selectedOption.dataset.passengers} Passengers`;
-              luggageCapacity.textContent = `${selectedOption.dataset.luggage} Suitcases`;
-              carSeatsDisplay.textContent = `${selectedOption.dataset.carseats || 'N/A'} Car Seats`;
-          } else {
-              previewDiv.classList.add('d-none');
+          } {
+              %
+              else %
+          } {} {
+              %
+              endif %
           }
-          routeSel.innerHTML = '<option value="" selected>Choose your route</option>';
-          const routes = rateData[vehicleSel.value] || {};
-          Object.values(routes).forEach(function(r) {
-              routeSel.insertAdjacentHTML('beforeend',
-                  '<option value="' + r.id + '">' + r.name + '</option>'
-              );
-          });
-          routeSel.disabled = !vehicleSel.value;
-          routeSel.value = '';
-          resetQuote();
-      });
+      </script>
+      <!-- Load JavaScript -->
+      <script>
+          const rateData = JSON.parse('{{ rates_json|escapejs }}');
+          const vehicleSel = document.getElementById('vehicle');
+          const routeSel = document.getElementById('route');
+          const quoteBtn = document.getElementById('quote-btn');
+          const displayEl = document.getElementById('quote-display');
+          const displayContainer = document.getElementById('quote-display-container');
+          const noteEl = document.getElementById('quote-note');
+          const tripRadios = document.querySelectorAll('input[name="trip"]');
 
-      routeSel.addEventListener('change', updateQuoteDisplay);
-      tripRadios.forEach(function(radio) {
-          radio.addEventListener('change', updateQuoteDisplay);
-      });
+          function updateQuoteDisplay() {
+              const vehicleId = vehicleSel.value;
+              const routeId = routeSel.value;
+              const trip = document.querySelector('input[name="trip"]:checked').value;
 
-      // Prevent form submit from updating the quote again
-      document.getElementById('quote-form').addEventListener('submit', function(e) {
-          e.preventDefault();
-      });
+              if (vehicleId && routeId && rateData[vehicleId] && rateData[vehicleId][routeId]) {
+                  const r = rateData[vehicleId][routeId];
+                  const price = trip === '1' ? r.oneway : r.round;
+                  displayEl.textContent = '$' + price;
+                  displayContainer.classList.remove('d-none');
+                  noteEl.classList.remove('d-none');
+                  quoteBtn.disabled = false;
+                  quoteBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Reserve Now';
+                  quoteBtn.classList.add('bg-button-dark', 'text-white');
+                  quoteBtn.onclick = function(e) {
+                      e.preventDefault();
+                      window.location = r.reserve_url + '?round=' + trip;
+                  };
+              } else {
+                  resetQuote();
+              }
+          }
 
-      // On page load, ensure display is hidden
-      resetQuote();
+          function resetQuote() {
+              displayEl.textContent = '';
+              displayContainer.classList.add('d-none');
+              noteEl.classList.add('d-none');
+              quoteBtn.disabled = true;
+              quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Calculate Price';
+              quoteBtn.classList.remove('bg-button-dark', 'text-white');
+              quoteBtn.onclick = null;
+          }
 
-      // Initialize floating quote button
-      document.addEventListener('DOMContentLoaded', function() {
-          const floatingBtn = document.getElementById('floating-quote-btn');
-          const heroSection = document.querySelector('.hero');
+          vehicleSel.addEventListener('change', function() {
+              const selectedOption = this.options[this.selectedIndex];
+              const previewDiv = document.getElementById('vehicle-preview');
+              const vehicleImage = document.getElementById('vehicle-image');
+              const vehicleName = document.getElementById('vehicle-name');
+              const passengerCapacity = document.getElementById('passenger-capacity');
+              const luggageCapacity = document.getElementById('luggage-capacity');
+              const carSeatsDisplay = document.getElementById('carseats-display');
 
-          if (floatingBtn && heroSection) {
-              window.addEventListener('scroll', () => {
-                  const heroBottom = heroSection.offsetHeight;
-                  if (window.scrollY > heroBottom) {
-                      floatingBtn.classList.add('visible');
-                  } else {
-                      floatingBtn.classList.remove('visible');
+              if (this.value) {
+                  previewDiv.classList.remove('d-none');
+                  let imageUrl = selectedOption.dataset.image;
+                  if (!imageUrl.startsWith('http')) {
+                      imageUrl = window.location.origin + imageUrl;
                   }
+                  vehicleImage.src = imageUrl;
+                  vehicleName.textContent = selectedOption.text;
+                  passengerCapacity.textContent = `${selectedOption.dataset.passengers} Passengers`;
+                  luggageCapacity.textContent = `${selectedOption.dataset.luggage} Suitcases`;
+                  carSeatsDisplay.textContent = `${selectedOption.dataset.carseats || 'N/A'} Car Seats`;
+              } else {
+                  previewDiv.classList.add('d-none');
+              }
+              routeSel.innerHTML = '<option value="" selected>Choose your route</option>';
+              const routes = rateData[vehicleSel.value] || {};
+              Object.values(routes).forEach(function(r) {
+                  routeSel.insertAdjacentHTML('beforeend',
+                      '<option value="' + r.id + '">' + r.name + '</option>'
+                  );
               });
+              routeSel.disabled = !vehicleSel.value;
+              routeSel.value = '';
+              resetQuote();
+          });
+
+          routeSel.addEventListener('change', updateQuoteDisplay);
+          tripRadios.forEach(function(radio) {
+              radio.addEventListener('change', updateQuoteDisplay);
+          });
+
+          // Prevent form submit from updating the quote again
+          document.getElementById('quote-form').addEventListener('submit', function(e) {
+              e.preventDefault();
+          });
+
+          // On page load, ensure display is hidden
+          resetQuote();
+
+          // Initialize floating quote button
+          document.addEventListener('DOMContentLoaded', function() {
+              const floatingBtn = document.getElementById('floating-quote-btn');
+              const heroSection = document.querySelector('.hero');
+
+              if (floatingBtn && heroSection) {
+                  window.addEventListener('scroll', () => {
+                      const heroBottom = heroSection.offsetHeight;
+                      if (window.scrollY > heroBottom) {
+                          floatingBtn.classList.add('visible');
+                      } else {
+                          floatingBtn.classList.remove('visible');
+                      }
+                  });
+              }
+          });
+
+          // Smooth scroll to quote section
+          function scrollToQuote() {
+              const quoteSection = document.querySelector('section[aria-labelledby="quote-heading"]');
+              if (quoteSection) {
+                  const offset = 100; // Offset to show the heading
+                  const elementPosition = quoteSection.getBoundingClientRect().top;
+                  const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+                  window.scrollTo({
+                      top: offsetPosition,
+                      behavior: 'smooth'
+                  });
+              }
           }
-      });
+      </script>
+    {% endblock %}
 
-      // Smooth scroll to quote section
-      function scrollToQuote() {
-          const quoteSection = document.querySelector('section[aria-labelledby="quote-heading"]');
-          if (quoteSection) {
-              const offset = 100; // Offset to show the heading
-              const elementPosition = quoteSection.getBoundingClientRect().top;
-              const offsetPosition = elementPosition + window.pageYOffset - offset;
+    <style>
+        /* FAQ Section Styling */
+        .accordion-button:not(.collapsed) {
+            background-color: #0a1428;
+            color: white;
+        }
 
-              window.scrollTo({
-                  top: offsetPosition,
-                  behavior: 'smooth'
-              });
-          }
-      }
-  </script>
-{% endblock %}
+        .accordion-button:focus {
+            box-shadow: none;
+            border-color: rgba(0, 0, 0, .125);
+        }
 
-<style>
-    /* FAQ Section Styling */
-    .accordion-button:not(.collapsed) {
-        background-color: #0a1428;
-        color: white;
-    }
+        .accordion-button::after {
+            background-size: 1rem;
+            transition: all 0.2s ease-in-out;
+        }
 
-    .accordion-button:focus {
-        box-shadow: none;
-        border-color: rgba(0, 0, 0, .125);
-    }
+        .accordion-button:not(.collapsed)::after {
+            filter: brightness(0) invert(1);
+        }
 
-    .accordion-button::after {
-        background-size: 1rem;
-        transition: all 0.2s ease-in-out;
-    }
+        .accordion-body {
+            font-size: 0.95rem;
+        }
 
-    .accordion-button:not(.collapsed)::after {
-        filter: brightness(0) invert(1);
-    }
+        /* Enhanced Dropdown Styling */
+        .form-select-lg {
+            padding: 1rem 1.5rem;
+            font-size: 1.1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease-in-out;
+            background-color: white;
+            cursor: pointer;
+        }
 
-    .accordion-body {
-        font-size: 0.95rem;
-    }
+        .form-select-lg:hover {
+            border-color: #ffc107;
+        }
 
-    /* Enhanced Dropdown Styling */
-    .form-select-lg {
-        padding: 1rem 1.5rem;
-        font-size: 1.1rem;
-        border: 2px solid #e9ecef;
-        border-radius: 0.5rem;
-        transition: all 0.2s ease-in-out;
-        background-color: white;
-        cursor: pointer;
-    }
+        .form-select-lg:focus {
+            border-color: #ffc107;
+            box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.25);
+        }
 
-    .form-select-lg:hover {
-        border-color: #ffc107;
-    }
+        .form-select-lg option {
+            padding: 1rem;
+            font-size: 1.1rem;
+        }
 
-    .form-select-lg:focus {
-        border-color: #ffc107;
-        box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.25);
-    }
+        .form-select-lg:disabled {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
 
-    .form-select-lg option {
-        padding: 1rem;
-        font-size: 1.1rem;
-    }
+        /* Custom select arrow */
+        .form-select-lg {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 16px 12px;
+            padding-right: 2.5rem;
+        }
 
-    .form-select-lg:disabled {
-        background-color: #f8f9fa;
-        cursor: not-allowed;
-        opacity: 0.8;
-    }
+        /* Vehicle Preview Enhancement */
+        .vehicle-img-lg {
+            transition: transform 0.3s ease-in-out;
+        }
 
-    /* Custom select arrow */
-    .form-select-lg {
-        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
-        background-repeat: no-repeat;
-        background-position: right 1rem center;
-        background-size: 16px 12px;
-        padding-right: 2.5rem;
-    }
+        .vehicle-img-lg:hover {
+            transform: scale(1.05);
+        }
 
-    /* Vehicle Preview Enhancement */
-    .vehicle-img-lg {
-        transition: transform 0.3s ease-in-out;
-    }
+        .vehicle-details {
+            background-color: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
 
-    .vehicle-img-lg:hover {
-        transform: scale(1.05);
-    }
+        .vehicle-details p {
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+        }
 
-    .vehicle-details {
-        background-color: #f8f9fa;
-        border-radius: 0.5rem;
-        padding: 1rem;
-    }
+        .vehicle-details p:last-child {
+            margin-bottom: 0;
+        }
 
-    .vehicle-details p {
-        margin-bottom: 0.75rem;
-        font-size: 1.1rem;
-    }
-
-    .vehicle-details p:last-child {
-        margin-bottom: 0;
-    }
-
-    .vehicle-icon {
-        width: 24px;
-        height: 24px;
-        object-fit: contain;
-    }
-</style>
+        .vehicle-icon {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+        }
+    </style>
