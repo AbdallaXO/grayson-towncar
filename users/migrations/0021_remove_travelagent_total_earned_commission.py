@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0020_remove_commissionpayout_created_at_and_more'),
+        ("users", "0020_remove_commissionpayout_created_at_and_more"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='travelagent',
-            name='total_earned_commission',
+            model_name="travelagent",
+            name="total_earned_commission",
         ),
     ]

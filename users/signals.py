@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 # ======== FORM EMAIL NOTIFICATIONS ========
 
+
 @receiver(post_save, sender=PartnerForm)
 @receiver(post_save, sender=ContactUsForm)
 def handle_form_submission(sender, instance, created, **kwargs):
@@ -47,11 +48,12 @@ def travel_agent_email(sender, instance, created, **kwargs):
 
 # ======== COMMISSION PAYOUT TRACKING ========
 
+
 @receiver(pre_save, sender=CommissionPayout)
 def track_payout_amount_change(sender, instance, **kwargs):
     """
     Store original amount before save for change detection.
-    
+
     This signal handler runs before a CommissionPayout is saved and:
     1. Ensures payout amounts are never negative
     2. Tracks the previous amount for existing payouts to calculate adjustments
@@ -82,7 +84,7 @@ def track_payout_amount_change(sender, instance, **kwargs):
 def handle_payout_changes(sender, instance, created, **kwargs):
     """
     Update agent's total_paid_commission when payouts are created or updated.
-    
+
     This signal handler runs after a CommissionPayout is saved and:
     1. For new payouts - adds the total amount to the agent's total_paid_commission
     2. For updated payouts - adjusts the agent's total_paid_commission by the difference
@@ -90,37 +92,41 @@ def handle_payout_changes(sender, instance, created, **kwargs):
     with transaction.atomic():
         # Get the agent
         agent = instance.agent
-        
+
         # Determine the amount to adjust
         if created:
             # For new payouts, add the entire amount
             adjustment = instance.total_amount
-            logger.info(f"New payout #{instance.id} created for {agent} with amount ${adjustment}")
+            logger.info(
+                f"New payout #{instance.id} created for {agent} with amount ${adjustment}"
+            )
         elif hasattr(instance, "_old_amount"):
             # For updated payouts, add the difference
             adjustment = instance.total_amount - instance._old_amount
             if adjustment == 0:
                 return  # No change in amount
-            logger.info(f"Payout #{instance.id} updated for {agent}, adjusting by ${adjustment}")
+            logger.info(
+                f"Payout #{instance.id} updated for {agent}, adjusting by ${adjustment}"
+            )
         else:
             # No adjustment needed
             return
-            
+
         # Update the agent's total_paid_commission with safeguard against negative values
         old_paid = agent.total_paid_commission
         new_paid = max(Decimal("0"), old_paid + adjustment)  # Prevent negative values
-        
+
         if new_paid != old_paid + adjustment:
             logger.warning(
                 f"Prevented negative paid commission for {agent}. Calculated: ${old_paid + adjustment}, Set: ${new_paid}"
             )
-        
+
         agent.total_paid_commission = new_paid
-        
+
         logger.info(
             f"Adjusting agent {agent} paid commission from ${old_paid} to ${agent.total_paid_commission}"
         )
-        
+
         # Save agent
         agent.save(update_fields=["total_paid_commission"])
 
@@ -129,7 +135,7 @@ def handle_payout_changes(sender, instance, created, **kwargs):
 def handle_payout_deletion(sender, instance, **kwargs):
     """
     Update agent stats and reservations when a payout is deleted.
-    
+
     This signal handler runs before a CommissionPayout is deleted and:
     1. Marks all related reservations as unpaid
     2. Subtracts the payout amount from the agent's total_paid_commission

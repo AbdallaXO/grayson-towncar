@@ -70,8 +70,6 @@ def with_retries(max_attempts=3, retry_on=(Exception,)):
     return decorator
 
 
-
-
 @with_retries(max_attempts=3, retry_on=(Exception,))
 def create_or_find_travel_agent(travel_agent, use_cache=True):
     """Creates a Travel AGENT OBJECT IN HUBSPOT OR GETS IT IF IT EXISTS"""
@@ -94,7 +92,11 @@ def create_or_find_travel_agent(travel_agent, use_cache=True):
         "filterGroups": [
             {
                 "filters": [
-                    {"propertyName": "email", "operator": "EQ", "value": travel_agent.email}
+                    {
+                        "propertyName": "email",
+                        "operator": "EQ",
+                        "value": travel_agent.email,
+                    }
                 ]
             }
         ]
@@ -115,10 +117,13 @@ def create_or_find_travel_agent(travel_agent, use_cache=True):
             return contact_id
 
         try:
-            first, last = agent.agent_name.strip().split(' ')[0], agent.agent_name.strip().split(' ')[0]
+            first, last = (
+                agent.agent_name.strip().split(" ")[0],
+                agent.agent_name.strip().split(" ")[0],
+            )
         except Exception as e:
             first = agent.agent_name
-            last = ''
+            last = ""
         props = {
             "email": agent.email,
             "firstname": first,

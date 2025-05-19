@@ -98,6 +98,20 @@ class Reservation(models.Model):
     )
     commission_paid = models.BooleanField(default=False)
     commission_paid_at = models.DateTimeField(null=True, blank=True)
+    total_driver_payments = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Sum of all driver payments",
+    )
+    profit_estimate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated profit (total price - driver payments)",
+    )
 
     class Meta:
         indexes = [
@@ -164,6 +178,29 @@ class Reservation(models.Model):
             carseats.append(f"{self.booster_seats} Booster")
         return ", ".join(carseats) if carseats else None
 
+    def calculate_total_driver_payments(self):
+        """
+        Calculate total amount to be paid to drivers
+        """
+        return sum(leg.driver_pay_amount or 0 for leg in self.legs.all())
+
+    def calculate_profit(self):
+        """
+        Calculate profit (total price minus driver payments)
+        """
+        driver_payments = (
+            self.total_driver_payments or self.calculate_total_driver_payments()
+        )
+        return (self.total_price - driver_payments).quantize(Decimal("0.01"))
+
+    def update_profit_calculations(self):
+        """
+        Update stored profit calculations
+        """
+        self.total_driver_payments = self.calculate_total_driver_payments()
+        self.profit_estimate = self.calculate_profit()
+        self.save(update_fields=["total_driver_payments", "profit_estimate"])
+
     def __str__(self):
         """
         Returns a simple string representation, showing the reservation's ID
@@ -204,6 +241,76 @@ class Leg(models.Model):
         max_length=255,
         default="in-progress",
     )
+    driver_pay_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Amount to pay the driver (set by admin)",
+    )
+    revenue_share = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="This leg's portion of the reservation revenue",
+    )
+    profit_estimate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Estimated profit (revenue share - driver payment)",
+    )
+
+    payment_status = models.CharField(
+        max_length=20,
+        choices=[
+            ("unpaid", "Unpaid"),
+            ("paid", "Paid"),
+            ("canceled", "Canceled"),
+        ],
+        default="unpaid",
+    )
+
+    def calculate_revenue_share(self):
+        """
+        Calculate this leg's portion of the reservation total price.
+        """
+        if not self.reservation:
+            return Decimal("0.00")
+
+        # Get total number of legs in this reservation
+        total_legs = self.reservation.legs.count()
+
+        if total_legs == 0:  # Safety check
+            return Decimal("0.00")
+
+        # Calculate leg's share of revenue (total price divided by number of legs)
+        revenue_share = self.reservation.total_price / Decimal(total_legs)
+
+        # Round to 2 decimal places
+        return revenue_share.quantize(Decimal("0.01"))
+
+    def calculate_profit(self):
+        """
+        Calculate profit (leg's revenue share minus driver payment)
+        """
+        revenue = self.revenue_share or self.calculate_revenue_share()
+        driver_payment = self.driver_pay_amount or Decimal("0.00")
+
+        return (revenue - driver_payment).quantize(Decimal("0.01"))
+
+    def save(self, *args, **kwargs):
+        # Calculate and store revenue share if not set
+        if self.revenue_share is None:
+            self.revenue_share = self.calculate_revenue_share()
+
+        # Calculate and store profit estimate if driver payment is set
+        if self.driver_pay_amount is not None:
+            self.profit_estimate = self.calculate_profit()
+
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["pickup_date", "pickup_time"]

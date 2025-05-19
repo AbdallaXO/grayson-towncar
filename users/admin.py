@@ -44,7 +44,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
         ),
         (
             "Payment Information",
-            {"fields": ( "payment_method","payment_info", "commission_rate")},
+            {"fields": ("payment_method", "payment_info", "commission_rate")},
         ),
         (
             "Commission Tracking",
@@ -73,7 +73,6 @@ class TravelAgentAdmin(admin.ModelAdmin):
         return format_html('<a href="{}">{}</a>', url, count)
 
     total_reservations.short_description = "Total Reservations"
-
 
     def total_paid(self, obj):
         return format_html("${}", f"{obj.total_paid_commission:,.2f}")
