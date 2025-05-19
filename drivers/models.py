@@ -12,8 +12,8 @@ class Driver(models.Model):
     )
 
     def get_unpaid_legs(self):
-        """Return all legs that are completed but not paid"""
-        return self.legs.filter(status="completed", payment_status="unpaid")
+        """Return all legs that are unpaid regardless of status"""
+        return self.legs.filter(payment_status="unpaid")
 
     def get_total_unpaid_amount(self):
         """Calculate total unpaid amount for this driver"""
@@ -80,10 +80,16 @@ class DriverPayment(models.Model):
         Create a payment for multiple legs at once
         """
         from django.db import transaction
-
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
         with transaction.atomic():
             # Calculate the total amount
             total_amount = sum(leg.driver_pay_amount or 0 for leg in legs)
+            
+            # Log payment creation
+            logger.info(f"Creating payment for driver {driver} with {len(legs)} legs. Total: ${total_amount}")
 
             # Create the payment
             payment = cls.objects.create(
@@ -94,16 +100,48 @@ class DriverPayment(models.Model):
                 notes=notes,
                 created_by=created_by,
             )
+            
+            logger.info(f"Created payment ID: {payment.id}")
 
             # Create the leg payment records
             for leg in legs:
-                LegPayment.objects.create(
-                    payment=payment, leg=leg, amount=leg.driver_pay_amount or 0
-                )
+                try:
+                    # Log leg details before creating the payment
+                    logger.info(f"Processing leg ID: {leg.id}, Amount: {leg.driver_pay_amount}")
+                    
+                    # Create the leg payment record explicitly
+                    leg_payment = LegPayment(
+                        payment=payment, 
+                        leg=leg, 
+                        amount=leg.driver_pay_amount or 0
+                    )
+                    leg_payment.save()
+                    
+                    logger.info(f"Created LegPayment ID: {leg_payment.id}")
+                    
+                except Exception as e:
+                    logger.error(f"Error creating LegPayment for leg {leg.id}: {e}", exc_info=True)
+                    # Re-raise the exception to trigger transaction rollback
+                    raise
 
                 # Update leg status directly to avoid triggering signals
-                Leg.objects.filter(id=leg.id).update(payment_status="paid")
+                try:
+                    Leg.objects.filter(id=leg.id).update(payment_status="paid")
+                    logger.info(f"Updated leg {leg.id} to paid status")
+                except Exception as e:
+                    logger.error(f"Error updating leg {leg.id} status: {e}", exc_info=True)
+                    raise
 
+            # Verify all LegPayment records were created
+            payment_refresh = cls.objects.get(id=payment.id)
+            leg_payment_count = payment_refresh.leg_payments.count()
+            
+            if leg_payment_count != len(legs):
+                logger.error(f"MISMATCH: Expected {len(legs)} leg payments but found {leg_payment_count}")
+                # This doesn't need to be raised as an exception - just log it
+            else:
+                logger.info(f"Successfully created {leg_payment_count} leg payment records")
+                
             return payment
 
 
