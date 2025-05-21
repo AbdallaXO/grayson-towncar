@@ -11,6 +11,7 @@ from .models import (
     NewsLetter,
     TravelAgent,
     CommissionPayout,
+    Agency
 )
 
 # Register your models here.
@@ -408,3 +409,5 @@ class CommissionPayoutAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("reservations", "agent")
+    
+admin.site.register(Agency)

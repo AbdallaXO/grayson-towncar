@@ -1,0 +1,252 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}Agent Detail - {{ agent.agent_name }}{% endblock %}
+
+{% block content %}
+  <div class="container-fluid mt-4">
+    <div class="row">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>{{ agent.agent_name }}</h1>
+          <div>
+            {% if is_agency_head %}
+              <a href="{% url 'agency_dashboard' %}"
+                 class="btn btn-outline-secondary me-2">Back to Dashboard</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Info -->
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h5 class="mb-0">Agent Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Agency:</div>
+              <div class="col-md-8">{{ agent.agency.name|default:agent.agency_name|default:"Independent" }}</div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Email:</div>
+              <div class="col-md-8">{{ agent.user.email }}</div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Phone:</div>
+              <div class="col-md-8">{{ agent.phone }}</div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Commission Rate:</div>
+              <div class="col-md-8">{{ agent.commission_rate }}%</div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Payment Method:</div>
+              <div class="col-md-8">{{ agent.get_payment_method_display|default:"Not specified" }}</div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Payment Info:</div>
+              <div class="col-md-8">{{ agent.payment_info|default:"Not specified" }}</div>
+            </div>
+            <div class="row mb-2">
+              <div class="col-md-4 font-weight-bold">Last Payment:</div>
+              <div class="col-md-8">{{ agent.last_payment_date|date:"M d, Y"|default:"Never" }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h5 class="mb-0">Commission Summary</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <div class="card bg-light">
+                  <div class="card-body text-center">
+                    <h6 class="card-title">Commission</h6>
+                    <h3 class="text-success">${{ agent.unpaid_commissions }}</h3>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card bg-light">
+                  <div class="card-body text-center">
+                    <h6 class="card-title">Pending</h6>
+                    <h3 class="text-primary">${{ agent.pending_commissions }}</h3>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card bg-light">
+                  <div class="card-body text-center">
+                    <h6 class="card-title">Total Paid</h6>
+                    <h3 class="text-purple">${{ agent.total_paid_commission }}</h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <h6>Reservations by Status</h6>
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Count</th>
+                      <th>Reservation Rate</th>
+                      <th>Commission</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for stat in status_stats %}
+                      <tr>
+                        <td>{{ stat.status|title }}</td>
+                        <td>{{ stat.count }}</td>
+                        <td>${{ stat.total_price|default:"0.00" }}</td>
+                        <td>${{ stat.commission|default:"0.00" }}</td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="4" class="text-center">No reservations found</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs for Reservations & Payouts -->
+    <div class="row">
+      <div class="col-12">
+        <ul class="nav nav-tabs" id="agentTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active"
+                    id="reservations-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#reservations"
+                    type="button"
+                    role="tab"
+                    aria-controls="reservations"
+                    aria-selected="true">Reservations</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link"
+                    id="payouts-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#payouts"
+                    type="button"
+                    role="tab"
+                    aria-controls="payouts"
+                    aria-selected="false">Commission Payouts</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="agentTabsContent">
+          <div class="tab-pane fade show active"
+               id="reservations"
+               role="tabpanel"
+               aria-labelledby="reservations-tab">
+            <div class="card shadow-sm border-top-0 rounded-0 rounded-bottom">
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Trip Type</th>
+                        <th>Total Price</th>
+                        <th>Commission</th>
+                        <th>Status</th>
+                        <th>Commission Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for res in reservations %}
+                        <tr>
+                          <td>{{ res.id }}</td>
+                          <td>{{ res.created_at|date:"M d, Y" }}</td>
+                          <td>{{ res.customer.get_full_name }}</td>
+                          <td>{{ res.trip_type }}</td>
+                          <td>${{ res.total_price }}</td>
+                          <td>${{ res.commission_amount|default:0 }}</td>
+                          <td>
+                            <span class="badge {% if res.status == 'completed' %}bg-success{% elif res.status == 'confirmed' %}bg-primary{% else %}bg-secondary{% endif %}">
+                              {{ res.status|title }}
+                            </span>
+                          </td>
+                          <td>
+                            {% if res.commission_paid %}
+                              <span class="badge bg-success">Paid</span>
+                            {% else %}
+                              <span class="badge bg-danger">Unpaid</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% empty %}
+                        <tr>
+                          <td colspan="8" class="text-center py-4">No reservations found.</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade"
+               id="payouts"
+               role="tabpanel"
+               aria-labelledby="payouts-tab">
+            <div class="card shadow-sm border-top-0 rounded-0 rounded-bottom">
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Period</th>
+                        <th>Amount</th>
+                        <th>Reservations</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for payout in payouts %}
+                        <tr>
+                          <td>{{ payout.paid_at|date:"M d, Y" }}</td>
+                          <td>{{ payout.payout_period_start|date:"M d" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
+                          <td>${{ payout.total_amount }}</td>
+                          <td>{{ payout.reservations.count }}</td>
+                        </tr>
+                      {% empty %}
+                        <tr>
+                          <td colspan="4" class="text-center py-4">No commission payouts found.</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+{% endblock extra_js %}

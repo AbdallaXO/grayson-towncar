@@ -1,0 +1,190 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}Agency Dashboard - {{ agency.name }}{% endblock %}
+
+{% block content %}
+  <div class="container-fluid mt-4">
+    <div class="row">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>{{ agency.name }} Dashboard</h1>
+          <div>
+            <a href="{% url 'agency_agents_list' agency.id %}"
+               class="btn btn-outline-primary">View All Agents</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Agents</h5>
+            <h2 class="card-text">{{ agents.count }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Unpaid Commissions</h5>
+            <h2 class="card-text text-success">${{ total_unpaid | floatformat:2 }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Pending Commissions</h5>
+            <h2 class="card-text text-primary">${{ total_pending | floatformat:2 }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Total Paid</h5>
+            <h2 class="card-text text-purple">${{ total_paid }}</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents Table -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h5 class="mb-0">Agents Overview</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Unpaid</th>
+                    <th>Pending</th>
+                    <th>Total Paid</th>
+                    <th>Reservations</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for agent_stat in agents_with_stats %}
+                    <tr>
+                      <td>{{ agent_stat.agent.agent_name }}</td>
+                      <td>{{ agent_stat.agent.user.email }}</td>
+                      <td>{{ agent_stat.agent.phone }}</td>
+                      <td class="text-success">${{ agent_stat.unpaid }}</td>
+                      <td class="text-primary">${{ agent_stat.pending }}</td>
+                      <td class="text-purple">${{ agent_stat.paid }}</td>
+                      <td>{{ agent_stat.reservation_count }}</td>
+                      <td>
+                        <a href="{% url 'agent_detail' agent_stat.agent.id %}"
+                           class="btn btn-sm btn-outline-primary">View Details</a>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="8" class="text-center py-4">No agents found for this agency.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Reservations and Payouts -->
+    <div class="row">
+      <div class="col-md-6 mb-4">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h5 class="mb-0">Recent Reservations</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Customer</th>
+                    <th>Agent</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for reservation in recent_reservations %}
+                    <tr>
+                      <td>{{ reservation.created_at|date:"M d, Y" }}</td>
+                      <td>{{ reservation.customer.get_full_name }}</td>
+                      <td>{{ reservation.travel_agent.agent_name }}</td>
+                      <td>${{ reservation.total_price }}</td>
+                      <td>
+                        <span class="badge {% if reservation.status == 'completed' %}bg-success{% elif reservation.status == 'confirmed' %}bg-primary{% else %}bg-secondary{% endif %}">
+                          {{ reservation.status|title }}
+                        </span>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="5" class="text-center py-4">No recent reservations found.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6 mb-4">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h5 class="mb-0">Recent Commission Payouts</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Agent</th>
+                    <th>Period</th>
+                    <th>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for payout in recent_payouts %}
+                    <tr>
+                      <td>{{ payout.paid_at|date:"M d, Y" }}</td>
+                      <td>{{ payout.agent.agent_name }}</td>
+                      <td>{{ payout.payout_period_start|date:"M d" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
+                      <td>${{ payout.total_amount }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="4" class="text-center py-4">No recent payouts found.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block newsletter %}
+{% endblock newsletter %}
