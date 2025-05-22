@@ -1,4 +1,5 @@
 {% extends 'main.html' %}
+{% load quote_tags %}
 {% load static %}
 {% load seo_tags %}
 {% block meta %}
@@ -56,8 +57,6 @@
         </div>
       </div>
     </section>
-
-    <!-- Modern Floating Quote Button -->
 
     <!-- Trust Badges Section - NEW -->
     <section class="trust-badges py-3 bg-white border-bottom">
@@ -173,97 +172,14 @@
       </div>
     </section>
 
+    
     <section class="py-5 position-relative hero-section text-dark" aria-labelledby="quote-heading">
       <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
       <div class="container position-relative">
         <div class="row justify-content-center">
-          <div class="col-12 col-lg-10 text-center">
-            <!-- Instant‑Quote Widget -->
-            <div class="text-center mb-4">
-              <h2 id="quote-heading" class="display-5 fw-bold mb-2">Get Your Instant Quote</h2>
-              <p class="lead text-muted">Compare rates for your perfect ride in seconds</p>
-            </div>
-            <form id="quote-form" class="quote-box shadow p-4 p-md-5 mx-auto bg-white bg-opacity-75 rounded-3" style="max-width:800px">
-              <div class="row g-3">
-                <!-- Vehicle Selection Column -->
-                <div class="col-12 col-md-6">
-                  <label class="form-label fw-bold" for="vehicle">Select Vehicle</label>
-                  <select id="vehicle" class="form-select form-select-lg" required>
-                    <option value="" disabled selected>Choose your vehicle</option>
-                    {% for v in vehicles %}
-                      <option value="{{ v.id }}" data-image="{{ v.image.url }}" data-passengers="{{ v.capacity }}" data-luggage="{{ v.luggage_capacity }}" data-carseats="{{ v.carseats_display }}">{{ v.get_vehicle_type_display }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-
-                <!-- Route Selection Column -->
-                <div class="col-12 col-md-6">
-                  <label class="form-label fw-bold" for="route">Select Route</label>
-                  <select id="route" class="form-select form-select-lg" disabled required>
-                    <option value="" selected>Choose your route</option>
-                  </select>
-                </div>
-
-                <!-- Vehicle Preview -->
-                <div id="vehicle-preview" class="col-12 mt-4 d-none">
-                  <div class="card border-0 shadow-sm">
-                    <div class="row g-0">
-                      <div class="col-md-5 bg-light p-4 text-center">
-                        <img id="vehicle-image" src="" alt="Selected Vehicle" class="img-fluid img-zoom mx-auto vehicle-img-lg" style="max-height: 300px;
-                                    width: auto" />
-                      </div>
-                      <div class="col-md-7">
-                        <div class="card-body p-4">
-                          <h5 id="vehicle-name" class="card-title fw-bold mb-3"></h5>
-                          <div class="vehicle-details">
-                            <p class="mb-2 text-muted d-flex align-items-center">
-                              <img src="{% static 'images/passengers.webp' %}" class="me-2 vehicle-icon" alt="Passengers icon" aria-hidden="true" width="20" height="20" />
-                              <span id="passenger-capacity"></span>
-                            </p>
-                            <p class="mb-2 text-muted d-flex align-items-center">
-                              <img src="{% static 'images/luggage.webp' %}" class="me-2 vehicle-icon" alt="Luggage icon" aria-hidden="true" width="20" height="20" />
-                              <span id="luggage-capacity"></span>
-                            </p>
-                            <p class="mb-2 text-muted d-flex align-items-center">
-                              <img src="{% static 'images/carseat.webp' %}" class="me-2 vehicle-icon" alt="Car Seats icon" aria-hidden="true" width="20" height="20" />
-                              <span id="carseats-display"></span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Trip Type -->
-                <div class="col-12">
-                  <label class="form-label fw-bold d-block mb-2">Trip Type</label>
-                  <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="trip" id="ow" value="1" checked />
-                    <label class="btn btn-outline-dark btn-lg" for="ow"><i class="bi bi-arrow-right-circle me-2"></i>One Way</label>
-                    <input type="radio" class="btn-check" name="trip" id="rt" value="2" />
-                    <label class="btn btn-outline-dark btn-lg" for="rt"><i class="bi bi-arrow-repeat me-2"></i>Round Trip</label>
-                  </div>
-                </div>
-
-                <!-- Button -->
-                <div class="col-12">
-                  <button id="quote-btn" type="submit" class="btn btn-outline-dark btn-lg w-100 fw-bold text-dark py-3" disabled><i class="bi bi-calculator me-2"></i>Calculate Price</button>
-                </div>
-              </div>
-              <div id="quote-display-wrapper" class="mt-4 text-center">
-                <div class="rounded-3 p-4 d-none" id="quote-display-container" style="background-color: rgba(10, 20, 40, 0.1)">
-                  <span class="text-muted d-block mb-1">Your Total Price</span>
-                  <span id="quote-display" class="display-3 fw-bold text-dark"></span>
-                  <small id="quote-note" class="text-muted d-none d-block mt-3">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
+          {% quote_form %}
+          
     </section>
-
     <!-- Most Popular Services Section - RESTRUCTURED -->
     <section class="most-popular-services py-5 bg-light bg-opacity-50" aria-labelledby="popular-services-heading">
       <div class="container px-4 py-4">
@@ -886,147 +802,10 @@
 
     {% include 'call-to-action.html' %}
   </main>
+{% endblock %}
 
-  <script id="rate-data" type="application/json">
-      {
-          %
-          if rates_json %
-      } {
-          {
-              rates_json | safe
-          }
-      } {
-          %
-          else %
-      } {} {
-          %
-          endif %
-      }
-  </script>
-  <!-- Load JavaScript -->
-  <script>
-      const rateData = JSON.parse('{{ rates_json|escapejs }}');
-      const vehicleSel = document.getElementById('vehicle');
-      const routeSel = document.getElementById('route');
-      const quoteBtn = document.getElementById('quote-btn');
-      const displayEl = document.getElementById('quote-display');
-      const displayContainer = document.getElementById('quote-display-container');
-      const noteEl = document.getElementById('quote-note');
-      const tripRadios = document.querySelectorAll('input[name="trip"]');
-
-      function updateQuoteDisplay() {
-          const vehicleId = vehicleSel.value;
-          const routeId = routeSel.value;
-          const trip = document.querySelector('input[name="trip"]:checked').value;
-
-          if (vehicleId && routeId && rateData[vehicleId] && rateData[vehicleId][routeId]) {
-              const r = rateData[vehicleId][routeId];
-              const price = trip === '1' ? r.oneway : r.round;
-              displayEl.textContent = '$' + price;
-              displayContainer.classList.remove('d-none');
-              noteEl.classList.remove('d-none');
-              quoteBtn.disabled = false;
-              quoteBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Reserve Now';
-              quoteBtn.classList.add('bg-button-dark', 'text-white');
-              quoteBtn.onclick = function(e) {
-                  e.preventDefault();
-                  window.location = r.reserve_url + '?round=' + trip;
-              };
-          } else {
-              resetQuote();
-          }
-      }
-
-      function resetQuote() {
-          displayEl.textContent = '';
-          displayContainer.classList.add('d-none');
-          noteEl.classList.add('d-none');
-          quoteBtn.disabled = true;
-          quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Calculate Price';
-          quoteBtn.classList.remove('bg-button-dark', 'text-white');
-          quoteBtn.onclick = null;
-      }
-
-      vehicleSel.addEventListener('change', function() {
-          const selectedOption = this.options[this.selectedIndex];
-          const previewDiv = document.getElementById('vehicle-preview');
-          const vehicleImage = document.getElementById('vehicle-image');
-          const vehicleName = document.getElementById('vehicle-name');
-          const passengerCapacity = document.getElementById('passenger-capacity');
-          const luggageCapacity = document.getElementById('luggage-capacity');
-          const carSeatsDisplay = document.getElementById('carseats-display');
-
-          if (this.value) {
-              previewDiv.classList.remove('d-none');
-              let imageUrl = selectedOption.dataset.image;
-              if (!imageUrl.startsWith('http')) {
-                  imageUrl = window.location.origin + imageUrl;
-              }
-              vehicleImage.src = imageUrl;
-              vehicleName.textContent = selectedOption.text;
-              passengerCapacity.textContent = `${selectedOption.dataset.passengers} Passengers`;
-              luggageCapacity.textContent = `${selectedOption.dataset.luggage} Suitcases`;
-              carSeatsDisplay.textContent = `${selectedOption.dataset.carseats || 'N/A'} Car Seats`;
-          } else {
-              previewDiv.classList.add('d-none');
-          }
-          routeSel.innerHTML = '<option value="" selected>Choose your route</option>';
-          const routes = rateData[vehicleSel.value] || {};
-          Object.values(routes).forEach(function(r) {
-              routeSel.insertAdjacentHTML('beforeend',
-                  '<option value="' + r.id + '">' + r.name + '</option>'
-              );
-          });
-          routeSel.disabled = !vehicleSel.value;
-          routeSel.value = '';
-          resetQuote();
-      });
-
-      routeSel.addEventListener('change', updateQuoteDisplay);
-      tripRadios.forEach(function(radio) {
-          radio.addEventListener('change', updateQuoteDisplay);
-      });
-
-      // Prevent form submit from updating the quote again
-      document.getElementById('quote-form').addEventListener('submit', function(e) {
-          e.preventDefault();
-      });
-
-      // On page load, ensure display is hidden
-      resetQuote();
-
-      // Initialize floating quote button
-      document.addEventListener('DOMContentLoaded', function() {
-          const floatingBtn = document.getElementById('floating-quote-btn');
-          const heroSection = document.querySelector('.hero');
-
-          if (floatingBtn && heroSection) {
-              window.addEventListener('scroll', () => {
-                  const heroBottom = heroSection.offsetHeight;
-                  if (window.scrollY > heroBottom) {
-                      floatingBtn.classList.add('visible');
-                  } else {
-                      floatingBtn.classList.remove('visible');
-                  }
-              });
-          }
-      });
-
-      // Smooth scroll to quote section
-      function scrollToQuote() {
-          const quoteSection = document.querySelector('section[aria-labelledby="quote-heading"]');
-          if (quoteSection) {
-              const offset = 100; // Offset to show the heading
-              const elementPosition = quoteSection.getBoundingClientRect().top;
-              const offsetPosition = elementPosition + window.pageYOffset - offset;
-
-              window.scrollTo({
-                  top: offsetPosition,
-                  behavior: 'smooth'
-              });
-          }
-      }
-  </script>
+{% block extra_js %}
+  <script src="{% static 'js/quote_form.js' %}"></script>
 {% endblock %}
 
 <style>

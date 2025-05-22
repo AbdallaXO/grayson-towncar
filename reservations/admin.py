@@ -12,7 +12,7 @@ from django.contrib.admin import SimpleListFilter
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 
-from .models import Customer, Reservation, Leg, Flight
+from .models import Customer, Reservation, Leg, Flight, Lead
 
 
 # ─── Import / Export resources ──────────────────────────────────────────
@@ -195,7 +195,7 @@ class FirstPickupDateFilter(SimpleListFilter):
             return qs.filter(earliest_leg_date__isnull=True)
         return qs
 
-
+admin.site.register(Lead)
 class DriverAssignmentFilter(SimpleListFilter):
     title = "driver assignment"
     parameter_name = "driver_status"

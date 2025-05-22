@@ -20,6 +20,9 @@ import json
 from users.models import TravelAgent
 import logging
 from .hubspot_service import sync_reservation_to_hubspot
+from django.http import JsonResponse
+from .models import Lead
+from .forms import LeadForm
 
 logger = logging.getLogger(__name__)
 
@@ -169,3 +172,172 @@ def faqs(request):
 
 def tos(request):
     return render(request, "reservations/tos.html")
+
+
+def test_quote(request):
+    """Test view for location-based quote form with lead capture"""
+    vehicles = Vehicle.objects.prefetch_related(
+        Prefetch(
+            "rates",
+            queryset=Rate.objects.select_related(
+                "route", "route__origin", "route__destination"
+            ),
+        )
+    ).all()
+    
+    # Get all unique locations from routes
+    locations = set()
+    for vehicle in vehicles:
+        for rate in vehicle.rates.all():
+            locations.add(rate.route.origin)
+            locations.add(rate.route.destination)
+    
+    # Create rates map with location pairs as keys
+    rates_json: dict[str, dict[str, dict]] = {}
+    for v in vehicles:
+        routes: dict[str, dict] = {}
+        for r in v.rates.all():
+            # Create a key that's direction-agnostic by sorting origin and destination IDs
+            location_ids = sorted([str(r.route.origin.id), str(r.route.destination.id)])
+            key = f"{location_ids[0]}-{location_ids[1]}"
+            
+            routes[key] = {
+                "id": r.id,
+                "name": str(r.route),
+                "origin": str(r.route.origin),
+                "destination": str(r.route.destination),
+                "oneway": float(r.oneway_price),
+                "round": float(r.round_trip_price),
+                "reserve_url": reverse("reserve", args=[r.id]),
+            }
+        rates_json[str(v.id)] = routes
+
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            
+            # Create form instance with the submitted data
+            form = LeadForm({
+                'first_name': data['first_name'],
+                'last_name': data['last_name'],
+                'email': data['email'],
+                'phone': data['phone']
+            })
+            
+            if form.is_valid():
+                # Create lead instance but don't save yet
+                lead = form.save(commit=False)
+                
+                # Add additional fields
+                lead.vehicle_id = data.get('vehicle_id')
+                lead.pickup_location = data.get('pickup_location')
+                lead.dropoff_location = data.get('dropoff_location')
+                lead.trip_type = 'oneway' if data.get('trip_type') == '1' else 'roundtrip'
+                lead.estimated_price = data.get('estimated_price')
+                
+                # Save the lead
+                lead.save()
+                
+                # Log the lead creation
+                logger.info(f"New lead created: {lead}")
+                
+                return JsonResponse({
+                    "success": True,
+                    "lead_id": lead.id
+                })
+            else:
+                return JsonResponse({
+                    "success": False,
+                    "errors": form.errors
+                }, status=400)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+        except Exception as e:
+            logger.error(f"Error creating lead: {str(e)}")
+            return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    context = {
+        "vehicles": vehicles,
+        "locations": sorted(locations, key=lambda x: x.name),
+        "rates_json": json.dumps(rates_json),
+        "form": LeadForm()  # Add empty form to context
+    }
+    return render(request, "reservations/test_quote.html", context)
+
+
+# reservations/views.py (add this view to your existing views.py)
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.utils.decorators import method_decorator
+from django.views import View
+
+logger = logging.getLogger(__name__)
+
+@method_decorator(csrf_exempt, name='dispatch')
+class QuoteFormHandlerView(View):
+    """
+    Handles AJAX POST requests from quote forms created with the quote_form template tag.
+    This view processes lead creation and returns JSON responses.
+    """
+    
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            
+            # Create form instance with the submitted data
+            form = LeadForm({
+                'first_name': data.get('first_name', ''),
+                'last_name': data.get('last_name', ''),
+                'email': data.get('email', ''),
+                'phone': data.get('phone', '')
+            })
+            
+            if form.is_valid():
+                # Create lead instance but don't save yet
+                lead = form.save(commit=False)
+                
+                # Add additional fields
+                lead.vehicle_id = data.get('vehicle_id')
+                lead.pickup_location = data.get('pickup_location')
+                lead.dropoff_location = data.get('dropoff_location')
+                lead.trip_type = 'oneway' if data.get('trip_type') == '1' else 'roundtrip'
+                lead.estimated_price = data.get('estimated_price')
+                
+                # Save the lead
+                lead.save()
+                
+                # Log the lead creation
+                logger.info(f"New lead created: {lead}")
+                
+                return JsonResponse({
+                    "success": True,
+                    "lead_id": lead.id
+                })
+            else:
+                return JsonResponse({
+                    "success": False,
+                    "errors": form.errors
+                }, status=400)
+                
+        except json.JSONDecodeError:
+            return JsonResponse({
+                "success": False, 
+                "error": "Invalid JSON data"
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Error creating lead: {str(e)}")
+            return JsonResponse({
+                "success": False, 
+                "error": str(e)
+            }, status=500)
+    
+    def get(self, request):
+        """Handle GET requests (not allowed for this endpoint)"""
+        return JsonResponse({
+            "success": False,
+            "error": "Only POST requests are allowed"
+        }, status=405)
+
+# Convenience function-based view wrapper
+quote_form_handler = QuoteFormHandlerView.as_view()

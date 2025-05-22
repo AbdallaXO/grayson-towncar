@@ -1,7 +1,7 @@
 # reservations/forms.py
 
 from django import forms
-from .models import Reservation, Customer, Leg, Flight
+from .models import Reservation, Customer, Leg, Flight, Lead
 from django.utils import timezone
 from django.db.models import Q
 from typing import override
@@ -125,7 +125,7 @@ class ReservationForm(forms.ModelForm):
             ),
         }
         help_texts = {
-            "special_requests": "Optional. We’ll do our best to accommodate. ",
+            "special_requests": "Optional. We'll do our best to accommodate. ",
             "needs_carseat": "check this if you would like any carseats or boosters",
         }
         labels = {
@@ -227,3 +227,58 @@ class ReservationAdminForm(forms.ModelForm):
     class Meta:
         model = Reservation
         fields = "__all__"
+
+
+class LeadForm(forms.ModelForm):
+    class Meta:
+        model = Lead
+        fields = ['first_name', 'last_name', 'email', 'phone']
+        widgets = {
+            'first_name': forms.TextInput(attrs={
+                'class': 'form-control form-control-lg bg-white',
+                'placeholder': 'First Name',
+                'required': True,
+                'minlength': '2',
+                'maxlength': '50'
+            }),
+            'last_name': forms.TextInput(attrs={
+                'class': 'form-control form-control-lg bg-white',
+                'placeholder': 'Last Name',
+                'required': True,
+                'minlength': '2',
+                'maxlength': '50'
+            }),
+            'email': forms.EmailInput(attrs={
+                'class': 'form-control form-control-lg bg-white',
+                'placeholder': 'Email Address',
+                'required': True
+            }),
+            'phone': forms.TextInput(attrs={
+                'class': 'form-control form-control-lg bg-white',
+                'placeholder': 'Phone Number',
+                'required': True,
+                'minlength': '10',
+                'maxlength': '20'
+            })
+        }
+        error_messages = {
+            'first_name': {
+                'required': 'Please enter your first name.',
+                'min_length': 'First name must be at least 2 characters.',
+                'max_length': 'First name cannot exceed 50 characters.'
+            },
+            'last_name': {
+                'required': 'Please enter your last name.',
+                'min_length': 'Last name must be at least 2 characters.',
+                'max_length': 'Last name cannot exceed 50 characters.'
+            },
+            'email': {
+                'required': 'Please enter your email address.',
+                'invalid': 'Please enter a valid email address.'
+            },
+            'phone': {
+                'required': 'Please enter your phone number.',
+                'min_length': 'Phone number must be at least 10 digits.',
+                'max_length': 'Phone number cannot exceed 20 digits.'
+            }
+        }
