@@ -3,48 +3,59 @@
 
 <div class="quote-form-container">
   <div class="card shadow-lg border-0">
-    <div class="card-body p-3 p-md-4">
-      <form id="{{ form_id }}" class="quote-form needs-validation" novalidate data-endpoint="{{ quote_endpoint_url }}">
-        <div class="row g-3 g-md-4">
+    <div class="card-body p-2">
+      <form id="{{ form_id }}"
+            class="quote-form needs-validation"
+            novalidate
+            data-endpoint="{{ quote_endpoint_url }}">
+        <div class="row g-2">
           <!-- Trip Details -->
           <div class="col-12 col-lg-6">
             <div class="card border-0 bg-light h-100">
-              <div class="card-body p-3">
-                <h5 class="card-title mb-3 d-flex align-items-center fw-bold">
+              <div class="card-body p-2">
+                <h5 class="card-title mb-2 d-flex align-items-center fw-bold small">
                   <i class="bi bi-geo-alt-fill text-dark me-2"></i>
                   Trip Details
                   <span class="text-danger ms-1">*</span>
                 </h5>
 
-                <div class="mb-3">
-                  <label for="pickup-{{ form_id }}" class="form-label small fw-semibold">Pickup Location <span class="text-danger">*</span></label>
-                  <select class="form-select bg-white pickup-select" id="pickup-{{ form_id }}" required>
+                <div class="mb-2">
+                  <label for="pickup-{{ form_id }}" class="form-label small fw-semibold mb-1">
+                    Pickup Location <span class="text-danger">*</span>
+                  </label>
+                  <select class="form-select form-select-sm bg-white pickup-select"
+                          id="pickup-{{ form_id }}"
+                          required>
                     <option value="">Select Pickup Location</option>
-                    {% for location in locations %}
-                      <option value="{{ location.id }}">{{ location.name }}</option>
-                    {% endfor %}
+                    {% for location in locations %}<option value="{{ location.id }}">{{ location.name }}</option>{% endfor %}
                   </select>
                 </div>
 
-                <div class="mb-3">
-                  <label for="dropoff-{{ form_id }}" class="form-label small fw-semibold">Dropoff Location <span class="text-danger">*</span></label>
-                  <select class="form-select bg-white dropoff-select" id="dropoff-{{ form_id }}" required>
+                <div class="mb-2">
+                  <label for="dropoff-{{ form_id }}" class="form-label small fw-semibold mb-1">
+                    Dropoff Location <span class="text-danger">*</span>
+                  </label>
+                  <select class="form-select form-select-sm bg-white dropoff-select"
+                          id="dropoff-{{ form_id }}"
+                          required>
                     <option value="">Select Dropoff Location</option>
-                    {% for location in locations %}
-                      <option value="{{ location.id }}">{{ location.name }}</option>
-                    {% endfor %}
+                    {% for location in locations %}<option value="{{ location.id }}">{{ location.name }}</option>{% endfor %}
                   </select>
                 </div>
 
-                <div class="mb-3">
-                  <label for="vehicle-{{ form_id }}" class="form-label small fw-semibold">Vehicle Type <span class="text-danger">*</span></label>
-                  <select class="form-select bg-white vehicle-select" id="vehicle-{{ form_id }}" required>
+                <div class="mb-2">
+                  <label for="vehicle-{{ form_id }}" class="form-label small fw-semibold mb-1">
+                    Vehicle Type <span class="text-danger">*</span>
+                  </label>
+                  <select class="form-select form-select-sm bg-white vehicle-select"
+                          id="vehicle-{{ form_id }}"
+                          required>
                     <option value="">Select Vehicle</option>
                     {% for vehicle in vehicles %}
-                      <option value="{{ vehicle.id }}" 
-                              data-image="{{ vehicle.image.url }}" 
-                              data-passengers="{{ vehicle.capacity }}" 
-                              data-luggage="{{ vehicle.luggage_capacity }}" 
+                      <option value="{{ vehicle.id }}"
+                              data-image="{{ vehicle.image.url }}"
+                              data-passengers="{{ vehicle.capacity }}"
+                              data-luggage="{{ vehicle.luggage_capacity }}"
                               data-carseats="{{ vehicle.carseats_capacity }}">
                         {{ vehicle.get_vehicle_type_display }}
                       </option>
@@ -53,26 +64,31 @@
                 </div>
 
                 <div class="mb-0">
-                  <label class="form-label  fw-semibold mb-2">Trip Type</label>
-                  <div class="trip-type-selector d-flex gap-2">
-                    <input type="radio" class="btn-check trip-radio" name="trip-{{ form_id }}" id="oneway-{{ form_id }}" value="1" checked />
-                    <label class="btn btn-outline-dark flex-grow-1 d-flex align-items-center justify-content-center gap-2" for="oneway-{{ form_id }}">
+                  <label class="form-label small fw-semibold mb-1">Trip Type</label>
+                  <div class="trip-type-selector d-flex gap-1">
+                    <input type="radio"
+                           class="btn-check trip-radio"
+                           name="trip-{{ form_id }}"
+                           id="oneway-{{ form_id }}"
+                           value="1"
+                           checked />
+                    <label class="btn btn-sm btn-outline-dark flex-grow-1 d-flex align-items-center justify-content-center gap-1"
+                           for="oneway-{{ form_id }}">
                       <i class="bi bi-arrow-right"></i>
                       <span>One Way</span>
                     </label>
 
-                    <input type="radio" class="btn-check trip-radio" name="trip-{{ form_id }}" id="roundtrip-{{ form_id }}" value="2" />
-                    <label class="btn btn-outline-dark flex-grow-1 d-flex align-items-center justify-content-center gap-2" for="roundtrip-{{ form_id }}">
+                    <input type="radio"
+                           class="btn-check trip-radio"
+                           name="trip-{{ form_id }}"
+                           id="roundtrip-{{ form_id }}"
+                           value="2" />
+                    <label class="btn btn-sm btn-outline-dark flex-grow-1 d-flex align-items-center justify-content-center gap-1"
+                           for="roundtrip-{{ form_id }}">
                       <i class="bi bi-arrow-repeat"></i>
                       <span>Round Trip</span>
                     </label>
                   </div>
-                </div>
-
-                <!-- Updated note to generalize uniform rates for specific areas -->
-                <div class="alert alert-success mt-3" role="alert">
-                  <i class="bi bi-info-circle me-2"></i>
-                  <strong>Note:</strong> Locations within the same area, such as Disney properties, Universal Studios, or other grouped locations, share the same rates. Select any location within the area to get an accurate quote.
                 </div>
               </div>
             </div>
@@ -81,35 +97,38 @@
           <!-- Vehicle Preview -->
           <div class="col-12 col-lg-6">
             <div class="card border-0 bg-light h-100 d-none vehicle-preview">
-              <div class="card-body p-3 text-center">
-                <h5 class="card-title mb-3 d-flex align-items-center justify-content-center">
+              <div class="card-body p-2 text-center">
+                <h5 class="card-title mb-2 d-flex align-items-center justify-content-center small">
                   <i class="bi bi-car-front-fill text-dark me-2"></i>
                   Vehicle Details
                 </h5>
 
-                <div class="mb-3">
-                  <img class="vehicle-image img-fluid rounded shadow-sm" src="" alt="Vehicle Preview" style="max-height: 250px;"/>
+                <div class="mb-2">
+                  <img class="vehicle-image img-fluid rounded shadow-sm"
+                       src=""
+                       alt="Vehicle Preview"
+                       style="max-height: 150px" />
                 </div>
 
-                <h6 class="vehicle-name mb-3 fw-semibold"></h6>
+                <h6 class="vehicle-name mb-2 fw-semibold small"></h6>
 
                 <div class="row text-start">
-                  <div class="col-12 mb-2">
+                  <div class="col-12 mb-1">
                     <small class="d-flex justify-content-between">
                       <span><i class="bi bi-people-fill text-dark me-2"></i>Passengers:</span>
-                      <span class="passenger-capacity fw-semibold fs-6"></span>
+                      <span class="passenger-capacity fw-semibold"></span>
                     </small>
                   </div>
-                  <div class="col-12 mb-2">
+                  <div class="col-12 mb-1">
                     <small class="d-flex justify-content-between">
                       <span><i class="bi bi-suitcase-fill text-dark me-2"></i>Luggage:</span>
-                      <span class="luggage-capacity fw-semibold fs-6"></span>
+                      <span class="luggage-capacity fw-semibold"></span>
                     </small>
                   </div>
                   <div class="col-12">
                     <small class="d-flex justify-content-between">
                       <span><i class="bi bi-shield-fill-check text-dark me-2"></i>Child Seats:</span>
-                      <span class="carseats-display fw-semibold fs-6"></span>
+                      <span class="carseats-display fw-semibold"></span>
                     </small>
                   </div>
                 </div>
@@ -117,42 +136,69 @@
             </div>
 
             <!-- Placeholder when no vehicle selected -->
-            <div class="card border-0  h-5 vehicle-placeholder">
-              <div class="card-body p-3 d-flex align-items-center justify-content-center">
+            <div class="card border-0 h-100 vehicle-placeholder">
+              <div class="card-body p-2 d-flex align-items-center justify-content-center">
                 <div class="text-center text-muted">
-                  <i class="bi bi-car-front display-1 opacity-100"></i>
-                  <p class="mb-0 fw-semibold">Select a Vehicle to see details</p>
+                  <p class="mb-0 fw-semibold small">Select a Vehicle to see details</p>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Contact Information -->
-          <div class="col-md">
+          <div class="col-12">
             <div class="card border-0 bg-light">
-              <div class="card-body p-3">
-                <h5 class="card-title mb-3 d-flex align-items-center fw-bold">
+              <div class="card-body p-2">
+                <h5 class="card-title mb-2 d-flex align-items-center fw-bold small">
                   <i class="bi bi-person-fill text-dark me-2"></i>
                   Your Information
                   <span class="text-danger ms-1">*</span>
                 </h5>
 
-                <div class="row">
-                  <div class="col-6 mb-2">
-                    <label for="{{ form.first_name.id_for_label }}-{{ form_id }}" class="form-label  fw-semibold">First Name<span class="text-danger">*</span></label>
-                    <input type="text" class="form-control form-field" id="{{ form.first_name.id_for_label }}-{{ form_id }}" name="first_name" required>
-                  </div>
-                  <div class="col-6 mb-2">
-                    <label for="{{ form.last_name.id_for_label }}-{{ form_id }}" class="form-label  fw-semibold">Last Name<span class="text-danger">*</span></label>
-                    <input type="text" class="form-control form-field" id="{{ form.last_name.id_for_label }}-{{ form_id }}" name="last_name" required>
+                <div class="row g-2">
+                  <div class="col-6">
+                    <label for="{{ form.first_name.id_for_label }}-{{ form_id }}"
+                           class="form-label small fw-semibold mb-1">
+                      First Name<span class="text-danger">*</span>
+                    </label>
+                    <input type="text"
+                           class="form-control form-control-sm form-field"
+                           id="{{ form.first_name.id_for_label }}-{{ form_id }}"
+                           name="first_name"
+                           required>
                   </div>
                   <div class="col-6">
-                    <label for="{{ form.email.id_for_label }}-{{ form_id }}" class="form-label  fw-semibold">Email<span class="text-danger">*</span></label>
-                    <input type="email" class="form-control form-field" id="{{ form.email.id_for_label }}-{{ form_id }}" name="email" required>
+                    <label for="{{ form.last_name.id_for_label }}-{{ form_id }}"
+                           class="form-label small fw-semibold mb-1">
+                      Last Name<span class="text-danger">*</span>
+                    </label>
+                    <input type="text"
+                           class="form-control form-control-sm form-field"
+                           id="{{ form.last_name.id_for_label }}-{{ form_id }}"
+                           name="last_name"
+                           required>
                   </div>
                   <div class="col-6">
-                    <label for="{{ form.phone.id_for_label }}-{{ form_id }}" class="form-label  fw-semibold">Phone Number<span class="text-danger">*</span></label>
-                    <input type="tel" class="form-control form-field" id="{{ form.phone.id_for_label }}-{{ form_id }}" name="phone" required>
+                    <label for="{{ form.email.id_for_label }}-{{ form_id }}"
+                           class="form-label small fw-semibold mb-1">
+                      Email<span class="text-danger">*</span>
+                    </label>
+                    <input type="email"
+                           class="form-control form-control-sm form-field"
+                           id="{{ form.email.id_for_label }}-{{ form_id }}"
+                           name="email"
+                           required>
+                  </div>
+                  <div class="col-6">
+                    <label for="{{ form.phone.id_for_label }}-{{ form_id }}"
+                           class="form-label small fw-semibold mb-1">
+                      Phone Number<span class="text-danger">*</span>
+                    </label>
+                    <input type="tel"
+                           class="form-control form-control-sm form-field"
+                           id="{{ form.phone.id_for_label }}-{{ form_id }}"
+                           name="phone"
+                           required>
                   </div>
                 </div>
               </div>
@@ -161,7 +207,7 @@
 
           <!-- Submit Button -->
           <div class="col-12">
-            <button type="submit" class="btn btn-dark btn-lg w-100 fw-semibold quote-btn">
+            <button type="submit" class="btn btn-dark btn-sm w-100 fw-semibold quote-btn">
               <i class="bi bi-calculator me-2"></i>Check Prices & Availability
             </button>
           </div>
@@ -169,29 +215,32 @@
       </form>
 
       <!-- Quote Results -->
-      <div class="quote-display-wrapper mt-4">
-        <div class="rounded-3 p-4 d-none border quote-display-container" style="background: linear-gradient(135deg, rgba(10, 20, 40, 0.05) 0%, rgba(25, 135, 84, 0.05) 100%);">
+      <div class="quote-display-wrapper mt-3">
+        <div class="rounded-3 p-3 d-none border quote-display-container"
+             style="background: linear-gradient(135deg, rgba(10, 20, 40, 0.05) 0%, rgba(25, 135, 84, 0.05) 100%)">
           <div class="text-center">
-            <span class="text-muted d-block mb-2 small">Your Total Price</span>
-            <span class="quote-display display-4 fw-bold text-dark"></span>
-            <div class="route-info text-muted mt-2 small"></div>
-            <small class="text-muted d-block mt-3 fst-italic">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
+            <span class="text-muted d-block mb-1 small">Your Total Price</span>
+            <span class="quote-display display-6 fw-bold text-dark"></span>
+            <div class="route-info text-muted mt-1 small"></div>
+            <small class="text-muted d-block mt-2 fst-italic">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
 
-            <div class="mt-4 d-flex flex-column flex-sm-row gap-2 justify-content-center">
-              <a href="#" class="btn btn-warning btn-lg oneway-btn"><i class="bi bi-arrow-right me-2"></i>Book One-way</a>
-              <a href="#" class="btn btn-outline-warning btn-lg roundtrip-btn text-dark"><i class="bi bi-arrow-repeat me-2"></i>Book Round-trip</a>
+            <div class="mt-3 d-flex flex-column flex-sm-row gap-2 justify-content-center">
+              <a href="#" class="btn btn-warning btn-sm oneway-btn"><i class="bi bi-arrow-right me-2"></i>Book One-way</a>
+              <a href="#"
+                 class="btn btn-outline-warning btn-sm roundtrip-btn text-dark"><i class="bi bi-arrow-repeat me-2"></i>Book Round-trip</a>
             </div>
           </div>
         </div>
 
         <!-- Invalid Quote Display -->
-        <div class="rounded-3 p-4 d-none border border-warning invalid-quote-container" style="background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%);">
+        <div class="rounded-3 p-3 d-none border border-warning invalid-quote-container"
+             style="background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%)">
           <div class="text-center">
-            <i class="bi bi-telephone-fill display-3 text-dark mb-3"></i>
-            <h4 class="mb-3 fw-bold">Custom Quote Required</h4>
-            <p class="mb-3 text-muted">We'll review your request and contact you shortly with a personalized quote.</p>
-            <p class="mb-3 small text-muted">Need immediate assistance?</p>
-            <a href="tel:407-212-7190" class="btn btn-warning btn-lg fw-semibold"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
+            <i class="bi bi-telephone-fill display-4 text-dark mb-2"></i>
+            <h4 class="mb-2 fw-bold h5">Custom Quote Required</h4>
+            <p class="mb-2 text-muted small">We'll review your request and contact you shortly with a personalized quote.</p>
+            <p class="mb-2 small text-muted">Need immediate assistance?</p>
+            <a href="tel:407-212-7190" class="btn btn-warning btn-sm fw-semibold"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
           </div>
         </div>
       </div>
@@ -200,7 +249,7 @@
 </div>
 
 <script>
-// Store rates data for this form instance
-window.quoteFormRates = window.quoteFormRates || {};
-window.quoteFormRates['{{ form_id }}'] = {{ rates_json|safe }};
+    // Store rates data for this form instance
+    window.quoteFormRates = window.quoteFormRates || {};
+    window.quoteFormRates['{{ form_id }}'] = {{rates_json | safe }};
 </script>
