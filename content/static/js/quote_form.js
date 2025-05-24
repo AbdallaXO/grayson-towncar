@@ -20,6 +20,7 @@ class QuoteFormHandler {
             pickup: this.container.querySelector('.pickup-select'),
             dropoff: this.container.querySelector('.dropoff-select'),
             vehicle: this.container.querySelector('.vehicle-select'),
+            pickupDate: this.container.querySelector('input[name="pickup_date"]'), // ← Add this line
             quoteBtn: this.container.querySelector('.quote-btn'),
             displayContainer: this.container.querySelector('.quote-display-container'),
             invalidQuoteContainer: this.container.querySelector('.invalid-quote-container'),
@@ -65,6 +66,13 @@ class QuoteFormHandler {
                 this.validateField(field);
             });
         });
+
+        // Pickup date validation (if element exists)
+        if (this.elements.pickupDate) {
+            this.elements.pickupDate.addEventListener('input', () => {
+                this.validateDateField(this.elements.pickupDate);
+            });
+        }
 
         // Trip type selection
         this.elements.tripRadios.forEach(radio => {
@@ -157,6 +165,30 @@ class QuoteFormHandler {
         }
     }
 
+    validateDateField(field) {
+        const value = field.value;
+        if (!value) {
+            // Date is optional, so empty is valid
+            field.classList.remove('is-invalid', 'is-valid');
+            return true;
+        }
+
+        // Check if it's a valid date format and not in the past
+        const selectedDate = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset time to start of day
+
+        if (selectedDate < today) {
+            field.classList.add('is-invalid');
+            field.classList.remove('is-valid');
+            return false;
+        } else {
+            field.classList.add('is-valid');
+            field.classList.remove('is-invalid');
+            return true;
+        }
+    }
+
     validateForm() {
         let isValid = true;
         let firstInvalidField = null;
@@ -168,6 +200,12 @@ class QuoteFormHandler {
                 if (!firstInvalidField) firstInvalidField = field;
             }
         });
+
+        // Validate date field if it exists
+        if (this.elements.pickupDate && !this.validateDateField(this.elements.pickupDate)) {
+            isValid = false;
+            if (!firstInvalidField) firstInvalidField = this.elements.pickupDate;
+        }
 
         // Validate selects
         [this.elements.pickup, this.elements.dropoff, this.elements.vehicle].forEach(select => {
@@ -200,7 +238,7 @@ class QuoteFormHandler {
             this.elements.quoteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Getting Quote...';
             this.elements.quoteBtn.disabled = true;
         } else {
-            this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Get Your Quote';
+            this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Check Prices & Availability';
             this.elements.quoteBtn.disabled = false;
         }
     }
@@ -224,7 +262,7 @@ class QuoteFormHandler {
     showInvalidQuote() {
         this.elements.displayContainer.classList.add('d-none');
         this.elements.invalidQuoteContainer.classList.remove('d-none');
-        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Get Your Quote';
+        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Check Prices & Availability';
         this.elements.quoteBtn.classList.remove('btn-dark');
         this.elements.quoteBtn.classList.add('btn-dark');
         this.elements.invalidQuoteContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -235,7 +273,7 @@ class QuoteFormHandler {
         this.elements.routeInfo.textContent = '';
         this.elements.displayContainer.classList.add('d-none');
         this.elements.invalidQuoteContainer.classList.add('d-none');
-        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Get Your Quote';
+        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Check Prices & Availability';
         this.elements.quoteBtn.classList.remove('btn-dark');
         this.elements.quoteBtn.classList.add('btn-dark');
     }
@@ -260,6 +298,11 @@ class QuoteFormHandler {
                 formData[field.name] = field.value;
             });
 
+            // Add pickup_date if it exists
+            if (this.elements.pickupDate) {
+                formData.pickup_date = this.elements.pickupDate.value || '';
+            }
+
             const leadData = {
                 ...formData,
                 vehicle_id: vehicle,
@@ -268,6 +311,9 @@ class QuoteFormHandler {
                 trip_type: tripType,
                 estimated_price: null
             };
+
+            // Debug logging
+            console.log('Lead data being sent:', leadData);
 
             // Check for rate
             const locationIds = [pickup, dropoff].sort();

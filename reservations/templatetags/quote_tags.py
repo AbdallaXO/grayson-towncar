@@ -1,4 +1,3 @@
-# reservations/templatetags/quote_tags.py
 import json
 import logging
 from django import template
@@ -15,15 +14,16 @@ from ..forms import LeadForm
 register = template.Library()
 logger = logging.getLogger(__name__)
 
-@register.inclusion_tag('reservations/quote_form.html', takes_context=True)
+
+@register.inclusion_tag("reservations/quote_form.html", takes_context=True)
 def quote_form(context, form_id="quote-form", css_classes=""):
     """
     Renders a quote form with vehicle selection and rate calculation.
-    
+
     Usage:
     {% load quote_tags %}
     {% quote_form %}
-    
+
     Or with custom parameters:
     {% quote_form form_id="my-quote-form" css_classes="my-custom-class" %}
     """
@@ -36,14 +36,14 @@ def quote_form(context, form_id="quote-form", css_classes=""):
             ),
         )
     ).all()
-    
+
     # Get all unique locations from routes
     locations = set()
     for vehicle in vehicles:
         for rate in vehicle.rates.all():
             locations.add(rate.route.origin)
             locations.add(rate.route.destination)
-    
+
     # Create rates map with location pairs as keys
     rates_json = {}
     for v in vehicles:
@@ -52,7 +52,7 @@ def quote_form(context, form_id="quote-form", css_classes=""):
             # Create a key that's direction-agnostic by sorting origin and destination IDs
             location_ids = sorted([str(r.route.origin.id), str(r.route.destination.id)])
             key = f"{location_ids[0]}-{location_ids[1]}"
-            
+
             routes[key] = {
                 "id": r.id,
                 "name": str(r.route),
@@ -63,24 +63,25 @@ def quote_form(context, form_id="quote-form", css_classes=""):
                 "reserve_url": reverse("reserve", args=[r.id]),
             }
         rates_json[str(v.id)] = routes
-    
+
     return {
-        'vehicles': vehicles,
-        'locations': sorted(locations, key=lambda x: x.name),
-        'rates_json': json.dumps(rates_json),
-        'form': LeadForm(),
-        'form_id': form_id,
-        'css_classes': css_classes,
-        'quote_endpoint_url': reverse('quote_form_handler'),
-        'request': context['request'],
+        "vehicles": vehicles,
+        "locations": sorted(locations, key=lambda x: x.name),
+        "rates_json": json.dumps(rates_json),
+        "form": LeadForm(),
+        "form_id": form_id,
+        "css_classes": css_classes,
+        "quote_endpoint_url": reverse("quote_form_handler"),
+        "request": context["request"],
     }
+
 
 @register.simple_tag
 def quote_form_scripts():
     """
     Returns the JavaScript code needed for the quote form functionality.
     Include this in your template after the quote_form tag.
-    
+
     Usage:
     {% quote_form_scripts %}
     """

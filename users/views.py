@@ -174,7 +174,6 @@ def newsletter_subscribe(request):
     return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
-from django.db import transaction
 
 
 def register_agent(request):

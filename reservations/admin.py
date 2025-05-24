@@ -195,7 +195,10 @@ class FirstPickupDateFilter(SimpleListFilter):
             return qs.filter(earliest_leg_date__isnull=True)
         return qs
 
+
 admin.site.register(Lead)
+
+
 class DriverAssignmentFilter(SimpleListFilter):
     title = "driver assignment"
     parameter_name = "driver_status"

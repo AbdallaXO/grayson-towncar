@@ -18,7 +18,7 @@ class DriverAdmin(admin.ModelAdmin):
         "unpaid_amount",
         "total_paid",
         "total_legs",
-        "profit_performance"
+        "profit_performance",
     ]
     list_filter = [
         "profile__is_active",
@@ -88,13 +88,9 @@ class DriverAdmin(admin.ModelAdmin):
     def unpaid_amount(self, obj):
         amount = obj.get_total_unpaid_amount()
         if amount > 0:
-            return format_html(
-                '<span style="color: green;">${0}</span>', amount
-            )
+            return format_html('<span style="color: green;">${0}</span>', amount)
         elif amount < 0:
-            return format_html(
-                '<span style="color: red;">${0}</span>', abs(amount)
-            )
+            return format_html('<span style="color: red;">${0}</span>', abs(amount))
         return format_html('<span style="color: green;">$0.00</span>')
 
     unpaid_amount.short_description = "Unpaid Amount"
@@ -111,26 +107,26 @@ class DriverAdmin(admin.ModelAdmin):
             html += "<tr>"
             html += f'<td><a href="{reverse("admin:reservations_leg_change", args=[leg.id])}">{leg.pickup_date}</a></td>'
             html += f"<td>{leg.pickup_location} to {leg.dropoff_location}</td>"
-            
+
             # Get driver pay amount
             amount = leg.driver_pay_amount or 0
             profit = leg.profit_estimate or 0
-            
+
             # Format amount with proper color
             if amount >= 0:
                 amount_html = f'<span style="color: green;">${amount}</span>'
             else:
                 amount_html = f'<span style="color: red;">${abs(amount)}</span>'
-            
+
             # Format profit with proper color
             if profit >= 0:
                 profit_html = f'<span style="color: green;">${profit}</span>'
             else:
                 profit_html = f'<span style="color: red;">${abs(profit)}</span>'
-            
+
             html += f"<td>{amount_html}</td>"
             html += f"<td>{profit_html}</td>"
-            
+
             # Show leg status in addition to payment status
             html += f'<td><span style="color: red;">Unpaid</span> ({leg.status})</td>'
             html += "</tr>"
@@ -152,26 +148,30 @@ class DriverAdmin(admin.ModelAdmin):
     def total_paid(self, obj):
         # Sum from DriverPayment records
         payment_amount = obj.payments.aggregate(total=Sum("amount"))["total"] or 0
-        
+
         # Sum from individual legs marked as paid but not in payment records
         paid_legs = Leg.objects.filter(driver=obj, payment_status="paid")
-        
+
         # Exclude legs that are already in payment records to avoid double counting
         leg_ids_in_payments = LegPayment.objects.filter(
             payment__driver=obj
-        ).values_list('leg_id', flat=True)
-        
+        ).values_list("leg_id", flat=True)
+
         standalone_paid_legs = paid_legs.exclude(id__in=leg_ids_in_payments)
-        standalone_amount = sum(leg.driver_pay_amount or 0 for leg in standalone_paid_legs)
-        
+        standalone_amount = sum(
+            leg.driver_pay_amount or 0 for leg in standalone_paid_legs
+        )
+
         # Total amount is the sum of both
         total_amount = payment_amount + standalone_amount
-        
+
         # Color based on amount - using string formatting correctly
         if total_amount > 0:
             return format_html('<span style="color: green;">${0}</span>', total_amount)
         elif total_amount < 0:
-            return format_html('<span style="color: red;">${0}</span>', abs(total_amount))
+            return format_html(
+                '<span style="color: red;">${0}</span>', abs(total_amount)
+            )
         else:
             return format_html('<span style="color: green;">$0.00</span>')
 
@@ -192,16 +192,18 @@ class DriverAdmin(admin.ModelAdmin):
         legs = obj.legs.all()
         if not legs:
             return "N/A"
-            
+
         total_profit = sum(leg.profit_estimate or 0 for leg in legs)
         completed_legs = legs.filter(status="completed")
         completed_profit = sum(leg.profit_estimate or 0 for leg in completed_legs)
-        
+
         if total_profit >= 0:
             return format_html('<span style="color: green;">${0}</span>', total_profit)
         else:
-            return format_html('<span style="color: red;">${0}</span>', abs(total_profit))
-    
+            return format_html(
+                '<span style="color: red;">${0}</span>', abs(total_profit)
+            )
+
     profit_performance.short_description = "Profit"
 
     def profit_summary(self, obj):
@@ -209,7 +211,7 @@ class DriverAdmin(admin.ModelAdmin):
         legs = obj.legs.all()
         if not legs:
             return "No legs assigned to this driver"
-            
+
         # Calculate various profit metrics
         total_legs = legs.count()
         completed_legs = legs.filter(status="completed").count()
@@ -217,46 +219,54 @@ class DriverAdmin(admin.ModelAdmin):
         total_driver_pay = sum(leg.driver_pay_amount or 0 for leg in legs)
         total_profit = sum(leg.profit_estimate or 0 for leg in legs)
         avg_profit_per_leg = total_profit / total_legs if total_legs > 0 else 0
-        
+
         # Calculate profit by status
         status_profits = {}
-        for status_choice in [choice[0] for choice in Leg._meta.get_field('status').choices]:
+        for status_choice in [
+            choice[0] for choice in Leg._meta.get_field("status").choices
+        ]:
             status_legs = legs.filter(status=status_choice)
             if status_legs.exists():
                 status_profit = sum(leg.profit_estimate or 0 for leg in status_legs)
                 status_profits[status_choice] = (status_legs.count(), status_profit)
-        
+
         # Create HTML for display
-        html = '<h3>Profit Summary</h3>'
+        html = "<h3>Profit Summary</h3>"
         html += '<table style="width: 100%; border-collapse: collapse;">'
-        
+
         # Overall stats
         html += '<tr style="background-color: #f0f0f0;"><th colspan="2">Overall Statistics</th></tr>'
-        html += f'<tr><td>Total Legs:</td><td>{total_legs}</td></tr>'
-        html += f'<tr><td>Completed Legs:</td><td>{completed_legs}</td></tr>'
-        html += f'<tr><td>Total Revenue Share:</td><td>${total_revenue}</td></tr>'
-        
+        html += f"<tr><td>Total Legs:</td><td>{total_legs}</td></tr>"
+        html += f"<tr><td>Completed Legs:</td><td>{completed_legs}</td></tr>"
+        html += f"<tr><td>Total Revenue Share:</td><td>${total_revenue}</td></tr>"
+
         # Format driver pay with color
         if total_driver_pay >= 0:
             driver_pay_html = f'<span style="color: green;">${total_driver_pay}</span>'
         else:
-            driver_pay_html = f'<span style="color: red;">${abs(total_driver_pay)}</span>'
-        html += f'<tr><td>Total Driver Pay:</td><td>{driver_pay_html}</td></tr>'
-        
+            driver_pay_html = (
+                f'<span style="color: red;">${abs(total_driver_pay)}</span>'
+            )
+        html += f"<tr><td>Total Driver Pay:</td><td>{driver_pay_html}</td></tr>"
+
         # Format total profit with color
         if total_profit >= 0:
             profit_html = f'<span style="color: green;">${total_profit}</span>'
         else:
             profit_html = f'<span style="color: red;">${abs(total_profit)}</span>'
-        html += f'<tr><td>Total Profit:</td><td>{profit_html}</td></tr>'
-        
+        html += f"<tr><td>Total Profit:</td><td>{profit_html}</td></tr>"
+
         # Format avg profit with color
         if avg_profit_per_leg >= 0:
-            avg_profit_html = f'<span style="color: green;">${avg_profit_per_leg}</span>'
+            avg_profit_html = (
+                f'<span style="color: green;">${avg_profit_per_leg}</span>'
+            )
         else:
-            avg_profit_html = f'<span style="color: red;">${abs(avg_profit_per_leg)}</span>'
-        html += f'<tr><td>Average Profit per Leg:</td><td>{avg_profit_html}</td></tr>'
-        
+            avg_profit_html = (
+                f'<span style="color: red;">${abs(avg_profit_per_leg)}</span>'
+            )
+        html += f"<tr><td>Average Profit per Leg:</td><td>{avg_profit_html}</td></tr>"
+
         # Profit by status
         if status_profits:
             html += '<tr style="background-color: #f0f0f0;"><th colspan="2">Profit by Status</th></tr>'
@@ -266,11 +276,11 @@ class DriverAdmin(admin.ModelAdmin):
                     profit_html = f'<span style="color: green;">${profit}</span>'
                 else:
                     profit_html = f'<span style="color: red;">${abs(profit)}</span>'
-                html += f'<tr><td>{status_display} ({count}):</td><td>{profit_html}</td></tr>'
-        
-        html += '</table>'
+                html += f"<tr><td>{status_display} ({count}):</td><td>{profit_html}</td></tr>"
+
+        html += "</table>"
         return mark_safe(html)
-    
+
     profit_summary.short_description = "Profit Summary"
 
     def recent_leg_history(self, obj):
@@ -285,23 +295,23 @@ class DriverAdmin(admin.ModelAdmin):
             html += "<tr>"
             html += f'<td><a href="{reverse("admin:reservations_leg_change", args=[leg.id])}">{leg.pickup_date}</a></td>'
             html += f"<td>{leg.pickup_location} to {leg.dropoff_location}</td>"
-            
+
             # Get driver pay amount
             amount = leg.driver_pay_amount or 0
             profit = leg.profit_estimate or 0
-            
+
             # Format amount with color based on value
             if amount >= 0:
                 amount_html = f'<span style="color: green;">${amount}</span>'
             else:
                 amount_html = f'<span style="color: red;">${abs(amount)}</span>'
-            
+
             # Format profit with color based on value
             if profit >= 0:
                 profit_html = f'<span style="color: green;">${profit}</span>'
             else:
                 profit_html = f'<span style="color: red;">${abs(profit)}</span>'
-                
+
             html += f"<td>{amount_html}</td>"
             html += f"<td>{profit_html}</td>"
 
@@ -375,26 +385,26 @@ class DriverAdmin(admin.ModelAdmin):
                 # Format amounts with color
                 amount_color = "green" if item["amount"] >= 0 else "red"
                 profit_color = "green" if item["profit"] >= 0 else "red"
-                
+
                 message += f"""<tr>
-                    <td style='padding: 8px; border: 1px solid #ddd;'>{item['driver']}</td>
-                    <td style='padding: 8px; border: 1px solid #ddd;'>{item['count']}</td>
-                    <td style='padding: 8px; border: 1px solid #ddd;'>{item['period']}</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["driver"]}</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["count"]}</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["period"]}</td>
                     <td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>
-                        <span style='color: {amount_color};'>${item['amount']}</span>
+                        <span style='color: {amount_color};'>${item["amount"]}</span>
                     </td>
                     <td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>
-                        <span style='color: {profit_color};'>${item['profit']}</span>
+                        <span style='color: {profit_color};'>${item["profit"]}</span>
                     </td>
                 </tr>"""
 
             # Calculate total profit
             total_profit = sum(item["profit"] for item in preview_data)
-            
+
             # Format totals with color
             total_amount_color = "green" if total_amount >= 0 else "red"
             total_profit_color = "green" if total_profit >= 0 else "red"
-            
+
             message += f"""<tr style='background-color: #f2f2f2;'>
                 <td colspan='3' style='padding: 8px; border: 1px solid #ddd; text-align: right;'>
                     <strong>Total:</strong>
@@ -406,7 +416,7 @@ class DriverAdmin(admin.ModelAdmin):
                     <strong><span style='color: {total_profit_color};'>${total_profit}</span></strong>
                 </td>
             </tr>"""
-            
+
             message += "</table><br>"
             message += "To process these payments, select the drivers again and use the 'Process driver payments' action."
 
@@ -429,7 +439,7 @@ class DriverAdmin(admin.ModelAdmin):
         for driver in queryset:
             # Get unpaid completed legs
             unpaid_legs = driver.get_unpaid_legs()
-            
+
             # Log the number of unpaid legs found
             logger.info(f"Driver {driver} has {unpaid_legs.count()} unpaid legs")
 
@@ -449,14 +459,14 @@ class DriverAdmin(admin.ModelAdmin):
                 notes = []
                 notes.append(f"Automatic payment for {unpaid_legs.count()} legs")
                 notes.append("\nReservation details:")
-                
+
                 for reservation, legs in reservation_legs.items():
                     leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
                     notes.append(
                         f"\n- Reservation #{reservation.id}: {reservation.customer.get_full_name()}"
                         f" ({len(legs)} legs, ${leg_total})"
                     )
-                    
+
                     # Add detailed leg information
                     for leg in legs:
                         notes.append(
@@ -469,8 +479,10 @@ class DriverAdmin(admin.ModelAdmin):
 
                 try:
                     # Create payment record using the class method
-                    logger.info(f"Creating payment for {driver} with {unpaid_legs.count()} legs")
-                    
+                    logger.info(
+                        f"Creating payment for {driver} with {unpaid_legs.count()} legs"
+                    )
+
                     payment = DriverPayment.create_payment(
                         driver=driver,
                         legs=unpaid_legs,
@@ -479,16 +491,20 @@ class DriverAdmin(admin.ModelAdmin):
                         notes="\n".join(notes),
                         created_by=request.user,
                     )
-                    
+
                     # Verify leg payments were created
                     leg_payment_count = payment.leg_payments.count()
-                    logger.info(f"Payment created with ID {payment.id}, with {leg_payment_count} leg payments")
-                    
+                    logger.info(
+                        f"Payment created with ID {payment.id}, with {leg_payment_count} leg payments"
+                    )
+
                     processed_count += 1
                     total_amount += payment_total
 
                 except Exception as e:
-                    logger.error(f"Error processing payment for {driver}: {e}", exc_info=True)
+                    logger.error(
+                        f"Error processing payment for {driver}: {e}", exc_info=True
+                    )
                     messages.error(request, f"Error processing {driver}: {e}")
 
         if processed_count:
@@ -575,22 +591,22 @@ class DriverPaymentAdmin(admin.ModelAdmin):
             html += f'<td><a href="{reverse("admin:reservations_leg_change", args=[leg.id])}">{leg.id}</a></td>'
             html += f"<td>{leg.pickup_date}</td>"
             html += f"<td>{leg.pickup_location} to {leg.dropoff_location}</td>"
-            
+
             # Format amount with color
             if lp.amount >= 0:
                 amount_html = f'<span style="color: green;">${lp.amount}</span>'
             else:
                 amount_html = f'<span style="color: red;">${abs(lp.amount)}</span>'
-            
+
             html += f"<td>{amount_html}</td>"
-            
+
             # Add profit info if available
             profit = leg.profit_estimate or 0
             if profit >= 0:
                 profit_html = f'<span style="color: green;">${profit}</span>'
             else:
                 profit_html = f'<span style="color: red;">${abs(profit)}</span>'
-            
+
             html += f"<td>{profit_html}</td>"
             html += f"</tr>"
 
@@ -613,7 +629,9 @@ class LegPaymentAdmin(admin.ModelAdmin):
 
     def leg_display(self, obj):
         url = reverse("admin:reservations_leg_change", args=[obj.leg.id])
-        return format_html('<a href="{}">{} - {}</a>', url, obj.leg.id, obj.leg.pickup_date)
+        return format_html(
+            '<a href="{}">{} - {}</a>', url, obj.leg.id, obj.leg.pickup_date
+        )
 
     leg_display.short_description = "Leg"
 
@@ -624,12 +642,12 @@ class LegPaymentAdmin(admin.ModelAdmin):
             return format_html('<span style="color: red;">${0}</span>', abs(obj.amount))
 
     amount_display.short_description = "Amount"
-    
+
     def profit_display(self, obj):
         profit = obj.leg.profit_estimate or 0
         if profit >= 0:
             return format_html('<span style="color: green;">${0}</span>', profit)
         else:
             return format_html('<span style="color: red;">${0}</span>', abs(profit))
-            
+
     profit_display.short_description = "Profit"

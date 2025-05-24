@@ -44,6 +44,18 @@
                 </div>
 
                 <div class="mb-2">
+                  <label for="pickup-date-{{ form_id }}" class="form-label small fw-semibold mb-1">
+                    Date of Service
+                  </label>
+                  <input type="date"
+                         class="form-control form-control-sm bg-white"
+                         id="pickup-date-{{ form_id }}"
+                         name="pickup_date"
+                         placeholder="Date of Service"
+                         autocomplete="off">
+                </div>
+
+                <div class="mb-2">
                   <label for="vehicle-{{ form_id }}" class="form-label small fw-semibold mb-1">
                     Vehicle Type <span class="text-danger">*</span>
                   </label>
@@ -165,6 +177,7 @@
                            class="form-control form-control-sm form-field"
                            id="{{ form.first_name.id_for_label }}-{{ form_id }}"
                            name="first_name"
+                           autocomplete="given-name"
                            required>
                   </div>
                   <div class="col-6">
@@ -176,6 +189,7 @@
                            class="form-control form-control-sm form-field"
                            id="{{ form.last_name.id_for_label }}-{{ form_id }}"
                            name="last_name"
+                           autocomplete="family-name"
                            required>
                   </div>
                   <div class="col-6">
@@ -187,6 +201,7 @@
                            class="form-control form-control-sm form-field"
                            id="{{ form.email.id_for_label }}-{{ form_id }}"
                            name="email"
+                           autocomplete="email"
                            required>
                   </div>
                   <div class="col-6">
@@ -198,6 +213,7 @@
                            class="form-control form-control-sm form-field"
                            id="{{ form.phone.id_for_label }}-{{ form_id }}"
                            name="phone"
+                           autocomplete="tel"
                            required>
                   </div>
                 </div>
