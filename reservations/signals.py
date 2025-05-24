@@ -2,7 +2,7 @@ import logging
 import time
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Reservation, Leg
+from .models import Reservation
 from users.emails import send_reservation_confirmation
 from django.db import transaction
 from decimal import Decimal
@@ -237,6 +237,8 @@ def reservation_saved(sender, instance, created, **kwargs):
 
 # In reservations/models.py or a new file reservations/signals.py
 from django.db.models.signals import post_save, pre_delete
+from django.dispatch import receiver
+from reservations.models import Reservation
 from django.db.models import Sum
 
 
@@ -362,79 +364,3 @@ def update_agent_commission_on_delete(sender, instance, **kwargs):
         # Save agent if any fields were updated
         if update_fields:
             agent.save(update_fields=update_fields)
-
-
-processing_signal = False
-
-
-@receiver(post_save, sender=Leg)
-def update_reservation_profit_on_leg_change(sender, instance, **kwargs):
-    """
-    When a leg's driver payment changes, update the reservation's profit calculations
-    """
-    global processing_signal
-
-    # Avoid recursion
-    if processing_signal:
-        return
-
-    if instance.reservation:
-        try:
-            processing_signal = True
-
-            # Calculate total driver payments
-            total_driver_payments = sum(
-                leg.driver_pay_amount or 0 for leg in instance.reservation.legs.all()
-            )
-
-            # Calculate profit
-            profit_estimate = instance.reservation.total_price - total_driver_payments
-
-            # Update reservation directly without triggering signals
-            Reservation.objects.filter(id=instance.reservation.id).update(
-                total_driver_payments=total_driver_payments,
-                profit_estimate=profit_estimate,
-            )
-        finally:
-            processing_signal = False
-
-
-@receiver(post_save, sender=Reservation)
-def update_leg_revenue_shares_on_reservation_change(sender, instance, **kwargs):
-    """
-    When a reservation's total price changes, update all associated legs'
-    revenue shares and profit estimates
-    """
-    global processing_signal
-
-    # Avoid recursion
-    if processing_signal:
-        return
-
-    try:
-        processing_signal = True
-
-        # Get total number of legs
-        legs = instance.legs.all()
-        total_legs = legs.count()
-
-        if total_legs > 0:
-            # Calculate revenue share per leg
-            revenue_share = instance.total_price / Decimal(total_legs)
-
-            # Update each leg directly without triggering signals
-            for leg in legs:
-                # Calculate profit if driver pay amount is set
-                profit_estimate = None
-                if leg.driver_pay_amount is not None:
-                    profit_estimate = revenue_share - leg.driver_pay_amount
-
-                # Update leg directly
-                if profit_estimate is not None:
-                    Leg.objects.filter(id=leg.id).update(
-                        revenue_share=revenue_share, profit_estimate=profit_estimate
-                    )
-                else:
-                    Leg.objects.filter(id=leg.id).update(revenue_share=revenue_share)
-    finally:
-        processing_signal = False

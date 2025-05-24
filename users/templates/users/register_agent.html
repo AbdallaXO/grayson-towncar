@@ -2,32 +2,27 @@
 {% load static %}
 {% block title %}
   Travel Agent Partnership Form | Grayson Towncar
-{% endblock title %}
+{% endblock %}
 {% block content %}
   <div class="container py-5">
     <div class="row justify-content-center">
       <div class="col-lg-8">
-        <!-- Header Section -->
         <div class="text-center mb-5">
           <h1 class="fw-normal display-4 mb-4">Travel Agent Registration</h1>
 
           <div class="lead fw-normal text-muted mb-4">
-            <p class="mb-4 fw-semibold">
-              Thanks for your interest in Grayson Towncar. We're excited to partner with travel agents like you.
-            </p>
+            <p class="mb-4 fw-semibold">Thanks for your interest in Grayson Towncar. We're excited to partner with travel agents like you.</p>
+
+            <p class="mb-4">We focus on providing safe, reliable, and family-friendly transportation that creates a welcoming atmosphere for your clients from arrival to departure. We understand how important your clients are to your business and reputation, and we take pride in serving your families with exceptional care.</p>
 
             <p class="mb-4">
-              We focus on providing safe, reliable, and family-friendly transportation that creates a welcoming atmosphere for your clients from arrival to departure. We understand how important your clients are to your business and reputation, and we take pride in serving your families with exceptional care.
-            </p>
-
-            <p class="mb-4">
-              We offer a competitive <strong>10% commission</strong> on all bookings (excluding gratuity and additional charges like late pickups, which go directly to drivers).
+              We offer a competitive <strong>10% commission</strong> on all client bookings (excluding gratuity, additional charges like late pickups which go directly to drivers, and any personal trips made by the agent).
             </p>
 
             <div class="bg-light p-4 rounded mb-4">
               <h5 class="mb-3">Your Partner Dashboard</h5>
               <p class="mb-3">When you register, you'll get access to a dedicated dashboard where you can:</p>
-              <ul class="text-start mb-3">
+              <ul class="text-start mb-3 ps-4"> {/* Adjusted padding for bullets */}
                 <li>View all your reservations</li>
                 <li>Track your commission history</li>
                 <li>See detailed booking information</li>
@@ -44,259 +39,261 @@
           </div>
         </div>
 
-        <!-- Registration Form -->
         <div class="card border-0 shadow-sm">
           <div class="card-body p-4">
             <h3 class="fw-normal mb-4">Create Your Account</h3>
 
             {% if messages %}
               {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show"
-                     role="alert">
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
                   {{ message }}
-                  <button type="button"
-                          class="btn-close"
-                          data-bs-dismiss="alert"
-                          aria-label="Close"></button>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
               {% endfor %}
             {% endif %}
 
-            <form method="post" novalidate>
+            <form method="post" novalidate id="agentRegistrationForm"> {/* Added ID for JS targeting */}
               {% csrf_token %}
 
-              <!-- Account Information Section -->
               <div class="mb-4">
                 <h5 class="mb-3">Account Information</h5>
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <label for="username" class="form-label">
-                      Username <span class="text-danger">*</span>
-                    </label>
-                    <input type="text"
-                           class="form-control"
-                           id="username"
-                           name="username"
-                           value="{{ form_data.username|default:'' }}"
-                           required>
+                    <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="username" name="username" value="{{ form_data.username|default:'' }}" required />
                   </div>
                   <div class="col-md-6">
-                    <label for="email" class="form-label">
-                      Email <span class="text-danger">*</span>
-                    </label>
-                    <input type="email"
-                           class="form-control"
-                           id="email"
-                           name="email"
-                           value="{{ form_data.email|default:'' }}"
-                           required>
+                    <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                    <input type="email" class="form-control" id="email" name="email" value="{{ form_data.email|default:'' }}" required />
                   </div>
                   <div class="col-md-6">
-                    <label for="password1" class="form-label">
-                      Password <span class="text-danger">*</span>
-                    </label>
-                    <input type="password"
-                           class="form-control"
-                           id="password1"
-                           name="password1"
-                           required>
+                    <label for="password1" class="form-label">Password <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control" id="password1" name="password1" required />
                   </div>
                   <div class="col-md-6">
-                    <label for="password2" class="form-label">
-                      Confirm Password <span class="text-danger">*</span>
-                    </label>
-                    <input type="password"
-                           class="form-control"
-                           id="password2"
-                           name="password2"
-                           required>
+                    <label for="password2" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control" id="password2" name="password2" required />
+                    <div id="passwordHelp" class="form-text text-danger small mt-1"></div> {/* For password match feedback */}
                   </div>
                 </div>
               </div>
 
-              <hr class="my-4">
+              <hr class="my-4" />
 
-              <!-- Professional Information Section -->
               <div class="mb-4">
                 <h5 class="mb-3">Professional Information</h5>
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <label for="agent_name" class="form-label">
-                      Your Full Name <span class="text-danger">*</span>
-                    </label>
-                    <input type="text"
-                           class="form-control"
-                           id="agent_name"
-                           name="agent_name"
-                           value="{{ form_data.agent_name|default:'' }}"
-                           required>
+                    <label for="agent_name" class="form-label">Your Full Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="agent_name" name="agent_name" value="{{ form_data.agent_name|default:'' }}" required />
                   </div>
                   <div class="col-md-6">
-                    <label for="agency_name" class="form-label">
-                      Agency Name <span class="text-danger">*</span>
-                    </label>
-                    <input type="text"
-                           class="form-control"
-                           id="agency_name"
-                           name="agency_name"
-                           value="{{ form_data.agency_name|default:'' }}"
-                           required>
+                    <label for="agency_name" class="form-label">Agency Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="agency_name" name="agency_name" value="{{ form_data.agency_name|default:'' }}" required />
                   </div>
                   <div class="col-12">
-                    <label for="phone" class="form-label">
-                      Phone Number <span class="text-danger">*</span>
-                    </label>
-                    <input type="tel"
-                           class="form-control"
-                           id="phone"
-                           name="phone"
-                           value="{{ form_data.phone|default:'' }}"
-                           required>
+                    <label for="phone" class="form-label">Phone Number <span class="text-danger">*</span></label>
+                    <input type="tel" class="form-control" id="phone" name="phone" value="{{ form_data.phone|default:'' }}" placeholder="(xxx) xxx-xxxx" required />
                   </div>
                 </div>
               </div>
 
-              <hr class="my-4">
+              <hr class="my-4" />
 
-              <!-- Payment Information Section -->
               <div class="mb-4">
                 <h5 class="mb-3">Commission Payment Details</h5>
+                <p class="form-text mb-3 text-muted">
+                  If your agency is already registered with us for payments, please select "Agency" as the payment method. You can then either leave the "Payment Details" field blank (we'll use your agency's existing information) or enter your agency's name for verification.
+                </p>
                 <div class="row g-3">
                   <div class="col-md-4">
-                    <label for="payment_method" class="form-label">
-                      Payment Method <span class="text-danger">*</span>
-                    </label>
-                    <select class="form-select"
-                            id="payment_method"
-                            name="payment_method"
-                            value="{{ form_data.payment_method|default:'' }}"
-                            required>
-                      <option value="">Select method...</option>
-                      <option value="paypal">PayPal</option>
-                      <option value="venmo">Venmo</option>
-                      <option value="zelle">Zelle</option>
-                      <option value="cashapp">Cash App</option>
-                      <option value="bank">Bank Transfer</option>
-                      <option value="check">Check</option>
-                      <option value="other">Other</option>
+                    <label for="payment_method" class="form-label">Payment Method <span class="text-danger">*</span></label>
+                    <select class="form-select" id="payment_method" name="payment_method" required>
+                      <option value="" {% if not form_data.payment_method %}selected{% endif %}>Select method...</option>
+                      <option value="agency" {% if form_data.payment_method == "agency" %}selected{% endif %}>Agency</option>
+                      <option value="paypal" {% if form_data.payment_method == "paypal" %}selected{% endif %}>PayPal</option>
+                      <option value="venmo" {% if form_data.payment_method == "venmo" %}selected{% endif %}>Venmo</option>
+                      <option value="zelle" {% if form_data.payment_method == "zelle" %}selected{% endif %}>Zelle</option>
+                      <option value="cashapp" {% if form_data.payment_method == "cashapp" %}selected{% endif %}>Cash App</option>
+                      <option value="bank" {% if form_data.payment_method == "bank" %}selected{% endif %}>Bank Transfer</option>
+                      <option value="check" {% if form_data.payment_method == "check" %}selected{% endif %}>Check</option>
+                      <option value="other" {% if form_data.payment_method == "other" %}selected{% endif %}>Other</option>
                     </select>
                   </div>
                   <div class="col-md-8">
-                    <label for="payment_info" class="form-label">
-                      Payment Details <span class="text-danger">*</span>
-                    </label>
-                    <textarea class="form-control"
-                              id="payment_info"
-                              name="payment_info"
-                              rows="3"
-                              placeholder="Enter your payment details..."
-                              required>{{ form_data.payment_info|default:'' }}</textarea>
-                    <div class="form-text" id="payment-help-text">
-                      Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.
-                    </div>
+                    <label for="payment_info" class="form-label" id="payment_info_label">Payment Details <span class="text-danger" id="payment_info_asterisk">*</span></label>
+                    <textarea class="form-control" id="payment_info" name="payment_info" rows="3" placeholder="Enter your payment details..." required>{{ form_data.payment_info|default:'' }}</textarea>
+                    <div class="form-text" id="payment-help-text">Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.</div>
                   </div>
                 </div>
               </div>
 
-              <!-- Submit Button -->
               <div class="d-grid gap-2 mt-4">
                 <button type="submit" class="btn btn-dark btn-lg py-3">Complete Registration</button>
               </div>
 
-              <div class="text-muted mt-3 text-center">
-                By submitting this form, you'll be joining our network of preferred travel partners.
-              </div>
+              <div class="text-muted mt-3 text-center">By submitting this form, you'll be joining our network of preferred travel partners.</div>
             </form>
           </div>
         </div>
+        <p class="text-center text-muted small mt-4">All fields marked with <span class="text-danger">*</span> are required.</p>
       </div>
     </div>
   </div>
 
   <style>
-      .form-control:focus,
-      .form-select:focus {
-          border-color: #0d6efd;
-          box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-      }
-
-      .btn-primary {
-          background-color: #0d6efd;
-          border-color: #0d6efd;
-      }
-
-      .btn-primary:hover {
-          background-color: #0b5ed7;
-          border-color: #0a58ca;
-      }
-
-      hr {
-          opacity: 0.1;
-      }
-
-      .form-label {
-          font-weight: 500;
-          color: #374151;
-      }
-
-      .card {
-          border-radius: 0.5rem;
-      }
-
-      .bg-light {
-          background-color: #f8f9fa !important;
-      }
+    .form-control:focus,
+    .form-select:focus {
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .btn-primary { /* Note: Your button is btn-dark, this style might not be used unless you change button class */
+      background-color: #0d6efd;
+      border-color: #0d6efd;
+    }
+    
+    .btn-primary:hover {
+      background-color: #0b5ed7;
+      border-color: #0a58ca;
+    }
+    
+    hr {
+      opacity: 0.1;
+    }
+    
+    .form-label {
+      font-weight: 500;
+      color: #374151;
+    }
+    
+    .card {
+      border-radius: 0.5rem;
+    }
+    
+    .bg-light {
+      background-color: #f8f9fa !important;
+    }
   </style>
 
   <script>
-      // Update help text based on payment method selection
-      document.addEventListener('DOMContentLoaded', function() {
-          const paymentMethodSelect = document.getElementById('payment_method');
-          const paymentInfoInput = document.getElementById('payment_info');
-          const helpText = document.getElementById('payment-help-text');
+  document.addEventListener('DOMContentLoaded', function () {
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const paymentInfoInput = document.getElementById('payment_info');
+    const paymentInfoLabel = document.getElementById('payment_info_label'); // Full label
+    const paymentInfoAsterisk = document.getElementById('payment_info_asterisk'); // The asterisk span
+    const paymentHelpText = document.getElementById('payment-help-text'); // Corrected from 'helpText'
 
-          paymentMethodSelect.addEventListener('change', function() {
-              const selectedMethod = this.value;
-              let placeholderText = '';
-              let helpTextContent = '';
+    const passwordInput = document.getElementById('password1');
+    const confirmPasswordInput = document.getElementById('password2');
+    const passwordHelpDiv = document.getElementById('passwordHelp');
+    const registrationForm = document.getElementById('agentRegistrationForm');
 
-              switch (selectedMethod) {
-                  case 'paypal':
-                      placeholderText = 'Enter your PayPal email address';
-                      helpTextContent = 'Example: johndoe@email.com';
-                      break;
-                  case 'venmo':
-                      placeholderText = 'Enter your Venmo username';
-                      helpTextContent = 'Example: @JohnDoe123';
-                      break;
-                  case 'zelle':
-                      placeholderText = 'Enter your Zelle phone number or email';
-                      helpTextContent = 'Example: (555) 123-4567 or johndoe@email.com';
-                      break;
-                  case 'cashapp':
-                      placeholderText = 'Enter your Cash App username';
-                      helpTextContent = 'Example: $JohnDoe';
-                      break;
-                  case 'bank':
-                      placeholderText = 'Enter your bank account details\nBank Name:\nAccount Number:\nRouting Number:';
-                      helpTextContent = 'Please include bank name, account number, and routing number';
-                      break;
-                  case 'check':
-                      placeholderText = 'Enter the mailing address for checks\nName:\nAddress:\nCity, State ZIP:';
-                      helpTextContent = 'Please provide complete mailing address';
-                      break;
-                  case 'other':
-                      placeholderText = 'Please describe your preferred payment method and provide all necessary details';
-                      helpTextContent = 'Example: International wire transfer details, Alternative payment app, etc.';
-                      break;
-                  default:
-                      placeholderText = 'Enter your payment details...';
-                      helpTextContent = 'Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.';
-              }
+    function updatePaymentDetailsState() {
+      const selectedMethod = paymentMethodSelect.value;
+      let placeholderText = '';
+      let helpTextContent = '';
+      let isPaymentInfoRequired = true;
 
-              paymentInfoInput.placeholder = placeholderText;
-              helpText.textContent = helpTextContent;
-          });
-      });
+      switch (selectedMethod) {
+        case 'agency':
+          placeholderText = 'Enter registered agency name (optional), or leave blank.';
+          helpTextContent = 'If your agency handles payments with us, you can leave this blank or provide agency name for verification.';
+          isPaymentInfoRequired = false;
+          break;
+        case 'paypal':
+          placeholderText = 'Enter your PayPal email address';
+          helpTextContent = 'Example: johndoe@email.com';
+          break;
+        case 'venmo':
+          placeholderText = 'Enter your Venmo username';
+          helpTextContent = 'Example: @JohnDoe123';
+          break;
+        case 'zelle':
+          placeholderText = 'Enter your Zelle phone number or email';
+          helpTextContent = 'Example: (555) 123-4567 or johndoe@email.com';
+          break;
+        case 'cashapp':
+          placeholderText = 'Enter your Cash App $Cashtag';
+          helpTextContent = 'Example: $JohnDoe';
+          break;
+        case 'bank':
+          placeholderText = 'Bank Name:\nAccount Holder Name:\nAccount Number:\nRouting Number:';
+          helpTextContent = 'Please include bank name, account holder name, account number, and routing number.';
+          break;
+        case 'check':
+          placeholderText = 'Payable To (Name/Agency Name):\nStreet Address:\nCity, State, ZIP Code:';
+          helpTextContent = 'Please provide complete mailing address for checks.';
+          break;
+        case 'other':
+          placeholderText = 'Please describe your preferred payment method and provide all necessary details.';
+          helpTextContent = 'Example: International wire transfer details, alternative payment app, etc.';
+          break;
+        default:
+          placeholderText = 'Enter your payment details...';
+          helpTextContent = 'Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.';
+      }
+
+      paymentInfoInput.placeholder = placeholderText;
+      paymentHelpText.textContent = helpTextContent; // Use textContent for plain text
+
+      if (isPaymentInfoRequired) {
+        paymentInfoInput.setAttribute('required', 'required');
+        if (paymentInfoAsterisk) paymentInfoAsterisk.style.display = 'inline'; // Show asterisk
+      } else {
+        paymentInfoInput.removeAttribute('required');
+        if (paymentInfoAsterisk) paymentInfoAsterisk.style.display = 'none'; // Hide asterisk
+      }
+    }
+
+    if (paymentMethodSelect) {
+      paymentMethodSelect.addEventListener('change', updatePaymentDetailsState);
+      // Call once on load to set initial state based on pre-filled value (if any)
+      updatePaymentDetailsState();
+    }
+
+    // Password confirmation validation
+    if (registrationForm && passwordInput && confirmPasswordInput && passwordHelpDiv) {
+        const validatePasswords = () => {
+            if (passwordInput.value !== confirmPasswordInput.value && confirmPasswordInput.value.length > 0) {
+                passwordHelpDiv.textContent = 'Passwords do not match.';
+                confirmPasswordInput.setCustomValidity('Passwords do not match.');
+                confirmPasswordInput.classList.add('is-invalid'); // Optional: For Bootstrap styling if you add it
+                confirmPasswordInput.classList.remove('is-valid');
+            } else if (confirmPasswordInput.value.length > 0 && passwordInput.value === confirmPasswordInput.value) {
+                passwordHelpDiv.textContent = '';
+                confirmPasswordInput.setCustomValidity('');
+                confirmPasswordInput.classList.remove('is-invalid');
+                confirmPasswordInput.classList.add('is-valid');
+            } else {
+                passwordHelpDiv.textContent = '';
+                confirmPasswordInput.setCustomValidity('');
+                confirmPasswordInput.classList.remove('is-invalid', 'is-valid');
+            }
+        };
+
+        passwordInput.addEventListener('input', validatePasswords);
+        confirmPasswordInput.addEventListener('input', validatePasswords);
+
+        registrationForm.addEventListener('submit', function (event) {
+            if (passwordInput.value !== confirmPasswordInput.value) {
+                passwordHelpDiv.textContent = 'Passwords do not match. Please correct.';
+                confirmPasswordInput.focus();
+                // confirmPasswordInput.classList.add('is-invalid'); // Uncomment if using BS validation styles
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+            // Add other form validation checks here if needed before submission
+        });
+    }
+  });
   </script>
+{% endblock %}
+
+{% block footer %}
+
+{% endblock %}
+{% block newsletter %}
+
 {% endblock %}

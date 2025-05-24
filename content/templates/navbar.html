@@ -1,31 +1,13 @@
 {% load static %}
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top">
   <div class="container px-5 bg-navbar-dark">
-    <a class="navbar-brand" href="{% url 'home' %}">
-      <img src="{% static 'images/logo.png' %}"
-           alt="Company Logo"
-           height="150"
-           width="150" />
-    </a>
-    <button class="navbar-toggler"
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#navbarSupportedContent"
-            aria-controls="navbarSupportedContent"
-            aria-expanded="false"
-            aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
+    <a class="navbar-brand" href="{% url 'home' %}"><img src="{% static 'images/logo.png' %}" alt="Company Logo" height="150" width="150" /></a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         {% if request.user.is_superuser %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white"
-               href="#"
-               id="adminDropdown"
-               role="button"
-               data-bs-toggle="dropdown"
-               aria-expanded="false">Admin View</a>
+            <a class="nav-link dropdown-toggle text-white" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Admin View</a>
             <ul class="dropdown-menu bg-light" aria-labelledby="adminDropdown">
               <li>
                 <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
@@ -47,15 +29,13 @@
         {% endif %}
         {% if request.user.is_authenticated and request.user.travelagent %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white"
-               href="#"
-               id="agentDropdown"
-               role="button"
-               data-bs-toggle="dropdown"
-               aria-expanded="false">Travel Agent</a>
+            <a class="nav-link dropdown-toggle text-white" href="#" id="agentDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Travel Agent</a>
             <ul class="dropdown-menu bg-light" aria-labelledby="agentDropdown">
               <li>
-                <a class="dropdown-item" href="{% url 'agent_dashboard' %}">Dashboard</a>
+                <a class="dropdown-item" href="{% url 'agency_dashboard' %}">Agency Dashboard</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'agent_dashboard' %}">Agent Dashboard</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'logout' %}">Logout</a>
@@ -76,30 +56,22 @@
           <a class="nav-link text-white" href="{% url 'blog-list' %}">Blog</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white"
-             href="#"
-             id="servicesDropdown"
-             role="button"
-             data-bs-toggle="dropdown"
-             aria-expanded="false">Services</a>
+          <a class="nav-link dropdown-toggle text-white" href="#" id="servicesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Services</a>
           <ul class="dropdown-menu bg-light" aria-labelledby="servicesDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'services' %}">All Services</a>
             </li>
             <li>
-              <a class="dropdown-item"
-                 href="{% url 'orlando_airport_transportation' %}">Orlando Airport Transportation</a>
+              <a class="dropdown-item" href="{% url 'orlando_airport_transportation' %}">Orlando Airport Transportation</a>
             </li>
             <li>
               <a class="dropdown-item" href="{% url 'disney_world_transportation' %}">Walt Disney World Transportation</a>
             </li>
             <li>
-              <a class="dropdown-item"
-                 href="{% url 'universal_orlando_transportation' %}">Universal Orlando Transportation</a>
+              <a class="dropdown-item" href="{% url 'universal_orlando_transportation' %}">Universal Orlando Transportation</a>
             </li>
             <li>
-              <a class="dropdown-item"
-                 href="{% url 'port_canaveral_transportation' %}">Port Canaveral Cruise Transportation</a>
+              <a class="dropdown-item" href="{% url 'port_canaveral_transportation' %}">Port Canaveral Cruise Transportation</a>
             </li>
             <li>
               <a class="dropdown-item" href="{% url 'corporate_transportation' %}">Corporate Transportation</a>
@@ -107,12 +79,7 @@
           </ul>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white"
-             href="#"
-             id="companyDropdown"
-             role="button"
-             data-bs-toggle="dropdown"
-             aria-expanded="false">Our Company</a>
+          <a class="nav-link dropdown-toggle text-white" href="#" id="companyDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Our Company</a>
           <ul class="dropdown-menu bg-light" aria-labelledby="companyDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'about-us' %}">About Us</a>
@@ -125,46 +92,57 @@
             </li>
           </ul>
         </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle text-white" href="#" id="agentDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Portal</a>
+          <ul class="dropdown-menu bg-light" aria-labelledby="agentDropdown">
+            <li>
+              <a class="dropdown-item" href="{% url 'register_agent' %}">Travel Agent Registration</a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'agent_login' %}">Travel Agent Login</a>
+            </li>
+          </ul>
+        </li>
       </ul>
     </div>
   </div>
 </nav>
 <style>
-    /* Increase the size of navbar items */
-    .navbar-nav .nav-link {
-        font-size: 1.2rem;
-        /* Increase font size */
-        padding: 0.8rem 1rem;
-        /* Increase padding */
-    }
-
-    /* Adjust the size of the navbar dropdown */
-    .navbar-nav .nav-item.dropdown .dropdown-toggle {
-        font-size: 1.2rem;
-        /* Larger font for dropdown items */
-        padding: 0.8rem 1rem;
-        /* Larger padding for dropdown items */
-    }
-
-    /* Increase the size of dropdown items */
-    .dropdown-menu .dropdown-item {
-        font-size: 1.1rem;
-        /* Larger font for dropdown items */
-        padding: 0.75rem 1rem;
-        /* Increase padding for dropdown items */
-    }
-
-    /* Adjust navbar toggler (hamburger icon) size */
-    .navbar-toggler {
-        padding: 1rem;
-        /* Increase size of the hamburger icon */
-        filter: brightness(0) invert(1);
-    }
-
-    /* Adjust the navbar brand (logo) size */
-    .navbar-brand img {
-        height: 150px;
-        /* Adjust logo size */
-        width: auto;
-    }
+  /* Increase the size of navbar items */
+  .navbar-nav .nav-link {
+    font-size: 1.2rem;
+    /* Increase font size */
+    padding: 0.8rem 1rem;
+    /* Increase padding */
+  }
+  
+  /* Adjust the size of the navbar dropdown */
+  .navbar-nav .nav-item.dropdown .dropdown-toggle {
+    font-size: 1.2rem;
+    /* Larger font for dropdown items */
+    padding: 0.8rem 1rem;
+    /* Larger padding for dropdown items */
+  }
+  
+  /* Increase the size of dropdown items */
+  .dropdown-menu .dropdown-item {
+    font-size: 1.1rem;
+    /* Larger font for dropdown items */
+    padding: 0.75rem 1rem;
+    /* Increase padding for dropdown items */
+  }
+  
+  /* Adjust navbar toggler (hamburger icon) size */
+  .navbar-toggler {
+    padding: 1rem;
+    /* Increase size of the hamburger icon */
+    filter: brightness(0) invert(1);
+  }
+  
+  /* Adjust the navbar brand (logo) size */
+  .navbar-brand img {
+    height: 150px;
+    /* Adjust logo size */
+    width: auto;
+  }
 </style>

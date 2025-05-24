@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ agency.name }} - Agents{% endblock %}
+
+{% block content %}
+  <div class="container-fluid mt-4">
+    <div class="row">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1>{{ agency.name }} - Agents</h1>
+          <div>
+            <a href="{% url 'agency_dashboard' %}"
+               class="btn btn-outline-secondary me-2">Back to Dashboard</a>
+            <button id="processAllBtn" class="btn btn-success">Process All Commissions</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Total Agents</h5>
+            <h2 class="card-text">{{ agents.count }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Unpaid Commissions</h5>
+            <h2 class="card-text text-success">${{ agency.get_total_unpaid_commissions }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Pending Commissions</h5>
+            <h2 class="card-text text-primary">${{ agency.get_total_pending_commissions }}</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Total Paid</h5>
+            <h2 class="card-text text-purple">${{ agency.get_total_paid_commissions }}</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents Table -->
+    <div class="row">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">All Agents</h5>
+              <div class="input-group" style="width: 300px;">
+                <input type="text"
+                       id="agentSearch"
+                       class="form-control"
+                       placeholder="Search agents...">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0" id="agentsTable">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Commission Rate</th>
+                    <th>Unpaid</th>
+                    <th>Pending</th>
+                    <th>Total Paid</th>
+                    <th>Reservations</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for agent in agents %}
+                    <tr>
+                      <td>{{ agent.agent_name }}</td>
+                      <td>{{ agent.user.email }}</td>
+                      <td>{{ agent.phone }}</td>
+                      <td>{{ agent.commission_rate }}%</td>
+                      <td class="text-success">${{ agent.unpaid_commissions }}</td>
+                      <td class="text-primary">${{ agent.pending_commissions }}</td>
+                      <td class="text-purple">${{ agent.total_paid_commission }}</td>
+                      <td>
+                        {% with reservation_count=agent.reservations.count %}{{ reservation_count }}{% endwith %}
+                      </td>
+                      <td>
+                        <span class="badge {% if agent.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                          {% if agent.is_active %}
+                            Active
+                          {% else %}
+                            Inactive
+                          {% endif %}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="btn-group">
+                          <a href="{% url 'agent_detail' agent.id %}"
+                             class="btn btn-sm btn-outline-primary">View</a>
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-success process-btn"
+                                  data-agent-id="{{ agent.id }}"
+                                  data-agent-name="{{ agent.agent_name }}"
+                                  data-amount="{{ agent.unpaid_commissions }}"
+                                  {% if agent.unpaid_commissions <= 0 %}disabled{% endif %}>Process</button>
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-secondary update-btn"
+                                  data-agent-id="{{ agent.id }}">Update</button>
+                        </div>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="10" class="text-center py-4">No agents found for this agency.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Processing Commission Payment -->
+  <div class="modal fade"
+       id="processPaymentModal"
+       tabindex="-1"
+       aria-labelledby="processPaymentModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="processPaymentModalLabel">Process Commission Payment</h5>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>
+            You are about to process a commission payment of <strong id="modalAmount">$0.00</strong> for <strong id="modalAgentName">Agent</strong>.
+          </p>
+          <p>This will mark all unpaid completed reservations as paid and create a commission payout record.</p>
+          <p>Are you sure you want to continue?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form id="processPaymentForm" action="" method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">Process Payment</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for Processing All Commissions -->
+  <div class="modal fade"
+       id="processAllModal"
+       tabindex="-1"
+       aria-labelledby="processAllModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="processAllModalLabel">Process All Commissions</h5>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>You are about to process commission payments for all agents with unpaid commissions.</p>
+          <p>This will create individual payout records for each agent and mark their reservations as paid.</p>
+          <p>Are you sure you want to continue?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <form action="{% url 'process_agency_commissions' agency.id %}"
+                method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">Process All Payments</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          // Search functionality
+          document.getElementById('agentSearch').addEventListener('keyup', function() {
+              const value = this.value.toLowerCase();
+              const table = document.getElementById('agentsTable');
+              const rows = table.getElementsByTagName('tr');
+
+              for (let i = 1; i < rows.length; i++) {
+                  const row = rows[i];
+                  const text = row.textContent.toLowerCase();
+
+                  if (text.includes(value)) {
+                      row.style.display = '';
+                  } else {
+                      row.style.display = 'none';
+                  }
+              }
+          });
+
+          // Process payment buttons
+          document.querySelectorAll('.process-btn').forEach(button => {
+              button.addEventListener('click', function() {
+                  const agentId = this.getAttribute('data-agent-id');
+                  const agentName = this.getAttribute('data-agent-name');
+                  const amount = this.getAttribute('data-amount');
+
+                  document.getElementById('modalAgentName').textContent = agentName;
+                  document.getElementById('modalAmount').textContent = '$' + amount;
+                  document.getElementById('processPaymentForm').action = `/users/agent/${agentId}/process-commission/`;
+
+                  const modal = new bootstrap.Modal(document.getElementById('processPaymentModal'));
+                  modal.show();
+              });
+          });
+
+          // Update commission stats buttons
+          document.querySelectorAll('.update-btn').forEach(button => {
+              button.addEventListener('click', function() {
+                  const agentId = this.getAttribute('data-agent-id');
+                  button.disabled = true;
+                  button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Updating...';
+
+                  fetch(`/users/agent/${agentId}/update-stats/`, {
+                          method: 'POST',
+                          headers: {
+                              'X-CSRFToken': '{{ csrf_token }}',
+                              'Content-Type': 'application/json'
+                          }
+                      })
+                      .then(response => response.json())
+                      .then(data => {
+                          if (data.success) {
+                              button.innerHTML = 'Updated!';
+                              setTimeout(() => {
+                                  window.location.reload();
+                              }, 1000);
+                          } else {
+                              button.innerHTML = 'Error';
+                              alert('Error updating commission statistics: ' + data.error);
+                          }
+                      })
+                      .catch(error => {
+                          button.innerHTML = 'Error';
+                          console.error('Error:', error);
+                          alert('An error occurred. Please try again.');
+                      })
+                      .finally(() => {
+                          setTimeout(() => {
+                              button.disabled = false;
+                              button.innerHTML = 'Update';
+                          }, 2000);
+                      });
+              });
+          });
+
+          // Process all commissions button
+          document.getElementById('processAllBtn').addEventListener('click', function() {
+              const modal = new bootstrap.Modal(document.getElementById('processAllModal'));
+              modal.show();
+          });
+      });
+  </script>
+{% endblock %}
+
+{% block footer %}
+
+{% endblock %}
+{% block newsletter %}
+
+{% endblock %}

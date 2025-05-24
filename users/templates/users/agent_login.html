@@ -2,8 +2,7 @@
 {% load static %}
 {% block title %}
   Travel Agent Login | Grayson Towncar
-{% endblock title %}
-
+{% endblock %}
 
 {% block content %}
   <link rel="stylesheet" href="{% static 'css/login_register.css' %}" />
@@ -22,26 +21,15 @@
               {% csrf_token %}
               <div class="input-group">
                 <label for="username">Username</label>
-                <input type="text"
-                       name="username"
-                       id="username"
-                       class="input"
-                       placeholder="Enter username"
-                       required />
+                <input type="text" name="username" id="username" class="input" placeholder="Enter username" required />
               </div>
               <div class="input-group">
                 <label for="password">Password</label>
-                <input type="password"
-                       name="password"
-                       id="password"
-                       class="input"
-                       placeholder="Enter password"
-                       required />
+                <input type="password" name="password" id="password" class="input" placeholder="Enter password" required />
               </div>
               <div class="button-wrapper">
                 <button type="submit">
-                  Log In
-                  <div class="arrow-wrapper">
+                  Log In<div class="arrow-wrapper">
                     <div class="arrow"></div>
                   </div>
                 </button>
@@ -69,9 +57,13 @@
       Questions? Call us at <a href="tel:407-212-7190" style="color: #3b82f6; text-decoration: none">407-212-7190</a>
     </p>
     <p style="margin: 5px 0 0 0; color: #9ca3af; font-size: 12px;">
-      © {% now "Y" %} Grayson Towncar. All rights reserved.
+      ©{% now 'Y' %}Grayson Towncar. All rights reserved.
     </p>
   </footer>
 {% endblock %}
 {% block footer %}
-{% endblock footer %}
+
+{% endblock %}
+{% block newsletter %}
+
+{% endblock %}
