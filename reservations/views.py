@@ -19,12 +19,9 @@ from rates.models import Rate, Vehicle
 import json
 from users.models import TravelAgent
 import logging
-from .hubspot_service import sync_reservation_to_hubspot
 from django.http import JsonResponse
-from .models import Lead
 from .forms import LeadForm
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
 from django.utils.decorators import method_decorator
 from django.views import View
 

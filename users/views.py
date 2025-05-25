@@ -1,6 +1,4 @@
 from datetime import datetime, timedelta
-import json
-import pandas as pd
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -10,16 +8,13 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Sum, Q, Count, Prefetch, Avg
-from django.http import JsonResponse
+from django.db.models import Sum, Q, Count, Prefetch
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
-from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
 
 from reservations.models import Reservation, Leg
-from .emails import thankyou_email
 from .forms import (
     CustomUserCreationForm,
     PartnerFormSubmission,
