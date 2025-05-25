@@ -667,17 +667,16 @@ class Agency(models.Model):
                         agent_reservation_details = []
                         for res in reservations_with_commission:
                             agent_reservation_details.append(
-                                f"#{res.id} (${res.total_price:.2f} -> ${res.calculated_commission:.2f})"
+                                f"ID #{res.id} For {res.customer.get_full_name()} - (${res.total_price:.2f} -> ${res.calculated_commission:.2f})"
                             )
 
                         individual_agent_notes = (
                             f"Agent: {agent.agent_name or agent.user.username} ({agent.user.email})\n"
-                            f"Commission Rate: {agent.commission_rate}%\n"
                             f"Reservations ({reservation_count}): {', '.join(agent_reservation_details[:10])}"
                             f"{'...' if reservation_count > 10 else ''}\n"
                             f"Period: {agent_earliest_date} to {agent_latest_date}\n"
                             f"Total Commission: ${agent_commission_total:.2f}\n"
-                            f"Processed as part of agency batch payout to {self.name}"
+                            f"Processed as part of agency payout to {self.name}"
                         )
 
                         # Create individual agent payout with detailed notes

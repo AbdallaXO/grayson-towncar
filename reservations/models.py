@@ -349,103 +349,79 @@ class Flight(models.Model):
         return f"{self.airline} {self.flight_number}"
 
 
-class Lead(models.Model):
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
-    email = models.EmailField()
-    phone = models.CharField(max_length=20)
+# yourapp/models.py
+from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 
-    # Trip details
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.SET_NULL, null=True)
-    pickup_location = models.CharField(max_length=200)
-    dropoff_location = models.CharField(max_length=200)
+
+class Lead(models.Model):
+    class StatusChoices(models.TextChoices):
+        NEW = "new", "New"
+        CONTACTED = "contacted", "Contacted"
+        INTERESTED = "interested", "Interested"
+        FUTURE_CONTACT = "future_contact", "Future Contact"
+        CONVERTED = "converted", "Converted"
+        LOST = "lost", "Lost"
+
+    class PriorityChoices(models.TextChoices):
+        LOW = "low", "Low"
+        MEDIUM = "medium", "Medium"
+        HIGH = "high", "High"
+        URGENT = "urgent", "Urgent"
+
+    class TripTypeChoices(models.TextChoices):
+        ONEWAY = "oneway", "One Way"
+        ROUNDTRIP = "roundtrip", "Round Trip"
+
+    # Contact Info
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+
+    # Trip Details
+    vehicle = models.ForeignKey(
+        Vehicle, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    pickup_location = models.CharField(max_length=200, blank=True)
+    dropoff_location = models.CharField(max_length=200, blank=True)
     pickup_date = models.DateField(null=True, blank=True)
     trip_type = models.CharField(
-        max_length=20, choices=[("oneway", "One Way"), ("roundtrip", "Round Trip")]
+        max_length=20, choices=TripTypeChoices.choices, blank=True
     )
-    estimated_price = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+    estimated_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
 
-    # Lead tracking
-    source = models.CharField(
-        max_length=50,
-        choices=[
-            ("website", "Website"),
-            ("phone", "Phone"),
-            ("email", "Email"),
-            ("referral", "Referral"),
-            ("social", "Social Media"),
-            ("other", "Other"),
-        ],
-        default="website",
-        help_text="Where did this lead come from?",
-    )
+    # Lead Management
     status = models.CharField(
-        max_length=20,
-        choices=[
-            ("new", "New"),
-            ("contacted", "Contacted"),
-            ("interested", "Interested"),
-            ("proposal", "Proposal Sent"),
-            ("negotiating", "Negotiating"),
-            ("converted", "Converted"),
-            ("lost", "Lost"),
-        ],
-        default="new",
-        help_text="Current status of the lead",
+        max_length=20, choices=StatusChoices.choices, default=StatusChoices.NEW
     )
     priority = models.CharField(
-        max_length=20,
-        choices=[
-            ("low", "Low"),
-            ("medium", "Medium"),
-            ("high", "High"),
-            ("urgent", "Urgent"),
-        ],
-        default="medium",
-        help_text="Priority level of the lead",
+        max_length=20, choices=PriorityChoices.choices, default=PriorityChoices.MEDIUM
     )
-    last_contact_date = models.DateTimeField(null=True, blank=True)
     next_follow_up = models.DateTimeField(null=True, blank=True)
     contact_attempts = models.PositiveIntegerField(default=0)
-    preferred_contact_method = models.CharField(
-        max_length=20,
-        choices=[
-            ("email", "Email"),
-            ("phone", "Phone"),
-            ("text", "Text Message"),
-        ],
-        default="email",
-    )
-    # Metadata
-    created_at = models.DateTimeField(default=timezone.now)
+    last_contact_date = models.DateTimeField(null=True, blank=True)
+
+    # Conversion Tracking
     converted = models.BooleanField(default=False)
     converted_at = models.DateTimeField(null=True, blank=True)
-    notes = models.TextField(null=True, blank=True)
-    contacted = models.BooleanField(null=True, blank=True)
+
+    # Notes and Timestamps
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ["-created_at"]
-        indexes = [
-            models.Index(fields=["status"]),
-            models.Index(fields=["priority"]),
-            models.Index(fields=["next_follow_up"]),
-            models.Index(fields=["created_at"]),
-        ]
+        verbose_name = "Lead"
+        verbose_name_plural = "Leads"
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} - {self.created_at.strftime('%Y-%m-%d')}"
+        name = f"{self.first_name} {self.last_name}".strip()
+        return name or f"Lead #{self.id}"
 
-    def mark_as_converted(self):
-        self.converted = True
-        self.converted_at = timezone.now()
-        self.status = "converted"
-        self.save()
-
-    def update_contact_attempt(self):
-        self.contact_attempts += 1
-        self.last_contact_date = timezone.now()
-        self.save()
-
-    def set_next_follow_up(self, days=3):
-        self.next_follow_up = timezone.now() + timedelta(days=days)
-        self.save()
+    @property
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}".strip() or "No Name"

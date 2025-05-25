@@ -20,6 +20,34 @@
       </div>
     </div>
 
+    <!-- Navigation Tabs -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <ul class="nav nav-tabs flex-nowrap"
+            style="overflow-x: auto"
+            id="historyTabs">
+          <li class="nav-item">
+            <button class="nav-link active"
+                    id="agency-payouts-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#agency-payouts"
+                    type="button">
+              <i class="fas fa-building me-2"></i><span class="d-none d-sm-inline">Agency Payouts</span>
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link"
+                    id="agent-payouts-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#agent-payouts"
+                    type="button">
+              <i class="fas fa-users me-2"></i><span class="d-none d-sm-inline">Individual Agents</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+
     <!-- Summary Cards -->
     <div class="row g-4 mb-4">
       <div class="col-md-6">
@@ -43,7 +71,7 @@
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2">Ready to Pay</h6>
+                <h6 class="text-muted text-uppercase mb-2">Awaiting Payment</h6>
                 <div class="h3 mb-0 text-danger">${{ total_unpaid }}</div>
               </div>
               <div class="ms-3 text-danger opacity-75">
@@ -55,215 +83,402 @@
       </div>
     </div>
 
-    <!-- Commission History Section -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header">
-            <h5 class="mb-0">Paid Commission History</h5>
-          </div>
-          <div class="card-body p-0">
-            {% if payouts %}
-              <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Payment Date</th>
-                      <th>Agent</th>
-                      <th>Period</th>
-                      <th>Reservations</th>
-                      <th>Amount</th>
-                      <th class="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for payout in payouts %}
-                      <tr>
-                        <td>
-                          <div class="fw-bold">{{ payout.paid_at|date:'M d, Y' }}</div>
-                          <div class="small text-muted">{{ payout.paid_at|time:'g:i A' }}</div>
-                        </td>
-                        <td>
-                          <div class="fw-bold">{{ payout.agent.agent_name }}</div>
-                          <div class="small text-muted">{{ payout.agent.user.email }}</div>
-                        </td>
-                        <td>
-                          <div class="small">
-                            {{ payout.payout_period_start|date:'M d, Y' }}
-                            <br>
-                            to {{ payout.payout_period_end|date:'M d, Y' }}
-                          </div>
-                        </td>
-                        <td>
-                          <span class="badge bg-secondary">{{ payout.reservations.count }} trips</span>
-                        </td>
-                        <td>
-                          <div class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</div>
-                        </td>
-                        <td class="text-end">
-                          <button type="button"
-                                  class="btn btn-outline-primary btn-sm"
-                                  data-bs-toggle="modal"
-                                  data-bs-target="#payoutModal{{ payout.id }}">
-                            <i class="fas fa-eye me-1"></i>View Details
-                          </button>
-                        </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
+    <!-- Tab Content -->
+    <div class="tab-content" id="historyTabContent">
+
+      <!-- Agency Payouts Tab -->
+      <div class="tab-pane fade show active" id="agency-payouts" role="tabpanel">
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0">Agency Commission Payouts</h5>
+                <small class="text-muted">Main payments made to {{ agency.name }}</small>
               </div>
+              <div class="card-body p-0">
+                {% if agency_payouts %}
+                  <!-- Desktop View -->
+                  <div class="table-responsive d-none d-lg-block">
+                    <table class="table table-hover mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Payment Date</th>
+                          <th>Period</th>
+                          <th>Agents Included</th>
+                          <th>Total Reservations</th>
+                          <th>Amount</th>
+                          <th class="text-end">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for agency_payout in agency_payouts %}
+                          <tr>
+                            <td>
+                              <div class="fw-bold">{{ agency_payout.paid_at|date:'M d, Y' }}</div>
+                              <div class="small text-muted">{{ agency_payout.paid_at|time:'g:i A' }}</div>
+                            </td>
+                            <td>
+                              <div class="small">
+                                {{ agency_payout.payout_period_start|date:'M d, Y' }}
+                                <br>
+                                to {{ agency_payout.payout_period_end|date:'M d, Y' }}
+                              </div>
+                            </td>
+                            <td>
+                              <span class="badge bg-primary">{{ agency_payout.agent_payouts.count }} agents</span>
+                            </td>
+                            <td>
+                              {% comment %}Calculate total reservations from all agent payouts{% endcomment %}
+                              <span class="badge bg-secondary">Multiple trips</span>
+                            </td>
+                            <td>
+                              <div class="fw-bold text-success">${{ agency_payout.total_amount|floatformat:2 }}</div>
+                            </td>
+                            <td class="text-end">
+                              <button type="button"
+                                      class="btn btn-outline-primary btn-sm"
+                                      data-bs-toggle="modal"
+                                      data-bs-target="#agencyPayoutModal{{ agency_payout.id }}">
+                                <i class="fas fa-eye me-1"></i>View Details
+                              </button>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
 
-              <!-- Payout Detail Modals -->
-              {% for payout in payouts %}
-                <div class="modal fade"
-                     id="payoutModal{{ payout.id }}"
-                     tabindex="-1"
-                     aria-labelledby="payoutModalLabel{{ payout.id }}"
-                     aria-hidden="true">
-                  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-                    <div class="modal-content">
-                      <div class="modal-header">
-                        <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">
-                          Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}
-                        </h5>
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="modal"
-                                aria-label="Close"></button>
-                      </div>
-                      <div class="modal-body">
-                        <div class="row mb-4">
-                          <div class="col-md-6">
-                            <h6 class="fw-bold mb-3">Payout Information</h6>
-                            <p class="mb-2">
-                              <strong>Paid On:</strong>
-                              <br>
-                              {{ payout.paid_at|date:'F d, Y g:i A' }}
-                            </p>
-                            <p class="mb-2">
-                              <strong>Total Amount:</strong>
-                              <br>
-                              <span class="text-success fw-bold h5">${{ payout.total_amount|floatformat:2 }}</span>
-                            </p>
+                  <!-- Mobile Cards View -->
+                  <div class="d-block d-lg-none">
+                    {% for agency_payout in agency_payouts %}
+                      <div class="border-bottom p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                          <div>
+                            <h6 class="mb-1 fw-bold">{{ agency_payout.paid_at|date:'M d, Y' }}</h6>
+                            <small class="text-muted">{{ agency_payout.payout_period_start|date:'M d' }} - {{ agency_payout.payout_period_end|date:'M d, Y' }}</small>
                           </div>
-                          <div class="col-md-6">
-                            <h6 class="fw-bold mb-3">Details</h6>
-                            <p class="mb-2">
-                              <strong>Agent:</strong>
-                              <br>
-                              {{ payout.agent.agent_name }}
-                            </p>
-                            <p class="mb-2">
-                              <strong>Reservations:</strong>
-                              <br>
-                              {{ payout.reservations.count }} trips
-                            </p>
-                          </div>
+                          <span class="fw-bold text-success">${{ agency_payout.total_amount|floatformat:2 }}</span>
                         </div>
-
-                        {% if payout.notes %}
-                          <div class="mb-4">
-                            <h6 class="fw-bold mb-3">Notes</h6>
-                            <div class="alert alert-info">{{ payout.notes|linebreaks }}</div>
+                        <div class="row g-2 mt-2">
+                          <div class="col-6">
+                            <small class="text-muted d-block">Agents</small>
+                            <span class="badge bg-primary">{{ agency_payout.agent_payouts.count }} agents</span>
                           </div>
-                        {% endif %}
-
-                        <div class="mb-4">
-                          <h6 class="fw-bold mb-3">Reservations Included</h6>
-                          <div class="table-responsive">
-                            <table class="table table-sm">
-                              <thead>
-                                <tr>
-                                  <th>ID</th>
-                                  <th>Customer</th>
-                                  <th>Date</th>
-                                  <th>Amount</th>
-                                  <th>Commission</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {% for reservation in payout.reservations.all %}
-                                  <tr>
-                                    <td>#{{ reservation.id }}</td>
-                                    <td>{{ reservation.customer.get_full_name }}</td>
-                                    <td>{{ reservation.created_at|date:'M d, Y' }}</td>
-                                    <td>${{ reservation.total_price|floatformat:2 }}</td>
-                                    <td class="text-success">${{ reservation.commission_amount|floatformat:2 }}</td>
-                                  </tr>
-                                {% endfor %}
-                              </tbody>
-                            </table>
+                          <div class="col-6">
+                            <small class="text-muted d-block">Actions</small>
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#agencyPayoutModal{{ agency_payout.id }}">View Details</button>
                           </div>
                         </div>
                       </div>
-                      <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    {% endfor %}
+                  </div>
+
+                  <!-- Agency Payout Detail Modals -->
+                  {% for agency_payout in agency_payouts %}
+                    <div class="modal fade"
+                         id="agencyPayoutModal{{ agency_payout.id }}"
+                         tabindex="-1"
+                         aria-labelledby="agencyPayoutModalLabel{{ agency_payout.id }}"
+                         aria-hidden="true">
+                      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                        <div class="modal-content">
+                          <div class="modal-header">
+                            <h5 class="modal-title" id="agencyPayoutModalLabel{{ agency_payout.id }}">
+                              Agency Payout Details - {{ agency_payout.payout_period_start|date:'M d' }} to {{ agency_payout.payout_period_end|date:'M d, Y' }}
+                            </h5>
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                          </div>
+                          <div class="modal-body">
+                            <div class="row mb-4">
+                              <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Agency Payout Information</h6>
+                                <p class="mb-2">
+                                  <strong>Paid On:</strong>
+                                  <br>
+                                  {{ agency_payout.paid_at|date:'F d, Y g:i A' }}
+                                </p>
+                                <p class="mb-2">
+                                  <strong>Total Amount:</strong>
+                                  <br>
+                                  <span class="text-success fw-bold h4">${{ agency_payout.total_amount|floatformat:2 }}</span>
+                                </p>
+                              </div>
+                              <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Summary</h6>
+                                <p class="mb-2">
+                                  <strong>Agents Included:</strong>
+                                  <br>
+                                  {{ agency_payout.agent_payouts.count }} agents
+                                </p>
+                                <p class="mb-2">
+                                  <strong>Period:</strong>
+                                  <br>
+                                  {{ agency_payout.payout_period_start|date:'M d, Y' }} to {{ agency_payout.payout_period_end|date:'M d, Y' }}
+                                </p>
+                              </div>
+                            </div>
+
+                            {% if agency_payout.notes %}
+                              <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Payout Details</h6>
+                                <div class="alert alert-info">
+                                  <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ agency_payout.notes }}</pre>
+                                </div>
+                              </div>
+                            {% endif %}
+
+                            <div class="mb-4">
+                              <h6 class="fw-bold mb-3">Agent Breakdown</h6>
+                              <div class="table-responsive">
+                                <table class="table table-sm">
+                                  <thead>
+                                    <tr>
+                                      <th>Agent</th>
+                                      <th>Commission Rate</th>
+                                      <th>Reservations</th>
+                                      <th>Amount</th>
+                                      <th>Period</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {% for agent_payout in agency_payout.agent_payouts.all %}
+                                      <tr>
+                                        <td>
+                                          <div class="fw-bold">{{ agent_payout.agent.agent_name }}</div>
+                                          <small class="text-muted">{{ agent_payout.agent.user.email }}</small>
+                                        </td>
+                                        <td>{{ agent_payout.agent.commission_rate }}%</td>
+                                        <td>{{ agent_payout.reservations.count }} trips</td>
+                                        <td class="text-success fw-bold">${{ agent_payout.total_amount|floatformat:2 }}</td>
+                                        <td class="small">
+                                          {{ agent_payout.payout_period_start|date:'M d' }} - {{ agent_payout.payout_period_end|date:'M d' }}
+                                        </td>
+                                      </tr>
+                                    {% endfor %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  {% endfor %}
+
+                {% else %}
+                  <div class="text-center py-5">
+                    <i class="fas fa-building fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No agency payouts found</h5>
+                    <p class="text-muted mb-0">Agency payout history will appear here once payments are processed.</p>
                   </div>
-                </div>
-              {% endfor %}
-
-              <!-- Pagination -->
-              {% if payouts.paginator.num_pages > 1 %}
-                <div class="card-footer">
-                  <nav aria-label="Payout pagination">
-                    <ul class="pagination justify-content-center mb-0">
-                      {% if payouts.has_previous %}
-                        <li class="page-item">
-                          <a class="page-link" href="?page=1" aria-label="First page">
-                            <i class="fas fa-angle-double-left"></i>
-                          </a>
-                        </li>
-                        <li class="page-item">
-                          <a class="page-link"
-                             href="?page={{ payouts.previous_page_number }}"
-                             aria-label="Previous page">
-                            <i class="fas fa-angle-left"></i>
-                          </a>
-                        </li>
-                      {% endif %}
-
-                      {% for num in payouts.paginator.page_range %}
-                        {% if num == payouts.number %}
-                          <li class="page-item active">
-                            <span class="page-link">{{ num }}</span>
-                          </li>
-                        {% elif num > payouts.number|add:'-3' and num < payouts.number|add:'3' %}
-                          <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-                          </li>
-                        {% endif %}
-                      {% endfor %}
-
-                      {% if payouts.has_next %}
-                        <li class="page-item">
-                          <a class="page-link"
-                             href="?page={{ payouts.next_page_number }}"
-                             aria-label="Next page">
-                            <i class="fas fa-angle-right"></i>
-                          </a>
-                        </li>
-                        <li class="page-item">
-                          <a class="page-link"
-                             href="?page={{ payouts.paginator.num_pages }}"
-                             aria-label="Last page">
-                            <i class="fas fa-angle-double-right"></i>
-                          </a>
-                        </li>
-                      {% endif %}
-                    </ul>
-                  </nav>
-                </div>
-              {% endif %}
-            {% else %}
-              <div class="text-center py-5">
-                <i class="fas fa-money-bill-wave fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No commission payouts found</h5>
-                <p class="text-muted mb-0">Commission history will appear here once payments are processed.</p>
+                {% endif %}
               </div>
-            {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Individual Agent Payouts Tab -->
+      <div class="tab-pane fade" id="agent-payouts" role="tabpanel">
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h5 class="mb-0">Individual Agent Payouts</h5>
+                <small class="text-muted">Detailed breakdown by individual agents</small>
+              </div>
+              <div class="card-body p-0">
+                {% if payouts %}
+                  <!-- Desktop View -->
+                  <div class="table-responsive d-none d-lg-block">
+                    <table class="table table-hover mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Payment Date</th>
+                          <th>Agent</th>
+                          <th>Period</th>
+                          <th>Reservations</th>
+                          <th>Amount</th>
+                          <th class="text-end">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for payout in payouts %}
+                          <tr>
+                            <td>
+                              <div class="fw-bold">{{ payout.paid_at|date:'M d, Y' }}</div>
+                              <div class="small text-muted">{{ payout.paid_at|time:'g:i A' }}</div>
+                            </td>
+                            <td>
+                              <div class="fw-bold">{{ payout.agent.agent_name }}</div>
+                              <div class="small text-muted">{{ payout.agent.user.email }}</div>
+                            </td>
+                            <td>
+                              <div class="small">
+                                {{ payout.payout_period_start|date:'M d, Y' }}
+                                <br>
+                                to {{ payout.payout_period_end|date:'M d, Y' }}
+                              </div>
+                            </td>
+                            <td>
+                              <span class="badge bg-secondary">{{ payout.reservations.count }} trips</span>
+                            </td>
+                            <td>
+                              <div class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</div>
+                            </td>
+                            <td class="text-end">
+                              <button type="button"
+                                      class="btn btn-outline-primary btn-sm"
+                                      data-bs-toggle="modal"
+                                      data-bs-target="#payoutModal{{ payout.id }}">
+                                <i class="fas fa-eye me-1"></i>View Details
+                              </button>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <!-- Mobile Cards View -->
+                  <div class="d-block d-lg-none">
+                    {% for payout in payouts %}
+                      <div class="border-bottom p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                          <div>
+                            <h6 class="mb-1 fw-bold">{{ payout.agent.agent_name }}</h6>
+                            <small class="text-muted">{{ payout.paid_at|date:'M d, Y' }}</small>
+                          </div>
+                          <span class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</span>
+                        </div>
+                        <div class="row g-2 mt-2">
+                          <div class="col-6">
+                            <small class="text-muted d-block">Reservations</small>
+                            <span class="badge bg-secondary">{{ payout.reservations.count }} trips</span>
+                          </div>
+                          <div class="col-6">
+                            <small class="text-muted d-block">Actions</small>
+                            <button type="button"
+                                    class="btn btn-outline-primary btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#payoutModal{{ payout.id }}">View Details</button>
+                          </div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+
+                  <!-- Individual Payout Detail Modals -->
+                  {% for payout in payouts %}
+                    <div class="modal fade"
+                         id="payoutModal{{ payout.id }}"
+                         tabindex="-1"
+                         aria-labelledby="payoutModalLabel{{ payout.id }}"
+                         aria-hidden="true">
+                      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                          <div class="modal-header">
+                            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">
+                              Agent Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}
+                            </h5>
+                            <button type="button"
+                                    class="btn-close"
+                                    data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                          </div>
+                          <div class="modal-body">
+                            <div class="row mb-4">
+                              <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Payout Information</h6>
+                                <p class="mb-2">
+                                  <strong>Paid On:</strong>
+                                  <br>
+                                  {{ payout.paid_at|date:'F d, Y g:i A' }}
+                                </p>
+                                <p class="mb-2">
+                                  <strong>Total Amount:</strong>
+                                  <br>
+                                  <span class="text-success fw-bold h5">${{ payout.total_amount|floatformat:2 }}</span>
+                                </p>
+                              </div>
+                              <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Details</h6>
+                                <p class="mb-2">
+                                  <strong>Agent:</strong>
+                                  <br>
+                                  {{ payout.agent.agent_name }}
+                                </p>
+                                <p class="mb-2">
+                                  <strong>Reservations:</strong>
+                                  <br>
+                                  {{ payout.reservations.count }} trips
+                                </p>
+                              </div>
+                            </div>
+
+                            {% if payout.notes %}
+                              <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Notes</h6>
+                                <div class="alert alert-info">
+                                  <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ payout.notes }}</pre>
+                                </div>
+                              </div>
+                            {% endif %}
+
+                            <div class="mb-4">
+                              <h6 class="fw-bold mb-3">Reservations Included</h6>
+                              <div class="table-responsive">
+                                <table class="table table-sm">
+                                  <thead>
+                                    <tr>
+                                      <th>ID</th>
+                                      <th>Customer</th>
+                                      <th>Date</th>
+                                      <th>Amount</th>
+                                      <th>Commission</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {% for reservation in payout.reservations.all %}
+                                      <tr>
+                                        <td>#{{ reservation.id }}</td>
+                                        <td>{{ reservation.customer.get_full_name }}</td>
+                                        <td>{{ reservation.created_at|date:'M d, Y' }}</td>
+                                        <td>${{ reservation.total_price|floatformat:2 }}</td>
+                                        <td class="text-success">${{ reservation.commission_amount|floatformat:2 }}</td>
+                                      </tr>
+                                    {% endfor %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+
+                {% else %}
+                  <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No individual agent payouts found</h5>
+                    <p class="text-muted mb-0">Individual agent payout history will appear here once payments are processed.</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -275,10 +490,11 @@
         <div class="col-12">
           <div class="card">
             <div class="card-header">
-              <h5 class="mb-0">Ready to Pay Commissions</h5>
+              <h5 class="mb-0">Commissions Awaiting Payment</h5>
             </div>
             <div class="card-body p-0">
-              <div class="table-responsive">
+              <!-- Desktop View -->
+              <div class="table-responsive d-none d-md-block">
                 <table class="table table-hover mb-0">
                   <thead class="table-light">
                     <tr>
@@ -307,12 +523,37 @@
                           <div class="fw-bold text-danger">${{ reservation.commission_amount|floatformat:2 }}</div>
                         </td>
                         <td>
-                          <span class="badge bg-warning">Ready to Pay</span>
+                          <span class="badge bg-dark">Awaiting Payment</span>
                         </td>
                       </tr>
                     {% endfor %}
                   </tbody>
                 </table>
+              </div>
+
+              <!-- Mobile Cards View -->
+              <div class="d-block d-md-none">
+                {% for reservation in unpaid_reservations %}
+                  <div class="border-bottom p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h6 class="mb-1 fw-bold">{{ reservation.customer.get_full_name }}</h6>
+                        <small class="text-muted">{{ reservation.created_at|date:'M d, Y' }}</small>
+                      </div>
+                      <span class="badge bg-dark">Awaiting Payment</span>
+                    </div>
+                    <div class="row g-2 mt-2">
+                      <div class="col-6">
+                        <small class="text-muted d-block">Agent</small>
+                        <span>{{ reservation.travel_agent.agent_name }}</span>
+                      </div>
+                      <div class="col-6">
+                        <small class="text-muted d-block">Commission</small>
+                        <span class="fw-bold text-danger">${{ reservation.commission_amount|floatformat:2 }}</span>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
               </div>
             </div>
           </div>

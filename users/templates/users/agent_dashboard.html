@@ -12,12 +12,8 @@
         <div class="d-flex justify-content-md-end gap-2 flex-wrap">
           <a href="{% url 'rates' %}"
              class="btn btn-dark rounded"
-             aria-label="Create new reservation"><i class="fas fa-plus me-2"></i>New Reservation</a>
-          <button class="btn btn-outline-secondary d-print-none"
-                  onclick="window.print()"
-                  aria-label="Print dashboard">
-            <i class="fas fa-print me-2"></i>Print View
-          </button>
+             aria-label="Create new reservation">New Reservation</a>
+
           <a href="{% url 'agent_profile' %}"
              class="btn btn-outline-secondary"
              aria-label="Edit profile"><i class="fas fa-user-cog me-2"></i>Profile</a>
@@ -316,7 +312,7 @@
                             {% if reservation.commission_paid %}
                               <i class="fas fa-check-circle me-1"></i>Paid
                             {% elif reservation.status == 'completed' %}
-                              <i class="fas fa-clock me-1"></i> Ready To Pay
+                              <i class="fas fa-clock me-1"></i> Awaiting Payment
                             {% elif reservation.status == 'confirmed' %}
                               <i class="fas fa-hourglass-half me-1"></i>Pending
                             {% else %}
@@ -483,7 +479,7 @@
               </div>
               <div class="mb-3">
                 <h6 class="mb-2">
-                  <i class="fas fa-clock text-danger me-2 fw-semibold"></i> Ready To Pay Commission
+                  <i class="fas fa-clock text-danger me-2 fw-semibold"></i> Awaiting Payment
                 </h6>
                 <p class="mb-0">
                   Earnings from completed trips that are waiting for payout. These will be processed in regular payment cycles.
@@ -617,4 +613,9 @@
           })
       })
   </script>
+{% endblock %}
+
+{% block footer %}
+{% endblock %}
+{% block newsletter %}
 {% endblock %}

@@ -1,4 +1,11 @@
-from datetime import datetime, timedelta
+"""
+User and Agency Management Views
+
+This module contains all views related to user authentication, travel agent management,
+and agency operations including commission tracking and payouts.
+"""
+
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -13,6 +20,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
+from django.http import Http404
 
 from reservations.models import Reservation, Leg
 from .forms import (
@@ -26,11 +34,8 @@ from .models import (
     TravelAgent,
     CommissionPayout,
     Agency,
+    AgencyCommissionPayout,
 )
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 def format_decimal(value):
@@ -40,71 +45,14 @@ def format_decimal(value):
     return float(round(value, 2))
 
 
+# =============================================
+# PUBLIC & UTILITY VIEWS
+# =============================================
+
+
 def thankYou(request):
-    """Display thank you page."""
+    """Display thank you page for form submissions."""
     return render(request, "users/thank-you.html")
-
-
-def registerUser(request):
-    """Handle user registration."""
-    form = CustomUserCreationForm()
-    page = "register"
-    context = {"page": page, "form": form}
-
-    if request.method == "POST":
-        form = CustomUserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save(commit=False)
-            user.username = user.username.lower()
-            user.save()
-            messages.success(
-                request,
-                f"Hello {user.username} Your account was created successfully!",
-                extra_tags="success",
-            )
-            login(request, user)
-            return redirect("home")
-        else:
-            messages.error(
-                request,
-                "An Error has Occurred during registration.",
-                extra_tags="danger",
-            )
-
-    return render(request, "users/login_register.html", context)
-
-
-def loginUser(request):
-    """Handle user login."""
-    page = "login"
-
-    if request.method == "POST":
-        username = request.POST["username"]
-        password = request.POST["password"]
-        user = authenticate(request, username=username, password=password)
-
-        if user is not None:
-            login(request, user)
-            messages.success(request, "Successfully logged in", extra_tags="success")
-
-            if request.user.is_superuser:
-                return redirect("dashboard")
-            else:
-                return redirect("schedule")
-        else:
-            messages.error(
-                request, "Please Enter Valid Credentials", extra_tags="danger"
-            )
-
-    return render(request, "users/login_register.html", {"page": page})
-
-
-@login_required(login_url="login")
-def logoutUser(request):
-    """Log out the user once they click logout."""
-    logout(request)
-    messages.success(request, "You Have Been Logged Out!")
-    return redirect("login")
 
 
 def partner(request):
@@ -117,8 +65,7 @@ def partner(request):
     else:
         form = PartnerFormSubmission()
 
-    context = {"form": form}
-    return render(request, "users/become_partner.html", context)
+    return render(request, "users/become_partner.html", {"form": form})
 
 
 def contact(request):
@@ -131,28 +78,30 @@ def contact(request):
     else:
         form = ContactUsFormSubmission()
 
-    context = {"form": form}
-    return render(request, "reservations/contact.html", context)
+    return render(request, "reservations/contact.html", {"form": form})
 
 
 def newsletter_subscribe(request):
-    """Handle newsletter subscription."""
+    """Handle newsletter subscription with IP tracking and duplicate prevention."""
     if request.method == "POST":
         email = request.POST.get("email")
         name = request.POST.get("name")
-        if email:
-            x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-            if x_forwarded_for:
-                ip_address = x_forwarded_for.split(",")[0]
-            else:
-                ip_address = request.META.get("REMOTE_ADDR")
 
-            # Record the attempt
+        if email:
+            # Get client IP address
+            x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+            ip_address = (
+                x_forwarded_for.split(",")[0]
+                if x_forwarded_for
+                else request.META.get("REMOTE_ADDR")
+            )
+
+            # Record subscription attempt
             attempt = NewsletterSubscriptionAttempt.objects.create(
                 ip_address=ip_address, email=email
             )
 
-            # Check if email already exists
+            # Check for existing subscription
             if not NewsLetter.objects.filter(email=email).exists():
                 NewsLetter.objects.create(email=email, name=name)
                 attempt.success = True
@@ -175,78 +124,119 @@ def newsletter_subscribe(request):
                 extra_tags="newsletter_error",
             )
 
-    # Redirect back to the previous page
     return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
-def register_agent(request):
-    """Handle travel agent registration."""
+# =============================================
+# AUTHENTICATION VIEWS
+# =============================================
+
+
+def registerUser(request):
+    """Handle user registration for regular users."""
     if request.method == "POST":
-        # Get form data
-        form_data = {
-            "username": request.POST.get("username"),
-            "email": request.POST.get("email"),
-            "agent_name": request.POST.get("agent_name"),
-            "agency_name": request.POST.get("agency_name"),
-            "phone": request.POST.get("phone"),
-            "payment_info": request.POST.get("payment_info"),
-            "payment_method": request.POST.get("payment_method"),
-        }
+        form = CustomUserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.username = user.username.lower()
+            user.save()
+            messages.success(
+                request,
+                f"Hello {user.username} Your account was created successfully!",
+                extra_tags="success",
+            )
+            login(request, user)
+            return redirect("home")
+        else:
+            messages.error(
+                request,
+                "An Error has Occurred during registration.",
+                extra_tags="danger",
+            )
+    else:
+        form = CustomUserCreationForm()
 
-        password1 = request.POST.get("password1")
-        password2 = request.POST.get("password2")
+    return render(
+        request, "users/login_register.html", {"page": "register", "form": form}
+    )
 
-        # Validation context for errors
-        error_context = {"form_data": form_data}
 
-        # Validate passwords match
-        if password1 != password2:
-            messages.error(request, "Passwords do not match.")
-            return render(request, "users/register_agent.html", error_context)
+def loginUser(request):
+    """Handle user login for admins and drivers only."""
+    if request.method == "POST":
+        username = request.POST["username"]
+        password = request.POST["password"]
+        user = authenticate(request, username=username, password=password)
 
-        # Check if username or email already exists
-        if User.objects.filter(username=form_data["username"]).exists():
-            messages.error(request, "Username already exists.")
-            return render(request, "users/register_agent.html", error_context)
-
-        if User.objects.filter(email=form_data["email"]).exists():
-            messages.error(request, "Email already exists.")
-            return render(request, "users/register_agent.html", error_context)
-
-        try:
-            # Use transaction to ensure both user and agent are created together
-            with transaction.atomic():
-                # Create user account
-                user = User.objects.create_user(
-                    username=form_data["username"],
-                    email=form_data["email"],
-                    password=password1,
+        if user is not None:
+            # Check if this user is a travel agent
+            try:
+                TravelAgent.objects.get(user=user)
+                messages.info(
+                    request, "Travel agents should use the dedicated agent login."
                 )
-
-                # Create travel agent profile
-                TravelAgent.objects.create(
-                    user=user,
-                    agent_name=form_data["agent_name"],
-                    agency_name=form_data["agency_name"],
-                    phone=form_data["phone"],
-                    payment_method=form_data["payment_method"],
-                    payment_info=form_data["payment_info"],
-                )
+                return redirect("agent_login")
+            except TravelAgent.DoesNotExist:
+                pass  # Not an agent, continue with normal flow
 
             login(request, user)
-            messages.success(request, "Successfully registered as a travel agent!")
-            return redirect("agent_dashboard")
+            request.session["login_type"] = "main"
+            messages.success(request, "Successfully logged in", extra_tags="success")
 
-        except Exception as e:
-            # The transaction will automatically rollback, deleting the user if agent creation failed
-            messages.error(request, f"Error creating account: {str(e)}")
-            return render(request, "users/register_agent.html", error_context)
+            # Role-based redirection for non-agents
+            return redirect("dashboard" if user.is_superuser else "schedule")
+        else:
+            messages.error(
+                request, "Please Enter Valid Credentials", extra_tags="danger"
+            )
 
-    return render(request, "users/register_agent.html")
+    return render(request, "users/login_register.html", {"page": "login"})
+
+
+@login_required(login_url="login")
+def logoutUser(request):
+    """Log out user and redirect to appropriate login page."""
+    login_type = request.session.get("login_type", "main")
+
+    logout(request)
+    messages.success(request, "You Have Been Logged Out!")
+
+    # Redirect based on how they logged in
+    if login_type == "agent":
+        return redirect("agent_login")
+    else:
+        return redirect("login")
+
+
+# =============================================
+# TRAVEL AGENT VIEWS & DECORATORS
+# =============================================
+
+
+def is_agent(user):
+    """Check if user is a registered travel agent."""
+    if not user.is_authenticated:
+        return False
+    return TravelAgent.objects.filter(user=user).exists()
+
+
+def agent_required(view_func):
+    """Decorator to ensure only registered agents can access certain views."""
+
+    @login_required
+    def wrapper(request, *args, **kwargs):
+        if not is_agent(request.user):
+            messages.error(
+                request, "You must be a registered travel agent to access this page."
+            )
+            return redirect("agent_login")
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
 
 
 def rate_limit(key_prefix, limit=60, period=60):
-    """Rate limiting decorator."""
+    """Rate limiting decorator to prevent abuse."""
 
     def decorator(view_func):
         def wrapped_view(request, *args, **kwargs):
@@ -268,30 +258,70 @@ def rate_limit(key_prefix, limit=60, period=60):
     return decorator
 
 
-def is_agent(user):
-    """Check if user is a travel agent."""
-    if not user.is_authenticated:
-        return False
-    return TravelAgent.objects.filter(user=user).exists()
+def register_agent(request):
+    """Handle travel agent registration with user account creation."""
+    if request.method == "POST":
+        # Extract form data
+        form_data = {
+            "username": request.POST.get("username"),
+            "email": request.POST.get("email"),
+            "agent_name": request.POST.get("agent_name"),
+            "agency_name": request.POST.get("agency_name"),
+            "phone": request.POST.get("phone"),
+            "payment_info": request.POST.get("payment_info"),
+            "payment_method": request.POST.get("payment_method"),
+        }
 
+        password1 = request.POST.get("password1")
+        password2 = request.POST.get("password2")
+        error_context = {"form_data": form_data}
 
-def agent_required(view_func):
-    """Decorator to ensure only agents can access certain views."""
+        # Validate passwords
+        if password1 != password2:
+            messages.error(request, "Passwords do not match.")
+            return render(request, "users/register_agent.html", error_context)
 
-    @login_required
-    def wrapper(request, *args, **kwargs):
-        if not is_agent(request.user):
-            messages.error(
-                request, "You must be a registered travel agent to access this page."
-            )
-            return redirect("agent_login")
-        return view_func(request, *args, **kwargs)
+        # Check for existing accounts
+        if User.objects.filter(username=form_data["username"]).exists():
+            messages.error(request, "Username already exists.")
+            return render(request, "users/register_agent.html", error_context)
 
-    return wrapper
+        if User.objects.filter(email=form_data["email"]).exists():
+            messages.error(request, "Email already exists.")
+            return render(request, "users/register_agent.html", error_context)
+
+        try:
+            # Create user and agent profile atomically
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=form_data["username"],
+                    email=form_data["email"],
+                    password=password1,
+                )
+
+                TravelAgent.objects.create(
+                    user=user,
+                    agent_name=form_data["agent_name"],
+                    agency_name=form_data["agency_name"],
+                    phone=form_data["phone"],
+                    payment_method=form_data["payment_method"],
+                    payment_info=form_data["payment_info"],
+                )
+
+            login(request, user)
+            messages.success(request, "Successfully registered as a travel agent!")
+            return redirect("agent_dashboard")
+
+        except Exception as e:
+            messages.error(request, f"Error creating account: {str(e)}")
+            return render(request, "users/register_agent.html", error_context)
+
+    return render(request, "users/register_agent.html")
 
 
 def agent_login(request):
-    """Dedicated login view for travel agents."""
+    """Dedicated login view for travel agents with validation."""
+    # Redirect if already authenticated agent
     if request.user.is_authenticated:
         try:
             TravelAgent.objects.get(user=request.user)
@@ -309,6 +339,7 @@ def agent_login(request):
             try:
                 TravelAgent.objects.get(user=user)
                 login(request, user)
+                request.session["login_type"] = "agent"  # Add this line
                 messages.success(request, "Successfully logged in as travel agent")
                 return redirect("agent_dashboard")
             except TravelAgent.DoesNotExist:
@@ -323,22 +354,22 @@ def agent_login(request):
 
 @agent_required
 def agent_dashboard(request):
-    """Display travel agent dashboard."""
+    """
+    Main dashboard for travel agents with filtering, search, and pagination.
+    Displays reservations, commission stats, and recent activity.
+    """
     try:
-        # Get travel agent with user data in a single query and cache it
         travel_agent = TravelAgent.objects.select_related("user").get(user=request.user)
 
-        # Get filters from query params
+        # Get query parameters for filtering
         status = request.GET.get("status", "all")
         date_filter = request.GET.get("date_filter", "all")
         search_query = request.GET.get("search", "")
 
-        # Build base queryset with all necessary related data in a single query
+        # Build optimized base queryset
         base_queryset = (
             Reservation.objects.filter(travel_agent=travel_agent)
-            .select_related(
-                "customer", "vehicle", "rate", "travel_agent", "travel_agent__user"
-            )
+            .select_related("customer", "vehicle", "rate", "travel_agent__user")
             .prefetch_related(
                 Prefetch(
                     "legs",
@@ -349,7 +380,7 @@ def agent_dashboard(request):
             )
         )
 
-        # Apply search filter if provided
+        # Apply search filter
         if search_query:
             base_queryset = base_queryset.filter(
                 Q(customer__first_name__icontains=search_query)
@@ -358,7 +389,7 @@ def agent_dashboard(request):
                 | Q(uuid__icontains=search_query)
             )
 
-        # Get counts and stats in a single aggregation query
+        # Calculate stats with single query
         stats = base_queryset.aggregate(
             total_count=Count("id"),
             pending_count=Count("id", filter=Q(status="pending")),
@@ -371,56 +402,52 @@ def agent_dashboard(request):
         if status != "all":
             base_queryset = base_queryset.filter(status=status)
 
-        # Apply date filter with timezone-aware datetime
+        # Apply date filters
         now = timezone.now()
-        if date_filter == "today":
-            base_queryset = base_queryset.filter(created_at__date=now.date())
-        elif date_filter == "week":
-            week_ago = now - timedelta(days=7)
-            base_queryset = base_queryset.filter(created_at__gte=week_ago)
-        elif date_filter == "month":
-            month_ago = now - timedelta(days=30)
-            base_queryset = base_queryset.filter(created_at__gte=month_ago)
-        elif date_filter == "year":
-            year_ago = now - timedelta(days=365)
-            base_queryset = base_queryset.filter(created_at__gte=year_ago)
+        date_filters = {
+            "today": now.date(),
+            "week": now - timedelta(days=7),
+            "month": now - timedelta(days=30),
+            "year": now - timedelta(days=365),
+        }
 
-        # Get ordered reservations for pagination
+        if date_filter == "today":
+            base_queryset = base_queryset.filter(
+                created_at__date=date_filters[date_filter]
+            )
+        elif date_filter in ["week", "month", "year"]:
+            base_queryset = base_queryset.filter(
+                created_at__gte=date_filters[date_filter]
+            )
+
+        # Order and paginate
         ordered_reservations = base_queryset.order_by("-created_at")
 
-        # Get recent activity from the same queryset to avoid duplicate queries
+        # Get recent activity
         recent_activity = list(ordered_reservations[:5])
-
-        # Add last leg to each reservation in recent activity
         for reservation in recent_activity:
             legs = list(reservation.legs.all())
             if legs:
                 reservation.last_leg = max(
                     legs, key=lambda leg: (leg.pickup_date, leg.pickup_time)
                 )
-            else:
-                reservation.last_leg = None
 
-        # Paginate reservations
+        # Paginate results
         paginator = Paginator(ordered_reservations, 10)
         page_number = request.GET.get("page")
         page_obj = paginator.get_page(page_number)
 
-        # Format decimal values for template
-        paid_commission = format_decimal(travel_agent.total_paid_commission)
-        unpaid_commission = format_decimal(travel_agent.unpaid_commissions)
-        pending_commission = format_decimal(travel_agent.pending_commissions)
-        total_commission = format_decimal(
-            paid_commission + unpaid_commission + pending_commission
-        )
-
         context = {
             "travel_agent": travel_agent,
             "reservations": page_obj,
-            "total_commission": total_commission,
-            "paid_commission": paid_commission,
-            "unpaid_commission": unpaid_commission,
-            "pending_commission": pending_commission,
+            "total_commission": format_decimal(
+                travel_agent.total_paid_commission
+                + travel_agent.unpaid_commissions
+                + travel_agent.pending_commissions
+            ),
+            "paid_commission": format_decimal(travel_agent.total_paid_commission),
+            "unpaid_commission": format_decimal(travel_agent.unpaid_commissions),
+            "pending_commission": format_decimal(travel_agent.pending_commissions),
             "pending_count": stats["pending_count"],
             "confirmed_count": stats["confirmed_count"],
             "completed_count": stats["completed_count"],
@@ -439,11 +466,11 @@ def agent_dashboard(request):
 
 @agent_required
 def agent_commission_history(request):
-    """Display travel agent commission history."""
+    """Display travel agent commission history with payouts and unpaid commissions."""
     try:
         travel_agent = TravelAgent.objects.select_related("user").get(user=request.user)
 
-        # Get paid commissions with all reservations prefetched
+        # Get commission payouts with reservations
         payouts = (
             CommissionPayout.objects.filter(agent=travel_agent)
             .prefetch_related(
@@ -455,7 +482,7 @@ def agent_commission_history(request):
             .order_by("-paid_at")
         )
 
-        # Get unpaid commissions - optimized
+        # Get unpaid reservations
         unpaid_reservations = (
             Reservation.objects.filter(
                 travel_agent=travel_agent, commission_paid=False, status="completed"
@@ -464,7 +491,7 @@ def agent_commission_history(request):
             .order_by("-created_at")
         )
 
-        # Ensure agent's unpaid_commissions is up-to-date
+        # Update agent's unpaid commissions
         travel_agent.update_unpaid_commissions()
 
         # Paginate payouts
@@ -488,11 +515,10 @@ def agent_commission_history(request):
 
 @agent_required
 def agent_reservation_detail(request, uuid):
-    """Display travel agent reservation detail."""
+    """Display detailed reservation information for travel agents."""
     try:
         travel_agent = TravelAgent.objects.select_related("user").get(user=request.user)
 
-        # Get reservation with all related data in one query
         reservation = get_object_or_404(
             Reservation.objects.select_related(
                 "customer", "vehicle", "rate", "travel_agent__user"
@@ -521,23 +547,22 @@ def agent_reservation_detail(request, uuid):
 
 @agent_required
 def agent_profile(request):
-    """Handle travel agent profile management."""
+    """Handle travel agent profile viewing and updates."""
     try:
         travel_agent = TravelAgent.objects.get(user=request.user)
 
         if request.method == "POST":
-            # Update profile information
+            # Update profile fields
             travel_agent.agent_name = request.POST.get("agent_name", "")
             travel_agent.agency_name = request.POST.get("agency_name", "")
             travel_agent.phone = request.POST.get("phone", "")
             travel_agent.payment_info = request.POST.get("payment_info", "")
             travel_agent.save()
+
             messages.success(request, "Profile updated successfully!")
             return redirect("agent_profile")
 
-        context = {
-            "travel_agent": travel_agent,
-        }
+        context = {"travel_agent": travel_agent}
         return render(request, "users/agent_profile.html", context)
 
     except TravelAgent.DoesNotExist:
@@ -545,19 +570,41 @@ def agent_profile(request):
         return redirect("register_agent")
 
 
+# =============================================
+# AGENCY VIEWS & CLASSES
+# =============================================
+
+
+def is_agency_head(user):
+    """Check if user is a head of any agency."""
+    if not user.is_authenticated:
+        return False
+    return Agency.objects.filter(heads=user).exists()
+
+
+def get_user_agencies(user):
+    """Get all agencies where the user is a head."""
+    if not user.is_authenticated:
+        return Agency.objects.none()
+    return Agency.objects.filter(heads=user)
+
+
 class AgencyDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-    """Simplified dashboard for agency heads to view all agencies they manage"""
+    """
+    Main dashboard for agency heads. Shows either single agency detail view
+    or multi-agency summary based on how many agencies the user manages.
+    """
 
     model = Agency
     template_name = "users/agency_dashboard.html"
     context_object_name = "agencies"
 
     def test_func(self):
-        """Only allow users who are heads of at least one agency"""
+        """Only allow users who are heads of at least one agency."""
         return Agency.objects.filter(heads=self.request.user).exists()
 
     def get_queryset(self):
-        """Get all agencies where the current user is a head with optimized queries"""
+        """Get all agencies managed by the current user with statistics."""
         return (
             Agency.objects.filter(heads=self.request.user)
             .prefetch_related("agents", "heads", "agents__user", "agents__reservations")
@@ -573,36 +620,33 @@ class AgencyDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         context = super().get_context_data(**kwargs)
         agencies = self.get_queryset()
 
-        # If user manages only one agency, show detailed view
         if agencies.count() == 1:
+            # Single agency - detailed view
             agency = agencies.first()
 
-            # Get recent reservations
             recent_reservations = (
                 Reservation.objects.filter(travel_agent__in=agency.agents.all())
                 .select_related("customer", "vehicle", "travel_agent")
                 .order_by("-created_at")[:10]
             )
 
-            # Get recent payouts
             recent_payouts = (
                 CommissionPayout.objects.filter(agent__in=agency.agents.all())
                 .select_related("agent")
                 .order_by("-paid_at")[:8]
             )
 
-            # Get agent statistics
-            agents_with_stats = []
-            for agent in agency.agents.all():
-                agents_with_stats.append(
-                    {
-                        "agent": agent,
-                        "unpaid": format_decimal(agent.unpaid_commissions or 0),
-                        "pending": format_decimal(agent.pending_commissions or 0),
-                        "paid": format_decimal(agent.total_paid_commission or 0),
-                        "reservation_count": agent.reservations.count(),
-                    }
-                )
+            # Calculate agent statistics
+            agents_with_stats = [
+                {
+                    "agent": agent,
+                    "unpaid": format_decimal(agent.unpaid_commissions or 0),
+                    "pending": format_decimal(agent.pending_commissions or 0),
+                    "paid": format_decimal(agent.total_paid_commission or 0),
+                    "reservation_count": agent.reservations.count(),
+                }
+                for agent in agency.agents.all()
+            ]
 
             context.update(
                 {
@@ -617,7 +661,7 @@ class AgencyDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 }
             )
         else:
-            # Multiple agencies - show summary view
+            # Multiple agencies - summary view
             context["agencies_with_stats"] = [
                 {
                     "agency": agency,
@@ -634,11 +678,27 @@ class AgencyDashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
 @login_required
 def agency_commission_history(request, agency_id):
-    """Display agency commission history for all agents in the agency"""
-    # Get the agency and verify user is a head
-    agency = get_object_or_404(Agency, id=agency_id, heads=request.user)
+    """
+    Display comprehensive commission history for an agency including:
+    - Main agency payouts (payments made to the agency)
+    - Individual agent payouts (breakdown by agent)
+    - Unpaid commissions ready for payment
+    """
+    # Verify user permissions
+    agency = get_object_or_404(Agency, id=agency_id)
+    if not agency.heads.filter(id=request.user.id).exists():
+        raise Http404("You don't have permission to view this agency")
 
-    # Get all payouts for agents in this agency
+    # Get main agency payouts
+    agency_payouts = (
+        AgencyCommissionPayout.objects.filter(agency=agency)
+        .prefetch_related(
+            "agent_payouts__agent__user", "agent_payouts__reservations__customer"
+        )
+        .order_by("-paid_at")
+    )
+
+    # Get individual agent payouts
     payouts = (
         CommissionPayout.objects.filter(agent__in=agency.agents.all())
         .select_related("agent")
@@ -646,7 +706,7 @@ def agency_commission_history(request, agency_id):
         .order_by("-paid_at")
     )
 
-    # Get all unpaid reservations for the agency
+    # Get unpaid reservations
     unpaid_reservations = (
         Reservation.objects.filter(
             travel_agent__in=agency.agents.all(),
@@ -661,18 +721,18 @@ def agency_commission_history(request, agency_id):
     total_paid = (
         agency.agents.aggregate(total=Sum("total_paid_commission"))["total"] or 0
     )
-
     total_unpaid = (
         agency.agents.aggregate(total=Sum("unpaid_commissions"))["total"] or 0
     )
 
-    # Paginate payouts
+    # Paginate individual payouts
     paginator = Paginator(payouts, 15)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     context = {
         "agency": agency,
+        "agency_payouts": agency_payouts,
         "payouts": page_obj,
         "unpaid_reservations": unpaid_reservations,
         "total_paid": format_decimal(total_paid),
@@ -683,48 +743,43 @@ def agency_commission_history(request, agency_id):
 
 
 class AgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
-    """Detailed view of a specific agency for agency heads"""
+    """Detailed view of a specific agency for agency heads."""
 
     model = Agency
     template_name = "users/agency_detail.html"
     context_object_name = "agency"
 
     def test_func(self):
-        """Only allow agency heads to access this view"""
+        """Only allow agency heads to access this view."""
         agency = self.get_object()
         return agency.heads.filter(id=self.request.user.id).exists()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         agency = self.get_object()
-
-        # Get all agents for this agency
         agents = agency.agents.all()
-        context["agents"] = agents
 
-        # Get commission statistics
-        context["total_unpaid"] = format_decimal(agency.get_total_unpaid_commissions())
-        context["total_pending"] = format_decimal(
-            agency.get_total_pending_commissions()
+        # Commission statistics
+        context.update(
+            {
+                "agents": agents,
+                "total_unpaid": format_decimal(agency.get_total_unpaid_commissions()),
+                "total_pending": format_decimal(agency.get_total_pending_commissions()),
+                "total_paid": format_decimal(agency.get_total_paid_commissions()),
+            }
         )
-        context["total_paid"] = format_decimal(agency.get_total_paid_commissions())
 
-        # Get recent reservations for all agents
-        recent_reservations = Reservation.objects.filter(
+        # Recent activity
+        context["recent_reservations"] = Reservation.objects.filter(
             travel_agent__in=agents
         ).order_by("-created_at")[:10]
-        context["recent_reservations"] = recent_reservations
+        context["recent_payouts"] = CommissionPayout.objects.filter(
+            agent__in=agents
+        ).order_by("-paid_at")[:10]
 
-        # Get recent payouts for all agents
-        recent_payouts = CommissionPayout.objects.filter(agent__in=agents).order_by(
-            "-paid_at"
-        )[:10]
-        context["recent_payouts"] = recent_payouts
-
-        # Get commission stats by agent
-        agents_with_stats = []
-        for agent in agents:
-            agent_stats = {
+        # Agent statistics
+        context["agents_with_stats"] = [
+            {
                 "agent": agent,
                 "unpaid": format_decimal(agent.unpaid_commissions),
                 "pending": format_decimal(agent.pending_commissions),
@@ -733,22 +788,21 @@ class AgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
                     travel_agent=agent
                 ).count(),
             }
-            agents_with_stats.append(agent_stats)
-
-        context["agents_with_stats"] = agents_with_stats
+            for agent in agents
+        ]
 
         return context
 
 
 class AgentDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
-    """Detailed view of a specific agent for the agency heads or the agent themselves"""
+    """Detailed view of a specific agent for agency heads or the agent themselves."""
 
     model = TravelAgent
     template_name = "users/agent_detail.html"
     context_object_name = "agent"
 
     def test_func(self):
-        """Allow access to the agency heads or the agent themselves"""
+        """Allow access to agency heads or the agent themselves."""
         agent = self.get_object()
         if self.request.user == agent.user:
             return True
@@ -760,55 +814,54 @@ class AgentDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         context = super().get_context_data(**kwargs)
         agent = self.get_object()
 
-        # Get reservations for this agent
+        # Get reservations and statistics
         reservations = Reservation.objects.filter(travel_agent=agent).order_by(
             "-created_at"
         )
         context["reservations"] = reservations
 
-        # Get stats by reservation status
+        # Status statistics with formatted values
         status_stats = reservations.values("status").annotate(
             count=Count("id"),
             total_price=Sum("total_price"),
             commission=Sum("commission_amount"),
         )
 
-        # Format decimal values in status_stats
         for stat in status_stats:
-            if "total_price" in stat and stat["total_price"] is not None:
+            if stat.get("total_price"):
                 stat["total_price"] = format_decimal(stat["total_price"])
-            if "commission" in stat and stat["commission"] is not None:
+            if stat.get("commission"):
                 stat["commission"] = format_decimal(stat["commission"])
 
         context["status_stats"] = status_stats
 
-        # Get payouts for this agent
-        payouts = CommissionPayout.objects.filter(agent=agent).order_by("-paid_at")
-        context["payouts"] = payouts
+        # Commission payouts
+        context["payouts"] = CommissionPayout.objects.filter(agent=agent).order_by(
+            "-paid_at"
+        )
 
-        # Check if current user is an agency head
-        if agent.agency and agent.agency.heads.filter(id=self.request.user.id).exists():
-            context["is_agency_head"] = True
-        else:
-            context["is_agency_head"] = False
+        # Check if current user is agency head
+        context["is_agency_head"] = (
+            agent.agency and agent.agency.heads.filter(id=self.request.user.id).exists()
+        )
 
         return context
 
 
 class AgencyAgentsListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-    """List view of all agents in an agency"""
+    """List view of all agents in an agency."""
 
     model = TravelAgent
     template_name = "users/agency_agents_list.html"
     context_object_name = "agents"
 
     def test_func(self):
-        """Only allow agency heads to access this view"""
+        """Only allow agency heads to access this view."""
         agency = get_object_or_404(Agency, pk=self.kwargs["pk"])
         return agency.heads.filter(id=self.request.user.id).exists()
 
     def get_queryset(self):
-        """Get all agents for this agency"""
+        """Get all agents for this agency."""
         agency = get_object_or_404(Agency, pk=self.kwargs["pk"])
         return TravelAgent.objects.filter(agency=agency)
 
@@ -817,7 +870,7 @@ class AgencyAgentsListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         agency = get_object_or_404(Agency, pk=self.kwargs["pk"])
         context["agency"] = agency
 
-        # Format decimal values for agents
+        # Format decimal values for display
         for agent in context["agents"]:
             agent.total_paid_commission = format_decimal(agent.total_paid_commission)
             agent.unpaid_commissions = format_decimal(agent.unpaid_commissions)
@@ -826,27 +879,83 @@ class AgencyAgentsListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return context
 
 
+class AgencyProfileView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    """View for editing agency profile information."""
+
+    model = Agency
+    template_name = "users/agency_profile.html"
+    fields = ["name", "phone", "address", "website", "logo"]
+    success_url = reverse_lazy("agency_profile")
+
+    def test_func(self):
+        """Only allow agency heads to access this view."""
+        return Agency.objects.filter(heads=self.request.user).exists()
+
+    def get_object(self, queryset=None):
+        """Get the agency where the user is a head."""
+        return get_object_or_404(Agency, heads=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        agency = self.get_object()
+
+        context.update(
+            {
+                "payment_methods": TravelAgent.PAYMENT_METHOD_CHOICES,
+                "agents": agency.agents.all(),
+                "total_paid": format_decimal(agency.get_total_paid_commissions()),
+                "total_pending": format_decimal(agency.get_total_pending_commissions()),
+                "total_unpaid": format_decimal(agency.get_total_unpaid_commissions()),
+            }
+        )
+
+        return context
+
+    def form_valid(self, form):
+        """Handle successful form submission."""
+        messages.success(self.request, "Agency profile updated successfully.")
+        return super().form_valid(form)
+
+
+class AgencyGuideView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """View for agency management guide and documentation."""
+
+    template_name = "users/agency_guide.html"
+
+    def test_func(self):
+        """Only allow agency heads to access this view."""
+        return Agency.objects.filter(heads=self.request.user).exists()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["agency"] = get_object_or_404(Agency, heads=self.request.user)
+        return context
+
+
+# =============================================
+# COMMISSION & PAYOUT VIEWS
+# =============================================
+
+
 @login_required
 def commission_payout_detail(request, pk):
-    """View details of a specific commission payout"""
+    """
+    View details of a specific commission payout.
+    Accessible by the agent themselves or their agency heads.
+    """
     payout = get_object_or_404(CommissionPayout, pk=pk)
     agent = payout.agent
 
-    # Check permissions - agent themselves or any agency head
-    has_permission = False
-    if request.user == agent.user:
-        has_permission = True
-    elif agent.agency and agent.agency.heads.filter(id=request.user.id).exists():
-        has_permission = True
+    # Check permissions
+    has_permission = request.user == agent.user or (
+        agent.agency and agent.agency.heads.filter(id=request.user.id).exists()
+    )
 
     if not has_permission:
         messages.error(request, "Permission denied.")
         return redirect("home")
 
-    # Format decimal values
-    formatted_amount = format_decimal(payout.total_amount)
-
-    # Format reservations
+    # Format values for display
     reservations = payout.reservations.all().order_by("-created_at")
     for reservation in reservations:
         if hasattr(reservation, "total_price"):
@@ -858,142 +967,23 @@ def commission_payout_detail(request, pk):
 
     context = {
         "payout": payout,
-        "formatted_amount": formatted_amount,
+        "formatted_amount": format_decimal(payout.total_amount),
         "agent": agent,
         "reservations": reservations,
-        "is_agency_head": agent.agency
-        and agent.agency.heads.filter(id=request.user.id).exists(),
+        "is_agency_head": (
+            agent.agency and agent.agency.heads.filter(id=request.user.id).exists()
+        ),
     }
 
     return render(request, "users/commission_payout_detail.html", context)
 
 
-def is_agency_head(user):
-    """Check if user is a head of any agency."""
-    if not user.is_authenticated:
-        return False
-    return Agency.objects.filter(heads=user).exists()
-
-
-# Helper function to get agencies managed by user
-def get_user_agencies(user):
-    """Get all agencies where the user is a head."""
-    if not user.is_authenticated:
-        return Agency.objects.none()
-    return Agency.objects.filter(heads=user)
-
-
-@login_required
-def agency_commission_history(request, agency_id):
-    """Display agency commission history for all agents in the agency"""
-    # Get the agency and verify user is a head
-    agency = get_object_or_404(Agency, id=agency_id, heads=request.user)
-
-    # Get all payouts for agents in this agency
-    payouts = (
-        CommissionPayout.objects.filter(agent__in=agency.agents.all())
-        .select_related("agent")
-        .prefetch_related("reservations__customer", "reservations__vehicle")
-        .order_by("-paid_at")
-    )
-
-    # Get all unpaid reservations for the agency
-    unpaid_reservations = (
-        Reservation.objects.filter(
-            travel_agent__in=agency.agents.all(),
-            commission_paid=False,
-            status="completed",
-        )
-        .select_related("customer", "vehicle", "travel_agent")
-        .order_by("-created_at")
-    )
-
-    # Calculate totals
-    total_paid = (
-        agency.agents.aggregate(total=Sum("total_paid_commission"))["total"] or 0
-    )
-
-    total_unpaid = (
-        agency.agents.aggregate(total=Sum("unpaid_commissions"))["total"] or 0
-    )
-
-    # Paginate payouts
-    paginator = Paginator(payouts, 15)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        "agency": agency,
-        "payouts": page_obj,
-        "unpaid_reservations": unpaid_reservations,
-        "total_paid": format_decimal(total_paid),
-        "total_unpaid": format_decimal(total_unpaid),
-    }
-
-    return render(request, "users/agency_commission_history.html", context)
-
-
-class AgencyProfileView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
-    """View for editing agency profile"""
-
-    model = Agency
-    template_name = "users/agency_profile.html"
-    fields = ["name", "phone", "address", "website", "logo"]
-    success_url = reverse_lazy("agency_profile")
-
-    def test_func(self):
-        """Only allow agency heads to access this view"""
-        return Agency.objects.filter(heads=self.request.user).exists()
-
-    def get_object(self, queryset=None):
-        """Get the agency where the user is a head"""
-        return get_object_or_404(Agency, heads=self.request.user)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        agency = self.get_object()
-
-        # Add payment methods for the form
-        context["payment_methods"] = TravelAgent.PAYMENT_METHOD_CHOICES
-
-        # Add agency statistics
-        context["agents"] = agency.agents.all()
-        context["total_paid"] = format_decimal(agency.get_total_paid_commissions())
-        context["total_pending"] = format_decimal(
-            agency.get_total_pending_commissions()
-        )
-        context["total_unpaid"] = format_decimal(agency.get_total_unpaid_commissions())
-
-        return context
-
-    def form_valid(self, form):
-        """Handle successful form submission"""
-        messages.success(self.request, "Agency profile updated successfully.")
-        return super().form_valid(form)
-
-
-class AgencyGuideView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
-    """View for agency guide"""
-
-    template_name = "users/agency_guide.html"
-
-    def test_func(self):
-        """Only allow agency heads to access this view"""
-        return Agency.objects.filter(heads=self.request.user).exists()
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context["agency"] = get_object_or_404(Agency, heads=self.request.user)
-        return context
-
-
 @login_required
 def update_agency_payment(request):
-    """Update agency payment information"""
+    """Update agency payment information."""
     if request.method == "POST":
         agency = get_object_or_404(Agency, heads=request.user)
 
-        # Update payment information
         agency.payment_method = request.POST.get("payment_method")
         agency.payment_info = request.POST.get("payment_info")
         agency.save()

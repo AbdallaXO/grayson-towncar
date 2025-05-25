@@ -131,7 +131,7 @@
                 ${{ total_pending|floatformat:2 }}
               </dd>
 
-              <dt class="col-sm-6 text-muted">Unpaid</dt>
+              <dt class="col-sm-6 text-muted">Awaiting Payment</dt>
               <dd class="col-sm-6">
                 ${{ total_unpaid|floatformat:2 }}
               </dd>
@@ -147,3 +147,5 @@
     </div>
   </div>
 {% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

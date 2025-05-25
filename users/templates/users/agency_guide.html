@@ -1,164 +1,377 @@
-{% extends 'main.html' %}
+{% extends "main.html" %}
 {% load static %}
 
 {% block title %}Agency Guide - {{ agency.name }}{% endblock %}
 
 {% block content %}
-  <div class="container-fluid py-4">
-    <!-- Header Section -->
-    <div class="row mb-4 align-items-center">
-      <div class="col-md-8">
-        <h1 class="display-5 mb-2">Agency Guide</h1>
-        <p class="lead text-muted mb-0">
-          <i class="fas fa-book me-2"></i>Learn how to manage your agency effectively
-        </p>
-      </div>
-      <div class="col-md-4 text-md-end">
-        <a href="{% url 'agency_dashboard' %}" class="btn btn-outline-secondary">
-          <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
-        </a>
+  <div class="container py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="h2 mb-2">
+              <i class="fas fa-building me-2"></i>Agency Management Guide
+            </h1>
+            <p class="text-muted mb-0">Complete guide to managing your agency and agents</p>
+          </div>
+          <a href="{% url 'agency_dashboard' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+          </a>
+        </div>
+        <hr class="mt-3">
       </div>
     </div>
 
     <div class="row">
-      <div class="col-lg-8">
+      <!-- Main Content -->
+      <div class="col-lg-9">
+
         <!-- Getting Started -->
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
-            <h3 class="h4 mb-0">Getting Started</h3>
+        <div class="card mb-4">
+          <div class="card-header">
+            <h4 class="mb-0">
+              <i class="fas fa-play-circle me-2"></i>Getting Started
+            </h4>
           </div>
           <div class="card-body">
-            <h4 class="h5 mb-3">Welcome to Your Agency Dashboard</h4>
-            <p class="fs-5 mb-3">
-              As an agency head, you have access to powerful tools to manage your agency and agents. Here's what you can do:
-            </p>
-            <ul class="list-unstyled fs-5">
-              <li class="mb-3">
-                <i class="fas fa-check-circle text-success me-2"></i>View and manage all your agents
-              </li>
-              <li class="mb-3">
-                <i class="fas fa-check-circle text-success me-2"></i>Track commissions and payments
-              </li>
-              <li class="mb-3">
-                <i class="fas fa-check-circle text-success me-2"></i>Process commission payouts
-              </li>
-              <li class="mb-3">
-                <i class="fas fa-check-circle text-success me-2"></i>Monitor agency performance
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Managing Agents -->
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
-            <h3 class="h4 mb-0">Managing Agents</h3>
-          </div>
-          <div class="card-body">
-            <h4 class="h5 mb-3">Agent Management Guide</h4>
-            <div class="mb-4">
-              <h5 class="h6 fw-bold mb-2">Adding New Agents</h5>
-              <ol class="fs-5 mb-0">
-                <li class="mb-2">Go to the "View All Agents" page</li>
-                <li class="mb-2">Click "Add New Agent"</li>
-                <li class="mb-2">Fill in the agent's information</li>
-                <li class="mb-2">Set their commission rate and payment preferences</li>
-              </ol>
+            <div class="alert alert-primary">
+              <h5 class="alert-heading">Welcome, Agency Administrator!</h5>
+              <p class="mb-0 fw-semibold">
+                As an agency Admin, you have access to manage your entire operation with real-time insights
+                into agent performance, commission tracking, and business analytics.
+              </p>
             </div>
-            <div class="mb-4">
-              <h5 class="h6 fw-bold mb-2">Monitoring Agent Performance</h5>
-              <ul class="fs-5 mb-0">
-                <li class="mb-2">View individual agent dashboards</li>
-                <li class="mb-2">Track their commission earnings</li>
-                <li class="mb-2">Monitor their reservation activity</li>
-                <li class="mb-2">Review their payment history</li>
-              </ul>
+
+            <h5 class="mt-4 mb-3">Your Administrative Capabilities:</h5>
+            <div class="row">
+              <div class="col-md-6">
+                <ul class="list-unstyled">
+                  <li class="mb-2">
+                    <i class="fas fa-users text-primary me-2"></i>
+                    <strong>Agent Management</strong> - View and manage all travel agents
+                  </li>
+                  <li class="mb-2">
+                    <i class="fas fa-chart-line text-primary me-2"></i>
+                    <strong>Performance Analytics</strong> - Track reservations and earnings
+                  </li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <ul class="list-unstyled">
+                  <li class="mb-2">
+                    <i class="fas fa-dollar-sign text-primary me-2"></i>
+                    <strong>Commission Oversight</strong> - Monitor all earnings and payments
+                  </li>
+                  <li class="mb-2">
+                    <i class="fas fa-cog text-primary me-2"></i>
+                    <strong>Agency Settings</strong> - Manage profile and payment preferences
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Commission Management -->
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
-            <h3 class="h4 mb-0">Commission Management</h3>
+        <!-- Agent Management -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h4 class="mb-0">
+              <i class="fas fa-user-friends me-2"></i>Agent Management & Monitoring
+            </h4>
           </div>
           <div class="card-body">
-            <h4 class="h5 mb-3">Understanding Commissions</h4>
-            <div class="mb-4">
-              <h5 class="h6 fw-bold mb-2">Commission Types</h5>
-              <ul class="fs-5 mb-0">
-                <li class="mb-2">
-                  <strong>Pending:</strong> Commissions from confirmed but not completed reservations
-                </li>
-                <li class="mb-2">
-                  <strong>Unpaid:</strong> Commissions from completed reservations awaiting payment
-                </li>
-                <li class="mb-2">
-                  <strong>Paid:</strong> Commissions that have been paid out
-                </li>
+            <div class="row">
+              <div class="col-md-6">
+                <h5>Performance Monitoring</h5>
+                <ul>
+                  <li>Individual agent dashboards and statistics</li>
+                  <li>Real-time commission earnings tracking</li>
+                  <li>Reservation activity and booking history</li>
+                  <li>Performance metrics and trends</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <h5>Agent Profile Details</h5>
+                <ul>
+                  <li>Complete reservation booking history</li>
+                  <li>Detailed commission breakdowns (10% rate)</li>
+                  <li>Individual payout records and history</li>
+                  <li>Performance rankings and achievements</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="alert alert-info mt-3">
+              <strong>Pro Tip:</strong> Use the individual agent detail pages to conduct regular performance reviews.
+              Each agent's profile shows their booking patterns, commission trends, and customer satisfaction metrics.
+            </div>
+          </div>
+        </div>
+
+        <!-- Commission System -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h4 class="mb-0">
+              <i class="fas fa-coins me-2"></i>Commission System Overview
+            </h4>
+          </div>
+          <div class="card-body">
+
+            <!-- How it Works -->
+            <div class="border rounded p-3 mb-4">
+              <h5>
+                <i class="fas fa-info-circle me-2"></i>How Agency Commission Payouts Work
+              </h5>
+              <p>
+                Our commission system is designed to simplify your agency operations.
+                All commission payments (10% of reservation value) are consolidated and paid directly to your agency account.
+              </p>
+              <ul>
+                <li>Agents track their individual 10% commission earnings</li>
+                <li>All actual payments flow to your agency account</li>
+                <li>You maintain full control over agent compensation splits</li>
+                <li>Detailed breakdowns help you manage internal payouts</li>
               </ul>
             </div>
-            <div class="mb-4">
-              <h5 class="h6 fw-bold mb-2">Processing Payments</h5>
-              <ol class="fs-5 mb-0">
-                <li class="mb-2">Review unpaid commissions in the dashboard</li>
-                <li class="mb-2">Verify reservation completion</li>
-                <li class="mb-2">Process payments through the commission history page</li>
-                <li class="mb-2">Add notes for payment tracking</li>
-              </ol>
+
+            <!-- Commission Status Types -->
+            <h5 class="mb-3">Commission Status Categories</h5>
+            <div class="row mb-4">
+              <div class="col-md-4">
+                <div class="card h-100">
+                  <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0">
+                      <i class="fas fa-clock me-2"></i>Pending
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <p class="small mb-0">
+                      Commissions from confirmed reservations that haven't been completed yet.
+                      Payments processed only after service completion.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card h-100">
+                  <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0">
+                      <i class="fas fa-exclamation-triangle me-2"></i>Awaiting Payment
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <p class="small mb-0">
+                      Commissions from completed reservations ready for payment processing.
+                      Included in your next payout cycle.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card h-100">
+                  <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                      <i class="fas fa-check-circle me-2"></i>Paid
+                    </h6>
+                  </div>
+                  <div class="card-body">
+                    <p class="small mb-0">
+                      Commissions processed and paid to your agency account.
+                      View detailed payout history and agent contributions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Commission Tracking Views -->
+            <h5 class="mb-3">Commission Tracking Views</h5>
+            <div class="table-responsive">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>View Type</th>
+                    <th>What You See</th>
+                    <th>Purpose</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <strong>Agency Dashboard</strong>
+                    </td>
+                    <td>Combined totals for all agents</td>
+                    <td>Overall agency performance overview</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Individual Agent Profiles</strong>
+                    </td>
+                    <td>Per-agent commission breakdowns</td>
+                    <td>Track individual agent contributions</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Commission History</strong>
+                    </td>
+                    <td>Detailed payout records with agent splits</td>
+                    <td>Historical analysis and payment verification</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <strong>Agency Payouts</strong>
+                    </td>
+                    <td>Consolidated payments with agent contributions</td>
+                    <td>Simplify internal agent compensation</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Payout Information -->
+            <div class="alert alert-success mt-4">
+              <h5>
+                <i class="fas fa-file-invoice-dollar me-2"></i>Streamlined Payout Management
+              </h5>
+              <p>Every payout comes with comprehensive documentation to make agent payments effortless:</p>
+              <div class="row">
+                <div class="col-md-6">
+                  <ul class="mb-0">
+                    <li>
+                      <strong>Agent Contributions:</strong> Exact amounts earned by each agent
+                    </li>
+                    <li>
+                      <strong>Detailed Breakdowns:</strong> Commission amounts with reservation references
+                    </li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <ul class="mb-0">
+                    <li>
+                      <strong>Ready-to-Split:</strong> Pre-calculated amounts for immediate distribution
+                    </li>
+                    <li>
+                      <strong>Zero Extra Work:</strong> Apply your agreed percentages instantly
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Best Practices -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h4 class="mb-0">
+              <i class="fas fa-star me-2"></i>Best Practices & Tips
+            </h4>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h5>Performance Optimization</h5>
+                <ul>
+                  <li>Review agent performance weekly</li>
+                  <li>Recognize top performers</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <h5>Commission Management</h5>
+                <ul>
+                  <li>Establish clear commission splits</li>
+                  <li>Communicate payment schedules</li>
+                  <li>Document all agreements</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Quick Links -->
-      <div class="col-lg-4">
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
-            <h3 class="h4 mb-0">Quick Links</h3>
+      <!-- Sidebar -->
+      <div class="col-lg-3">
+
+        <!-- Quick Actions -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="fas fa-bolt me-2"></i>Quick Actions
+            </h5>
           </div>
-          <div class="card-body">
+          <div class="card-body p-0">
             <div class="list-group list-group-flush">
               <a href="{% url 'agency_dashboard' %}"
-                 class="list-group-item list-group-item-action fs-5">
-                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                 class="list-group-item list-group-item-action">
+                <i class="fas fa-tachometer-alt me-2"></i>Agency Dashboard
               </a>
               <a href="{% url 'agency_commission_history' agency.id %}"
-                 class="list-group-item list-group-item-action fs-5">
-                <i class="fas fa-dollar-sign me-2"></i>Commission History
+                 class="list-group-item list-group-item-action">
+                <i class="fas fa-history me-2"></i>Commission History
               </a>
               <a href="{% url 'agency_agents_list' agency.id %}"
-                 class="list-group-item list-group-item-action fs-5">
+                 class="list-group-item list-group-item-action">
                 <i class="fas fa-users me-2"></i>Manage Agents
               </a>
               <a href="{% url 'agency_profile' %}"
-                 class="list-group-item list-group-item-action fs-5">
-                <i class="fas fa-user-cog me-2"></i>Edit Profile
+                 class="list-group-item list-group-item-action">
+                <i class="fas fa-cog me-2"></i>Agency Settings
               </a>
             </div>
           </div>
         </div>
 
-        <!-- Need Help? -->
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
-            <h3 class="h4 mb-0">Need Help?</h3>
+        <!-- System Overview -->
+        <div class="card mb-4">
+          <div class="card-header">
+            <h5 class="mb-0">
+              <i class="fas fa-chart-pie me-2"></i>System Overview
+            </h5>
+          </div>
+          <div class="card-body text-center">
+            <div class="row">
+              <div class="col-6">
+                <h4 class="text-primary">10%</h4>
+                <small class="text-muted">Commission Rate</small>
+              </div>
+              <div class="col-6">
+                <h4 class="text-success">24/7</h4>
+                <small class="text-muted">Support Available</small>
+              </div>
+            </div>
+            <hr>
+            <small class="text-muted">
+              <i class="fas fa-shield-alt me-1"></i>
+              Secure payments & data protection
+            </small>
+          </div>
+        </div>
+
+        <!-- Support -->
+        <div class="card">
+          <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">
+              <i class="fas fa-life-ring me-2"></i>Need Help?
+            </h5>
           </div>
           <div class="card-body">
-            <p class="fs-5 mb-3">If you need assistance with your agency account, please contact our support team:</p>
-            <ul class="list-unstyled fs-5 mb-0">
-              <li class="mb-3">
-                <i class="fas fa-envelope me-2"></i>
-                <a href="mailto:support@graysontowncar.com" class="text-decoration-none">support@graysontowncar.com</a>
-              </li>
-              <li class="mb-3">
-                <i class="fas fa-phone me-2"></i>
-                <a href="tel:+1234567890" class="text-decoration-none">(123) 456-7890</a>
-              </li>
-            </ul>
+            <p class="mb-3">Our support team is available 24/7 to help with any questions about your agency account.</p>
+            <div class="d-grid gap-2">
+              <a href="mailto:contact@graysontowncar.com"
+                 class="btn btn-outline-primary">
+                <i class="fas fa-envelope me-2"></i>Email Support
+              </a>
+              <a href="tel:+4072127190" class="btn btn-outline-success">
+                <i class="fas fa-phone me-2"></i>Call (407) 212-7190
+              </a>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 {% endblock content %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

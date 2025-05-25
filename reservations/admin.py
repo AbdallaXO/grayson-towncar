@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.db.models import Min, Count, Q
 from django.urls import reverse
 from django.contrib.admin import SimpleListFilter
-
+from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 
@@ -870,27 +870,19 @@ class FlightAdmin(admin.ModelAdmin):
 class LeadAdmin(admin.ModelAdmin):
     list_display = (
         "full_name",
-        "email",
-        "phone",
+        "contact_info",
+        "trip_summary",
+        "status_display",
+        "priority_display",
         "pickup_date",
-        "trip_type",
-        "vehicle",
-        "estimated_price",
-        "status",
-        "priority",
-        "source",
-        "contact_attempts",
-        "next_follow_up",
+        "follow_up_date",
+        "created_at",
     )
 
     list_filter = (
         "status",
         "priority",
-        "source",
         "converted",
-        "contacted",
-        "trip_type",
-        "vehicle",
         "pickup_date",
         "created_at",
     )
@@ -902,147 +894,200 @@ class LeadAdmin(admin.ModelAdmin):
         "phone",
         "pickup_location",
         "dropoff_location",
-        "notes",
     )
 
-    readonly_fields = (
-        "created_at",
-        "converted_at",
-        "days_since_created",
-        "contact_attempts",
-        "last_contact_date",
-    )
+    list_per_page = 25
+    date_hierarchy = "created_at"
 
     fieldsets = (
         (
             "Contact Information",
-            {
-                "fields": (
-                    "first_name",
-                    "last_name",
-                    "email",
-                    "phone",
-                    "preferred_contact_method",
-                )
-            },
+            {"fields": ("first_name", "last_name", "email", "phone")},
         ),
         (
             "Trip Details",
             {
                 "fields": (
-                    "vehicle",
                     "pickup_location",
                     "dropoff_location",
                     "pickup_date",
+                    "vehicle",
                     "trip_type",
                     "estimated_price",
                 )
             },
         ),
         (
-            "Lead Status",
+            "Lead Management",
+            {"fields": ("status", "priority", "next_follow_up", "contact_attempts")},
+        ),
+        ("Notes", {"fields": ("notes",)}),
+        (
+            "System Info",
             {
-                "fields": (
-                    "status",
-                    "priority",
-                    "source",
-                    "contacted",
-                    "converted",
-                    "converted_at",
-                    "contact_attempts",
-                    "last_contact_date",
-                    "next_follow_up",
-                )
+                "fields": ("created_at", "converted", "converted_at"),
+                "classes": ("collapse",),
             },
         ),
-        ("Additional Information", {"fields": ("notes",), "classes": ("collapse",)}),
     )
 
+    readonly_fields = ("created_at", "converted_at")
+
     actions = [
-        "mark_as_contacted",
-        "mark_as_interested",
-        "mark_as_proposal_sent",
-        "mark_as_negotiating",
-        "mark_as_converted",
-        "mark_as_lost",
-        "set_priority_high",
-        "set_priority_medium",
-        "set_priority_low",
-        "set_next_follow_up_3_days",
-        "set_next_follow_up_7_days",
+        "mark_contacted",
+        "mark_interested",
+        "mark_converted",
+        "mark_lost",
+        "set_high_priority",
+        "schedule_follow_up_tomorrow",
+        "schedule_follow_up_week",
     ]
 
+    # Display Methods
+    @admin.display(description="Name", ordering="last_name")
     def full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
+        name = f"{obj.first_name} {obj.last_name}".strip()
+        if obj.converted:
+            return format_html(
+                '<span style="color: #28a745; font-weight: bold;">✓ {}</span>', name
+            )
+        return name or "No Name"
 
-    full_name.short_description = "Name"
+    @admin.display(description="Contact")
+    def contact_info(self, obj):
+        email = obj.email or "No email"
+        phone = obj.phone or "No phone"
+        return format_html(
+            '<div style="font-size: 0.9em;"><div>{}</div><div>{}</div></div>',
+            email,
+            phone,
+        )
 
-    def days_since_created(self, obj):
-        delta = timezone.now() - obj.created_at
-        return f"{delta.days} days"
+    @admin.display(description="Trip Details")
+    def trip_summary(self, obj):
+        date_str = obj.pickup_date.strftime("%b %d") if obj.pickup_date else "No date"
+        arrow = "→" if obj.trip_type == "oneway" else "⇄"
+        location = f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
+        price = f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
 
-    days_since_created.short_description = "Age"
+        return format_html(
+            '<div style="font-size: 0.9em;">'
+            "<div><strong>{}</strong></div>"
+            "<div>{}</div>"
+            '<div style="color: #007bff;">{}</div></div>',
+            date_str,
+            location,
+            price,
+        )
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related("vehicle")
+    @admin.display(description="Status", ordering="status")
+    def status_display(self, obj):
+        colors = {
+            "new": "#6c757d",
+            "contacted": "#007bff",
+            "interested": "#28a745",
+            "future_contact": "#17a2b8",
+            "converted": "#28a745",
+            "lost": "#dc3545",
+        }
 
-    @admin.action(description="Mark selected leads as contacted")
-    def mark_as_contacted(self, request, queryset):
-        for lead in queryset:
-            lead.status = "contacted"
-            lead.contacted = True
-            lead.update_contact_attempt()
-        self.message_user(request, f"{queryset.count()} leads marked as contacted.")
+        color = colors.get(obj.status, "#6c757d")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display(),
+        )
 
-    @admin.action(description="Mark selected leads as interested")
-    def mark_as_interested(self, request, queryset):
-        queryset.update(status="interested")
-        self.message_user(request, f"{queryset.count()} leads marked as interested.")
+    @admin.display(description="Priority", ordering="priority")
+    def priority_display(self, obj):
+        colors = {
+            "low": "#6c757d",
+            "medium": "#ffc107",
+            "high": "#dc3545",
+            "urgent": "#dc3545",
+        }
 
-    @admin.action(description="Mark selected leads as proposal sent")
-    def mark_as_proposal_sent(self, request, queryset):
-        queryset.update(status="proposal")
-        self.message_user(request, f"{queryset.count()} leads marked as proposal sent.")
+        color = colors.get(obj.priority, "#6c757d")
+        text_color = "white" if obj.priority in ["high", "urgent"] else "black"
 
-    @admin.action(description="Mark selected leads as negotiating")
-    def mark_as_negotiating(self, request, queryset):
-        queryset.update(status="negotiating")
-        self.message_user(request, f"{queryset.count()} leads marked as negotiating.")
+        return format_html(
+            '<span style="background-color: {}; color: {}; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">{}</span>',
+            color,
+            text_color,
+            obj.get_priority_display().upper(),
+        )
 
-    @admin.action(description="Mark selected leads as converted")
-    def mark_as_converted(self, request, queryset):
-        for lead in queryset:
-            lead.mark_as_converted()
-        self.message_user(request, f"{queryset.count()} leads marked as converted.")
+    @admin.display(description="Follow-Up", ordering="next_follow_up")
+    def follow_up_date(self, obj):
+        if not obj.next_follow_up:
+            return "-"
 
-    @admin.action(description="Mark selected leads as lost")
-    def mark_as_lost(self, request, queryset):
-        queryset.update(status="lost")
-        self.message_user(request, f"{queryset.count()} leads marked as lost.")
+        now = timezone.now()
+        due_date = obj.next_follow_up.date()
+        today = now.date()
 
-    @admin.action(description="Set priority to High")
-    def set_priority_high(self, request, queryset):
-        queryset.update(priority="high")
-        self.message_user(request, f"{queryset.count()} leads set to high priority.")
+        if due_date < today:
+            return format_html(
+                '<span style="color: #dc3545; font-weight: bold;">OVERDUE</span>'
+            )
+        elif due_date == today:
+            return format_html(
+                '<span style="color: #fd7e14; font-weight: bold;">TODAY</span>'
+            )
+        else:
+            return obj.next_follow_up.strftime("%b %d")
 
-    @admin.action(description="Set priority to Medium")
-    def set_priority_medium(self, request, queryset):
-        queryset.update(priority="medium")
-        self.message_user(request, f"{queryset.count()} leads set to medium priority.")
+    # Actions
+    @admin.action(description="Mark as Contacted")
+    def mark_contacted(self, request, queryset):
+        updated = queryset.filter(status="new").update(
+            status="contacted", contact_attempts=1, last_contact_date=timezone.now()
+        )
+        self.message_user(request, f"Marked {updated} leads as contacted.")
 
-    @admin.action(description="Set priority to Low")
-    def set_priority_low(self, request, queryset):
-        queryset.update(priority="low")
-        self.message_user(request, f"{queryset.count()} leads set to low priority.")
+    @admin.action(description="Mark as Interested")
+    def mark_interested(self, request, queryset):
+        updated = queryset.exclude(status__in=["converted", "lost"]).update(
+            status="interested"
+        )
+        self.message_user(request, f"Marked {updated} leads as interested.")
 
-    @admin.action(description="Set next follow-up in 3 days")
-    def set_next_follow_up_3_days(self, request, queryset):
-        for lead in queryset:
-            lead.set_next_follow_up(days=3)
-        self.message_user(request, f"Next follow-up set for {queryset.count()} leads.")
+    @admin.action(description="Mark as Converted")
+    def mark_converted(self, request, queryset):
+        count = 0
+        for lead in queryset.exclude(converted=True):
+            lead.status = "converted"
+            lead.converted = True
+            lead.converted_at = timezone.now()
+            lead.next_follow_up = None
+            lead.save()
+            count += 1
+        self.message_user(request, f"Converted {count} leads.")
 
-    @admin.action(description="Set next follow-up in 7 days")
-    def set_next_follow_up_7_days(self, request, queryset):
-        for lead in queryset:
-            lead.set_next_follow_up(days=7)
-        self.message_user(request, f"Next follow-up set for {queryset.count()} leads.")
+    @admin.action(description="Mark as Lost")
+    def mark_lost(self, request, queryset):
+        updated = queryset.exclude(status="lost").update(
+            status="lost", converted=False, next_follow_up=None
+        )
+        self.message_user(request, f"Marked {updated} leads as lost.")
+
+    @admin.action(description="Set High Priority")
+    def set_high_priority(self, request, queryset):
+        updated = queryset.update(priority="high")
+        self.message_user(request, f"Set {updated} leads to high priority.")
+
+    @admin.action(description="Follow-up Tomorrow")
+    def schedule_follow_up_tomorrow(self, request, queryset):
+        tomorrow = timezone.now() + timedelta(days=1)
+        updated = queryset.exclude(status__in=["converted", "lost"]).update(
+            next_follow_up=tomorrow
+        )
+        self.message_user(request, f"Scheduled follow-up for {updated} leads.")
+
+    @admin.action(description="Follow-up Next Week")
+    def schedule_follow_up_week(self, request, queryset):
+        next_week = timezone.now() + timedelta(days=7)
+        updated = queryset.exclude(status__in=["converted", "lost"]).update(
+            next_follow_up=next_week
+        )
+        self.message_user(request, f"Scheduled follow-up for {updated} leads.")
