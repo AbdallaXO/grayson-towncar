@@ -1,9 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
 
-{% block title %}
-  Agency Dashboard - {{ agency.name }}
-{% endblock %}
+{% block title %}Agency Dashboard - {{ agency.name }}{% endblock %}
 
 {% block content %}
   <div class="container-fluid mt-4">
@@ -11,10 +9,51 @@
       <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
           <h1>{{ agency.name }} Dashboard</h1>
-          <div>
-            <a href="{% url 'agency_agents_list' agency.id %}" class="btn btn-outline-primary">View All Agents</a>
+          <div class="d-flex gap-2">
+            <a href="{% url 'agency_profile' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-user-cog me-2"></i>Edit Profile
+            </a>
+            <a href="{% url 'agency_commission_history' agency.id %}"
+               class="btn btn-outline-primary">
+              <i class="fas fa-dollar-sign me-2"></i>Commission History
+            </a>
+            <a href="{% url 'agency_agents_list' agency.id %}"
+               class="btn btn-outline-primary">
+              <i class="fas fa-users me-2"></i>View All Agents
+            </a>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <ul class="nav nav-tabs">
+          <li class="nav-item">
+            <a class="nav-link active"
+               href="{% url 'agency_dashboard' %}"
+               aria-current="page">
+              <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link"
+               href="{% url 'agency_commission_history' agency.id %}">
+              <i class="fas fa-dollar-sign me-2"></i>Commission History
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'agency_profile' %}">
+              <i class="fas fa-user-cog me-2"></i>Profile
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'agency_guide' %}">
+              <i class="fas fa-book me-2"></i>Guide
+            </a>
+          </li>
+        </ul>
       </div>
     </div>
 
@@ -59,11 +98,20 @@
       <div class="col-12">
         <div class="card shadow-sm">
           <div class="card-header">
-            <h5 class="mb-0">Agents Overview</h5>
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Agents Overview</h5>
+              <div class="input-group" style="width: 300px;">
+                <input type="text"
+                       id="agentSearch"
+                       class="form-control"
+                       placeholder="Search agents...">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+              </div>
+            </div>
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-hover mb-0">
+              <table class="table table-hover mb-0" id="agentsTable">
                 <thead>
                   <tr>
                     <th>Agent</th>
@@ -87,7 +135,8 @@
                       <td class="text-purple">${{ agent_stat.paid }}</td>
                       <td>{{ agent_stat.reservation_count }}</td>
                       <td>
-                        <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                        <a href="{% url 'agent_detail' agent_stat.agent.id %}"
+                           class="btn btn-sm btn-outline-primary">View Details</a>
                       </td>
                     </tr>
                   {% empty %}
@@ -130,13 +179,7 @@
                       <td>{{ reservation.travel_agent.agent_name }}</td>
                       <td>${{ reservation.total_price }}</td>
                       <td>
-                        <span class="badge {% if reservation.status == 'completed' %}
-                            bg-success
-                          {% elif reservation.status == 'confirmed' %}
-                            bg-primary
-                          {% else %}
-                            bg-secondary
-                          {% endif %}">
+                        <span class="badge {% if reservation.status == 'completed' %} bg-success {% elif reservation.status == 'confirmed' %} bg-primary {% else %} bg-secondary {% endif %}">
                           {{ reservation.status|title }}
                         </span>
                       </td>
@@ -191,8 +234,29 @@
     </div>
   </div>
 {% endblock %}
-{% block footer %}
-{% endblock %}
-{% block newsletter %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
 
+{% block extra_js %}
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          // Search functionality
+          document.getElementById('agentSearch').addEventListener('keyup', function() {
+              const value = this.value.toLowerCase();
+              const table = document.getElementById('agentsTable');
+              const rows = table.getElementsByTagName('tr');
+
+              for (let i = 1; i < rows.length; i++) {
+                  const row = rows[i];
+                  const text = row.textContent.toLowerCase();
+
+                  if (text.includes(value)) {
+                      row.style.display = '';
+                  } else {
+                      row.style.display = 'none';
+                  }
+              }
+          });
+      });
+  </script>
 {% endblock %}

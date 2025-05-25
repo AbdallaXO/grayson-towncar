@@ -5,27 +5,46 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0022_agency_travelagent_agency'),
+        ("users", "0022_agency_travelagent_agency"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AgencyCommissionPayout',
+            name="AgencyCommissionPayout",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('total_amount', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('payout_period_start', models.DateField()),
-                ('payout_period_end', models.DateField()),
-                ('paid_at', models.DateTimeField(auto_now_add=True)),
-                ('notes', models.TextField(blank=True)),
-                ('agency', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='commission_payouts', to='users.agency')),
-                ('agent_payouts', models.ManyToManyField(related_name='agency_payouts', to='users.commissionpayout')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("total_amount", models.DecimalField(decimal_places=2, max_digits=10)),
+                ("payout_period_start", models.DateField()),
+                ("payout_period_end", models.DateField()),
+                ("paid_at", models.DateTimeField(auto_now_add=True)),
+                ("notes", models.TextField(blank=True)),
+                (
+                    "agency",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="commission_payouts",
+                        to="users.agency",
+                    ),
+                ),
+                (
+                    "agent_payouts",
+                    models.ManyToManyField(
+                        related_name="agency_payouts", to="users.commissionpayout"
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Agency Commission Payout',
-                'verbose_name_plural': 'Agency Commission Payouts',
+                "verbose_name": "Agency Commission Payout",
+                "verbose_name_plural": "Agency Commission Payouts",
             },
         ),
     ]

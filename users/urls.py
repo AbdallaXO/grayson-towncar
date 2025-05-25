@@ -1,4 +1,4 @@
-# urls.py - Updated URL patterns with process_agency_commissions
+# urls.py - Updated URL patterns for multiple agency heads
 from django.urls import path
 from . import views
 from users.emails import send_reservation_confirmation
@@ -27,15 +27,43 @@ urlpatterns = [
     ),
     path("agent/profile/", views.agent_profile, name="agent_profile"),
     path("agent-login/", views.agent_login, name="agent_login"),
-    
-    # Agency management URLs
-    path('agency/dashboard/', views.AgencyDashboardView.as_view(), name='agency_dashboard'),
-    path('agency/<int:pk>/agents/', views.AgencyAgentsListView.as_view(), name='agency_agents_list'),
-    path('agent/<int:pk>/', views.AgentDetailView.as_view(), name='agent_detail'),
-    
-    # AJAX endpoints for updating agent stats and processing payments
-    path('agent/<int:pk>/update-stats/', views.update_agent_commission_stats, name='update_agent_commission_stats'),
-    path('agent/<int:pk>/process-commission/', views.process_agent_commission, name='process_agent_commission'),
-    path('agency/<int:pk>/process-commissions/', views.process_agency_commissions, name='process_agency_commissions'),
-    path('commission-payout/<int:pk>/', views.commission_payout_detail, name='commission_payout_detail'),
+    # Agency management URLs - Updated for multiple heads
+    path(
+        "agency/dashboard/",
+        views.AgencyDashboardView.as_view(),
+        name="agency_dashboard",
+    ),
+    path("agency/<int:pk>/", views.AgencyDetailView.as_view(), name="agency_detail"),
+    path(
+        "agency/<int:pk>/agents/",
+        views.AgencyAgentsListView.as_view(),
+        name="agency_agents_list",
+    ),
+    path("agent/<int:pk>/", views.AgentDetailView.as_view(), name="agent_detail"),
+    path(
+        "commission-payout/<int:pk>/",
+        views.commission_payout_detail,
+        name="commission_payout_detail",
+    ),
+    path(
+        "agency_commission_history/<agency_id>/",
+        views.agency_commission_history,
+        name="agency_commission_history",
+    ),
+    # New agency management URLs
+    path(
+        "agency/profile/",
+        views.AgencyProfileView.as_view(),
+        name="agency_profile",
+    ),
+    path(
+        "agency/guide/",
+        views.AgencyGuideView.as_view(),
+        name="agency_guide",
+    ),
+    path(
+        "agency/update-payment/",
+        views.update_agency_payment,
+        name="update_agency_payment",
+    ),
 ]

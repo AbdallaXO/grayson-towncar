@@ -196,8 +196,6 @@ class FirstPickupDateFilter(SimpleListFilter):
         return qs
 
 
-admin.site.register(Lead)
-
 
 class DriverAssignmentFilter(SimpleListFilter):
     title = "driver assignment"
@@ -867,3 +865,177 @@ class FlightAdmin(admin.ModelAdmin):
     list_filter = ("flight_type", "airline")
     search_fields = ("airline", "flight_number")
     ordering = ("airline", "flight_number")
+
+
+@admin.register(Lead)
+class LeadAdmin(admin.ModelAdmin):
+    list_display = (
+        'full_name',
+        'email',
+        'phone',
+        'pickup_date',
+        'trip_type',
+        'vehicle',
+        'estimated_price',
+        'status',
+        'priority',
+        'source',
+        'contact_attempts',
+        'next_follow_up',
+    )
+    
+    list_filter = (
+        'status',
+        'priority',
+        'source',
+        'converted',
+        'contacted',
+        'trip_type',
+        'vehicle',
+        'pickup_date',
+        'created_at',
+    )
+    
+    search_fields = (
+        'first_name',
+        'last_name',
+        'email',
+        'phone',
+        'pickup_location',
+        'dropoff_location',
+        'notes',
+    )
+    
+    readonly_fields = (
+        'created_at',
+        'converted_at',
+        'days_since_created',
+        'contact_attempts',
+        'last_contact_date',
+    )
+    
+    fieldsets = (
+        ('Contact Information', {
+            'fields': (
+                'first_name',
+                'last_name',
+                'email',
+                'phone',
+                'preferred_contact_method',
+            )
+        }),
+        ('Trip Details', {
+            'fields': (
+                'vehicle',
+                'pickup_location',
+                'dropoff_location',
+                'pickup_date',
+                'trip_type',
+                'estimated_price',
+            )
+        }),
+        ('Lead Status', {
+            'fields': (
+                'status',
+                'priority',
+                'source',
+                'contacted',
+                'converted',
+                'converted_at',
+                'contact_attempts',
+                'last_contact_date',
+                'next_follow_up',
+            )
+        }),
+        ('Additional Information', {
+            'fields': ('notes',),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    actions = [
+        'mark_as_contacted',
+        'mark_as_interested',
+        'mark_as_proposal_sent',
+        'mark_as_negotiating',
+        'mark_as_converted',
+        'mark_as_lost',
+        'set_priority_high',
+        'set_priority_medium',
+        'set_priority_low',
+        'set_next_follow_up_3_days',
+        'set_next_follow_up_7_days',
+    ]
+    
+    def full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+    full_name.short_description = "Name"
+    
+    def days_since_created(self, obj):
+        delta = timezone.now() - obj.created_at
+        return f"{delta.days} days"
+    days_since_created.short_description = "Age"
+    
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('vehicle')
+    
+    @admin.action(description="Mark selected leads as contacted")
+    def mark_as_contacted(self, request, queryset):
+        for lead in queryset:
+            lead.status = 'contacted'
+            lead.contacted = True
+            lead.update_contact_attempt()
+        self.message_user(request, f"{queryset.count()} leads marked as contacted.")
+
+    @admin.action(description="Mark selected leads as interested")
+    def mark_as_interested(self, request, queryset):
+        queryset.update(status='interested')
+        self.message_user(request, f"{queryset.count()} leads marked as interested.")
+
+    @admin.action(description="Mark selected leads as proposal sent")
+    def mark_as_proposal_sent(self, request, queryset):
+        queryset.update(status='proposal')
+        self.message_user(request, f"{queryset.count()} leads marked as proposal sent.")
+
+    @admin.action(description="Mark selected leads as negotiating")
+    def mark_as_negotiating(self, request, queryset):
+        queryset.update(status='negotiating')
+        self.message_user(request, f"{queryset.count()} leads marked as negotiating.")
+
+    @admin.action(description="Mark selected leads as converted")
+    def mark_as_converted(self, request, queryset):
+        for lead in queryset:
+            lead.mark_as_converted()
+        self.message_user(request, f"{queryset.count()} leads marked as converted.")
+
+    @admin.action(description="Mark selected leads as lost")
+    def mark_as_lost(self, request, queryset):
+        queryset.update(status='lost')
+        self.message_user(request, f"{queryset.count()} leads marked as lost.")
+
+    @admin.action(description="Set priority to High")
+    def set_priority_high(self, request, queryset):
+        queryset.update(priority='high')
+        self.message_user(request, f"{queryset.count()} leads set to high priority.")
+
+    @admin.action(description="Set priority to Medium")
+    def set_priority_medium(self, request, queryset):
+        queryset.update(priority='medium')
+        self.message_user(request, f"{queryset.count()} leads set to medium priority.")
+
+    @admin.action(description="Set priority to Low")
+    def set_priority_low(self, request, queryset):
+        queryset.update(priority='low')
+        self.message_user(request, f"{queryset.count()} leads set to low priority.")
+
+    @admin.action(description="Set next follow-up in 3 days")
+    def set_next_follow_up_3_days(self, request, queryset):
+        for lead in queryset:
+            lead.set_next_follow_up(days=3)
+        self.message_user(request, f"Next follow-up set for {queryset.count()} leads.")
+
+    @admin.action(description="Set next follow-up in 7 days")
+    def set_next_follow_up_7_days(self, request, queryset):
+        for lead in queryset:
+            lead.set_next_follow_up(days=7)
+        self.message_user(request, f"Next follow-up set for {queryset.count()} leads.")

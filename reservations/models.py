@@ -9,6 +9,7 @@ import uuid
 from decimal import Decimal
 from django.utils import timezone
 from rates.models import Vehicle, Rate
+from datetime import timedelta
 
 
 class Customer(models.Model):
@@ -364,13 +365,73 @@ class Lead(models.Model):
     )
     estimated_price = models.DecimalField(max_digits=10, decimal_places=2, null=True)
 
+    # Lead tracking
+    source = models.CharField(
+        max_length=50,
+        choices=[
+            ("website", "Website"),
+            ("phone", "Phone"),
+            ("email", "Email"),
+            ("referral", "Referral"),
+            ("social", "Social Media"),
+            ("other", "Other"),
+        ],
+        default="website",
+        help_text="Where did this lead come from?"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("new", "New"),
+            ("contacted", "Contacted"),
+            ("interested", "Interested"),
+            ("proposal", "Proposal Sent"),
+            ("negotiating", "Negotiating"),
+            ("converted", "Converted"),
+            ("lost", "Lost"),
+        ],
+        default="new",
+        help_text="Current status of the lead"
+    )
+    priority = models.CharField(
+        max_length=20,
+        choices=[
+            ("low", "Low"),
+            ("medium", "Medium"),
+            ("high", "High"),
+            ("urgent", "Urgent"),
+        ],
+        default="medium",
+        help_text="Priority level of the lead"
+    )
+    last_contact_date = models.DateTimeField(null=True, blank=True)
+    next_follow_up = models.DateTimeField(null=True, blank=True)
+    contact_attempts = models.PositiveIntegerField(default=0)
+    preferred_contact_method = models.CharField(
+        max_length=20,
+        choices=[
+            ("email", "Email"),
+            ("phone", "Phone"),
+            ("text", "Text Message"),
+        ],
+        default="email"
+    )
     # Metadata
     created_at = models.DateTimeField(default=timezone.now)
     converted = models.BooleanField(default=False)
     converted_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    contacted = models.BooleanField(null=True, blank=True)
+
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['priority']),
+            models.Index(fields=['next_follow_up']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.created_at.strftime('%Y-%m-%d')}"
@@ -378,4 +439,14 @@ class Lead(models.Model):
     def mark_as_converted(self):
         self.converted = True
         self.converted_at = timezone.now()
+        self.status = 'converted'
+        self.save()
+
+    def update_contact_attempt(self):
+        self.contact_attempts += 1
+        self.last_contact_date = timezone.now()
+        self.save()
+
+    def set_next_follow_up(self, days=3):
+        self.next_follow_up = timezone.now() + timedelta(days=days)
         self.save()

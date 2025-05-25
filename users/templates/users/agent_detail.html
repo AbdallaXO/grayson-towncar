@@ -1,9 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
 
-{% block title %}
-  Agent Detail - {{ agent.agent_name }}
-{% endblock %}
+{% block title %}Agent Detail - {{ agent.agent_name }}{% endblock %}
 
 {% block content %}
   <div class="container-fluid mt-4">
@@ -13,7 +11,8 @@
           <h1>{{ agent.agent_name }}</h1>
           <div>
             {% if is_agency_head %}
-              <a href="{% url 'agency_dashboard' %}" class="btn btn-outline-secondary me-2">Back to Dashboard</a>
+              <a href="{% url 'agency_dashboard' %}"
+                 class="btn btn-outline-secondary me-2">Back to Dashboard</a>
             {% endif %}
           </div>
         </div>
@@ -86,7 +85,7 @@
               <div class="col-md-4">
                 <div class="card bg-light">
                   <div class="card-body text-center">
-                    <h6 class="card-title">Total Paid</h6>
+                    <h6 class="card-title">Total Earned</h6>
                     <h3 class="text-purple">${{ agent.total_paid_commission }}</h3>
                   </div>
                 </div>
@@ -132,15 +131,32 @@
       <div class="col-12">
         <ul class="nav nav-tabs" id="agentTabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="reservations-tab" data-bs-toggle="tab" data-bs-target="#reservations" type="button" role="tab" aria-controls="reservations" aria-selected="true">Reservations</button>
+            <button class="nav-link active"
+                    id="reservations-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#reservations"
+                    type="button"
+                    role="tab"
+                    aria-controls="reservations"
+                    aria-selected="true">Reservations</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="payouts-tab" data-bs-toggle="tab" data-bs-target="#payouts" type="button" role="tab" aria-controls="payouts" aria-selected="false">Commission Payouts</button>
+            <button class="nav-link"
+                    id="payouts-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#payouts"
+                    type="button"
+                    role="tab"
+                    aria-controls="payouts"
+                    aria-selected="false">Commission Payouts</button>
           </li>
         </ul>
 
         <div class="tab-content" id="agentTabsContent">
-          <div class="tab-pane fade show active" id="reservations" role="tabpanel" aria-labelledby="reservations-tab">
+          <div class="tab-pane fade show active"
+               id="reservations"
+               role="tabpanel"
+               aria-labelledby="reservations-tab">
             <div class="card shadow-sm border-top-0 rounded-0 rounded-bottom">
               <div class="card-body p-0">
                 <div class="table-responsive">
@@ -167,49 +183,7 @@
                           <td>${{ res.total_price }}</td>
                           <td>${{ res.commission_amount|default:0 }}</td>
                           <td>
-                            <span class="badge {% if res.status == 'completed' %}
-                                
-                                
-                                
-                                
-                                
-                                
-                                bg-success
-
-
-
-
-
-
-                              {% elif res.status == 'confirmed' %}
-                                
-                                
-                                
-                                
-                                
-                                
-                                bg-primary
-
-
-
-
-
-
-                              {% else %}
-                                
-                                
-                                
-                                
-                                
-                                
-                                bg-secondary
-
-
-
-
-
-
-                              {% endif %}">
+                            <span class="badge {% if res.status == 'completed' %}       bg-success       {% elif res.status == 'confirmed' %}       bg-primary     {% endif %}">
                               {{ res.status|title }}
                             </span>
                           </td>
@@ -233,7 +207,10 @@
             </div>
           </div>
 
-          <div class="tab-pane fade" id="payouts" role="tabpanel" aria-labelledby="payouts-tab">
+          <div class="tab-pane fade"
+               id="payouts"
+               role="tabpanel"
+               aria-labelledby="payouts-tab">
             <div class="card shadow-sm border-top-0 rounded-0 rounded-bottom">
               <div class="card-body p-0">
                 <div class="table-responsive">
@@ -271,13 +248,7 @@
   </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block extra_js %}{% endblock %}
 
-{% endblock %}
-
-{% block footer %}
-
-{% endblock %}
-{% block newsletter %}
-
-{% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

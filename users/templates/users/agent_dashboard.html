@@ -1,11 +1,8 @@
 {% extends 'main.html' %}
-
-{% block title %}
-  Travel Agent Dashboard | Grayson Towncar
-{% endblock %}
-
+{% block title %}Travel Agent Dashboard | Grayson Towncar{% endblock %}
 {% block content %}
   <div class="container-fluid py-4">
+    <!-- Header Section -->
     <div class="row mb-4 align-items-center">
       <div class="col-md-6">
         <h1 class="h2 mb-1">{{ travel_agent.agent_name }}</h1>
@@ -13,19 +10,29 @@
       </div>
       <div class="col-md-6 text-md-end">
         <div class="d-flex justify-content-md-end gap-2 flex-wrap">
-          <a href="{% url 'rates' %}" class="btn btn-dark rounded" aria-label="Create new reservation"><i class="fas fa-plus me-2"></i>New Reservation</a>
-          <button class="btn btn-outline-secondary d-print-none" onclick="window.print()" aria-label="Print dashboard"><i class="fas fa-print me-2"></i>Print View</button>
-          <a href="{% url 'agent_profile' %}" class="btn btn-outline-secondary" aria-label="Edit profile"><i class="fas fa-user-cog me-2"></i>Profile</a>
+          <a href="{% url 'rates' %}"
+             class="btn btn-dark rounded"
+             aria-label="Create new reservation"><i class="fas fa-plus me-2"></i>New Reservation</a>
+          <button class="btn btn-outline-secondary d-print-none"
+                  onclick="window.print()"
+                  aria-label="Print dashboard">
+            <i class="fas fa-print me-2"></i>Print View
+          </button>
+          <a href="{% url 'agent_profile' %}"
+             class="btn btn-outline-secondary"
+             aria-label="Edit profile"><i class="fas fa-user-cog me-2"></i>Profile</a>
         </div>
       </div>
     </div>
 
+    <!-- Navigation Tabs -->
     <div class="row mb-4">
       <div class="col-12">
         <ul class="nav nav-tabs">
-          <li class="nav-item fw-bold fs-5">
-            {# Corrected: fw-bold instead of w-bold #}
-            <a class="nav-link active" href="{% url 'agent_dashboard' %}" aria-current="page"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a>
+          <li class="nav-item w-bold fs-5">
+            <a class="nav-link active"
+               href="{% url 'agent_dashboard' %}"
+               aria-current="page"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a>
           </li>
           <li class="nav-item fw-bold fs-5">
             <a class="nav-link" href="{% url 'agent_commission_history' %}"><i class="fas fa-dollar-sign me-2"></i>Commission History</a>
@@ -34,13 +41,19 @@
       </div>
     </div>
 
+    <!-- Financial Overview -->
     <div class="row g-4 mb-4">
       <div class="col-md-3 col-sm-6">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="The sum of all your pending, unpaid, and paid commissions">Total Commission <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
+                <h6 class="text-muted text-uppercase mb-2">
+                  <span class="info-tooltip"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="The sum of all your pending, unpaid, and paid commissions">Total Commission <i class="fas fa-info-circle ms-1 text-muted small"></i></span>
+                </h6>
                 <div class="h4 mb-0">${{ total_commission|floatformat:2 }}</div>
               </div>
               <div class="ms-3 text-primary">
@@ -55,7 +68,12 @@
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Commission already paid to you from completed reservations">Paid Commissions <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
+                <h6 class="text-muted text-uppercase mb-2">
+                  <span class="info-tooltip"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Commission already paid to you from completed reservations">Paid Commissions <i class="fas fa-info-circle ms-1 text-muted small"></i></span>
+                </h6>
                 <div class="h4 mb-0 text-success">${{ paid_commission|floatformat:2 }}</div>
               </div>
               <div class="ms-3 text-success">
@@ -70,7 +88,12 @@
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Commission from confirmed reservations that are not yet completed">Pending Commission <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
+                <h6 class="text-muted text-uppercase mb-2">
+                  <span class="info-tooltip"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Commission from confirmed reservations that are not yet completed">Pending Commission <i class="fas fa-info-circle ms-1 text-muted small"></i></span>
+                </h6>
                 <div class="h4 mb-0 text-primary">${{ pending_commission|floatformat:2 }}</div>
               </div>
               <div class="ms-3 text-primary">
@@ -85,11 +108,16 @@
           <div class="card-body">
             <div class="d-flex align-items-center">
               <div class="flex-grow-1">
-                <h6 class="text-muted text-uppercase mb-2"><span class="info-tooltip" data-bs-toggle="tooltip" data-bs-placement="top" title="Commission from completed reservations awaiting payment">Next Payout Commissions <i class="fas fa-info-circle ms-1 text-muted small"></i></span></h6>
+                <h6 class="text-muted text-uppercase mb-2">
+                  <span class="info-tooltip"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="Commission from completed reservations awaiting payment">Next Payout Commissions <i class="fas fa-info-circle ms-1 text-muted small"></i></span>
+                </h6>
                 <div class="h4 mb-0 text-danger">${{ unpaid_commission|floatformat:2 }}</div>
               </div>
               <div class="ms-3 text-danger">
-                <i class="fas fa-clock fa-2x opacity-100"></i> {/* Consider opacity-75 like others if 100 is too strong */}
+                <i class="fas fa-clock fa-2x opacity-100"></i>
               </div>
             </div>
           </div>
@@ -97,6 +125,7 @@
       </div>
     </div>
 
+    <!-- Commission Pipeline Card -->
     <div class="row mb-4">
       <div class="col-lg-6 col-md-8 col-12">
         <div class="card border-0 shadow-sm">
@@ -106,22 +135,27 @@
               <div class="pipeline-stage position-relative">
                 <div class="pipeline-bar d-flex">
                   {% if total_commission > 0 %}
-                    {% if pending_pipeline_width > 0 %}
-                      <div class="pipeline-segment bg-primary" style="width: {{ pending_pipeline_width|floatformat:2 }}%;" data-bs-toggle="tooltip" data-bs-placement="top" title="Pending: ${{ pending_commission|floatformat:2 }}"></div>
-                    {% endif %}
-                    {% if unpaid_pipeline_width > 0 %}
-                      <div class="pipeline-segment bg-danger" style="width: {{ unpaid_pipeline_width|floatformat:2 }}%;" data-bs-toggle="tooltip" data-bs-placement="top" title="Next Payout: ${{ unpaid_commission|floatformat:2 }}"></div>
-                    {% endif %}
-                    {% if paid_pipeline_width > 0 %}
-                      <div class="pipeline-segment bg-success" style="width: {{ paid_pipeline_width|floatformat:2 }}%;" data-bs-toggle="tooltip" data-bs-placement="top" title="Paid: ${{ paid_commission|floatformat:2 }}"></div>
-                    {% endif %}
+                    <div class="pipeline-segment bg-primary"
+                         style="width: {% if pending_commission > 0 %}max({{ pending_commission|floatformat:0 }}%, 5%){% else %}0%{% endif %}"
+                         data-bs-toggle="tooltip"
+                         data-bs-placement="top"
+                         title="Pending: ${{ pending_commission|floatformat:2 }}"></div>
+                    <div class="pipeline-segment bg-danger"
+                         style="width: {% if unpaid_commission > 0 %}max({{ unpaid_commission|floatformat:0 }}%, 5%){% else %}0%{% endif %}"
+                         data-bs-toggle="tooltip"
+                         data-bs-placement="top"
+                         title="Unpaid: ${{ unpaid_commission|floatformat:2 }}"></div>
+                    <div class="pipeline-segment bg-success"
+                         style="width: {% if paid_commission > 0 %}max({{ paid_commission|floatformat:0 }}%, 5%){% else %}0%{% endif %}"
+                         data-bs-toggle="tooltip"
+                         data-bs-placement="top"
+                         title="Paid: ${{ paid_commission|floatformat:2 }}"></div>
                   {% else %}
-                    <div class="pipeline-segment bg-light" style="width: 100%; text-align: center; padding: 0.5rem 0;">No commissions data</div>
+                    <div class="pipeline-segment bg-light" style="width: 100%;">No commissions data</div>
                   {% endif %}
                 </div>
               </div>
-              <div class="pipeline-legend mt-3 d-flex justify-content-around flex-wrap">
-                {# Changed to justify-content-around for better spacing #}
+              <div class="pipeline-legend mt-3 d-flex justify-content-between flex-wrap">
                 <div class="legend-item me-2 mb-2">
                   <span class="legend-color bg-primary"></span>
                   <span class="legend-text">Pending: ${{ pending_commission|floatformat:2 }}</span>
@@ -141,54 +175,87 @@
       </div>
     </div>
 
+    <!-- Main Content Area -->
     <div class="row">
       <div class="col-12">
+        <!-- Reservations Section -->
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-white border-0 pt-4 pb-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-              <h5 class="mb-0">Reservations</h5> {# Removed mb-3 mb-md-0 as gap-3 on parent handles spacing #}
-              <div class="d-flex gap-2 flex-wrap flex-column flex-sm-row w-100 w-md-auto align-items-stretch">
-                {/* Changed flex-md-row to flex-sm-row for earlier switch, align-items-stretch */}<form class="d-flex" method="get">
-                  {/* Removed mb-2 mb-md-0 */}<input type="hidden" name="status" value="{{ status }}" />
+              <h5 class="mb-3 mb-md-0">Reservations</h5>
+              <div class="d-flex gap-2 flex-wrap flex-column flex-md-row w-100 w-md-auto">
+                <!-- Search Bar -->
+                <form class="d-flex mb-2 mb-md-0" method="get">
+                  <input type="hidden" name="status" value="{{ status }}" />
                   <input type="hidden" name="date_filter" value="{{ date_filter }}" />
                   <div class="input-group">
-                    <input type="text" class="form-control" placeholder="Search reservations..." name="search" value="{{ search_query }}" aria-label="Search reservations" />
-                    <button class="btn btn-outline-secondary" type="submit" aria-label="Search"><i class="fas fa-search"></i></button>
+                    <input type="text"
+                           class="form-control"
+                           placeholder="Search reservations..."
+                           name="search"
+                           value="{{ search_query }}"
+                           aria-label="Search reservations" />
+                    <button class="btn btn-outline-secondary" type="submit" aria-label="Search">
+                      <i class="fas fa-search"></i>
+                    </button>
                     {% if search_query %}
-                      <a href="?status={{ status }}&date_filter={{ date_filter }}" class="btn btn-outline-secondary" aria-label="Clear search"><i class="fas fa-times"></i></a>
+                      <a href="?status={{ status }}&date_filter={{ date_filter }}"
+                         class="btn btn-outline-secondary"
+                         aria-label="Clear search"><i class="fas fa-times"></i></a>
                     {% endif %}
                   </div>
                 </form>
 
-                <div class="dropdown">
-                  {/* Removed mb-2 mb-md-0 */}
-                  <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown" aria-label="Filter by date" aria-expanded="false"><i class="fas fa-calendar me-2"></i>{{ date_filter|title }}</button>
-                  <ul class="dropdown-menu dropdown-menu-end">
-                    {/* Added dropdown-menu-end for better positioning on small screens */}<li>
-                      <a class="dropdown-item {% if date_filter == 'all' %}active{% endif %}" href="?status={{ status }}&date_filter=all&search={{ search_query }}">All Time</a>
+                <!-- Date Filter Dropdown -->
+                <div class="dropdown mb-2 mb-md-0">
+                  <button class="btn btn-outline-secondary dropdown-toggle"
+                          type="button"
+                          data-bs-toggle="dropdown"
+                          aria-label="Filter by date"
+                          aria-expanded="false">
+                    <i class="fas fa-calendar me-2"></i>{{ date_filter|title }}
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a class="dropdown-item"
+                         href="?status={{ status }}&date_filter=all&search={{ search_query }}">All Time</a>
                     </li>
                     <li>
-                      <a class="dropdown-item {% if date_filter == 'today' %}active{% endif %}" href="?status={{ status }}&date_filter=today&search={{ search_query }}">Today</a>
+                      <a class="dropdown-item"
+                         href="?status={{ status }}&date_filter=today&search={{ search_query }}">Today</a>
                     </li>
                     <li>
-                      <a class="dropdown-item {% if date_filter == 'week' %}active{% endif %}" href="?status={{ status }}&date_filter=week&search={{ search_query }}">Last 7 Days</a>
+                      <a class="dropdown-item"
+                         href="?status={{ status }}&date_filter=week&search={{ search_query }}">Last 7 Days</a>
                     </li>
                     <li>
-                      <a class="dropdown-item {% if date_filter == 'month' %}active{% endif %}" href="?status={{ status }}&date_filter=month&search={{ search_query }}">Last 30 Days</a>
+                      <a class="dropdown-item"
+                         href="?status={{ status }}&date_filter=month&search={{ search_query }}">Last 30 Days</a>
                     </li>
                     <li>
-                      <a class="dropdown-item {% if date_filter == 'year' %}active{% endif %}" href="?status={{ status }}&date_filter=year&search={{ search_query }}">Last Year</a>
+                      <a class="dropdown-item"
+                         href="?status={{ status }}&date_filter=year&search={{ search_query }}">Last Year</a>
                     </li>
                   </ul>
                 </div>
 
-                <div class="btn-group w-100 w-sm-auto" role="group" aria-label="Filter by status">
-                  {/* Added w-100 w-sm-auto for better stacking on mobile */}
-                  <a href="?status=all&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'all' %}active{% endif %}" aria-label="Show all reservations">All</a>
-                  <a href="?status=pending&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'pending' %}active{% endif %}" aria-label="Show pending reservations">Pending <span class="badge bg-secondary text-white ms-1">{{ pending_count }}</span></a>
-                  <a href="?status=confirmed&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'confirmed' %}active{% endif %}" aria-label="Show confirmed reservations">Confirmed <span class="badge bg-primary text-white ms-1">{{ confirmed_count }}</span></a>
-                  <a href="?status=completed&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'completed' %}active{% endif %}" aria-label="Show completed reservations">Completed <span class="badge bg-success text-white ms-1">{{ completed_count }}</span></a>
-                  <a href="?status=cancelled&date_filter={{ date_filter }}&search={{ search_query }}" class="fw-bold btn btn-outline-dark {% if status == 'cancelled' %}active{% endif %}" aria-label="Show cancelled reservations">Cancelled <span class="badge bg-danger text-white ms-1">{{ cancelled_count }}</span></a>
+                <!-- Status Filters -->
+                <div class="btn-group" role="group" aria-label="Filter by status">
+                  <a href="?status=all&date_filter={{ date_filter }}&search={{ search_query }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'all' %}active{% endif %}"
+                     aria-label="Show all reservations">All</a>
+                  <a href="?status=pending&date_filter={{ date_filter }}&search={{ search_query }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'pending' %}active{% endif %}"
+                     aria-label="Show pending reservations">Pending <span class="badge bg-dark text-white ms-2">{{ pending_count }}</span></a>
+                  <a href="?status=confirmed&date_filter={{ date_filter }}&search={{ search_query }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'confirmed' %}active{% endif %}"
+                     aria-label="Show confirmed reservations">Confirmed <span class="badge bg-dark text-white ms-2">{{ confirmed_count }}</span></a>
+                  <a href="?status=completed&date_filter={{ date_filter }}&search={{ search_query }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'completed' %}active{% endif %}"
+                     aria-label="Show completed reservations">Completed <span class="badge bg-dark text-white ms-2">{{ completed_count }}</span></a>
+                  <a href="?status=cancelled&date_filter={{ date_filter }}&search={{ search_query }}"
+                     class="fw-bold btn btn-outline-dark {% if status == 'cancelled' %}active{% endif %}"
+                     aria-label="Show cancelled reservations">Cancelled <span class="badge bg-dark ms-2">{{ cancelled_count }}</span></a>
                 </div>
               </div>
             </div>
@@ -197,29 +264,32 @@
           <div class="card-body p-0">
             {% if reservations %}
               <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
-                  {/* Added align-middle for vertical alignment */}<thead class="table-light">
+                <table class="table table-hover mb-0">
+                  <thead class="table-light">
                     <tr>
-                      <th scope="col">Date</th>
-                      <th scope="col">Trip Details</th>
-                      <th scope="col">Customer</th>
-                      <th scope="col">Vehicle</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Commission</th>
-                      <th scope="col" class="text-end">Actions</th>
+                      <th>Date</th>
+                      <th>Trip Details</th>
+                      <th>Customer</th>
+                      <th>Vehicle</th>
+                      <th>Status</th>
+                      <th>Commission</th>
+                      <th class="text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for reservation in reservations %}
                       <tr>
                         <td>
-                          <div class="fw-bold">{{ reservation.created_at|date:'M d, Y' }}</div>
-                          <div class="text-muted small">{{ reservation.created_at|time:'g:i A' }}</div>
+                          <div class="text-muted fw-bold">
+                            {{ reservation.created_at|date:'M d, Y' }}
+                            <br />
+                            {{ reservation.created_at|time:'g:i A' }}
+                          </div>
                         </td>
                         <td>
                           <strong class="d-block mb-1">{{ reservation.get_trip_type_display }}</strong>
                           {% for leg in reservation.legs.all %}
-                            <div class="text-muted small {% if not forloop.last %}mb-1{% endif %}">
+                            <div class="text-muted small">
                               <i class="fas fa-calendar-alt me-1"></i>{{ leg.pickup_date|date:'M d' }}
                               at {{ leg.pickup_time|time:'g:i A' }}
                               {% if leg.flight_information %}
@@ -232,49 +302,32 @@
                         </td>
                         <td>
                           <div class="fw-bold">{{ reservation.customer.get_full_name }}</div>
-                          <div class="text-muted small text-truncate" style="max-width: 150px;">{{ reservation.customer.email }}</div>
+                          <div class="text-muted small">{{ reservation.customer.email }}</div>
                         </td>
                         <td>
                           <div class="fw-bold">{{ reservation.vehicle }}</div>
                         </td>
                         <td>
-                          {# Consider using badges for status for better visual cues #}
-                          {% if reservation.status == 'pending' %}
-                            <span class="badge bg-secondary">{{ reservation.get_status_display }}</span>
-                          {% elif reservation.status == 'confirmed' %}
-                            <span class="badge bg-primary">{{ reservation.get_status_display }}</span>
-                          {% elif reservation.status == 'completed' %}
-                            <span class="badge bg-success">{{ reservation.get_status_display }}</span>
-                          {% elif reservation.status == 'cancelled' %}
-                            <span class="badge bg-danger">{{ reservation.get_status_display }}</span>
-                          {% else %}
-                            <span class="badge bg-light text-dark">{{ reservation.get_status_display }}</span>
-                          {% endif %}
+                          <span class="fw-semibold">{{ reservation.get_status_display }}</span>
                         </td>
                         <td>
                           <div class="fw-bold">${{ reservation.commission_amount|floatformat:2 }}</div>
-                          <div class="small {% if reservation.commission_paid %}
-                              text-success
-                            {% elif reservation.status == 'completed' %}
-                              text-danger
-                            {% elif reservation.status == 'confirmed' %}
-                              text-primary
-                            {% else %}
-                              text-muted
-                            {% endif %}">
+                          <div class="small {% if reservation.commission_paid %}                                   text-success                                   {% elif reservation.status == 'completed' %}                                   text-danger                                   {% elif reservation.status == 'confirmed' %}  {% else %}                                   text-muted                                   {% endif %}">
                             {% if reservation.commission_paid %}
                               <i class="fas fa-check-circle me-1"></i>Paid
                             {% elif reservation.status == 'completed' %}
-                              <i class="fas fa-clock me-1"></i>Ready To Pay
+                              <i class="fas fa-clock me-1"></i> Ready To Pay
                             {% elif reservation.status == 'confirmed' %}
                               <i class="fas fa-hourglass-half me-1"></i>Pending
                             {% else %}
-                              <i class="fas fa-minus-circle me-1"></i>N/A
+                              <i class="fas fa-minus-circle me-1"></i>Not Available
                             {% endif %}
                           </div>
                         </td>
                         <td class="text-end">
-                          <a href="{% url 'agent_reservation_detail' reservation.uuid %}" class="btn btn-sm btn-outline-dark" aria-label="View reservation details"><i class="fas fa-eye me-1 d-none d-sm-inline"></i>View</a>
+                          <a href="{% url 'agent_reservation_detail' reservation.uuid %}"
+                             class="btn btn-sm btn-outline-dark"
+                             aria-label="View reservation details"><i class="fas fa-eye me-1"></i>View</a>
                         </td>
                       </tr>
                     {% endfor %}
@@ -282,59 +335,47 @@
                 </table>
               </div>
 
+              <!-- Pagination -->
               {% if reservations.paginator.num_pages > 1 %}
                 <div class="card-footer bg-white border-0 py-3">
                   <nav aria-label="Reservation pagination">
                     <ul class="pagination justify-content-center flex-wrap mb-0">
                       {% if reservations.has_previous %}
                         <li class="page-item">
-                          <a class="page-link" href="?page=1&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}" aria-label="First page"><i class="fas fa-angle-double-left"></i></a>
+                          <a class="page-link"
+                             href="?page=1&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"
+                             aria-label="First page"><i class="fas fa-angle-double-left"></i></a>
                         </li>
                         <li class="page-item">
-                          <a class="page-link" href="?page={{ reservations.previous_page_number }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}" aria-label="Previous page"><i class="fas fa-angle-left"></i></a>
-                        </li>
-                      {% else %}
-                        <li class="page-item disabled">
-                          <a class="page-link" href="#" tabindex="-1" aria-disabled="true"><i class="fas fa-angle-double-left"></i></a>
-                        </li>
-                        <li class="page-item disabled">
-                          <a class="page-link" href="#" tabindex="-1" aria-disabled="true"><i class="fas fa-angle-left"></i></a>
+                          <a class="page-link"
+                             href="?page={{ reservations.previous_page_number }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"
+                             aria-label="Previous page"><i class="fas fa-angle-left"></i></a>
                         </li>
                       {% endif %}
 
                       {% for num in reservations.paginator.page_range %}
                         {% if num == reservations.number %}
-                          <li class="page-item active" aria-current="page">
+                          <li class="page-item active">
                             <span class="page-link">{{ num }}</span>
                           </li>
                         {% elif num > reservations.number|add:'-3' and num < reservations.number|add:'3' %}
                           <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}">{{ num }}</a>
-                          </li>
-                        {% elif num == reservations.number|add:'-3' and num > 1 %}
-                          <li class="page-item disabled">
-                            <span class="page-link">&hellip;</span>
-                          </li>
-                        {% elif num == reservations.number|add:'3' and num < reservations.paginator.num_pages %}
-                          <li class="page-item disabled">
-                            <span class="page-link">&hellip;</span>
+                            <a class="page-link"
+                               href="?page={{ num }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}">{{ num }}</a>
                           </li>
                         {% endif %}
                       {% endfor %}
 
                       {% if reservations.has_next %}
                         <li class="page-item">
-                          <a class="page-link" href="?page={{ reservations.next_page_number }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}" aria-label="Next page"><i class="fas fa-angle-right"></i></a>
+                          <a class="page-link"
+                             href="?page={{ reservations.next_page_number }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"
+                             aria-label="Next page"><i class="fas fa-angle-right"></i></a>
                         </li>
                         <li class="page-item">
-                          <a class="page-link" href="?page={{ reservations.paginator.num_pages }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}" aria-label="Last page"><i class="fas fa-angle-double-right"></i></a>
-                        </li>
-                      {% else %}
-                        <li class="page-item disabled">
-                          <a class="page-link" href="#" tabindex="-1" aria-disabled="true"><i class="fas fa-angle-right"></i></a>
-                        </li>
-                        <li class="page-item disabled">
-                          <a class="page-link" href="#" tabindex="-1" aria-disabled="true"><i class="fas fa-angle-double-right"></i></a>
+                          <a class="page-link"
+                             href="?page={{ reservations.paginator.num_pages }}&status={{ status }}&date_filter={{ date_filter }}&search={{ search_query }}"
+                             aria-label="Last page"><i class="fas fa-angle-double-right"></i></a>
                         </li>
                       {% endif %}
                     </ul>
@@ -343,13 +384,8 @@
               {% endif %}
             {% else %}
               <div class="text-center py-5">
-                <i class="fas fa-inbox fa-4x text-muted mb-3"></i> {# Increased icon size #}
-                <h5 class="text-muted mb-1">No reservations found.</h5>
-                {% if search_query or status != 'all' or date_filter != 'all' %}
-                  <p class="text-muted">Try adjusting your search or filters.</p>
-                {% else %}
-                  <p class="text-muted">Create a new reservation to get started!</p>
-                {% endif %}
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-0">No reservations found.</p>
               </div>
             {% endif %}
           </div>
@@ -357,9 +393,9 @@
       </div>
     </div>
 
+    <!-- Bottom Section -->
     <div class="row mt-4 g-4">
-      <div class="col-lg-4 col-md-6">
-        {# Changed to col-lg-4 col-md-6 for better layout on medium screens #}
+      <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header bg-white border-0 pt-4 pb-0">
             <h5 class="mb-0">Recent Activity</h5>
@@ -368,7 +404,7 @@
             {% if recent_activity %}
               <div class="list-group list-group-flush">
                 {% for reservation in recent_activity %}
-                  <a href="{% url 'agent_reservation_detail' reservation.uuid %}" class="list-group-item list-group-item-action px-0 d-flex justify-content-between align-items-center">
+                  <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
                     <div>
                       <div class="fw-bold">{{ reservation.customer.get_full_name }}</div>
                       {% if reservation.last_leg %}
@@ -376,82 +412,90 @@
                           <i class="fas fa-calendar me-1"></i>
                           {{ reservation.last_leg.pickup_date|date:'M d, Y' }}
                         </small>
-                      {% else %}
-                        <small class="text-muted">Created: {{ reservation.created_at|date:'M d, Y' }}</small>
                       {% endif %}
                     </div>
                     <div class="text-end">
-                      {% if reservation.status == 'pending' %}
-                        <span class="badge bg-secondary rounded-pill">{{ reservation.get_status_display }}</span>
-                      {% elif reservation.status == 'confirmed' %}
-                        <span class="badge bg-primary rounded-pill">{{ reservation.get_status_display }}</span>
-                      {% elif reservation.status == 'completed' %}
-                        <span class="badge bg-success rounded-pill">{{ reservation.get_status_display }}</span>
-                      {% elif reservation.status == 'cancelled' %}
-                        <span class="badge bg-danger rounded-pill">{{ reservation.get_status_display }}</span>
-                      {% else %}
-                        <span class="badge bg-light text-dark rounded-pill">{{ reservation.get_status_display }}</span>
-                      {% endif %}
+                      <span class="fw-semibold">{{ reservation.get_status_display }}</span>
                       <div class="small text-muted mt-1">${{ reservation.commission_amount|floatformat:2 }}</div>
                     </div>
-                  </a>
+                  </div>
                 {% endfor %}
               </div>
             {% else %}
-              <div class="text-center text-muted py-3">
-                <i class="fas fa-history fa-2x mb-2"></i>
-                <p class="mb-0">No recent activity to display.</p>
-              </div>
+              <p class="text-muted mb-0">No recent activity.</p>
             {% endif %}
           </div>
         </div>
       </div>
 
-      <div class="col-lg-4 col-md-6">
+      <!-- Agency Information -->
+      <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header bg-white border-0 pt-4 pb-0">
             <div class="d-flex justify-content-between align-items-center">
               <h5 class="mb-0">Agency Information</h5>
-              <a href="{% url 'agent_profile' %}" class="btn btn-sm btn-outline-dark fw-semibold" aria-label="Edit agency profile"><i class="fas fa-edit me-1"></i>Edit</a>
+              <a href="{% url 'agent_profile' %}"
+                 class="btn btn-sm btn-outline-dark fw-semibold"
+                 aria-label="Edit agency profile"><i class="fas fa-edit me-1"></i>Edit Profile</a>
             </div>
           </div>
           <div class="card-body pt-3">
             <dl class="row mb-0">
-              <dt class="col-sm-5 text-muted">Agency Name</dt> {# Adjusted col split #}
-              <dd class="col-sm-7">{{ travel_agent.agency_name }}</dd>
+              <dt class="col-sm-4 text-muted">Agency Name</dt>
+              <dd class="col-sm-8">
+                {{ travel_agent.agency_name }}
+              </dd>
 
-              <dt class="col-sm-5 text-muted">Agent Name</dt>
-              <dd class="col-sm-7">{{ travel_agent.agent_name }}</dd>
+              <dt class="col-sm-4 text-muted">Agent Name</dt>
+              <dd class="col-sm-8">
+                {{ travel_agent.agent_name }}
+              </dd>
 
-              <dt class="col-sm-5 text-muted">Phone</dt>
-              <dd class="col-sm-7">{{ travel_agent.phone|default:'N/A' }}</dd>
+              <dt class="col-sm-4 text-muted">Phone</dt>
+              <dd class="col-sm-8">
+                {{ travel_agent.phone }}
+              </dd>
 
-              <dt class="col-sm-5 text-muted">Payment Info</dt>
-              <dd class="col-sm-7"><span class="text-truncate d-inline-block" style="max-width: 100%;">{{ travel_agent.payment_info|truncatewords_html:6|default:'Not Set' }}</span></dd> {# Used truncatewords_html #}
+              <dt class="col-sm-4 text-muted">Payment Info</dt>
+              <dd class="col-sm-8">
+                <span class="text-truncate d-inline-block" style="max-width: 100%;">{{ travel_agent.payment_info|truncatewords:10 }}</span>
+              </dd>
             </dl>
           </div>
         </div>
       </div>
 
-      <div class="col-lg-4 col-md-12">
-        {# Full width on medium if it's the last item #}
+      <!-- Commission Info Card -->
+      <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-header bg-white border-0 pt-4 pb-0">
             <h5 class="mb-0">Commission Guide</h5>
           </div>
           <div class="card-body pt-3">
             <div class="commission-info">
-              <div class="mb-3 pb-3 border-bottom">
-                <h6 class="mb-1 d-flex align-items-center"><i class="fas fa-hourglass-half text-primary me-2 fa-fw"></i> Pending Commission</h6>
-                <p class="mb-0 small text-muted">Earnings from confirmed reservations not yet completed. Moves to 'Ready To Pay' after trip completion.</p>
+              <div class="mb-3">
+                <h6 class="mb-2">
+                  <i class="fas fa-hourglass-half text-dark me-2 fw-semibold"></i> Pending Commission
+                </h6>
+                <p class="mb-0">
+                  Earnings from confirmed reservations that haven't been completed yet. These will move to unpaid when the trip is completed.
+                </p>
               </div>
-              <div class="mb-3 pb-3 border-bottom">
-                <h6 class="mb-1 d-flex align-items-center"><i class="fas fa-clock text-danger me-2 fa-fw"></i> Ready To Pay Commission</h6>
-                <p class="mb-0 small text-muted">Earnings from completed trips awaiting payout. Processed in regular payment cycles.</p>
+              <div class="mb-3">
+                <h6 class="mb-2">
+                  <i class="fas fa-clock text-danger me-2 fw-semibold"></i> Ready To Pay Commission
+                </h6>
+                <p class="mb-0">
+                  Earnings from completed trips that are waiting for payout. These will be processed in regular payment cycles.
+                </p>
               </div>
               <div>
-                <h6 class="mb-1 d-flex align-items-center"><i class="fas fa-check-circle text-success me-2 fa-fw"></i> Paid Commission</h6>
-                <p class="mb-0 small text-muted">Commissions already paid. View details in the 'Commission History' tab.</p>
+                <h6 class="mb-2">
+                  <i class="fas fa-check-circle text-success me-2 fw-semibold"></i> Paid Commission
+                </h6>
+                <p class="mb-0">
+                  Commissions that have already been paid to you. You can view payment history in the Commission History tab.
+                </p>
               </div>
             </div>
           </div>
@@ -460,159 +504,117 @@
     </div>
   </div>
 
+  <!-- Custom Styles -->
   <style>
-    body {
-      background-color: #f4f6f9; /* Light gray background */
-    }
-    
-    .card {
-      border-radius: 0.5rem; /* Slightly reduced border-radius for a tighter look */
-    }
-    
-    .table th {
-      font-weight: 600;
-      /* text-transform: uppercase; */ /* Optional: some prefer normal case */
-      letter-spacing: 0.25px; /* Reduced letter-spacing */
-      color: #495057; /* Darker gray for header text */
-      font-size: 0.875rem; /* Standard small font size */
-    }
-    
-    .table td {
-      font-size: 0.875rem; /* Consistent font size for table data */
-    }
-    
-    /* Commission pipeline styles */
-    .commission-pipeline {
-      width: 100%;
-    }
-    
-    .pipeline-bar {
-      height: 24px; /* Slightly thinner bar */
-      background-color: #e9ecef; /* Lighter background for the bar */
-      border-radius: 12px; /* Corresponding radius */
-      overflow: hidden;
-      display: flex; /* Ensure segments are inline */
-    }
-    
-    .pipeline-segment {
-      height: 100%;
-      transition: width 0.5s ease-in-out; /* Smoother transition */
-      display: flex; /* For potential text inside segment later */
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-      color: white;
-    }
-    
-    .pipeline-legend {
-      display: flex;
-      flex-wrap: wrap;
-      font-size: 0.8rem; /* Smaller legend text */
-    }
-    
-    .legend-item {
-      display: flex;
-      align-items: center;
-    }
-    
-    .legend-color {
-      display: inline-block;
-      width: 14px; /* Smaller legend color box */
-      height: 14px;
-      margin-right: 6px;
-      border-radius: 3px;
-    }
-    
-    .info-tooltip {
-      cursor: help;
-    }
-    
-    .btn-group .btn {
-      /* Ensure btn-group buttons have consistent styling */
-      border-radius: 0.25rem !important; /* Override if Bootstrap applies differently in group */
-    }
-    
-    /* Responsive adjustments for filter group on smaller screens */
-    @media (max-width: 767.98px) {
-      .card-header .d-flex.gap-2 > .btn-group {
-        /* More specific selector */
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Auto-fit columns */
-        width: 100%;
-      }
-    
-      .card-header .d-flex.gap-2 > .btn-group > .btn {
-        margin: 0; /* Remove individual margins if grid handles gap */
-      }
-    
-      .pipeline-legend {
-        justify-content: flex-start; /* Align legend items to the start on small screens */
-      }
-      .legend-item {
-        min-width: 150px; /* Ensure legend items don't get too squished */
-      }
-    }
-    
-    @media print {
-      .btn,
-      .nav-tabs,
-      .card-header .btn,
-      .pagination,
-      .d-print-none {
-        display: none !important;
-      }
-    
       body {
-        background-color: white !important;
-        font-size: 10pt; /* Adjust base font size for print */
+          background-color: #f4f6f9;
       }
-    
+
       .card {
-        border: 1px solid #dee2e6 !important;
-        box-shadow: none !important;
-        page-break-inside: avoid;
+          border-radius: 0.75rem;
       }
-    
-      .container-fluid {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
+
+      .table th {
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #6c757d;
       }
-    
-      .table {
-        font-size: 9pt; /* Slightly smaller for tables in print */
+
+      /* Commission pipeline styles */
+      .commission-pipeline {
+          width: 100%;
       }
-      .table th,
-      .table td {
-        padding: 0.25rem; /* Reduce padding for print */
+
+      .pipeline-bar {
+          height: 30px;
+          background-color: #f0f0f0;
+          border-radius: 15px;
+          overflow: hidden;
       }
-      .row > * {
-        /* Prevent columns from breaking weirdly if possible */
-        page-break-inside: avoid;
+
+      .pipeline-segment {
+          height: 100%;
+          transition: width 0.5s ease;
       }
-      .commission-pipeline,
-      .financial-overview,
-      .bottom-section .card {
-        page-break-inside: avoid;
+
+      .pipeline-legend {
+          display: flex;
+          flex-wrap: wrap;
       }
-    }
+
+      .legend-item {
+          display: flex;
+          align-items: center;
+      }
+
+      .legend-color {
+          display: inline-block;
+          width: 16px;
+          height: 16px;
+          margin-right: 8px;
+          border-radius: 3px;
+      }
+
+      .info-tooltip {
+          cursor: help;
+      }
+
+      @media (max-width: 767.98px) {
+          .btn-group {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              width: 100%;
+          }
+
+          .btn-group>.btn {
+              border-radius: 0.25rem;
+              margin: 0.125rem;
+          }
+
+          .commission-pipeline {
+              max-width: 100%;
+          }
+      }
+
+      @media print {
+
+          .btn,
+          .nav-tabs,
+          .card-header .btn,
+          .pagination,
+          .d-print-none {
+              display: none !important;
+          }
+
+          body {
+              background-color: white !important;
+          }
+
+          .card {
+              border: 1px solid #dee2e6 !important;
+              box-shadow: none !important;
+          }
+
+          .container-fluid {
+              width: 100% !important;
+              max-width: 100% !important;
+              padding: 0 !important;
+          }
+
+          .table {
+              font-size: 10pt;
+          }
+      }
   </style>
 
+  <!-- Initialize tooltips -->
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl)
+      document.addEventListener('DOMContentLoaded', function() {
+          var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+          var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+              return new bootstrap.Tooltip(tooltipTriggerEl)
+          })
       })
-    })
   </script>
-{% endblock %}
-
-{% block footer %}
-  {# This block is intentionally left empty to override main.html if needed #}
-{% endblock %}
-
-{% block newsletter %}
-  {# This block is intentionally left empty to override main.html if needed #}
 {% endblock %}
