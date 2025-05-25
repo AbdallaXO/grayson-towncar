@@ -377,7 +377,7 @@ class Lead(models.Model):
             ("other", "Other"),
         ],
         default="website",
-        help_text="Where did this lead come from?"
+        help_text="Where did this lead come from?",
     )
     status = models.CharField(
         max_length=20,
@@ -391,7 +391,7 @@ class Lead(models.Model):
             ("lost", "Lost"),
         ],
         default="new",
-        help_text="Current status of the lead"
+        help_text="Current status of the lead",
     )
     priority = models.CharField(
         max_length=20,
@@ -402,7 +402,7 @@ class Lead(models.Model):
             ("urgent", "Urgent"),
         ],
         default="medium",
-        help_text="Priority level of the lead"
+        help_text="Priority level of the lead",
     )
     last_contact_date = models.DateTimeField(null=True, blank=True)
     next_follow_up = models.DateTimeField(null=True, blank=True)
@@ -414,7 +414,7 @@ class Lead(models.Model):
             ("phone", "Phone"),
             ("text", "Text Message"),
         ],
-        default="email"
+        default="email",
     )
     # Metadata
     created_at = models.DateTimeField(default=timezone.now)
@@ -423,14 +423,13 @@ class Lead(models.Model):
     notes = models.TextField(null=True, blank=True)
     contacted = models.BooleanField(null=True, blank=True)
 
-
     class Meta:
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=['status']),
-            models.Index(fields=['priority']),
-            models.Index(fields=['next_follow_up']),
-            models.Index(fields=['created_at']),
+            models.Index(fields=["status"]),
+            models.Index(fields=["priority"]),
+            models.Index(fields=["next_follow_up"]),
+            models.Index(fields=["created_at"]),
         ]
 
     def __str__(self):
@@ -439,7 +438,7 @@ class Lead(models.Model):
     def mark_as_converted(self):
         self.converted = True
         self.converted_at = timezone.now()
-        self.status = 'converted'
+        self.status = "converted"
         self.save()
 
     def update_contact_attempt(self):

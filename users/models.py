@@ -301,16 +301,18 @@ class TravelAgent(models.Model):
                 )
 
                 # Get date range
-                period_start = unpaid_reservations.earliest("created_at").created_at.date()
+                period_start = unpaid_reservations.earliest(
+                    "created_at"
+                ).created_at.date()
                 period_end = unpaid_reservations.latest("created_at").created_at.date()
-                
+
                 # Build detailed reservation summary for notes
                 reservation_details = []
                 for res in reservations_with_commission:
                     reservation_details.append(
                         f"#{res.id} - {res.customer} (${res.total_price:.2f} -> ${res.calculated_commission:.2f})"
                     )
-                
+
                 # Create comprehensive notes
                 agent_payout_notes = [
                     f"DIRECT AGENT PAYOUT",
@@ -323,16 +325,18 @@ class TravelAgent(models.Model):
                     f"Total Commission: ${commission_total:.2f}",
                     "",
                     "RESERVATION BREAKDOWN:",
-                    "-" * 40
+                    "-" * 40,
                 ]
-                
+
                 # Add reservation details (limit to first 15 to avoid overly long notes)
                 display_reservations = reservation_details[:15]
                 agent_payout_notes.extend(display_reservations)
-                
+
                 if len(reservation_details) > 15:
-                    agent_payout_notes.append(f"... and {len(reservation_details) - 15} more reservations")
-                
+                    agent_payout_notes.append(
+                        f"... and {len(reservation_details) - 15} more reservations"
+                    )
+
                 notes_text = "\n".join(agent_payout_notes)
 
                 # Create agent payout record with detailed notes
@@ -391,15 +395,17 @@ class TravelAgent(models.Model):
                         f"Agent Payout ID: #{agent_payout.id}",
                         "",
                         "SAMPLE RESERVATIONS:",
-                        "-" * 30
+                        "-" * 30,
                     ]
-                    
+
                     # Add sample reservations (first 5)
                     sample_reservations = reservation_details[:5]
                     agency_payout_notes.extend(sample_reservations)
                     if len(reservation_details) > 5:
-                        agency_payout_notes.append(f"... and {len(reservation_details) - 5} more")
-                    
+                        agency_payout_notes.append(
+                            f"... and {len(reservation_details) - 5} more"
+                        )
+
                     agency_notes_text = "\n".join(agency_payout_notes)
 
                     # Create corresponding agency payout
@@ -609,7 +615,7 @@ class Agency(models.Model):
             total_amount = Decimal("0")
             earliest_date = None
             latest_date = None
-            
+
             # Track details for comprehensive notes
             agent_details = []
             total_reservations = 0
@@ -651,17 +657,19 @@ class Agency(models.Model):
                             latest_date = agent_latest_date
 
                         # Collect reservation details for notes
-                        reservation_ids = list(unpaid_reservations.values_list('id', flat=True))
+                        reservation_ids = list(
+                            unpaid_reservations.values_list("id", flat=True)
+                        )
                         reservation_count = len(reservation_ids)
                         total_reservations += reservation_count
-                        
+
                         # Build detailed notes for individual agent payout
                         agent_reservation_details = []
                         for res in reservations_with_commission:
                             agent_reservation_details.append(
                                 f"#{res.id} (${res.total_price:.2f} -> ${res.calculated_commission:.2f})"
                             )
-                        
+
                         individual_agent_notes = (
                             f"Agent: {agent.agent_name or agent.user.username} ({agent.user.email})\n"
                             f"Commission Rate: {agent.commission_rate}%\n"
@@ -712,19 +720,23 @@ class Agency(models.Model):
 
                         processed_payouts.append(agent_payout)
                         total_amount += agent_commission_total
-                        
+
                         # Store agent details for agency payout notes
-                        agent_details.append({
-                            'name': agent.agent_name or agent.user.username,
-                            'email': agent.user.email,
-                            'commission_rate': agent.commission_rate,
-                            'reservation_count': reservation_count,
-                            'reservation_ids': reservation_ids[:5],  # First 5 IDs for summary
-                            'total_reservations': reservation_count,
-                            'amount': agent_commission_total,
-                            'period_start': agent_earliest_date,
-                            'period_end': agent_latest_date
-                        })
+                        agent_details.append(
+                            {
+                                "name": agent.agent_name or agent.user.username,
+                                "email": agent.user.email,
+                                "commission_rate": agent.commission_rate,
+                                "reservation_count": reservation_count,
+                                "reservation_ids": reservation_ids[
+                                    :5
+                                ],  # First 5 IDs for summary
+                                "total_reservations": reservation_count,
+                                "amount": agent_commission_total,
+                                "period_start": agent_earliest_date,
+                                "period_end": agent_latest_date,
+                            }
+                        )
 
             if processed_payouts:
                 # Build comprehensive agency payout notes
@@ -737,23 +749,27 @@ class Agency(models.Model):
                     f"Total Amount: ${total_amount:.2f}",
                     "",
                     "AGENT BREAKDOWN:",
-                    "-" * 50
-                ]
-                
-                for i, agent_detail in enumerate(agent_details, 1):
-                    agency_notes_lines.extend([
-                        f"{i}. {agent_detail['name']} ({agent_detail['email']})",
-                        f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
-                        f"   Period: {agent_detail['period_start']} to {agent_detail['period_end']}",
-                        f"   Sample Reservation IDs: {', '.join(map(str, agent_detail['reservation_ids']))}{'...' if agent_detail['total_reservations'] > 5 else ''}",
-                        ""
-                    ])
-                
-                agency_notes_lines.extend([
                     "-" * 50,
-                    f"Individual agent payouts created: {len(processed_payouts)}",
-                ])
-                
+                ]
+
+                for i, agent_detail in enumerate(agent_details, 1):
+                    agency_notes_lines.extend(
+                        [
+                            f"{i}. {agent_detail['name']} ({agent_detail['email']})",
+                            f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
+                            f"   Period: {agent_detail['period_start']} to {agent_detail['period_end']}",
+                            f"   Sample Reservation IDs: {', '.join(map(str, agent_detail['reservation_ids']))}{'...' if agent_detail['total_reservations'] > 5 else ''}",
+                            "",
+                        ]
+                    )
+
+                agency_notes_lines.extend(
+                    [
+                        "-" * 50,
+                        f"Individual agent payouts created: {len(processed_payouts)}",
+                    ]
+                )
+
                 comprehensive_notes = "\n".join(agency_notes_lines)
 
                 # Create agency payout record with detailed notes

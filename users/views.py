@@ -940,6 +940,7 @@ def agency_commission_history(request, agency_id):
 
 class AgencyProfileView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     """View for editing agency profile"""
+
     model = Agency
     template_name = "users/agency_profile.html"
     fields = ["name", "phone", "address", "website", "logo"]
@@ -956,16 +957,18 @@ class AgencyProfileView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         agency = self.get_object()
-        
+
         # Add payment methods for the form
         context["payment_methods"] = TravelAgent.PAYMENT_METHOD_CHOICES
-        
+
         # Add agency statistics
         context["agents"] = agency.agents.all()
         context["total_paid"] = format_decimal(agency.get_total_paid_commissions())
-        context["total_pending"] = format_decimal(agency.get_total_pending_commissions())
+        context["total_pending"] = format_decimal(
+            agency.get_total_pending_commissions()
+        )
         context["total_unpaid"] = format_decimal(agency.get_total_unpaid_commissions())
-        
+
         return context
 
     def form_valid(self, form):
@@ -976,6 +979,7 @@ class AgencyProfileView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
 class AgencyGuideView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     """View for agency guide"""
+
     template_name = "users/agency_guide.html"
 
     def test_func(self):
@@ -993,13 +997,13 @@ def update_agency_payment(request):
     """Update agency payment information"""
     if request.method == "POST":
         agency = get_object_or_404(Agency, heads=request.user)
-        
+
         # Update payment information
         agency.payment_method = request.POST.get("payment_method")
         agency.payment_info = request.POST.get("payment_info")
         agency.save()
-        
+
         messages.success(request, "Payment information updated successfully.")
         return redirect("agency_profile")
-    
+
     return redirect("agency_dashboard")
