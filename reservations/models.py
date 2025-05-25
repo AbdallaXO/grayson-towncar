@@ -410,7 +410,7 @@ class Lead(models.Model):
     converted_at = models.DateTimeField(null=True, blank=True)
 
     # Notes and Timestamps
-    notes = models.TextField(blank=True)
+    notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
