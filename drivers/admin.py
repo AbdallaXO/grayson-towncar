@@ -35,7 +35,7 @@ class DriverAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Driver Information",
-            {"fields": ("profile", "vehicle", "schedule", "payment_method")},
+            {"fields": ("profile", "vehicle", "schedule", "payment_method", )},
         ),
         (
             "Payment Tracking",
@@ -335,99 +335,8 @@ class DriverAdmin(admin.ModelAdmin):
 
     actions = ["preview_driver_payments", "process_driver_payments"]
 
-    def preview_driver_payments(self, request, queryset):
-        """Show a preview of driver payments without actually processing them."""
-        from django.contrib import messages
-
-        preview_data = []
-        total_amount = 0
-
-        for driver in queryset:
-            # Get unpaid completed legs
-            unpaid_legs = driver.get_unpaid_legs()
-
-            if unpaid_legs:
-                # Calculate total
-                payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
-
-                # Count legs
-                leg_count = unpaid_legs.count()
-
-                # Calculate total profit for these legs
-                profit_total = sum(leg.profit_estimate or 0 for leg in unpaid_legs)
-
-                # Get date range
-                leg_dates = [leg.pickup_date for leg in unpaid_legs]
-                if leg_dates:  # Check if there are actually dates to get min/max from
-                    start_date = min(leg_dates)
-                    end_date = max(leg_dates)
-
-                    # Add to preview data
-                    preview_data.append(
-                        {
-                            "driver": str(driver),
-                            "amount": payment_total,
-                            "profit": profit_total,
-                            "count": leg_count,
-                            "period": f"{start_date.strftime('%b %d, %Y')} to {end_date.strftime('%b %d, %Y')}",
-                        }
-                    )
-
-                    total_amount += payment_total
-
-        if preview_data:
-            # Create a message with the preview data
-            message = "Driver Payment Preview:<br><br>"
-            message += "<table style='border-collapse: collapse; width: 100%;'>"
-            message += "<tr style='background-color: #f2f2f2;'><th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Driver</th><th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Legs</th><th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Period</th><th style='padding: 8px; text-align: right; border: 1px solid #ddd;'>Amount</th><th style='padding: 8px; text-align: right; border: 1px solid #ddd;'>Profit</th></tr>"
-
-            for item in preview_data:
-                # Format amounts with color
-                amount_color = "green" if item["amount"] >= 0 else "red"
-                profit_color = "green" if item["profit"] >= 0 else "red"
-
-                message += f"""<tr>
-                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["driver"]}</td>
-                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["count"]}</td>
-                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["period"]}</td>
-                    <td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>
-                        <span style='color: {amount_color};'>${item["amount"]}</span>
-                    </td>
-                    <td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>
-                        <span style='color: {profit_color};'>${item["profit"]}</span>
-                    </td>
-                </tr>"""
-
-            # Calculate total profit
-            total_profit = sum(item["profit"] for item in preview_data)
-
-            # Format totals with color
-            total_amount_color = "green" if total_amount >= 0 else "red"
-            total_profit_color = "green" if total_profit >= 0 else "red"
-
-            message += f"""<tr style='background-color: #f2f2f2;'>
-                <td colspan='3' style='padding: 8px; border: 1px solid #ddd; text-align: right;'>
-                    <strong>Total:</strong>
-                </td>
-                <td style='padding: 8px; border: 1px solid #ddd; text-align: right;'>
-                    <strong><span style='color: {total_amount_color};'>${total_amount}</span></strong>
-                </td>
-                <td style='padding: 8px; border: 1px solid #ddd; text-align: right;'>
-                    <strong><span style='color: {total_profit_color};'>${total_profit}</span></strong>
-                </td>
-            </tr>"""
-
-            message += "</table><br>"
-            message += "To process these payments, select the drivers again and use the 'Process driver payments' action."
-
-            self.message_user(request, mark_safe(message))
-        else:
-            self.message_user(request, "No unpaid legs found for the selected drivers.")
-
-    preview_driver_payments.short_description = "Preview driver payments"
-
     def process_driver_payments(self, request, queryset):
-        """Process payments for all unpaid legs for selected drivers."""
+        """Process payments for all unpaid COMPLETED legs for selected drivers."""
         from django.contrib import messages
         from django.utils import timezone
         import logging
@@ -437,11 +346,11 @@ class DriverAdmin(admin.ModelAdmin):
         total_amount = 0
 
         for driver in queryset:
-            # Get unpaid completed legs
-            unpaid_legs = driver.get_unpaid_legs()
+            # Get unpaid COMPLETED legs only
+            unpaid_legs = driver.get_unpaid_legs().filter(status="completed")
 
-            # Log the number of unpaid legs found
-            logger.info(f"Driver {driver} has {unpaid_legs.count()} unpaid legs")
+            # Log the number of unpaid completed legs found
+            logger.info(f"Driver {driver} has {unpaid_legs.count()} unpaid completed legs")
 
             if unpaid_legs:
                 # Group legs by reservation
@@ -455,32 +364,42 @@ class DriverAdmin(admin.ModelAdmin):
                 # Calculate total
                 payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
 
-                # Create detailed notes
+                # Create simplified notes for driver communication
                 notes = []
-                notes.append(f"Automatic payment for {unpaid_legs.count()} legs")
-                notes.append("\nReservation details:")
+                notes.append(f"Payment Summary for {driver.profile.get_full_name()}")
+                notes.append(f"Payment Date: {timezone.now().strftime('%B %d, %Y')}")
+                notes.append(f"Total Legs: {unpaid_legs.count()}")
+                notes.append("\nReservation Details:")
+                notes.append("-" * 50)
 
                 for reservation, legs in reservation_legs.items():
                     leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
-                    notes.append(
-                        f"\n- Reservation #{reservation.id}: {reservation.customer.get_full_name()}"
-                        f" ({len(legs)} legs, ${leg_total})"
-                    )
-
-                    # Add detailed leg information
+                    
+                    # Reservation header
+                    notes.append(f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}")
+                    
+                    # Leg details (simplified)
                     for leg in legs:
                         notes.append(
-                            f"  • {leg.pickup_date.strftime('%Y-%m-%d %H:%M')}"
-                            f" | {leg.pickup_location} → {leg.dropoff_location}"
-                            f" | Pay: ${leg.driver_pay_amount or 0}"
-                            f" | Profit: ${leg.profit_estimate or 0}"
-                            f" | Status: {leg.status}"
+                            f"  • {leg.pickup_date.strftime('%m/%d/%Y')} | "
+                            f"{leg.pickup_location} → {leg.dropoff_location} | "
+                            f"Payment: ${leg.driver_pay_amount or 0:.2f}"
                         )
+                    
+                    # Subtotal for this reservation
+                    if len(legs) > 1:
+                        notes.append(f"  Subtotal: ${leg_total:.2f}")
+
+                # Add summary at the end
+                notes.append("\n" + "-" * 50)
+                notes.append(f"TOTAL PAYMENT: ${payment_total:.2f}")
+                notes.append(f"Payment Method: {driver.payment_method or 'Direct Deposit'}")
+                notes.append(f"Reference: Auto-{timezone.now().strftime('%Y%m%d')}")
 
                 try:
                     # Create payment record using the class method
                     logger.info(
-                        f"Creating payment for {driver} with {unpaid_legs.count()} legs"
+                        f"Creating payment for {driver} with {unpaid_legs.count()} completed legs"
                     )
 
                     payment = DriverPayment.create_payment(
@@ -510,12 +429,190 @@ class DriverAdmin(admin.ModelAdmin):
         if processed_count:
             messages.success(
                 request,
-                f"Processed payments for {processed_count} drivers. Total: ${total_amount}",
+                f"Processed payments for {processed_count} drivers. Total: ${total_amount:.2f}",
             )
         else:
-            messages.info(request, "No unpaid legs found for selected drivers.")
+            messages.info(request, "No unpaid completed legs found for selected drivers.")
 
-    process_driver_payments.short_description = "Process driver payments"
+    process_driver_payments.short_description = "Process driver payments (completed legs only)"
+
+
+    def preview_driver_payments(self, request, queryset):
+        """Show a preview of driver payments without actually processing them."""
+        from django.contrib import messages
+
+        preview_data = []
+        total_amount = 0
+
+        for driver in queryset:
+            # Get unpaid COMPLETED legs only
+            unpaid_legs = driver.get_unpaid_legs().filter(status="completed")
+
+            if unpaid_legs:
+                # Calculate total
+                payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
+
+                # Count legs
+                leg_count = unpaid_legs.count()
+
+                # Get date range
+                leg_dates = [leg.pickup_date for leg in unpaid_legs if leg.pickup_date]
+                if leg_dates:  # Check if there are actually dates to get min/max from
+                    start_date = min(leg_dates)
+                    end_date = max(leg_dates)
+
+                    # Add to preview data
+                    preview_data.append(
+                        {
+                            "driver": str(driver),
+                            "amount": payment_total,
+                            "count": leg_count,
+                            "period": f"{start_date.strftime('%b %d, %Y')} to {end_date.strftime('%b %d, %Y')}",
+                        }
+                    )
+
+                    total_amount += payment_total
+
+        if preview_data:
+            # Create a message with the preview data
+            message = "Driver Payment Preview (Completed Legs Only):<br><br>"
+            message += "<table style='border-collapse: collapse; width: 100%;'>"
+            message += "<tr style='background-color: #f2f2f2;'><th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Driver</th><th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Completed Legs</th><th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Period</th><th style='padding: 8px; text-align: right; border: 1px solid #ddd;'>Amount</th></tr>"
+
+            for item in preview_data:
+                # Format amounts with color
+                amount_color = "green" if item["amount"] >= 0 else "red"
+
+                message += f"""<tr>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["driver"]}</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["count"]}</td>
+                    <td style='padding: 8px; border: 1px solid #ddd;'>{item["period"]}</td>
+                    <td style='padding: 8px; text-align: right; border: 1px solid #ddd;'>
+                        <span style='color: {amount_color};'>${item["amount"]:.2f}</span>
+                    </td>
+                </tr>"""
+
+            # Format total with color
+            total_amount_color = "green" if total_amount >= 0 else "red"
+
+            message += f"""<tr style='background-color: #f2f2f2;'>
+                <td colspan='3' style='padding: 8px; border: 1px solid #ddd; text-align: right;'>
+                    <strong>Total:</strong>
+                </td>
+                <td style='padding: 8px; border: 1px solid #ddd; text-align: right;'>
+                    <strong><span style='color: {total_amount_color};'>${total_amount:.2f}</span></strong>
+                </td>
+            </tr>"""
+
+            message += "</table><br>"
+            message += "To process these payments, select the drivers again and use the 'Process driver payments (completed legs only)' action."
+
+            self.message_user(request, mark_safe(message))
+        else:
+            self.message_user(request, "No unpaid completed legs found for the selected drivers.")
+
+    preview_driver_payments.short_description = "Preview driver payments (completed legs only)"
+
+    def process_driver_payments(self, request, queryset):
+        """Process payments for all unpaid COMPLETED legs for selected drivers."""
+        from django.contrib import messages
+        from django.utils import timezone
+        import logging
+
+        logger = logging.getLogger(__name__)
+        processed_count = 0
+        total_amount = 0
+
+        for driver in queryset:
+            # Get unpaid COMPLETED legs only
+            unpaid_legs = driver.get_unpaid_legs().filter(status="completed")
+
+            # Log the number of unpaid completed legs found
+            logger.info(f"Driver {driver} has {unpaid_legs.count()} unpaid completed legs")
+
+            if unpaid_legs:
+                # Group legs by reservation
+                reservation_legs = {}
+                for leg in unpaid_legs:
+                    if leg.reservation:
+                        if leg.reservation not in reservation_legs:
+                            reservation_legs[leg.reservation] = []
+                        reservation_legs[leg.reservation].append(leg)
+
+                # Calculate total
+                payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
+
+                # Create simplified notes for driver communication
+                notes = []
+                notes.append(f"Payment Summary for {driver.profile.get_full_name()}")
+                notes.append(f"Payment Date: {timezone.now().strftime('%B %d, %Y')}")
+                notes.append(f"Total Legs: {unpaid_legs.count()}")
+                notes.append("\nReservation Details:")
+                notes.append("-" * 50)
+
+                for reservation, legs in reservation_legs.items():
+                    leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
+                    
+                    # Reservation header
+                    notes.append(f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}")
+                    
+                    # Leg details (simplified)
+                    for leg in legs:
+                        notes.append(
+                            f"  • {leg.pickup_date.strftime('%m/%d/%Y')} | "
+                            f"{leg.pickup_location} → {leg.dropoff_location} | "
+                            f"Payment: ${leg.driver_pay_amount or 0:.2f}"
+                        )
+                    
+                    # Subtotal for this reservation
+                    if len(legs) > 1:
+                        notes.append(f"  Subtotal: ${leg_total:.2f}")
+
+                # Add summary at the end
+                notes.append("\n" + "-" * 50)
+                notes.append(f"TOTAL PAYMENT: ${payment_total:.2f}")
+                notes.append(f"Payment Method: {driver.payment_method or 'Direct Deposit'}")
+                notes.append(f"Reference: Auto-{timezone.now().strftime('%Y%m%d')}")
+
+                try:
+                    # Create payment record using the class method
+                    logger.info(
+                        f"Creating payment for {driver} with {unpaid_legs.count()} completed legs"
+                    )
+
+                    payment = DriverPayment.create_payment(
+                        driver=driver,
+                        legs=unpaid_legs,
+                        payment_method=driver.payment_method or "direct deposit",
+                        reference_number=f"Auto-{timezone.now().strftime('%Y%m%d')}",
+                        notes="\n".join(notes),
+                        created_by=request.user,
+                    )
+
+                    # Verify leg payments were created
+                    leg_payment_count = payment.leg_payments.count()
+                    logger.info(
+                        f"Payment created with ID {payment.id}, with {leg_payment_count} leg payments"
+                    )
+
+                    processed_count += 1
+                    total_amount += payment_total
+
+                except Exception as e:
+                    logger.error(
+                        f"Error processing payment for {driver}: {e}", exc_info=True
+                    )
+                    messages.error(request, f"Error processing {driver}: {e}")
+
+        if processed_count:
+            messages.success(
+                request,
+                f"Processed payments for {processed_count} drivers. Total: ${total_amount:.2f}",
+            )
+        else:
+            messages.info(request, "No unpaid completed legs found for selected drivers.")
+
+    process_driver_payments.short_description = "Process driver payments (completed legs only)"
 
 
 @admin.register(DriverPayment)

@@ -159,14 +159,19 @@ def registerUser(request):
     return render(
         request, "users/login_register.html", {"page": "register", "form": form}
     )
-
-
 def loginUser(request):
     """Handle user login for admins and drivers only."""
     if request.method == "POST":
         username = request.POST["username"]
         password = request.POST["password"]
-        user = authenticate(request, username=username, password=password)
+        
+        # Try to find user with case-insensitive lookup
+        try:
+            user_obj = User.objects.get(username__iexact=username)
+            # Use the actual username from database for authentication
+            user = authenticate(request, username=user_obj.username, password=password)
+        except User.DoesNotExist:
+            user = None
 
         if user is not None:
             # Check if this user is a travel agent
@@ -191,6 +196,7 @@ def loginUser(request):
             )
 
     return render(request, "users/login_register.html", {"page": "login"})
+
 
 
 @login_required(login_url="login")
@@ -333,7 +339,14 @@ def agent_login(request):
     if request.method == "POST":
         username = request.POST["username"]
         password = request.POST["password"]
-        user = authenticate(request, username=username, password=password)
+        
+        # Try to find user with case-insensitive lookup
+        try:
+            user_obj = User.objects.get(username__iexact=username)
+            # Use the actual username from database for authentication
+            user = authenticate(request, username=user_obj.username, password=password)
+        except User.DoesNotExist:
+            user = None
 
         if user is not None:
             try:
