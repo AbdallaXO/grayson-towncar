@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Count
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django import forms
@@ -14,12 +14,19 @@ import stripe
 import logging
 import json
 from datetime import datetime
+from django.views.generic import ListView
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.template.loader import render_to_string
+from django.db.models import Prefetch
+from django.db.models import OuterRef, Subquery
 
 # App imports
+
 from reservations.models import Reservation, Leg, Customer
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from drivers.models import Driver
 from payment.utils import get_or_create_stripe_customer
+from payment.models import Payment
 
 # Configure logging and Stripe
 logger = logging.getLogger(__name__)
@@ -86,63 +93,105 @@ def index(request):
     return render(request, "dispatching/legs_filter.html", context)
 
 
-@login_required(login_url="login")
-def all_reservations(request):
-    """
-    List all reservations with pagination and overview statistics.
+class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = Reservation
+    template_name = 'dispatching/all_reservations.html'
+    context_object_name = 'reservations'
+    paginate_by = 10
 
-    Args:
-        request: The HTTP request
+    def test_func(self):
+        return self.request.user.is_superuser
 
-    Returns:
-        Rendered template with paginated reservation list and stats
-    """
-    if not request.user.is_superuser:
-        return redirect("home")
+    def get_queryset(self):
+        today = timezone.now().date()
+        start_of_week = today - timezone.timedelta(days=today.weekday())
+        start_of_month = today.replace(day=1)
 
-    search = ""
-    if request.GET.get("search_q"):
-        search = request.GET.get("search_q")
+        # Base queryset with all necessary related fields
+        queryset = (
+            Reservation.objects.select_related(
+                'customer',
+                'rate',
+                'vehicle'
+            ).prefetch_related(
+                'legs',
+                Prefetch(
+                    'payments',
+                    queryset=Payment.objects.order_by('-id'),
+                    to_attr='all_payments'
+                )
+            ).filter(
+                ~Q(status='completed')
+            ).order_by('-id')
+        )
 
-    reservations_query = (
-        Reservation.objects.select_related("customer", "rate", "vehicle")
-        .prefetch_related("legs")
-        .filter(Q(customer__first_name__icontains=search) & ~Q(status="completed"))
-        .distinct()
-        .order_by("-id")
-    )
+        # Filter by time period
+        time_filter = self.request.GET.get('time_filter', 'all')
+        if time_filter == 'week':
+            queryset = queryset.filter(created_at__date__gte=start_of_week)
+        elif time_filter == 'month':
+            queryset = queryset.filter(created_at__date__gte=start_of_month)
 
-    paginator = Paginator(reservations_query, 10)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
+        # Search functionality
+        search_query = self.request.GET.get('search_q', '')
+        if search_query:
+            queryset = queryset.filter(
+                Q(customer__first_name__icontains=search_query) |
+                Q(customer__last_name__icontains=search_query) |
+                Q(customer__email__icontains=search_query) |
+                Q(customer__phone_number__icontains=search_query) |
+                Q(id__icontains=search_query)
+            )
 
-    total_reservations = reservations_query.count()
-    pending_reservations = reservations_query.filter(status="pending").count()
-    confirmed_reservations = reservations_query.filter(status="confirmed").count()
-    total_revenue = (
-        reservations_query.filter(payments__status="paid").aggregate(
-            total=Sum("total_price")
-        )["total"]
-        or 0
-    )
-    pending_payments = (
-        reservations_query.filter(~Q(payments__status="paid")).aggregate(
-            total=Sum("total_price")
-        )["total"]
-        or 0
-    )
+        # Status filter
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
 
-    context = {
-        "reservations": page_obj,
-        "page_obj": page_obj,
-        "total_reservations": total_reservations,
-        "pending_reservations": pending_reservations,
-        "confirmed_reservations": confirmed_reservations,
-        "total_revenue": total_revenue,
-        "pending_payments": pending_payments,
-    }
+        return queryset
 
-    return render(request, "dispatching/all_reservations.html", context)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        queryset = self.get_queryset()
+
+        # Annotate counts in a single query
+        stats = queryset.aggregate(
+            total_count=Count('id'),
+            pending_count=Count('id', filter=Q(status='pending')),
+            confirmed_count=Count('id', filter=Q(status='confirmed')),
+            total_revenue=Sum('total_price', filter=Q(payments__status='paid'))
+        )
+
+        # Add statistics to context
+        context.update({
+            'total_reservations': stats['total_count'],
+            'pending_reservations': stats['pending_count'],
+            'confirmed_reservations': stats['confirmed_count'],
+            'total_revenue': stats['total_revenue'] or 0,
+            'search_query': self.request.GET.get('search_q', ''),
+            'status_filter': self.request.GET.get('status', ''),
+            'time_filter': self.request.GET.get('time_filter', 'all'),
+        })
+        return context
+
+    def get(self, request, *args, **kwargs):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            # Handle AJAX request for real-time search
+            queryset = self.get_queryset()
+            context = self.get_context_data(object_list=queryset)
+            html = render_to_string(
+                'dispatching/includes/reservation_list.html',
+                context,
+                request=request
+            )
+            return JsonResponse({
+                'html': html,
+                'total_count': context['total_reservations'],
+                'pending_count': context['pending_reservations'],
+                'confirmed_count': context['confirmed_reservations'],
+                'total_revenue': context['total_revenue'],
+            })
+        return super().get(request, *args, **kwargs)
 
 
 @login_required(login_url="login")
@@ -294,50 +343,81 @@ def modify_reservation(request, id):
     }
 
     return render(request, "dispatching/modify_reservation.html", context)
-
+from django.db.models import OuterRef, Subquery
 
 @login_required(login_url="login")
 def legs_list(request):
     """
     Display a filterable list of all upcoming legs.
-
+    
     Args:
         request: The HTTP request
-
     Returns:
         Rendered template with filtered legs
     """
     if not request.user.is_superuser:
         return redirect("home")
-
+    
     date_filter = request.GET.get("date")
     today = timezone.localdate()
-
-    legs_query = Leg.objects.select_related(
-        "reservation", "reservation__customer", "reservation__vehicle"
+    
+    # Subquery to get the latest payment ID for each reservation
+    latest_payment_subquery = Payment.objects.filter(
+        reservation_id=OuterRef('reservation_id')
+    ).order_by('-id').values('id')[:1]
+    
+    # Base queryset with all necessary related fields
+    legs_query = (
+        Leg.objects.select_related(
+            "reservation",
+            "reservation__customer",
+            "reservation__vehicle", 
+            "driver",
+            "flight_information"
+        ).annotate(
+            latest_payment_id=Subquery(latest_payment_subquery)
+        ).filter(pickup_date__gte=today)
     )
-    legs_query = legs_query.filter(pickup_date__gte=today)
+    
+    # Get today's count in a single query  
     today_count = legs_query.filter(pickup_date=today).count()
-
+    
     if date_filter:
         try:
             filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
             legs_query = legs_query.filter(pickup_date=filter_date)
         except ValueError:
             pass
-
+    
     # Order by pickup date first, then pickup time for better readability
     legs = legs_query.order_by("pickup_date", "pickup_time")
-
-    drivers = Driver.objects.all()
-
+    
+    # Get all drivers in a single query
+    drivers = Driver.objects.select_related('profile').all()
+    
+    # Get all latest payments in one query
+    latest_payment_ids = [leg.latest_payment_id for leg in legs if leg.latest_payment_id]
+    if latest_payment_ids:
+        latest_payments = Payment.objects.in_bulk(latest_payment_ids)
+        
+        # Attach latest payment to each reservation
+        for leg in legs:
+            if leg.latest_payment_id:
+                leg.reservation.latest_payment = latest_payments.get(leg.latest_payment_id)
+            else:
+                leg.reservation.latest_payment = None
+    else:
+        # No payments found
+        for leg in legs:
+            leg.reservation.latest_payment = None
+    
     context = {
         "legs": legs,
         "filter_date": date_filter,
-        "drivers": drivers,
+        "drivers": drivers, 
         "today_count": today_count,
     }
-
+    
     return render(request, "dispatching/legs_list.html", context)
 
 
@@ -992,3 +1072,37 @@ def charge_saved_card(request, reservation_id):
     except Exception as e:
         logger.error(f"Error charging saved card: {str(e)}")
         return JsonResponse({"error": str(e)}, status=400)
+
+
+@login_required
+@require_POST
+def update_reservation_status(request):
+    """
+    Update a reservation's status via AJAX.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        reservation_id = data.get("reservation_id")
+        status = data.get("status")
+
+        if not reservation_id or not status:
+            return JsonResponse({"success": False, "error": "Missing required data"}, status=400)
+
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_id)
+
+        # Update status
+        valid_statuses = ["pending", "confirmed", "cancelled"]
+        if status in valid_statuses:
+            reservation.status = status
+            reservation.save()
+            return JsonResponse({"success": True})
+        else:
+            return JsonResponse({"success": False, "error": "Invalid status"}, status=400)
+
+    except Exception as e:
+        logger.error(f"Error updating reservation status: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)

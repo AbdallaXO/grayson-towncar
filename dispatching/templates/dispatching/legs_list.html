@@ -95,11 +95,11 @@
                 <!-- Payment Status -->
                 <td>
                   <div class="d-flex align-items-center">
-                    <i class="bi bi-cash-coin me-2 {% if leg.reservation.payments.last %}text-success{% else %}text-danger{% endif %}"></i>
+                    <i class="bi bi-cash-coin me-2 {% if leg.reservation.latest_payment %}text-success{% else %}text-danger{% endif %}"></i>
                     <div>
                       <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
-                      {% if leg.reservation.payments.last %}
-                        <span class="badge bg-success">{{ leg.reservation.payments.last }}</span>
+                      {% if leg.reservation.latest_payment %}
+                        <span class="badge bg-success">{{ leg.reservation.latest_payment }}</span>
                       {% else %}
                         <span class="badge bg-warning text-dark">No Payment</span>
                       {% endif %}
@@ -236,11 +236,11 @@
                     <!-- Payment Status -->
                     <div class="col-12">
                       <div class="d-flex">
-                        <i class="bi bi-cash-coin {% if leg.reservation.payments.last %}text-success{% else %}text-danger{% endif %} me-2"></i>
+                        <i class="bi bi-cash-coin {% if leg.reservation.latest_payment %}text-success{% else %}text-danger{% endif %} me-2"></i>
                         <div class="small">
                           <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
-                          {% if leg.reservation.payments.last %}
-                            <span class="badge bg-success">{{ leg.reservation.payments.last }}</span>
+                          {% if leg.reservation.latest_payment %}
+                            <span class="badge bg-success">{{ leg.reservation.latest_payment }}</span>
                           {% else %}
                             <span class="badge bg-warning text-dark">No Payment</span>
                           {% endif %}
@@ -411,5 +411,8 @@
   </script>
 {% endblock content %}
 
+
 {% block footer %}
-{% endblock footer %}
+
+{% endblock %}
+{% block newsletter %}{% endblock newsletter %}
