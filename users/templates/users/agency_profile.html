@@ -4,27 +4,27 @@
 {% block title %}Agency Profile - {{ agency.name }}{% endblock %}
 
 {% block content %}
-  <div class="container-fluid py-4">
+  <div class="container-fluid py-3">
     <!-- Header Section -->
-    <div class="row mb-4 align-items-center">
+    <div class="row mb-3 align-items-center">
       <div class="col-md-8">
-        <h1 class="h2 mb-1">Agency Profile</h1>
+        <h1 class="h3 mb-1">Agency Profile</h1>
         <p class="text-muted mb-0">
           <i class="fas fa-building me-2"></i>{{ agency.name }}
         </p>
       </div>
       <div class="col-md-4 text-md-end">
-        <a href="{% url 'agency_dashboard' %}" class="btn btn-outline-secondary">
+        <a href="{% url 'agency_dashboard' %}" class="btn btn-sm btn-outline-secondary">
           <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
         </a>
       </div>
     </div>
 
-    <div class="row">
+    <div class="row g-3">
       <!-- Agency Information -->
       <div class="col-md-8">
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-0 py-3">
             <h5 class="mb-0">Agency Information</h5>
           </div>
           <div class="card-body">
@@ -32,60 +32,106 @@
               {% csrf_token %}
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label">Agency Name</label>
+                  <label class="form-label small">Agency Name</label>
                   <input type="text"
-                         class="form-control"
+                         class="form-control form-control-sm"
                          name="name"
                          value="{{ agency.name }}"
                          required>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Phone</label>
+                  <label class="form-label small">Phone</label>
                   <input type="tel"
-                         class="form-control"
+                         class="form-control form-control-sm"
                          name="phone"
                          value="{{ agency.phone }}">
                 </div>
                 <div class="col-12">
-                  <label class="form-label">Address</label>
-                  <textarea class="form-control" name="address" rows="2">{{ agency.address }}</textarea>
+                  <label class="form-label small">Address</label>
+                  <textarea class="form-control form-control-sm" name="address" rows="2">{{ agency.address }}</textarea>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Website</label>
+                  <label class="form-label small">Website</label>
                   <input type="url"
-                         class="form-control"
+                         class="form-control form-control-sm"
                          name="website"
                          value="{{ agency.website }}">
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Logo</label>
-                  <input type="file" class="form-control" name="logo" accept="image/*">
-                  {% if agency.logo %}<small class="text-muted">Current logo: {{ agency.logo.name }}</small>{% endif %}
+                  <label class="form-label small">Logo</label>
+                  <input type="file" class="form-control form-control-sm" name="logo" accept="image/*">
+                  {% if agency.logo %}<small class="text-muted">Current: {{ agency.logo.name }}</small>{% endif %}
                 </div>
               </div>
-              <hr>
+              <hr class="my-3">
               <div class="text-end">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-sm btn-primary">
                   <i class="fas fa-save me-2"></i>Save Changes
                 </button>
               </div>
             </form>
           </div>
         </div>
+
+        <!-- Agents Summary -->
+        <div class="card border-0 shadow-sm mt-3">
+          <div class="card-header bg-white border-0 py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">Agents Overview</h5>
+              <a href="{% url 'agency_agents_list' agency.id %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-users me-2"></i>View All
+              </a>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Unpaid</th>
+                    <th>Pending</th>
+                    <th>Total Paid</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for agent in agents %}
+                    <tr>
+                      <td>{{ agent.agent_name }}</td>
+                      <td>{{ agent.user.email }}</td>
+                      <td class="text-success">${{ agent.unpaid_commissions|floatformat:2 }}</td>
+                      <td class="text-primary">${{ agent.pending_commissions|floatformat:2 }}</td>
+                      <td class="text-purple">${{ agent.total_paid_commission|floatformat:2 }}</td>
+                      <td class="text-end">
+                        <a href="{% url 'agent_detail' agent.id %}" class="btn btn-sm btn-link">View</a>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="6" class="text-center py-3">No agents found for this agency.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Payment Information -->
       <div class="col-md-4">
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-0 py-3">
             <h5 class="mb-0">Payment Information</h5>
           </div>
           <div class="card-body">
             <form method="post" action="{% url 'update_agency_payment' %}">
               {% csrf_token %}
               <div class="mb-3">
-                <label class="form-label">Payment Method</label>
-                <select class="form-select" name="payment_method">
+                <label class="form-label small">Payment Method</label>
+                <select class="form-select form-select-sm" name="payment_method">
                   <option value="">Select Payment Method</option>
                   {% for value, label in payment_methods %}
                     <option value="{{ value }}"
@@ -94,15 +140,15 @@
                 </select>
               </div>
               <div class="mb-3">
-                <label class="form-label">Payment Details</label>
-                <textarea class="form-control"
+                <label class="form-label small">Payment Details</label>
+                <textarea class="form-control form-control-sm"
                           name="payment_info"
-                          rows="3"
+                          rows="2"
                           placeholder="Enter payment details (e.g., PayPal email, bank account info)">{{ agency.payment_info }}</textarea>
               </div>
               <div class="text-end">
-                <button type="submit" class="btn btn-primary">
-                  <i class="fas fa-save me-2"></i>Update Payment Info
+                <button type="submit" class="btn btn-sm btn-primary">
+                  <i class="fas fa-save me-2"></i>Update
                 </button>
               </div>
             </form>
@@ -110,34 +156,34 @@
         </div>
 
         <!-- Agency Statistics -->
-        <div class="card border-0 shadow-sm">
-          <div class="card-header bg-white border-0 pt-4 pb-0">
+        <div class="card border-0 shadow-sm mt-3">
+          <div class="card-header bg-white border-0 py-3">
             <h5 class="mb-0">Agency Statistics</h5>
           </div>
           <div class="card-body">
             <dl class="row mb-0">
-              <dt class="col-sm-6 text-muted">Total Agents</dt>
-              <dd class="col-sm-6">
+              <dt class="col-sm-6 text-muted small">Total Agents</dt>
+              <dd class="col-sm-6 small">
                 {{ agents.count }}
               </dd>
 
-              <dt class="col-sm-6 text-muted">Total Paid</dt>
-              <dd class="col-sm-6">
+              <dt class="col-sm-6 text-muted small">Total Paid</dt>
+              <dd class="col-sm-6 small">
                 ${{ total_paid|floatformat:2 }}
               </dd>
 
-              <dt class="col-sm-6 text-muted">Pending</dt>
-              <dd class="col-sm-6">
+              <dt class="col-sm-6 text-muted small">Pending</dt>
+              <dd class="col-sm-6 small">
                 ${{ total_pending|floatformat:2 }}
               </dd>
 
-              <dt class="col-sm-6 text-muted">Awaiting Payment</dt>
-              <dd class="col-sm-6">
+              <dt class="col-sm-6 text-muted small">Awaiting Payment</dt>
+              <dd class="col-sm-6 small">
                 ${{ total_unpaid|floatformat:2 }}
               </dd>
 
-              <dt class="col-sm-6 text-muted">Created</dt>
-              <dd class="col-sm-6">
+              <dt class="col-sm-6 text-muted small">Created</dt>
+              <dd class="col-sm-6 small">
                 {{ agency.created_at|date:"M d, Y" }}
               </dd>
             </dl>

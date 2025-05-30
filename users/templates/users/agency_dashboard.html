@@ -1,26 +1,30 @@
 {% extends 'main.html' %}
 {% load static %}
 
-{% block title %}Agency Dashboard - {{ agency.name }}{% endblock %}
+{% block title %}
+  Agency Dashboard - {{ agency.name }}
+{% endblock %}
 
 {% block content %}
   <div class="container-fluid mt-4">
-    <div class="row">
+    <!-- Header Section -->
+    <div class="row mb-4">
       <div class="col-12">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-          <h1 class="mb-0">{{ agency.name }} Dashboard</h1>
-          <div class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
-            <a href="{% url 'agency_profile' %}" class="btn btn-outline-secondary">
-              <i class="fas fa-user-cog me-2"></i>Edit Profile
-            </a>
-            <a href="{% url 'agency_commission_history' agency.id %}"
-               class="btn btn-outline-primary">
-              <i class="fas fa-dollar-sign me-2"></i>Commission History
-            </a>
-            <a href="{% url 'agency_agents_list' agency.id %}"
-               class="btn btn-outline-primary">
-              <i class="fas fa-users me-2"></i>View All Agents
-            </a>
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+              <div>
+                <h1 class="h2 mb-2">{{ agency.name }}</h1>
+                <p class="text-muted mb-0">
+                  <i class="fas fa-building me-2"></i>Agency Dashboard
+                </p>
+              </div>
+              <div class="d-flex flex-column flex-sm-row gap-2">
+                <a href="{% url 'agency_profile' %}" class="btn btn-outline-dark"><i class="fas fa-user-cog me-2"></i>Edit Profile</a>
+                <a href="{% url 'agency_commission_history' agency.id %}" class="btn btn-outline-dark"><i class="fas fa-dollar-sign me-2"></i>Commission History</a>
+                <a href="{% url 'agency_agents_list' agency.id %}" class="btn btn-outline-dark"><i class="fas fa-users me-2"></i>View All Agents</a>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -31,27 +35,16 @@
       <div class="col-12">
         <ul class="nav nav-tabs flex-nowrap" style="overflow-x: auto;">
           <li class="nav-item">
-            <a class="nav-link active"
-               href="{% url 'agency_dashboard' %}"
-               aria-current="page">
-              <i class="fas fa-tachometer-alt me-2"></i><span class="d-none d-sm-inline">Dashboard</span>
-            </a>
+            <a class="nav-link active" href="{% url 'agency_dashboard' %}" aria-current="page"><i class="fas fa-tachometer-alt me-2"></i><span class="d-none d-sm-inline">Dashboard</span></a>
           </li>
           <li class="nav-item">
-            <a class="nav-link"
-               href="{% url 'agency_commission_history' agency.id %}">
-              <i class="fas fa-dollar-sign me-2"></i><span class="d-none d-sm-inline">Commission History</span>
-            </a>
+            <a class="nav-link" href="{% url 'agency_commission_history' agency.id %}"><i class="fas fa-dollar-sign me-2"></i><span class="d-none d-sm-inline">Commission History</span></a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="{% url 'agency_profile' %}">
-              <i class="fas fa-user-cog me-2"></i><span class="d-none d-sm-inline">Profile</span>
-            </a>
+            <a class="nav-link" href="{% url 'agency_profile' %}"><i class="fas fa-user-cog me-2"></i><span class="d-none d-sm-inline">Profile</span></a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="{% url 'agency_guide' %}">
-              <i class="fas fa-book me-2"></i><span class="d-none d-sm-inline">Guide</span>
-            </a>
+            <a class="nav-link" href="{% url 'agency_guide' %}"><i class="fas fa-book me-2"></i><span class="d-none d-sm-inline">Guide</span></a>
           </li>
         </ul>
       </div>
@@ -63,7 +56,7 @@
         <div class="card shadow-sm h-100">
           <div class="card-body text-center">
             <div class="d-flex align-items-center justify-content-center mb-2">
-              <i class="fas fa-users text-primary me-2 fs-4"></i>
+              <i class="fas fa-users text-dark me-2 fs-4"></i>
               <h6 class="card-title mb-0 d-none d-sm-block">Agents</h6>
             </div>
             <h3 class="card-text mb-0">{{ agents.count }}</h3>
@@ -87,10 +80,10 @@
         <div class="card shadow-sm h-100">
           <div class="card-body text-center">
             <div class="d-flex align-items-center justify-content-center mb-2">
-              <i class="fas fa-hourglass-half text-primary me-2 fs-4"></i>
+              <i class="fas fa-hourglass-half text-dark me-2 fs-4"></i>
               <h6 class="card-title mb-0 d-none d-sm-block">Pending</h6>
             </div>
-            <h3 class="card-text text-primary mb-0">${{ total_pending|floatformat:2 }}</h3>
+            <h3 class="card-text text-dark mb-0">${{ total_pending|floatformat:2 }}</h3>
             <small class="text-muted d-block d-sm-none">Pending Commissions</small>
           </div>
         </div>
@@ -117,10 +110,7 @@
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
               <h5 class="mb-0">Agents Overview</h5>
               <div class="input-group" style="max-width: 300px; width: 100%;">
-                <input type="text"
-                       id="agentSearch"
-                       class="form-control"
-                       placeholder="Search agents...">
+                <input type="text" id="agentSearch" class="form-control" placeholder="Search agents..." />
                 <span class="input-group-text"><i class="fas fa-search"></i></span>
               </div>
             </div>
@@ -135,8 +125,7 @@
                       <h6 class="mb-1 fw-bold">{{ agent_stat.agent.agent_name }}</h6>
                       <small class="text-muted">{{ agent_stat.agent.user.email }}</small>
                     </div>
-                    <a href="{% url 'agent_detail' agent_stat.agent.id %}"
-                       class="btn btn-sm btn-outline-primary">View</a>
+                    <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="btn btn-sm btn-outline-dark">View</a>
                   </div>
                   <div class="row g-2 mt-2">
                     <div class="col-4">
@@ -145,7 +134,7 @@
                     </div>
                     <div class="col-4">
                       <small class="text-muted d-block">Pending</small>
-                      <span class="text-primary fw-bold">${{ agent_stat.pending }}</span>
+                      <span class="text-dark fw-bold">${{ agent_stat.pending }}</span>
                     </div>
                     <div class="col-4">
                       <small class="text-muted d-block">Earned</small>
@@ -190,12 +179,11 @@
                       <td>{{ agent_stat.agent.user.email }}</td>
                       <td>{{ agent_stat.agent.phone }}</td>
                       <td class="text-success">${{ agent_stat.unpaid }}</td>
-                      <td class="text-primary">${{ agent_stat.pending }}</td>
+                      <td class="text-dark">${{ agent_stat.pending }}</td>
                       <td class="text-purple">${{ agent_stat.paid }}</td>
                       <td>{{ agent_stat.reservation_count }}</td>
                       <td>
-                        <a href="{% url 'agent_detail' agent_stat.agent.id %}"
-                           class="btn btn-sm btn-outline-primary">View Details</a>
+                        <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="btn btn-sm btn-outline-dark">View Details</a>
                       </td>
                     </tr>
                   {% empty %}
@@ -228,7 +216,49 @@
                       <h6 class="mb-1">{{ reservation.customer.get_full_name }}</h6>
                       <small class="text-muted">{{ reservation.created_at|date:'M d, Y' }}</small>
                     </div>
-                    <span class="badge {% if reservation.status == 'completed' %} bg-success {% elif reservation.status == 'confirmed' %} bg-primary {% else %} bg-secondary {% endif %}">
+                    <span class="badge {% if reservation.status == 'completed' %}
+                        
+                        
+                        
+                        
+                        
+                        
+                         bg-success
+
+
+
+
+
+
+                      {% elif reservation.status == 'confirmed' %}
+                        
+                        
+                        
+                        
+                        
+                        
+                         bg-dark
+
+
+
+
+
+
+                      {% else %}
+                        
+                        
+                        
+                        
+                        
+                        
+                         bg-secondary
+
+
+
+
+
+
+                      {% endif %}">
                       {{ reservation.status|title }}
                     </span>
                   </div>
@@ -262,7 +292,49 @@
                       <td>{{ reservation.travel_agent.agent_name }}</td>
                       <td>${{ reservation.total_price }}</td>
                       <td>
-                        <span class="badge {% if reservation.status == 'completed' %} bg-success {% elif reservation.status == 'confirmed' %} bg-primary {% else %} bg-secondary {% endif %}">
+                        <span class="badge {% if reservation.status == 'completed' %}
+                            
+                            
+                            
+                            
+                            
+                            
+                             bg-success
+
+
+
+
+
+
+                          {% elif reservation.status == 'confirmed' %}
+                            
+                            
+                            
+                            
+                            
+                            
+                             bg-dark
+
+
+
+
+
+
+                          {% else %}
+                            
+                            
+                            
+                            
+                            
+                            
+                             bg-secondary
+
+
+
+
+
+
+                          {% endif %}">
                           {{ reservation.status|title }}
                         </span>
                       </td>
@@ -338,37 +410,41 @@
     </div>
   </div>
 {% endblock %}
-{% block footer %}{% endblock %}
-{% block newsletter %}{% endblock %}
+{% block footer %}
+
+{% endblock %}
+{% block newsletter %}
+
+{% endblock %}
 
 {% block extra_js %}
   <script>
-      document.addEventListener('DOMContentLoaded', function() {
-          // Search functionality for desktop table
-          document.getElementById('agentSearch').addEventListener('keyup', function() {
-              const value = this.value.toLowerCase();
-
-              // Search desktop table
-              const table = document.getElementById('agentsTable');
-              if (table) {
-                  const rows = table.getElementsByTagName('tr');
-                  for (let i = 1; i < rows.length; i++) {
-                      const row = rows[i];
-                      const text = row.textContent.toLowerCase();
-                      row.style.display = text.includes(value) ? '' : 'none';
-                  }
-              }
-
-              // Search mobile cards
-              const mobileView = document.getElementById('mobileAgentsView');
-              if (mobileView) {
-                  const cards = mobileView.getElementsByClassName('agent-card');
-                  for (let card of cards) {
-                      const text = card.textContent.toLowerCase();
-                      card.style.display = text.includes(value) ? '' : 'none';
-                  }
-              }
-          });
-      });
+    document.addEventListener('DOMContentLoaded', function () {
+      // Search functionality for desktop table
+      document.getElementById('agentSearch').addEventListener('keyup', function () {
+        const value = this.value.toLowerCase()
+    
+        // Search desktop table
+        const table = document.getElementById('agentsTable')
+        if (table) {
+          const rows = table.getElementsByTagName('tr')
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i]
+            const text = row.textContent.toLowerCase()
+            row.style.display = text.includes(value) ? '' : 'none'
+          }
+        }
+    
+        // Search mobile cards
+        const mobileView = document.getElementById('mobileAgentsView')
+        if (mobileView) {
+          const cards = mobileView.getElementsByClassName('agent-card')
+          for (let card of cards) {
+            const text = card.textContent.toLowerCase()
+            card.style.display = text.includes(value) ? '' : 'none'
+          }
+        }
+      })
+    })
   </script>
 {% endblock %}

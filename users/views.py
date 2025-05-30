@@ -483,24 +483,41 @@ def agent_commission_history(request):
     try:
         travel_agent = TravelAgent.objects.select_related("user").get(user=request.user)
 
-        # Get commission payouts with reservations
+        # Get commission payouts with optimized prefetch
         payouts = (
             CommissionPayout.objects.filter(agent=travel_agent)
+            .select_related('agent', 'agent__user')
             .prefetch_related(
                 Prefetch(
                     "reservations",
-                    queryset=Reservation.objects.select_related("customer", "vehicle"),
+                    queryset=Reservation.objects.select_related(
+                        'customer',
+                        'vehicle',
+                        'rate',
+                        'rate__route',
+                        'rate__route__origin',
+                        'rate__route__destination'
+                    )
                 )
             )
             .order_by("-paid_at")
         )
 
-        # Get unpaid reservations
+        # Get unpaid reservations with optimized prefetch
         unpaid_reservations = (
             Reservation.objects.filter(
-                travel_agent=travel_agent, commission_paid=False, status="completed"
+                travel_agent=travel_agent, 
+                commission_paid=False, 
+                status="completed"
             )
-            .select_related("customer", "vehicle")
+            .select_related(
+                'customer',
+                'vehicle',
+                'rate',
+                'rate__route',
+                'rate__route__origin',
+                'rate__route__destination'
+            )
             .order_by("-created_at")
         )
 
@@ -698,61 +715,97 @@ def agency_commission_history(request, agency_id):
     - Unpaid commissions ready for payment
     """
     # Verify user permissions
-    agency = get_object_or_404(Agency, id=agency_id)
+    agency = get_object_or_404(
+        Agency.objects.prefetch_related('heads'),
+        id=agency_id
+    )
     if not agency.heads.filter(id=request.user.id).exists():
         raise Http404("You don't have permission to view this agency")
 
-    # Get main agency payouts
+    # Get main agency payouts with optimized queries
     agency_payouts = (
         AgencyCommissionPayout.objects.filter(agency=agency)
         .prefetch_related(
-            "agent_payouts__agent__user", "agent_payouts__reservations__customer"
+            Prefetch(
+                'agent_payouts',
+                queryset=CommissionPayout.objects.select_related(
+                    'agent',
+                    'agent__user'
+                ).prefetch_related(
+                    Prefetch(
+                        'reservations',
+                        queryset=Reservation.objects.select_related(
+                            'customer',
+                            'vehicle'
+                        )
+                    )
+                )
+            )
         )
-        .order_by("-paid_at")
+        .order_by('-paid_at')
     )
 
-    # Get individual agent payouts
+    # Calculate total reservations for each agency payout
+    for payout in agency_payouts:
+        payout.total_reservations = sum(
+            agent_payout.reservations.count() 
+            for agent_payout in payout.agent_payouts.all()
+        )
+
+    # Get individual agent payouts with optimized query
     payouts = (
         CommissionPayout.objects.filter(agent__in=agency.agents.all())
-        .select_related("agent")
-        .prefetch_related("reservations__customer", "reservations__vehicle")
-        .order_by("-paid_at")
+        .select_related('agent', 'agent__user')
+        .prefetch_related(
+            Prefetch(
+                'reservations',
+                queryset=Reservation.objects.select_related(
+                    'customer',
+                    'vehicle',
+                    'travel_agent'
+                )
+            )
+        )
+        .order_by('-paid_at')
     )
 
-    # Get unpaid reservations
+    # Get unpaid reservations with optimized query
     unpaid_reservations = (
         Reservation.objects.filter(
             travel_agent__in=agency.agents.all(),
             commission_paid=False,
-            status="completed",
+            status='completed'
         )
-        .select_related("customer", "vehicle", "travel_agent")
-        .order_by("-created_at")
+        .select_related(
+            'customer',
+            'vehicle',
+            'travel_agent',
+            'travel_agent__user'
+        )
+        .order_by('-created_at')
     )
 
-    # Calculate totals
-    total_paid = (
-        agency.agents.aggregate(total=Sum("total_paid_commission"))["total"] or 0
-    )
-    total_unpaid = (
-        agency.agents.aggregate(total=Sum("unpaid_commissions"))["total"] or 0
+    # Calculate totals using aggregation
+    totals = agency.agents.aggregate(
+        total_paid=Sum('total_paid_commission'),
+        total_unpaid=Sum('unpaid_commissions')
     )
 
     # Paginate individual payouts
     paginator = Paginator(payouts, 15)
-    page_number = request.GET.get("page")
+    page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     context = {
-        "agency": agency,
-        "agency_payouts": agency_payouts,
-        "payouts": page_obj,
-        "unpaid_reservations": unpaid_reservations,
-        "total_paid": format_decimal(total_paid),
-        "total_unpaid": format_decimal(total_unpaid),
+        'agency': agency,
+        'agency_payouts': agency_payouts,
+        'payouts': page_obj,
+        'unpaid_reservations': unpaid_reservations,
+        'total_paid': format_decimal(totals['total_paid'] or 0),
+        'total_unpaid': format_decimal(totals['total_unpaid'] or 0),
     }
 
-    return render(request, "users/agency_commission_history.html", context)
+    return render(request, 'users/agency_commission_history.html', context)
 
 
 class AgencyDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
@@ -1005,3 +1058,29 @@ def update_agency_payment(request):
         return redirect("agency_profile")
 
     return redirect("agency_dashboard")
+
+
+@login_required
+def agency_commission_payout_detail(request, payout_id):
+    """Display detailed information about a specific agency commission payout."""
+    payout = get_object_or_404(AgencyCommissionPayout, id=payout_id)
+    agency = payout.agency
+    
+    # Verify user permissions
+    if not agency.heads.filter(id=request.user.id).exists():
+        raise Http404("You don't have permission to view this payout")
+    
+    # Calculate total reservations across all agent payouts
+    total_reservations = sum(agent_payout.reservations.count() for agent_payout in payout.agent_payouts.all())
+    
+    # Calculate average commission per agent
+    average_commission = payout.total_amount / payout.agent_payouts.count() if payout.agent_payouts.exists() else 0
+    
+    context = {
+        'agency': agency,
+        'payout': payout,
+        'total_reservations': total_reservations,
+        'average_commission': average_commission,
+    }
+    
+    return render(request, 'users/agency_commission_detail.html', context)

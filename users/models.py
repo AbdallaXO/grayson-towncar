@@ -671,7 +671,7 @@ class Agency(models.Model):
                             )
 
                         individual_agent_notes = (
-                            f"Agent: {agent.agent_name or agent.user.username} ({agent.user.email})\n"
+                            f"Agent: {agent.agent_name or agent.user.username}\n"
                             f"Reservations ({reservation_count}): {', '.join(agent_reservation_details[:10])}"
                             f"{'...' if reservation_count > 10 else ''}\n"
                             f"Period: {agent_earliest_date} to {agent_latest_date}\n"
@@ -740,7 +740,7 @@ class Agency(models.Model):
             if processed_payouts:
                 # Build comprehensive agency payout notes
                 agency_notes_lines = [
-                    f"AGENCY BATCH PAYOUT - {self.name}",
+                    f"AGENCY PAYOUT - {self.name}",
                     f"Processed: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}",
                     f"Period: {earliest_date} to {latest_date}",
                     f"Total Agents: {len(agent_details)}",
@@ -752,22 +752,43 @@ class Agency(models.Model):
                 ]
 
                 for i, agent_detail in enumerate(agent_details, 1):
-                    agency_notes_lines.extend(
-                        [
-                            f"{i}. {agent_detail['name']} ({agent_detail['email']})",
-                            f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
-                            f"   Period: {agent_detail['period_start']} to {agent_detail['period_end']}",
-                            f"   Sample Reservation IDs: {', '.join(map(str, agent_detail['reservation_ids']))}{'...' if agent_detail['total_reservations'] > 5 else ''}",
-                            "",
-                        ]
-                    )
+                    # Get detailed reservation information for this agent
+                    agent_reservations = Reservation.objects.filter(
+                        id__in=agent_detail['reservation_ids']
+                    ).select_related('customer', 'rate', 'rate__route', 'rate__route__origin', 'rate__route__destination', 'vehicle')
 
-                agency_notes_lines.extend(
-                    [
-                        "-" * 50,
-                        f"Individual agent payouts created: {len(processed_payouts)}",
-                    ]
-                )
+                    agency_notes_lines.extend([
+                        f"{i}. {agent_detail['name']}",
+                        f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
+                        f"   Period: {agent_detail['period_start']} ⇄ {agent_detail['period_end']}",
+                        "",
+                        "   RESERVATION DETAILS:",
+                        "   " + "-" * 40,
+                    ])
+
+                    # Add detailed reservation information
+                    for res in agent_reservations:
+                        agency_notes_lines.extend([
+                            f"   - Reservation #{res.id}",
+                            f"     Customer: {res.customer.get_full_name()}",
+                            f"     Route: {res.rate.route.origin} to {res.rate.route.destination}",
+                            f"     Vehicle: {res.vehicle.vehicle_type.title() if res.vehicle else 'N/A'}",
+                            f"     Trip Type: {res.trip_type.replace('_', ' ').title()}",
+                            f"     Amount: ${res.total_price:.2f}",
+                            f"     Commission: ${res.commission_amount:.2f}",
+                            f"     Date: {res.created_at.strftime('%Y-%m-%d')}",
+                            "",
+                        ])
+
+                    agency_notes_lines.extend([
+                        "   " + "-" * 40,
+                        "",
+                    ])
+
+                agency_notes_lines.extend([
+                    "-" * 50,
+                    f"Individual agent payouts created: {len(processed_payouts)}",
+                ])
 
                 comprehensive_notes = "\n".join(agency_notes_lines)
 
