@@ -72,7 +72,15 @@ urlpatterns = [
         views.update_agency_payment,
         name="update_agency_payment",
     ),
-        path('password-reset/', 
+    # Admin agency management URLs - Updated with admin prefix
+    path("admin/agencies/", views.AgencyListView.as_view(), name="admin_agency_list"),
+    path("admin/agencies/<int:pk>/", views.AgencyDetailView.as_view(), name="admin_agency_detail"),
+    path("admin/agencies/<int:pk>/edit/", views.AgencyUpdateView.as_view(), name="admin_agency_update"),
+    # Regular agency management URLs
+    path("agencies/", views.AgencyListView.as_view(), name="agency_list"),
+    path("agencies/<int:pk>/", views.AgencyDetailView.as_view(), name="agency_detail"),
+    path("agencies/<int:pk>/edit/", views.AgencyUpdateView.as_view(), name="agency_update"),
+    path('password-reset/', 
          auth_views.PasswordResetView.as_view(template_name='users/password_reset.html'),
          name='password_reset'),
     path('password-reset/done/', 

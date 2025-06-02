@@ -24,9 +24,8 @@ def get_form_details(request, rate):
         price = rate.round_trip_price
         trip_type = "round_trip"
     else:
-        #! FIX ERROR MESSAGE.
-        messages.error(request, f"{trip_type} Is not a Valid URL")
-        return redirect("rates")
+        price = rate.round_trip_price
+        trip_type = "round_trip"
     return trip_type, price
 
 

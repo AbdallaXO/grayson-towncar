@@ -1,0 +1,86 @@
+{% extends "main.html" %}
+
+{% block title %}
+  {% if form.instance.pk %}
+    Edit
+  {% else %}
+    New
+  {% endif %}
+  Agency
+{% endblock title %}
+
+{% block content %}
+
+
+  <div class="container py-4">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            <h5 class="mb-0">
+              {% if form.instance.pk %}
+                Edit
+              {% else %}
+                New
+              {% endif %}
+              Agency
+            </h5>
+          </div>
+          <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+              {% csrf_token %}
+
+              <div class="mb-3">
+                <label for="{{ form.name.id_for_label }}" class="form-label">Agency Name</label>
+                {{ form.name }}
+                {% if form.name.errors %}<div class="invalid-feedback d-block">{{ form.name.errors }}</div>{% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="{{ form.phone.id_for_label }}" class="form-label">Phone</label>
+                {{ form.phone }}
+                {% if form.phone.errors %}<div class="invalid-feedback d-block">{{ form.phone.errors }}</div>{% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="{{ form.address.id_for_label }}" class="form-label">Address</label>
+                {{ form.address }}
+                {% if form.address.errors %}<div class="invalid-feedback d-block">{{ form.address.errors }}</div>{% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="{{ form.website.id_for_label }}" class="form-label">Website</label>
+                {{ form.website }}
+                {% if form.website.errors %}<div class="invalid-feedback d-block">{{ form.website.errors }}</div>{% endif %}
+              </div>
+
+              <div class="mb-3">
+                <label for="{{ form.logo.id_for_label }}" class="form-label">Logo</label>
+                {{ form.logo }}
+                {% if form.logo.errors %}<div class="invalid-feedback d-block">{{ form.logo.errors }}</div>{% endif %}
+              </div>
+
+              <div class="mb-3">
+                <div class="form-check">
+                  {{ form.is_active }}
+                  <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between">
+                <a href="{% url 'agency_list' %}" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block footer %}
+{% endblock footer %}
+
+{% block newsletter %}
+{% endblock newsletter %}

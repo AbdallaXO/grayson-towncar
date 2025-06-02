@@ -432,7 +432,7 @@ class TravelAgent(models.Model):
             return None, 0, None
 
     def __str__(self):
-        return f"{self.agency_name or self.agent_name or self.user.username}"
+        return f"{self.agent_name} - {self.agency}"
 
     class Meta:
         verbose_name = "Travel Agent"

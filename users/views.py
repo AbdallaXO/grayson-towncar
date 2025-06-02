@@ -1084,3 +1084,50 @@ def agency_commission_payout_detail(request, payout_id):
     }
     
     return render(request, 'users/agency_commission_detail.html', context)
+
+
+class AdminRequiredMixin(UserPassesTestMixin):
+    """Mixin to ensure only superusers can access the view."""
+    def test_func(self):
+        return self.request.user.is_superuser
+
+
+class AgencyListView(AdminRequiredMixin, ListView):
+    """Simple list view of all agencies."""
+    model = Agency
+    template_name = "users/agency_list.html"
+    context_object_name = "agencies"
+
+    def get_queryset(self):
+        return Agency.objects.all().prefetch_related("agents")
+
+
+class AgencyDetailView(AdminRequiredMixin, DetailView):
+    """Detailed view of a specific agency."""
+    model = Agency
+    template_name = "users/agency_detail.html"
+    context_object_name = "agency"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        agency = self.get_object()
+        context.update({
+            "agents": agency.agents.all(),
+            "total_agents": agency.agents.count(),
+            "total_unpaid": format_decimal(agency.get_total_unpaid_commissions()),
+            "total_pending": format_decimal(agency.get_total_pending_commissions()),
+            "total_paid": format_decimal(agency.get_total_paid_commissions()),
+        })
+        return context
+
+
+class AgencyUpdateView(AdminRequiredMixin, UpdateView):
+    """View for updating agency information."""
+    model = Agency
+    template_name = "users/agency_form.html"
+    fields = ["name", "phone", "address", "website", "logo", "is_active"]
+    success_url = reverse_lazy("agency_list")
+
+    def form_valid(self, form):
+        messages.success(self.request, "Agency updated successfully.")
+        return super().form_valid(form)

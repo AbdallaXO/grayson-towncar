@@ -1,0 +1,61 @@
+{% extends "main.html" %}
+
+{% block title %}
+  Agencies
+{% endblock title %}
+
+{% block content %}
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2>Agencies</h2>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Agency Name</th>
+                <th>Agents</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for agency in agencies %}
+                <tr>
+                  <td>{{ agency.name }}</td>
+                  <td>{{ agency.agents.count }}</td>
+                  <td>
+                    {% if agency.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-danger">Inactive</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="{% url 'admin_agency_detail' agency.id %}"
+                       class="btn btn-sm btn-primary">View</a>
+                    <a href="{% url 'admin_agency_update' agency.id %}"
+                       class="btn btn-sm btn-secondary">Edit</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="text-center">No agencies found</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block footer %}
+{% endblock footer %}
+
+{% block newsletter %}
+{% endblock newsletter %}

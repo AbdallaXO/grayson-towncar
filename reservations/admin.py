@@ -5,7 +5,7 @@ from django.contrib import admin
 from django import forms
 from django.utils.html import format_html
 from django.utils import timezone
-from django.db.models import Min, Count, Q
+from django.db.models import Min, Count, Q, Case, When, F, Value, DateField, TimeField
 from django.urls import reverse
 from django.contrib.admin import SimpleListFilter
 from rates.models import Vehicle
@@ -287,7 +287,6 @@ class CustomerAdmin(ImportExportModelAdmin):
 
 @admin.register(Reservation)
 class ReservationAdmin(ImportExportModelAdmin):
-    ordering = ("legs__pickup_date",)
     resource_class = ReservationResource
     inlines = [LegInline]
     readonly_fields = (
@@ -301,6 +300,8 @@ class ReservationAdmin(ImportExportModelAdmin):
     # ── queryset with annotations and optimizations
     def get_queryset(self, request):
         qs = super().get_queryset(request)
+        today = timezone.localdate()
+        
         qs = (
             qs.select_related(
                 "customer", "vehicle", "travel_agent", "travel_agent__user"
@@ -312,21 +313,47 @@ class ReservationAdmin(ImportExportModelAdmin):
                 earliest_leg_date=Min("legs__pickup_date"),
                 earliest_leg_time=Min("legs__pickup_time"),
                 leg_count=Count("legs"),
+                # Add a field for sorting that only considers current and future pickups
+                next_pickup_date=Case(
+                    When(
+                        legs__pickup_date__gte=today,
+                        then=F('legs__pickup_date')
+                    ),
+                    default=Value(None),
+                    output_field=DateField(),
+                ),
+                next_pickup_time=Case(
+                    When(
+                        legs__pickup_date__gte=today,
+                        then=F('legs__pickup_time')
+                    ),
+                    default=Value(None),
+                    output_field=TimeField(),
+                )
             )
         )
-        return qs.order_by("earliest_leg_date", "earliest_leg_time", "id")
+        
+        # If no specific filter is applied, show only active and upcoming reservations
+        if not request.GET.get('status') and not request.GET.get('first_pickup'):
+            qs = qs.exclude(
+                Q(status='completed') | 
+                Q(legs__pickup_date__lt=today, status='completed')
+            )
+        
+        return qs
 
     # ── list view
     list_display = (
         "id",
         "customer_link",
-        "legs_display",
+        "next_pickup_display",
         "trip_type",
-        "payment_status_display",
         "vehicle_display",
         "total_price_display",
-        "profit_display",
+        "payment_status_display",
+        "status_with_color",
         "agent_info",
+        "profit_display",
         "status",
     )
     list_display_links = ("id", "customer_link")
@@ -337,6 +364,7 @@ class ReservationAdmin(ImportExportModelAdmin):
         "status",
         CommissionStatusFilter,
         ("travel_agent", admin.RelatedOnlyFieldListFilter),
+        ("vehicle", admin.RelatedOnlyFieldListFilter),
     )
     search_fields = (
         "customer__first_name",
@@ -348,16 +376,27 @@ class ReservationAdmin(ImportExportModelAdmin):
         "legs__dropoff_location",
     )
     list_per_page = 50
+    ordering = ("-id",)  # Default to newest first
+
+    def get_ordering(self, request):
+        """Custom ordering that handles pickup dates properly"""
+        ordering = super().get_ordering(request)
+        if not ordering:
+            return ("-id",)
+        
+        # If ordering by pickup date, use our custom fields
+        if "earliest_leg_date" in ordering:
+            return ("next_pickup_date", "next_pickup_time", "-id")
+        if "-earliest_leg_date" in ordering:
+            return ("-next_pickup_date", "-next_pickup_time", "-id")
+            
+        return ordering
 
     # Custom actions for bulk operations
     actions = [
         "mark_as_confirmed",
         "mark_as_completed",
         "mark_as_cancelled",
-        "print_reservation_details",
-        "export_selected_reservations",
-        "assign_to_travel_agent",
-        "update_profit_calculations",
     ]
 
     fieldsets = (
@@ -408,52 +447,6 @@ class ReservationAdmin(ImportExportModelAdmin):
     )
 
     # ── helpers ────────────────────────────────────────────
-    @admin.display(description="Pick-ups")
-    def legs_display(self, obj):
-        """Display all legs with their dates and times combined in a single field with clickable links"""
-        legs = obj.legs.all().order_by("pickup_date", "pickup_time")
-        if not legs:
-            return "-"
-
-        result = []
-        for i, leg in enumerate(legs):
-            # Format date as "Saturday, May 9"
-            formatted_date = (
-                leg.pickup_date.strftime("%a, %b %d") if leg.pickup_date else "-"
-            )
-            pickup_time_str = (
-                leg.pickup_time.strftime("%I:%M %p") if leg.pickup_time else "-"
-            )
-
-            # Driver info
-            driver_info = f" (Driver: {leg.driver})" if leg.driver else " (No driver)"
-
-            # Status indicator
-            status_icon = "✓" if leg.status == "completed" else "•"
-
-            # Create a link to the leg admin page
-            leg_url = reverse("admin:reservations_leg_change", args=[leg.id])
-
-            # Format the link with HTML
-            result.append(
-                format_html(
-                    '<a href="{}" title="{}"><span style="color: {};">{}</span> {} {} - {} to {}{}</a>',
-                    leg_url,
-                    f"Edit Leg #{leg.id}",
-                    "green" if leg.status == "completed" else "black",
-                    status_icon,
-                    formatted_date,
-                    pickup_time_str,
-                    leg.pickup_location[:20]
-                    + ("..." if len(leg.pickup_location) > 20 else ""),
-                    leg.dropoff_location[:20]
-                    + ("..." if len(leg.dropoff_location) > 20 else ""),
-                    driver_info,
-                )
-            )
-
-        return format_html("<br>".join(result))
-
     @admin.display(description="Customer")
     def customer_link(self, obj):
         if not obj.customer:
@@ -611,6 +604,46 @@ class ReservationAdmin(ImportExportModelAdmin):
             percentage_str,
         )
 
+    @admin.display(description="Next Pickup", ordering="next_pickup_date")
+    def next_pickup_display(self, obj):
+        """Display the next upcoming pickup date and time"""
+        if not hasattr(obj, 'next_pickup_date') or not obj.next_pickup_date:
+            return "-"
+            
+        today = timezone.localdate()
+        pickup_date = obj.next_pickup_date
+        
+        # Format the date and time
+        date_str = pickup_date.strftime("%a, %b %d")
+        time_str = obj.next_pickup_time.strftime("%I:%M %p") if obj.next_pickup_time else ""
+        
+        # Add color coding
+        if pickup_date == today:
+            color = "red"
+            prefix = "TODAY"
+        elif pickup_date == today + timedelta(days=1):
+            color = "orange"
+            prefix = "TOMORROW"
+        else:
+            color = "black"
+            prefix = ""
+            
+        # Get the first leg's locations for context
+        first_leg = obj.legs.first()
+        if first_leg:
+            locations = f" ({first_leg.pickup_location[:20]} → {first_leg.dropoff_location[:20]})"
+        else:
+            locations = ""
+            
+        return format_html(
+            '<span style="color: {};">{}{}{}{}</span>',
+            color,
+            f"{prefix} " if prefix else "",
+            date_str,
+            f" {time_str}" if time_str else "",
+            locations
+        )
+
     # ── Actions ────────────────────────────────────────────
     @admin.action(description="Mark selected reservations as confirmed")
     def mark_as_confirmed(self, request, queryset):
@@ -637,31 +670,6 @@ class ReservationAdmin(ImportExportModelAdmin):
         updated = queryset.update(status="cancelled")
         self.message_user(
             request, f"{updated} reservations have been marked as cancelled."
-        )
-
-    @admin.action(description="Print reservation details")
-    def print_reservation_details(self, request, queryset):
-        # Implementation would generate a printable view
-        pass
-
-    @admin.action(description="Export detailed reservation information")
-    def export_selected_reservations(self, request, queryset):
-        # Implementation would use the export functionality
-        pass
-
-    @admin.action(description="Assign to travel agent")
-    def assign_to_travel_agent(self, request, queryset):
-        # Implementation would redirect to a form to select a travel agent
-        pass
-
-    @admin.action(description="Update profit calculations")
-    def update_profit_calculations(self, request, queryset):
-        """Recalculate and update profit for selected reservations"""
-        for reservation in queryset:
-            reservation.update_profit_calculations()
-
-        self.message_user(
-            request, f"Profit calculations updated for {queryset.count()} reservations."
         )
 
 
