@@ -130,6 +130,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
     list_display = [
         "user",
         "agent_name",
+        "agency_name",
         "agency",
         "agency_handles_payment",
         "commission_rate",

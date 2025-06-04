@@ -201,12 +201,17 @@
                       <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Number of Passengers: {{ reservation.passenger_count }}</p>
                     </td>
                   </tr>
+                   <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Suitcases: {{ reservation.luggage_count }}</p>
+                    </td>
+                  </tr>
 
                   <!-- Child Seats (if needed) -->
                   {% if reservation.need_carseats %}
                     <tr>
                       <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Child Seats: {{ reservation.display_carseats }}</p>
+                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Child Seats: {{ reservation.display_carseats | default:"0" }}</p>
                       </td>
                     </tr>
                   {% endif %}
@@ -214,7 +219,7 @@
                   <!-- Vehicle Booked -->
                   <tr>
                     <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Vehicle Booked: {{ reservation.vehicle }}</p>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Vehicle Booked: {{ reservation.vehicle.get_vehicle_type_display }}</p>
                     </td>
                   </tr>
                   <tr>
