@@ -13,7 +13,7 @@ from decimal import Decimal
 import stripe
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.template.loader import render_to_string
@@ -120,8 +120,6 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                     queryset=Payment.objects.order_by('-id'),
                     to_attr='all_payments'
                 )
-            ).filter(
-                ~Q(status='completed')
             ).order_by('-id')
         )
 
@@ -343,7 +341,7 @@ def modify_reservation(request, id):
     }
 
     return render(request, "dispatching/modify_reservation.html", context)
-from django.db.models import OuterRef, Subquery
+
 
 @login_required(login_url="login")
 def legs_list(request):
@@ -358,7 +356,12 @@ def legs_list(request):
     if not request.user.is_superuser:
         return redirect("home")
     
+    # Get filter parameters
     date_filter = request.GET.get("date")
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+    status_filter = request.GET.get("status")
+    time_filter = request.GET.get("time_filter", "all")
     today = timezone.localdate()
     
     # Subquery to get the latest payment ID for each reservation
@@ -376,18 +379,43 @@ def legs_list(request):
             "flight_information"
         ).annotate(
             latest_payment_id=Subquery(latest_payment_subquery)
-        ).filter(pickup_date__gte=today)
+        )
     )
     
-    # Get today's count in a single query  
-    today_count = legs_query.filter(pickup_date=today).count()
-    
-    if date_filter:
+    # Apply date filters
+    if date_from and date_to:
+        try:
+            from_date = datetime.strptime(date_from, "%Y-%m-%d").date()
+            to_date = datetime.strptime(date_to, "%Y-%m-%d").date()
+            legs_query = legs_query.filter(pickup_date__range=[from_date, to_date])
+        except ValueError:
+            pass
+    elif time_filter == "week":
+        # This week
+        start_date = today - timedelta(days=today.weekday())
+        end_date = start_date + timedelta(days=6)
+        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
+    elif time_filter == "next_week":
+        # Next week
+        start_date = today + timedelta(days=(7 - today.weekday()))
+        end_date = start_date + timedelta(days=6)
+        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
+    elif date_filter:
         try:
             filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
             legs_query = legs_query.filter(pickup_date=filter_date)
         except ValueError:
             pass
+    else:
+        # Default: show all future legs
+        legs_query = legs_query.filter(pickup_date__gte=today)
+    
+    # Apply status filter
+    if status_filter:
+        legs_query = legs_query.filter(status=status_filter)
+    
+    # Get today's count in a single query  
+    today_count = legs_query.filter(pickup_date=today).count()
     
     # Order by pickup date first, then pickup time for better readability
     legs = legs_query.order_by("pickup_date", "pickup_time")
@@ -414,6 +442,10 @@ def legs_list(request):
     context = {
         "legs": legs,
         "filter_date": date_filter,
+        "date_from": date_from,
+        "date_to": date_to,
+        "status_filter": status_filter,
+        "time_filter": time_filter,
         "drivers": drivers, 
         "today_count": today_count,
     }
@@ -1095,11 +1127,11 @@ def update_reservation_status(request):
         reservation = get_object_or_404(Reservation, uuid=reservation_id)
 
         # Update status
-        valid_statuses = ["pending", "confirmed", "cancelled"]
+        valid_statuses = ["pending", "confirmed", "completed", "cancelled"]
         if status in valid_statuses:
             reservation.status = status
             reservation.save()
-            return JsonResponse({"success": True})
+            return JsonResponse({"success": True, "status": status})
         else:
             return JsonResponse({"success": False, "error": "Invalid status"}, status=400)
 

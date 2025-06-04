@@ -1,24 +1,27 @@
 {% extends 'main.html' %}
 
 {% block content %}
-  {% block navbar %}
-
-  {% endblock %}
+  {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
   <div class="container-fluid py-4">
     {% csrf_token %}
-    
+
     <!-- Toast Container -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
-      <div id="statusToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+      <div id="statusToast"
+           class="toast"
+           role="alert"
+           aria-live="assertive"
+           aria-atomic="true">
         <div class="toast-header">
           <i class="bi bi-check-circle-fill text-success me-2"></i>
           <strong class="me-auto">Status Updated</strong>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="toast"
+                  aria-label="Close"></button>
         </div>
-        <div class="toast-body">
-          Reservation status has been updated successfully.
-        </div>
+        <div class="toast-body">Reservation status has been updated successfully.</div>
       </div>
     </div>
 
@@ -44,10 +47,10 @@
               <!-- Search -->
               <div class="col-lg-4">
                 <div class="input-group input-group-lg">
-                  <input type="text" 
-                         name="search_q" 
-                         class="form-control" 
-                         placeholder="Search by name, email, phone..." 
+                  <input type="text"
+                         name="search_q"
+                         class="form-control"
+                         placeholder="Search by name, email, phone..."
                          value="{{ search_query }}"
                          id="searchInput" />
                   <button type="submit" class="btn btn-outline-dark px-4">
@@ -69,17 +72,27 @@
               <div class="col-lg-3">
                 <select name="status" class="form-select form-select-lg" id="statusFilter">
                   <option value="">All Statuses</option>
-                  <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-                  <option value="confirmed" {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                  <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                  <option value="pending"
+                          {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                  <option value="confirmed"
+                          {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                  <option value="completed"
+                          {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                  <option value="cancelled"
+                          {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
                 </select>
               </div>
 
               <!-- Clear Filters -->
               <div class="col-12">
-                <button type="button" class="btn btn-outline-secondary" id="clearFilters">
-                  <i class="bi bi-x-circle me-2"></i>Clear Filters
-                </button>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                    <i class="bi bi-x-circle me-2"></i>Clear Filters
+                  </button>
+                  <button type="button" class="btn btn-outline-primary" id="resetFilters">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset All
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -88,8 +101,43 @@
     </div>
 
     <!-- Reservations List -->
-    <div id="reservationsList">
-      {% include 'dispatching/includes/reservation_list.html' %}
+    <div id="reservationsList">{% include 'dispatching/includes/reservation_list.html' %}</div>
+
+    <!-- Status Update Modal -->
+    <div class="modal fade"
+         id="statusUpdateModal"
+         tabindex="-1"
+         aria-labelledby="statusUpdateModalLabel"
+         aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="statusUpdateModalLabel">Update Reservation Status</h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="statusUpdateForm">
+              {% csrf_token %}
+              <input type="hidden" id="reservationId" name="reservation_id">
+              <div class="mb-3">
+                <label for="statusSelect" class="form-label">New Status</label>
+                <select class="form-select" id="statusSelect" name="status">
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div class="d-grid">
+                <button type="submit" class="btn btn-primary">Update Status</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Statistics Cards -->
@@ -139,7 +187,9 @@
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <h6 class="text-uppercase mb-1">Total Revenue</h6>
-                <h2 class="mb-0">$<span id="totalRevenue">{{ total_revenue|floatformat:2 }}</span></h2>
+                <h2 class="mb-0">
+                  $<span id="totalRevenue">{{ total_revenue|floatformat:2 }}</span>
+                </h2>
               </div>
               <i class="bi bi-currency-dollar fs-1"></i>
             </div>
@@ -150,98 +200,119 @@
   </div>
 
   {% block extra_js %}
-  <script>
-    let searchTimeout;
-    const searchInput = document.getElementById('searchInput');
-    const filterForm = document.getElementById('filterForm');
-    const clearFiltersBtn = document.getElementById('clearFilters');
-    const reservationsList = document.getElementById('reservationsList');
-    const statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
+    <script>
+        let searchTimeout;
+        const searchInput = document.getElementById('searchInput');
+        const filterForm = document.getElementById('filterForm');
+        const clearFiltersBtn = document.getElementById('clearFilters');
+        const resetFiltersBtn = document.getElementById('resetFilters');
+        const reservationsList = document.getElementById('reservationsList');
+        const statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
+        const statusUpdateModal = new bootstrap.Modal(document.getElementById('statusUpdateModal'));
 
-    // Function to update the list via AJAX
-    function updateList() {
-      const formData = new FormData(filterForm);
-      const queryString = new URLSearchParams(formData).toString();
-      
-      fetch(`?${queryString}`, {
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
+        // Function to update the list via AJAX
+        function updateList() {
+            const formData = new FormData(filterForm);
+            const queryString = new URLSearchParams(formData).toString();
+
+            fetch(`?${queryString}`, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    reservationsList.innerHTML = data.html;
+                    document.getElementById('totalCount').textContent = data.total_count;
+                    document.getElementById('pendingCount').textContent = data.pending_count;
+                    document.getElementById('confirmedCount').textContent = data.confirmed_count;
+                    document.getElementById('totalRevenue').textContent = data.total_revenue.toFixed(2);
+
+                    // Update URL without page reload
+                    const newUrl = `${window.location.pathname}?${queryString}`;
+                    window.history.pushState({
+                        path: newUrl
+                    }, '', newUrl);
+                });
         }
-      })
-      .then(response => response.json())
-      .then(data => {
-        reservationsList.innerHTML = data.html;
-        document.getElementById('totalCount').textContent = data.total_count;
-        document.getElementById('pendingCount').textContent = data.pending_count;
-        document.getElementById('confirmedCount').textContent = data.confirmed_count;
-        document.getElementById('totalRevenue').textContent = data.total_revenue.toFixed(2);
-        
-        // Update URL without page reload
-        const newUrl = `${window.location.pathname}?${queryString}`;
-        window.history.pushState({ path: newUrl }, '', newUrl);
-      });
-    }
 
-    // Function to update reservation status
-    function updateReservationStatus(reservationId, status) {
-      fetch('/dispatching/update-reservation-status/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-        },
-        body: JSON.stringify({
-          reservation_id: reservationId,
-          status: status
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          // Show success toast
-          const toastBody = document.querySelector('#statusToast .toast-body');
-          toastBody.textContent = `Reservation status updated to ${status.charAt(0).toUpperCase() + status.slice(1)}`;
-          statusToast.show();
-          
-          // Update the list
-          updateList();
-        } else {
-          alert('Error updating status: ' + data.error);
+        // Function to show status update modal
+        function showStatusUpdateModal(reservationId, currentStatus) {
+            document.getElementById('reservationId').value = reservationId;
+            document.getElementById('statusSelect').value = currentStatus;
+            statusUpdateModal.show();
         }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        alert('Error updating status. Please try again.');
-      });
-    }
 
-    // Real-time search with debounce
-    searchInput.addEventListener('input', function() {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(updateList, 500);
-    });
+        // Handle status update form submission
+        document.getElementById('statusUpdateForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = {
+                reservation_id: formData.get('reservation_id'),
+                status: formData.get('status')
+            };
 
-    // Handle filter changes
-    document.getElementById('statusFilter').addEventListener('change', updateList);
-    document.getElementById('timeFilter').addEventListener('change', updateList);
+            fetch('/dispatching/update-reservation-status/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusUpdateModal.hide();
+                        const toastBody = document.querySelector('#statusToast .toast-body');
+                        toastBody.textContent = `Reservation status updated to ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}`;
+                        statusToast.show();
+                        updateList();
+                    } else {
+                        alert('Error updating status: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error updating status. Please try again.');
+                });
+        });
 
-    // Clear filters
-    clearFiltersBtn.addEventListener('click', function() {
-      // Reset form values
-      searchInput.value = '';
-      document.getElementById('statusFilter').value = '';
-      document.getElementById('timeFilter').value = 'all';
-      
-      // Update the list
-      updateList();
-    });
+        // Real-time search with debounce
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(updateList, 500);
+        });
 
-    // Handle form submission
-    filterForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      updateList();
-    });
-  </script>
+        // Handle filter changes
+        document.getElementById('statusFilter').addEventListener('change', updateList);
+        document.getElementById('timeFilter').addEventListener('change', updateList);
+
+        // Clear filters
+        clearFiltersBtn.addEventListener('click', function() {
+            // Reset form values
+            searchInput.value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('timeFilter').value = 'all';
+
+            // Update the list
+            updateList();
+        });
+
+        // Reset all filters and refresh page
+        resetFiltersBtn.addEventListener('click', function() {
+            // Clear URL parameters
+            window.history.pushState({}, '', window.location.pathname);
+            // Reload the page
+            window.location.reload();
+        });
+
+        // Handle form submission
+        filterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            updateList();
+        });
+    </script>
   {% endblock %}
 {% endblock %}
 {% block footer %}

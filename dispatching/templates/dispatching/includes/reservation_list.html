@@ -17,16 +17,36 @@
             <!-- Actions -->
             <td>
               <div class="d-flex flex-column gap-1">
-                <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-sm btn-outline-primary p-0" style="width: 32px; height: 32px; line-height: 32px;" title="View Details">
+                <a href="{% url 'reservation_details' reservation.uuid %}"
+                   class="btn btn-sm btn-outline-primary p-0"
+                   style="width: 32px;
+                          height: 32px;
+                          line-height: 32px"
+                   title="View Details">
                   <i class="bi bi-eye small"></i>
                 </a>
-                <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-sm btn-outline-secondary p-0" style="width: 32px; height: 32px; line-height: 32px;" title="Edit">
+                <a href="{% url 'modify_reservation' reservation.uuid %}"
+                   class="btn btn-sm btn-outline-secondary p-0"
+                   style="width: 32px;
+                          height: 32px;
+                          line-height: 32px"
+                   title="Edit">
                   <i class="bi bi-pencil small"></i>
                 </a>
-                <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}" class="btn btn-sm btn-outline-success p-0" style="width: 32px; height: 32px; line-height: 32px;" title="Payment">
+                <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
+                   class="btn btn-sm btn-outline-success p-0"
+                   style="width: 32px;
+                          height: 32px;
+                          line-height: 32px"
+                   title="Payment">
                   <i class="bi bi-credit-card small"></i>
                 </a>
-                <button onclick="updateReservationStatus('{{ reservation.uuid }}', 'cancelled')" class="btn btn-sm btn-outline-danger p-0" style="width: 32px; height: 32px; line-height: 32px;" title="Cancel">
+                <button onclick="showStatusUpdateModal('{{ reservation.uuid }}', '{{ reservation.status }}')"
+                        class="btn btn-sm btn-outline-danger p-0"
+                        style="width: 32px;
+                               height: 32px;
+                               line-height: 32px"
+                        title="Cancel">
                   <i class="bi bi-x-circle small"></i>
                 </button>
               </div>
@@ -45,7 +65,8 @@
               </div>
               <div>Created: {{ reservation.created_at|date:'M d, Y' }}</div>
               <div>
-                <a class="fw-semibold" href="{% url 'reservation_details' reservation.uuid %}">Reservation ID#{{ reservation.id }}</a>
+                <a class="fw-semibold"
+                   href="{% url 'reservation_details' reservation.uuid %}">Reservation ID#{{ reservation.id }}</a>
               </div>
             </td>
 
@@ -56,11 +77,19 @@
                   <div class="mb-1">
                     <span class="badge bg-dark text-white">{{ reservation.get_trip_type_display }}</span>
                   </div>
-                  <div class="fw-bold">{{ reservation.passenger_count }} Passengers • {{ reservation.suitcases_count }} Suitcases • {{ reservation.vehicle }}</div>
+                  <div class="fw-bold">
+                    {{ reservation.passenger_count }} Passengers • {{ reservation.suitcases_count }} Suitcases • {{ reservation.vehicle }}
+                  </div>
                   <div>Child Seats: {{ reservation.display_carseats|default:"0" }}</div>
 
                   <div class="mt-1">
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#notes-{{ reservation.id }}" aria-expanded="false"><i class="bi bi-card-text me-1"></i>Notes</button>
+                    <button class="btn btn-sm btn-outline-secondary"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#notes-{{ reservation.id }}"
+                            aria-expanded="false">
+                      <i class="bi bi-card-text me-1"></i>Notes
+                    </button>
                     <div class="collapse mt-2" id="notes-{{ reservation.id }}">
                       <div class="card card-body p-2 bg-light">
                         <div class="mb-1">
@@ -83,7 +112,10 @@
               {% if reservation.legs.count == 1 %}
                 {% with leg=reservation.legs.first %}
                   <div class="d-flex align-items-start mt-1">
-                    <div class="bg-light rounded-circle text-center flex-shrink-0" style="width: 24px; height: 24px; line-height: 24px;">1</div>
+                    <div class="bg-light rounded-circle text-center flex-shrink-0"
+                         style="width: 24px;
+                                height: 24px;
+                                line-height: 24px">1</div>
                     <div class="ms-2">
                       <div class="fw-semibold">{{ leg.pickup_date|date:'M d, Y' }} at {{ leg.pickup_time|date:'g:i A' }}</div>
                       <div class="d-flex">
@@ -101,7 +133,11 @@
                 <div class="card card-body py-2 px-3 bg-light">
                   {% for leg in reservation.legs.all %}
                     <div class="d-flex align-items-start {% if not forloop.last %}mb-2{% endif %}">
-                      <div class="bg-light rounded-circle text-center flex-shrink-0" style="width: 20px; height: 20px; line-height: 20px; font-size: 12px;">{{ forloop.counter }}</div>
+                      <div class="bg-light rounded-circle text-center flex-shrink-0"
+                           style="width: 20px;
+                                  height: 20px;
+                                  line-height: 20px;
+                                  font-size: 12px">{{ forloop.counter }}</div>
                       <div class="ms-2">
                         <div class="small fw-semibold">{{ leg.pickup_date|date:'M d, Y' }} at {{ leg.pickup_time|date:'g:i A' }}</div>
                         <div class="small">
@@ -112,9 +148,7 @@
                         </div>
                       </div>
                     </div>
-                    {% if not forloop.last %}
-                      <div class="border-bottom my-1"></div>
-                    {% endif %}
+                    {% if not forloop.last %}<div class="border-bottom my-1"></div>{% endif %}
                   {% endfor %}
                 </div>
               {% endif %}
@@ -124,21 +158,26 @@
             <td>
               <div>
                 <div class="mb-2">
-                  <strong>Reservation:</strong><br />
-                  <select class="form-select form-select-sm status-select" 
-                          onchange="updateReservationStatus('{{ reservation.uuid }}', this.value)">
-                    <option value="pending" {% if reservation.status == 'pending' %}selected{% endif %}>Pending</option>
-                    <option value="confirmed" {% if reservation.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                    <option value="cancelled" {% if reservation.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                  <strong>Reservation:</strong>
+                  <br />
+                  <select class="form-select form-select-sm status-select"
+                          onchange="showStatusUpdateModal('{{ reservation.uuid }}', this.value)">
+                    <option value="pending"
+                            {% if reservation.status == 'pending' %}selected{% endif %}>Pending</option>
+                    <option value="confirmed"
+                            {% if reservation.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                    <option value="completed"
+                            {% if reservation.status == 'completed' %}selected{% endif %}>Completed</option>
+                    <option value="cancelled"
+                            {% if reservation.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
                   </select>
                 </div>
 
                 <div class="mt-3">
-                  <strong>Payment:</strong><br />
+                  <strong>Payment:</strong>
+                  <br />
                   <span class="fw-semibold">${{ reservation.total_price|floatformat:2 }}</span>
-                  {% if not reservation.all_payments %}
-                    <span class="badge bg-warning text-dark ms-1">Unpaid</span>
-                  {% endif %}
+                  {% if not reservation.all_payments %}<span class="badge bg-warning text-dark ms-1">Unpaid</span>{% endif %}
                 </div>
               </div>
             </td>
@@ -167,16 +206,36 @@
                   <div>Created: {{ reservation.created_at|date:'M d, Y' }}</div>
                 </div>
                 <div class="d-flex flex-column gap-1">
-                  <a href="{% url 'reservation_details' reservation.uuid %}" class="btn btn-sm btn-outline-primary p-0" style="width: 32px; height: 32px; line-height: 32px;" title="View Details">
+                  <a href="{% url 'reservation_details' reservation.uuid %}"
+                     class="btn btn-sm btn-outline-primary p-0"
+                     style="width: 32px;
+                            height: 32px;
+                            line-height: 32px"
+                     title="View Details">
                     <i class="bi bi-eye small"></i>
                   </a>
-                  <a href="{% url 'modify_reservation' reservation.uuid %}" class="btn btn-sm btn-outline-secondary p-0" style="width: 32px; height: 32px; line-height: 32px;" title="Edit">
+                  <a href="{% url 'modify_reservation' reservation.uuid %}"
+                     class="btn btn-sm btn-outline-secondary p-0"
+                     style="width: 32px;
+                            height: 32px;
+                            line-height: 32px"
+                     title="Edit">
                     <i class="bi bi-pencil small"></i>
                   </a>
-                  <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}" class="btn btn-sm btn-outline-success p-0" style="width: 32px; height: 32px; line-height: 32px;" title="Payment">
+                  <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
+                     class="btn btn-sm btn-outline-success p-0"
+                     style="width: 32px;
+                            height: 32px;
+                            line-height: 32px"
+                     title="Payment">
                     <i class="bi bi-credit-card small"></i>
                   </a>
-                  <button onclick="updateReservationStatus('{{ reservation.uuid }}', 'cancelled')" class="btn btn-sm btn-outline-danger p-0" style="width: 32px; height: 32px; line-height: 32px;" title="Cancel">
+                  <button onclick="showStatusUpdateModal('{{ reservation.uuid }}', '{{ reservation.status }}')"
+                          class="btn btn-sm btn-outline-danger p-0"
+                          style="width: 32px;
+                                 height: 32px;
+                                 line-height: 32px"
+                          title="Cancel">
                     <i class="bi bi-x-circle small"></i>
                   </button>
                 </div>
@@ -191,7 +250,9 @@
                     <i class="bi bi-calendar-event fs-4 text-primary me-3"></i>
                     <div>
                       <span class="badge bg-dark text-white mb-1">{{ reservation.get_trip_type_display }}</span>
-                      <div class="fw-semibold">{{ reservation.vehicle }} • {{ reservation.passenger_count }} Passengers • {{ reservation.suitcases_count }} Suitcases</div>
+                      <div class="fw-semibold">
+                        {{ reservation.vehicle }} • {{ reservation.passenger_count }} Passengers • {{ reservation.suitcases_count }} Suitcases
+                      </div>
                       <div>Child Seats: {{ reservation.display_carseats|default:"0" }}</div>
                     </div>
                   </div>
@@ -225,7 +286,10 @@
                       {% if reservation.legs.count == 1 %}
                         {% with leg=reservation.legs.first %}
                           <div class="d-flex align-items-start">
-                            <div class="bg-light rounded-circle text-center flex-shrink-0" style="width: 24px; height: 24px; line-height: 24px;">1</div>
+                            <div class="bg-light rounded-circle text-center flex-shrink-0"
+                                 style="width: 24px;
+                                        height: 24px;
+                                        line-height: 24px">1</div>
                             <div class="ms-2">
                               <div class="fw-semibold">{{ leg.pickup_date|date:'M d, Y' }} at {{ leg.pickup_time|date:'g:i A' }}</div>
                               <div>
@@ -241,7 +305,11 @@
                         <div class="card card-body py-2 px-3 bg-light">
                           {% for leg in reservation.legs.all %}
                             <div class="d-flex align-items-start {% if not forloop.last %}mb-2{% endif %}">
-                              <div class="bg-light rounded-circle text-center flex-shrink-0" style="width: 20px; height: 20px; line-height: 20px; font-size: 12px;">{{ forloop.counter }}</div>
+                              <div class="bg-light rounded-circle text-center flex-shrink-0"
+                                   style="width: 20px;
+                                          height: 20px;
+                                          line-height: 20px;
+                                          font-size: 12px">{{ forloop.counter }}</div>
                               <div class="ms-2">
                                 <div class="small fw-semibold">{{ leg.pickup_date|date:'M d, Y' }} at {{ leg.pickup_time|date:'g:i A' }}</div>
                                 <div class="small">
@@ -252,9 +320,7 @@
                                 </div>
                               </div>
                             </div>
-                            {% if not forloop.last %}
-                              <div class="border-bottom my-1"></div>
-                            {% endif %}
+                            {% if not forloop.last %}<div class="border-bottom my-1"></div>{% endif %}
                           {% endfor %}
                         </div>
                       {% endif %}
@@ -268,21 +334,26 @@
                     <i class="bi bi-credit-card fs-4 text-primary me-3"></i>
                     <div>
                       <div class="mb-2">
-                        <strong>Status:</strong><br />
-                        <select class="form-select form-select-sm status-select" 
-                                onchange="updateReservationStatus('{{ reservation.uuid }}', this.value)">
-                          <option value="pending" {% if reservation.status == 'pending' %}selected{% endif %}>Pending</option>
-                          <option value="confirmed" {% if reservation.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                          <option value="cancelled" {% if reservation.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        <strong>Status:</strong>
+                        <br />
+                        <select class="form-select form-select-sm status-select"
+                                onchange="showStatusUpdateModal('{{ reservation.uuid }}', this.value)">
+                          <option value="pending"
+                                  {% if reservation.status == 'pending' %}selected{% endif %}>Pending</option>
+                          <option value="confirmed"
+                                  {% if reservation.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                          <option value="completed"
+                                  {% if reservation.status == 'completed' %}selected{% endif %}>Completed</option>
+                          <option value="cancelled"
+                                  {% if reservation.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
                         </select>
                       </div>
 
                       <div class="mt-2">
-                        <strong>Payment:</strong><br />
+                        <strong>Payment:</strong>
+                        <br />
                         <span class="fw-semibold">${{ reservation.total_price|floatformat:2 }}</span>
-                        {% if not reservation.all_payments %}
-                          <span class="badge bg-warning text-dark ms-1">Unpaid</span>
-                        {% endif %}
+                        {% if not reservation.all_payments %}<span class="badge bg-warning text-dark ms-1">Unpaid</span>{% endif %}
                       </div>
                     </div>
                   </div>
@@ -306,7 +377,9 @@
             </a>
           </li>
           <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+            <a class="page-link"
+               href="?page={{ page_obj.previous_page_number }}"
+               aria-label="Previous">
               <span aria-hidden="true">&laquo;</span>
             </a>
           </li>
@@ -326,12 +399,16 @@
 
         {% if page_obj.has_next %}
           <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+            <a class="page-link"
+               href="?page={{ page_obj.next_page_number }}"
+               aria-label="Next">
               <span aria-hidden="true">&raquo;</span>
             </a>
           </li>
           <li class="page-item">
-            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+            <a class="page-link"
+               href="?page={{ page_obj.paginator.num_pages }}"
+               aria-label="Last">
               <span aria-hidden="true">&raquo;&raquo;</span>
             </a>
           </li>

@@ -287,7 +287,7 @@ class CustomerAdmin(ImportExportModelAdmin):
 
 @admin.register(Reservation)
 class ReservationAdmin(ImportExportModelAdmin):
-    ordering = ("legs__pickup_date",)
+    ordering = ("-id",)
     resource_class = ReservationResource
     inlines = [LegInline]
     readonly_fields = (
@@ -354,9 +354,6 @@ class ReservationAdmin(ImportExportModelAdmin):
         "mark_as_confirmed",
         "mark_as_completed",
         "mark_as_cancelled",
-        "print_reservation_details",
-        "export_selected_reservations",
-        "assign_to_travel_agent",
         "update_profit_calculations",
     ]
 
@@ -638,21 +635,6 @@ class ReservationAdmin(ImportExportModelAdmin):
         self.message_user(
             request, f"{updated} reservations have been marked as cancelled."
         )
-
-    @admin.action(description="Print reservation details")
-    def print_reservation_details(self, request, queryset):
-        # Implementation would generate a printable view
-        pass
-
-    @admin.action(description="Export detailed reservation information")
-    def export_selected_reservations(self, request, queryset):
-        # Implementation would use the export functionality
-        pass
-
-    @admin.action(description="Assign to travel agent")
-    def assign_to_travel_agent(self, request, queryset):
-        # Implementation would redirect to a form to select a travel agent
-        pass
 
     @admin.action(description="Update profit calculations")
     def update_profit_calculations(self, request, queryset):

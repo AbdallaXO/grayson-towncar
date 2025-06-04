@@ -23,6 +23,79 @@
       </div>
     </div>
 
+    <!-- Filters Section -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <form id="filterForm" class="row g-3">
+              <!-- Date Range Filter -->
+              <div class="col-lg-6">
+                <div class="row g-2">
+                  <div class="col-6">
+                    <label class="form-label">From</label>
+                    <input type="date"
+                           name="date_from"
+                           class="form-control"
+                           value="{{ date_from }}"
+                           id="dateFrom" />
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label">To</label>
+                    <input type="date"
+                           name="date_to"
+                           class="form-control"
+                           value="{{ date_to }}"
+                           id="dateTo" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Time Range Filter -->
+              <div class="col-lg-3">
+                <label class="form-label">Quick Filters</label>
+                <select name="time_filter" class="form-select" id="timeFilter">
+                  <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
+                  <option value="week" {% if time_filter == 'week' %}selected{% endif %}>This Week</option>
+                  <option value="next_week"
+                          {% if time_filter == 'next_week' %}selected{% endif %}>Next Week</option>
+                </select>
+              </div>
+
+              <!-- Status Filter -->
+              <div class="col-lg-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select" id="statusFilter">
+                  <option value="">All Statuses</option>
+                  <option value="in-progress"
+                          {% if status_filter == 'in-progress' %}selected{% endif %}>In Progress</option>
+                  <option value="picked-up"
+                          {% if status_filter == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                  <option value="completed"
+                          {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                </select>
+              </div>
+
+              <!-- Clear Filters -->
+              <div class="col-12">
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search me-2"></i>Apply Filters
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                    <i class="bi bi-x-circle me-2"></i>Clear Filters
+                  </button>
+                  <button type="button" class="btn btn-outline-primary" id="resetFilters">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset All
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
     {% if legs %}
       <!-- Desktop View -->
       <div class="table-responsive rounded shadow-sm mb-3 d-none d-lg-block">
@@ -356,63 +429,54 @@
   </div>
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          // Driver and status selection handlers
-          document.querySelectorAll('.driver-select, .status-select').forEach(select => {
-              select.addEventListener('change', function() {
-                  const legId = this.dataset.legId;
-                  const selectName = this.name;
-                  const selectValue = this.value;
-                  const form = this.closest('form');
-                  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
-                  const statusElement = form.querySelector('.update-status');
+          const filterForm = document.getElementById('filterForm');
+          const clearFiltersBtn = document.getElementById('clearFilters');
+          const resetFiltersBtn = document.getElementById('resetFilters');
+          const timeFilter = document.getElementById('timeFilter');
+          const statusFilter = document.getElementById('statusFilter');
+          const dateFrom = document.getElementById('dateFrom');
+          const dateTo = document.getElementById('dateTo');
 
-                  console.log('Updating', selectName, 'to', selectValue, 'for leg:', legId);
+          // Handle filter changes
+          timeFilter.addEventListener('change', function() {
+              // Clear date range when time range is selected
+              if (this.value !== 'all') {
+                  dateFrom.value = '';
+                  dateTo.value = '';
+              }
+          });
 
-                  // Send the update to the server via AJAX
-                  fetch('/dispatching/update_leg_assignment/', {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken
-                          },
-                          body: JSON.stringify({
-                              leg_id: legId,
-                              field: selectName,
-                              value: selectValue
-                          })
-                      })
-                      .then(response => {
-                          if (!response.ok) {
-                              return response.json().then(data => {
-                                  throw new Error(data.error || 'Server error: ' + response.status);
-                              });
-                          }
-                          return response.json();
-                      })
-                      .then(data => {
-                          if (data.success) {
-                              console.log('Update successful');
-                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                              setTimeout(() => {
-                                  statusElement.innerHTML = '';
-                              }, 3000);
-                          } else {
-                              console.error('Update failed:', data.error);
-                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
-                          }
-                      })
-                      .catch(error => {
-                          console.error('Error:', error);
-                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
-                      });
-              });
+          // Clear filters
+          clearFiltersBtn.addEventListener('click', function() {
+              dateFrom.value = '';
+              dateTo.value = '';
+              timeFilter.value = 'all';
+              statusFilter.value = '';
+              filterForm.submit();
+          });
+
+          // Reset all filters and refresh page
+          resetFiltersBtn.addEventListener('click', function() {
+              window.location.href = window.location.pathname;
+          });
+
+          // Validate date range
+          dateFrom.addEventListener('change', function() {
+              if (dateTo.value && this.value > dateTo.value) {
+                  dateTo.value = this.value;
+              }
+          });
+
+          dateTo.addEventListener('change', function() {
+              if (dateFrom.value && this.value < dateFrom.value) {
+                  dateFrom.value = this.value;
+              }
           });
       });
   </script>
 {% endblock content %}
 
 
-{% block footer %}
-
-{% endblock %}
-{% block newsletter %}{% endblock newsletter %}
+{% block footer %}{% endblock %}
+{% block newsletter %}
+{% endblock newsletter %}
