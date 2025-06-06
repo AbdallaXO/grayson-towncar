@@ -73,13 +73,13 @@ def create_checkout_session(request, reservation_id):
             return redirect(checkout_session.url, code=303)
         elif action == "save_card":
             logger.info(f"Redirecting to save card for reservation {reservation_id}")
-            return redirect("save_card_checkout", reservation_id=reservation.uuid)
+            return redirect("save_card_checkout", reservation_uuid=reservation.uuid)
 
     return render(request, "stripe/payment.html", {"reservation": reservation})
 
 
-def save_card(request, reservation_id):
-    reservation = get_object_or_404(Reservation, uuid=reservation_id)
+def save_card(request, reservation_uuid):
+    reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
     success_url = request.build_absolute_uri(
         reverse("payment_success") + f"?q={reservation.uuid}"
     )
@@ -99,7 +99,8 @@ def save_card(request, reservation_id):
             success_url=success_url,
             cancel_url=cancel_url,
             metadata={
-                "reservation_id": reservation.uuid,
+                "reservation_id": reservation.id,
+                "reservation_uuid": reservation.uuid,
                 "customer_id": reservation.customer.id,
                 "mode": "pay_now",
                 "route": f"Roundtrip Between {reservation.rate.route}",
