@@ -4,7 +4,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.contrib import messages
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Sum, Q, Count
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -420,27 +420,34 @@ def legs_list(request):
     # Order by pickup date first, then pickup time for better readability
     legs = legs_query.order_by("pickup_date", "pickup_time")
     
+    # PAGINATION: Show 20 legs per page
+    paginator = Paginator(legs, 20)
+    page = request.GET.get("page")
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     # Get all drivers in a single query
     drivers = Driver.objects.select_related('profile').all()
     
     # Get all latest payments in one query
-    latest_payment_ids = [leg.latest_payment_id for leg in legs if leg.latest_payment_id]
+    latest_payment_ids = [leg.latest_payment_id for leg in page_obj if leg.latest_payment_id]
     if latest_payment_ids:
         latest_payments = Payment.objects.in_bulk(latest_payment_ids)
-        
-        # Attach latest payment to each reservation
-        for leg in legs:
+        for leg in page_obj:
             if leg.latest_payment_id:
                 leg.reservation.latest_payment = latest_payments.get(leg.latest_payment_id)
             else:
                 leg.reservation.latest_payment = None
     else:
-        # No payments found
-        for leg in legs:
+        for leg in page_obj:
             leg.reservation.latest_payment = None
     
     context = {
-        "legs": legs,
+        "legs": page_obj,
         "filter_date": date_filter,
         "date_from": date_from,
         "date_to": date_to,
@@ -448,6 +455,7 @@ def legs_list(request):
         "time_filter": time_filter,
         "drivers": drivers, 
         "today_count": today_count,
+        "page_obj": page_obj,
     }
     
     return render(request, "dispatching/legs_list.html", context)

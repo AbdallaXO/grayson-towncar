@@ -472,6 +472,53 @@
                   dateFrom.value = this.value;
               }
           });
+
+          // --- AJAX for driver/status update ---
+          document.querySelectorAll('.driver-select, .status-select').forEach(select => {
+              select.addEventListener('change', function() {
+                  const legId = this.dataset.legId;
+                  const selectName = this.name;
+                  const selectValue = this.value;
+                  const form = this.closest('form');
+                  const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+                  const statusElement = form.querySelector('.update-status');
+
+                  // Send the update to the server via AJAX
+                  fetch('/dispatching/update_leg_assignment/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId,
+                              field: selectName,
+                              value: selectValue
+                          })
+                      })
+                      .then(response => {
+                          if (!response.ok) {
+                              return response.json().then(data => {
+                                  throw new Error(data.error || 'Server error: ' + response.status);
+                              });
+                          }
+                          return response.json();
+                      })
+                      .then(data => {
+                          if (data.success) {
+                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                              setTimeout(() => {
+                                  statusElement.innerHTML = '';
+                              }, 3000);
+                          } else {
+                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                          }
+                      })
+                      .catch(error => {
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                      });
+              });
+          });
       });
   </script>
 {% endblock content %}
