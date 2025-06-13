@@ -25,43 +25,77 @@
       </div>
     </div>
 
-    <!-- Header Section -->
+    <!-- Header Section with Stats -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center flex-wrap">
-          <h1 class="mb-3 mb-md-0 fs-1 fw-bold">Reservations</h1>
-          <div class="d-flex flex-wrap gap-3">
-            <a href="{% url 'dashboard' %}" class="btn btn-dark btn-lg"><i class="bi bi-calendar-date me-2"></i>Dashboard</a>
-            <a href="{% url 'legs_list' %}" class="btn btn-warning btn-lg"><i class="bi bi-list-ul me-2"></i>View Legs</a>
+        <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+          <h1 class="mb-0 fs-1 fw-bold">Reservations</h1>
+          <div class="d-flex gap-2">
+            <a href="{% url 'dashboard' %}" class="btn btn-dark"><i class="bi bi-calendar-date me-2"></i>Dashboard</a>
+            <a href="{% url 'legs_list' %}" class="btn btn-warning"><i class="bi bi-list-ul me-2"></i>View Legs</a>
+          </div>
+        </div>
+        
+        <!-- Compact Stats Bar -->
+        <div class="d-flex gap-3 mb-4">
+          <div class="d-flex align-items-center bg-light rounded px-3 py-2">
+            <i class="bi bi-calendar-check text-primary me-2"></i>
+            <div>
+              <small class="text-muted d-block">Total</small>
+              <span class="fw-bold" id="totalCount">{{ total_reservations }}</span>
+            </div>
+          </div>
+          <div class="d-flex align-items-center bg-light rounded px-3 py-2">
+            <i class="bi bi-hourglass-split text-warning me-2"></i>
+            <div>
+              <small class="text-muted d-block">Pending</small>
+              <span class="fw-bold" id="pendingCount">{{ pending_reservations }}</span>
+            </div>
+          </div>
+          <div class="d-flex align-items-center bg-light rounded px-3 py-2">
+            <i class="bi bi-check-circle text-success me-2"></i>
+            <div>
+              <small class="text-muted d-block">Confirmed</small>
+              <span class="fw-bold" id="confirmedCount">{{ confirmed_reservations }}</span>
+            </div>
+          </div>
+          <div class="d-flex align-items-center bg-light rounded px-3 py-2">
+            <i class="bi bi-currency-dollar text-danger me-2"></i>
+            <div>
+              <small class="text-muted d-block">Revenue</small>
+              <span class="fw-bold">$<span id="totalRevenue">{{ total_revenue|floatformat:2 }}</span></span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Filters Section -->
+    <!-- Compact Filters Section -->
     <div class="row mb-4">
       <div class="col-12">
         <div class="card shadow-sm">
           <div class="card-body">
-            <form id="filterForm" class="row g-3">
+            <form id="filterForm" class="row g-3 align-items-end">
               <!-- Search -->
               <div class="col-lg-4">
-                <div class="input-group input-group-lg">
+                <label class="form-label small">Search</label>
+                <div class="input-group">
                   <input type="text"
                          name="search_q"
                          class="form-control"
                          placeholder="Search by name, email, phone..."
                          value="{{ search_query }}"
                          id="searchInput" />
-                  <button type="submit" class="btn btn-outline-dark px-4">
-                    <i class="bi bi-search me-2"></i>Search
+                  <button type="submit" class="btn btn-outline-dark">
+                    <i class="bi bi-search"></i>
                   </button>
                 </div>
               </div>
 
               <!-- Time Filter -->
               <div class="col-lg-3">
-                <select name="time_filter" class="form-select form-select-lg" id="timeFilter">
+                <label class="form-label small">Time Period</label>
+                <select name="time_filter" class="form-select" id="timeFilter">
                   <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
                   <option value="week" {% if time_filter == 'week' %}selected{% endif %}>This Week</option>
                   <option value="month" {% if time_filter == 'month' %}selected{% endif %}>This Month</option>
@@ -70,27 +104,24 @@
 
               <!-- Status Filter -->
               <div class="col-lg-3">
-                <select name="status" class="form-select form-select-lg" id="statusFilter">
+                <label class="form-label small">Status</label>
+                <select name="status" class="form-select" id="statusFilter">
                   <option value="">All Statuses</option>
-                  <option value="pending"
-                          {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-                  <option value="confirmed"
-                          {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                  <option value="completed"
-                          {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
-                  <option value="cancelled"
-                          {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                  <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                  <option value="confirmed" {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                  <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                  <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
                 </select>
               </div>
 
-              <!-- Clear Filters -->
-              <div class="col-12">
+              <!-- Filter Actions -->
+              <div class="col-lg-2">
                 <div class="d-flex gap-2">
-                  <button type="button" class="btn btn-outline-secondary" id="clearFilters">
-                    <i class="bi bi-x-circle me-2"></i>Clear Filters
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="clearFilters">
+                    <i class="bi bi-x-circle me-1"></i>Clear
                   </button>
-                  <button type="button" class="btn btn-outline-primary" id="resetFilters">
-                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset All
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="resetFilters">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
                   </button>
                 </div>
               </div>
@@ -135,64 +166,6 @@
                 <button type="submit" class="btn btn-primary">Update Status</button>
               </div>
             </form>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Statistics Cards -->
-    <div class="row mt-4">
-      <div class="col-md-2">
-        <div class="card bg-primary text-white h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="text-uppercase mb-1">Total Reservations</h6>
-                <h2 class="mb-0" id="totalCount">{{ total_reservations }}</h2>
-              </div>
-              <i class="bi bi-calendar-check fs-1"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="card bg-warning text-dark h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="text-uppercase mb-1">Pending</h6>
-                <h2 class="mb-0" id="pendingCount">{{ pending_reservations }}</h2>
-              </div>
-              <i class="bi bi-hourglass-split fs-1"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="card bg-success text-white h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="text-uppercase mb-1">Confirmed</h6>
-                <h2 class="mb-0" id="confirmedCount">{{ confirmed_reservations }}</h2>
-              </div>
-              <i class="bi bi-check-circle fs-1"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="card bg-danger text-white h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="text-uppercase mb-1">Total Revenue</h6>
-                <h2 class="mb-0">
-                  $<span id="totalRevenue">{{ total_revenue|floatformat:2 }}</span>
-                </h2>
-              </div>
-              <i class="bi bi-currency-dollar fs-1"></i>
-            </div>
           </div>
         </div>
       </div>
