@@ -9,7 +9,7 @@ from .models import Payment
 from users.emails import send_reservation_confirmation  # Added import
 from decimal import Decimal  # Added import
 from reservations.hubspot_service import update_deal_payment_status
-
+from reservations.conversions import send_purchase_event
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -188,6 +188,7 @@ def handle_checkout_session(session):
 
                 send_reservation_confirmation(reservation)
                 logger.info(f"Payment processed for reservation {reservation_id}")
+                send_purchase_event(reservation, final_amount)
             else:
                 logger.error("No payment_intent in session")
 

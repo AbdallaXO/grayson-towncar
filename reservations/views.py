@@ -24,6 +24,7 @@ from .forms import LeadForm
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
+from .conversions import send_lead_event, send_initiate_checkout_event
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,14 @@ def reservation_form(
                 leg2.save()
 
             extra_charges(reservation)
+
+            # Send InitiateCheckout event to Meta Conversions API
+            try:
+                send_initiate_checkout_event(reservation, request)
+                logger.info("Successfully sent InitiateCheckout event to Meta Conversions API")
+            except Exception as e:
+                logger.error(f"Error sending InitiateCheckout event to Meta Conversions API: {str(e)}")
+
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
         (
@@ -215,6 +224,13 @@ class QuoteFormHandlerView(View):
 
                 # Log the lead creation
                 logger.info(f"New lead created: {lead}")
+
+                # Send lead event to Meta Conversions API
+                try:
+                    send_lead_event(lead, request)
+                    logger.info("Successfully sent lead event to Meta Conversions API")
+                except Exception as e:
+                    logger.error(f"Error sending lead event to Meta Conversions API: {str(e)}")
 
                 return JsonResponse({"success": True, "lead_id": lead.id})
             else:
