@@ -13,6 +13,12 @@ def get_base_structured_data(request, additional_data=None):
         "@context": "https://schema.org",
         "@type": ["Organization", "LocalBusiness"],
         "name": "Grayson Towncar",
+        "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "postalCode": "32827"
+    },
         "description": (
             "Premier private airport transportation service in Orlando, offering luxury "
             "MCO airport transfers, Disney resort shuttles, Universal Studios transportation, "
