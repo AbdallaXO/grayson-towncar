@@ -2,62 +2,45 @@
 {% load seo_tags %}
 {% load static %}
 {% block head_extra %}
-  <link rel="canonical"
-        href="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
-{% endblock head_extra %}
-{% block title %}Orlando Airport Transfers | MCO & Sanford to Disney & Universal | Grayson Towncar{% endblock %}
-{% block meta_description %}
-  <meta name="description"
-        content="Premium Orlando airport transfers from both MCO and Sanford International Airports to Disney World, Universal Studios, and all Orlando destinations. Enjoy luxury vehicles, professional drivers, and complimentary car seats.">
-  <link rel="preload"
-        href="{% static 'images/grayson-mco.png' %}"
-        as="image"
-        type="image/webp">
+  <link rel="canonical" href="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
 {% endblock %}
-{% block extra_css %}{% endblock %}
+{% block title %}
+  Orlando Airport Transportation | MCO & Sanford to Disney, Universal & More
+{% endblock %}
+{% block meta_description %}
+  <meta name="description" content="Premium Orlando airport transfers from both MCO and Sanford International Airports to Disney World, Universal Studios, and all Orlando destinations. Enjoy luxury vehicles, professional drivers, and complimentary car seats." />
+  <link rel="preload" href="{% static 'images/grayson-mco.png' %}" as="image" type="image/webp" />
+{% endblock %}
 {% block content %}
   {% block schema %}
-    {% structured_data additional_data=structured_data %}
-  {% endblock schema %}
-  <section class="position-relative overflow-hidden d-flex align-items-center"
-           id="hero"
-           style="min-height: 70vh">
+    {% structured_data %}
+  {% endblock %}
+  <section class="position-relative overflow-hidden d-flex align-items-center" id="hero" style="min-height: 70vh">
     <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/grayson-mco.png' %}"
-           alt="Orlando International Airport (MCO) and Sanford International Airport (SFB) terminals"
-           class="w-100 h-100 object-fit-cover"
-           style="position: absolute;
-                  z-index: 0"
-           fetchpriority="high">
-      <div class="position-absolute top-0 start-0 w-100 h-100"
-           style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.5));
+      <img src="{% static 'images/grayson-mco.png' %}" alt="Orlando International Airport (MCO) and Sanford International Airport (SFB) terminals" class="w-100 h-100 object-fit-cover" style="position: absolute;
+                  z-index: 0" fetchpriority="high" />
+      <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.5));
                   z-index: 1"></div>
     </div>
     <div class="container position-relative z-1 py-5">
       <div class="row justify-content-center text-center text-white">
         <div class="col-12 col-md-10 col-lg-8">
           <h1 class="display-3 fw-bold mb-4 text-shadow">Orlando Airport Transfers</h1>
-          <p class="lead mb-5 fs-4">
-            Premium transfers from both MCO and Sanford International Airports to Disney World, Universal Studios, and all Orlando destinations.
-          </p>
+          <p class="lead mb-5 fs-4">Premium transfers from both MCO and Sanford International Airports to Disney World, Universal Studios, and all Orlando destinations.</p>
           <div class="d-flex flex-wrap justify-content-center gap-2">
-            <a href="{% url 'rates' %}"
-               class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Check Our Airport Rates</a>
+            <a href="{% url 'rates' %}" class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Check Our Airport Rates</a>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-
   <section class="py-6 mt-5">
     <div class="container">
       <div class="row">
         <div class="col-lg-8 mx-auto">
           <h2 class="display-5 fw-normal mb-4">Premium Airport Transfer Service</h2>
-          <p class="lead mb-4">
-            Experience stress-free travel from both Orlando International Airport (MCO) and Sanford International Airport (SFB) to your destination with our premium transportation service.
-          </p>
+          <p class="lead mb-4">Experience stress-free travel from both Orlando International Airport (MCO) and Sanford International Airport (SFB) to your destination with our premium transportation service.</p>
 
           <div class="row g-4 mb-5">
             <div class="col-md-6">
@@ -67,27 +50,15 @@
                   <p class="mb-3">Florida's busiest airport, located just 6 miles from downtown Orlando.</p>
                   <ul class="list-unstyled mb-0">
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-primary me-2"
-                           alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                       Major domestic and international flights
                     </li>
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-primary me-2"
-                           alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                       Closer to Disney World and Universal
                     </li>
                     <li>
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-primary me-2"
-                           alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                       More flight options
                     </li>
                   </ul>
@@ -101,27 +72,15 @@
                   <p class="mb-3">A convenient alternative airport located in Sanford, Florida.</p>
                   <ul class="list-unstyled mb-0">
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-primary me-2"
-                           alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                       Popular for European flights
                     </li>
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-primary me-2"
-                           alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                       Less crowded terminals
                     </li>
                     <li>
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-primary me-2"
-                           alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                       Often lower fares
                     </li>
                   </ul>
@@ -135,43 +94,23 @@
               <h3 class="h4 mb-3">Our Service Includes:</h3>
               <ul class="list-unstyled mb-0">
                 <li class="mb-3">
-                  <img src="{% static 'images/check.webp' %}"
-                       width="16"
-                       height="16"
-                       class="text-primary me-2"
-                       alt="Check" />
+                  <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                   <strong>Professional Drivers:</strong> Experienced, courteous, and knowledgeable about Orlando
                 </li>
                 <li class="mb-3">
-                  <img src="{% static 'images/check.webp' %}"
-                       width="16"
-                       height="16"
-                       class="text-primary me-2"
-                       alt="Check" />
+                  <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                   <strong>Luxury Vehicles:</strong> Clean, comfortable, and well-maintained fleet
                 </li>
                 <li class="mb-3">
-                  <img src="{% static 'images/check.webp' %}"
-                       width="16"
-                       height="16"
-                       class="text-primary me-2"
-                       alt="Check" />
+                  <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                   <strong>Complimentary Car Seats:</strong> Available for children of all ages
                 </li>
                 <li class="mb-3">
-                  <img src="{% static 'images/check.webp' %}"
-                       width="16"
-                       height="16"
-                       class="text-primary me-2"
-                       alt="Check" />
+                  <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                   <strong>Flight Tracking:</strong> We monitor your flight for on-time pickup
                 </li>
                 <li class="mb-3">
-                  <img src="{% static 'images/check.webp' %}"
-                       width="16"
-                       height="16"
-                       class="text-primary me-2"
-                       alt="Check" />
+                  <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-primary me-2" alt="Check" />
                   <strong>Luggage Assistance:</strong> Help with loading and unloading your bags
                 </li>
               </ul>
@@ -215,8 +154,7 @@
           </div>
 
           <div class="text-center mt-5">
-            <a href="{% url 'rates' %}"
-               class="btn btn-dark btn-lg px-5 py-3 rounded-pill">View Our Rates</a>
+            <a href="{% url 'rates' %}" class="btn btn-dark btn-lg px-5 py-3 rounded-pill">View Our Rates</a>
           </div>
         </div>
       </div>

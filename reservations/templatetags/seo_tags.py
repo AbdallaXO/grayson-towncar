@@ -11,7 +11,7 @@ def get_base_structured_data(request, additional_data=None):
     """
     base_data = {
         "@context": "https://schema.org",
-        "@type": ["TransportService", "LocalBusiness"],
+        "@type": ["Organization", "LocalBusiness"],
         "name": "Grayson Towncar",
         "description": (
             "Premier private airport transportation service in Orlando, offering luxury "
@@ -40,7 +40,6 @@ def get_base_structured_data(request, additional_data=None):
                 "geoRadius": "100 mi",
             },
         },
-        "languages": ["en-US", "ar-SA"],
         "additionalType": [
             "Airport Shuttle",
             "Disney Resort Transportation",
@@ -98,17 +97,6 @@ def get_base_structured_data(request, additional_data=None):
                 },
             ],
         },
-        "serviceFeatures": [
-            "Free grocery store stops",
-            "Complimentary car seats and booster seats",
-            "MCO airport meet and greet",
-            "24/7 pickup availability",
-            "Flight monitoring",
-            "Disney resort transportation",
-            "Universal Studios shuttle service",
-            "Port Canaveral cruise transfers",
-            "Multilingual service",
-        ],
         "aggregateRating": {
             "@type": "AggregateRating",
             "ratingValue": 4.8,
@@ -143,21 +131,13 @@ def get_base_structured_data(request, additional_data=None):
                 "solutions in Central Florida"
             ),
         },
-        "areaServedDetails": {
-            "@type": "Place",
-            "name": "Central Florida Transportation Network",
-            "description": (
-                "Serving Orlando International Airport (MCO), Disney World, Universal Studios, "
-                "SeaWorld, Port Canaveral, and surrounding areas within a 100-mile radius"
-            ),
-        },
         "keywords": [
-            "Orlando airport shuttle",
+            "Orlando airport transfers",
             "MCO transportation service",
             "Disney World transportation",
             "Universal Studios transportation",
             "Port Canaveral cruise transfer",
-            "Orlando executive towncar",
+            "MCO airport to disney world",
             "Luxury airport transfer",
             "Private Orlando transportation",
             "Orlando chauffeur service",
@@ -166,7 +146,7 @@ def get_base_structured_data(request, additional_data=None):
             "Orlando transportation with car seats",
             "Orlando black car service",
             "Orlando luxury ground transportation",
-            "Orlando VIP transportation",
+            "Orlando Airport Car Service",
         ],
     }
 

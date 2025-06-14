@@ -4,14 +4,14 @@
 {% block head_extra %}
   <link rel="canonical" href="https://www.graysontowncar.com/services/" />
 {% endblock head_extra %}
-{% block title %}Our Services | Disney, Universal & Port Canaveral Rides | Grayson Towncar{% endblock %}
-{% block meta_description %}
-  <meta name="description"
-        content="Experience premium Orlando transportation with our specialized services for Disney World, Universal Studios, and Port Canaveral. Enjoy luxury vehicles, professional drivers, and family-friendly amenities including complimentary car seats.">
+{% block title %}Private Orlando Transportation | Disney, Universal & Cruise Port Service{% endblock %}
   <link rel="preload"
         href="{% static 'images/services-bg.webp' %}"
         as="image"
         type="image/webp">
+{% block meta_description %}
+  <meta name="description"
+        content="Experience premium Orlando transportation with our specialized services for Disney World, Universal Studios, and Port Canaveral. Enjoy luxury vehicles, professional drivers, and family-friendly amenities including complimentary car seats.">
 {% endblock %}
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
@@ -25,7 +25,7 @@
            id="hero">
     <!-- Optimized background image - move to actual img tag for better LCP -->
     <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/services-bg.webp' %}"
+      <img src="{% static 'images/grayson-difference.webp' %}"
            width="1920"
            height="1080"
            alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night, with colorful lights reflecting across the water, symbolizing the magical transportation experience to Disney destinations."
@@ -40,13 +40,13 @@
     <div class="container position-relative z-1 py-5">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center text-white">
-          <h1 class="display-3 fw-bold mb-4 text-shadow">Your Ride to Magic Starts Here</h1>
+          <h1 class="display-3 fw-bold mb-4 text-shadow">Premium Orlando Transportation Services br Disney, Universal & Cruises</h1>
           <p class="lead mb-5 fs-4">
             Family-first transportation to Disney, Universal, cruises & more — with car seats, space, and a personal touch.
           </p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
             <a href="{% url 'rates' %}"
-               class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill text-white">Book Your Ride</a>
+               class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Book Your Ride</a>
           </div>
         </div>
       </div>

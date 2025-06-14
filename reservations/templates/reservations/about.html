@@ -7,7 +7,7 @@
   <link rel="canonical" href="https://www.graysontowncar.com/about-grayson-towncar-services/" />
 {% endblock %}
 {% block meta_description %}
-  <meta name="description" content="Discover Grayson Towncar's commitment to excellence in Orlando transportation. Learn about our family-owned business, professional drivers, and dedication to creating magical travel experiences for every guest." />
+  <meta name="description" content="Orlando's trusted transportation service specializing in Disney World, Universal Studios & Port Canaveral transfers. Professional drivers, luxury vehicles & family-focused service." />
 {% endblock %}
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/about.css' %}" />
@@ -1058,54 +1058,19 @@
       // Bounce animation for scroll indicator
       const style = document.createElement('style')
       style.textContent = `
-                    @keyframes bounce {
-                      0%, 20%, 50%, 80%, 100% {
-                        transform: translateY(0);
-                      }
-                      40% {
-                        transform: translateY(-10px);
-                      }
-                      60% {
-                        transform: translateY(-5px);
-                      }
-                    }
-                  `
+                                      @keyframes bounce {
+                                        0%, 20%, 50%, 80%, 100% {
+                                          transform: translateY(0);
+                                        }
+                                        40% {
+                                          transform: translateY(-10px);
+                                        }
+                                        60% {
+                                          transform: translateY(-5px);
+                                        }
+                                      }
+                                    `
       document.head.appendChild(style)
     </script>
   </main>
-  {% block schema %}
-    <script type="application/ld+json">
-        {
-            "@context": "https://schema.org",
-            "@type": "TransportationCompany",
-            "name": "Grayson Towncar",
-            "description": "Orlando's premier family-focused transportation service specializing in airport transfers, Disney World transportation, and luxury ground transportation throughout Central Florida.",
-            "url": "https://graysontowncar.com",
-            "telephone": "+1-XXX-XXX-XXXX",
-            "email": "info@graysontowncar.com",
-            "address": {
-                "@type": "PostalAddress",
-                "addressLocality": "Orlando",
-                "addressRegion": "FL",
-                "addressCountry": "US"
-            },
-            "serviceArea": {
-                "@type": "GeoCircle",
-                "geoMidpoint": {
-                    "@type": "GeoCoordinates",
-                    "latitude": "28.5383",
-                    "longitude": "-81.3792"
-                },
-                "geoRadius": "50000"
-            },
-            "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "5.0",
-                "bestRating": "5",
-                "worstRating": "1",
-                "ratingCount": "150"
-            }
-        }
-    </script>
-  {% endblock %}
 {% endblock %}
