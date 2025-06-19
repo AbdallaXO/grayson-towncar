@@ -80,7 +80,7 @@ def schedule(request):
             driver=driver,
             pickup_date__gte=today,
             pickup_date__lte=next_week,
-            status__in=["picked-up", "in-progress"],
+            status__in=["picked-up", "in-progress", "on-location"],
         )
         .order_by("pickup_date", "pickup_time")
     )
@@ -104,7 +104,7 @@ def update_leg_status(request, leg_id):
         new_status = data.get("status")
 
         # Validate status
-        VALID_STATUSES = ["in-progress", "picked-up", "completed"]
+        VALID_STATUSES = ["in-progress", "picked-up","on-location", "completed"]
         if new_status not in VALID_STATUSES:
             return JsonResponse(
                 {"success": False, "error": "Invalid status"}, status=400

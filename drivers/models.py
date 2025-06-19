@@ -51,7 +51,6 @@ class DriverPayment(models.Model):
     payment_method = models.CharField(max_length=50, default="direct deposit")
     reference_number = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
-
     # Track who created this payment
     created_by = models.ForeignKey(
         User,

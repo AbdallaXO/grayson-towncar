@@ -238,6 +238,9 @@
 
                 <div class="mobile-section">
                   <div class="mb-1">
+                    <strong>Payment Status:</strong> {{ leg.payment_status |title }} - ${{ leg.driver_pay_amount }}
+                  </div>
+                  <div class="mb-1">
                     <strong>Vehicle:</strong> {{ leg.reservation.vehicle }}
                   </div>
                   <div class="d-flex">
@@ -247,6 +250,7 @@
                     <div>
                       <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:'0' }}
                     </div>
+                    <br>
                   </div>
                 </div>
 

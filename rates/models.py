@@ -13,6 +13,7 @@ class Vehicle(models.Model):
         ("suv", "SUV"),
         ("mini_van", "Mini Van"),
         ("van", "Van"),
+        ("Van(14 Pax)", "Van (14 Pax)")
     ]
 
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)

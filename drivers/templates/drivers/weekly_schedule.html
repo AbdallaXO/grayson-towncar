@@ -90,11 +90,9 @@
                         <div>
                           <strong>D/O:</strong> {{ leg.dropoff_location }}
                         </div>
-                        {% if leg.flight_information %}
-                          <div class="mt-1">
-                            <strong>Flight:</strong> {{ leg.flight_information }}
-                          </div>
-                        {% endif %}
+                        <div class="mt-1">
+                          <strong>Flight:</strong> {{ leg.flight_information|default:"N/A" }}
+                        </div>
                       </td>
                       <td class="align-middle">
                         <div class="mb-1">
@@ -110,30 +108,30 @@
                       <td class="align-middle">
                         {% if leg.reservation.special_requests %}
                           <div class="mb-2">
-                            <div class="text-muted small fw-bold">Guest Comments:</div>
+                            <div class="text-muted small fw-bold">Guest Notes:</div>
                             <div>{{ leg.reservation.special_requests }}</div>
                           </div>
                         {% endif %}
-                        {% if leg.reservation.store_stop %}
+                        {% if leg.first and leg.reservation.store_stop %}
                           <div class="mb-2">
                             <div>Publix Stop @9930 Universal Blvd</div>
                           </div>
                         {% endif %}
-                        {% if leg.reservation.private_notes %}
-                          <div>
-                            <div class="text-muted small fw-bold">Private Notes:</div>
-                            <div>{{ leg.reservation.private_notes }}</div>
-                          </div>
-                        {% endif %}
+                        <div>
+                          <div class="text-muted small fw-bold">Private Notes:</div>
+                          <div>{{ leg.reservation.private_notes }}</div>
+                        </div>
                       </td>
                       <td class="align-middle">
                         <div class="d-flex align-items-center mb-2">
-                          <span class="badge rounded-pill me-2 {% if leg.status == 'in-progress' %}bg-warning text-dark{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% endif %}"> {{ leg.status }} </span>
+                          <span class="badge rounded-pill me-2 {% if leg.status == 'in-progress' %}bg-warning text-dark{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% else %}bg-dark {% endif %} ">{{ leg.get_status_display }}</span>
                         </div>
                         <select id="statusSelect-{{ leg.id }}"
                                 class="form-select form-select-sm status-select">
                           <option value="in-progress"
                                   {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                          <option value="on-location"
+                                  {% if leg.status == "on-location" %}selected{% endif %}>On-Location</option>
                           <option value="picked-up"
                                   {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
                           <option value="completed"
@@ -179,11 +177,9 @@
                 </div>
 
                 <div class="mb-3 pb-3 border-bottom">
-                  {% if leg.flight_information %}
-                    <div class="mb-1">
-                      <strong>Flight: {{ leg.flight_information }}  ✈️</strong>
-                    </div>
-                  {% endif %}
+                  <div class="mb-1">
+                    <strong>Flight: {{ leg.flight_information |default:"N/A" }}  ✈️</strong>
+                  </div>
                   <div class="mb-1">
                     <strong>P/U Date & Time: {{ leg.pickup_date|date:"l, F j" }} {{ leg.pickup_time|date:"g:i A" }}</strong>
                   </div>
@@ -203,7 +199,10 @@
                     <strong>Passengers: {{ leg.reservation.passenger_count }}</strong>
                   </div>
                   <div class="mb-1">
-                    <strong>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</strong>
+                    <strong>Car Seats: {{ leg.reservation.display_carseats|default:"None" }}</strong>
+                  </div>
+                  <div class="mb-1">
+                    <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
                   </div>
                 </div>
 
@@ -211,19 +210,17 @@
                   <div class="mb-3 pb-3 border-bottom">
                     {% if leg.reservation.special_requests %}
                       <div class="mb-2">
-                        <div class="text-muted small fw-bold">Guest Comments:</div>
+                        <div class="text-muted small fw-bold">Guest Notes:</div>
                         <div>{{ leg.reservation.special_requests }}</div>
                       </div>
                     {% endif %}
-                    {% if leg.reservation.private_notes %}
-                      <div>
-                        <div class="text-muted small fw-bold">Private Notes:</div>
-                        <div>{{ leg.reservation.private_notes }}</div>
-                      </div>
-                    {% endif %}
+                    <div>
+                      <div class="text-muted small fw-bold">Internal Notes:</div>
+                      <div>{{ leg.reservation.private_notes }}</div>
+                    </div>
                   </div>
                 {% endif %}
-                {% if leg.reservation.store_stop and leg == leg.reservation.legs.first %}
+                {% if leg.reservation.store_stop and leg.first %}
                   <div class="mb-2">
                     <div class="text-muted small fw-bold">Requests:</div>
                     <div>Publix Stop @9930 Universal Blvd</div>
@@ -236,6 +233,8 @@
                           class="form-select status-select">
                     <option value="in-progress"
                             {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                    <option value="on-location"
+                            {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
                     <option value="picked-up"
                             {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
                     <option value="completed"
