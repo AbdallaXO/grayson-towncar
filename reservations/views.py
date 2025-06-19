@@ -193,6 +193,69 @@ def tos(request):
     return render(request, "reservations/tos.html")
 
 
+def fleet(request):
+    """Returns the Fleet Page showing all vehicles with descriptions"""
+    vehicles = Vehicle.objects.all().order_by('capacity')
+    
+    # Add descriptions directly to vehicles
+    for vehicle in vehicles:
+        if vehicle.vehicle_type == 'towncar':
+            vehicle.title = 'Luxury Town Car'
+            vehicle.description = 'Experience classic elegance with our premium town cars. Perfect for business travel, airport transfers, and special occasions.'
+            vehicle.features = [
+                'Seats up to 4 passengers comfortably',
+                'Accommodates 4 pieces of luggage',
+                'Professional chauffeur service',
+                'Climate-controlled interior'
+            ]
+            vehicle.best_for = 'Business travel, airport transfers, special events'
+        elif vehicle.vehicle_type == 'suv':
+            vehicle.title = 'SUV'
+            vehicle.description = 'Spacious and versatile, our luxury SUVs provide the perfect blend of comfort and capacity for larger groups.'
+            vehicle.features = [
+                'Seats up to 6 passengers',
+                'Accommodates 6 pieces of luggage',
+                'Ample legroom and headspace',
+                'Premium leather seating'
+            ]
+            vehicle.best_for = 'Family travel, group outings, airport transfers'
+        elif vehicle.vehicle_type == 'mini_van':
+            vehicle.title = 'Premium Minivan'
+            vehicle.description = 'Our comfortable minivans are ideal for families and small groups, offering excellent space and convenience.'
+            vehicle.features = [
+                'Seats up to 5 passengers',
+                'Accommodates 5 pieces of luggage',
+                'Sliding doors for easy access',
+                'Child safety seat compatible'
+            ]
+            vehicle.best_for = 'Family vacations, airport transfers, theme park transportation'
+        elif vehicle.vehicle_type == 'van':
+            vehicle.title = 'Passenger Van'
+            vehicle.description = 'Our spacious passenger vans are perfect for larger groups, offering maximum capacity without sacrificing comfort.'
+            vehicle.features = [
+                'Seats up to 10 passengers',
+                'Accommodates 11 pieces of luggage',
+                'High roof for easy movement',
+                'Multiple seating configurations'
+            ]
+            vehicle.best_for = 'Large groups, corporate events, airport transfers'
+        elif vehicle.vehicle_type == 'Van(14 Pax)':
+            vehicle.title = '14 Passenger Van'
+            vehicle.description = 'Our largest passenger van is ideal for big groups, corporate events, and large family gatherings with maximum capacity and comfort.'
+            vehicle.features = [
+                'Seats up to 14 passengers',
+                'Accommodates 12-14 pieces of luggage',
+                'Extra spacious interior',
+                'Perfect for large groups'
+            ]
+            vehicle.best_for = 'Large groups, corporate events, family gatherings'
+    
+    context = {
+        'vehicles': vehicles,
+    }
+    return render(request, "reservations/fleet.html", context)
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class QuoteFormHandlerView(View):
     """

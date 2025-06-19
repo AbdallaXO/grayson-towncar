@@ -1,0 +1,410 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}
+  Our Fleet | Grayson Towncar - Luxury Transportation in Orlando
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="canonical" href="https://www.graysontowncar.com/fleet/" />
+{% endblock %}
+
+{% block meta_description %}
+  <meta name="description" content="Explore our luxury fleet of vehicles including town cars, SUVs, minivans, and passenger vans. Professional transportation for all your Orlando travel needs." />
+{% endblock %}
+
+{% block content %}
+  <!-- Fleet Overview -->
+  <section class="py-5 py-lg-7 bg-light">
+    <div class="container">
+      <div class="row text-center mb-5">
+        <div class="col-lg-8 mx-auto">
+          <h1 class="display-4 fw-light mb-4 text-dark">Our Luxury Fleet</h1>
+          <p class="lead text-muted fs-5">Experience Orlando in comfort and style with our meticulously maintained, late-model vehicles. Each ride offers the perfect blend of luxury, safety, and convenience.</p>
+          <div class="d-flex align-items-center justify-content-center gap-3 mt-4">
+            <div class="d-flex gap-1">
+              <i class="fas fa-star text-warning"></i>
+              <i class="fas fa-star text-warning"></i>
+              <i class="fas fa-star text-warning"></i>
+              <i class="fas fa-star text-warning"></i>
+              <i class="fas fa-star text-warning"></i>
+            </div>
+            <span class="text-muted">5.0 on Google</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Fleet Stats -->
+      <div class="row g-4 mb-5">
+        <div class="col-md-3 text-center">
+          <div class="p-4 bg-white rounded-4 shadow-sm">
+            <i class="fas fa-car fs-1 text-dark mb-3"></i>
+            <h4 class="fw-semibold text-dark mb-2">5 Vehicle Types</h4>
+            <p class="text-muted mb-0">From luxury sedans to spacious vans</p>
+          </div>
+        </div>
+        <div class="col-md-3 text-center">
+          <div class="p-4 bg-white rounded-4 shadow-sm">
+            <i class="fas fa-users fs-1 text-dark mb-3"></i>
+            <h4 class="fw-semibold text-dark mb-2">Up to 14 Passengers</h4>
+            <p class="text-muted mb-0">Perfect for any group size</p>
+          </div>
+        </div>
+        <div class="col-md-3 text-center">
+          <div class="p-4 bg-white rounded-4 shadow-sm">
+            <i class="fas fa-shield-alt fs-1 text-dark mb-3"></i>
+            <h4 class="fw-semibold text-dark mb-2">Fully Insured</h4>
+            <p class="text-muted mb-0">Licensed and bonded service</p>
+          </div>
+        </div>
+        <div class="col-md-3 text-center">
+          <div class="p-4 bg-white rounded-4 shadow-sm">
+            <i class="fas fa-clock fs-1 text-dark mb-3"></i>
+            <h4 class="fw-semibold text-dark mb-2">24/7 Service</h4>
+            <p class="text-muted mb-0">Available whenever you need us</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle Cards -->
+      <div class="row g-4 g-lg-5">
+        {% for vehicle in vehicles %}
+          <div class="col-12">
+            <div class="card border-0 shadow-lg bg-white rounded-4 overflow-hidden">
+              <div class="row g-0">
+                <!-- Vehicle Image Carousel -->
+                <div class="col-lg-5">
+                  <div class="position-relative" style="aspect-ratio: 4/3;">
+                    <div id="carousel-{{ vehicle.id }}" class="carousel slide h-100" data-bs-ride="carousel">
+                      <div class="carousel-indicators">
+                        <button type="button" data-bs-target="#carousel-{{ vehicle.id }}" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+                        <button type="button" data-bs-target="#carousel-{{ vehicle.id }}" data-bs-slide-to="1" aria-label="Slide 2"></button>
+                        <button type="button" data-bs-target="#carousel-{{ vehicle.id }}" data-bs-slide-to="2" aria-label="Slide 3"></button>
+                      </div>
+                      <div class="carousel-inner h-100">
+                        <div class="carousel-item active h-100">
+                          {% if vehicle.vehicle_type == 'towncar' %}
+                            <img src="{% static 'images/towncar/cadillac.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }}" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/towncar/cadillac.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'suv' %}
+                            <img src="{% static 'images/suv/suburban.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }}" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/suv/suburban.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'mini_van' %}
+                            <img src="{% static 'images/mini/minivan_sideview2.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }}" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/mini/minivan_sideview2.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'van' %}
+                            <img src="{% static 'images/van/van.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }}" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/van/van.webp' %}" />
+                          {% elif vehicle.vehicle_type == 'Van(14 Pax)' %}
+                            <img src="{% static 'images/sprinter/sprinter.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }}" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/sprinter/sprinter.jpg' %}" />
+                          {% else %}
+                            <img src="{% static 'images/van/van.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }}" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/van/van.webp' %}" />
+                          {% endif %}
+                        </div>
+                        <div class="carousel-item h-100">
+                          {% if vehicle.vehicle_type == 'towncar' %}
+                            <img src="{% static 'images/towncar/cadillac_int.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Interior" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/towncar/cadillac_int.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'suv' %}
+                            <img src="{% static 'images/suv/expedition.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Expedition" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/suv/expedition.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'mini_van' %}
+                            <img src="{% static 'images/mini/sideview.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Side View" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/mini/sideview.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'van' %}
+                            <img src="{% static 'images/van/side_view.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Side View" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/van/side_view.webp' %}" />
+                          {% elif vehicle.vehicle_type == 'Van(14 Pax)' %}
+                            <img src="{% static 'images/sprinter/transit.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Transit" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/sprinter/transit.jpg' %}" />
+                          {% else %}
+                            <img src="{% static 'images/van/side_view.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Side View" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/van/side_view.webp' %}" />
+                          {% endif %}
+                        </div>
+                        <div class="carousel-item h-100">
+                          {% if vehicle.vehicle_type == 'towncar' %}
+                            <img src="{% static 'images/towncar/tesla_ray.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Tesla" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/towncar/tesla_ray.webp' %}" />
+                          {% elif vehicle.vehicle_type == 'suv' %}
+                            <img src="{% static 'images/suv/suv.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - SUV" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/suv/suv.webp' %}" />
+                          {% elif vehicle.vehicle_type == 'mini_van' %}
+                            <img src="{% static 'images/mini/suv_interior.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Interior" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/mini/suv_interior.jpg' %}" />
+                          {% elif vehicle.vehicle_type == 'van' %}
+                            <img src="{% static 'images/van/van.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Van" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/van/van.webp' %}" />
+                          {% elif vehicle.vehicle_type == 'Van(14 Pax)' %}
+                            <img src="{% static 'images/sprinter/sprinter_interior.jpg' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Interior" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/sprinter/sprinter_interior.jpg' %}" />
+                          {% else %}
+                            <img src="{% static 'images/van/van.webp' %}" class="d-block w-100 h-100 object-fit-cover carousel-image" alt="{{ vehicle.title }} - Van" data-vehicle="{{ vehicle.title }}" data-image="{% static 'images/van/van.webp' %}" />
+                          {% endif %}
+                        </div>
+                      </div>
+                      <button class="carousel-control-prev" type="button" data-bs-target="#carousel-{{ vehicle.id }}" data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Previous</span>
+                      </button>
+                      <button class="carousel-control-next" type="button" data-bs-target="#carousel-{{ vehicle.id }}" data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Next</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Vehicle Details -->
+                <div class="col-lg-7">
+                  <div class="card-body p-4 p-lg-5">
+                    <h3 class="card-title h2 fw-light mb-4 text-dark">{{ vehicle.title }}</h3>
+
+                    <!-- Capacity Info -->
+                    <div class="row mb-4">
+                      <div class="col-6">
+                        <div class="d-flex align-items-center p-3 bg-light rounded-3">
+                          <i class="fas fa-users fs-4 text-dark me-3"></i>
+                          <div>
+                            <div class="fw-semibold text-dark">{{ vehicle.capacity }}</div>
+                            <small class="text-muted">Passengers</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="col-6">
+                        <div class="d-flex align-items-center p-3 bg-light rounded-3">
+                          <i class="fas fa-suitcase fs-4 text-dark me-3"></i>
+                          <div>
+                            <div class="fw-semibold text-dark">{{ vehicle.luggage_capacity }}</div>
+                            <small class="text-muted">Luggage</small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Description -->
+                    <p class="card-text text-muted mb-4 fs-5">{{ vehicle.description }}</p>
+
+                    <!-- Features -->
+                    <div class="mb-4">
+                      <h6 class="fw-semibold mb-3 text-dark">Features:</h6>
+                      <div class="row">
+                        {% for feature in vehicle.features %}
+                          <div class="col-md-6 mb-2">
+                            <div class="d-flex align-items-center">
+                              <i class="fas fa-check-circle text-success me-2"></i>
+                              <span class="text-muted">{{ feature }}</span>
+                            </div>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+
+                    <!-- Best For & CTA -->
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                      <div class="d-flex align-items-center">
+                        <i class="fas fa-heart text-danger me-2"></i>
+                        <span class="fw-semibold text-dark">{{ vehicle.best_for }}</span>
+                      </div>
+                      <a href="{% url 'rates' %}" class="btn btn-dark px-4 py-2 rounded-pill"><i class="fas fa-calculator me-2"></i>Get Quote</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <!-- Fleet Features Section -->
+  <section class="py-5 py-lg-7 bg-white">
+    <div class="container">
+      <div class="row g-4 g-lg-5">
+        <div class="col-md-4 text-center">
+          <div class="p-4 p-lg-5">
+            <div class="mb-4">
+              <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-light" style="width: 80px; height: 80px;">
+                <i class="fas fa-shield-alt fs-1 text-dark"></i>
+              </div>
+            </div>
+            <h4 class="fw-semibold mb-3 text-dark">Safety First</h4>
+            <p class="text-muted mb-0">All our vehicles undergo regular safety inspections and are maintained to the highest standards. Your safety is our top priority.</p>
+          </div>
+        </div>
+
+        <div class="col-md-4 text-center">
+          <div class="p-4 p-lg-5">
+            <div class="mb-4">
+              <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-light" style="width: 80px; height: 80px;">
+                <i class="fas fa-star fs-1 text-dark"></i>
+              </div>
+            </div>
+            <h4 class="fw-semibold mb-3 text-dark">Luxury Experience</h4>
+            <p class="text-muted mb-0">From premium leather seating to climate control, every detail is designed to provide you with a luxurious and comfortable journey.</p>
+          </div>
+        </div>
+
+        <div class="col-md-4 text-center">
+          <div class="p-4 p-lg-5">
+            <div class="mb-4">
+              <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-light" style="width: 80px; height: 80px;">
+                <i class="fas fa-user-tie fs-1 text-dark"></i>
+              </div>
+            </div>
+            <h4 class="fw-semibold mb-3 text-dark">Professional Drivers</h4>
+            <p class="text-muted mb-0">Our experienced, licensed, and insured drivers are committed to providing exceptional service and ensuring your complete satisfaction.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-5 py-lg-7 bg-dark text-white">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+          <div class="text-center">
+            <h2 class="display-5 fw-light mb-4">Ready to Experience Our Fleet?</h2>
+            <p class="lead fs-4 mb-5 text-light opacity-90">Book your luxury transportation today and discover why we're Orlando's most trusted car service.</p>
+            <div class="d-flex flex-column flex-md-row gap-3 justify-content-center">
+              <a href="{% url 'rates' %}" class="btn btn-light btn-lg px-5 py-3 rounded-pill text-dark fw-semibold"><i class="fas fa-calculator me-2"></i>Get a Quote</a>
+              <a href="{% url 'home' %}" class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill"><i class="fas fa-phone me-2"></i>Contact Us</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Image Modal -->
+  <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg rounded-4">
+        <div class="modal-header bg-dark text-white border-0 rounded-top-4">
+          <h5 class="modal-title fw-light" id="imageModalLabel"></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div id="modalCarousel" class="carousel slide" data-bs-ride="false">
+            <div class="carousel-indicators">
+              <button type="button" data-bs-target="#modalCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+              <button type="button" data-bs-target="#modalCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
+              <button type="button" data-bs-target="#modalCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
+            </div>
+            <div class="carousel-inner">
+              <div class="carousel-item active">
+                <img id="modalImage1" src="" class="d-block w-100" style="max-height: 70vh; object-fit: contain;" alt="" />
+              </div>
+              <div class="carousel-item">
+                <img id="modalImage2" src="" class="d-block w-100" style="max-height: 70vh; object-fit: contain;" alt="" />
+              </div>
+              <div class="carousel-item">
+                <img id="modalImage3" src="" class="d-block w-100" style="max-height: 70vh; object-fit: contain;" alt="" />
+              </div>
+            </div>
+            <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel" data-bs-slide="prev">
+              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Previous</span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel" data-bs-slide="next">
+              <span class="carousel-control-next-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Next</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal"><i class="fas fa-times me-2"></i>Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    // Image modal functionality
+    document.addEventListener('DOMContentLoaded', function () {
+      const modal = new bootstrap.Modal(document.getElementById('imageModal'))
+      const modalTitle = document.getElementById('imageModalLabel')
+      const modalImage1 = document.getElementById('modalImage1')
+      const modalImage2 = document.getElementById('modalImage2')
+      const modalImage3 = document.getElementById('modalImage3')
+    
+      // Add click event to all carousel images
+      document.querySelectorAll('.carousel-image').forEach(function (img) {
+        img.addEventListener('click', function () {
+          const vehicleType = this.closest('.carousel').getAttribute('id').replace('carousel-', '')
+          const vehicleName = this.getAttribute('data-vehicle')
+    
+          // Set modal title
+          modalTitle.textContent = vehicleName
+    
+          // Set images based on vehicle type
+          if (vehicleType === '1') {
+            // Town Car
+            modalImage1.src = "{% static 'images/towncar/cadillac.jpg' %}"
+            modalImage2.src = "{% static 'images/towncar/cadillac_int.jpg' %}"
+            modalImage3.src = "{% static 'images/towncar/tesla_ray.webp' %}"
+          } else if (vehicleType === '2') {
+            // SUV
+            modalImage1.src = "{% static 'images/suv/suburban.jpg' %}"
+            modalImage2.src = "{% static 'images/suv/expedition.jpg' %}"
+            modalImage3.src = "{% static 'images/suv/suv.webp' %}"
+          } else if (vehicleType === '3') {
+            // Minivan
+            modalImage1.src = "{% static 'images/mini/minivan_sideview2.jpg' %}"
+            modalImage2.src = "{% static 'images/mini/sideview.jpg' %}"
+            modalImage3.src = "{% static 'images/mini/suv_interior.jpg' %}"
+          } else if (vehicleType === '4') {
+            // Van
+            modalImage1.src = "{% static 'images/van/van.webp' %}"
+            modalImage3.src = "{% static 'images/van/van.webp' %}"
+            modalImage2.src = "{% static 'images/van/side_view.webp' %}"
+          } else if (vehicleType === '5') {
+            // 14 Passenger Van (Van(14 Pax))
+            modalImage1.src = "{% static 'images/sprinter/sprinter.jpg' %}"
+            modalImage3.src = "{% static 'images/sprinter/transit.jpg' %}"
+            modalImage2.src = "{% static 'images/sprinter/sprinter_interior.jpg' %}"
+          } else {
+            // Default to van images for any other vehicle type
+            modalImage1.src = "{% static 'images/van/van.webp' %}"
+            modalImage2.src = "{% static 'images/van/side_view.webp' %}"
+            modalImage3.src = "{% static 'images/van/van.webp' %}"
+          }
+    
+          // Reset carousel to first slide
+          const modalCarousel = new bootstrap.Carousel(document.getElementById('modalCarousel'))
+          modalCarousel.to(0)
+    
+          modal.show()
+        })
+      })
+    
+      // Add hover effect using JavaScript since we can't use CSS
+      document.querySelectorAll('.carousel-image').forEach(function (img) {
+        img.addEventListener('mouseenter', function () {
+          this.style.opacity = '0.9'
+          this.style.transform = 'scale(1.01)'
+          this.style.transition = 'all 0.3s ease'
+        })
+    
+        img.addEventListener('mouseleave', function () {
+          this.style.opacity = '1'
+          this.style.transform = 'scale(1)'
+        })
+      })
+    
+      // Card hover effects
+      document.querySelectorAll('.card').forEach(function (card) {
+        card.addEventListener('mouseenter', function () {
+          this.style.transform = 'translateY(-5px)'
+          this.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.15)'
+          this.style.transition = 'all 0.3s ease'
+        })
+    
+        card.addEventListener('mouseleave', function () {
+          this.style.transform = 'translateY(0)'
+          this.style.boxShadow = ''
+        })
+      })
+    })
+  </script>
+
+  <style>
+    .carousel-image {
+      transition: all 0.3s ease;
+    }
+    
+    .card {
+      transition: all 0.3s ease;
+    }
+  </style>
+{% endblock %}

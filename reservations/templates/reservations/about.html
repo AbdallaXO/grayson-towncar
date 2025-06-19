@@ -721,10 +721,10 @@
           <div class="col-lg-6 fade-in-on-scroll">
             <div class="row g-3">
               <div class="col-6">
-                <img src="{% static 'images/photo1.webp' %}" class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-cover" alt="Grayson Towncar Experience" loading="lazy" />
+                <img src="{% static 'images/photo1.webp' %}" class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-contain" style="filter: brightness(1.05);" alt="Grayson Towncar Experience" loading="lazy" />
               </div>
               <div class="col-6">
-                <img src="{% static 'images/photo3.jpg' %}" class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-cover" alt="Grayson Towncar Experience" loading="lazy" />
+                <img src="{% static 'images/photo3.jpg' %}" class="img-fluid rounded-3 shadow-sm about-card h-100 object-fit-contain" style="filter: brightness(1.05);" alt="Grayson Towncar Experience" loading="lazy" />
               </div>
               <div class="col-12 mt-3">
                 <img src="{% static 'images/photo2.avif' %}" class="img-fluid rounded-3 shadow-sm about-card w-100" alt="Grayson Towncar Experience" loading="lazy" />
@@ -1058,18 +1058,18 @@
       // Bounce animation for scroll indicator
       const style = document.createElement('style')
       style.textContent = `
-                                      @keyframes bounce {
-                                        0%, 20%, 50%, 80%, 100% {
-                                          transform: translateY(0);
-                                        }
-                                        40% {
-                                          transform: translateY(-10px);
-                                        }
-                                        60% {
-                                          transform: translateY(-5px);
-                                        }
-                                      }
-                                    `
+                                            @keyframes bounce {
+                                              0%, 20%, 50%, 80%, 100% {
+                                                transform: translateY(0);
+                                              }
+                                              40% {
+                                                transform: translateY(-10px);
+                                              }
+                                              60% {
+                                                transform: translateY(-5px);
+                                              }
+                                            }
+                                          `
       document.head.appendChild(style)
     </script>
   </main>
