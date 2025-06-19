@@ -125,6 +125,18 @@ class Rate(models.Model):
             models.Index(fields=["oneway_price"]),
             models.Index(fields=["round_trip_price"]),
         ]
+        
+        # Custom ordering to prioritize Orlando Airport first
+        ordering = [
+            # First, prioritize Orlando International Airport
+            models.Case(
+                models.When(route__origin__name="Orlando International Airport", then=0),
+                default=1
+            ),
+            # Then order by origin name, then destination name
+            "route__origin__name",
+            "route__destination__name"
+        ]
 
     def __str__(self):
         """

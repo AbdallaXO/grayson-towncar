@@ -14,7 +14,7 @@ from .utils import (
     extra_charges,
 )
 from django.shortcuts import render, reverse
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Case, When
 from rates.models import Rate, Vehicle
 import json
 from users.models import TravelAgent
@@ -39,6 +39,15 @@ def index(request):
             "rates",
             queryset=Rate.objects.select_related(
                 "route", "route__origin", "route__destination"
+            ).order_by(
+                # First, prioritize Orlando International Airport
+                Case(
+                    When(route__origin__name="Orlando International Airport", then=0),
+                    default=1
+                ),
+                # Then order by origin name, then destination name
+                "route__origin__name",
+                "route__destination__name"
             ),
         )
     ).all()

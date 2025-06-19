@@ -403,11 +403,6 @@
   transition: all 0.3s ease;
 }
 
-.vehicle-preview:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
-}
-
 .preview-content {
   display: flex;
   gap: 2rem;
@@ -547,6 +542,23 @@
   justify-content: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* Smooth Transitions for Vehicle Tabs */
+.rate-card {
+  transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+}
+
+.rate-card[aria-hidden="true"] {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+
+.rate-card[aria-hidden="false"] {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* Mobile Responsiveness */

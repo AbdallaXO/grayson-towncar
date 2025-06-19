@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from .models import Rate, Vehicle, Location
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Case, When
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 import json
@@ -15,6 +15,15 @@ def index(request):
             "rates",
             queryset=Rate.objects.select_related(
                 "route", "route__origin", "route__destination"
+            ).order_by(
+                # First, prioritize Orlando International Airport
+                Case(
+                    When(route__origin__name="Orlando International Airport", then=0),
+                    default=1
+                ),
+                # Then order by origin name, then destination name
+                "route__origin__name",
+                "route__destination__name"
             ),
         )
     ).all()

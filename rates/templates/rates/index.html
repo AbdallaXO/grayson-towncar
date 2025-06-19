@@ -17,24 +17,61 @@
   {% block schema %}
     {% structured_data additional_data=structured_data %}
   {% endblock %}
-  <!-- Enhanced hero section with visual impact -->
+
+  <!-- Enhanced hero section with better messaging -->
   <section class="py-5 position-relative hero-section" aria-labelledby="vehicle-options-heading">
     <div class="position-absolute start-0 top-0 w-100 h-100 bg-gradient-overlay"></div>
     <div class="container px-4 px-lg-5 my-4 position-relative">
       <div class="row gx-4 gx-lg-5 justify-content-center">
         <div class="col-12 col-lg-10">
           <div class="text-center mb-5 fade-in">
-            <h1 id="vehicle-options-heading" class="display-4 fw-light mb-3">Our Vehicle Options</h1>
-            <p class="lead fs-4 fw-light text-muted mb-0 mx-auto fw-semibold" style="max-width: 700px;
-                      letter-spacing: 0.3px">Choose the perfect vehicle for your Orlando transportation needs</p>
+            <h1 id="vehicle-options-heading" class="display-4 fw-light mb-3">Our Fleet & Rates</h1>
+            <p class="lead fs-4 fw-light text-muted mb-4 mx-auto" style="max-width: 700px; letter-spacing: 0.3px">Orlando's top-rated car service: fleet and transparent pricing</p>
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-4">
+              <div class="d-flex gap-1">
+                <i class="fas fa-star text-warning"></i>
+                <i class="fas fa-star text-warning"></i>
+                <i class="fas fa-star text-warning"></i>
+                <i class="fas fa-star text-warning"></i>
+                <i class="fas fa-star text-warning"></i>
+              </div>
+              <span class="text-muted">5.0 on Google</span>
+            </div>
           </div>
-          <!-- THIS IS FOR MOBILE AND DESKTOP -->
+
+          <!-- Quick Stats Section -->
+          <div class="row g-4 mb-5 fade-in" style="animation-delay: 0.2s;">
+            <div class="col-6 col-md-3">
+              <div class="text-center">
+                <div class="fs-1 fw-bold mb-1">24/7</div>
+                <div class="fs-6 text-muted">Service Available</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="text-center">
+                <div class="fs-1 fw-bold mb-1">100%</div>
+                <div class="fs-6 text-muted">Satisfaction</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="text-center">
+                <div class="fs-1 fw-bold mb-1">Free</div>
+                <div class="fs-6 text-muted">Car Seats</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="text-center">
+                <div class="fs-1 fw-bold mb-1">No</div>
+                <div class="fs-6 text-muted">Hidden Fees</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vehicle tabs and route filters will be inserted here by JavaScript -->
           <section class="py-4" aria-labelledby="vehicle-rates-heading">
             <div class="container p-0">
               <div class="row">
                 <div class="col-12">
-                  <!-- Vehicle tabs and route filters will be inserted here by JavaScript -->
-
                   {% for vehicle in vehicles %}
                     <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in" data-vehicle-image="{{ vehicle.image.url }}" data-capacity="{{ vehicle.capacity }}" data-luggage="{{ vehicle.luggage_capacity }}" data-carseats="{{ vehicle.carseats_display }}" data-vehicle-type="{{ vehicle.get_vehicle_type_display }}">
                       <header id="{{ vehicle.get_vehicle_type_display|slugify }}-heading" class="card-header bg-rates-dark text-white text-center py-3 position-relative">
@@ -46,7 +83,6 @@
                         <div class="d-md-none">
                           {% regroup vehicle.rates.all by get_route_category as grouped_rates %}
                           {% for category_group in grouped_rates %}
-                            <!-- Mobile Section Header -->
                             {% for v in category_group.list %}
                               <div class="mobile-rate-card p-3 border-bottom" data-section="{{ category_group.grouper|slugify }}">
                                 <h3 class="h5 fw-semibold mb-3">{{ v.route }}</h3>
@@ -116,8 +152,7 @@
             <div class="contact-box-decoration"></div>
             <div class="position-relative">
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-warning text-white d-flex align-items-center justify-content-center rounded-circle" style="width: 38px;
-                            height: 38px" aria-hidden="true">
+                <div class="bg-warning text-white d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px" aria-hidden="true">
                   <i class="bi bi-info fs-1" aria-hidden="true"></i>
                 </div>
                 <h2 class="h4 fw-light mb-0 ms-3">Don't See Your Route Listed?</h2>
@@ -129,6 +164,7 @@
               </div>
             </div>
           </div>
+
           <!-- Inclusions Section -->
           <section class="container my-4 fade-in">
             <h2 class="text-center mb-3">All Rates Include</h2>
@@ -137,8 +173,7 @@
               <div class="col">
                 <div class="card h-100 border-0 shadow-sm inclusion-item">
                   <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/handshake.webp' %}" alt="check icon" class="img-fluid" style="width: 2em;
-                                  height: 2em" /></i>
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/handshake.webp' %}" alt="check icon" class="img-fluid" style="width: 2em; height: 2em" /></i>
                     <p class="card-text mb-0">Free meet and greet at MCO</p>
                   </div>
                 </div>
@@ -147,8 +182,7 @@
               <div class="col">
                 <div class="card h-100 border-0 shadow-sm inclusion-item">
                   <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/carseat.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em;
-                                  height: 1.5em" /></i>
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/carseat.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
                     <p class="card-text mb-0">Complimentary car seats and booster seats</p>
                   </div>
                 </div>
@@ -157,8 +191,7 @@
               <div class="col">
                 <div class="card h-100 border-0 shadow-sm inclusion-item">
                   <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/groceries.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em;
-                                  height: 1.5em" /></i>
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/groceries.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
                     <p class="card-text mb-0">Free 20-minute grocery stop at Publix</p>
                   </div>
                 </div>
@@ -167,8 +200,7 @@
               <div class="col">
                 <div class="card h-100 border-0 shadow-sm inclusion-item">
                   <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/highway.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em;
-                                  height: 1.5em" /></i>
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/highway.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
                     <p class="card-text mb-0">All tolls and taxes included</p>
                   </div>
                 </div>
@@ -177,8 +209,7 @@
               <div class="col">
                 <div class="card h-100 border-0 shadow-sm inclusion-item">
                   <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/shield.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em;
-                                  height: 1.5em" /></i>
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/shield.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
                     <p class="card-text mb-0">Professional, licensed and insured drivers</p>
                   </div>
                 </div>
@@ -187,8 +218,7 @@
               <div class="col">
                 <div class="card h-100 border-0 shadow-sm inclusion-item">
                   <div class="card-body p-3 text-center">
-                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/delay.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em;
-                                  height: 1.5em" /></i>
+                    <i class="text-success mb-2 inclusion-icon" aria-hidden="true"><img src="{% static 'images/delay.webp' %}" alt="check icon" class="img-fluid" style="width: 1.5em; height: 1.5em" /></i>
                     <p class="card-text mb-0">Flight delay protection at no extra charge</p>
                   </div>
                 </div>
