@@ -12,6 +12,7 @@ from .utils import (
     validate_forms,
     AIRLINES,
     extra_charges,
+    send_lead_notification,
 )
 from django.shortcuts import render, reverse
 from django.db.models import Prefetch, Case, When
@@ -223,16 +224,31 @@ class QuoteFormHandlerView(View):
                 # Check for existing leads to prevent duplicates
                 email = data.get("email", "").strip()
                 phone = data.get("phone", "").strip()
-                cutoff_time = timezone.now() - timedelta(hours=24)
+                pickup_location = data.get("pickup_location", "").strip()
+                dropoff_location = data.get("dropoff_location", "").strip()
+                pickup_date = data.get("pickup_date", "")
+                trip_type = "oneway" if data.get("trip_type") == "1" else "roundtrip"
                 
                 existing_lead = None
                 if email or phone:
+                    # Only consider it a duplicate if it's the same person with the same trip details
+                    # within the last 7 days (to catch actual duplicates, not just same person)
+                    cutoff_time = timezone.now() - timedelta(days=7)
+                    
+                    # Build query to find exact duplicates
                     query = Q(created_at__gte=cutoff_time)
                     
                     if email:
-                        query |= Q(email__iexact=email)
+                        query &= Q(email__iexact=email)
                     if phone:
-                        query |= Q(phone__iexact=phone)
+                        query &= Q(phone__iexact=phone)
+                    
+                    # Also check if it's the same trip details
+                    if pickup_location and dropoff_location and pickup_date:
+                        query &= Q(pickup_location__iexact=pickup_location)
+                        query &= Q(dropoff_location__iexact=dropoff_location)
+                        query &= Q(pickup_date=pickup_date)
+                        query &= Q(trip_type=trip_type)
                     
                     existing_lead = Lead.objects.filter(query).first()
                 
@@ -288,6 +304,13 @@ class QuoteFormHandlerView(View):
                     
                     logger.info(f"Created new quote for existing lead: {existing_lead}")
 
+                    # Send ntfy notification for updated lead
+                    try:
+                        send_lead_notification(existing_lead)
+                        logger.info("Successfully sent ntfy notification for updated lead")
+                    except Exception as e:
+                        logger.error(f"Error sending ntfy notification for updated lead: {str(e)}")
+
                     # Send lead event to Meta Conversions API
                     try:
                         send_lead_event(existing_lead, request)
@@ -304,6 +327,13 @@ class QuoteFormHandlerView(View):
                 
                 # Create new lead if no duplicate found
                 lead = form.save(commit=False)
+                
+                # Set trip details from the form data
+                lead.pickup_location = pickup_location
+                lead.dropoff_location = dropoff_location
+                lead.trip_type = trip_type
+                lead.vehicle_id = data.get("vehicle_id")
+                lead.estimated_price = data.get("estimated_price")
 
                 # Set high/medium priority based on trip date
                 if lead.pickup_date:
@@ -335,6 +365,13 @@ class QuoteFormHandlerView(View):
 
                 # Log the lead creation
                 logger.info(f"New lead created with quote: {lead}")
+
+                # Send ntfy notification for new lead
+                try:
+                    send_lead_notification(lead)
+                    logger.info("Successfully sent ntfy notification for new lead")
+                except Exception as e:
+                    logger.error(f"Error sending ntfy notification for new lead: {str(e)}")
 
                 # Send lead event to Meta Conversions API
                 try:

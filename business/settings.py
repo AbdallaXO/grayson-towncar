@@ -180,6 +180,11 @@ STATICFILES_DIRS = [CONTENT_DIR / "static"]
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 
+# NTFY Settings
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "grayson-leads")
+NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
+NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
