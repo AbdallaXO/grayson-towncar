@@ -12,7 +12,7 @@ from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 
-from .models import Customer, Reservation, Leg, Flight, Lead
+from .models import Customer, Reservation, Leg, Flight, Lead, Quote
 
 
 # ─── Import / Export resources ──────────────────────────────────────────
@@ -233,6 +233,23 @@ class CommissionStatusFilter(SimpleListFilter):
         if self.value() == "commission_unpaid":
             return qs.filter(travel_agent__isnull=False, commission_paid=False)
         return qs
+
+
+class MultipleQuotesFilter(SimpleListFilter):
+    title = "quote requests"
+    parameter_name = "quote_requests"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("single", "Single Quote"),
+            ("multiple", "Multiple Quotes"),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == "single":
+            return queryset.annotate(quote_count=Count('quotes')).filter(quote_count=1)
+        elif self.value() == "multiple":
+            return queryset.annotate(quote_count=Count('quotes')).filter(quote_count__gt=1)
 
 
 # ─── Admin classes ──────────────────────────────────────────────────────
@@ -848,8 +865,17 @@ class FlightAdmin(admin.ModelAdmin):
     ordering = ("airline", "flight_number")
 
 
+class QuoteInline(admin.TabularInline):
+    model = Quote
+    extra = 0
+    readonly_fields = ('created_at', 'updated_at')
+    fields = ('pickup_location', 'dropoff_location', 'pickup_date', 'vehicle', 'trip_type', 'estimated_price', 'status', 'is_current', 'created_at')
+    ordering = ('-created_at',)
+
+
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
+    inlines = [QuoteInline]
     list_display = (
         "full_name",
         "contact_info",
@@ -858,6 +884,7 @@ class LeadAdmin(admin.ModelAdmin):
         "priority_display",
         "pickup_date",
         "follow_up_date",
+        "quote_requests_count",
         "created_at",
     )
 
@@ -867,6 +894,7 @@ class LeadAdmin(admin.ModelAdmin):
         "converted",
         "pickup_date",
         "created_at",
+        MultipleQuotesFilter,
     )
 
     search_fields = (
@@ -923,6 +951,7 @@ class LeadAdmin(admin.ModelAdmin):
         "set_high_priority",
         "schedule_follow_up_tomorrow",
         "schedule_follow_up_week",
+        "identify_duplicates",
     ]
 
     # Display Methods
@@ -947,19 +976,33 @@ class LeadAdmin(admin.ModelAdmin):
 
     @admin.display(description="Trip Details")
     def trip_summary(self, obj):
-        date_str = obj.pickup_date.strftime("%b %d") if obj.pickup_date else "No date"
-        arrow = "→" if obj.trip_type == "oneway" else "⇄"
-        location = f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
-        price = f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
+        # Get the latest quote for this lead
+        latest_quote = obj.latest_quote
+        
+        if latest_quote:
+            date_str = latest_quote.pickup_date.strftime("%b %d") if latest_quote.pickup_date else "No date"
+            arrow = "→" if latest_quote.trip_type == "oneway" else "⇄"
+            location = f"{latest_quote.pickup_location or 'Unknown'} {arrow} {latest_quote.dropoff_location or 'Unknown'}"
+            price = f"${latest_quote.estimated_price:,.0f}" if latest_quote.estimated_price else "No price"
+            vehicle = latest_quote.vehicle.vehicle_type if latest_quote.vehicle else "No vehicle"
+        else:
+            # Fallback to lead data if no quotes exist
+            date_str = obj.pickup_date.strftime("%b %d") if obj.pickup_date else "No date"
+            arrow = "→" if obj.trip_type == "oneway" else "⇄"
+            location = f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
+            price = f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
+            vehicle = obj.vehicle.vehicle_type if obj.vehicle else "No vehicle"
 
         return format_html(
             '<div style="font-size: 0.9em;">'
             "<div><strong>{}</strong></div>"
             "<div>{}</div>"
-            '<div style="color: #007bff;">{}</div></div>',
+            '<div style="color: #007bff;">{}</div>'
+            '<div style="color: #6c757d; font-size: 0.8em;">{}</div></div>',
             date_str,
             location,
             price,
+            vehicle,
         )
 
     @admin.display(description="Status", ordering="status")
@@ -1019,6 +1062,11 @@ class LeadAdmin(admin.ModelAdmin):
         else:
             return obj.next_follow_up.strftime("%b %d")
 
+    @admin.display(description="Quote Requests")
+    def quote_requests_count(self, obj):
+        """Show how many quote requests this lead has made"""
+        return obj.quote_count
+
     # Actions
     @admin.action(description="Mark as Contacted")
     def mark_contacted(self, request, queryset):
@@ -1073,3 +1121,111 @@ class LeadAdmin(admin.ModelAdmin):
             next_follow_up=next_week
         )
         self.message_user(request, f"Scheduled follow-up for {updated} leads.")
+
+
+@admin.register(Quote)
+class QuoteAdmin(admin.ModelAdmin):
+    list_display = (
+        "lead_name",
+        "trip_details",
+        "vehicle_display",
+        "price_display",
+        "status_display",
+        "pickup_date",
+        "is_current_display",
+        "created_at",
+    )
+    
+    list_filter = (
+        "status",
+        "trip_type",
+        "is_current",
+        "pickup_date",
+        "created_at",
+    )
+    
+    search_fields = (
+        "lead__first_name",
+        "lead__last_name",
+        "lead__email",
+        "lead__phone",
+        "pickup_location",
+        "dropoff_location",
+    )
+    
+    list_per_page = 25
+    date_hierarchy = "created_at"
+    
+    fieldsets = (
+        (
+            "Lead Information",
+            {"fields": ("lead",)},
+        ),
+        (
+            "Trip Details",
+            {
+                "fields": (
+                    "pickup_location",
+                    "dropoff_location",
+                    "pickup_date",
+                    "trip_type",
+                    "vehicle",
+                    "estimated_price",
+                )
+            },
+        ),
+        (
+            "Quote Management",
+            {"fields": ("status", "is_current")},
+        ),
+        (
+            "System Info",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+    
+    readonly_fields = ("created_at", "updated_at")
+    
+    @admin.display(description="Lead")
+    def lead_name(self, obj):
+        return obj.lead.get_full_name
+    
+    @admin.display(description="Trip")
+    def trip_details(self, obj):
+        arrow = "→" if obj.trip_type == "oneway" else "⇄"
+        return f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
+    
+    @admin.display(description="Vehicle")
+    def vehicle_display(self, obj):
+        return obj.vehicle.vehicle_type if obj.vehicle else "No vehicle"
+    
+    @admin.display(description="Price")
+    def price_display(self, obj):
+        return f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
+    
+    @admin.display(description="Status")
+    def status_display(self, obj):
+        colors = {
+            "pending": "#ffc107",
+            "sent": "#007bff",
+            "accepted": "#28a745",
+            "rejected": "#dc3545",
+            "expired": "#6c757d",
+        }
+        color = colors.get(obj.status, "#6c757d")
+        return format_html(
+            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display(),
+        )
+    
+    @admin.display(description="Current")
+    def is_current_display(self, obj):
+        if obj.is_current:
+            return format_html(
+                '<span style="color: #28a745; font-weight: bold;">✓</span>'
+            )
+        return "-"

@@ -412,6 +412,7 @@ class Lead(models.Model):
     # Notes and Timestamps
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -425,3 +426,67 @@ class Lead(models.Model):
     @property
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}".strip() or "No Name"
+
+    @property
+    def latest_quote(self):
+        """Get the most recent quote for this lead"""
+        return self.quotes.order_by('-created_at').first()
+
+    @property
+    def quote_count(self):
+        """Get the number of quotes for this lead"""
+        return self.quotes.count()
+
+
+class Quote(models.Model):
+    class TripTypeChoices(models.TextChoices):
+        ONEWAY = "oneway", "One Way"
+        ROUNDTRIP = "roundtrip", "Round Trip"
+
+    class StatusChoices(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENT = "sent", "Sent"
+        ACCEPTED = "accepted", "Accepted"
+        REJECTED = "rejected", "Rejected"
+        EXPIRED = "expired", "Expired"
+
+    # Relationship to Lead
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quotes')
+    
+    # Trip Details
+    pickup_location = models.CharField(max_length=200, blank=True)
+    dropoff_location = models.CharField(max_length=200, blank=True)
+    pickup_date = models.DateField(null=True, blank=True)
+    trip_type = models.CharField(
+        max_length=20, choices=TripTypeChoices.choices, blank=True
+    )
+    vehicle = models.ForeignKey(
+        Vehicle, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    estimated_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    
+    # Quote Management
+    status = models.CharField(
+        max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING
+    )
+    is_current = models.BooleanField(default=True, help_text="Mark this as the most recent quote")
+    
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Quote"
+        verbose_name_plural = "Quotes"
+
+    def __str__(self):
+        return f"Quote for {self.lead} - {self.pickup_date or 'No date'}"
+
+    def save(self, *args, **kwargs):
+        # If this quote is marked as current, unmark all other quotes for this lead
+        if self.is_current:
+            Quote.objects.filter(lead=self.lead).exclude(id=self.id).update(is_current=False)
+        super().save(*args, **kwargs)
