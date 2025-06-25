@@ -345,6 +345,8 @@ class ReservationAdmin(ImportExportModelAdmin):
         "profit_display",
         "agent_info",
         "status",
+        "utm_source_display",
+        "utm_campaign_display",
     )
     list_display_links = ("id", "customer_link")
     list_editable = ("status",)
@@ -395,6 +397,19 @@ class ReservationAdmin(ImportExportModelAdmin):
                     "status",
                     "payment_status_display",
                 )
+            },
+        ),
+        (
+            "Marketing Attribution",
+            {
+                "fields": (
+                    "utm_source",
+                    "utm_campaign", 
+                    "gclid",
+                    "utm_medium",
+                    "utm_term",
+                ),
+                "classes": ("collapse",),
             },
         ),
         (
@@ -596,34 +611,32 @@ class ReservationAdmin(ImportExportModelAdmin):
 
     @admin.display(description="Profit %")
     def profit_percentage(self, obj):
-        """Calculate and display profit percentage"""
-        if not obj.total_price or obj.total_price <= 0:
-            return "0%"
-
-        if not hasattr(obj, "profit_estimate") or obj.profit_estimate is None:
+        if obj.total_price and obj.total_price > 0:
             profit = obj.calculate_profit()
-        else:
-            profit = obj.profit_estimate
+            percentage = (profit / obj.total_price) * 100
+            return f"{percentage:.1f}%"
+        return "N/A"
+    profit_percentage.short_description = "Profit %"
 
-        percentage = (profit / obj.total_price) * 100
+    @admin.display(description="Source")
+    def utm_source_display(self, obj):
+        if obj.utm_source:
+            return obj.utm_source
+        return "—"
+    utm_source_display.short_description = "Source"
 
-        # Color code based on profit margin
-        if percentage >= 40:
-            color = "green"
-        elif percentage >= 20:
-            color = "orange"
-        else:
-            color = "red"
+    @admin.display(description="Campaign")
+    def utm_campaign_display(self, obj):
+        if obj.utm_campaign:
+            return obj.utm_campaign
+        return "—"
+    utm_campaign_display.short_description = "Campaign"
 
-        # Format percentage as string first
-        percentage_str = f"{percentage:.1f}%"
-
-        # Then use format_html without string formatting
-        return format_html(
-            '<span style="color: {}; font-weight: bold;">{}</span>',
-            color,
-            percentage_str,
-        )
+    @admin.display(description="Google Click ID")
+    def gclid_display(self, obj):
+        if obj.gclid:
+            return obj.gclid[:20] + "..." if len(obj.gclid) > 20 else obj.gclid
+        return "—"
 
     # ── Actions ────────────────────────────────────────────
     @admin.action(description="Mark selected reservations as confirmed")

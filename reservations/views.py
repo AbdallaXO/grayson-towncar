@@ -113,6 +113,17 @@ def reservation_form(
                 vehicle=rate.vehicle,
             )
 
+            # Capture and save UTM parameters for Google Ads attribution
+            utm_params = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+            for param in utm_params:
+                value = request.POST.get(param)
+                if value:
+                    setattr(reservation, param, value)
+                    logger.info(f"Captured UTM parameter {param}: {value}")
+            
+            # Save the reservation with UTM data
+            reservation.save()
+
             # If user is logged in and is a travel agent, tag the reservation
             if request.user.is_authenticated:
                 try:

@@ -90,6 +90,23 @@
                         <div>
                           <strong>D/O:</strong> {{ leg.dropoff_location }}
                         </div>
+
+                        <!-- Store Stop Information - Only show on first leg -->
+                        {% if leg.is_first_leg %}
+                          <div class="mt-2">
+                            {% if leg.reservation.store_stop %}
+                              <span class="badge bg-success text-white">
+                                <i class="bi bi-shop me-1"></i>Store Stop: Yes
+                              </span>
+                              <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
+                            {% else %}
+                              <span class="badge bg-secondary text-white">
+                                <i class="bi bi-shop me-1"></i>Store Stop: No
+                              </span>
+                            {% endif %}
+                          </div>
+                        {% endif %}
+
                         <div class="mt-1">
                           <strong>Flight:</strong> {{ leg.flight_information|default:"N/A" }}
                         </div>
@@ -112,11 +129,7 @@
                             <div>{{ leg.reservation.special_requests }}</div>
                           </div>
                         {% endif %}
-                        {% if leg.first and leg.reservation.store_stop %}
-                          <div class="mb-2">
-                            <div>Publix Stop @9930 Universal Blvd</div>
-                          </div>
-                        {% endif %}
+
                         <div>
                           <div class="text-muted small fw-bold">Private Notes:</div>
                           <div>{{ leg.reservation.private_notes }}</div>
@@ -189,6 +202,22 @@
                   <div>
                     <strong>Drop-Off Location: {{ leg.dropoff_location }}</strong>
                   </div>
+
+                  <!-- Store Stop Information - Only show on first leg -->
+                  {% if leg.is_first_leg %}
+                    <div class="mt-2">
+                      {% if leg.reservation.store_stop %}
+                        <span class="badge bg-success text-white">
+                          <i class="bi bi-shop me-1"></i>Store Stop: Yes
+                        </span>
+                        <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
+                      {% else %}
+                        <span class="badge bg-secondary text-white">
+                          <i class="bi bi-shop me-1"></i>Store Stop: No
+                        </span>
+                      {% endif %}
+                    </div>
+                  {% endif %}
                 </div>
 
                 <div class="mb-3 pb-3 border-bottom">
@@ -218,12 +247,6 @@
                       <div class="text-muted small fw-bold">Internal Notes:</div>
                       <div>{{ leg.reservation.private_notes }}</div>
                     </div>
-                  </div>
-                {% endif %}
-                {% if leg.reservation.store_stop and leg.first %}
-                  <div class="mb-2">
-                    <div class="text-muted small fw-bold">Requests:</div>
-                    <div>Publix Stop @9930 Universal Blvd</div>
                   </div>
                 {% endif %}
 

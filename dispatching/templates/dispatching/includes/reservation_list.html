@@ -78,7 +78,7 @@
                     <span class="badge bg-dark text-white">{{ reservation.get_trip_type_display }}</span>
                   </div>
                   <div class="fw-bold">
-                    {{ reservation.passenger_count }} Passengers • {{ reservation.suitcases_count }} Suitcases • {{ reservation.vehicle }}
+                    {{ reservation.passenger_count }} Passengers • {{ reservation.luggage_count }} Suitcases • {{ reservation.vehicle }}
                   </div>
                   <div>Child Seats: {{ reservation.display_carseats|default:"0" }}</div>
 
@@ -251,7 +251,7 @@
                     <div>
                       <span class="badge bg-dark text-white mb-1">{{ reservation.get_trip_type_display }}</span>
                       <div class="fw-semibold">
-                        {{ reservation.vehicle }} • {{ reservation.passenger_count }} Passengers • {{ reservation.suitcases_count }} Suitcases
+                        {{ reservation.vehicle }} • {{ reservation.passenger_count }} Passengers • {{ reservation.luggage_count }} Suitcases
                       </div>
                       <div>Child Seats: {{ reservation.display_carseats|default:"0" }}</div>
                     </div>

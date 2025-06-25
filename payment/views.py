@@ -2,6 +2,7 @@ import stripe
 from django.shortcuts import render, redirect, get_object_or_404
 import stripe.error
 from reservations.models import Reservation
+from reservations.utils import add_utm_to_metadata
 from .utils import get_or_create_stripe_customer
 from django.conf import settings
 from django.urls import reverse
@@ -34,6 +35,19 @@ def create_checkout_session(request, reservation_id):
 
         if action == "pay_now":
             try:
+                # Prepare metadata with UTM parameters
+                metadata = {
+                    "reservation_uuid": reservation.uuid,
+                    "reservation_id": reservation.id,
+                    "customer_id": reservation.customer.id,
+                    "mode": "pay_now",
+                    "route": f"Roundtrip Between {reservation.rate.route}",
+                    "vehicle": str(reservation.rate.vehicle),
+                }
+                
+                # Add UTM parameters to metadata if they exist
+                metadata = add_utm_to_metadata(metadata, reservation)
+
                 checkout_session = stripe.checkout.Session.create(
                     customer=stripe_customer.id,
                     line_items=[
@@ -54,14 +68,7 @@ def create_checkout_session(request, reservation_id):
                     billing_address_collection="auto",  # zip code autofill
                     success_url=success_url,
                     cancel_url=cancel_url,
-                    metadata={
-                        "reservation_uuid": reservation.uuid,
-                        "reservation_id": reservation.id,
-                        "customer_id": reservation.customer.id,
-                        "mode": "pay_now",
-                        "route": f"Roundtrip Between {reservation.rate.route}",
-                        "vehicle": str(reservation.rate.vehicle),
-                    },
+                    metadata=metadata,
                     payment_intent_data={"setup_future_usage": "off_session"},
                     client_reference_id=reservation.id,
                 )
@@ -91,6 +98,19 @@ def save_card(request, reservation_uuid):
     except Exception as e:
         logger.error(f"Unexpected error in checkout session: {e}")
     try:
+        # Prepare metadata with UTM parameters
+        metadata = {
+            "reservation_id": reservation.id,
+            "reservation_uuid": reservation.uuid,
+            "customer_id": reservation.customer.id,
+            "mode": "pay_now",
+            "route": f"Roundtrip Between {reservation.rate.route}",
+            "vehicle": str(reservation.rate.vehicle),
+        }
+        
+        # Add UTM parameters to metadata if they exist
+        metadata = add_utm_to_metadata(metadata, reservation)
+
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer.id,
             payment_method_types=["card"],
@@ -98,14 +118,7 @@ def save_card(request, reservation_uuid):
             billing_address_collection="auto",
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={
-                "reservation_id": reservation.id,
-                "reservation_uuid": reservation.uuid,
-                "customer_id": reservation.customer.id,
-                "mode": "pay_now",
-                "route": f"Roundtrip Between {reservation.rate.route}",
-                "vehicle": str(reservation.rate.vehicle),
-            },
+            metadata=metadata,
             client_reference_id=reservation.uuid,
         )
     except stripe.error.StripeError as e:
