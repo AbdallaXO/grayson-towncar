@@ -4,8 +4,6 @@
   Payment Successful | Grayson Towncar
 {% endblock title %}
 
-
-
 {% block content %}
   <div class="container py-5">
     <div class="row justify-content-center">
@@ -28,9 +26,9 @@
               Thank you for choosing <span class="fw-semibold text-dark">Grayson Towncar</span>. Your payment was successful and your ride is officially reserved.
             </p>
             <p class="text-secondary mb-4">
-              You’ll receive an email confirmation shortly with your trip details.
+              You'll receive an email confirmation shortly with your trip details.
               <br />
-              If you have any questions, we’re here for you:
+              If you have any questions, we're here for you:
             </p>
             <div class="mb-4">
               <p class="mb-1">
@@ -47,4 +45,34 @@
       </div>
     </div>
   </div>
-{% endblock %}
+
+  <!-- Purchase Event Script -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    
+    // Helper function to get UTM value (cookie first, then database, then null)
+    function getUTMValue(param, dbValue) {
+        const cookieVal = (document.cookie.match(new RegExp('(?:^|; )' + param + '=([^;]+)')) || [])[1];
+        return cookieVal || (dbValue && dbValue !== '' ? dbValue : null);
+    }
+    
+    // Get all UTM values immediately
+    const gclid = getUTMValue('gclid', '{{ reservation.gclid|default:"" }}');
+    const utm_source = getUTMValue('utm_source', '{{ reservation.utm_source|default:"" }}');
+    const utm_medium = getUTMValue('utm_medium', '{{ reservation.utm_medium|default:"" }}');
+    const utm_campaign = getUTMValue('utm_campaign', '{{ reservation.utm_campaign|default:"" }}');
+    
+    // Push the actual values (not function calls) to dataLayer
+    window.dataLayer.push({
+        event: 'purchase',
+        transaction_id: '{{ purchase_data.transaction_id|default:"" }}',
+        value: {{ purchase_data.value|default:0 }},
+        currency: '{{ purchase_data.currency|default:"USD" }}',
+        gclid: gclid,
+        utm_source: utm_source,
+        utm_medium: utm_medium,
+        utm_campaign: utm_campaign
+    });
+
+</script>
+{% endblock content %}

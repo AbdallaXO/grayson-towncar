@@ -821,15 +821,15 @@
                 const form = document.getElementById('reservation_form');
 
                 form.addEventListener('submit', function(e) {
-                    // Capture UTM parameters from localStorage
+                    // Capture UTM parameters from cookies
                     const utmParams = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 
                     utmParams.forEach(function(param) {
-                        const value = localStorage.getItem(param);
+                        const value = getCookie(param);
                         const field = document.getElementById(param + '_field');
                         if (value && field) {
                             field.value = value;
-                            console.log('Populated UTM field:', param, '=', value);
+                            console.log('Populated UTM field from cookie:', param, '=', value);
                         }
                     });
                 });

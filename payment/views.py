@@ -128,7 +128,35 @@ def save_card(request, reservation_uuid):
 
 
 def payment_success(request):
-    return render(request, "stripe/success.html")
+    reservation_uuid = request.GET.get("q")
+    reservation = None
+    purchase_data = None
+    
+    if reservation_uuid:
+        try:
+            reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+            logger.info(f"Payment success for reservation: {reservation_uuid}")
+            
+            # Try to get Stripe transaction ID from the most recent payment
+            stripe_transaction_id = None
+            if reservation.payments.exists():
+                latest_payment = reservation.payments.latest('created_at')
+                stripe_transaction_id = latest_payment.stripe_payment_intent_id
+            
+            # Prepare purchase event data
+            purchase_data = {
+                'transaction_id': stripe_transaction_id or str(reservation.uuid),  # Use Stripe ID if available, fallback to UUID
+                'value': float(reservation.total_price) if reservation.total_price else 0.0,
+                'currency': 'USD',
+            }
+            
+        except Exception as e:
+            logger.error(f"Error retrieving reservation {reservation_uuid}: {e}")
+    
+    return render(request, "stripe/success.html", {
+        "reservation": reservation,
+        "purchase_data": purchase_data
+    })
 
 
 def payment_cancel(request):
