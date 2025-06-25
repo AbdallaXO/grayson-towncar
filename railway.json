@@ -6,7 +6,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
-    "startCommand": "python manage.py migrate && gunicorn business.wsgi",
+    "startCommand": "python manage.py migrate reservations 0043 --fake && python manage.py migrate && gunicorn business.wsgi",
     "sleepApplication": false,
     "multiRegionConfig": {
       "us-east4-eqdc4a": {
