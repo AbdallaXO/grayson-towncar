@@ -420,7 +420,6 @@ class Lead(models.Model):
     # Notes and Timestamps
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]
