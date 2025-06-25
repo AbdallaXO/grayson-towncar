@@ -168,6 +168,8 @@
                                 data-leg-id="{{ leg.id }}">
                           <option value="in-progress"
                                   {% if leg.status == 'in-progress' %}selected{% endif %}>In-Progress</option>
+                          <option value="on-location"
+                                  {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
                           <option value="picked-up"
                                   {% if leg.status == 'picked-up' %}selected{% endif %}>Picked-Up</option>
                           <option value="completed"

@@ -143,3 +143,32 @@ def update_leg_status(request, leg_id):
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def update_driver_notes(request, leg_id):
+    try:
+        # Ensure the leg belongs to the current driver
+        leg = get_object_or_404(Leg, id=leg_id, driver__profile=request.user)
+
+        # Parse the request body
+        data = json.loads(request.body)
+        driver_notes = data.get("driver_notes", "")
+
+        # Update and save the leg
+        leg.driver_notes = driver_notes
+        leg.save(update_fields=["driver_notes"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Driver notes updated successfully",
+            }
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)

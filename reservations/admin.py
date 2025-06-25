@@ -144,7 +144,7 @@ class LegInline(admin.StackedInline):
                 )
             },
         ),
-        ("Notes", {"fields": ("private_notes",), "classes": ("collapse",)}),
+        ("Notes", {"fields": ("private_notes", "driver_notes"), "classes": ("collapse",)}),
     )
     classes = ("wide",)
     readonly_fields = ("status",)
@@ -695,6 +695,7 @@ class LegAdmin(ImportExportModelAdmin):
         "profit_display",
         "payment_status",
         "status_display",
+        "driver_notes_display",
     )
     list_filter = (
         "pickup_date",
@@ -868,6 +869,12 @@ class LegAdmin(ImportExportModelAdmin):
     def set_payment_status_unpaid(self, request, queryset):
         updated = queryset.update(payment_status="unpaid")
         self.message_user(request, f"Payment status updated for {updated} legs.")
+
+    @admin.display(description="Driver Notes")
+    def driver_notes_display(self, obj):
+        if obj.driver_notes:
+            return obj.driver_notes[:50] + "..." if len(obj.driver_notes) > 50 else obj.driver_notes
+        return "-"
 
 
 @admin.register(Flight)

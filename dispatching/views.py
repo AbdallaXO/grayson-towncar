@@ -541,7 +541,7 @@ def update_leg_assignment(request):
         elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
-                valid_statuses = ["in-progress", "picked-up", "completed"]
+                valid_statuses = ["in-progress", "on-location", "picked-up", "completed"]
                 if value in valid_statuses:
                     leg.status = value
                     leg.save()

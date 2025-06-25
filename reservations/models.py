@@ -238,6 +238,11 @@ class Leg(models.Model):
     pickup_location = models.CharField(max_length=255)
     dropoff_location = models.CharField(max_length=255)
     private_notes = models.TextField(null=True, blank=True)
+    driver_notes = models.TextField(
+        null=True, 
+        blank=True, 
+        help_text="Notes added by the driver about this trip"
+    )
     driver = models.ForeignKey(
         "drivers.Driver",
         null=True,
