@@ -150,7 +150,7 @@ a, button, .btn {
 }
 
 /* Success badge animation */
-.badge.bg-primary {
+.badge.bg-dark {
   animation: pulse 2s infinite;
 }
 
@@ -183,7 +183,7 @@ a, button, .btn {
 
 /* Price display enhancement */
 .quote-display {
-  background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+  background: linear-gradient(135deg, #212529, #495057);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -191,12 +191,12 @@ a, button, .btn {
 }
 
 /* Benefits list enhancement */
-.quote-display-container .text-primary {
+.quote-display-container .text-dark {
   transition: all 0.3s ease;
 }
 
-.quote-display-container .text-primary:hover {
-  color: #0b5ed7 !important;
+.quote-display-container .text-dark:hover {
+  color: #495057 !important;
   transform: scale(1.05);
 }
 
