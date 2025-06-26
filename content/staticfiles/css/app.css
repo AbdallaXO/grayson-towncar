@@ -128,3 +128,202 @@ img {
 a, button, .btn {
   transition: all 0.3s ease;
 }
+
+/* Quote Form Enhanced Styles */
+.quote-form-container {
+  transition: all 0.3s ease;
+}
+
+.quote-display-container {
+  transition: all 0.3s ease;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.quote-display-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+}
+
+.invalid-quote-container {
+  transition: all 0.3s ease;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Success badge animation */
+.badge.bg-primary {
+  animation: pulse 2s infinite;
+}
+
+/* Button hover effects */
+.quote-display-container .btn {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.quote-display-container .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.quote-display-container .btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.quote-display-container .btn:hover::before {
+  left: 100%;
+}
+
+/* Price display enhancement */
+.quote-display {
+  background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Benefits list enhancement */
+.quote-display-container .text-primary {
+  transition: all 0.3s ease;
+}
+
+.quote-display-container .text-primary:hover {
+  color: #0b5ed7 !important;
+  transform: scale(1.05);
+}
+
+/* Social proof enhancement */
+.quote-display-container .bi-star-fill {
+  animation: twinkle 1.5s ease-in-out infinite alternate;
+}
+
+/* Trust indicators enhancement */
+.quote-display-container .text-muted {
+  transition: all 0.3s ease;
+}
+
+.quote-display-container .text-muted:hover {
+  color: #6c757d !important;
+  transform: scale(1.05);
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes twinkle {
+  0% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Loading state enhancement */
+.quote-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.spinner-border {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Vehicle preview enhancement */
+.vehicle-preview {
+  transition: all 0.3s ease;
+}
+
+.vehicle-preview:hover {
+  transform: scale(1.02);
+}
+
+.vehicle-image {
+  transition: all 0.3s ease;
+}
+
+.vehicle-image:hover {
+  transform: scale(1.05);
+}
+
+/* Form validation enhancement */
+.form-control.is-valid,
+.form-select.is-valid {
+  border-color: #28a745;
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.form-control.is-invalid,
+.form-select.is-invalid {
+  border-color: #dc3545;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+}
+
+/* Responsive enhancements */
+@media (max-width: 768px) {
+  .quote-display-container .btn {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  .quote-display {
+    font-size: 2rem;
+  }
+  
+  .quote-display-container .row.g-3 > div {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* Focus states for accessibility */
+.quote-display-container .btn:focus {
+  outline: 2px solid #4158d0;
+  outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+  .quote-display-container {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+  
+  .quote-display-container .btn {
+    display: none !important;
+  }
+}

@@ -96,7 +96,7 @@
                                 object-fit: contain">
                   </div>
                   <div>
-                    <strong>Arrival Tip:</strong> Schedule pickup for your flight’s landing time — we monitor delays and adjust automatically.
+                    <strong>Arrival Tip:</strong> Schedule pickup for your flight's landing time — we monitor delays and adjust automatically.
                   </div>
                 </div>
 
@@ -146,6 +146,7 @@
               </div>
               <div class="card-body">
                 <div class="row g-3">
+                  <!-- First and Last Name on same row -->
                   <div class="col-md-6 form-row">
                     <label for="{{ customer_form.first_name.id_for_label }}"
                            class="form-label required">First Name</label>
@@ -168,6 +169,7 @@
                     {% endif %}
                   </div>
 
+                  <!-- Email and Phone on same row -->
                   <div class="col-md-6 form-row">
                     <label for="{{ customer_form.email.id_for_label }}"
                            class="form-label required">Email Address</label>
@@ -196,6 +198,7 @@
                     {% endif %}
                   </div>
 
+                  <!-- Zipcode on its own row -->
                   <div class="col-md-6 form-row">
                     <label for="{{ customer_form.zipcode.id_for_label }}"
                            class="form-label required">Zipcode</label>
@@ -806,6 +809,43 @@
         <script src="{% static 'js/maps_autocomplete.js' %}"></script>
         <script src="{% static 'js/validate-vehicle-limits.js' %}"></script>
         <script src="{% static 'js/validate-trip-times.js' %}"></script>
+
+        <!-- Autofill customer information from URL parameters -->
+        <script>
+          function autofillForm() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Get customer information from URL parameters
+            const firstName = urlParams.get('first_name');
+            const lastName = urlParams.get('last_name');
+            const email = urlParams.get('email');
+            const phone = urlParams.get('phone');
+            
+            // Autofill the form fields if the data exists
+            if (firstName) {
+              const firstNameField = document.querySelector('input[name="first_name"]');
+              if (firstNameField) firstNameField.value = firstName;
+            }
+            
+            if (lastName) {
+              const lastNameField = document.querySelector('input[name="last_name"]');
+              if (lastNameField) lastNameField.value = lastName;
+            }
+            
+            if (email) {
+              const emailField = document.querySelector('input[name="email"]');
+              if (emailField) emailField.value = email;
+            }
+            
+            if (phone) {
+              const phoneField = document.querySelector('input[name="phone_number"]');
+              if (phoneField) phoneField.value = phone;
+            }
+          }
+          
+          // Autofill when DOM is ready
+          document.addEventListener('DOMContentLoaded', autofillForm);
+        </script>
 
       {% endblock %}
 

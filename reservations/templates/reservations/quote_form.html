@@ -51,7 +51,7 @@
 
                 <div class="mb-2">
                   <label for="pickup-date-{{ form_id }}" class="form-label small fw-semibold mb-1">
-                    <i class="bi bi-calendar-event text-primary me-1"></i>
+                    <i class="bi bi-calendar-event text-dark me-1"></i>
                     Date of Service
                   </label>
                   <input type="date"
@@ -235,7 +235,7 @@
           <!-- Submit Button -->
           <div class="col-12">
             <button type="submit" class="btn btn-dark btn-sm w-100 fw-semibold quote-btn">
-              <i class="bi bi-calculator me-2"></i>Check Prices & Availability
+              <i class="bi bi-calculator me-2"></i>REQUEST MY QUOTE NOW 
             </button>
           </div>
         </div>
@@ -243,32 +243,136 @@
      <!-- Quote Results -->
 <!-- Quote Results -->
 <div class="quote-display-wrapper mt-3">
-  <div class="rounded-3 p-3 d-none border quote-display-container"
-       style="background: linear-gradient(135deg, rgba(10, 20, 40, 0.05) 0%, rgba(25, 135, 84, 0.05) 100%)">
+  <div class="rounded-3 p-4 d-none border-0 shadow-lg quote-display-container"
+       style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.05) 0%, rgba(13, 110, 253, 0.02) 100%); border: 1px solid rgba(13, 110, 253, 0.15) !important;">
+    
+    <!-- Success Badge -->
+    <div class="text-center mb-3">
+      <span class="badge bg-dark px-3 py-2 rounded-pill">
+        <i class="bi bi-check-circle-fill me-1"></i>Instant Quote Available!
+      </span>
+    </div>
+
     <div class="text-center">
-      <span class="text-muted d-block mb-1 small">Your Total Price</span>
-      <span class="quote-display display-6 fw-bold text-dark"></span>
-      <div class="route-info text-muted mt-1 small"></div>
-      <small class="text-muted d-block mt-2 fst-italic">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
+      <!-- Price Display -->
+      <div class="mb-4">
+        <span class="text-muted d-block mb-1 small fw-semibold">Your Total Price</span>
+        <span class="quote-display display-5 fw-bold text-dark"></span>
+        <div class="route-info text-muted mt-1 small fw-semibold"></div>
+      </div>
 
-      <div class="mt-3 d-flex flex-column flex-sm-row gap-2 justify-content-center">
-        <a href="#" class="btn btn-warning btn-sm oneway-btn"><i class="bi bi-arrow-right me-2"></i>Book One-way</a>
-        <a href="#"
-           class="btn btn-outline-warning btn-sm roundtrip-btn text-dark"><i class="bi bi-arrow-repeat me-2"></i>Book Round-trip & Save </a>
-      </div>      
+      <!-- Simple Benefits List -->
+      <div class="mb-4">
+        <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap">
+          <small class="d-flex align-items-center text-dark fw-semibold">
+            <i class="bi bi-clock-fill me-1"></i>Instant Booking
+          </small>
+          <small class="d-flex align-items-center text-dark fw-semibold">
+            <i class="bi bi-shield-check-fill me-1"></i>No Hidden Fees
+          </small>
+          <small class="d-flex align-items-center text-dark fw-semibold">
+            <i class="bi bi-star-fill me-1"></i>5-Star Service
+          </small>
+          <small class="d-flex align-items-center text-dark fw-semibold">
+            <i class="bi bi-credit-card-fill me-1"></i>Secure Payment
+          </small>
+        </div>
+      </div>
 
+      <!-- Social Proof -->
+      <div class="mb-4 p-3 rounded bg-light border">
+        <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+          <div class="d-flex">
+            <i class="bi bi-star-fill text-warning"></i>
+            <i class="bi bi-star-fill text-warning"></i>
+            <i class="bi bi-star-fill text-warning"></i>
+            <i class="bi bi-star-fill text-warning"></i>
+            <i class="bi bi-star-fill text-warning"></i>
+          </div>
+          <small class="fw-semibold text-dark">5/5 from Hundreds of satisfied customers</small>
+        </div>
+        <small class="text-muted d-block">"Professional, on-time, clean vehicles, and great car seats for the kids!" - Cindy F.</small>
+      </div>
+  
+      <!-- Action Buttons -->
+      <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center mb-4">
+        <a href="#" class="btn btn-dark btn-lg oneway-btn fw-bold px-5">
+          <i class="bi bi-arrow-right me-2"></i>Book One-way Now
+        </a>
+        <a href="#" class="btn btn-outline-dark btn-lg roundtrip-btn fw-bold px-5">
+          <i class="bi bi-arrow-repeat me-2"></i>Book Round-trip
+        </a>
+      </div>
+
+      <!-- Trust Indicators -->
+      <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap mb-2">
+        <small class="text-muted d-flex align-items-center">
+          <i class="bi bi-lock-fill me-1"></i>SSL Secure
+        </small>
+        <small class="text-muted d-flex align-items-center">
+          <i class="bi bi-shield-check me-1"></i>Fully Insured
+        </small>
+        <small class="text-muted d-flex align-items-center">
+          <i class="bi bi-clock-history me-1"></i>24/7 Support
+        </small>
+      </div>
+
+      <small class="text-muted d-block fst-italic mb-3">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
+
+      <!-- Contact Information -->
+      <div class="border-top pt-3">
+        <small class="text-muted d-block mb-2">Questions? Call or text:</small>
+        <a href="tel:407-212-7190" class="text-dark fw-semibold text-decoration-none">
+          <i class="bi bi-telephone-fill me-1"></i>407-212-7190
+        </a>
+      </div>
     </div>
   </div>
 
   <!-- Invalid Quote Display -->
-  <div class="rounded-3 p-3 d-none border border-warning invalid-quote-container"
-       style="background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 193, 7, 0.05) 100%)">
+  <div class="rounded-3 p-4 d-none border-0 shadow-lg invalid-quote-container"
+       style="background: linear-gradient(135deg, rgba(255, 193, 7, 0.05) 0%, rgba(255, 193, 7, 0.02) 100%); border: 1px solid rgba(255, 193, 7, 0.15) !important;">
     <div class="text-center">
-      <i class="bi bi-telephone-fill display-4 text-dark mb-2"></i>
-      <h4 class="mb-2 fw-bold h5">Custom Quote Required</h4>
-      <p class="mb-2 text-muted small">We'll review your request and contact you shortly with a personalized quote.</p>
-      <p class="mb-2 small text-muted">Need immediate assistance?</p>
-      <a href="tel:407-212-7190" class="btn btn-warning btn-sm fw-semibold"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
+      <div class="mb-4">
+        <i class="bi bi-telephone-fill display-4 text-dark mb-2"></i>
+        <h4 class="mb-2 fw-bold h4 text-dark">Route Not Set Up Online</h4>
+        <p class="mb-3 text-muted">We don't have this route configured online yet, but we definitely provide this service! We'll reach out to you shortly with a quote.</p>
+      </div>
+
+      <div class="mb-4 p-3 rounded bg-light border">
+        <small class="fw-semibold text-dark d-block mb-2">Best to call for:</small>
+        <div class="row g-2 text-start">
+          <div class="col-12">
+            <small class="d-flex align-items-center">
+              <i class="bi bi-check-circle-fill text-dark me-1"></i>
+              Custom routes not set up online
+            </small>
+          </div>
+          <div class="col-12">
+            <small class="d-flex align-items-center">
+              <i class="bi bi-check-circle-fill text-dark me-1"></i>
+              Multi-stop itineraries
+            </small>
+          </div>
+          <div class="col-12">
+            <small class="d-flex align-items-center">
+              <i class="bi bi-check-circle-fill text-dark me-1"></i>
+              Group rates and corporate bookings
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <p class="mb-3 small text-muted">Need assistance? Call us for a quick quote:</p>
+      <a href="tel:407-212-7190" class="btn btn-outline-dark btn-lg fw-bold px-5">
+        <i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190
+      </a>
+      
+      <div class="mt-3">
+        <small class="text-muted d-flex align-items-center justify-content-center">
+          <i class="bi bi-clock-fill me-1"></i>Available 24/7 for immediate assistance
+        </small>
+      </div>
     </div>
   </div>
 </div>

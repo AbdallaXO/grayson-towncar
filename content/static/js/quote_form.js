@@ -238,7 +238,7 @@ class QuoteFormHandler {
             this.elements.quoteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Getting Quote...';
             this.elements.quoteBtn.disabled = true;
         } else {
-            this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Check Prices & Availability';
+            this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>REQUEST MY QUOTE NOW';
             this.elements.quoteBtn.disabled = false;
         }
     }
@@ -256,13 +256,51 @@ class QuoteFormHandler {
         this.elements.routeInfo.textContent = route;
         this.elements.onewayBtn.href = onewayUrl;
         this.elements.roundtripBtn.href = roundtripUrl;
+
+        // Calculate and display savings for round-trip
+        const currentTripType = this.container.querySelector('input[name^="trip"]:checked').value;
+        const locationIds = [this.elements.pickup.value, this.elements.dropoff.value].sort();
+        const key = `${locationIds[0]}-${locationIds[1]}`;
+        const rate = this.rateData[this.elements.vehicle.value]?.[key];
+
+        if (rate) {
+            const onewayPrice = rate.oneway;
+            const roundtripPrice = rate.round;
+            const savings = onewayPrice * 2 - roundtripPrice;
+
+            if (currentTripType === '1') {
+                // Show one-way price with round-trip savings
+                if (savings > 0) {
+                    this.elements.roundtripBtn.innerHTML = `<i class="bi bi-arrow-repeat me-2"></i>Book Round-trip & Save $${savings}`;
+                } else {
+                    this.elements.roundtripBtn.innerHTML = `<i class="bi bi-arrow-repeat me-2"></i>Book Round-trip`;
+                }
+            } else {
+                // Show round-trip price with savings
+                this.elements.onewayBtn.innerHTML = `<i class="bi bi-arrow-right me-2"></i>Book One-way Now`;
+                if (savings > 0) {
+                    this.elements.roundtripBtn.innerHTML = `<i class="bi bi-arrow-repeat me-2"></i>Book Round-trip & Save $${savings}`;
+                } else {
+                    this.elements.roundtripBtn.innerHTML = `<i class="bi bi-arrow-repeat me-2"></i>Book Round-trip`;
+                }
+            }
+        }
+
         this.elements.displayContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Add a subtle animation to draw attention
+        setTimeout(() => {
+            this.elements.displayContainer.style.transform = 'scale(1.02)';
+            setTimeout(() => {
+                this.elements.displayContainer.style.transform = 'scale(1)';
+            }, 200);
+        }, 100);
     }
 
     showInvalidQuote() {
         this.elements.displayContainer.classList.add('d-none');
         this.elements.invalidQuoteContainer.classList.remove('d-none');
-        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Check Prices & Availability';
+        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>REQUEST MY QUOTE NOW';
         this.elements.quoteBtn.classList.remove('btn-dark');
         this.elements.quoteBtn.classList.add('btn-dark');
         this.elements.invalidQuoteContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -273,7 +311,7 @@ class QuoteFormHandler {
         this.elements.routeInfo.textContent = '';
         this.elements.displayContainer.classList.add('d-none');
         this.elements.invalidQuoteContainer.classList.add('d-none');
-        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>Check Prices & Availability';
+        this.elements.quoteBtn.innerHTML = '<i class="bi bi-calculator me-2"></i>REQUEST MY QUOTE NOW';
         this.elements.quoteBtn.classList.remove('btn-dark');
         this.elements.quoteBtn.classList.add('btn-dark');
     }
@@ -312,9 +350,6 @@ class QuoteFormHandler {
                 estimated_price: null
             };
 
-            // Debug logging
-            console.log('Lead data being sent:', leadData);
-
             // Check for rate
             const locationIds = [pickup, dropoff].sort();
             const key = `${locationIds[0]}-${locationIds[1]}`;
@@ -339,8 +374,16 @@ class QuoteFormHandler {
             if (data.success) {
                 if (rate) {
                     const price = tripType === '1' ? rate.oneway : rate.round;
-                    const onewayUrl = `/book-orlando-transportation/${rate.id}?round=1`;
-                    const roundtripUrl = `/book-orlando-transportation/${rate.id}?round=2`;
+                    // Include customer information in the booking URLs for autofill
+                    const customerParams = new URLSearchParams({
+                        first_name: formData.first_name || '',
+                        last_name: formData.last_name || '',
+                        email: formData.email || '',
+                        phone: formData.phone || ''
+                    }).toString();
+
+                    const onewayUrl = `/book-orlando-transportation/${rate.id}?round=1&${customerParams}`;
+                    const roundtripUrl = `/book-orlando-transportation/${rate.id}?round=2&${customerParams}`;
                     this.showQuote(price, `${rate.origin} → ${rate.destination}`, onewayUrl, roundtripUrl);
                     this.setSuccess();
                 } else {
