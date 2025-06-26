@@ -116,6 +116,14 @@ class Reservation(models.Model):
         help_text="Estimated profit (total price - driver payments)",
     )
 
+    # UTM Parameters for Google Ads Attribution
+    gclid = models.CharField(max_length=255, blank=True, null=True, help_text="Google Click ID for conversion tracking")
+    utm_source = models.CharField(max_length=100, blank=True, null=True, help_text="UTM source parameter")
+    utm_medium = models.CharField(max_length=100, blank=True, null=True, help_text="UTM medium parameter")
+    utm_campaign = models.CharField(max_length=100, blank=True, null=True, help_text="UTM campaign parameter")
+    utm_term = models.CharField(max_length=100, blank=True, null=True, help_text="UTM term parameter")
+    utm_content = models.CharField(max_length=100, blank=True, null=True, help_text="UTM content parameter")
+
     class Meta:
         indexes = [
             models.Index(fields=["customer"]),
@@ -230,6 +238,11 @@ class Leg(models.Model):
     pickup_location = models.CharField(max_length=255)
     dropoff_location = models.CharField(max_length=255)
     private_notes = models.TextField(null=True, blank=True)
+    driver_notes = models.TextField(
+        null=True, 
+        blank=True, 
+        help_text="Notes added by the driver about this trip"
+    )
     driver = models.ForeignKey(
         "drivers.Driver",
         null=True,
@@ -412,7 +425,6 @@ class Lead(models.Model):
     # Notes and Timestamps
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]

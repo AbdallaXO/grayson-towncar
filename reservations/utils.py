@@ -11,6 +11,7 @@ from .forms import (
 from decimal import Decimal
 from datetime import time
 import logging
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -232,3 +233,25 @@ Priority: {lead.priority}
         
     except Exception as e:
         logger.error(f"Error sending lead notification: {str(e)}")
+
+
+def add_utm_to_metadata(metadata: Dict[str, Any], reservation) -> Dict[str, Any]:
+    """
+    Add UTM parameters from a reservation to Stripe metadata.
+    
+    Args:
+        metadata: Existing Stripe metadata dictionary
+        reservation: Reservation object with UTM fields
+        
+    Returns:
+        Updated metadata dictionary with UTM parameters
+    """
+    utm_params = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+    
+    for param in utm_params:
+        value = getattr(reservation, param, None)
+        if value:
+            metadata[param] = value
+            logger.info(f"Added UTM parameter to Stripe metadata: {param} = {value}")
+    
+    return metadata

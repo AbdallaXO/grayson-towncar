@@ -126,6 +126,14 @@
                 id="reservation_form">
             {% csrf_token %}
 
+            <!-- Hidden UTM Parameter Fields -->
+            <input type="hidden" name="gclid" id="gclid_field">
+            <input type="hidden" name="utm_source" id="utm_source_field">
+            <input type="hidden" name="utm_medium" id="utm_medium_field">
+            <input type="hidden" name="utm_campaign" id="utm_campaign_field">
+            <input type="hidden" name="utm_term" id="utm_term_field">
+            <input type="hidden" name="utm_content" id="utm_content_field">
+
             <!-- Contact Information -->
             <section class="form-card shadow-sm border-0 mb-4">
               <div class="card-header bg-white">
@@ -846,6 +854,36 @@
           // Autofill when DOM is ready
           document.addEventListener('DOMContentLoaded', autofillForm);
         </script>
+
+        <!-- UTM Parameter Capture Script -->
+        <script>
+            // Helper function to get cookie value
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+
+            document.addEventListener('DOMContentLoaded', function() {
+                const form = document.getElementById('reservation_form');
+
+                form.addEventListener('submit', function(e) {
+                    // Capture UTM parameters from cookies
+                    const utmParams = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
+                    utmParams.forEach(function(param) {
+                        const value = getCookie(param);
+                        const field = document.getElementById(param + '_field');
+                        if (value && field) {
+                            field.value = value;
+                            console.log('Populated UTM field from cookie:', param, '=', value);
+                        }
+                    });
+                });
+            });
+        </script>
+        <!-- End UTM Parameter Capture Script -->
 
       {% endblock %}
 

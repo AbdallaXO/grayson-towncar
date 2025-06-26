@@ -168,6 +168,8 @@
                                 data-leg-id="{{ leg.id }}">
                           <option value="in-progress"
                                   {% if leg.status == 'in-progress' %}selected{% endif %}>In-Progress</option>
+                          <option value="on-location"
+                                  {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
                           <option value="picked-up"
                                   {% if leg.status == 'picked-up' %}selected{% endif %}>Picked-Up</option>
                           <option value="completed"
@@ -199,6 +201,28 @@
                     {{ reservation.display_carseats }}
                   {% endif %}
                 </dd>
+
+                <dt class="col-sm-4">Luggage</dt>
+                <dd class="col-sm-8 fw-semibold">
+                  {{ reservation.luggage_count }} Suitcases
+                </dd>
+
+                <!-- Store Stop Information - Only show on first leg -->
+                {% if forloop.first %}
+                  <dt class="col-sm-4">Store Stop</dt>
+                  <dd class="col-sm-8 fw-semibold">
+                    {% if reservation.store_stop %}
+                      <span class="badge bg-success text-white">
+                        <i class="bi bi-shop me-1"></i>Yes
+                      </span>
+                      <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
+                    {% else %}
+                      <span class="badge bg-secondary text-white">
+                        <i class="bi bi-shop me-1"></i>No
+                      </span>
+                    {% endif %}
+                  </dd>
+                {% endif %}
 
                 <dt class="col-sm-4">Vehicle</dt>
                 <dd class="col-sm-8 fw-semibold">
@@ -464,4 +488,5 @@
 {% block footer %}
 
 {% endblock footer %}
-{% block newsletter %}{% endblock newsletter %}
+{% block newsletter %}
+{% endblock newsletter %}
