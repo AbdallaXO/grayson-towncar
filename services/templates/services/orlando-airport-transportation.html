@@ -4,147 +4,163 @@
 {% load static %}
 
 {% block head_extra %}
-  <link rel="canonical" href="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
+  <link rel="canonical"
+        href="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
   <style>
-    /* Force text visibility in quote form - but allow validation states */
-    .quote-form-container label,
-    .quote-form-container .form-label {
-      color: #212529 !important;
-    }
-    
-    .quote-form-container h5,
-    .quote-form-container h6,
-    .quote-form-container p {
-      color: #212529 !important;
-    }
-    
-    .quote-form-container .text-muted {
-      color: #6c757d !important;
-    }
-    
-    .quote-form-container .text-dark {
-      color: #212529 !important;
-    }
-    
-    .quote-form-container .bg-light {
-      background-color: #f8f9fa !important;
-    }
-    
-    .quote-form-container .card {
-      background-color: #f8f9fa !important;
-    }
-    
-    /* Vehicle preview specific styling */
-    .quote-form-container .vehicle-preview,
-    .quote-form-container .vehicle-preview * {
-      color: #212529 !important;
-    }
-    
-    .quote-form-container .vehicle-name,
-    .quote-form-container .passenger-capacity,
-    .quote-form-container .luggage-capacity,
-    .quote-form-container .carseats-display {
-      color: #212529 !important;
-    }
-    
-    .quote-form-container .vehicle-placeholder {
-      color: #6c757d !important;
-    }
-    
-    .quote-form-container .vehicle-placeholder * {
-      color: #6c757d !important;
-    }
-    
-    /* Allow validation states to work */
-    .quote-form-container .form-control.is-valid,
-    .quote-form-container .form-select.is-valid {
-      border-color: #198754 !important;
-      background-color: #fff !important;
-    }
-    
-    .quote-form-container .form-control.is-invalid,
-    .quote-form-container .form-select.is-invalid {
-      border-color: #dc3545 !important;
-      background-color: #fff !important;
-    }
-    
-    .quote-form-container .is-valid {
-      color: #198754 !important;
-    }
-    
-    .quote-form-container .is-invalid {
-      color: #dc3545 !important;
-    }
-    
-    /* Ensure form controls have proper background */
-    .quote-form-container .form-control,
-    .quote-form-container .form-select {
-      background-color: #fff !important;
-      color: #212529 !important;
-    }
-    
-    /* Ensure select options are visible */
-    .quote-form-container select option {
-      color: #212529 !important;
-      background-color: #fff !important;
-    }
-    
-    /* Modern Testimonials Hover Effects */
-    .hover-lift {
-      transition: all 0.3s ease;
-      cursor: pointer;
-    }
-    
-    .hover-lift:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
-    }
-    
-    /* Authentic Google Reviews styling */
-    .bi-star-fill {
-      color: #fbbc04 !important;
-    }
-    
-    /* Card entrance animation */
-    .card {
-      animation: slideInUp 0.6s ease-out;
-    }
-    
-    @keyframes slideInUp {
-      from {
-        opacity: 0;
-        transform: translateY(30px);
+      /* Force text visibility in quote form - but allow validation states */
+      .quote-form-container label,
+      .quote-form-container .form-label {
+          color: #212529 !important;
       }
-      to {
-        opacity: 1;
-        transform: translateY(0);
+
+      .quote-form-container h5,
+      .quote-form-container h6,
+      .quote-form-container p {
+          color: #212529 !important;
       }
-    }
-    
-    /* Google logo styling */
-    .card img[src*='google-logo'] {
-      filter: brightness(0.9);
-    }
-    
-    /* Review text styling */
-    .card-text {
-      line-height: 1.6;
-      font-size: 0.95rem;
-    }
-    
-    /* Review date styling */
-    .text-muted {
-      font-size: 0.85rem;
-    }
+
+      .quote-form-container .text-muted {
+          color: #6c757d !important;
+      }
+
+      .quote-form-container .text-dark {
+          color: #212529 !important;
+      }
+
+      .quote-form-container .bg-light {
+          background-color: #f8f9fa !important;
+      }
+
+      .quote-form-container .card {
+          background-color: #f8f9fa !important;
+      }
+
+      /* Vehicle preview specific styling */
+      .quote-form-container .vehicle-preview,
+      .quote-form-container .vehicle-preview * {
+          color: #212529 !important;
+      }
+
+      .quote-form-container .vehicle-name,
+      .quote-form-container .passenger-capacity,
+      .quote-form-container .luggage-capacity,
+      .quote-form-container .carseats-display {
+          color: #212529 !important;
+      }
+
+      .quote-form-container .vehicle-placeholder {
+          color: #6c757d !important;
+      }
+
+      .quote-form-container .vehicle-placeholder * {
+          color: #6c757d !important;
+      }
+
+      /* Allow validation states to work */
+      .quote-form-container .form-control.is-valid,
+      .quote-form-container .form-select.is-valid {
+          border-color: #198754 !important;
+          background-color: #fff !important;
+      }
+
+      .quote-form-container .form-control.is-invalid,
+      .quote-form-container .form-select.is-invalid {
+          border-color: #dc3545 !important;
+          background-color: #fff !important;
+      }
+
+      .quote-form-container .is-valid {
+          color: #198754 !important;
+      }
+
+      .quote-form-container .is-invalid {
+          color: #dc3545 !important;
+      }
+
+      /* Ensure form controls have proper background */
+      .quote-form-container .form-control,
+      .quote-form-container .form-select {
+          background-color: #fff !important;
+          color: #212529 !important;
+      }
+
+      /* Ensure select options are visible */
+      .quote-form-container select option {
+          color: #212529 !important;
+          background-color: #fff !important;
+      }
+
+      /* Modern Testimonials Hover Effects */
+      .hover-lift {
+          transition: all 0.3s ease;
+          cursor: pointer;
+      }
+
+      .hover-lift:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+      }
+
+      /* Authentic Google Reviews styling */
+      .bi-star-fill {
+          color: #fbbc04 !important;
+      }
+
+      /* Card entrance animation */
+      .card {
+          animation: slideInUp 0.6s ease-out;
+      }
+
+      @keyframes slideInUp {
+          from {
+              opacity: 0;
+              transform: translateY(30px);
+          }
+
+          to {
+              opacity: 1;
+              transform: translateY(0);
+          }
+      }
+
+      /* Google logo styling */
+      .card img[src*='google-logo'] {
+          filter: brightness(0.9);
+      }
+
+      /* Review text styling */
+      .card-text {
+          line-height: 1.6;
+          font-size: 0.95rem;
+      }
+
+      /* Review date styling */
+      .text-muted {
+          font-size: 0.85rem;
+      }
+
+      /* Fix trip type button styling */
+      .trip-type-selector .btn {
+          color: #212529 !important;
+      }
+
+      .trip-type-selector .btn:hover {
+          color: #212529 !important;
+      }
+
+      .trip-type-selector .btn-check:checked+.btn {
+          color: #fff !important;
+          background-color: #212529 !important;
+          border-color: #212529 !important;
+      }
   </style>
 {% endblock %}
 
-{% block title %}
-  Orlando Airport Transportation | MCO to Disney, Universal & More | Free Car Seats
-{% endblock %}
+{% block title %}Orlando Airport Transportation | MCO to Disney, Universal & More | Free Car Seats{% endblock %}
 
 {% block meta_description %}
-  <meta name="description" content="Premium MCO airport transfers to Disney World, Universal Studios & Orlando hotels. Free car seats, flight tracking, meet & greet service. Book your Orlando airport ride today!" />
+  <meta name="description"
+        content="Premium MCO airport transfers to Disney World, Universal Studios & Orlando hotels. Free car seats, flight tracking, meet & greet service. Book your Orlando airport ride today!" />
   <meta name="author" content="Grayson Town Car" />
 {% endblock %}
 
@@ -152,60 +168,51 @@
   {% structured_data %}
 
   <!-- Hero Section with Quote Form -->
-  <section class="hero bg-dark text-white py-5" style="min-height: 80vh; background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('{% static 'images/grayson-mco.png' %}') center/cover;">
+  <section class="hero bg-dark text-white py-5"
+           style="min-height: 80vh;
+                  background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('{% static 'images/grayson-mco.png' %}') center/cover">
     <div class="container">
       <div class="row align-items-center" style="min-height: 75vh;">
         <!-- Left Column: Content -->
         <div class="col-lg-6 mb-4 mb-lg-0">
           <div class="text-lg-start text-center">
-            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-3">MCO AIRPORT TRANSPORTATION</span>
-            <h1 class="display-4 fw-bold mb-4">
+            <h1 class="display-3 fw-bold mb-4">
               Orlando Airport Transfers
               <br />
               <span class="text-warning">Disney, Port Canaveral & Beyond</span>
             </h1>
-            <p class="lead mb-4 fs-5">Professional airport transfers from Orlando International Airport (MCO) to Disney World, Port Canaveral, Universal Studios, and all Orlando destinations. Free car seats included!</p>
+            <p class="lead mb-4 fs-4">
+              We meet you INSIDE baggage claim with a sign, get you to your resort in 25-30 minutes, and include FREE car seats. Shuttles or Uber won't do any of that.
+            </p>
 
-            <!-- Trust Indicators -->
-            <div class="d-flex flex-wrap gap-4 mb-4 justify-content-lg-start justify-content-center">
-              <div class="d-flex align-items-center">
-                <i class="bi bi-star-fill text-warning fs-5 me-2"></i>
-                <span class="fw-semibold">5.0 Google Reviews</span>
-              </div>
-              <div class="d-flex align-items-center">
-                <i class="bi bi-shield-check text-warning fs-5 me-2"></i>
-                <span class="fw-semibold">Licensed & Insured</span>
-              </div>
-              <div class="d-flex align-items-center">
-                <i class="bi bi-clock text-warning fs-5 me-2"></i>
-                <span class="fw-semibold">24/7 Service</span>
-              </div>
-            </div>
+            <p class="fs-5 text-warning fw-semibold mb-4">
+              Don't wait 2+ hours in the shuttle line with tired kids. Get there fast.
+            </p>
 
             <!-- Key Benefits -->
             <div class="row g-3 mb-4">
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-person-check-fill text-warning fs-4 me-2"></i>
-                  <span class="small">Meet & Greet Service</span>
+                  <i class="bi bi-person-check-fill text-warning fs-3 me-2"></i>
+                  <span class="fs-6">Meet & Greet Service</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-airplane text-warning fs-4 me-2"></i>
-                  <span class="small">Flight Tracking</span>
+                  <i class="bi bi-airplane text-warning fs-3 me-2"></i>
+                  <span class="fs-6">Flight Tracking</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-shield-check text-warning fs-4 me-2"></i>
-                  <span class="small">FREE Car Seats</span>
+                  <i class="bi bi-shield-check text-warning fs-3 me-2"></i>
+                  <span class="fs-6">FREE Car Seats</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-cart-check text-warning fs-4 me-2"></i>
-                  <span class="small">Grocery Stop Available</span>
+                  <i class="bi bi-cart-check text-warning fs-3 me-2"></i>
+                  <span class="fs-6">Grocery Stop Available</span>
                 </div>
               </div>
             </div>
@@ -213,16 +220,15 @@
         </div>
 
         <div class="col-lg-6">
-          <div class="bg-white rounded-4 shadow-lg p-4">
-            {% quote_form form_id='mco-quote-form' %}
-          </div>
+          <div class="bg-white rounded-4 shadow-lg p-4">{% quote_form form_id='mco-quote-form' %}</div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Modern Testimonials Section -->
-  <section class="py-5 bg-gradient-to-bottom" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+  <section class="py-5 bg-gradient-to-bottom"
+           style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)">
     <div class="container">
       <div class="row justify-content-center mb-5">
         <div class="col-lg-8 text-center">
@@ -232,7 +238,11 @@
 
           <!-- Google Rating Display -->
           <div class="d-flex align-items-center justify-content-center mt-4 mb-3">
-            <img src="{% static 'images/google-logo.webp' %}" alt="Google Reviews" width="80" height="26" class="me-3" />
+            <img src="{% static 'images/google-logo.webp' %}"
+                 alt="Google Reviews"
+                 width="80"
+                 height="26"
+                 class="me-3" />
             <div class="d-flex align-items-center">
               <div class="text-warning me-2">
                 <i class="bi bi-star-fill fs-4"></i>
@@ -254,7 +264,11 @@
           <div class="card border-0 shadow-lg bg-white">
             <div class="card-body p-5">
               <div class="d-flex align-items-center mb-4">
-                <img src="{% static 'images/google-logo.webp' %}" alt="Google Reviews" width="80" height="26" class="me-3" />
+                <img src="{% static 'images/google-logo.webp' %}"
+                     alt="Google Reviews"
+                     width="80"
+                     height="26"
+                     class="me-3" />
                 <div class="d-flex align-items-center">
                   <div class="text-warning me-2">
                     <i class="bi bi-star-fill"></i>
@@ -267,9 +281,13 @@
                 </div>
               </div>
               <h4 class="fw-bold mb-3 text-dark">"Excellent Experience - Punctual & Professional!"</h4>
-              <p class="lead mb-4 fs-5 text-dark">"I recently booked transportation with Grayson for travel between MCO and Disney, and the experience was excellent. They were punctual, professional, and kept in great communication throughout the process."</p>
+              <p class="lead mb-4 fs-5 text-dark">
+                "I recently booked transportation with Grayson for travel between MCO and Disney, and the experience was excellent. They were punctual, professional, and kept in great communication throughout the process."
+              </p>
               <div class="d-flex align-items-center">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
+                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
+                     style="width: 50px;
+                            height: 50px">
                   <span class="text-dark fw-bold">FS</span>
                 </div>
                 <div>
@@ -286,7 +304,11 @@
           <div class="card h-100 border-0 shadow-sm hover-lift bg-white">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
-                <img src="{% static 'images/google-logo.webp' %}" alt="Google Reviews" width="60" height="20" class="me-2" />
+                <img src="{% static 'images/google-logo.webp' %}"
+                     alt="Google Reviews"
+                     width="60"
+                     height="20"
+                     class="me-2" />
                 <div class="d-flex align-items-center">
                   <div class="text-warning me-1">
                     <i class="bi bi-star-fill small"></i>
@@ -298,7 +320,9 @@
                 </div>
               </div>
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
+                     style="width: 40px;
+                            height: 40px">
                   <span class="text-dark fw-bold small">EH</span>
                 </div>
                 <div>
@@ -306,7 +330,9 @@
                   <small class="text-muted">2 weeks ago</small>
                 </div>
               </div>
-              <p class="card-text text-dark">"Our drivers Oualid and Ray were wonderful! Polite and professional! They provided text reminders before pick up and were constantly in communication with us. Always on time and the car was very clean and smooth! We went right from baggage claim to the car in about 2 minutes. I would 100% recommend this service from the Orlando airport to Disney. It was one less stress to worry about and knowing my family was safe was the best! Another plus was them having a car seat for us! :)"</p>
+              <p class="card-text text-dark">
+                "Our drivers Oualid and Ray were wonderful! Polite and professional! They provided text reminders before pick up and were constantly in communication with us. Always on time and the car was very clean and smooth! We went right from baggage claim to the car in about 2 minutes. I would 100% recommend this service from the Orlando airport to Disney. It was one less stress to worry about and knowing my family was safe was the best! Another plus was them having a car seat for us! :)"
+              </p>
               <div class="d-flex align-items-center">
                 <i class="bi bi-castle text-warning me-2"></i>
                 <small class="text-muted">Disney Family Trip</small>
@@ -319,7 +345,11 @@
           <div class="card h-100 border-0 shadow-sm hover-lift bg-white">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
-                <img src="{% static 'images/google-logo.webp' %}" alt="Google Reviews" width="60" height="20" class="me-2" />
+                <img src="{% static 'images/google-logo.webp' %}"
+                     alt="Google Reviews"
+                     width="60"
+                     height="20"
+                     class="me-2" />
                 <div class="d-flex align-items-center">
                   <div class="text-warning me-1">
                     <i class="bi bi-star-fill small"></i>
@@ -331,7 +361,9 @@
                 </div>
               </div>
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
+                     style="width: 40px;
+                            height: 40px">
                   <span class="text-dark fw-bold small">CP</span>
                 </div>
                 <div>
@@ -339,7 +371,9 @@
                   <small class="text-muted">Travel Agent • 4 weeks ago</small>
                 </div>
               </div>
-              <p class="card-text text-dark">"We had the opportunity to have Graysons transfer us from MCO to our Disney resort. They did not disappoint! Our driver was patiently waiting for us even though our flight was delayed on the tarmac AND while it took forever to get our checked bags. He walked our luggage to the car for us and had bottles of water waiting. It felt so nice to have a stress free, private ride. If you're looking for a great black car transfer service, these are your guys!"</p>
+              <p class="card-text text-dark">
+                "We had the opportunity to have Graysons transfer us from MCO to our Disney resort. They did not disappoint! Our driver was patiently waiting for us even though our flight was delayed on the tarmac AND while it took forever to get our checked bags. He walked our luggage to the car for us and had bottles of water waiting. It felt so nice to have a stress free, private ride. If you're looking for a great black car transfer service, these are your guys!"
+              </p>
               <div class="d-flex align-items-center">
                 <i class="bi bi-shield-check text-warning me-2"></i>
                 <small class="text-muted">Travel Agent Recommendation</small>
@@ -352,7 +386,11 @@
           <div class="card h-100 border-0 shadow-sm hover-lift bg-white">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
-                <img src="{% static 'images/google-logo.webp' %}" alt="Google Reviews" width="60" height="20" class="me-2" />
+                <img src="{% static 'images/google-logo.webp' %}"
+                     alt="Google Reviews"
+                     width="60"
+                     height="20"
+                     class="me-2" />
                 <div class="d-flex align-items-center">
                   <div class="text-warning me-1">
                     <i class="bi bi-star-fill small"></i>
@@ -364,7 +402,9 @@
                 </div>
               </div>
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
+                     style="width: 40px;
+                            height: 40px">
                   <span class="text-dark fw-bold small">JH</span>
                 </div>
                 <div>
@@ -372,7 +412,9 @@
                   <small class="text-muted">First Time Disney • 4 weeks ago</small>
                 </div>
               </div>
-              <p class="card-text text-dark">"This was our first Disney trip and Grayson Towncar made it so smooth from the start. Our driver was on time, very professional, and super friendly. The car was clean and comfortable. We will definitely use them again!"</p>
+              <p class="card-text text-dark">
+                "This was our first Disney trip and Grayson Towncar made it so smooth from the start. Our driver was on time, very professional, and super friendly. The car was clean and comfortable. We will definitely use them again!"
+              </p>
               <div class="d-flex align-items-center">
                 <i class="bi bi-castle text-warning me-2"></i>
                 <small class="text-muted">First Time Disney Family</small>
@@ -395,13 +437,13 @@
               </div>
               <div class="col-6 col-md-3">
                 <div class="d-flex flex-column align-items-center">
-                  <div class="display-6 fw-bold text-dark mb-1">600+</div>
-                  <div class="text-muted small">90+</div>
+                  <div class="display-6 fw-bold text-dark mb-1">900+</div>
+                  <div class="text-muted small">Happy Families</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
                 <div class="d-flex flex-column align-items-center">
-                  <div class="display-6 fw-bold text-dark mb-1">50+</div>
+                  <div class="display-6 fw-bold text-dark mb-1">98+</div>
                   <div class="text-muted small">5-Star Reviews</div>
                 </div>
               </div>
@@ -424,7 +466,9 @@
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center mb-5">
           <h2 class="display-5 fw-bold mb-3">Why Choose Our MCO Airport Service?</h2>
-          <p class="lead text-muted">Professional, reliable, and family-friendly transportation from Orlando International Airport</p>
+          <p class="lead text-muted">
+            Professional, reliable, and family-friendly transportation from Orlando International Airport
+          </p>
         </div>
       </div>
 
@@ -432,7 +476,9 @@
         <div class="col-md-6 col-lg-3">
           <div class="card h-100 border-0 shadow-sm text-center">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                   style="width: 60px;
+                          height: 60px">
                 <i class="bi bi-airplane text-dark fs-3"></i>
               </div>
               <h5 class="card-title">Flight Tracking</h5>
@@ -444,7 +490,9 @@
         <div class="col-md-6 col-lg-3">
           <div class="card h-100 border-0 shadow-sm text-center">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                   style="width: 60px;
+                          height: 60px">
                 <i class="bi bi-person-check text-dark fs-3"></i>
               </div>
               <h5 class="card-title">Meet & Greet</h5>
@@ -456,7 +504,9 @@
         <div class="col-md-6 col-lg-3">
           <div class="card h-100 border-0 shadow-sm text-center">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                   style="width: 60px;
+                          height: 60px">
                 <i class="bi bi-shield-check text-dark fs-3"></i>
               </div>
               <h5 class="card-title">Free Car Seats</h5>
@@ -468,7 +518,9 @@
         <div class="col-md-6 col-lg-3">
           <div class="card h-100 border-0 shadow-sm text-center">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
+                   style="width: 60px;
+                          height: 60px">
                 <i class="bi bi-clock text-dark fs-3"></i>
               </div>
               <h5 class="card-title">24/7 Service</h5>
@@ -486,7 +538,9 @@
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center mb-5">
           <h2 class="display-5 fw-bold mb-3">Popular Destinations from MCO</h2>
-          <p class="lead text-muted">We serve all of Orlando and beyond - from theme parks to cruise ports and everywhere in between</p>
+          <p class="lead text-muted">
+            We serve all of Orlando and beyond - from theme parks to cruise ports and everywhere in between
+          </p>
         </div>
       </div>
 
@@ -498,7 +552,9 @@
                 <i class="bi bi-castle text-warning fs-2 me-3"></i>
                 <h5 class="card-title mb-0">Disney World Resorts</h5>
               </div>
-              <p class="card-text">All Disney properties including Value, Moderate, and Deluxe resorts. Perfect for families with children.</p>
+              <p class="card-text">
+                All Disney properties including Value, Moderate, and Deluxe resorts. Perfect for families with children.
+              </p>
               <ul class="list-unstyled small text-muted">
                 <li>
                   <i class="bi bi-check text-success me-2"></i>Magic Kingdom Area Hotels
@@ -521,7 +577,9 @@
                 <i class="bi bi-geo-alt text-warning fs-2 me-3"></i>
                 <h5 class="card-title mb-0">Port Canaveral</h5>
               </div>
-              <p class="card-text">Reliable transportation to and from all cruise terminals. Perfect for pre and post-cruise stays.</p>
+              <p class="card-text">
+                Reliable transportation to and from all cruise terminals. Perfect for pre and post-cruise stays.
+              </p>
               <ul class="list-unstyled small text-muted">
                 <li>
                   <i class="bi bi-check text-success me-2"></i>Carnival Cruise Line
@@ -544,7 +602,9 @@
                 <i class="bi bi-film text-warning fs-2 me-3"></i>
                 <h5 class="card-title mb-0">Universal Studios</h5>
               </div>
-              <p class="card-text">Universal Orlando hotels and nearby accommodations. Close to Universal Studios and Islands of Adventure.</p>
+              <p class="card-text">
+                Universal Orlando hotels and nearby accommodations. Close to Universal Studios and Islands of Adventure.
+              </p>
               <ul class="list-unstyled small text-muted">
                 <li>
                   <i class="bi bi-check text-success me-2"></i>Universal Hotels
@@ -566,7 +626,9 @@
         <div class="col-12 text-center">
           <div class="bg-light rounded-3 p-4">
             <h5 class="text-dark mb-2">We Go Everywhere!</h5>
-            <p class="text-muted mb-0">From theme parks to business districts, residential areas to shopping centers - if it's in Orlando or Central Florida, we can get you there safely and comfortably.</p>
+            <p class="text-muted mb-0">
+              From theme parks to business districts, residential areas to shopping centers - if it's in Orlando or Central Florida, we can get you there safely and comfortably.
+            </p>
           </div>
         </div>
       </div>
@@ -588,7 +650,7 @@
           <div class="card h-100 border-0 shadow">
             <div class="card-body p-4 text-center">
               <h5 class="card-title text-warning">MCO to Disney World</h5>
-              <div class="display-6 fw-bold mb-3">$105</div>
+              <div class="display-6 fw-bold mb-3">Starting at $105</div>
               <p class="text-muted mb-4">One-way transfer</p>
               <ul class="list-unstyled">
                 <li class="mb-2">
@@ -615,7 +677,7 @@
           <div class="card h-100 border-0 shadow border-warning">
             <div class="card-body p-4 text-center">
               <h5 class="card-title text-warning">MCO to Universal</h5>
-              <div class="display-6 fw-bold mb-3">$105</div>
+              <div class="display-6 fw-bold mb-3">Starting at $105</div>
               <p class="text-muted mb-4">One-way transfer</p>
               <ul class="list-unstyled">
                 <li class="mb-2">
@@ -642,7 +704,7 @@
           <div class="card h-100 border-0 shadow">
             <div class="card-body p-4 text-center">
               <h5 class="card-title text-warning">MCO to Port Canaveral</h5>
-              <div class="display-6 fw-bold mb-3">$160</div>
+              <div class="display-6 fw-bold mb-3">Starting at $160</div>
               <p class="text-muted mb-4">One-way transfer</p>
               <ul class="list-unstyled">
                 <li class="mb-2">
@@ -667,7 +729,8 @@
       </div>
 
       <div class="text-center mt-5">
-        <a href="{% url 'rates' %}" class="btn btn-dark btn-lg px-5 py-3 rounded-pill"><i class="bi bi-calculator me-2"></i>View All Rates</a>
+        <a href="{% url 'rates' %}"
+           class="btn btn-dark btn-lg px-5 py-3 rounded-pill"><i class="bi bi-calculator me-2"></i>View All Rates</a>
       </div>
     </div>
   </section>
@@ -680,8 +743,10 @@
           <h2 class="display-5 fw-bold mb-4">Ready to Book Your MCO Transfer?</h2>
           <p class="lead mb-4">Get your instant quote above or call us for immediate assistance</p>
           <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
-            <a href="tel:407-212-7190" class="btn btn-warning btn-lg px-5 py-3 rounded-pill"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
-            <a href="{% url 'rates' %}" class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill"><i class="bi bi-calculator me-2"></i>View All Rates</a>
+            <a href="tel:407-212-7190"
+               class="btn btn-warning btn-lg px-5 py-3 rounded-pill"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
+            <a href="{% url 'rates' %}"
+               class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill"><i class="bi bi-calculator me-2"></i>View All Rates</a>
           </div>
         </div>
       </div>
@@ -693,14 +758,14 @@
   <!-- Quote Form JavaScript -->
   <script src="{% static 'js/quote_form.js' %}"></script>
   <script>
-    // Initialize quote form when DOM is loaded
-    document.addEventListener('DOMContentLoaded', function () {
-      // Find all quote forms on the page
-      const quoteForms = document.querySelectorAll('.quote-form')
-    
-      quoteForms.forEach(function (form) {
-        new QuoteFormHandler(form)
+      // Initialize quote form when DOM is loaded
+      document.addEventListener('DOMContentLoaded', function() {
+          // Find all quote forms on the page
+          const quoteForms = document.querySelectorAll('.quote-form')
+
+          quoteForms.forEach(function(form) {
+              new QuoteFormHandler(form)
+          })
       })
-    })
   </script>
 {% endblock %}

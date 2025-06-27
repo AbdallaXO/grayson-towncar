@@ -130,17 +130,15 @@
                           </div>
                         {% endif %}
 
-                        <div>
+                        <div class="mb-2">
                           <div class="text-muted small fw-bold">Private Notes:</div>
-                          <div>{{ leg.reservation.private_notes }}</div>
+                          <div>{{ leg.reservation.private_notes|default:"" }}</div>
                         </div>
 
-                        {% if leg.private_notes %}
-                          <div class="mt-2">
-                            <div class="text-muted small fw-bold">Leg Notes:</div>
-                            <div>{{ leg.private_notes }}</div>
-                          </div>
-                        {% endif %}
+                        <div>
+                          <div class="text-muted small fw-bold">Leg Notes:</div>
+                          <div>{{ leg.private_notes|default:"" }}</div>
+                        </div>
                       </td>
                       <td class="align-middle">
                         <div class="d-flex align-items-center mb-2">
@@ -263,20 +261,25 @@
                   </div>
                 </div>
 
-                {% if leg.reservation.special_requests or leg.reservation.private_notes %}
+                {% if leg.reservation.special_requests %}
                   <div class="mb-3 pb-3 border-bottom">
-                    {% if leg.reservation.special_requests %}
-                      <div class="mb-2">
-                        <div class="text-muted small fw-bold">Notes:</div>
-                        <div>{{ leg.private_notes |default:"" }}</div>
-                      </div>
-                    {% endif %}
-                    <div>
-                      <div class="text-muted small fw-bold">Internal Notes or Requests:</div>
-                      <div>{{ leg.reservation.private_notes }}</div>
+                    <div class="mb-2">
+                      <div class="text-muted small fw-bold">Guest Notes:</div>
+                      <div>{{ leg.reservation.special_requests }}</div>
                     </div>
                   </div>
                 {% endif %}
+
+                <div class="mb-3 pb-3 border-bottom">
+                  <div class="mb-2">
+                    <div class="text-muted small fw-bold">Private Notes:</div>
+                    <div>{{ leg.reservation.private_notes|default:"" }}</div>
+                  </div>
+                  <div>
+                    <div class="text-muted small fw-bold">Leg Notes:</div>
+                    <div>{{ leg.private_notes|default:"" }}</div>
+                  </div>
+                </div>
 
                 <!-- Driver Notes Section -->
                 <div class="mt-3">
