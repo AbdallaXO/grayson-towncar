@@ -11,6 +11,17 @@
           rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
           rel="stylesheet">
+
+    <style>
+        /* Only keeping the status indicator since Bootstrap doesn't have a perfect equivalent */
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+    </style>
   </head>
 
   <body class="bg-light">
@@ -119,7 +130,7 @@
                           <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
                         </div>
                         <div class="mb-1">
-                          <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"None" }}
+                          <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
                         </div>
                       </td>
                       <td class="align-middle">
@@ -156,386 +167,433 @@
                                   {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
                         </select>
 
-                        <!-- Driver Notes Section -->
+                        <!-- Quick Review Button -->
                         <div class="mt-3">
-                          <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div>
-                              <span class="text-muted small fw-bold">My Notes:</span>
+                          <div class="card border-0 bg-light">
+                            <div class="card-body p-3 text-center">
+                              <div class="mb-2">
+                                <i class="bi bi-star-fill text-warning fs-4"></i>
+                                <i class="bi bi-star-fill text-warning fs-4"></i>
+                                <i class="bi bi-star-fill text-warning fs-4"></i>
+                                <i class="bi bi-star-fill text-warning fs-4"></i>
+                                <i class="bi bi-star-fill text-warning fs-4"></i>
+                              </div>
+                              <div class="small text-muted mb-2 p-2 border rounded bg-light">
+                                <i class="bi bi-info-circle me-1"></i>Please click button to request a review after your trip
+                              </div>
+                              <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi! I hope you enjoyed your ride with Grayson Town Car. If you have a moment, we'd really appreciate if you could leave us a review.%0A%0AThank you for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                                 class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                                <i class="bi bi-chat-heart-fill me-1"></i>Request Review
+                              </a>
                             </div>
-                            <button class="btn btn-sm btn-outline-primary edit-driver-notes"
-                                    data-leg-id="{{ leg.id }}"
-                                    data-current-notes="{{ leg.driver_notes|default:'' }}">
-                              <i class="bi bi-pencil"></i> Edit
-                            </button>
                           </div>
-                          <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                            {% if leg.driver_notes %}
-                              <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-                            {% else %}
-                              <div class="text-muted small">No notes added yet</div>
-                            {% endif %}
+
+                          <!-- Driver Notes Section -->
+                          <div class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                              <div>
+                                <span class="text-muted small fw-bold">My Notes:</span>
+                              </div>
+                              <button class="btn btn-sm btn-outline-primary edit-driver-notes"
+                                      data-leg-id="{{ leg.id }}"
+                                      data-current-notes="{{ leg.driver_notes|default:'' }}">
+                                <i class="bi bi-pencil"></i> Edit
+                              </button>
+                            </div>
+                            <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
+                              {% if leg.driver_notes %}
+                                <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
+                              {% else %}
+                                <div class="text-muted small">No notes added yet</div>
+                              {% endif %}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Mobile Card View -->
-        <div class="d-md-none">
-          {% for leg in legs %}
-            <div class="card mb-3 rounded-3 shadow-sm {% if leg.status == 'in-progress' %}border-warning{% elif leg.status == 'picked-up' %}border-primary{% elif leg.status == 'completed' %}border-success{% endif %}">
-              <div class="card-header bg-dark text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
-                    <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
-                  </div>
-                </div>
-              </div>
-              <div class="card-body">
-                <div class="mb-3 pb-3 border-bottom">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                      <h5 class="mb-0">{{ leg.reservation.customer.get_full_name }}</h5>
-                      <div class="mt-1 text-dark fw-semibold">
-                        <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
-                      </div>
-                    </div>
-                    <div>
-                      <a href="tel:{{ leg.reservation.customer.phone_number }}"
-                         class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-telephone"></i></a>
-                      <a href="sms:{{ leg.reservation.customer.phone_number }}"
-                         class="btn btn-sm btn-success rounded-pill"><i class="bi bi-chat"></i></a>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mb-3 pb-3 border-bottom">
-                  <div class="mb-1">
-                    <strong>Flight: {{ leg.flight_information |default:"N/A" }}  ✈️</strong>
-                  </div>
-                  <div class="mb-1">
-                    <strong>P/U Date & Time: {{ leg.pickup_date|date:"l, F j" }} {{ leg.pickup_time|date:"g:i A" }}</strong>
-                  </div>
-                  <div class="mb-1">
-                    <strong>Pick-Up Location: {{ leg.pickup_location }}</strong>
-                  </div>
-                  <div>
-                    <strong>Drop-Off Location: {{ leg.dropoff_location }}</strong>
-                  </div>
-
-                  <!-- Store Stop Information - Only show on first leg -->
-                  {% if leg.is_first_leg %}
-                    <div class="mt-2">
-                      {% if leg.reservation.store_stop %}
-                        <span class="badge bg-success text-white">
-                          <i class="bi bi-shop me-1"></i>Store Stop: Yes
-                        </span>
-                        <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
-                      {% else %}
-                        <span class="badge bg-secondary text-white">
-                          <i class="bi bi-shop me-1"></i>Store Stop: No
-                        </span>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-                </div>
-
-                <div class="mb-3 pb-3 border-bottom">
-                  <div class="mb-1">
-                    <strong>Vehicle: {{ leg.reservation.vehicle }}</strong>
-                  </div>
-                  <div class="mb-1">
-                    <strong>Passengers: {{ leg.reservation.passenger_count }}</strong>
-                  </div>
-                  <div class="mb-1">
-                    <strong>Car Seats: {{ leg.reservation.display_carseats|default:"None" }}</strong>
-                  </div>
-                  <div class="mb-1">
-                    <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
-                  </div>
-                </div>
-
-                {% if leg.reservation.special_requests %}
-                  <div class="mb-3 pb-3 border-bottom">
-                    <div class="mb-2">
-                      <div class="text-muted small fw-bold">Guest Notes:</div>
-                      <div>{{ leg.reservation.special_requests }}</div>
-                    </div>
-                  </div>
-                {% endif %}
-
-                <div class="mb-3 pb-3 border-bottom">
-                  <div class="mb-2">
-                    <div class="text-muted small fw-bold">Private Notes:</div>
-                    <div>{{ leg.reservation.private_notes|default:"" }}</div>
-                  </div>
-                  <div>
-                    <div class="text-muted small fw-bold">Leg Notes:</div>
-                    <div>{{ leg.private_notes|default:"" }}</div>
-                  </div>
-                </div>
-
-                <!-- Driver Notes Section -->
-                <div class="mt-3">
+          <!-- Mobile Card View -->
+          <div class="d-md-none">
+            {% for leg in legs %}
+              <div class="card mb-3 rounded-3 shadow-sm {% if leg.status == 'in-progress' %}border-start border-warning border-2{% elif leg.status == 'on-location' %}border-start border-info border-2{% elif leg.status == 'picked-up' %}border-start border-primary border-2{% endif %}">
+                <div class="card-header bg-dark text-white">
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
-                      <span class="text-muted small fw-bold">My Notes:</span>
-
+                      <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
+                      <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
                     </div>
-                    <button class="btn btn-sm btn-outline-primary edit-driver-notes"
-                            data-leg-id="{{ leg.id }}"
-                            data-current-notes="{{ leg.driver_notes|default:'' }}">
-                      <i class="bi bi-pencil"></i> Edit
-                    </button>
+                    <div class="d-flex align-items-center">
+                      <span class="status-indicator {% if leg.status == 'in-progress' %}bg-warning{% elif leg.status == 'on-location' %}bg-info{% elif leg.status == 'picked-up' %}bg-primary{% endif %}"></span>
+                      <span class="text-capitalize">{{ leg.get_status_display }}</span>
+                    </div>
                   </div>
-                  <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                    {% if leg.driver_notes %}
-                      <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-                    {% else %}
-                      <div class="text-muted small">No notes added yet</div>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <h5 class="mb-0">{{ leg.reservation.customer.get_full_name }}</h5>
+                        <div class="mt-1 text-dark fw-semibold">
+                          <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
+                        </div>
+                      </div>
+                      <div>
+                        <a href="tel:{{ leg.reservation.customer.phone_number }}"
+                           class="btn btn-sm btn-danger rounded-pill"><i class="bi bi-telephone-fill"></i> Call</a>
+                        <a href="sms:{{ leg.reservation.customer.phone_number }}"
+                           class="btn btn-sm btn-warning rounded-pill"><i class="bi bi-chat-fill"></i> Text</a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="mb-3 pb-3 border-bottom">
+                    <div class="mb-1">
+                      <strong>Flight: {{ leg.flight_information |default:"N/A" }}  ✈️</strong>
+                    </div>
+                    <div class="mb-1">
+                      <strong>P/U Date & Time: {{ leg.pickup_date|date:"l, F j" }} {{ leg.pickup_time|date:"g:i A" }}</strong>
+                    </div>
+                    <div class="mb-1">
+                      <strong>Pick-Up Location: {{ leg.pickup_location }}</strong>
+                    </div>
+                    <div>
+                      <strong>Drop-Off Location: {{ leg.dropoff_location }}</strong>
+                    </div>
+
+                    <!-- Store Stop Information - Only show on first leg -->
+                    {% if leg.is_first_leg %}
+                      <div class="mt-2">
+                        {% if leg.reservation.store_stop %}
+                          <span class="badge bg-success text-white">
+                            <i class="bi bi-shop me-1"></i>Store Stop: Yes
+                          </span>
+                          <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
+                        {% else %}
+                          <span class="badge bg-secondary text-white">
+                            <i class="bi bi-shop me-1"></i>Store Stop: No
+                          </span>
+                        {% endif %}
+                      </div>
                     {% endif %}
                   </div>
-                </div>
 
-                <div>
-                  <label class="form-label fw-bold">Update Status:</label>
-                  <select id="statusSelectMobile-{{ leg.id }}"
-                          class="form-select status-select">
-                    <option value="in-progress"
-                            {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
-                    <option value="on-location"
-                            {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
-                    <option value="picked-up"
-                            {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
-                    <option value="completed"
-                            {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
-                  </select>
+                  <div class="mb-3 pb-3 border-bottom">
+                    <div class="mb-1">
+                      <strong>Vehicle: {{ leg.reservation.vehicle }}</strong>
+                    </div>
+                    <div class="mb-1">
+                      <strong>Passengers: {{ leg.reservation.passenger_count }}</strong>
+                    </div>
+                    <div class="mb-1">
+                      <strong>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</strong>
+                    </div>
+                    <div class="mb-1">
+                      <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
+                    </div>
+                  </div>
+
+                  {% if leg.reservation.special_requests %}
+                    <div class="mb-3 pb-3 border-bottom">
+                      <div class="mb-2">
+                        <div class="text-muted small fw-bold">Guest Notes:</div>
+                        <div>{{ leg.reservation.special_requests }}</div>
+                      </div>
+                    </div>
+                  {% endif %}
+
+                  <div class="mb-3 pb-3 border-bottom">
+                    <div class="mb-2">
+                      <div class="text-muted small fw-bold">Private Notes:</div>
+                      <div>{{ leg.reservation.private_notes|default:"" }}</div>
+                    </div>
+                    <div>
+                      <div class="text-muted small fw-bold">Leg Notes:</div>
+                      <div>{{ leg.private_notes|default:"" }}</div>
+                    </div>
+                  </div>
+
+                  <!-- Driver Notes Section -->
+                  <div class="mt-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <span class="text-muted small fw-bold">My Notes:</span>
+
+                      </div>
+                      <button class="btn btn-sm btn-outline-primary edit-driver-notes"
+                              data-leg-id="{{ leg.id }}"
+                              data-current-notes="{{ leg.driver_notes|default:'' }}">
+                        <i class="bi bi-pencil"></i> Edit
+                      </button>
+                    </div>
+                    <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
+                      {% if leg.driver_notes %}
+                        <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
+                      {% else %}
+                        <div class="text-muted small">No notes added yet</div>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label class="form-label fw-bold">Update Status:</label>
+                    <select id="statusSelectMobile-{{ leg.id }}"
+                            class="form-select status-select">
+                      <option value="in-progress"
+                              {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                      <option value="on-location"
+                              {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
+                      <option value="picked-up"
+                              {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
+                      <option value="completed"
+                              {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
+                    </select>
+
+                    <!-- Quick Review Button Mobile -->
+                    <div class="mt-3">
+                      <div class="card border-0 bg-light">
+                        <div class="card-body p-3 text-center">
+                          <div class="mb-2">
+                            <i class="bi bi-star-fill text-warning fs-4"></i>
+                            <i class="bi bi-star-fill text-warning fs-4"></i>
+                            <i class="bi bi-star-fill text-warning fs-4"></i>
+                            <i class="bi bi-star-fill text-warning fs-4"></i>
+                            <i class="bi bi-star-fill text-warning fs-4"></i>
+                          </div>
+                          <div class="small text-muted mb-2 p-2 border rounded bg-light">
+                            <i class="bi bi-info-circle me-1"></i>Please click button to kindly request a review after your trip
+                          </div>
+                          <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                             class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                            <i class="bi bi-chat-heart-fill me-1"></i>Review Request
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="alert alert-danger">No trips scheduled for This Week</div>
-      {% endif %}
-    </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="alert alert-danger">No trips scheduled for This Week</div>
+        {% endif %}
+      </div>
 
-    <!-- Driver Notes Modal -->
-    <div class="modal fade"
-         id="driverNotesModal"
-         tabindex="-1"
-         aria-labelledby="driverNotesModalLabel"
-         aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="driverNotesModalLabel">Edit Driver Notes</h5>
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <textarea class="form-control"
-                      id="driver-notes-textarea-modal"
-                      rows="4"
-                      placeholder="Add any notes here for dispatchers or self to see if you need..."></textarea>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" id="save-driver-notes-modal">Save Notes</button>
+      <!-- Driver Notes Modal -->
+      <div class="modal fade"
+           id="driverNotesModal"
+           tabindex="-1"
+           aria-labelledby="driverNotesModalLabel"
+           aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="driverNotesModalLabel">Edit Driver Notes</h5>
+              <button type="button"
+                      class="btn-close"
+                      data-bs-dismiss="modal"
+                      aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <textarea class="form-control"
+                        id="driver-notes-textarea-modal"
+                        rows="4"
+                        placeholder="Add any notes here for dispatchers or self to see if you need..."></textarea>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="save-driver-notes-modal">Save Notes</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const csrfToken = "{{ csrf_token }}";
-            let currentLegId = null;
+      <!-- Bootstrap JS -->
+      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+      <script>
+          document.addEventListener('DOMContentLoaded', () => {
+              const csrfToken = "{{ csrf_token }}";
+              let currentLegId = null;
 
-            // Status update functionality
-            document.querySelectorAll('.status-select').forEach(select => {
-                select.addEventListener('change', (event) => {
-                    const legId = event.target.id.split('-')[1];
-                    const newStatus = event.target.value;
+              // Status update functionality
+              document.querySelectorAll('.status-select').forEach(select => {
+                  select.addEventListener('change', (event) => {
+                      const legId = event.target.id.split('-')[1];
+                      const newStatus = event.target.value;
 
-                    fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': csrfToken
-                            },
-                            body: JSON.stringify({
-                                status: newStatus
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(data => window.location.reload())
-                        .catch(() => window.location.reload());
-                });
-            });
+                      fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
+                              method: 'POST',
+                              headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-CSRFToken': csrfToken
+                              },
+                              body: JSON.stringify({
+                                  status: newStatus
+                              })
+                          })
+                          .then(res => res.json())
+                          .then(data => window.location.reload())
+                          .catch(() => window.location.reload());
+                  });
+              });
 
-            // Clean modal-based driver notes functionality
-            function openNotesModal(legId, currentNotes = '') {
-                currentLegId = legId;
-                const textarea = document.getElementById('driver-notes-textarea-modal');
+              // Clean modal-based driver notes functionality
+              function openNotesModal(legId, currentNotes = '') {
+                  currentLegId = legId;
+                  const textarea = document.getElementById('driver-notes-textarea-modal');
 
-                // Get the most up-to-date notes from the display div
-                const displayDiv = document.getElementById(`driver-notes-display-${legId}`);
-                let latestNotes = currentNotes;
+                  // Get the most up-to-date notes from the display div
+                  const displayDiv = document.getElementById(`driver-notes-display-${legId}`);
+                  let latestNotes = currentNotes;
 
-                if (displayDiv) {
-                    const noteContent = displayDiv.querySelector('.border.rounded.p-2.bg-light');
-                    if (noteContent) {
-                        latestNotes = noteContent.textContent.trim();
-                    }
-                }
+                  if (displayDiv) {
+                      const noteContent = displayDiv.querySelector('.border.rounded.p-2.bg-light');
+                      if (noteContent) {
+                          latestNotes = noteContent.textContent.trim();
+                      }
+                  }
 
-                textarea.value = latestNotes;
-                console.log('Opening modal with notes:', latestNotes);
+                  textarea.value = latestNotes;
+                  console.log('Opening modal with notes:', latestNotes);
 
-                const modal = new bootstrap.Modal(document.getElementById('driverNotesModal'));
-                modal.show();
-            }
+                  const modal = new bootstrap.Modal(document.getElementById('driverNotesModal'));
+                  modal.show();
+              }
 
-            function saveNotes() {
-                if (!currentLegId) return;
+              function saveNotes() {
+                  if (!currentLegId) return;
 
-                const textarea = document.getElementById('driver-notes-textarea-modal');
-                const notes = textarea.value;
+                  const textarea = document.getElementById('driver-notes-textarea-modal');
+                  const notes = textarea.value;
 
-                console.log('Saving notes for leg:', currentLegId);
-                console.log('Notes content:', notes);
+                  console.log('Saving notes for leg:', currentLegId);
+                  console.log('Notes content:', notes);
 
-                // Show loading state
-                const saveButton = document.getElementById('save-driver-notes-modal');
-                const originalText = saveButton.innerHTML;
-                saveButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
-                saveButton.disabled = true;
+                  // Show loading state
+                  const saveButton = document.getElementById('save-driver-notes-modal');
+                  const originalText = saveButton.innerHTML;
+                  saveButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+                  saveButton.disabled = true;
 
-                fetch(`${window.location.origin}/drivers/update_driver_notes/${currentLegId}/`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({
-                            driver_notes: notes
-                        })
-                    })
-                    .then(res => {
-                        if (!res.ok) {
-                            throw new Error(`HTTP error! status: ${res.status}`);
-                        }
-                        return res.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            console.log('Server response success, updating display...');
+                  fetch(`${window.location.origin}/drivers/update_driver_notes/${currentLegId}/`, {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken
+                          },
+                          body: JSON.stringify({
+                              driver_notes: notes
+                          })
+                      })
+                      .then(res => {
+                          if (!res.ok) {
+                              throw new Error(`HTTP error! status: ${res.status}`);
+                          }
+                          return res.json();
+                      })
+                      .then(data => {
+                          if (data.success) {
+                              console.log('Server response success, updating display...');
 
-                            // Update the display immediately
-                            const displayDiv = document.getElementById(`driver-notes-display-${currentLegId}`);
-                            console.log('Found display div:', displayDiv);
-                            console.log('Display div ID:', `driver-notes-display-${currentLegId}`);
+                              // Update the display immediately
+                              const displayDiv = document.getElementById(`driver-notes-display-${currentLegId}`);
+                              console.log('Found display div:', displayDiv);
+                              console.log('Display div ID:', `driver-notes-display-${currentLegId}`);
 
-                            // Check if there are multiple elements with the same ID
-                            const allDisplayDivs = document.querySelectorAll(`[id="driver-notes-display-${currentLegId}"]`);
-                            console.log('Total display divs found:', allDisplayDivs.length);
+                              // Check if there are multiple elements with the same ID
+                              const allDisplayDivs = document.querySelectorAll(`[id="driver-notes-display-${currentLegId}"]`);
+                              console.log('Total display divs found:', allDisplayDivs.length);
 
-                            // Update ALL display divs (desktop and mobile)
-                            allDisplayDivs.forEach((div, index) => {
-                                console.log(`Updating display div ${index + 1}:`, div);
+                              // Update ALL display divs (desktop and mobile)
+                              allDisplayDivs.forEach((div, index) => {
+                                  console.log(`Updating display div ${index + 1}:`, div);
 
-                                const newContent = notes.trim() ?
-                                    `<div class="border rounded p-2 bg-light">${notes}</div>` :
-                                    `<div class="text-muted small">No notes added yet</div>`;
+                                  const newContent = notes.trim() ?
+                                      `<div class="border rounded p-2 bg-light">${notes}</div>` :
+                                      `<div class="text-muted small">No notes added yet</div>`;
 
-                                // Force a complete re-render
-                                div.style.display = 'none';
-                                div.innerHTML = newContent;
-                                div.style.display = 'block';
+                                  // Force a complete re-render
+                                  div.style.display = 'none';
+                                  div.innerHTML = newContent;
+                                  div.style.display = 'block';
 
-                                // Add a visual indicator that it updated
-                                div.style.border = '2px solid #28a745';
-                                div.style.backgroundColor = '#d4edda';
-                                setTimeout(() => {
-                                    div.style.border = '';
-                                    div.style.backgroundColor = '';
-                                }, 1000);
+                                  // Add a visual indicator that it updated
+                                  div.style.border = '2px solid #28a745';
+                                  div.style.backgroundColor = '#d4edda';
+                                  setTimeout(() => {
+                                      div.style.border = '';
+                                      div.style.backgroundColor = '';
+                                  }, 1000);
 
-                                console.log(`Display div ${index + 1} updated successfully`);
-                            });
+                                  console.log(`Display div ${index + 1} updated successfully`);
+                              });
 
-                            if (allDisplayDivs.length === 0) {
-                                console.error('Could not find any display divs for leg:', currentLegId);
-                            }
+                              if (allDisplayDivs.length === 0) {
+                                  console.error('Could not find any display divs for leg:', currentLegId);
+                              }
 
-                            // Update the button's data attribute
-                            const editButton = document.querySelector(`.edit-driver-notes[data-leg-id="${currentLegId}"]`);
-                            console.log('Found edit button:', editButton);
-                            if (editButton) {
-                                editButton.dataset.currentNotes = notes;
-                                console.log('Updated button data attribute');
-                            }
+                              // Update the button's data attribute
+                              const editButton = document.querySelector(`.edit-driver-notes[data-leg-id="${currentLegId}"]`);
+                              console.log('Found edit button:', editButton);
+                              if (editButton) {
+                                  editButton.dataset.currentNotes = notes;
+                                  console.log('Updated button data attribute');
+                              }
 
-                            // Close modal
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('driverNotesModal'));
-                            console.log('Modal instance:', modal);
-                            modal.hide();
-                            console.log('Modal hide() called');
+                              // Close modal
+                              const modal = bootstrap.Modal.getInstance(document.getElementById('driverNotesModal'));
+                              console.log('Modal instance:', modal);
+                              modal.hide();
+                              console.log('Modal hide() called');
 
-                            // Add a small delay to ensure the modal is fully closed
-                            setTimeout(() => {
-                                console.log('Modal should be closed now');
-                                // Force focus back to the page
-                                document.body.focus();
-                            }, 100);
+                              // Add a small delay to ensure the modal is fully closed
+                              setTimeout(() => {
+                                  console.log('Modal should be closed now');
+                                  // Force focus back to the page
+                                  document.body.focus();
+                              }, 100);
 
-                            // Reset button state
-                            saveButton.innerHTML = originalText;
-                            saveButton.disabled = false;
+                              // Reset button state
+                              saveButton.innerHTML = originalText;
+                              saveButton.disabled = false;
 
-                            console.log('Notes saved and display updated successfully');
-                        } else {
-                            throw new Error(data.error || 'Failed to save notes');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error saving notes:', error);
+                              console.log('Notes saved and display updated successfully');
+                          } else {
+                              throw new Error(data.error || 'Failed to save notes');
+                          }
+                      })
+                      .catch(error => {
+                          console.error('Error saving notes:', error);
 
-                        // Reset button state
-                        saveButton.innerHTML = originalText;
-                        saveButton.disabled = false;
+                          // Reset button state
+                          saveButton.innerHTML = originalText;
+                          saveButton.disabled = false;
 
-                        // Fallback: auto-refresh the page to ensure display is updated
-                        alert('Notes saved successfully! Refreshing page to update display...');
-                        window.location.reload();
-                    });
-            }
+                          // Fallback: auto-refresh the page to ensure display is updated
+                          alert('Notes saved successfully! Refreshing page to update display...');
+                          window.location.reload();
+                      });
+              }
 
-            // Event listeners for driver notes
-            document.addEventListener('click', (e) => {
-                if (e.target.closest('.edit-driver-notes')) {
-                    e.preventDefault();
-                    const button = e.target.closest('.edit-driver-notes');
-                    const legId = button.dataset.legId;
-                    const currentNotes = button.dataset.currentNotes || '';
-                    openNotesModal(legId, currentNotes);
-                }
-            });
+              // Event listeners for driver notes
+              document.addEventListener('click', (e) => {
+                  if (e.target.closest('.edit-driver-notes')) {
+                      e.preventDefault();
+                      const button = e.target.closest('.edit-driver-notes');
+                      const legId = button.dataset.legId;
+                      const currentNotes = button.dataset.currentNotes || '';
+                      openNotesModal(legId, currentNotes);
+                  }
+              });
 
-            // Save button in modal
-            document.getElementById('save-driver-notes-modal').addEventListener('click', saveNotes);
-        });
-    </script>
-  </body>
-</html>
+              // Save button in modal
+              document.getElementById('save-driver-notes-modal').addEventListener('click', saveNotes);
+          });
+      </script>
+    </body>
+  </html>

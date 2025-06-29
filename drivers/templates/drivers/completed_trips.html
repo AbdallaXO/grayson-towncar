@@ -83,6 +83,14 @@
             }
         }
 
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
         .status-in-progress {
             background-color: #ffc107;
         }
@@ -97,6 +105,22 @@
 
         .status-completed {
             background-color: #198754;
+        }
+
+        .card-border-in-progress {
+            border-left: 5px solid #ffc107 !important;
+        }
+
+        .card-border-on-location {
+            border-left: 5px solid #17a2b8 !important;
+        }
+
+        .card-border-picked-up {
+            border-left: 5px solid #0d6efd !important;
+        }
+
+        .card-border-completed {
+            border-left: 5px solid #198754 !important;
         }
     </style>
   </head>
@@ -151,8 +175,7 @@
                   {% for leg in legs %}
                     <tr>
                       <td>
-                        <div class="fw-bold mb-1">Res ID: GT0{{ leg.id }}</div>
-                        <div class="mb-1">{{ leg.reservation.customer.get_full_name }}</div>
+                        <div class="mb-1 text-muted">Trip completed</div>
                       </td>
                       <td>
                         <div class="fw-bold">{{ leg.pickup_date|date:'l, F j' }}</div>
@@ -222,7 +245,8 @@
                         </div>
                         <!-- Update Status Dropdown -->
                         <select id="statusSelect-{{ leg.id }}"
-                                class="form-select form-select-sm status-select">
+                                class="form-select form-select-sm status-select"
+                                disabled>
                           <option value="in-progress"
                                   {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
                           <option value="on-location"
@@ -244,28 +268,20 @@
         <!-- Mobile Card View - Enhanced -->
         <div class="d-md-none">
           {% for leg in legs %}
-            <div class="card trip-card-mobile">
+            <div class="card trip-card-mobile card-border-{{ leg.status }}">
               <div class="card-header card-header-dark">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
                     <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
                     <div>{{ leg.pickup_date|date:'l, F j' }}</div>
                   </div>
-                  <div class="status-badge">
-                    <i class="bi bi-check-circle-fill"></i> Completed
+                  <div class="d-flex align-items-center">
+                    <span class="status-indicator status-{{ leg.status }}"></span>
+                    <span class="text-capitalize">{{ leg.get_status_display }}</span>
                   </div>
                 </div>
               </div>
               <div class="card-body">
-                <div class="mobile-section">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h5 class="mb-0">{{ leg.reservation.customer.get_full_name }}</h5>
-                      <div class="text-muted">Res ID: GT0{{ leg.id }}</div>
-                    </div>
-                  </div>
-                </div>
-
                 <div class="mobile-section">
                   <div class="mb-1">
                     <strong>Pickup:</strong> {{ leg.pickup_location }}
@@ -328,9 +344,7 @@
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <div>
                       <span class="text-muted small fw-bold">My Notes:</span>
-                      <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7em;">
-                        <i class="bi bi-shield-lock"></i> For Dispatchers/Admin Only
-                      </span>
+
                     </div>
                     <button class="btn btn-sm btn-outline-primary edit-driver-notes"
                             data-leg-id="{{ leg.id }}"
@@ -351,7 +365,8 @@
                 <div class="mobile-section">
                   <label for="statusSelectMobile-{{ leg.id }}" class="form-label fw-bold">Update Status:</label>
                   <select id="statusSelectMobile-{{ leg.id }}"
-                          class="form-select status-select">
+                          class="form-select status-select"
+                          disabled>
                     <option value="in-progress"
                             {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
                     <option value="on-location"
