@@ -35,7 +35,14 @@ class DriverAdmin(admin.ModelAdmin):
     fieldsets = (
         (
             "Driver Information",
-            {"fields": ("profile", "vehicle", "schedule", "payment_method", )},
+            {
+                "fields": (
+                    "profile",
+                    "vehicle",
+                    "schedule",
+                    "payment_method",
+                )
+            },
         ),
         (
             "Payment Tracking",
@@ -350,7 +357,9 @@ class DriverAdmin(admin.ModelAdmin):
             unpaid_legs = driver.get_unpaid_legs().filter(status="completed")
 
             # Log the number of unpaid completed legs found
-            logger.info(f"Driver {driver} has {unpaid_legs.count()} unpaid completed legs")
+            logger.info(
+                f"Driver {driver} has {unpaid_legs.count()} unpaid completed legs"
+            )
 
             if unpaid_legs:
                 # Group legs by reservation
@@ -374,10 +383,12 @@ class DriverAdmin(admin.ModelAdmin):
 
                 for reservation, legs in reservation_legs.items():
                     leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
-                    
+
                     # Reservation header
-                    notes.append(f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}")
-                    
+                    notes.append(
+                        f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}"
+                    )
+
                     # Leg details (simplified)
                     for leg in legs:
                         notes.append(
@@ -385,7 +396,7 @@ class DriverAdmin(admin.ModelAdmin):
                             f"{leg.pickup_location} → {leg.dropoff_location} | "
                             f"Payment: ${leg.driver_pay_amount or 0:.2f}"
                         )
-                    
+
                     # Subtotal for this reservation
                     if len(legs) > 1:
                         notes.append(f"  Subtotal: ${leg_total:.2f}")
@@ -393,7 +404,9 @@ class DriverAdmin(admin.ModelAdmin):
                 # Add summary at the end
                 notes.append("\n" + "-" * 50)
                 notes.append(f"TOTAL PAYMENT: ${payment_total:.2f}")
-                notes.append(f"Payment Method: {driver.payment_method or 'Direct Deposit'}")
+                notes.append(
+                    f"Payment Method: {driver.payment_method or 'Direct Deposit'}"
+                )
                 notes.append(f"Reference: Auto-{timezone.now().strftime('%Y%m%d')}")
 
                 try:
@@ -432,10 +445,13 @@ class DriverAdmin(admin.ModelAdmin):
                 f"Processed payments for {processed_count} drivers. Total: ${total_amount:.2f}",
             )
         else:
-            messages.info(request, "No unpaid completed legs found for selected drivers.")
+            messages.info(
+                request, "No unpaid completed legs found for selected drivers."
+            )
 
-    process_driver_payments.short_description = "Process driver payments (completed legs only)"
-
+    process_driver_payments.short_description = (
+        "Process driver payments (completed legs only)"
+    )
 
     def preview_driver_payments(self, request, queryset):
         """Show a preview of driver payments without actually processing them."""
@@ -509,9 +525,13 @@ class DriverAdmin(admin.ModelAdmin):
 
             self.message_user(request, mark_safe(message))
         else:
-            self.message_user(request, "No unpaid completed legs found for the selected drivers.")
+            self.message_user(
+                request, "No unpaid completed legs found for the selected drivers."
+            )
 
-    preview_driver_payments.short_description = "Preview driver payments (completed legs only)"
+    preview_driver_payments.short_description = (
+        "Preview driver payments (completed legs only)"
+    )
 
     def process_driver_payments(self, request, queryset):
         """Process payments for all unpaid COMPLETED legs for selected drivers."""
@@ -528,7 +548,9 @@ class DriverAdmin(admin.ModelAdmin):
             unpaid_legs = driver.get_unpaid_legs().filter(status="completed")
 
             # Log the number of unpaid completed legs found
-            logger.info(f"Driver {driver} has {unpaid_legs.count()} unpaid completed legs")
+            logger.info(
+                f"Driver {driver} has {unpaid_legs.count()} unpaid completed legs"
+            )
 
             if unpaid_legs:
                 # Group legs by reservation
@@ -552,10 +574,12 @@ class DriverAdmin(admin.ModelAdmin):
 
                 for reservation, legs in reservation_legs.items():
                     leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
-                    
+
                     # Reservation header
-                    notes.append(f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}")
-                    
+                    notes.append(
+                        f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}"
+                    )
+
                     # Leg details (simplified)
                     for leg in legs:
                         notes.append(
@@ -563,7 +587,7 @@ class DriverAdmin(admin.ModelAdmin):
                             f"{leg.pickup_location} → {leg.dropoff_location} | "
                             f"Payment: ${leg.driver_pay_amount or 0:.2f}"
                         )
-                    
+
                     # Subtotal for this reservation
                     if len(legs) > 1:
                         notes.append(f"  Subtotal: ${leg_total:.2f}")
@@ -571,7 +595,9 @@ class DriverAdmin(admin.ModelAdmin):
                 # Add summary at the end
                 notes.append("\n" + "-" * 50)
                 notes.append(f"TOTAL PAYMENT: ${payment_total:.2f}")
-                notes.append(f"Payment Method: {driver.payment_method or 'Direct Deposit'}")
+                notes.append(
+                    f"Payment Method: {driver.payment_method or 'Direct Deposit'}"
+                )
                 notes.append(f"Reference: Auto-{timezone.now().strftime('%Y%m%d')}")
 
                 try:
@@ -610,9 +636,13 @@ class DriverAdmin(admin.ModelAdmin):
                 f"Processed payments for {processed_count} drivers. Total: ${total_amount:.2f}",
             )
         else:
-            messages.info(request, "No unpaid completed legs found for selected drivers.")
+            messages.info(
+                request, "No unpaid completed legs found for selected drivers."
+            )
 
-    process_driver_payments.short_description = "Process driver payments (completed legs only)"
+    process_driver_payments.short_description = (
+        "Process driver payments (completed legs only)"
+    )
 
 
 @admin.register(DriverPayment)

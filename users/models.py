@@ -754,41 +754,56 @@ class Agency(models.Model):
                 for i, agent_detail in enumerate(agent_details, 1):
                     # Get detailed reservation information for this agent
                     agent_reservations = Reservation.objects.filter(
-                        id__in=agent_detail['reservation_ids']
-                    ).select_related('customer', 'rate', 'rate__route', 'rate__route__origin', 'rate__route__destination', 'vehicle')
+                        id__in=agent_detail["reservation_ids"]
+                    ).select_related(
+                        "customer",
+                        "rate",
+                        "rate__route",
+                        "rate__route__origin",
+                        "rate__route__destination",
+                        "vehicle",
+                    )
 
-                    agency_notes_lines.extend([
-                        f"{i}. {agent_detail['name']}",
-                        f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
-                        f"   Period: {agent_detail['period_start']} ⇄ {agent_detail['period_end']}",
-                        "",
-                        "   RESERVATION DETAILS:",
-                        "   " + "-" * 40,
-                    ])
+                    agency_notes_lines.extend(
+                        [
+                            f"{i}. {agent_detail['name']}",
+                            f"   Rate: {agent_detail['commission_rate']}% | Reservations: {agent_detail['reservation_count']} | Amount: ${agent_detail['amount']:.2f}",
+                            f"   Period: {agent_detail['period_start']} ⇄ {agent_detail['period_end']}",
+                            "",
+                            "   RESERVATION DETAILS:",
+                            "   " + "-" * 40,
+                        ]
+                    )
 
                     # Add detailed reservation information
                     for res in agent_reservations:
-                        agency_notes_lines.extend([
-                            f"   - Reservation #{res.id}",
-                            f"     Customer: {res.customer.get_full_name()}",
-                            f"     Route: {res.rate.route.origin} to {res.rate.route.destination}",
-                            f"     Vehicle: {res.vehicle.vehicle_type.title() if res.vehicle else 'N/A'}",
-                            f"     Trip Type: {res.trip_type.replace('_', ' ').title()}",
-                            f"     Amount: ${res.total_price:.2f}",
-                            f"     Commission: ${res.commission_amount:.2f}",
-                            f"     Date: {res.created_at.strftime('%Y-%m-%d')}",
+                        agency_notes_lines.extend(
+                            [
+                                f"   - Reservation #{res.id}",
+                                f"     Customer: {res.customer.get_full_name()}",
+                                f"     Route: {res.rate.route.origin} to {res.rate.route.destination}",
+                                f"     Vehicle: {res.vehicle.vehicle_type.title() if res.vehicle else 'N/A'}",
+                                f"     Trip Type: {res.trip_type.replace('_', ' ').title()}",
+                                f"     Amount: ${res.total_price:.2f}",
+                                f"     Commission: ${res.commission_amount:.2f}",
+                                f"     Date: {res.created_at.strftime('%Y-%m-%d')}",
+                                "",
+                            ]
+                        )
+
+                    agency_notes_lines.extend(
+                        [
+                            "   " + "-" * 40,
                             "",
-                        ])
+                        ]
+                    )
 
-                    agency_notes_lines.extend([
-                        "   " + "-" * 40,
-                        "",
-                    ])
-
-                agency_notes_lines.extend([
-                    "-" * 50,
-                    f"Individual agent payouts created: {len(processed_payouts)}",
-                ])
+                agency_notes_lines.extend(
+                    [
+                        "-" * 50,
+                        f"Individual agent payouts created: {len(processed_payouts)}",
+                    ]
+                )
 
                 comprehensive_notes = "\n".join(agency_notes_lines)
 

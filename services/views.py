@@ -22,15 +22,15 @@ def orlando_airport_transportation(request):
                 # First, prioritize Orlando International Airport
                 Case(
                     When(route__origin__name="Orlando International Airport", then=0),
-                    default=1
+                    default=1,
                 ),
                 # Then order by origin name, then destination name
                 "route__origin__name",
-                "route__destination__name"
+                "route__destination__name",
             ),
         )
     ).all()
-    
+
     # Create rates JSON for JavaScript
     rates_json = {}
     for v in vehicles:
@@ -59,24 +59,23 @@ def orlando_airport_transportation(request):
                 "@type": "PostalAddress",
                 "addressLocality": "Orlando",
                 "addressRegion": "FL",
-                "addressCountry": "US"
-            }
+                "addressCountry": "US",
+            },
         },
-        "areaServed": {
-            "@type": "City",
-            "name": "Orlando"
-        },
+        "areaServed": {"@type": "City", "name": "Orlando"},
         "serviceType": "Airport Transportation",
-        "url": "https://www.graysontowncar.com/services/orlando-airport-transportation/"
+        "url": "https://www.graysontowncar.com/services/orlando-airport-transportation/",
     }
 
     context = {
         "vehicles": vehicles,
         "rates_json": json.dumps(rates_json),
         "structured_data": json.dumps(structured_data),
-        "canonical_url": request.build_absolute_uri("/services/orlando-airport-transportation/"),
+        "canonical_url": request.build_absolute_uri(
+            "/services/orlando-airport-transportation/"
+        ),
     }
-    
+
     return render(request, "services/orlando-airport-transportation.html", context)
 
 

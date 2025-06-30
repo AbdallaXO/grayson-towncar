@@ -13,7 +13,7 @@ class Vehicle(models.Model):
         ("suv", "SUV"),
         ("mini_van", "Mini Van"),
         ("van", "Van"),
-        ("Van(14 Pax)", "Van (14 Pax)")
+        ("Van(14 Pax)", "Van (14 Pax)"),
     ]
 
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPES)
@@ -125,17 +125,19 @@ class Rate(models.Model):
             models.Index(fields=["oneway_price"]),
             models.Index(fields=["round_trip_price"]),
         ]
-        
+
         # Custom ordering to prioritize Orlando Airport first
         ordering = [
             # First, prioritize Orlando International Airport
             models.Case(
-                models.When(route__origin__name="Orlando International Airport", then=0),
-                default=1
+                models.When(
+                    route__origin__name="Orlando International Airport", then=0
+                ),
+                default=1,
             ),
             # Then order by origin name, then destination name
             "route__origin__name",
-            "route__destination__name"
+            "route__destination__name",
         ]
 
     def __str__(self):

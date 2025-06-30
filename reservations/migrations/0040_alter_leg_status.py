@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("reservations", "0039_remove_lead_reservation_status_404d08_idx_and_more"),
     ]

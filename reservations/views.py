@@ -48,11 +48,11 @@ def index(request):
                 # First, prioritize Orlando International Airport
                 Case(
                     When(route__origin__name="Orlando International Airport", then=0),
-                    default=1
+                    default=1,
                 ),
                 # Then order by origin name, then destination name
                 "route__origin__name",
-                "route__destination__name"
+                "route__destination__name",
             ),
         )
     ).all()
@@ -114,13 +114,20 @@ def reservation_form(
             )
 
             # Capture and save UTM parameters for Google Ads attribution
-            utm_params = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
+            utm_params = [
+                "gclid",
+                "utm_source",
+                "utm_medium",
+                "utm_campaign",
+                "utm_term",
+                "utm_content",
+            ]
             for param in utm_params:
                 value = request.POST.get(param)
                 if value:
                     setattr(reservation, param, value)
                     logger.info(f"Captured UTM parameter {param}: {value}")
-            
+
             # Save the reservation with UTM data
             reservation.save()
 
@@ -159,9 +166,13 @@ def reservation_form(
             # Send InitiateCheckout event to Meta Conversions API
             try:
                 send_initiate_checkout_event(reservation, request)
-                logger.info("Successfully sent InitiateCheckout event to Meta Conversions API")
+                logger.info(
+                    "Successfully sent InitiateCheckout event to Meta Conversions API"
+                )
             except Exception as e:
-                logger.error(f"Error sending InitiateCheckout event to Meta Conversions API: {str(e)}")
+                logger.error(
+                    f"Error sending InitiateCheckout event to Meta Conversions API: {str(e)}"
+                )
 
             return redirect("create_checkout_session", reservation_id=reservation.uuid)
     else:
@@ -239,30 +250,30 @@ class QuoteFormHandlerView(View):
                 dropoff_location = data.get("dropoff_location", "").strip()
                 pickup_date = data.get("pickup_date", "")
                 trip_type = "oneway" if data.get("trip_type") == "1" else "roundtrip"
-                
+
                 existing_lead = None
                 if email or phone:
                     # Only consider it a duplicate if it's the same person with the same trip details
                     # within the last 7 days (to catch actual duplicates, not just same person)
                     cutoff_time = timezone.now() - timedelta(days=7)
-                    
+
                     # Build query to find exact duplicates
                     query = Q(created_at__gte=cutoff_time)
-                    
+
                     if email:
                         query &= Q(email__iexact=email)
                     if phone:
                         query &= Q(phone__iexact=phone)
-                    
+
                     # Also check if it's the same trip details
                     if pickup_location and dropoff_location and pickup_date:
                         query &= Q(pickup_location__iexact=pickup_location)
                         query &= Q(dropoff_location__iexact=dropoff_location)
                         query &= Q(pickup_date=pickup_date)
                         query &= Q(trip_type=trip_type)
-                    
+
                     existing_lead = Lead.objects.filter(query).first()
-                
+
                 if existing_lead:
                     # Instead of creating a duplicate, create a new quote for the existing lead
                     quote = Quote.objects.create(
@@ -270,75 +281,98 @@ class QuoteFormHandlerView(View):
                         pickup_location=data.get("pickup_location", ""),
                         dropoff_location=data.get("dropoff_location", ""),
                         pickup_date=data.get("pickup_date"),
-                        trip_type="oneway" if data.get("trip_type") == "1" else "roundtrip",
+                        trip_type="oneway"
+                        if data.get("trip_type") == "1"
+                        else "roundtrip",
                         vehicle_id=data.get("vehicle_id"),
                         estimated_price=data.get("estimated_price"),
                         status="pending",
                         is_current=True,  # This will automatically unmark other quotes
                     )
-                    
+
                     # Update lead fields if they're missing or if this is a different trip
                     updated = False
-                    if data.get("pickup_location") and data.get("pickup_location") != existing_lead.pickup_location:
+                    if (
+                        data.get("pickup_location")
+                        and data.get("pickup_location") != existing_lead.pickup_location
+                    ):
                         existing_lead.pickup_location = data.get("pickup_location")
                         updated = True
-                    if data.get("dropoff_location") and data.get("dropoff_location") != existing_lead.dropoff_location:
+                    if (
+                        data.get("dropoff_location")
+                        and data.get("dropoff_location")
+                        != existing_lead.dropoff_location
+                    ):
                         existing_lead.dropoff_location = data.get("dropoff_location")
                         updated = True
                     if data.get("vehicle_id") and not existing_lead.vehicle_id:
                         existing_lead.vehicle_id = data.get("vehicle_id")
                         updated = True
-                    if data.get("estimated_price") and not existing_lead.estimated_price:
+                    if (
+                        data.get("estimated_price")
+                        and not existing_lead.estimated_price
+                    ):
                         existing_lead.estimated_price = data.get("estimated_price")
                         updated = True
                     if data.get("pickup_date") and not existing_lead.pickup_date:
                         existing_lead.pickup_date = data.get("pickup_date")
                         updated = True
-                    
+
                     # Reset status to "new" since they're requesting another quote
                     if existing_lead.status in ["lost", "converted"]:
                         existing_lead.status = "new"
                         updated = True
-                    
+
                     # Set high/medium priority based on trip date
                     if data.get("pickup_date"):
                         from datetime import date
+
                         today = date.today()
                         pickup_date = date.fromisoformat(data.get("pickup_date"))
                         days_until_trip = (pickup_date - today).days
                         if 0 <= days_until_trip <= 14:
                             existing_lead.priority = "high"
                             updated = True
-                    
+
                     if updated:
                         existing_lead.save()
-                    
+
                     logger.info(f"Created new quote for existing lead: {existing_lead}")
 
                     # Send ntfy notification for updated lead
                     try:
                         send_lead_notification(existing_lead)
-                        logger.info("Successfully sent ntfy notification for updated lead")
+                        logger.info(
+                            "Successfully sent ntfy notification for updated lead"
+                        )
                     except Exception as e:
-                        logger.error(f"Error sending ntfy notification for updated lead: {str(e)}")
+                        logger.error(
+                            f"Error sending ntfy notification for updated lead: {str(e)}"
+                        )
 
                     # Send lead event to Meta Conversions API
                     try:
                         send_lead_event(existing_lead, request)
-                        logger.info("Successfully sent lead event to Meta Conversions API")
+                        logger.info(
+                            "Successfully sent lead event to Meta Conversions API"
+                        )
                     except Exception as e:
-                        logger.error(f"Error sending lead event to Meta Conversions API: {str(e)}")
+                        logger.error(
+                            f"Error sending lead event to Meta Conversions API: {str(e)}"
+                        )
 
-                    return JsonResponse({
-                        "success": True, 
-                        "lead_id": existing_lead.id,
-                        "quote_id": quote.id,
-                        "message": "New quote created for existing lead"
-                    })
-                
+                    return JsonResponse(
+                        {
+                            "success": True,
+                            "lead_id": existing_lead.id,
+                            "quote_id": quote.id,
+                            "message": "New quote created for existing lead",
+                        }
+                    )
+
                 # Create new lead if no duplicate found
                 lead = form.save(commit=False)
-                
+
                 # Set trip details from the form data
                 lead.pickup_location = pickup_location
                 lead.dropoff_location = dropoff_location
@@ -349,6 +383,7 @@ class QuoteFormHandlerView(View):
                 # Set high/medium priority based on trip date
                 if lead.pickup_date:
                     from datetime import date
+
                     today = date.today()
                     days_until_trip = (lead.pickup_date - today).days
                     if 0 <= days_until_trip <= 14:
@@ -382,16 +417,22 @@ class QuoteFormHandlerView(View):
                     send_lead_notification(lead)
                     logger.info("Successfully sent ntfy notification for new lead")
                 except Exception as e:
-                    logger.error(f"Error sending ntfy notification for new lead: {str(e)}")
+                    logger.error(
+                        f"Error sending ntfy notification for new lead: {str(e)}"
+                    )
 
                 # Send lead event to Meta Conversions API
                 try:
                     send_lead_event(lead, request)
                     logger.info("Successfully sent lead event to Meta Conversions API")
                 except Exception as e:
-                    logger.error(f"Error sending lead event to Meta Conversions API: {str(e)}")
+                    logger.error(
+                        f"Error sending lead event to Meta Conversions API: {str(e)}"
+                    )
 
-                return JsonResponse({"success": True, "lead_id": lead.id, "quote_id": quote.id})
+                return JsonResponse(
+                    {"success": True, "lead_id": lead.id, "quote_id": quote.id}
+                )
             else:
                 return JsonResponse(
                     {"success": False, "errors": form.errors}, status=400

@@ -4,14 +4,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('rates', '0013_alter_rate_options_alter_vehicle_vehicle_type'),
+        ("rates", "0013_alter_rate_options_alter_vehicle_vehicle_type"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='rate',
-            options={'ordering': [models.Case(models.When(route__origin__name='Orlando International Airport', then=0), default=1), 'route__origin__name', 'route__destination__name']},
+            name="rate",
+            options={
+                "ordering": [
+                    models.Case(
+                        models.When(
+                            route__origin__name="Orlando International Airport", then=0
+                        ),
+                        default=1,
+                    ),
+                    "route__origin__name",
+                    "route__destination__name",
+                ]
+            },
         ),
     ]

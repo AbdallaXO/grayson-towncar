@@ -117,12 +117,27 @@ class Reservation(models.Model):
     )
 
     # UTM Parameters for Google Ads Attribution
-    gclid = models.CharField(max_length=255, blank=True, null=True, help_text="Google Click ID for conversion tracking")
-    utm_source = models.CharField(max_length=100, blank=True, null=True, help_text="UTM source parameter")
-    utm_medium = models.CharField(max_length=100, blank=True, null=True, help_text="UTM medium parameter")
-    utm_campaign = models.CharField(max_length=100, blank=True, null=True, help_text="UTM campaign parameter")
-    utm_term = models.CharField(max_length=100, blank=True, null=True, help_text="UTM term parameter")
-    utm_content = models.CharField(max_length=100, blank=True, null=True, help_text="UTM content parameter")
+    gclid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Google Click ID for conversion tracking",
+    )
+    utm_source = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM source parameter"
+    )
+    utm_medium = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM medium parameter"
+    )
+    utm_campaign = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM campaign parameter"
+    )
+    utm_term = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM term parameter"
+    )
+    utm_content = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM content parameter"
+    )
 
     class Meta:
         indexes = [
@@ -239,9 +254,7 @@ class Leg(models.Model):
     dropoff_location = models.CharField(max_length=255)
     private_notes = models.TextField(null=True, blank=True)
     driver_notes = models.TextField(
-        null=True, 
-        blank=True, 
-        help_text="Notes added by the driver about this trip"
+        null=True, blank=True, help_text="Notes added by the driver about this trip"
     )
     driver = models.ForeignKey(
         "drivers.Driver",
@@ -328,18 +341,78 @@ class Leg(models.Model):
 
         super().save(*args, **kwargs)
 
+    def __str__(self):
+        """
+        Returns a string identifying the leg by pickup and dropoff locations.
+        """
+        return f"Leg #{self.id} from {self.pickup_location} to {self.dropoff_location}"
+
+    def get_trip_type(self):
+        """
+        Determine if this leg is an arrival or return based on pickup/dropoff locations.
+        Returns: 'arrival', 'return', or 'other'
+        """
+        import re
+
+        # Keywords that indicate airport locations
+        airport_keywords = ["mco", "airport", "terminal", "gate", "international"]
+
+        # Convert to lowercase for case-insensitive matching
+        pickup_lower = self.pickup_location.lower()
+        dropoff_lower = self.dropoff_location.lower()
+
+        # Check if pickup location contains airport keywords
+        pickup_is_airport = any(keyword in pickup_lower for keyword in airport_keywords)
+
+        # Check if dropoff location contains airport keywords
+        dropoff_is_airport = any(
+            keyword in dropoff_lower for keyword in airport_keywords
+        )
+
+        # Determine trip type
+        if pickup_is_airport and not dropoff_is_airport:
+            return "arrival"  # From airport to destination
+        elif dropoff_is_airport and not pickup_is_airport:
+            return "return"  # From destination to airport
+        else:
+            return "other"  # Neither pickup nor dropoff is airport, or both are
+
+    def get_trip_type_display(self):
+        """
+        Get a human-readable display for the trip type with appropriate icons.
+        """
+        trip_type = self.get_trip_type()
+        if trip_type == "arrival":
+            return {
+                "type": "arrival",
+                "label": "Arrival",
+                "icon": "bi-airplane-engines",
+                "color": "dark",
+                "description": "Airport to Destination",
+            }
+        elif trip_type == "return":
+            return {
+                "type": "return",
+                "label": "Return",
+                "icon": "bi-airplane",
+                "color": "success",
+                "description": "Destination to Airport",
+            }
+        else:
+            return {
+                "type": "other",
+                "label": "Other",
+                "icon": "bi-arrow-left-right",
+                "color": "secondary",
+                "description": "Non-Airport Transfer",
+            }
+
     class Meta:
         ordering = ["pickup_date", "pickup_time"]
         indexes = [
             models.Index(fields=["reservation"]),
             models.Index(fields=["flight_information"]),
         ]
-
-    def __str__(self):
-        """
-        Returns a string identifying the leg by pickup and dropoff locations.
-        """
-        return f"Leg #{self.id} from {self.pickup_location} to {self.dropoff_location}"
 
 
 class Flight(models.Model):
@@ -442,7 +515,7 @@ class Lead(models.Model):
     @property
     def latest_quote(self):
         """Get the most recent quote for this lead"""
-        return self.quotes.order_by('-created_at').first()
+        return self.quotes.order_by("-created_at").first()
 
     @property
     def quote_count(self):
@@ -463,8 +536,8 @@ class Quote(models.Model):
         EXPIRED = "expired", "Expired"
 
     # Relationship to Lead
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name='quotes')
-    
+    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name="quotes")
+
     # Trip Details
     pickup_location = models.CharField(max_length=200, blank=True)
     dropoff_location = models.CharField(max_length=200, blank=True)
@@ -478,13 +551,15 @@ class Quote(models.Model):
     estimated_price = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
-    
+
     # Quote Management
     status = models.CharField(
         max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING
     )
-    is_current = models.BooleanField(default=True, help_text="Mark this as the most recent quote")
-    
+    is_current = models.BooleanField(
+        default=True, help_text="Mark this as the most recent quote"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -500,5 +575,7 @@ class Quote(models.Model):
     def save(self, *args, **kwargs):
         # If this quote is marked as current, unmark all other quotes for this lead
         if self.is_current:
-            Quote.objects.filter(lead=self.lead).exclude(id=self.id).update(is_current=False)
+            Quote.objects.filter(lead=self.lead).exclude(id=self.id).update(
+                is_current=False
+            )
         super().save(*args, **kwargs)

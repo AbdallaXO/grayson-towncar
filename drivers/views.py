@@ -43,8 +43,8 @@ def index(request):
     # Add is_first_leg property to each leg
     for leg in legs:
         # Check if this is the first leg of the reservation (by pickup time)
-        first_leg = leg.reservation.legs.order_by('pickup_time').first()
-        leg.is_first_leg = (leg.id == first_leg.id)
+        first_leg = leg.reservation.legs.order_by("pickup_time").first()
+        leg.is_first_leg = leg.id == first_leg.id
 
     return render(
         request, "drivers/index.html", {"legs": legs, "selected_date": selected_date}
@@ -66,8 +66,8 @@ def completed_trips(request):
 
     # Add is_first_leg property to each leg
     for leg in legs:
-        first_leg = leg.reservation.legs.order_by('pickup_time').first()
-        leg.is_first_leg = (leg.id == first_leg.id)
+        first_leg = leg.reservation.legs.order_by("pickup_time").first()
+        leg.is_first_leg = leg.id == first_leg.id
 
     return render(
         request,
@@ -98,8 +98,8 @@ def schedule(request):
 
     # Add is_first_leg property to each leg
     for leg in legs:
-        first_leg = leg.reservation.legs.order_by('pickup_time').first()
-        leg.is_first_leg = (leg.id == first_leg.id)
+        first_leg = leg.reservation.legs.order_by("pickup_time").first()
+        leg.is_first_leg = leg.id == first_leg.id
 
     return render(
         request,
@@ -120,7 +120,7 @@ def update_leg_status(request, leg_id):
         new_status = data.get("status")
 
         # Validate status
-        VALID_STATUSES = ["in-progress", "picked-up","on-location", "completed"]
+        VALID_STATUSES = ["in-progress", "picked-up", "on-location", "completed"]
         if new_status not in VALID_STATUSES:
             return JsonResponse(
                 {"success": False, "error": "Invalid status"}, status=400

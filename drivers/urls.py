@@ -11,5 +11,9 @@ urlpatterns = [
     ),
     path("completed-trips/", views.completed_trips, name="completed_trips"),
     path("weekly-schedule/", views.schedule, name="schedule"),
-    path("update_driver_notes/<int:leg_id>/", views.update_driver_notes, name="update_driver_notes"),
+    path(
+        "update_driver_notes/<int:leg_id>/",
+        views.update_driver_notes,
+        name="update_driver_notes",
+    ),
 ]

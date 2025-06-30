@@ -158,40 +158,42 @@ def extra_charges(reservation):
 def send_ntfy_notification(title, message, priority="default", tags=None):
     """
     Send a notification via ntfy
-    
+
     Args:
         title (str): Notification title
         message (str): Notification message
         priority (str): Priority level (min, low, default, high, urgent)
         tags (list): List of tags for the notification
     """
-    if not getattr(settings, 'NTFY_ENABLED', False):
+    if not getattr(settings, "NTFY_ENABLED", False):
         logger.info("NTFY notifications are disabled")
         return
-    
+
     try:
-        topic = getattr(settings, 'NTFY_TOPIC', 'grayson-leads')
-        server = getattr(settings, 'NTFY_SERVER', 'https://ntfy.sh')
-        
+        topic = getattr(settings, "NTFY_TOPIC", "grayson-leads")
+        server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
+
         url = f"{server}/{topic}"
-        
+
         headers = {
-            'Content-Type': 'text/plain',
+            "Content-Type": "text/plain",
         }
-        
+
         if priority != "default":
-            headers['Priority'] = priority
-            
+            headers["Priority"] = priority
+
         if tags:
-            headers['Tags'] = ','.join(tags)
-        
+            headers["Tags"] = ",".join(tags)
+
         response = requests.post(url, data=message, headers=headers, timeout=10)
-        
+
         if response.status_code == 200:
             logger.info(f"NTFY notification sent successfully: {title}")
         else:
-            logger.error(f"Failed to send NTFY notification. Status: {response.status_code}")
-            
+            logger.error(
+                f"Failed to send NTFY notification. Status: {response.status_code}"
+            )
+
     except Exception as e:
         logger.error(f"Error sending NTFY notification: {str(e)}")
 
@@ -199,7 +201,7 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
 def send_lead_notification(lead):
     """
     Send a notification for a new lead
-    
+
     Args:
         lead: Lead object with customer and trip details
     """
@@ -207,30 +209,30 @@ def send_lead_notification(lead):
         # Format pickup and dropoff locations
         pickup_location = lead.pickup_location or "N/A"
         dropoff_location = lead.dropoff_location or "N/A"
-        
+
         title = f"🚗 New Lead: {lead.get_full_name}"
         message = f"""
 New lead received!
 
 Customer: {lead.get_full_name}
-Phone: {lead.phone or 'N/A'}
-Email: {lead.email or 'N/A'}
+Phone: {lead.phone or "N/A"}
+Email: {lead.email or "N/A"}
 
 From: {pickup_location}
 To: {dropoff_location}
-Date: {lead.pickup_date or 'N/A'}
-Vehicle: {lead.vehicle or 'N/A'}
-Trip Type: {lead.trip_type or 'N/A'}
-Estimated Price: ${lead.estimated_price or 'N/A'}
+Date: {lead.pickup_date or "N/A"}
+Vehicle: {lead.vehicle or "N/A"}
+Trip Type: {lead.trip_type or "N/A"}
+Estimated Price: ${lead.estimated_price or "N/A"}
 
 Lead ID: #{lead.id}
 Priority: {lead.priority}
         """.strip()
-        
+
         tags = ["car", "money", "new"]
-        
+
         send_ntfy_notification(title, message, priority="high", tags=tags)
-        
+
     except Exception as e:
         logger.error(f"Error sending lead notification: {str(e)}")
 
@@ -238,20 +240,27 @@ Priority: {lead.priority}
 def add_utm_to_metadata(metadata: Dict[str, Any], reservation) -> Dict[str, Any]:
     """
     Add UTM parameters from a reservation to Stripe metadata.
-    
+
     Args:
         metadata: Existing Stripe metadata dictionary
         reservation: Reservation object with UTM fields
-        
+
     Returns:
         Updated metadata dictionary with UTM parameters
     """
-    utm_params = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content']
-    
+    utm_params = [
+        "gclid",
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "utm_term",
+        "utm_content",
+    ]
+
     for param in utm_params:
         value = getattr(reservation, param, None)
         if value:
             metadata[param] = value
             logger.info(f"Added UTM parameter to Stripe metadata: {param} = {value}")
-    
+
     return metadata

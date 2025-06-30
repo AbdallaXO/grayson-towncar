@@ -76,10 +76,41 @@
                 </select>
               </div>
 
+              <!-- Trip Type Filter -->
+              <div class="col-lg-3">
+                <label class="form-label">Trip Type</label>
+                <select name="trip_type" class="form-select" id="tripTypeFilter">
+                  <option value="">All Trip Types</option>
+                  <option value="arrival"
+                          {% if trip_type_filter == 'arrival' %}selected{% endif %}>
+                    Arrivals (Airport → Destination)
+                  </option>
+                  <option value="return"
+                          {% if trip_type_filter == 'return' %}selected{% endif %}>
+                    Returns (Destination → Airport)
+                  </option>
+                  <option value="other" {% if trip_type_filter == 'other' %}selected{% endif %}>Other Transfers</option>
+                </select>
+              </div>
+
+              <!-- Vehicle Filter -->
+              <div class="col-lg-3">
+                <label class="form-label">Vehicle Type</label>
+                <select name="vehicle" class="form-select" id="vehicleFilter">
+                  <option value="">All Vehicles</option>
+                  {% for vehicle in vehicles %}
+                    <option value="{{ vehicle.vehicle_type }}"
+                            {% if vehicle_filter == vehicle.vehicle_type %}selected{% endif %}>
+                      {{ vehicle.get_vehicle_type_display }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
               <!-- Clear Filters -->
               <div class="col-12">
                 <div class="d-flex gap-2">
-                  <button type="submit" class="btn btn-primary">
+                  <button type="submit" class="btn btn-dark">
                     <i class="bi bi-search me-2"></i>Apply Filters
                   </button>
                   <button type="button" class="btn btn-outline-secondary" id="clearFilters">
@@ -96,6 +127,74 @@
       </div>
     </div>
 
+    <!-- Quick Actions -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body py-2">
+            <div class="d-flex flex-wrap gap-2">
+              <span class="text-muted small me-2">Quick Filters:</span>
+              <a href="?trip_type=arrival" class="btn btn-sm btn-outline-dark">Arrivals Only</a>
+              <a href="?trip_type=return" class="btn btn-sm btn-outline-success">Returns Only</a>
+              {% for vehicle in vehicles %}
+                <a href="?vehicle={{ vehicle.vehicle_type }}"
+                   class="btn btn-sm btn-outline-dark">{{ vehicle.get_vehicle_type_display }}</a>
+              {% endfor %}
+              <a href="?" class="btn btn-sm btn-outline-secondary">Clear All</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current Page Summary -->
+    <div class="row mb-3">
+      <div class="col-lg-6 col-md-8 mx-auto">
+        <div class="card shadow-sm border-0">
+          <div class="card-body py-2">
+            <div class="row text-center">
+              <div class="col-3">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-airplane-engines text-dark me-2"></i>
+                  <div>
+                    <div class="fw-bold text-dark">{{ current_page_stats.arrival }}</div>
+                    <div class="small text-muted">Arrivals</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-airplane text-success me-2"></i>
+                  <div>
+                    <div class="fw-bold text-success">{{ current_page_stats.return }}</div>
+                    <div class="small text-muted">Returns</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-car-front text-secondary me-2"></i>
+                  <div>
+                    <div class="fw-bold text-secondary">{{ current_page_stats.other }}</div>
+                    <div class="small text-muted">Other</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-currency-dollar text-primary me-2"></i>
+                  <div>
+                    <div class="fw-bold text-primary">${{ current_page_stats.total_revenue|floatformat:0 }}</div>
+                    <div class="small text-muted">Revenue</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     {% if legs %}
       <!-- Desktop View -->
       <div class="table-responsive rounded shadow-sm mb-3 d-none d-lg-block">
@@ -104,6 +203,7 @@
             <tr>
               <th class="customer-col">Customer</th>
               <th class="trip-col">Trip Details</th>
+              <th class="trip-type-col">Trip Type</th>
               <th class="location-col">Locations</th>
               <th class="vehicle-col">Vehicle & Passengers</th>
               <th class="payment-col">Payment Status</th>
@@ -114,7 +214,7 @@
           <tbody>
             {% for leg in legs %}
               <tr class="align-middle">
-                <!-- Customer Info -->
+                <!-- Customer dark -->
                 <td>
                   <div class="d-flex align-items-center mb-1">
                     <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
@@ -133,11 +233,24 @@
                 <td>
                   <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
                   <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
-                  {% if leg.flight_information %}
+                  {% if leg.flight_darkrmation %}
                     <div class="small">
-                      <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
+                      <i class="bi bi-airplane me-1"></i>{{ leg.flight_darkrmation }}
                     </div>
                   {% endif %}
+                </td>
+
+                <!-- Trip Type -->
+                <td>
+                  {% with trip_dark=leg.get_trip_type_display %}
+                    <div class="d-flex align-items-center">
+                      <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
+                      <div>
+                        <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
+                        <div class="small text-muted">{{ trip_dark.description }}</div>
+                      </div>
+                    </div>
+                  {% endwith %}
                 </td>
 
                 <!-- Locations -->
@@ -158,8 +271,11 @@
                       <div class="d-flex align-items-center mb-1">
                         <span>{{ leg.reservation.passenger_count }} Passengers</span>
                       </div>
+                      <div class="d-flex align-items-center mb-1">
+                        <span>{{ leg.reservation.luggage_count }} Suitcases</span>
+                      </div>
                       <div class="d-flex align-items-center">
-                        <span>Ch-Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
+                        <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
                       </div>
                     </div>
                   </div>
@@ -268,12 +384,25 @@
                         <i class="bi bi-calendar-event text-primary me-2"></i>
                         <div class="small">
                           <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
-                          {% if leg.flight_information %}
+                          {% if leg.flight_darkrmation %}
                             <div>
-                              <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
+                              <i class="bi bi-airplane me-1"></i>{{ leg.flight_darkrmation }}
                             </div>
                           {% endif %}
                         </div>
+                      </div>
+                    </div>
+
+                    <!-- Trip Type -->
+                    <div class="col-12">
+                      <div class="d-flex">
+                        {% with trip_dark=leg.get_trip_type_display %}
+                          <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
+                          <div class="small">
+                            <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
+                            <div class="text-muted">{{ trip_dark.description }}</div>
+                          </div>
+                        {% endwith %}
                       </div>
                     </div>
 
@@ -295,15 +424,18 @@
                     <!-- Vehicle & Passengers -->
                     <div class="col-12">
                       <div class="d-flex">
-                        <i class="bi bi-people text-success me-2"></i>
+                        <i class="bi bi-people text-primary me-2"></i>
                         <div class="small">
                           <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
-                          <div>{{ leg.reservation.passenger_count }} Passengers</div>
-                          {% if leg.reservation.car_seats %}
-                            <div>
-                              <i class="bi bi-car-front me-1"></i>{{ leg.reservation.car_seats }}
-                            </div>
-                          {% endif %}
+                          <div class="d-flex align-items-center mb-1">
+                            <span>{{ leg.reservation.passenger_count }} Passengers</span>
+                          </div>
+                          <div class="d-flex align-items-center mb-1">
+                            <span>{{ leg.reservation.luggage_count }} Suitcases</span>
+                          </div>
+                          <div class="d-flex align-items-center">
+                            <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -337,7 +469,7 @@
                           <div>
                             <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
                           </div>
-                          <span class="badge bg-info text-dark">
+                          <span class="badge bg-dark text-dark">
                             <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
                           </span>
                         </div>
@@ -423,14 +555,16 @@
         </ul>
       </nav>
     {% else %}
-      <div class="alert alert-info shadow-sm" role="alert">
+      <div class="alert alert-dark shadow-sm" role="alert">
         <div class="d-flex align-items-center">
-          <i class="bi bi-info-circle me-2"></i>
+          <i class="bi bi-dark-circle me-2"></i>
           <span>No legs found.</span>
         </div>
       </div>
     {% endif %}
   </div>
+
+  <!-- JavaScript -->
   <script>
       document.addEventListener('DOMContentLoaded', function() {
           const filterForm = document.getElementById('filterForm');
@@ -488,7 +622,7 @@
                   const statusElement = form.querySelector('.update-status');
 
                   // Send the update to the server via AJAX
-                  fetch('/dispatching/update_leg_assignment/', {
+                  fetch('/dispatching/update-leg-assignment/', {
                           method: 'POST',
                           headers: {
                               'Content-Type': 'application/json',

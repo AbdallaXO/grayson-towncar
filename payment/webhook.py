@@ -10,6 +10,7 @@ from users.emails import send_reservation_confirmation  # Added import
 from decimal import Decimal  # Added import
 from reservations.hubspot_service import update_deal_payment_status
 from reservations.conversions import send_purchase_event
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

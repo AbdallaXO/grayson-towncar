@@ -19,11 +19,11 @@ def index(request):
                 # First, prioritize Orlando International Airport
                 Case(
                     When(route__origin__name="Orlando International Airport", then=0),
-                    default=1
+                    default=1,
                 ),
                 # Then order by origin name, then destination name
                 "route__origin__name",
-                "route__destination__name"
+                "route__destination__name",
             ),
         )
     ).all()
@@ -33,4 +33,3 @@ def index(request):
     }
     context = {"vehicles": vehicles, "additional_data": structured_data}
     return render(request, "rates/index.html", context)
-

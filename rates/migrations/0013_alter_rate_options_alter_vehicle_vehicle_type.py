@@ -4,19 +4,27 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('rates', '0012_alter_vehicle_carseats_display'),
+        ("rates", "0012_alter_vehicle_carseats_display"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='rate',
-            options={'ordering': ['route__origin__name', 'route__destination__name']},
+            name="rate",
+            options={"ordering": ["route__origin__name", "route__destination__name"]},
         ),
         migrations.AlterField(
-            model_name='vehicle',
-            name='vehicle_type',
-            field=models.CharField(choices=[('towncar', 'Towncar'), ('suv', 'SUV'), ('mini_van', 'Mini Van'), ('van', 'Van'), ('Van(14 Pax)', 'Van (14 Pax)')], max_length=20),
+            model_name="vehicle",
+            name="vehicle_type",
+            field=models.CharField(
+                choices=[
+                    ("towncar", "Towncar"),
+                    ("suv", "SUV"),
+                    ("mini_van", "Mini Van"),
+                    ("van", "Van"),
+                    ("Van(14 Pax)", "Van (14 Pax)"),
+                ],
+                max_length=20,
+            ),
         ),
     ]

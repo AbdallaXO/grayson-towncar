@@ -144,7 +144,10 @@ class LegInline(admin.StackedInline):
                 )
             },
         ),
-        ("Notes", {"fields": ("private_notes", "driver_notes"), "classes": ("collapse",)}),
+        (
+            "Notes",
+            {"fields": ("private_notes", "driver_notes"), "classes": ("collapse",)},
+        ),
     )
     classes = ("wide",)
     readonly_fields = ("status",)
@@ -247,9 +250,11 @@ class MultipleQuotesFilter(SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value() == "single":
-            return queryset.annotate(quote_count=Count('quotes')).filter(quote_count=1)
+            return queryset.annotate(quote_count=Count("quotes")).filter(quote_count=1)
         elif self.value() == "multiple":
-            return queryset.annotate(quote_count=Count('quotes')).filter(quote_count__gt=1)
+            return queryset.annotate(quote_count=Count("quotes")).filter(
+                quote_count__gt=1
+            )
 
 
 # ─── Admin classes ──────────────────────────────────────────────────────
@@ -404,7 +409,7 @@ class ReservationAdmin(ImportExportModelAdmin):
             {
                 "fields": (
                     "utm_source",
-                    "utm_campaign", 
+                    "utm_campaign",
                     "gclid",
                     "utm_medium",
                     "utm_term",
@@ -616,6 +621,7 @@ class ReservationAdmin(ImportExportModelAdmin):
             percentage = (profit / obj.total_price) * 100
             return f"{percentage:.1f}%"
         return "N/A"
+
     profit_percentage.short_description = "Profit %"
 
     @admin.display(description="Source")
@@ -623,6 +629,7 @@ class ReservationAdmin(ImportExportModelAdmin):
         if obj.utm_source:
             return obj.utm_source
         return "—"
+
     utm_source_display.short_description = "Source"
 
     @admin.display(description="Campaign")
@@ -630,6 +637,7 @@ class ReservationAdmin(ImportExportModelAdmin):
         if obj.utm_campaign:
             return obj.utm_campaign
         return "—"
+
     utm_campaign_display.short_description = "Campaign"
 
     @admin.display(description="Google Click ID")
@@ -873,7 +881,11 @@ class LegAdmin(ImportExportModelAdmin):
     @admin.display(description="Driver Notes")
     def driver_notes_display(self, obj):
         if obj.driver_notes:
-            return obj.driver_notes[:50] + "..." if len(obj.driver_notes) > 50 else obj.driver_notes
+            return (
+                obj.driver_notes[:50] + "..."
+                if len(obj.driver_notes) > 50
+                else obj.driver_notes
+            )
         return "-"
 
 
@@ -888,9 +900,19 @@ class FlightAdmin(admin.ModelAdmin):
 class QuoteInline(admin.TabularInline):
     model = Quote
     extra = 0
-    readonly_fields = ('created_at', 'updated_at')
-    fields = ('pickup_location', 'dropoff_location', 'pickup_date', 'vehicle', 'trip_type', 'estimated_price', 'status', 'is_current', 'created_at')
-    ordering = ('-created_at',)
+    readonly_fields = ("created_at", "updated_at")
+    fields = (
+        "pickup_location",
+        "dropoff_location",
+        "pickup_date",
+        "vehicle",
+        "trip_type",
+        "estimated_price",
+        "status",
+        "is_current",
+        "created_at",
+    )
+    ordering = ("-created_at",)
 
 
 @admin.register(Lead)
@@ -998,19 +1020,35 @@ class LeadAdmin(admin.ModelAdmin):
     def trip_summary(self, obj):
         # Get the latest quote for this lead
         latest_quote = obj.latest_quote
-        
+
         if latest_quote:
-            date_str = latest_quote.pickup_date.strftime("%b %d") if latest_quote.pickup_date else "No date"
+            date_str = (
+                latest_quote.pickup_date.strftime("%b %d")
+                if latest_quote.pickup_date
+                else "No date"
+            )
             arrow = "→" if latest_quote.trip_type == "oneway" else "⇄"
             location = f"{latest_quote.pickup_location or 'Unknown'} {arrow} {latest_quote.dropoff_location or 'Unknown'}"
-            price = f"${latest_quote.estimated_price:,.0f}" if latest_quote.estimated_price else "No price"
-            vehicle = latest_quote.vehicle.vehicle_type if latest_quote.vehicle else "No vehicle"
+            price = (
+                f"${latest_quote.estimated_price:,.0f}"
+                if latest_quote.estimated_price
+                else "No price"
+            )
+            vehicle = (
+                latest_quote.vehicle.vehicle_type
+                if latest_quote.vehicle
+                else "No vehicle"
+            )
         else:
             # Fallback to lead data if no quotes exist
-            date_str = obj.pickup_date.strftime("%b %d") if obj.pickup_date else "No date"
+            date_str = (
+                obj.pickup_date.strftime("%b %d") if obj.pickup_date else "No date"
+            )
             arrow = "→" if obj.trip_type == "oneway" else "⇄"
             location = f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
-            price = f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
+            price = (
+                f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
+            )
             vehicle = obj.vehicle.vehicle_type if obj.vehicle else "No vehicle"
 
         return format_html(
@@ -1155,7 +1193,7 @@ class QuoteAdmin(admin.ModelAdmin):
         "is_current_display",
         "created_at",
     )
-    
+
     list_filter = (
         "status",
         "trip_type",
@@ -1163,7 +1201,7 @@ class QuoteAdmin(admin.ModelAdmin):
         "pickup_date",
         "created_at",
     )
-    
+
     search_fields = (
         "lead__first_name",
         "lead__last_name",
@@ -1172,10 +1210,10 @@ class QuoteAdmin(admin.ModelAdmin):
         "pickup_location",
         "dropoff_location",
     )
-    
+
     list_per_page = 25
     date_hierarchy = "created_at"
-    
+
     fieldsets = (
         (
             "Lead Information",
@@ -1206,26 +1244,26 @@ class QuoteAdmin(admin.ModelAdmin):
             },
         ),
     )
-    
+
     readonly_fields = ("created_at", "updated_at")
-    
+
     @admin.display(description="Lead")
     def lead_name(self, obj):
         return obj.lead.get_full_name
-    
+
     @admin.display(description="Trip")
     def trip_details(self, obj):
         arrow = "→" if obj.trip_type == "oneway" else "⇄"
         return f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
-    
+
     @admin.display(description="Vehicle")
     def vehicle_display(self, obj):
         return obj.vehicle.vehicle_type if obj.vehicle else "No vehicle"
-    
+
     @admin.display(description="Price")
     def price_display(self, obj):
         return f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
-    
+
     @admin.display(description="Status")
     def status_display(self, obj):
         colors = {
@@ -1241,7 +1279,7 @@ class QuoteAdmin(admin.ModelAdmin):
             color,
             obj.get_status_display(),
         )
-    
+
     @admin.display(description="Current")
     def is_current_display(self, obj):
         if obj.is_current:
