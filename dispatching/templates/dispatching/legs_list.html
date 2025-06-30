@@ -134,10 +134,12 @@
           <div class="card-body py-2">
             <div class="d-flex flex-wrap gap-2">
               <span class="text-muted small me-2">Quick Filters:</span>
-              <a href="?trip_type=arrival" class="btn btn-sm btn-outline-dark">Arrivals Only</a>
-              <a href="?trip_type=return" class="btn btn-sm btn-outline-success">Returns Only</a>
+              <a href="?trip_type=arrival{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+                 class="btn btn-sm btn-outline-dark">Arrivals Only</a>
+              <a href="?trip_type=return{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+                 class="btn btn-sm btn-outline-success">Returns Only</a>
               {% for vehicle in vehicles %}
-                <a href="?vehicle={{ vehicle.vehicle_type }}"
+                <a href="?vehicle={{ vehicle.vehicle_type }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
                    class="btn btn-sm btn-outline-dark">{{ vehicle.get_vehicle_type_display }}</a>
               {% endfor %}
               <a href="?" class="btn btn-sm btn-outline-secondary">Clear All</a>
@@ -173,7 +175,6 @@
               </div>
               <div class="col-3">
                 <div class="d-flex align-items-center justify-content-center">
-                  <i class="bi bi-car-front text-secondary me-2"></i>
                   <div>
                     <div class="fw-bold text-secondary">{{ current_page_stats.other }}</div>
                     <div class="small text-muted">Other</div>
@@ -519,13 +520,15 @@
         <ul class="pagination justify-content-center">
           {% if page_obj.has_previous %}
             <li class="page-item">
-              <a class="page-link" href="?page=1" aria-label="First">
+              <a class="page-link"
+                 href="?page=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+                 aria-label="First">
                 <i class="bi bi-chevron-double-left"></i>
               </a>
             </li>
             <li class="page-item">
               <a class="page-link"
-                 href="?page={{ page_obj.previous_page_number }}"
+                 href="?page={{ page_obj.previous_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
                  aria-label="Previous">
                 <i class="bi bi-chevron-left"></i>
               </a>
@@ -539,14 +542,14 @@
           {% if page_obj.has_next %}
             <li class="page-item">
               <a class="page-link"
-                 href="?page={{ page_obj.next_page_number }}"
+                 href="?page={{ page_obj.next_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
                  aria-label="Next">
                 <i class="bi bi-chevron-right"></i>
               </a>
             </li>
             <li class="page-item">
               <a class="page-link"
-                 href="?page={{ page_obj.paginator.num_pages }}"
+                 href="?page={{ page_obj.paginator.num_pages }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
                  aria-label="Last">
                 <i class="bi bi-chevron-double-right"></i>
               </a>

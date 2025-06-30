@@ -13,7 +13,6 @@ urlpatterns = [
     path("edit-reservation/<id>", views.modify_reservation, name="modify_reservation"),
     path("legs-list/", views.legs_list, name="legs_list"),
     path("statistics/", views.statistics_page, name="statistics_page"),
-    path("vehicle-statistics/", views.vehicle_statistics_modal, name="vehicle_statistics_modal"),
     path("update-leg-assignment/", views.update_leg_assignment, name="update_leg_assignment"),
     path(
         "send_confirmation_email/",

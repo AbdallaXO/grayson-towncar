@@ -1,7 +1,5 @@
 {% extends 'main.html' %}
-{% block title %}
-  Travel Agent Reservation Details | Grayson Towncar
-{% endblock %}
+{% block title %}Travel Agent Reservation Details | Grayson Towncar{% endblock %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
@@ -46,78 +44,10 @@
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Your Commission (10%)</h6>
-            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                     text-success
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              {% else %}
-
-              {% endif %}">
+            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}                text-success                {% else %}  {% endif %}">
               ${{ reservation.commission_amount|floatformat:2 }}
             </h4>
-            <small class="fw-semibold {% if reservation.commission_paid %}
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                            text-success
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-              {% else %}
-
-              {% endif %}">
+            <small class="fw-semibold {% if reservation.commission_paid %}                text-success                {% else %}  {% endif %}">
               {% if reservation.commission_paid %}
                 Paid
               {% else %}
@@ -167,9 +97,7 @@
             </div>
             <div class="mb-3">
               <label class="text-muted small">Passengers</label>
-              <p class="mb-0">
-                {{ reservation.passenger_count }} passenger{% if reservation.passenger_count != 1 %}s{% endif %}
-              </p>
+              <p class="mb-0">{{ reservation.passenger_count }}</p>
             </div>
             {% if reservation.needs_carseaets %}
               <div class="mb-3">
@@ -179,34 +107,23 @@
             {% endif %}
             <div class="mb-3">
               <label class="text-muted small">Luggage</label>
+              <p class="mb-0">{{ reservation.luggage_count }}</p>
+            </div>
+            <div class="mb-3">
+              <label class="text-muted small">Child Seats</label>
+              <p class="mb-0">{{ reservation.get_carseats_display | default:"0" }}</p>
+            </div>
+
+            <div class="mb-3">
+              <label class="text-muted small">Store Stop</label>
               <p class="mb-0">
-                {{ reservation.luggage_count }} piece{% if reservation.luggage_count != 1 %}s{% endif %}
+                {% if reservation.store_stop %}
+                  Publix Stop @9930 Universal Blvd
+                {% else %}
+                  No
+                {% endif %}
               </p>
             </div>
-            {% if reservation.need_carseats %}
-              <div class="mb-3">
-                <label class="text-muted small">Car Seats</label>
-                <p class="mb-0">
-                  {% if reservation.rf_carseats %}
-                    RF Seats: {{ reservation.rf_carseats }}
-                    <br />
-                  {% endif %}
-                  {% if reservation.ff_carseats %}
-                    FF Seats: {{ reservation.ff_carseats }}
-                    <br />
-                  {% endif %}
-                  {% if reservation.booster_seats %}
-                    Booster Seats: {{ reservation.booster_seats }}
-                  {% endif %}
-                </p>
-              </div>
-            {% endif %}
-            {% if reservation.store_stop %}
-              <div class="mb-3">
-                <label class="text-muted small">Store Stop</label>
-                <p class="mb-0">Yes</p>
-              </div>
-            {% endif %}
           </div>
         </div>
       </div>
@@ -227,32 +144,18 @@
                 </div>
                 <div class="mb-3">
                   <label class="text-muted small">Pickup Location</label>
-                  <p class="mb-0">{{ leg.pickup_address }}</p>
+                  <p class="mb-0">{{ leg.pickup_location }}</p>
                 </div>
               </div>
               <div class="col-md-6">
                 <div class="mb-3">
                   <label class="text-muted small">Dropoff Location</label>
-                  <p class="mb-0">{{ leg.dropoff_address }}</p>
+                  <p class="mb-0">{{ leg.dropoff_location }}</p>
                 </div>
                 {% if leg.flight_information %}
                   <div class="mb-3">
                     <label class="text-muted small">Flight Information</label>
-                    <p class="mb-0">
-                      Flight: {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
-                      <br />
-                      {% if leg.flight_information.departure_airport %}
-                        From: {{ leg.flight_information.departure_airport }}
-                        <br />
-                      {% endif %}
-                      {% if leg.flight_information.arrival_airport %}
-                        To: {{ leg.flight_information.arrival_airport }}
-                        <br />
-                      {% endif %}
-                      {% if leg.flight_information.scheduled_arrival_time %}
-                        Arrival: {{ leg.flight_information.scheduled_arrival_time|time:'g:i A' }}
-                      {% endif %}
-                    </p>
+                    <p class="mb-0">{{ leg.flight_information }}</p>
                   </div>
                 {% endif %}
               </div>
@@ -261,23 +164,17 @@
         {% endfor %}
       </div>
     </div>
-
     <!-- Special Requests and Notes -->
-    {% if reservation.special_requests or reservation.private_notes %}
+    {% if reservation.special_requests %}
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
           {% if reservation.special_requests %}
             <h5 class="card-title mb-3">Comments/Requests</h5>
             <p class="mb-3">{{ reservation.special_requests }}</p>
           {% endif %}
-          {% if reservation.private_notes %}
-            <h5 class="card-title mb-3">Private Notes</h5>
-            <p class="mb-0">{{ reservation.private_notes }}</p>
-          {% endif %}
         </div>
       </div>
     {% endif %}
-
     <!-- Commission Details -->
     <div class="card border-0 shadow-sm">
       <div class="card-body">
@@ -333,39 +230,35 @@
   </div>
 
   <style>
-    .badge {
-      font-weight: 500;
-      padding: 0.5em 0.75em;
-    }
-    
-    .badge.bg-pending {
-      background-color: #ffc107;
-      color: #000;
-    }
-    
-    .badge.bg-confirmed {
-      background-color: #0dcaf0;
-      color: #000;
-    }
-    
-    .badge.bg-completed {
-      background-color: #198754;
-    }
-    
-    .badge.bg-cancelled {
-      background-color: #dc3545;
-    }
-    
-    .badge.bg-warning {
-      background-color: #ffc107;
-      color: #000;
-    }
+      .badge {
+          font-weight: 500;
+          padding: 0.5em 0.75em;
+      }
+
+      .badge.bg-pending {
+          background-color: #ffc107;
+          color: #000;
+      }
+
+      .badge.bg-confirmed {
+          background-color: #0dcaf0;
+          color: #000;
+      }
+
+      .badge.bg-completed {
+          background-color: #198754;
+      }
+
+      .badge.bg-cancelled {
+          background-color: #dc3545;
+      }
+
+      .badge.bg-warning {
+          background-color: #ffc107;
+          color: #000;
+      }
   </style>
 {% endblock %}
 
-{% block footer %}
-
-{% endblock %}
-{% block newsletter %}
-
-{% endblock %}
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

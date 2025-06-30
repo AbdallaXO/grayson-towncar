@@ -177,7 +177,19 @@
                   <strong>Payment:</strong>
                   <br />
                   <span class="fw-semibold">${{ reservation.total_price|floatformat:2 }}</span>
-                  {% if not reservation.all_payments %}<span class="badge bg-warning text-dark ms-1">Unpaid</span>{% endif %}
+                  {% with payment_info=reservation.detailed_payment_status %}
+                    {% if payment_info.status == 'paid' %}
+                      <span class="badge bg-success text-white ms-1">{{ payment_info.display }}</span>
+                    {% elif payment_info.status == 'card_saved' %}
+                      <span class="badge bg-danger text-white ms-1">{{ payment_info.display }}</span>
+                    {% elif payment_info.status == 'pending' %}
+                      <span class="badge bg-warning text-dark ms-1">{{ payment_info.display }}</span>
+                    {% elif payment_info.status == 'failed' %}
+                      <span class="badge bg-danger text-white ms-1">{{ payment_info.display }}</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark ms-1">{{ payment_info.display }}</span>
+                    {% endif %}
+                  {% endwith %}
                 </div>
               </div>
             </td>
@@ -353,7 +365,19 @@
                         <strong>Payment:</strong>
                         <br />
                         <span class="fw-semibold">${{ reservation.total_price|floatformat:2 }}</span>
-                        {% if not reservation.all_payments %}<span class="badge bg-warning text-dark ms-1">Unpaid</span>{% endif %}
+                        {% with payment_info=reservation.detailed_payment_status %}
+                          {% if payment_info.status == 'paid' %}
+                            <span class="badge bg-success text-white ms-1">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'card_saved' %}
+                            <span class="badge bg-danger text-white ms-1">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'pending' %}
+                            <span class="badge bg-warning text-dark ms-1">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'failed' %}
+                            <span class="badge bg-danger text-white ms-1">{{ payment_info.display }}</span>
+                          {% else %}
+                            <span class="badge bg-warning text-dark ms-1">{{ payment_info.display }}</span>
+                          {% endif %}
+                        {% endwith %}
                       </div>
                     </div>
                   </div>
@@ -372,13 +396,15 @@
       <ul class="pagination justify-content-center">
         {% if page_obj.has_previous %}
           <li class="page-item">
-            <a class="page-link" href="?page=1" aria-label="First">
+            <a class="page-link"
+               href="?page=1{% if search_query %}&search_q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}"
+               aria-label="First">
               <span aria-hidden="true">&laquo;&laquo;</span>
             </a>
           </li>
           <li class="page-item">
             <a class="page-link"
-               href="?page={{ page_obj.previous_page_number }}"
+               href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search_q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}"
                aria-label="Previous">
               <span aria-hidden="true">&laquo;</span>
             </a>
@@ -392,7 +418,8 @@
             </li>
           {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
             <li class="page-item">
-              <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+              <a class="page-link"
+                 href="?page={{ num }}{% if search_query %}&search_q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}">{{ num }}</a>
             </li>
           {% endif %}
         {% endfor %}
@@ -400,14 +427,14 @@
         {% if page_obj.has_next %}
           <li class="page-item">
             <a class="page-link"
-               href="?page={{ page_obj.next_page_number }}"
+               href="?page={{ page_obj.next_page_number }}{% if search_query %}&search_q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}"
                aria-label="Next">
               <span aria-hidden="true">&raquo;</span>
             </a>
           </li>
           <li class="page-item">
             <a class="page-link"
-               href="?page={{ page_obj.paginator.num_pages }}"
+               href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search_q={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}"
                aria-label="Last">
               <span aria-hidden="true">&raquo;&raquo;</span>
             </a>

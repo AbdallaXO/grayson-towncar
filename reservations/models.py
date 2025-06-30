@@ -227,6 +227,92 @@ class Reservation(models.Model):
         self.profit_estimate = self.calculate_profit()
         self.save(update_fields=["total_driver_payments", "profit_estimate"])
 
+    @property
+    def all_payments(self):
+        """
+        Get all payments for this reservation
+        """
+        return self.payments.all()
+
+    @property
+    def payment_status(self):
+        """
+        Get the payment status for this reservation
+        """
+        payments = self.payments.all()
+        if not payments.exists():
+            return "unpaid"
+        
+        # Check if any payment is marked as paid
+        if payments.filter(status="paid").exists():
+            return "paid"
+        elif payments.filter(status="card_saved").exists():
+            return "card_saved"
+        elif payments.filter(status="pending").exists():
+            return "pending"
+        else:
+            return "failed"
+
+    @property
+    def detailed_payment_status(self):
+        """
+        Get detailed payment status including payment type and status
+        """
+        payments = self.payments.all()
+        if not payments.exists():
+            return {"status": "unpaid", "type": None, "display": "Unpaid"}
+        
+        # Get the most recent payment
+        latest_payment = payments.order_by('-created_at').first()
+        
+        if latest_payment.status == "paid":
+            if latest_payment.payment_type == "pay_now":
+                return {
+                    "status": "paid",
+                    "type": "pay_now",
+                    "display": "Pre-Pay & Paid"
+                }
+            else:
+                return {
+                    "status": "paid", 
+                    "type": "pay_later",
+                    "display": "Saved Card & Paid"
+                }
+        elif latest_payment.status == "card_saved":
+            return {
+                "status": "card_saved",
+                "type": "pay_later", 
+                "display": "Card Saved"
+            }
+        elif latest_payment.status == "pending":
+            if latest_payment.payment_type == "pay_now":
+                return {
+                    "status": "pending",
+                    "type": "pay_now",
+                    "display": "Pre-Pay Pending"
+                }
+            else:
+                return {
+                    "status": "pending",
+                    "type": "pay_later", 
+                    "display": "Save Card Pending"
+                }
+        elif latest_payment.status == "failed":
+            if latest_payment.payment_type == "pay_now":
+                return {
+                    "status": "failed",
+                    "type": "pay_now",
+                    "display": "Pre-Pay Failed"
+                }
+            else:
+                return {
+                    "status": "failed",
+                    "type": "pay_later",
+                    "display": "Save Card Failed"
+                }
+        else:
+            return {"status": "unknown", "type": None, "display": "Unknown"}
+
     def __str__(self):
         """
         Returns a simple string representation, showing the reservation's ID

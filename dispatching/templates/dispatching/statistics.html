@@ -120,7 +120,7 @@
       <div class="col-md-2">
         <div class="card bg-warning text-dark">
           <div class="card-body text-center">
-            <h3 class="card-title">{{ driver_stats|length }}</h3>
+            <h3 class="card-title">{{ active_drivers_count }}</h3>
             <p class="card-text">Active Drivers</p>
           </div>
         </div>
@@ -212,17 +212,26 @@
                           <div class="border-end">
                             <h6 class="text-success mb-1">{{ stats.arrivals }}</h6>
                             <small class="text-muted">Arrivals</small>
+                            {% if stats.arrival_revenue > 0 %}
+                              <div class="small text-success fw-bold">${{ stats.arrival_revenue|floatformat:0 }}</div>
+                            {% endif %}
                           </div>
                         </div>
                         <div class="col-4">
                           <div class="border-end">
                             <h6 class="mb-1">{{ stats.returns }}</h6>
                             <small class="text-muted">Returns</small>
+                            {% if stats.return_revenue > 0 %}
+                              <div class="small text-warning fw-bold">${{ stats.return_revenue|floatformat:0 }}</div>
+                            {% endif %}
                           </div>
                         </div>
                         <div class="col-4">
                           <h6 class="mb-1">{{ stats.other }}</h6>
                           <small class="text-muted">Other</small>
+                          {% if stats.other_revenue > 0 %}
+                            <div class="small text-secondary fw-bold">${{ stats.other_revenue|floatformat:0 }}</div>
+                          {% endif %}
                         </div>
                       </div>
                       <hr class="my-2">
@@ -246,7 +255,7 @@
         <div class="card shadow-sm">
           <div class="card-header">
             <h5 class="mb-0">
-              <i class="bi bi-car-front me-2"></i>Vehicle Performance
+              <i class="bi bi-car-front me-2"></i>Vehicle Performance Analysis
             </h5>
           </div>
           <div class="card-body">
@@ -261,6 +270,7 @@
                     <th class="text-center">Other</th>
                     <th class="text-center">Completed</th>
                     <th class="text-center">Revenue</th>
+                    <th class="text-center">Avg/Ride</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -268,6 +278,11 @@
                     <tr>
                       <td>
                         <strong>{{ stats.name }}</strong>
+                        <div class="small text-muted">
+                          {% if total_legs > 0 %}
+                            {% widthratio stats.total total_legs 100 %}% of total
+                          {% endif %}
+                        </div>
                       </td>
                       <td class="text-center">
                         <strong>{{ stats.total }}</strong>
@@ -281,14 +296,14 @@
                       </td>
                       <td class="text-center">
                         {% if stats.returns > 0 %}
-                          <span class="fw-bold">{{ stats.returns }}</span>
+                          <span class="fw-bold text-warning">{{ stats.returns }}</span>
                         {% else %}
                           <span class="text-muted">0</span>
                         {% endif %}
                       </td>
                       <td class="text-center">
                         {% if stats.other > 0 %}
-                          <span class="fw-bold">{{ stats.other }}</span>
+                          <span class="fw-bold text-secondary">{{ stats.other }}</span>
                         {% else %}
                           <span class="text-muted">0</span>
                         {% endif %}
@@ -302,6 +317,18 @@
                       </td>
                       <td class="text-center">
                         <strong>${{ stats.revenue|floatformat:2 }}</strong>
+                        <div class="small text-muted">
+                          {% if total_revenue > 0 %}
+                            {% widthratio stats.revenue total_revenue 100 %}% of total
+                          {% endif %}
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        {% if stats.total > 0 %}
+                          <strong>${% widthratio stats.revenue stats.total 1 %}</strong>
+                        {% else %}
+                          <span class="text-muted">-</span>
+                        {% endif %}
                       </td>
                     </tr>
                   {% endfor %}
@@ -315,6 +342,7 @@
   </div>
 {% endblock content %}
 
-{% block footer %}{% endblock %}
+{% block footer %}
+{% endblock footer %}
 {% block newsletter %}
 {% endblock newsletter %}

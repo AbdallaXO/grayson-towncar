@@ -28,6 +28,7 @@ from drivers.models import Driver
 from payment.utils import get_or_create_stripe_customer
 from payment.models import Payment
 from rates.models import Vehicle
+from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics
 
 # Configure logging and Stripe
 logger = logging.getLogger(__name__)
@@ -363,64 +364,20 @@ def legs_list(request):
     vehicle_filter = request.GET.get("vehicle")  # New filter for vehicle type
     today = timezone.localdate()
 
-    # Subquery to get the latest payment ID for each reservation
-    latest_payment_subquery = (
-        Payment.objects.filter(reservation_id=OuterRef("reservation_id"))
-        .order_by("-id")
-        .values("id")[:1]
+    # Get filtered legs using utils
+    legs_query = get_filtered_legs_queryset(
+        date_filter=date_filter,
+        date_from=date_from,
+        date_to=date_to,
+        status_filter=status_filter,
+        time_filter=time_filter
     )
-
-    # Base queryset with all necessary related fields
-    legs_query = Leg.objects.select_related(
-        "reservation",
-        "reservation__customer",
-        "reservation__vehicle",
-        "driver",
-        "flight_information",
-    ).annotate(latest_payment_id=Subquery(latest_payment_subquery))
-
-    # Apply date filters
-    if date_from and date_to:
-        try:
-            from_date = datetime.strptime(date_from, "%Y-%m-%d").date()
-            to_date = datetime.strptime(date_to, "%Y-%m-%d").date()
-            legs_query = legs_query.filter(pickup_date__range=[from_date, to_date])
-        except ValueError:
-            pass
-    elif time_filter == "week":
-        # This week
-        start_date = today - timedelta(days=today.weekday())
-        end_date = start_date + timedelta(days=6)
-        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
-    elif time_filter == "next_week":
-        # Next week
-        start_date = today + timedelta(days=(7 - today.weekday()))
-        end_date = start_date + timedelta(days=6)
-        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
-    elif date_filter:
-        try:
-            filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-            legs_query = legs_query.filter(pickup_date=filter_date)
-        except ValueError:
-            pass
-    else:
-        # Default: show all future legs
-        legs_query = legs_query.filter(pickup_date__gte=today)
-
-    # Apply status filter
-    if status_filter:
-        legs_query = legs_query.filter(status=status_filter)
 
     # Apply vehicle filter
     if vehicle_filter:
         legs_query = legs_query.filter(
             reservation__vehicle__vehicle_type=vehicle_filter
         )
-
-    # Apply trip type filter (arrival/return/other)
-    if trip_type_filter:
-        # We'll filter this in Python since it's a computed property
-        pass  # Will be handled after queryset evaluation
 
     # Get today's count in a single query
     today_count = legs_query.filter(pickup_date=today).count()
@@ -470,42 +427,15 @@ def legs_list(request):
         page_obj.object_list = filtered_legs
         page_obj._object_list = filtered_legs
 
+    # Calculate statistics using utils
+    all_legs = list(legs_query.order_by("pickup_date", "pickup_time"))
+    vehicle_stats = calculate_vehicle_statistics(all_legs)
+    
     # Calculate trip type statistics
     trip_type_stats = {"arrival": 0, "return": 0, "other": 0}
-
-    # Calculate vehicle statistics
-    vehicle_stats = {}
-
-    # Count trip types and vehicles for all legs (not just current page)
-    all_legs = legs_query.order_by("pickup_date", "pickup_time")
     for leg in all_legs:
-        # Count trip types
         trip_type = leg.get_trip_type()
         trip_type_stats[trip_type] += 1
-
-        # Count vehicles with detailed statistics
-        if leg.reservation.vehicle:
-            vehicle_type = leg.reservation.vehicle.vehicle_type
-            vehicle_name = leg.reservation.vehicle.get_vehicle_type_display()
-            
-            if vehicle_type not in vehicle_stats:
-                vehicle_stats[vehicle_type] = {
-                    'name': vehicle_name,
-                    'total': 0,
-                    'arrivals': 0,
-                    'returns': 0,
-                    'other': 0
-                }
-            
-            vehicle_stats[vehicle_type]['total'] += 1
-            
-            # Count by trip type
-            if trip_type == 'arrival':
-                vehicle_stats[vehicle_type]['arrivals'] += 1
-            elif trip_type == 'return':
-                vehicle_stats[vehicle_type]['returns'] += 1
-            else:
-                vehicle_stats[vehicle_type]['other'] += 1
 
     # Calculate current page statistics
     current_page_stats = {
@@ -548,128 +478,6 @@ def legs_list(request):
     }
 
     return render(request, "dispatching/legs_list.html", context)
-
-
-@login_required(login_url="login")
-def vehicle_statistics_modal(request):
-    """
-    AJAX view to get detailed vehicle statistics for modal display.
-    """
-    if not request.user.is_superuser:
-        return JsonResponse({"error": "Permission denied"}, status=403)
-    
-    # Get filter parameters (same as legs_list)
-    date_filter = request.GET.get("date")
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-    status_filter = request.GET.get("status")
-    time_filter = request.GET.get("time_filter", "all")
-    today = timezone.localdate()
-    
-    # Base queryset (same as legs_list)
-    latest_payment_subquery = (
-        Payment.objects.filter(reservation_id=OuterRef("reservation_id"))
-        .order_by("-id")
-        .values("id")[:1]
-    )
-    
-    legs_query = Leg.objects.select_related(
-        "reservation",
-        "reservation__customer", 
-        "reservation__vehicle",
-        "driver",
-        "flight_information",
-    ).annotate(latest_payment_id=Subquery(latest_payment_subquery))
-    
-    # Apply same filters as legs_list
-    if date_from and date_to:
-        try:
-            from_date = datetime.strptime(date_from, "%Y-%m-%d").date()
-            to_date = datetime.strptime(date_to, "%Y-%m-%d").date()
-            legs_query = legs_query.filter(pickup_date__range=[from_date, to_date])
-        except ValueError:
-            pass
-    elif time_filter == "week":
-        start_date = today - timedelta(days=today.weekday())
-        end_date = start_date + timedelta(days=6)
-        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
-    elif time_filter == "next_week":
-        start_date = today + timedelta(days=(7 - today.weekday()))
-        end_date = start_date + timedelta(days=6)
-        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
-    elif date_filter:
-        try:
-            filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-            legs_query = legs_query.filter(pickup_date=filter_date)
-        except ValueError:
-            pass
-    else:
-        legs_query = legs_query.filter(pickup_date__gte=today)
-    
-    if status_filter:
-        legs_query = legs_query.filter(status=status_filter)
-    
-    # Get all legs for statistics
-    all_legs = list(legs_query.order_by("pickup_date", "pickup_time"))
-    
-    # Calculate detailed vehicle statistics
-    vehicle_stats = {}
-    
-    for leg in all_legs:
-        if leg.reservation.vehicle:
-            vehicle_type = leg.reservation.vehicle.vehicle_type
-            vehicle_name = leg.reservation.vehicle.get_vehicle_type_display()
-            trip_type = leg.get_trip_type()
-            
-            if vehicle_type not in vehicle_stats:
-                vehicle_stats[vehicle_type] = {
-                    'name': vehicle_name,
-                    'total': 0,
-                    'arrivals': 0,
-                    'returns': 0,
-                    'other': 0,
-                    'completed': 0,
-                    'in_progress': 0,
-                    'picked_up': 0,
-                    'on_location': 0
-                }
-            
-            vehicle_stats[vehicle_type]['total'] += 1
-            # Fix the key mapping to match the dictionary keys
-            if trip_type == 'return':
-                vehicle_stats[vehicle_type]['returns'] += 1
-            elif trip_type == 'arrival':
-                vehicle_stats[vehicle_type]['arrivals'] += 1
-            else:
-                vehicle_stats[vehicle_type][trip_type] += 1
-            
-            # Count by status
-            if leg.status:
-                if leg.status == 'completed':
-                    vehicle_stats[vehicle_type]['completed'] += 1
-                elif leg.status == 'in-progress':
-                    vehicle_stats[vehicle_type]['in_progress'] += 1
-                elif leg.status == 'picked-up':
-                    vehicle_stats[vehicle_type]['picked_up'] += 1
-                elif leg.status == 'on-location':
-                    vehicle_stats[vehicle_type]['on_location'] += 1
-    
-    # Convert to list for template
-    vehicle_stats_list = []
-    for vehicle_type, stats in vehicle_stats.items():
-        stats['vehicle_type'] = vehicle_type
-        vehicle_stats_list.append(stats)
-    
-    # Sort by total rides (descending)
-    vehicle_stats_list.sort(key=lambda x: x['total'], reverse=True)
-    
-    context = {
-        'vehicle_stats': vehicle_stats_list,
-        'total_legs': len(all_legs)
-    }
-    
-    html = render_to_string('dispatching/includes/vehicle_statistics_modal.html', context, request=request)
-    return JsonResponse({'html': html})
 
 
 @login_required
@@ -1280,130 +1088,24 @@ def statistics_page(request):
     date_to = request.GET.get("date_to")
     status_filter = request.GET.get("status")
     time_filter = request.GET.get("time_filter", "all")
-    today = timezone.localdate()
     
-    # Base queryset
-    latest_payment_subquery = (
-        Payment.objects.filter(reservation_id=OuterRef("reservation_id"))
-        .order_by("-id")
-        .values("id")[:1]
+    # Get comprehensive statistics using utils
+    stats = get_comprehensive_statistics(
+        date_filter=date_filter,
+        date_from=date_from,
+        date_to=date_to,
+        status_filter=status_filter,
+        time_filter=time_filter
     )
     
-    legs_query = Leg.objects.select_related(
-        "reservation",
-        "reservation__customer", 
-        "reservation__vehicle",
-        "driver",
-        "flight_information",
-    ).annotate(latest_payment_id=Subquery(latest_payment_subquery))
-    
-    # Apply filters
-    if date_from and date_to:
-        try:
-            from_date = datetime.strptime(date_from, "%Y-%m-%d").date()
-            to_date = datetime.strptime(date_to, "%Y-%m-%d").date()
-            legs_query = legs_query.filter(pickup_date__range=[from_date, to_date])
-        except ValueError:
-            pass
-    elif time_filter == "week":
-        start_date = today - timedelta(days=today.weekday())
-        end_date = start_date + timedelta(days=6)
-        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
-    elif time_filter == "next_week":
-        start_date = today + timedelta(days=(7 - today.weekday()))
-        end_date = start_date + timedelta(days=6)
-        legs_query = legs_query.filter(pickup_date__range=[start_date, end_date])
-    elif date_filter:
-        try:
-            filter_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
-            legs_query = legs_query.filter(pickup_date=filter_date)
-        except ValueError:
-            pass
-    else:
-        legs_query = legs_query.filter(pickup_date__gte=today)
-    
-    if status_filter:
-        legs_query = legs_query.filter(status=status_filter)
-    
-    # Get all legs for statistics
-    all_legs = list(legs_query.order_by("pickup_date", "pickup_time"))
-    
-    # Calculate comprehensive statistics
-    vehicle_stats = {}
-    trip_type_stats = {"arrival": 0, "return": 0, "other": 0}
-    status_stats = {"completed": 0, "in-progress": 0, "picked-up": 0, "on-location": 0}
-    total_revenue = Decimal("0.00")
-    
-    for leg in all_legs:
-        # Trip type statistics
-        trip_type = leg.get_trip_type()
-        trip_type_stats[trip_type] += 1
-        
-        # Status statistics
-        if leg.status:
-            status_stats[leg.status] += 1
-        
-        # Revenue calculation
-        if leg.reservation:
-            total_revenue += leg.reservation.total_price
-        
-        # Vehicle statistics
-        if leg.reservation.vehicle:
-            vehicle_type = leg.reservation.vehicle.vehicle_type
-            vehicle_name = leg.reservation.vehicle.get_vehicle_type_display()
-            
-            if vehicle_type not in vehicle_stats:
-                vehicle_stats[vehicle_type] = {
-                    'name': vehicle_name,
-                    'total': 0,
-                    'arrivals': 0,
-                    'returns': 0,
-                    'other': 0,
-                    'completed': 0,
-                    'in_progress': 0,
-                    'picked_up': 0,
-                    'on_location': 0,
-                    'revenue': Decimal("0.00")
-                }
-            
-            vehicle_stats[vehicle_type]['total'] += 1
-            
-            # Trip type counts
-            if trip_type == 'return':
-                vehicle_stats[vehicle_type]['returns'] += 1
-            elif trip_type == 'arrival':
-                vehicle_stats[vehicle_type]['arrivals'] += 1
-            else:
-                vehicle_stats[vehicle_type]['other'] += 1
-            
-            # Status counts
-            if leg.status:
-                if leg.status == 'completed':
-                    vehicle_stats[vehicle_type]['completed'] += 1
-                elif leg.status == 'in-progress':
-                    vehicle_stats[vehicle_type]['in_progress'] += 1
-                elif leg.status == 'picked-up':
-                    vehicle_stats[vehicle_type]['picked_up'] += 1
-                elif leg.status == 'on-location':
-                    vehicle_stats[vehicle_type]['on_location'] += 1
-            
-            # Revenue
-            if leg.reservation:
-                vehicle_stats[vehicle_type]['revenue'] += leg.reservation.total_price
-    
-    # Convert to lists and sort
-    vehicle_stats_list = []
-    for vehicle_type, stats in vehicle_stats.items():
-        stats['vehicle_type'] = vehicle_type
-        vehicle_stats_list.append(stats)
-    vehicle_stats_list.sort(key=lambda x: x['total'], reverse=True)
-    
     context = {
-        'vehicle_stats': vehicle_stats_list,
-        'trip_type_stats': trip_type_stats,
-        'status_stats': status_stats,
-        'total_legs': len(all_legs),
-        'total_revenue': total_revenue,
+        'vehicle_stats': stats['vehicle_stats'],
+        'trip_type_stats': stats['trip_type_stats'],
+        'status_stats': stats['status_stats'],
+        'driver_stats': stats['driver_stats'],
+        'active_drivers_count': stats['active_drivers_count'],
+        'total_legs': stats['total_legs'],
+        'total_revenue': stats['total_revenue'],
         'filter_date': date_filter,
         'date_from': date_from,
         'date_to': date_to,
