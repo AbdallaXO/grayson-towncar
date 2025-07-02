@@ -232,13 +232,14 @@
 
                 <!-- Trip Details -->
                 <td>
-                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
-                  <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
-                  {% if leg.flight_darkrmation %}
-                    <div class="small">
-                      <i class="bi bi-airplane me-1"></i>{{ leg.flight_darkrmation }}
+                  {% if leg.flight_information %}
+                    <div class="text-primary mb-1">
+                      <i class="bi bi-airplane me-1"></i>
+                      {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
                     </div>
                   {% endif %}
+                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
+                  <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
                 </td>
 
                 <!-- Trip Type -->
@@ -384,12 +385,13 @@
                       <div class="d-flex">
                         <i class="bi bi-calendar-event text-primary me-2"></i>
                         <div class="small">
-                          <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
-                          {% if leg.flight_darkrmation %}
-                            <div>
-                              <i class="bi bi-airplane me-1"></i>{{ leg.flight_darkrmation }}
+                          {% if leg.flight_information %}
+                            <div class="text-primary mb-1">
+                              <i class="bi bi-airplane me-1"></i>
+                              {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
                             </div>
                           {% endif %}
+                          <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
                         </div>
                       </div>
                     </div>

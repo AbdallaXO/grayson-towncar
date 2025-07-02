@@ -129,10 +129,12 @@
 
                   <!-- Pickup Info -->
                   <td>
-
-                    <div class="text-danger">
-                      <i class="bi bi-airplane me-1"></i>{{ leg.flight_information|default:'' }}
-                    </div>
+                    {% if leg.flight_information %}
+                      <div class="text-primary mb-1">
+                        <i class="bi bi-airplane me-1"></i>
+                        {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                      </div>
+                    {% endif %}
                     <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
                     <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
                   </td>
@@ -503,7 +505,7 @@
                   console.log('Updating', selectName, 'to', selectValue, 'for leg:', legId);
 
                   // Send the update to the server via AJAX
-                  fetch('/dispatching/update_leg_assignment/', {
+                  fetch('/dispatching/update-leg-assignment/', {
                           method: 'POST',
                           headers: {
                               'Content-Type': 'application/json',
