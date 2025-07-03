@@ -181,7 +181,7 @@
                               <div class="small text-muted mb-2 p-2 border rounded bg-light">
                                 <i class="bi bi-info-circle me-1"></i>Please click button to request a review after your trip
                               </div>
-                              <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi! I hope you enjoyed your ride with Grayson Town Car. If you have a moment, we'd really appreciate if you could leave us a review.%0A%0AThank you for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                              <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
                                  class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
                                 <i class="bi bi-chat-heart-fill me-1"></i>Request Review
                               </a>

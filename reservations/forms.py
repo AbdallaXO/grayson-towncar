@@ -92,7 +92,7 @@ class ReservationForm(forms.ModelForm):
         ]
         widgets = {
             "passenger_count": forms.NumberInput(
-                attrs={"class": "form-control", "min": 1, "max": 10, "type": "number"}
+                attrs={"class": "form-control", "min": 1, "max": 14, "type": "number"}
             ),
             "luggage_count": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "max": 12, "type": "number"}
