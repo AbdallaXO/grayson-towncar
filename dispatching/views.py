@@ -407,10 +407,6 @@ def legs_list(request):
     # Get all vehicles for filter dropdown
     vehicles = Vehicle.objects.all()
 
-    # Set latest payment to None for all legs (simplified approach)
-    for leg in page_obj:
-        leg.reservation.latest_payment = None
-
     # Apply trip type filter if specified (filter in Python since it's a computed property)
     if trip_type_filter:
         filtered_legs = []
