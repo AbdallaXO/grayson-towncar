@@ -23,143 +23,161 @@
       </div>
     </div>
 
-    <!-- Filters Section -->
+    <!-- Enhanced Filters Section -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <form id="filterForm" class="row g-3">
-              <!-- Date Range Filter -->
-              <div class="col-lg-6">
-                <div class="row g-2">
-                  <div class="col-6">
-                    <label class="form-label">From</label>
-                    <input type="date"
-                           name="date_from"
-                           class="form-control"
-                           value="{{ date_from }}"
-                           id="dateFrom" />
-                  </div>
-                  <div class="col-6">
-                    <label class="form-label">To</label>
-                    <input type="date"
-                           name="date_to"
-                           class="form-control"
-                           value="{{ date_to }}"
-                           id="dateTo" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Time Range Filter -->
-              <div class="col-lg-3">
-                <label class="form-label">Quick Filters</label>
-                <select name="time_filter" class="form-select" id="timeFilter">
-                  <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
-                  <option value="week" {% if time_filter == 'week' %}selected{% endif %}>This Week</option>
-                  <option value="next_week"
-                          {% if time_filter == 'next_week' %}selected{% endif %}>Next Week</option>
-                </select>
-              </div>
-
-              <!-- Status Filter -->
-              <div class="col-lg-3">
-                <label class="form-label">Status</label>
-                <select name="status" class="form-select" id="statusFilter">
-                  <option value="">All Statuses</option>
-                  <option value="in-progress"
-                          {% if status_filter == 'in-progress' %}selected{% endif %}>In Progress</option>
-                  <option value="picked-up"
-                          {% if status_filter == 'picked-up' %}selected{% endif %}>Picked Up</option>
-                  <option value="completed"
-                          {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
-                </select>
-              </div>
-
-              <!-- Trip Type Filter -->
-              <div class="col-lg-3">
-                <label class="form-label">Trip Type</label>
-                <select name="trip_type" class="form-select" id="tripTypeFilter">
-                  <option value="">All Trip Types</option>
-                  <option value="arrival"
-                          {% if trip_type_filter == 'arrival' %}selected{% endif %}>
-                    Arrivals (Airport → Destination)
-                  </option>
-                  <option value="return"
-                          {% if trip_type_filter == 'return' %}selected{% endif %}>
-                    Returns (Destination → Airport)
-                  </option>
-                  <option value="other" {% if trip_type_filter == 'other' %}selected{% endif %}>Other Transfers</option>
-                </select>
-              </div>
-
-              <!-- Vehicle Filter -->
-              <div class="col-lg-3">
-                <label class="form-label">Vehicle Type</label>
-                <select name="vehicle" class="form-select" id="vehicleFilter">
-                  <option value="">All Vehicles</option>
-                  {% for vehicle in vehicles %}
-                    <option value="{{ vehicle.vehicle_type }}"
-                            {% if vehicle_filter == vehicle.vehicle_type %}selected{% endif %}>
-                      {{ vehicle.get_vehicle_type_display }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </div>
-
-              <!-- Clear Filters -->
-              <div class="col-12">
-                <div class="d-flex gap-2">
-                  <button type="submit" class="btn btn-dark">
-                    <i class="bi bi-search me-2"></i>Apply Filters
-                  </button>
-                  <button type="button" class="btn btn-outline-secondary" id="clearFilters">
-                    <i class="bi bi-x-circle me-2"></i>Clear Filters
-                  </button>
-                  <button type="button" class="btn btn-outline-primary" id="resetFilters">
-                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset All
-                  </button>
-                </div>
-              </div>
-            </form>
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-light border-0 py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0 fw-semibold">
+                <i class="bi bi-funnel me-2 text-primary"></i>Filters & Search
+              </h5>
+              <button class="btn btn-sm btn-outline-primary"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#filterCollapse"
+                      aria-expanded="false"
+                      aria-controls="filterCollapse">
+                <i class="bi bi-chevron-down me-1"></i>Toggle Filters
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Quick Actions -->
-    <div class="row mb-3">
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-body py-2">
-            <div class="d-flex flex-wrap gap-2">
-              <span class="text-muted small me-2">Quick Filters:</span>
-              <a href="?trip_type=arrival{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
-                 class="btn btn-sm btn-outline-dark">Arrivals Only</a>
-              <a href="?trip_type=return{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
-                 class="btn btn-sm btn-outline-success">Returns Only</a>
-              {% for vehicle in vehicles %}
-                <a href="?vehicle={{ vehicle.vehicle_type }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
-                   class="btn btn-sm btn-outline-dark">{{ vehicle.get_vehicle_type_display }}</a>
-              {% endfor %}
-              <a href="?" class="btn btn-sm btn-outline-secondary">Clear All</a>
+          <div class="collapse show" id="filterCollapse">
+            <div class="card-body pt-0">
+              <form id="filterForm">
+                <!-- Primary Filters Row -->
+                <div class="row g-3 mb-3">
+                  <!-- Date Range -->
+                  <div class="col-lg-4 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Date Range</label>
+                    <div class="input-group">
+                      <span class="input-group-text bg-light border-end-0">
+                        <i class="bi bi-calendar3 text-muted"></i>
+                      </span>
+                      <input type="date"
+                             name="date_from"
+                             class="form-control border-start-0"
+                             value="{{ date_from }}"
+                             id="dateFrom"
+                             placeholder="From">
+                      <span class="input-group-text bg-light border-start-0 border-end-0">
+                        <i class="bi bi-arrow-right text-muted"></i>
+                      </span>
+                      <input type="date"
+                             name="date_to"
+                             class="form-control border-start-0"
+                             value="{{ date_to }}"
+                             id="dateTo"
+                             placeholder="To">
+                    </div>
+                  </div>
+
+                  <!-- Quick Time Filters -->
+                  <div class="col-lg-3 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Quick Filters</label>
+                    <select name="time_filter" class="form-select" id="timeFilter">
+                      <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
+                      <option value="week" {% if time_filter == 'week' %}selected{% endif %}>This Week</option>
+                      <option value="next_week"
+                              {% if time_filter == 'next_week' %}selected{% endif %}>Next Week</option>
+                    </select>
+                  </div>
+
+                  <!-- Status Filter -->
+                  <div class="col-lg-2 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Status</label>
+                    <select name="status" class="form-select" id="statusFilter">
+                      <option value="">All Statuses</option>
+                      <option value="in-progress"
+                              {% if status_filter == 'in-progress' %}selected{% endif %}>In Progress</option>
+                      <option value="picked-up"
+                              {% if status_filter == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                      <option value="completed"
+                              {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                    </select>
+                  </div>
+
+                  <!-- Trip Type -->
+                  <div class="col-lg-3 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Trip Type</label>
+                    <select name="trip_type" class="form-select" id="tripTypeFilter">
+                      <option value="">All Trip Types</option>
+                      <option value="arrival"
+                              {% if trip_type_filter == 'arrival' %}selected{% endif %}>Arrivals</option>
+                      <option value="return"
+                              {% if trip_type_filter == 'return' %}selected{% endif %}>Returns</option>
+                      <option value="other" {% if trip_type_filter == 'other' %}selected{% endif %}>Other Transfers</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Secondary Filters Row -->
+                <div class="row g-3 mb-3">
+                  <!-- Vehicle Filter -->
+                  <div class="col-lg-4 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Vehicle Type</label>
+                    <select name="vehicle" class="form-select" id="vehicleFilter">
+                      <option value="">All Vehicles</option>
+                      {% for vehicle in vehicles %}
+                        <option value="{{ vehicle.vehicle_type }}"
+                                {% if vehicle_filter == vehicle.vehicle_type %}selected{% endif %}>
+                          {{ vehicle.get_vehicle_type_display }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="col-lg-8 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Actions</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <button type="submit" class="btn btn-dark">
+                        <i class="bi bi-search me-1"></i>Apply Filters
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary" id="clearFilters">
+                        <i class="bi bi-x-circle me-1"></i>Clear
+                      </button>
+                      <button type="button" class="btn btn-warning" id="resetFilters">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+
+              <!-- Quick Filter Pills -->
+              <div class="border-top pt-3">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                  <span class="text-muted small fw-semibold me-2">Quick Filters:</span>
+                  <a href="?trip_type=arrival{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+                     class="badge bg-primary text-decoration-none">✈️ Arrivals</a>
+                  <a href="?trip_type=return{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+                     class="badge bg-success text-decoration-none">🛬 Returns</a>
+                  {% for vehicle in vehicles %}
+                    <a href="?vehicle={{ vehicle.vehicle_type }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+                       class="badge bg-dark text-decoration-none">{{ vehicle.get_vehicle_type_display }}</a>
+                  {% endfor %}
+                  <a href="?" class="badge bg-secondary text-decoration-none">❌ Clear All</a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Current Page Summary -->
+    <!-- Compact Summary Cards -->
     <div class="row mb-3">
-      <div class="col-lg-6 col-md-8 mx-auto">
-        <div class="card shadow-sm border-0">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
           <div class="card-body py-2">
             <div class="row text-center">
               <div class="col-3">
                 <div class="d-flex align-items-center justify-content-center">
-                  <i class="bi bi-airplane-engines text-dark me-2"></i>
+                  <i class="bi bi-airplane-engines text-primary me-2"></i>
                   <div>
-                    <div class="fw-bold text-dark">{{ current_page_stats.arrival }}</div>
+                    <div class="fw-bold text-primary fs-5">{{ current_page_stats.arrival }}</div>
                     <div class="small text-muted">Arrivals</div>
                   </div>
                 </div>
@@ -168,24 +186,25 @@
                 <div class="d-flex align-items-center justify-content-center">
                   <i class="bi bi-airplane text-success me-2"></i>
                   <div>
-                    <div class="fw-bold text-success">{{ current_page_stats.return }}</div>
+                    <div class="fw-bold text-success fs-5">{{ current_page_stats.return }}</div>
                     <div class="small text-muted">Returns</div>
                   </div>
                 </div>
               </div>
               <div class="col-3">
                 <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-arrow-left-right text-info me-2"></i>
                   <div>
-                    <div class="fw-bold text-secondary">{{ current_page_stats.other }}</div>
+                    <div class="fw-bold text-info fs-5">{{ current_page_stats.other }}</div>
                     <div class="small text-muted">Other</div>
                   </div>
                 </div>
               </div>
               <div class="col-3">
                 <div class="d-flex align-items-center justify-content-center">
-                  <i class="bi bi-currency-dollar text-primary me-2"></i>
+                  <i class="bi bi-currency-dollar text-warning me-2"></i>
                   <div>
-                    <div class="fw-bold text-primary">${{ current_page_stats.total_revenue|floatformat:0 }}</div>
+                    <div class="fw-bold text-warning fs-5">${{ current_page_stats.total_revenue|floatformat:0 }}</div>
                     <div class="small text-muted">Revenue</div>
                   </div>
                 </div>
@@ -569,7 +588,7 @@
     {% endif %}
   </div>
 
-  <!-- JavaScript -->
+  <!-- Enhanced JavaScript -->
   <script>
       document.addEventListener('DOMContentLoaded', function() {
           const filterForm = document.getElementById('filterForm');
@@ -577,8 +596,25 @@
           const resetFiltersBtn = document.getElementById('resetFilters');
           const timeFilter = document.getElementById('timeFilter');
           const statusFilter = document.getElementById('statusFilter');
+          const tripTypeFilter = document.getElementById('tripTypeFilter');
+          const vehicleFilter = document.getElementById('vehicleFilter');
           const dateFrom = document.getElementById('dateFrom');
           const dateTo = document.getElementById('dateTo');
+
+          // Enhanced filter functionality
+          const filterCollapse = document.getElementById('filterCollapse');
+          const toggleBtn = document.querySelector('[data-bs-toggle="collapse"]');
+
+          // Update toggle button icon
+          if (filterCollapse) {
+              filterCollapse.addEventListener('show.bs.collapse', function() {
+                  toggleBtn.innerHTML = '<i class="bi bi-chevron-up me-1"></i>Hide Filters';
+              });
+
+              filterCollapse.addEventListener('hide.bs.collapse', function() {
+                  toggleBtn.innerHTML = '<i class="bi bi-chevron-down me-1"></i>Show Filters';
+              });
+          }
 
           // Handle filter changes
           timeFilter.addEventListener('change', function() {
@@ -595,6 +631,8 @@
               dateTo.value = '';
               timeFilter.value = 'all';
               statusFilter.value = '';
+              tripTypeFilter.value = '';
+              vehicleFilter.value = '';
               filterForm.submit();
           });
 

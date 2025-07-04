@@ -24,13 +24,6 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
     """
     today = timezone.localdate()
     
-    # Subquery to get the latest payment ID for each reservation
-    latest_payment_subquery = (
-        Payment.objects.filter(reservation_id=OuterRef("reservation_id"))
-        .order_by("-id")
-        .values("id")[:1]
-    )
-    
     # Base queryset with all necessary related fields
     legs_query = Leg.objects.select_related(
         "reservation",
@@ -38,7 +31,10 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         "reservation__vehicle",
         "driver",
         "flight_information",
-    ).annotate(latest_payment_id=Subquery(latest_payment_subquery))
+    ).prefetch_related(
+        "reservation__legs",
+        "reservation__payments",
+    )
     
     # Apply date filters
     if date_from and date_to:
@@ -256,19 +252,19 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
     Returns:
         Dictionary with all statistics
     """
-    # Get filtered legs
+    # Get filtered legs with optimized queries
     legs_query = get_filtered_legs_queryset(
         date_filter, date_from, date_to, status_filter, time_filter
     )
     all_legs = list(legs_query)
     
-    # Calculate all statistics
+    # Calculate all statistics using optimized methods
     vehicle_stats = calculate_vehicle_statistics(all_legs)
     trip_type_stats = calculate_trip_type_statistics(all_legs)
     status_stats = calculate_status_statistics(all_legs)
     driver_stats, active_drivers_count = calculate_driver_statistics(all_legs)
     
-    # Calculate total revenue
+    # Calculate total revenue using cached data
     total_revenue = sum(
         leg.reservation.total_price for leg in all_legs if leg.reservation
     )
@@ -282,3 +278,38 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
         'total_legs': len(all_legs),
         'total_revenue': total_revenue,
     }
+
+
+def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=None):
+    """
+    Get optimized legs queryset specifically for calendar views.
+    Includes all necessary related data to avoid N+1 queries.
+    
+    Args:
+        date_from: Start date
+        date_to: End date
+        status_filter: Status filter
+    
+    Returns:
+        Optimized Leg queryset
+    """
+    legs_query = Leg.objects.select_related(
+        "reservation",
+        "reservation__customer",
+        "reservation__vehicle",
+        "driver",
+        "flight_information",
+    ).prefetch_related(
+        "reservation__legs",
+        "reservation__payments",
+    )
+    
+    # Apply date filters
+    if date_from and date_to:
+        legs_query = legs_query.filter(pickup_date__range=[date_from, date_to])
+    
+    # Apply status filter
+    if status_filter:
+        legs_query = legs_query.filter(status=status_filter)
+    
+    return legs_query.order_by("pickup_date", "pickup_time")

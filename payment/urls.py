@@ -9,7 +9,7 @@ urlpatterns = [
         name="create_checkout_session",
     ),
     path(
-        "save-card-checkout/<str:reservation_id>/",
+        "save-card-checkout/<str:reservation_uuid>/",
         views.save_card,
         name="save_card_checkout",
     ),

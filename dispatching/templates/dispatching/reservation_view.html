@@ -10,6 +10,56 @@
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
   <div class="container py-3">
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+      <div id="contactToast"
+           class="toast"
+           role="alert"
+           aria-live="assertive"
+           aria-atomic="true">
+        <div class="toast-header">
+          <i class="bi bi-person-check-fill text-success me-2"></i>
+          <strong class="me-auto">Contact Updated</strong>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="toast"
+                  aria-label="Close"></button>
+        </div>
+        <div class="toast-body">Contact information has been updated successfully.</div>
+      </div>
+
+      <div id="notesToast"
+           class="toast"
+           role="alert"
+           aria-live="assertive"
+           aria-atomic="true">
+        <div class="toast-header">
+          <i class="bi bi-journal-check text-success me-2"></i>
+          <strong class="me-auto">Notes Updated</strong>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="toast"
+                  aria-label="Close"></button>
+        </div>
+        <div class="toast-body">Private notes have been updated successfully.</div>
+      </div>
+
+      <div id="legToast"
+           class="toast"
+           role="alert"
+           aria-live="assertive"
+           aria-atomic="true">
+        <div class="toast-header">
+          <i class="bi bi-airplane text-success me-2"></i>
+          <strong class="me-auto">Leg Updated</strong>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="toast"
+                  aria-label="Close"></button>
+        </div>
+        <div class="toast-body">Leg information has been updated successfully.</div>
+      </div>
+    </div>
     <div class="page-header">
       <h1>
         Reservation ID: <span class="fw-semibold">{{ reservation.id }}</span>
@@ -49,43 +99,116 @@
       <!-- Contact Information -->
       <div class="col-lg-6">
         <div class="panel panel-primary">
-          <div class="panel-heading bg-secondary text-white p-2">Contact Information</div>
+          <div class="panel-heading bg-secondary text-white p-2 d-flex justify-content-between align-items-center">
+            <span>Contact Information</span>
+            <button id="editContactBtn" class="btn btn-sm btn-outline-light">
+              <i class="bi bi-pencil"></i> Edit
+            </button>
+          </div>
           <div class="panel-body p-3 border border-top-0 bg-white">
-            <dl class="row mb-0">
-              <dt class="col-sm-3">Full Name</dt>
-              <dd class="col-sm-9 fw-semibold">
-                {{ reservation.customer.get_full_name }}
-              </dd>
+            <div id="contactDisplay">
+              <dl class="row mb-0">
+                <dt class="col-sm-3">Full Name</dt>
+                <dd class="col-sm-9 fw-semibold" id="contactFullName">
+                  {{ reservation.customer.get_full_name }}
+                </dd>
 
-              <dt class="col-sm-3">Email</dt>
-              <dd class="col-sm-9 fw-semibold">
-                {{ reservation.customer.email }}
-              </dd>
+                <dt class="col-sm-3">Email</dt>
+                <dd class="col-sm-9 fw-semibold" id="contactEmail">
+                  {{ reservation.customer.email }}
+                </dd>
 
-              <dt class="col-sm-3">Phone</dt>
-              <dd class="col-sm-9 fw-semibold">
-                {{ reservation.customer.phone_number }}
-              </dd>
+                <dt class="col-sm-3">Phone</dt>
+                <dd class="col-sm-9 fw-semibold" id="contactPhone">
+                  {{ reservation.customer.phone_number }}
+                </dd>
 
-              <dt class="col-sm-3">Zipcode</dt>
-              <dd class="col-sm-9 fw-semibold">
-                {{ reservation.customer.zipcode }}
-              </dd>
+                <dt class="col-sm-3">Zipcode</dt>
+                <dd class="col-sm-9 fw-semibold" id="contactZipcode">
+                  {{ reservation.customer.zipcode }}
+                </dd>
 
-              <dt class="col-sm-3">CC Last 4</dt>
-              <dd class="col-sm-9">
-                <span class="fw-semibold">{{ reservation.customer.card_last4|default:'' }}</span>
-                <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
-                   class="btn btn-outline-dark btn-sm ms-2">
-                  <i class="bi bi-credit-card"></i>
-                </a>
-              </dd>
-            </dl>
-            <div class="btn-toolbar" role="toolbar">
+                <dt class="col-sm-3">CC Last 4</dt>
+                <dd class="col-sm-9">
+                  <span class="fw-semibold">{{ reservation.customer.card_last4|default:'' }}</span>
+                  <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
+                     class="btn btn-outline-dark btn-sm ms-2">
+                    <i class="bi bi-credit-card"></i>
+                  </a>
+                </dd>
+              </dl>
+            </div>
+
+            <!-- Contact Edit Form (Hidden by default) -->
+            <div id="contactEditForm" class="d-none">
+              <form id="contactForm">
+                {% csrf_token %}
+                <div class="row g-3">
+                  <div class="col-sm-6">
+                    <label class="form-label small">First Name</label>
+                    <input type="text"
+                           class="form-control"
+                           id="firstName"
+                           name="first_name"
+                           value="{{ reservation.customer.first_name }}"
+                           required>
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label small">Last Name</label>
+                    <input type="text"
+                           class="form-control"
+                           id="lastName"
+                           name="last_name"
+                           value="{{ reservation.customer.last_name }}"
+                           required>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label small">Email</label>
+                    <input type="email"
+                           class="form-control"
+                           id="email"
+                           name="email"
+                           value="{{ reservation.customer.email }}"
+                           required>
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label small">Phone</label>
+                    <input type="tel"
+                           class="form-control"
+                           id="phone"
+                           name="phone_number"
+                           value="{{ reservation.customer.phone_number }}"
+                           required>
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label small">Zipcode</label>
+                    <input type="text"
+                           class="form-control"
+                           id="zipcode"
+                           name="zipcode"
+                           value="{{ reservation.customer.zipcode }}">
+                  </div>
+                  <div class="col-12">
+                    <div class="btn-group" role="group">
+                      <button type="submit" class="btn btn-success btn-sm">
+                        <i class="bi bi-check"></i> Save
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="cancelContactEdit">
+                        <i class="bi bi-x"></i> Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="btn-toolbar mt-3" role="toolbar">
               <div class="btn-group" role="group">
                 <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/"
-                   class="btn btn-outline-dark"
-                   target="_blank">Edit Contact</a>
+                   class="btn btn-outline-dark btn-sm"
+                   target="_blank">
+                  <i class="bi bi-gear"></i> Admin Edit
+                </a>
               </div>
             </div>
           </div>
@@ -102,14 +225,58 @@
       <!-- Private Comments -->
       <div class="col-lg-6">
         <div class="panel panel-primary">
-          <div class="panel-heading bg-dark text-white p-2">Private Comments</div>
+          <div class="panel-heading bg-dark text-white p-2 d-flex justify-content-between align-items-center">
+            <span>Private Comments</span>
+            <button id="editPrivateNotesBtn" class="btn btn-sm btn-outline-light">
+              <i class="bi bi-pencil"></i> Edit
+            </button>
+          </div>
           <div class="panel-body p-3 border border-top-0 bg-white">
             <span class="help-block">These comments are never shown to the customer.</span>
-            <textarea class="form-control mb-3" rows="3" readonly>{{ reservation.private_notes|default:"No private notes" }} {{reservation.special_requests | default:'No Customer Notes'}}</textarea>
-            <div class="btn-toolbar" role="toolbar">
-              <div class="btn-group" role="group">
-                <button id="editPrivateNotes" class="btn btn-outline-dark btn-sm">Edit private comments</button>
+
+            <!-- Private Notes Display -->
+            <div id="privateNotesDisplay">
+              <div class="mb-3">
+                <label class="form-label small fw-bold text-muted">Private Notes:</label>
+                <textarea id="displayPrivateNotes" class="form-control" rows="2" readonly>{{ reservation.private_notes|default:"No private notes" }}</textarea>
               </div>
+              <div class="mb-3">
+                <label class="form-label small fw-bold text-muted">Customer Special Requests:</label>
+                <textarea id="displaySpecialRequests" class="form-control" rows="2" readonly>{{ reservation.special_requests|default:"No customer requests" }}</textarea>
+              </div>
+            </div>
+
+            <!-- Private Notes Edit Form -->
+            <div id="privateNotesEditForm" class="d-none">
+              <form id="privateNotesForm">
+                {% csrf_token %}
+                <div class="mb-3">
+                  <label class="form-label small">Private Notes</label>
+                  <textarea class="form-control"
+                            id="privateNotesText"
+                            name="private_notes"
+                            rows="3"
+                            placeholder="Add private notes here...">{{ reservation.private_notes|default:"" }}</textarea>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label small">Customer Special Requests</label>
+                  <textarea class="form-control"
+                            id="specialRequestsText"
+                            name="special_requests"
+                            rows="2"
+                            placeholder="Customer special requests...">{{ reservation.special_requests|default:"" }}</textarea>
+                </div>
+                <div class="btn-group" role="group">
+                  <button type="submit" class="btn btn-success btn-sm">
+                    <i class="bi bi-check"></i> Save
+                  </button>
+                  <button type="button"
+                          class="btn btn-secondary btn-sm"
+                          id="cancelPrivateNotesEdit">
+                    <i class="bi bi-x"></i> Cancel
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
           <div class="panel-footer border border-top-0 bg-light p-2">
@@ -128,10 +295,14 @@
       {% for leg in reservation.legs.all %}
         <div class="col-lg-6 mb-3">
           <div class="panel panel-primary">
-            <div class="panel-heading bg-dark text-white p-2">
+            <div class="panel-heading bg-dark text-white p-2 d-flex justify-content-between align-items-center">
               <div class="h6">
                 Pickup: <span class="fw-semibold">{{ leg.pickup_date|date:"l, F j, Y" }} {{ leg.pickup_time|time:"g:i A" }}</span>
               </div>
+              <button class="btn btn-sm btn-outline-light edit-leg-btn"
+                      data-leg-id="{{ leg.id }}">
+                <i class="bi bi-pencil"></i> Edit
+              </button>
             </div>
             <div class="panel-body p-3 border border-top-0 bg-white">
               <dl class="row mb-0">
@@ -242,12 +413,102 @@
                 </dd>
               </dl>
 
-              <div class="btn-toolbar mt-3" role="toolbar">
-                <div class="btn-group" role="group">
-                  <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
-                     target="_blank"
-                     class="btn btn-dark btn-sm">Edit Leg</a>
+              <!-- Leg Display Content -->
+              <div id="legDisplay_{{ leg.id }}">
+                <div class="btn-toolbar mt-3" role="toolbar">
+                  <div class="btn-group" role="group">
+                    <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
+                       target="_blank"
+                       class="btn btn-dark btn-sm">Admin Edit</a>
+                  </div>
                 </div>
+              </div>
+
+              <!-- Leg Edit Form -->
+              <div id="legEditForm_{{ leg.id }}" class="d-none">
+                <form class="leg-edit-form" data-leg-id="{{ leg.id }}">
+                  {% csrf_token %}
+                  <div class="row g-3">
+                    <div class="col-sm-6">
+                      <label class="form-label small">Pickup Date</label>
+                      <input type="date"
+                             class="form-control"
+                             name="pickup_date"
+                             value="{{ leg.pickup_date|date:'Y-m-d' }}"
+                             required>
+                    </div>
+                    <div class="col-sm-6">
+                      <label class="form-label small">Pickup Time</label>
+                      <input type="time"
+                             class="form-control"
+                             name="pickup_time"
+                             value="{{ leg.pickup_time|time:'H:i' }}"
+                             required>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small">Pickup Location</label>
+                      <input type="text"
+                             class="form-control"
+                             name="pickup_location"
+                             value="{{ leg.pickup_location }}"
+                             required>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small">Drop-off Location</label>
+                      <input type="text"
+                             class="form-control"
+                             name="dropoff_location"
+                             value="{{ leg.dropoff_location }}"
+                             required>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label small">Private Notes</label>
+                      <textarea class="form-control" name="private_notes" rows="2">{{ leg.private_notes|default:"" }}</textarea>
+                    </div>
+
+                    <!-- Flight Information -->
+                    <div class="col-12">
+                      <div class="card border-secondary">
+                        <div class="card-header bg-light">
+                          <h6 class="mb-0">Flight Information</h6>
+                        </div>
+                        <div class="card-body">
+                          <div class="row g-3">
+                            <div class="col-sm-6">
+                              <label class="form-label small">Airline</label>
+                              <input type="text"
+                                     class="form-control"
+                                     name="airline"
+                                     value="{{ leg.flight_information.airline|default:'' }}"
+                                     placeholder="e.g., Delta, American, etc.">
+                            </div>
+                            <div class="col-sm-6">
+                              <label class="form-label small">Flight Number</label>
+                              <input type="text"
+                                     class="form-control"
+                                     name="flight_number"
+                                     value="{{ leg.flight_information.flight_number|default:'' }}"
+                                     placeholder="e.g., DL1234">
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-12">
+                      <div class="btn-group" role="group">
+                        <button type="submit" class="btn btn-success btn-sm">
+                          <i class="bi bi-check"></i> Save
+                        </button>
+                        <button type="button"
+                                class="btn btn-secondary btn-sm cancel-leg-edit"
+                                data-leg-id="{{ leg.id }}">
+                          <i class="bi bi-x"></i> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
             <div class="panel-footer border border-top-0 bg-light p-2">
@@ -316,36 +577,7 @@
     </div>
   </div>
 
-  <!-- Private Notes Modal -->
-  <div class="modal fade"
-       id="privateNotesModal"
-       tabindex="-1"
-       aria-labelledby="privateNotesModalLabel"
-       aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="privateNotesModalLabel">Edit Private Notes</h5>
-          <button type="button"
-                  class="btn-close"
-                  data-bs-dismiss="modal"
-                  aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <form id="private-notes-form">
-            {% csrf_token %}
-            <div class="mb-3">
-              <label for="private-notes" class="form-label">Private Notes</label>
-              <textarea class="form-control" id="private-notes" rows="5">{{ reservation.private_notes }}</textarea>
-            </div>
-            <div class="d-grid gap-2">
-              <button type="submit" class="btn btn-primary">Save Notes</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
+
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
@@ -444,16 +676,45 @@
               }
           });
 
-          // Edit private notes button
-          document.getElementById('editPrivateNotes').addEventListener('click', function() {
-              $('#privateNotesModal').modal('show');
+          // Private notes editing functionality
+          const editPrivateNotesBtn = document.getElementById('editPrivateNotesBtn');
+          const privateNotesDisplay = document.getElementById('privateNotesDisplay');
+          const privateNotesEditForm = document.getElementById('privateNotesEditForm');
+          const privateNotesForm = document.getElementById('privateNotesForm');
+          const cancelPrivateNotesEdit = document.getElementById('cancelPrivateNotesEdit');
+          const notesToast = new bootstrap.Toast(document.getElementById('notesToast'));
+
+          // Show edit form
+          editPrivateNotesBtn.addEventListener('click', function() {
+              privateNotesDisplay.classList.add('d-none');
+              privateNotesEditForm.classList.remove('d-none');
+              editPrivateNotesBtn.classList.add('d-none');
           });
 
-          // Private notes form submission
-          document.getElementById('private-notes-form').addEventListener('submit', function(e) {
+          // Cancel edit
+          cancelPrivateNotesEdit.addEventListener('click', function() {
+              privateNotesDisplay.classList.remove('d-none');
+              privateNotesEditForm.classList.add('d-none');
+              editPrivateNotesBtn.classList.remove('d-none');
+          });
+
+          // Submit private notes form
+          privateNotesForm.addEventListener('submit', function(e) {
               e.preventDefault();
 
-              const notes = document.getElementById('private-notes').value;
+              const formData = new FormData(privateNotesForm);
+              const notesData = {};
+
+              // Convert FormData to object
+              for (let [key, value] of formData.entries()) {
+                  notesData[key] = value;
+              }
+
+              // Show loading state
+              const submitBtn = privateNotesForm.querySelector('button[type="submit"]');
+              const originalText = submitBtn.innerHTML;
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
 
               fetch('/dispatching/update_private_notes/', {
                       method: 'POST',
@@ -463,23 +724,242 @@
                       },
                       body: JSON.stringify({
                           reservation_id: '{{ reservation.uuid }}',
-                          private_notes: notes
+                          private_notes: notesData.private_notes,
+                          special_requests: notesData.special_requests
                       })
                   })
                   .then(response => response.json())
                   .then(data => {
                       if (data.success) {
-                          alert('Private notes updated!');
-                          $('#privateNotesModal').modal('hide');
-                          // Update the textarea in the main view
-                          document.querySelector('.panel-body textarea').value = notes;
+                          // Update the display with new data
+                          const privateNotes = notesData.private_notes || 'No private notes';
+                          const specialRequests = notesData.special_requests || 'No customer requests';
+
+                          document.getElementById('displayPrivateNotes').value = privateNotes;
+                          document.getElementById('displaySpecialRequests').value = specialRequests;
+
+                          // Show success toast
+                          notesToast.show();
+
+                          // Hide edit form and show display
+                          privateNotesDisplay.classList.remove('d-none');
+                          privateNotesEditForm.classList.add('d-none');
+                          editPrivateNotesBtn.classList.remove('d-none');
                       } else {
                           alert('Error updating notes: ' + data.error);
                       }
                   })
                   .catch(error => {
                       alert('Error: ' + error);
+                  })
+                  .finally(() => {
+                      // Reset button state
+                      submitBtn.disabled = false;
+                      submitBtn.innerHTML = originalText;
                   });
+          });
+
+          // Contact editing functionality
+          const editContactBtn = document.getElementById('editContactBtn');
+          const contactDisplay = document.getElementById('contactDisplay');
+          const contactEditForm = document.getElementById('contactEditForm');
+          const contactForm = document.getElementById('contactForm');
+          const cancelContactEdit = document.getElementById('cancelContactEdit');
+          const contactToast = new bootstrap.Toast(document.getElementById('contactToast'));
+
+          // Show edit form
+          editContactBtn.addEventListener('click', function() {
+              contactDisplay.classList.add('d-none');
+              contactEditForm.classList.remove('d-none');
+              editContactBtn.classList.add('d-none');
+          });
+
+          // Cancel edit
+          cancelContactEdit.addEventListener('click', function() {
+              contactDisplay.classList.remove('d-none');
+              contactEditForm.classList.add('d-none');
+              editContactBtn.classList.remove('d-none');
+          });
+
+          // Submit contact form
+          contactForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+
+              const formData = new FormData(contactForm);
+              const contactData = {};
+
+              // Convert FormData to object
+              for (let [key, value] of formData.entries()) {
+                  contactData[key] = value;
+              }
+
+              // Show loading state
+              const submitBtn = contactForm.querySelector('button[type="submit"]');
+              const originalText = submitBtn.innerHTML;
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+
+              fetch('/dispatching/update-contact-info/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({
+                          reservation_id: '{{ reservation.uuid }}',
+                          contact_data: contactData
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          // Update the display with new data
+                          document.getElementById('contactFullName').textContent = data.customer.full_name;
+                          document.getElementById('contactEmail').textContent = data.customer.email;
+                          document.getElementById('contactPhone').textContent = data.customer.phone_number;
+                          document.getElementById('contactZipcode').textContent = data.customer.zipcode;
+
+                          // Show success toast
+                          contactToast.show();
+
+                          // Hide edit form and show display
+                          contactDisplay.classList.remove('d-none');
+                          contactEditForm.classList.add('d-none');
+                          editContactBtn.classList.remove('d-none');
+                      } else {
+                          alert('Error updating contact: ' + data.error);
+                      }
+                  })
+                  .catch(error => {
+                      alert('Error: ' + error);
+                  })
+                  .finally(() => {
+                      // Reset button state
+                      submitBtn.disabled = false;
+                      submitBtn.innerHTML = originalText;
+                  });
+          });
+
+          // Leg editing functionality
+          const legToast = new bootstrap.Toast(document.getElementById('legToast'));
+
+          // Edit leg button handlers
+          document.querySelectorAll('.edit-leg-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const legDisplay = document.getElementById(`legDisplay_${legId}`);
+                  const legEditForm = document.getElementById(`legEditForm_${legId}`);
+
+                  legDisplay.classList.add('d-none');
+                  legEditForm.classList.remove('d-none');
+                  this.classList.add('d-none');
+              });
+          });
+
+          // Cancel leg edit handlers
+          document.querySelectorAll('.cancel-leg-edit').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const legDisplay = document.getElementById(`legDisplay_${legId}`);
+                  const legEditForm = document.getElementById(`legEditForm_${legId}`);
+                  const editBtn = document.querySelector(`.edit-leg-btn[data-leg-id="${legId}"]`);
+
+                  legDisplay.classList.remove('d-none');
+                  legEditForm.classList.add('d-none');
+                  editBtn.classList.remove('d-none');
+              });
+          });
+
+          // Leg edit form submission
+          document.querySelectorAll('.leg-edit-form').forEach(form => {
+              form.addEventListener('submit', function(e) {
+                  e.preventDefault();
+
+                  const legId = this.dataset.legId;
+                  const formData = new FormData(this);
+
+                  // Separate leg data and flight data
+                  const legData = {};
+                  const flightData = {};
+
+                  for (let [key, value] of formData.entries()) {
+                      if (key === 'airline' || key === 'flight_number') {
+                          flightData[key] = value;
+                      } else {
+                          legData[key] = value;
+                      }
+                  }
+
+                  // Show loading state
+                  const submitBtn = this.querySelector('button[type="submit"]');
+                  const originalText = submitBtn.innerHTML;
+                  submitBtn.disabled = true;
+                  submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+
+                  fetch('/dispatching/update-leg-info/', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': '{{ csrf_token }}'
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId,
+                              leg_data: legData,
+                              flight_data: flightData
+                          })
+                      })
+                      .then(response => response.json())
+                      .then(data => {
+                          if (data.success) {
+                              // Update the display with new data
+                              const legDisplay = document.getElementById(`legDisplay_${legId}`);
+                              const legEditForm = document.getElementById(`legEditForm_${legId}`);
+                              const editBtn = document.querySelector(`.edit-leg-btn[data-leg-id="${legId}"]`);
+
+                              // Update pickup date/time in header
+                              const header = editBtn.closest('.panel-heading').querySelector('.h6');
+                              if (data.leg.pickup_date) {
+                                  const pickupDate = new Date(data.leg.pickup_date);
+                                  const pickupTime = data.leg.pickup_time || '';
+                                  header.innerHTML = `Pickup: <span class="fw-semibold">${pickupDate.toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})} ${pickupTime}</span>`;
+                              }
+
+                              // Update pickup/dropoff locations
+                              const pickupLocationEl = legDisplay.closest('.panel-body').querySelector('dd:nth-of-type(1)');
+                              const dropoffLocationEl = legDisplay.closest('.panel-body').querySelector('dd:nth-of-type(2)');
+                              if (pickupLocationEl) pickupLocationEl.textContent = data.leg.pickup_location;
+                              if (dropoffLocationEl) dropoffLocationEl.textContent = data.leg.dropoff_location;
+
+                              // Update private notes
+                              const privateNotesEl = legDisplay.closest('.panel-body').querySelector('dd:last-of-type');
+                              if (privateNotesEl) privateNotesEl.textContent = data.leg.private_notes || 'None';
+
+                              // Update flight information if it exists
+                              const flightEl = legDisplay.closest('.panel-body').querySelector('dd:nth-of-type(6)');
+                              if (flightEl && (data.leg.flight_info.airline || data.leg.flight_info.flight_number)) {
+                                  flightEl.textContent = `${data.leg.flight_info.airline} ${data.leg.flight_info.flight_number}`;
+                              }
+
+                              // Show success toast
+                              legToast.show();
+
+                              // Hide edit form and show display
+                              legDisplay.classList.remove('d-none');
+                              legEditForm.classList.add('d-none');
+                              editBtn.classList.remove('d-none');
+                          } else {
+                              alert('Error updating leg: ' + data.error);
+                          }
+                      })
+                      .catch(error => {
+                          alert('Error: ' + error);
+                      })
+                      .finally(() => {
+                          // Reset button state
+                          submitBtn.disabled = false;
+                          submitBtn.innerHTML = originalText;
+                      });
+              });
           });
       });
   </script>

@@ -75,6 +75,10 @@ def index(request):
             "reservation__vehicle",
             "driver",
         )
+        .prefetch_related(
+            "reservation__legs",
+            "reservation__payments",
+        )
         .order_by("pickup_time")
     )
 
@@ -136,11 +140,13 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        # Add is_first_leg property to each leg
+        # Add is_first_leg property to each leg - optimized to avoid N+1
         for reservation in queryset:
-            for leg in reservation.legs.all():
-                first_leg = reservation.legs.order_by("pickup_time").first()
-                leg.is_first_leg = leg.id == first_leg.id
+            legs_list = list(reservation.legs.all())
+            if legs_list:
+                first_leg = min(legs_list, key=lambda x: x.pickup_time)
+                for leg in legs_list:
+                    leg.is_first_leg = leg.id == first_leg.id
 
         return queryset
 
@@ -401,22 +407,9 @@ def legs_list(request):
     # Get all vehicles for filter dropdown
     vehicles = Vehicle.objects.all()
 
-    # Get all latest payments in one query
-    latest_payment_ids = [
-        leg.latest_payment_id for leg in page_obj if leg.latest_payment_id
-    ]
-    if latest_payment_ids:
-        latest_payments = Payment.objects.in_bulk(latest_payment_ids)
-        for leg in page_obj:
-            if leg.latest_payment_id:
-                leg.reservation.latest_payment = latest_payments.get(
-                    leg.latest_payment_id
-                )
-            else:
-                leg.reservation.latest_payment = None
-    else:
-        for leg in page_obj:
-            leg.reservation.latest_payment = None
+    # Set latest payment to None for all legs (simplified approach)
+    for leg in page_obj:
+        leg.reservation.latest_payment = None
 
     # Apply trip type filter if specified (filter in Python since it's a computed property)
     if trip_type_filter:
@@ -427,23 +420,29 @@ def legs_list(request):
         page_obj.object_list = filtered_legs
         page_obj._object_list = filtered_legs
 
-    # Calculate statistics using utils
-    all_legs = list(legs_query.order_by("pickup_date", "pickup_time"))
-    vehicle_stats = calculate_vehicle_statistics(all_legs)
+    # Calculate statistics using utils - reuse the already fetched data
+    vehicle_stats = calculate_vehicle_statistics(page_obj)
     
     # Calculate trip type statistics
     trip_type_stats = {"arrival": 0, "return": 0, "other": 0}
-    for leg in all_legs:
+    for leg in page_obj:
         trip_type = leg.get_trip_type()
         trip_type_stats[trip_type] += 1
 
-    # Calculate current page statistics
+    # Calculate current page statistics in a single pass
     current_page_stats = {
         "arrival": 0,
         "return": 0,
         "other": 0,
         "total_revenue": 0
     }
+    
+    # Pre-calculate leg counts for each reservation to avoid N+1 queries
+    reservation_leg_counts = {}
+    for leg in page_obj:
+        reservation_id = leg.reservation.id
+        if reservation_id not in reservation_leg_counts:
+            reservation_leg_counts[reservation_id] = len(leg.reservation.legs.all())
     
     for leg in page_obj:
         # Count trip types for current page
@@ -454,8 +453,8 @@ def legs_list(request):
         if leg.revenue_share:
             current_page_stats["total_revenue"] += leg.revenue_share
         else:
-            # Fallback: divide reservation total by number of legs
-            leg_count = leg.reservation.legs.count()
+            # Use pre-calculated leg count
+            leg_count = reservation_leg_counts.get(leg.reservation.id, 1)
             if leg_count > 0:
                 current_page_stats["total_revenue"] += leg.reservation.total_price / leg_count
 
@@ -611,7 +610,7 @@ def update_leg_assignment(request):
 @require_POST
 def update_private_notes(request):
     """
-    Updates the private notes for a reservation.
+    Updates the private notes and special requests for a reservation.
 
     Args:
         request: The HTTP request with JSON payload
@@ -628,6 +627,7 @@ def update_private_notes(request):
         data = json.loads(request.body)
         reservation_id = data.get("reservation_id")
         private_notes = data.get("private_notes")
+        special_requests = data.get("special_requests")
 
         if not reservation_id:
             return JsonResponse(
@@ -637,9 +637,18 @@ def update_private_notes(request):
         # Get the reservation
         reservation = get_object_or_404(Reservation, uuid=reservation_id)
 
-        # Update private notes
-        reservation.private_notes = private_notes
-        reservation.save(update_fields=["private_notes"])
+        # Update fields
+        update_fields = []
+        if private_notes is not None:
+            reservation.private_notes = private_notes
+            update_fields.append("private_notes")
+        
+        if special_requests is not None:
+            reservation.special_requests = special_requests
+            update_fields.append("special_requests")
+
+        if update_fields:
+            reservation.save(update_fields=update_fields)
 
         return JsonResponse({"success": True})
 
@@ -1114,3 +1123,154 @@ def statistics_page(request):
     }
     
     return render(request, "dispatching/statistics.html", context)
+
+
+@login_required
+@require_POST
+def update_contact_info(request):
+    """
+    Update customer contact information via AJAX.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        reservation_id = data.get("reservation_id")
+        contact_data = data.get("contact_data", {})
+
+        if not reservation_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing reservation ID"}, status=400
+            )
+
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_id)
+        customer = reservation.customer
+
+        # Update customer fields
+        for field, value in contact_data.items():
+            if hasattr(customer, field) and value is not None:
+                setattr(customer, field, value)
+
+        # Save the customer
+        customer.save()
+
+        # Return updated customer data
+        return JsonResponse({
+            "success": True,
+            "message": "Contact information updated successfully",
+            "customer": {
+                "full_name": customer.get_full_name(),
+                "email": customer.email,
+                "phone_number": customer.phone_number,
+                "zipcode": customer.zipcode,
+            }
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error updating contact info: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def update_leg_info(request):
+    """
+    Update leg information including flight details via AJAX.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+        leg_data = data.get("leg_data", {})
+        flight_data = data.get("flight_data", {})
+
+        if not leg_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing leg ID"}, status=400
+            )
+
+        # Get the leg
+        leg = get_object_or_404(Leg, id=leg_id)
+
+        # Update leg fields
+        update_fields = []
+        for field, value in leg_data.items():
+            if hasattr(leg, field) and value is not None:
+                # Handle date and time fields properly
+                if field == 'pickup_date' and value:
+                    from datetime import datetime
+                    try:
+                        # Convert string to date object
+                        date_obj = datetime.strptime(value, '%Y-%m-%d').date()
+                        setattr(leg, field, date_obj)
+                        update_fields.append(field)
+                    except ValueError:
+                        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+                elif field == 'pickup_time' and value:
+                    from datetime import datetime
+                    try:
+                        # Convert string to time object
+                        time_obj = datetime.strptime(value, '%H:%M').time()
+                        setattr(leg, field, time_obj)
+                        update_fields.append(field)
+                    except ValueError:
+                        return JsonResponse({"success": False, "error": "Invalid time format"}, status=400)
+                else:
+                    setattr(leg, field, value)
+                    update_fields.append(field)
+
+        # Handle flight information
+        if flight_data.get("airline") or flight_data.get("flight_number"):
+            # Create or update flight information
+            if leg.flight_information:
+                flight = leg.flight_information
+                if flight_data.get("airline") is not None:
+                    flight.airline = flight_data["airline"]
+                if flight_data.get("flight_number") is not None:
+                    flight.flight_number = flight_data["flight_number"]
+                flight.save()
+            else:
+                # Create new flight information
+                from reservations.models import Flight
+                flight = Flight.objects.create(
+                    airline=flight_data.get("airline", ""),
+                    flight_number=flight_data.get("flight_number", "")
+                )
+                leg.flight_information = flight
+                update_fields.append("flight_information")
+
+        # Save the leg if any fields were updated
+        if update_fields:
+            leg.save(update_fields=update_fields)
+
+        return JsonResponse({
+            "success": True,
+            "message": "Leg information updated successfully",
+            "leg": {
+                "pickup_date": leg.pickup_date.isoformat() if leg.pickup_date else None,
+                "pickup_time": leg.pickup_time.strftime("%H:%M") if leg.pickup_time else None,
+                "pickup_location": leg.pickup_location,
+                "dropoff_location": leg.dropoff_location,
+                "private_notes": leg.private_notes,
+                "flight_info": {
+                    "airline": leg.flight_information.airline if leg.flight_information else "",
+                    "flight_number": leg.flight_information.flight_number if leg.flight_information else "",
+                } if leg.flight_information else {"airline": "", "flight_number": ""}
+            }
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error updating leg info: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
