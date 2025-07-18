@@ -178,6 +178,8 @@
                   <span class="text-danger ms-1">*</span>
                 </h5>
 
+
+
                 <div class="row g-2">
                   <div class="col-6">
                     <label for="{{ form.first_name.id_for_label }}-{{ form_id }}"
@@ -232,15 +234,22 @@
             </div>
           </div>
 
+
+
           <!-- Submit Button -->
           <div class="col-12">
             <button type="submit" class="btn btn-dark btn-sm w-100 fw-semibold quote-btn">
               <i class="bi bi-calculator me-2"></i>REQUEST MY QUOTE NOW 
             </button>
+            <div class="text-center mt-2">
+              <small class="text-muted">
+                <i class="bi bi-lock-fill me-1"></i>No credit card required
+              </small>
+            </div>
           </div>
         </div>
       </form>
-     <!-- Quote Results -->
+           <!-- Quote Results -->
 <!-- Quote Results -->
 <div class="quote-display-wrapper mt-3">
   <div class="rounded-3 p-4 d-none border-0 shadow-lg quote-display-container"
@@ -261,67 +270,11 @@
         <div class="route-info text-muted mt-1 small fw-semibold"></div>
       </div>
 
-      <!-- Simple Benefits List -->
-      <div class="mb-4">
-        <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap">
-          <small class="d-flex align-items-center text-dark fw-semibold">
-            <i class="bi bi-clock-fill me-1"></i>Instant Booking
-          </small>
-          <small class="d-flex align-items-center text-dark fw-semibold">
-            <i class="bi bi-shield-check-fill me-1"></i>No Hidden Fees
-          </small>
-          <small class="d-flex align-items-center text-dark fw-semibold">
-            <i class="bi bi-star-fill me-1"></i>5-Star Service
-          </small>
-          <small class="d-flex align-items-center text-dark fw-semibold">
-            <i class="bi bi-credit-card-fill me-1"></i>Secure Payment
-          </small>
-        </div>
-      </div>
-
-      <!-- Social Proof -->
-      <div class="mb-4 p-3 rounded bg-light border">
-        <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
-          <div class="d-flex">
-            <i class="bi bi-star-fill text-warning"></i>
-            <i class="bi bi-star-fill text-warning"></i>
-            <i class="bi bi-star-fill text-warning"></i>
-            <i class="bi bi-star-fill text-warning"></i>
-            <i class="bi bi-star-fill text-warning"></i>
-          </div>
-          <small class="fw-semibold text-dark">5/5 from Hundreds of satisfied customers</small>
-        </div>
-        <small class="text-muted d-block">"Professional, on-time, clean vehicles, and great car seats for the kids!" - Cindy F.</small>
-      </div>
-
-      <!-- Pricing Details -->
-      <div class="mb-4 p-3 rounded bg-light border">
-        <small class="text-muted d-block mb-2 fw-semibold">What's Included:</small>
-        <div class="row g-2 text-start">
-          <div class="col-6">
-            <small class="d-flex align-items-center">
-              <i class="bi bi-check-circle-fill text-dark me-1"></i>
-              Meet & Greet Service
-            </small>
-          </div>
-          <div class="col-6">
-            <small class="d-flex align-items-center">
-              <i class="bi bi-check-circle-fill text-dark me-1"></i>
-              Professional Driver
-            </small>
-          </div>
-          <div class="col-6">
-            <small class="d-flex align-items-center">
-              <i class="bi bi-check-circle-fill text-dark me-1"></i>
-              Clean Vehicle
-            </small>
-          </div>
-          <div class="col-6">
-            <small class="d-flex align-items-center">
-              <i class="bi bi-check-circle-fill text-dark me-1"></i>
-              Child Safety Seats & Boosters
-            </small>
-          </div>
+      <!-- Security Badge for Quote -->
+      <div class="mb-3">
+        <div class="d-flex align-items-center justify-content-center gap-2">
+          <i class="bi bi-shield-check-fill text-success"></i>
+          <small class="text-muted">Secure booking process • SSL encrypted</small>
         </div>
       </div>
 
@@ -335,28 +288,48 @@
         </a>
       </div>
 
-      <!-- Trust Indicators -->
-      <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap mb-2">
-        <small class="text-muted d-flex align-items-center">
-          <i class="bi bi-lock-fill me-1"></i>SSL Secure
-        </small>
-        <small class="text-muted d-flex align-items-center">
-          <i class="bi bi-shield-check me-1"></i>Fully Insured
-        </small>
-        <small class="text-muted d-flex align-items-center">
-          <i class="bi bi-clock-history me-1"></i>24/7 Support
-        </small>
+      <!-- Google Reviews & Contact -->
+      <div class="row g-3">
+        <!-- Google Reviews Box -->
+        <div class="col-12 col-md-6">
+          <div class="p-3 rounded bg-light border text-center">
+            <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+              <div class="d-flex">
+                <i class="bi bi-star-fill text-warning"></i>
+                <i class="bi bi-star-fill text-warning"></i>
+                <i class="bi bi-star-fill text-warning"></i>
+                <i class="bi bi-star-fill text-warning"></i>
+                <i class="bi bi-star-fill text-warning"></i>
+              </div>
+              <small class="fw-semibold text-dark">5/5</small>
+            </div>
+            <small class="text-muted d-block mb-1">
+              <i class="bi bi-google me-1"></i>Google Reviews
+            </small>
+            <small class="text-muted d-block mb-2">Based on 106+ reviews</small>
+            <a href="https://share.google/ndwR6reRESueofjPD" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Check Reviews
+            </a>
+          </div>
+        </div>
+
+        <!-- Contact Options -->
+        <div class="col-12 col-md-6">
+          <div class="p-3 rounded bg-light border text-center">
+            <small class="fw-semibold text-dark d-block mb-2">Have a Question?</small>
+            <div class="d-flex flex-column gap-2">
+              <a href="tel:407-212-7190" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-telephone-fill me-1"></i>Call 407-212-7190
+              </a>
+              <a href="sms:407-212-7190" class="btn btn-sm btn-outline-dark">
+                <i class="bi bi-chat-dots-fill me-1"></i>Text Us
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <small class="text-muted d-block fst-italic mb-3">Rates include all fees except driver's gratuity, which can be given in cash or added to your booking upon request.</small>
 
-      <!-- Contact Information -->
-      <div class="border-top pt-3">
-        <small class="text-muted d-block mb-2">Questions? Call or text:</small>
-        <a href="tel:407-212-7190" class="text-dark fw-semibold text-decoration-none">
-          <i class="bi bi-telephone-fill me-1"></i>407-212-7190
-        </a>
-      </div>
     </div>
   </div>
 
@@ -394,10 +367,15 @@
         </div>
       </div>
 
-      <p class="mb-3 small text-muted">Need assistance? Call us for a quick quote:</p>
-      <a href="tel:407-212-7190" class="btn btn-outline-dark btn-lg fw-bold px-5">
-        <i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190
-      </a>
+      <p class="mb-3 small text-muted">Need assistance? Call or text us for a quick quote:</p>
+      <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
+        <a href="tel:407-212-7190" class="btn btn-outline-dark btn-lg fw-bold px-5">
+          <i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190
+        </a>
+        <a href="sms:407-212-7190" class="btn btn-outline-dark btn-lg fw-bold px-5">
+          <i class="bi bi-chat-dots-fill me-2"></i>Text Us
+        </a>
+      </div>
       
       <div class="mt-3">
         <small class="text-muted d-flex align-items-center justify-content-center">
@@ -412,4 +390,36 @@
     // Store rates data for this form instance
     window.quoteFormRates = window.quoteFormRates || {};
     window.quoteFormRates['{{ form_id }}'] = {{rates_json | safe}};
+    
+    // Function to scroll to quote results when they appear
+    function scrollToQuoteResults() {
+        const quoteDisplay = document.querySelector('.quote-display-container');
+        if (quoteDisplay && !quoteDisplay.classList.contains('d-none')) {
+            quoteDisplay.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        }
+    }
+    
+    // Listen for quote display changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                const target = mutation.target;
+                if (target.classList.contains('quote-display-container') && !target.classList.contains('d-none')) {
+                    // Small delay to ensure the content is rendered
+                    setTimeout(scrollToQuoteResults, 100);
+                }
+            }
+        });
+    });
+    
+    // Start observing the quote display container
+    document.addEventListener('DOMContentLoaded', function() {
+        const quoteDisplay = document.querySelector('.quote-display-container');
+        if (quoteDisplay) {
+            observer.observe(quoteDisplay, { attributes: true });
+        }
+    });
 </script>
