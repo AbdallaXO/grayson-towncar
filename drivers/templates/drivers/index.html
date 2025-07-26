@@ -78,6 +78,14 @@
             background-color: #198754;
         }
 
+        .status-confirmed {
+            background-color: #6f42c1;
+        }
+
+        .status-on-the-way {
+            background-color: #fd7e14;
+        }
+
         .trip-card-mobile {
             border-left: 5px solid var(--accent-color);
         }
@@ -274,9 +282,7 @@
                           <div class="d-flex justify-content-between align-items-center mb-2">
                             <div>
                               <span class="text-muted small fw-bold">My Notes:</span>
-                              <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7em;">
-                                <i class="bi bi-shield-lock"></i> For Dispatchers/Admin Only
-                              </span>
+                            
                             </div>
                             <button class="btn btn-sm btn-outline-primary edit-driver-notes"
                                     data-leg-id="{{ leg.id }}"
@@ -295,13 +301,25 @@
                       </td>
                       <td>
                         <div class="d-flex align-items-center mb-2">
-                          <span class="status-indicator {% if leg.status == 'in-progress' %}status-in-progress{% endif %} {% if leg.status == 'on-location' %}status-on-location{% endif %} {% if leg.status == 'picked-up' %}status-picked-up{% endif %} {% if leg.status == 'completed' %}status-completed{% endif %}"></span>
+                          <span class="status-indicator {% if leg.status == 'in-progress' %}status-in-progress{% endif %} {% if leg.status == 'confirmed' %}status-confirmed{% endif %} {% if leg.status == 'on-the-way' %}status-on-the-way{% endif %} {% if leg.status == 'on-location' %}status-on-location{% endif %} {% if leg.status == 'picked-up' %}status-picked-up{% endif %} {% if leg.status == 'completed' %}status-completed{% endif %}"></span>
                           <span class="text-capitalize">{{ leg.status }}</span>
                         </div>
+                        <!-- Accept Job Button - Only show for in-progress status -->
+                        {% if leg.status == "in-progress" %}
+                          <button class="btn btn-success btn-sm accept-job-btn mb-2" 
+                                  data-leg-id="{{ leg.id }}">
+                            <i class="bi bi-check-circle"></i> Accept Job
+                          </button>
+                        {% endif %}
+                        
                         <select id="statusSelect-{{ leg.id }}"
                                 class="form-select form-select-sm status-select">
                           <option value="in-progress"
                                   {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                          <option value="confirmed"
+                                  {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                          <option value="on-the-way"
+                                  {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
                           <option value="on-location"
                                   {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
                           <option value="picked-up"
@@ -328,7 +346,7 @@
                   <div>{{ leg.pickup_date|date:"l, F j" }}</div>
                 </div>
                 <div class="d-flex align-items-center">
-                  <span class="status-indicator {% if leg.status == 'in-progress' %}status-in-progress{% endif %} {% if leg.status == 'on-location' %}status-on-location{% endif %} {% if leg.status == 'picked-up' %}status-picked-up{% endif %} {% if leg.status == 'completed' %}status-completed{% endif %}"></span>
+                  <span class="status-indicator {% if leg.status == 'in-progress' %}status-in-progress{% endif %} {% if leg.status == 'confirmed' %}status-confirmed{% endif %} {% if leg.status == 'on-the-way' %}status-on-the-way{% endif %} {% if leg.status == 'on-location' %}status-on-location{% endif %} {% if leg.status == 'picked-up' %}status-picked-up{% endif %} {% if leg.status == 'completed' %}status-completed{% endif %}"></span>
                   <span class="text-capitalize">{{ leg.status }}</span>
                 </div>
               </div>
@@ -431,9 +449,7 @@
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <div>
                       <span class="text-muted small fw-bold">My Notes:</span>
-                      <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7em;">
-                        <i class="bi bi-shield-lock"></i> For Dispatchers/Admin Only
-                      </span>
+                    
                     </div>
                     <button class="btn btn-sm btn-outline-primary edit-driver-notes"
                             data-leg-id="{{ leg.id }}"
@@ -451,10 +467,22 @@
                 </div>
 
                 <div>
+                  <!-- Accept Job Button - Only show for in-progress status -->
+                  {% if leg.status == "in-progress" %}
+                    <button class="btn btn-success btn-sm accept-job-btn mb-2 w-100" 
+                            data-leg-id="{{ leg.id }}">
+                      <i class="bi bi-check-circle"></i> Accept Job
+                    </button>
+                  {% endif %}
+                  
                   <label class="fw-bold mb-1">Update Status:</label>
                   <select id="statusSelect-{{ leg.id }}" class="form-select status-select">
                     <option value="in-progress"
                             {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                    <option value="confirmed"
+                            {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                    <option value="on-the-way"
+                            {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
                     <option value="on-location"
                             {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
                     <option value="picked-up"
@@ -527,6 +555,64 @@
                         .then(res => res.json())
                         .then(data => window.location.reload())
                         .catch(() => window.location.reload());
+                });
+            });
+
+            // Accept Job functionality
+            document.querySelectorAll('.accept-job-btn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const legId = event.target.closest('.accept-job-btn').dataset.legId;
+                    
+                    // Show loading state
+                    const originalText = event.target.closest('.accept-job-btn').innerHTML;
+                    event.target.closest('.accept-job-btn').innerHTML = '<i class="bi bi-hourglass-split"></i> Accepting...';
+                    event.target.closest('.accept-job-btn').disabled = true;
+
+                    fetch(`${window.location.origin}/drivers/accept_job/${legId}/`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrfToken
+                            }
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Hide the accept button and update status dropdown
+                                const acceptButtons = document.querySelectorAll(`.accept-job-btn[data-leg-id="${legId}"]`);
+                                acceptButtons.forEach(btn => btn.style.display = 'none');
+                                
+                                // Update status dropdowns to show "confirmed"
+                                const statusSelects = document.querySelectorAll(`#statusSelect-${legId}`);
+                                statusSelects.forEach(select => {
+                                    select.value = 'confirmed';
+                                });
+                                
+                                // Update status indicators
+                                const statusIndicators = document.querySelectorAll(`[data-leg-id="${legId}"] .status-indicator`);
+                                statusIndicators.forEach(indicator => {
+                                    indicator.className = 'status-indicator status-confirmed';
+                                });
+                                
+                                // Update status text
+                                const statusTexts = document.querySelectorAll(`[data-leg-id="${legId}"] .text-capitalize`);
+                                statusTexts.forEach(text => {
+                                    text.textContent = 'confirmed';
+                                });
+                            } else {
+                                // Reset button state on error
+                                event.target.closest('.accept-job-btn').innerHTML = originalText;
+                                event.target.closest('.accept-job-btn').disabled = false;
+                                alert('Error accepting job: ' + (data.error || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error accepting job:', error);
+                            // Reset button state on error
+                            event.target.closest('.accept-job-btn').innerHTML = originalText;
+                            event.target.closest('.accept-job-btn').disabled = false;
+                            alert('Error accepting job. Please try again.');
+                        });
                 });
             });
 

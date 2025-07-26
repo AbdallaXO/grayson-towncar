@@ -9,6 +9,11 @@ urlpatterns = [
         views.update_leg_status,
         name="update_leg_status",
     ),
+    path(
+        "accept_job/<int:leg_id>/",
+        views.accept_job,
+        name="accept_job",
+    ),
     path("completed-trips/", views.completed_trips, name="completed_trips"),
     path("weekly-schedule/", views.schedule, name="schedule"),
     path(

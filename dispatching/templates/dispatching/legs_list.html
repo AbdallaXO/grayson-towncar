@@ -99,6 +99,12 @@
                       <option value="">All Statuses</option>
                       <option value="in-progress"
                               {% if status_filter == 'in-progress' %}selected{% endif %}>In Progress</option>
+                      <option value="confirmed"
+                              {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                      <option value="on-the-way"
+                              {% if status_filter == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                      <option value="on-location"
+                              {% if status_filter == 'on-location' %}selected{% endif %}>On Location</option>
                       <option value="picked-up"
                               {% if status_filter == 'picked-up' %}selected{% endif %}>Picked Up</option>
                       <option value="completed"
@@ -375,11 +381,15 @@
                             name="status"
                             data-leg-id="{{ leg.id }}">
                       <option value="in-progress"
-                              {% if leg.status == 'in-progress' %}selected{% endif %}>In-Progress</option>
+                              {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                      <option value="confirmed"
+                              {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                      <option value="on-the-way"
+                              {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
                       <option value="on-location"
                               {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
                       <option value="picked-up"
-                              {% if leg.status == 'picked-up' %}selected{% endif %}>Picked-Up</option>
+                              {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
                       <option value="completed"
                               {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                     </select>
@@ -540,11 +550,15 @@
                                 name="status"
                                 data-leg-id="{{ leg.id }}">
                           <option value="in-progress"
-                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In-Progress</option>
+                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                          <option value="confirmed"
+                                  {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                          <option value="on-the-way"
+                                  {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
                           <option value="on-location"
                                   {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
                           <option value="picked-up"
-                                  {% if leg.status == 'picked-up' %}selected{% endif %}>Picked-Up</option>
+                                  {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
                           <option value="completed"
                                   {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                         </select>

@@ -91,7 +91,7 @@ def schedule(request):
             driver=driver,
             pickup_date__gte=today,
             pickup_date__lte=next_week,
-            status__in=["picked-up", "in-progress", "on-location"],
+            status__in=["in-progress", "confirmed", "on-the-way", "picked-up", "on-location"],
         )
         .order_by("pickup_date", "pickup_time")
     )
@@ -120,7 +120,7 @@ def update_leg_status(request, leg_id):
         new_status = data.get("status")
 
         # Validate status
-        VALID_STATUSES = ["in-progress", "picked-up", "on-location", "completed"]
+        VALID_STATUSES = ["in-progress", "confirmed", "on-the-way", "picked-up", "on-location", "completed"]
         if new_status not in VALID_STATUSES:
             return JsonResponse(
                 {"success": False, "error": "Invalid status"}, status=400
@@ -140,6 +140,36 @@ def update_leg_status(request, leg_id):
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def accept_job(request, leg_id):
+    try:
+        # Ensure the leg belongs to the current driver
+        leg = get_object_or_404(Leg, id=leg_id, driver__profile=request.user)
+        
+        # Only allow accepting if status is in-progress
+        if leg.status != "in-progress":
+            return JsonResponse(
+                {"success": False, "error": "Can only accept jobs that are in-progress"}, 
+                status=400
+            )
+
+        # Update status to confirmed
+        leg.status = "confirmed"
+        leg.save(update_fields=["status"])
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Job accepted successfully",
+                "new_status": "confirmed",
+            }
+        )
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)

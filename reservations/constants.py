@@ -20,6 +20,8 @@ RESERVTION_STATUS = [
 
 DRIVER_STATUS = [
     ("in-progress", "In-Progress"),
+    ("confirmed", "Confirmed"),
+    ("on-the-way", "On the Way"),
     ("on-location", "On-Location"),
     ("picked-up", "Picked-Up"),
     ("completed", "Completed"),

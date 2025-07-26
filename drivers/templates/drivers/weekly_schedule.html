@@ -21,6 +21,22 @@
             display: inline-block;
             margin-right: 5px;
         }
+
+        .bg-purple {
+            background-color: #6f42c1 !important;
+        }
+
+        .bg-orange {
+            background-color: #fd7e14 !important;
+        }
+
+        .border-purple {
+            border-color: #6f42c1 !important;
+        }
+
+        .border-orange {
+            border-color: #fd7e14 !important;
+        }
     </style>
   </head>
 
@@ -72,7 +88,7 @@
                 </thead>
                 <tbody>
                   {% for leg in legs %}
-                    <tr>
+                    <tr data-leg-id="{{ leg.id }}">
                       <td class="align-middle">
                         <div class="fw-bold mb-1">Res ID: GT0{{ leg.id }}</div>
                         <div class="mb-1">{{ leg.reservation.customer.get_full_name }}</div>
@@ -126,12 +142,47 @@
                         <div class="mb-1">
                           <strong>Vehicle:</strong> {{ leg.reservation.vehicle }}
                         </div>
-                        <div class="mb-1">
-                          <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
+                        <div class="d-flex align-items-center">
+                          <div class="me-3">
+                            <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
+                          </div>
+                          <div>
+                            <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
+                          </div>
                         </div>
-                        <div class="mb-1">
-                          <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
-                        </div>
+                        
+                        <!-- Progression Buttons - Show based on current status -->
+                        {% if leg.status == "in-progress" %}
+                          <button class="btn btn-success btn-sm progression-btn mt-2" 
+                                  data-leg-id="{{ leg.id }}"
+                                  data-next-status="confirmed">
+                            <i class="bi bi-check-circle"></i> Confirm Job
+                          </button>
+                        {% elif leg.status == "confirmed" %}
+                          <button class="btn btn-dark btn-sm progression-btn mt-2" 
+                                  data-leg-id="{{ leg.id }}"
+                                  data-next-status="on-the-way">
+                            <i class="bi bi-arrow-right-circle"></i> On the Way
+                          </button>
+                        {% elif leg.status == "on-the-way" %}
+                          <button class="btn btn-warning btn-sm progression-btn mt-2" 
+                                  data-leg-id="{{ leg.id }}"
+                                  data-next-status="on-location">
+                            <i class="bi bi-geo-alt"></i> On Location
+                          </button>
+                        {% elif leg.status == "on-location" %}
+                          <button class="btn btn-primary btn-sm progression-btn mt-2" 
+                                  data-leg-id="{{ leg.id }}"
+                                  data-next-status="picked-up">
+                            <i class="bi bi-person-check"></i> Picked Up
+                          </button>
+                        {% elif leg.status == "picked-up" %}
+                          <button class="btn btn-success btn-sm progression-btn mt-2" 
+                                  data-leg-id="{{ leg.id }}"
+                                  data-next-status="completed">
+                            <i class="bi bi-flag-checkered"></i> Complete Trip
+                          </button>
+                        {% endif %}
                       </td>
                       <td class="align-middle">
                         {% if leg.reservation.special_requests %}
@@ -153,12 +204,17 @@
                       </td>
                       <td class="align-middle">
                         <div class="d-flex align-items-center mb-2">
-                          <span class="badge rounded-pill me-2 {% if leg.status == 'in-progress' %}bg-warning text-dark{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% else %}bg-dark {% endif %} ">{{ leg.get_status_display }}</span>
+                          <span class="badge rounded-pill me-2 {% if leg.status == 'in-progress' %}bg-warning text-dark{% elif leg.status == 'confirmed' %}bg-purple text-white{% elif leg.status == 'on-the-way' %}bg-orange text-white{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% else %}bg-dark {% endif %} ">{{ leg.get_status_display }}</span>
                         </div>
+                        
                         <select id="statusSelect-{{ leg.id }}"
                                 class="form-select form-select-sm status-select">
                           <option value="in-progress"
                                   {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                          <option value="confirmed"
+                                  {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                          <option value="on-the-way"
+                                  {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
                           <option value="on-location"
                                   {% if leg.status == "on-location" %}selected{% endif %}>On-Location</option>
                           <option value="picked-up"
@@ -220,7 +276,7 @@
           <!-- Mobile Card View -->
           <div class="d-md-none">
             {% for leg in legs %}
-              <div class="card mb-3 rounded-3 shadow-sm {% if leg.status == 'in-progress' %}border-start border-warning border-2{% elif leg.status == 'on-location' %}border-start border-info border-2{% elif leg.status == 'picked-up' %}border-start border-primary border-2{% endif %}">
+              <div class="card mb-3 rounded-3 shadow-sm {% if leg.status == 'in-progress' %}border-start border-warning border-2{% elif leg.status == 'confirmed' %}border-start border-purple border-2{% elif leg.status == 'on-the-way' %}border-start border-orange border-2{% elif leg.status == 'on-location' %}border-start border-info border-2{% elif leg.status == 'picked-up' %}border-start border-primary border-2{% elif leg.status == 'completed' %}border-start border-success border-2{% endif %}" data-leg-id="{{ leg.id }}">
                 <div class="card-header bg-dark text-white">
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -228,7 +284,7 @@
                       <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
                     </div>
                     <div class="d-flex align-items-center">
-                      <span class="status-indicator {% if leg.status == 'in-progress' %}bg-warning{% elif leg.status == 'on-location' %}bg-info{% elif leg.status == 'picked-up' %}bg-primary{% endif %}"></span>
+                      <span class="status-indicator {% if leg.status == 'in-progress' %}bg-warning{% elif leg.status == 'confirmed' %}bg-purple{% elif leg.status == 'on-the-way' %}bg-orange{% elif leg.status == 'on-location' %}bg-info{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% endif %}"></span>
                       <span class="text-capitalize">{{ leg.get_status_display }}</span>
                     </div>
                   </div>
@@ -286,15 +342,50 @@
                     <div class="mb-1">
                       <strong>Vehicle: {{ leg.reservation.vehicle }}</strong>
                     </div>
-                    <div class="mb-1">
-                      <strong>Passengers: {{ leg.reservation.passenger_count }}</strong>
-                    </div>
-                    <div class="mb-1">
-                      <strong>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</strong>
+                    <div class="d-flex align-items-center mb-1">
+                      <div class="me-3">
+                        <strong>Passengers: {{ leg.reservation.passenger_count }}</strong>
+                      </div>
+                      <div>
+                        <strong>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</strong>
+                      </div>
                     </div>
                     <div class="mb-1">
                       <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
                     </div>
+                    
+                    <!-- Progression Buttons - Show based on current status -->
+                    {% if leg.status == "in-progress" %}
+                      <button class="btn btn-success btn-sm progression-btn mt-2 w-100" 
+                              data-leg-id="{{ leg.id }}"
+                              data-next-status="confirmed">
+                        <i class="bi bi-check-circle"></i> Confirm Job
+                      </button>
+                    {% elif leg.status == "confirmed" %}
+                      <button class="btn btn-dark btn-sm progression-btn mt-2 w-100" 
+                              data-leg-id="{{ leg.id }}"
+                              data-next-status="on-the-way">
+                        <i class="bi bi-arrow-right-circle"></i> On the Way
+                      </button>
+                    {% elif leg.status == "on-the-way" %}
+                      <button class="btn btn-dark btn-sm progression-btn mt-2 w-100" 
+                              data-leg-id="{{ leg.id }}"
+                              data-next-status="on-location">
+                        <i class="bi bi-geo-alt"></i> On Location 📍
+                      </button>
+                    {% elif leg.status == "on-location" %}
+                      <button class="btn btn-warning btn-sm progression-btn mt-2 w-100" 
+                              data-leg-id="{{ leg.id }}"
+                              data-next-status="picked-up">
+                        <i class="bi bi-person-check"></i> Picked Up
+                      </button>
+                    {% elif leg.status == "picked-up" %}
+                      <button class="btn btn-success btn-sm progression-btn mt-2 w-100" 
+                              data-leg-id="{{ leg.id }}"
+                              data-next-status="completed">
+                        <i class="bi bi-flag-checkered"></i> Complete Trip
+                      </button>
+                    {% endif %}
                   </div>
 
                   {% if leg.reservation.special_requests %}
@@ -309,6 +400,7 @@
                   <div class="mb-3 pb-3 border-bottom">
                     <div class="mb-2">
                       <div class="text-muted small fw-bold">Private Notes:</div>
+                      <hr>
                       <div>{{ leg.reservation.private_notes|default:"" }}</div>
                     </div>
                     <div>
@@ -333,11 +425,11 @@
                     <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
                       {% if leg.driver_notes %}
                         <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-                      {% else %}
-                        <div class="text-muted small">No notes added yet</div>
+              
                       {% endif %}
                     </div>
                   </div>
+                  <hr>
 
                   <div>
                     <label class="form-label fw-bold">Update Status:</label>
@@ -345,6 +437,10 @@
                             class="form-select status-select">
                       <option value="in-progress"
                               {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                      <option value="confirmed"
+                              {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                      <option value="on-the-way"
+                              {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
                       <option value="on-location"
                               {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
                       <option value="picked-up"
@@ -413,6 +509,8 @@
         </div>
       </div>
 
+
+
       <!-- Bootstrap JS -->
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
       <script>
@@ -439,6 +537,50 @@
                           .then(res => res.json())
                           .then(data => window.location.reload())
                           .catch(() => window.location.reload());
+                  });
+              });
+
+              // Progression button functionality
+              document.querySelectorAll('.progression-btn').forEach(button => {
+                  button.addEventListener('click', (event) => {
+                      const buttonElement = event.currentTarget;
+                      const legId = buttonElement.dataset.legId;
+                      const nextStatus = buttonElement.dataset.nextStatus;
+                      
+                      // Show loading state
+                      const originalText = buttonElement.innerHTML;
+                      buttonElement.innerHTML = '<i class="bi bi-hourglass-split"></i> Updating...';
+                      buttonElement.disabled = true;
+
+                      fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
+                              method: 'POST',
+                              headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-CSRFToken': csrfToken
+                              },
+                              body: JSON.stringify({
+                                  status: nextStatus
+                              })
+                          })
+                          .then(res => res.json())
+                          .then(data => {
+                              if (data.success) {
+                                  // Refresh the page to show updated status
+                                  window.location.reload();
+                              } else {
+                                  // Reset button state on error
+                                  buttonElement.innerHTML = originalText;
+                                  buttonElement.disabled = false;
+                                  alert('Error updating status: ' + (data.error || 'Unknown error'));
+                              }
+                          })
+                          .catch(error => {
+                              console.error('Error updating status:', error);
+                              // Reset button state on error
+                              buttonElement.innerHTML = originalText;
+                              buttonElement.disabled = false;
+                              alert('Error updating status. Please try again.');
+                          });
                   });
               });
 

@@ -567,6 +567,8 @@ def update_leg_assignment(request):
                 # Update the LEG status, not the reservation status
                 valid_statuses = [
                     "in-progress",
+                    "confirmed",
+                    "on-the-way",
                     "on-location",
                     "picked-up",
                     "completed",

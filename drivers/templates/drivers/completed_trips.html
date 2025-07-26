@@ -107,6 +107,14 @@
             background-color: #198754;
         }
 
+        .status-confirmed {
+            background-color: #6f42c1;
+        }
+
+        .status-on-the-way {
+            background-color: #fd7e14;
+        }
+
         .card-border-in-progress {
             border-left: 5px solid #ffc107 !important;
         }
@@ -249,6 +257,10 @@
                                 disabled>
                           <option value="in-progress"
                                   {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                          <option value="confirmed"
+                                  {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                          <option value="on-the-way"
+                                  {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
                           <option value="on-location"
                                   {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
                           <option value="picked-up"
@@ -369,6 +381,10 @@
                           disabled>
                     <option value="in-progress"
                             {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                    <option value="confirmed"
+                            {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                    <option value="on-the-way"
+                            {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
                     <option value="on-location"
                             {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
                     <option value="picked-up"

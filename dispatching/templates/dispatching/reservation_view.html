@@ -337,14 +337,18 @@
                         <select class="form-select status-select"
                                 name="status"
                                 data-leg-id="{{ leg.id }}">
-                          <option value="in-progress"
-                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In-Progress</option>
-                          <option value="on-location"
-                                  {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
-                          <option value="picked-up"
-                                  {% if leg.status == 'picked-up' %}selected{% endif %}>Picked-Up</option>
-                          <option value="completed"
-                                  {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                                                <option value="in-progress"
+                              {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                      <option value="confirmed"
+                              {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                      <option value="on-the-way"
+                              {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                      <option value="on-location"
+                              {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
+                      <option value="picked-up"
+                              {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                      <option value="completed"
+                              {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                         </select>
                       </div>
                     </div>

@@ -67,6 +67,12 @@
                   <option value="">All Statuses</option>
                   <option value="in-progress"
                           {% if status_filter == 'in-progress' %}selected{% endif %}>In Progress</option>
+                  <option value="confirmed"
+                          {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                  <option value="on-the-way"
+                          {% if status_filter == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                  <option value="on-location"
+                          {% if status_filter == 'on-location' %}selected{% endif %}>On Location</option>
                   <option value="picked-up"
                           {% if status_filter == 'picked-up' %}selected{% endif %}>Picked Up</option>
                   <option value="completed"
