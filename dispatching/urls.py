@@ -40,4 +40,46 @@ urlpatterns = [
         views.update_reservation_status,
         name="update_reservation_status",
     ),
+    # Dispatcher Booking System URLs
+    path(
+        "booking/start/",
+        views.dispatcher_booking_start,
+        name="dispatcher_booking_start",
+    ),
+    path(
+        "booking/customer/",
+        views.dispatcher_booking_customer,
+        name="dispatcher_booking_customer",
+    ),
+    path(
+        "booking/reservation/",
+        views.dispatcher_booking_reservation,
+        name="dispatcher_booking_reservation",
+    ),
+    path(
+        "booking/legs/",
+        views.dispatcher_booking_legs,
+        name="dispatcher_booking_legs",
+    ),
+    path(
+        "booking/pricing/",
+        views.dispatcher_booking_pricing,
+        name="dispatcher_booking_pricing",
+    ),
+    path(
+        "booking/review/",
+        views.dispatcher_booking_review,
+        name="dispatcher_booking_review",
+    ),
+    path(
+        "booking/cancel/",
+        views.dispatcher_booking_cancel,
+        name="dispatcher_booking_cancel",
+    ),
+    # Customer Search API
+    path(
+        "api/customer-search/",
+        views.customer_search_api,
+        name="customer_search_api",
+    ),
 ]

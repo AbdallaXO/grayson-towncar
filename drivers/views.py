@@ -130,6 +130,13 @@ def update_leg_status(request, leg_id):
         leg.status = new_status
         leg.save(update_fields=["status"])
 
+        # Check if reservation should be auto-completed
+        if new_status == "completed":
+            reservation_updated = leg.reservation.check_and_update_completion_status()
+            if reservation_updated:
+                # Log for debugging
+                print(f"Auto-completed reservation {leg.reservation.id} - all legs completed")
+
         return JsonResponse(
             {
                 "success": True,

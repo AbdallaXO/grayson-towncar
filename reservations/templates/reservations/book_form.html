@@ -276,12 +276,18 @@
                       <span>Number of Luggage Items</span>
                       <i class="bi bi-question-circle ms-2 info-tooltip"
                          data-bs-toggle="tooltip"
-                         title="Count standard check-in size suitcases. Carry-ons and small personal items don't need to be counted"></i>
+                         title="Count all hard-shell luggage, strollers, and large items. Single stroller = 1 suitcase, double stroller = 2 suitcases"></i>
                     </label>
                     {{ reservation_form.luggage_count }}
                     <div class="form-text">
-                      <i class="bi bi-bag-check me-1"></i> Standard check-in sized bags
+                      <i class="bi bi-bag-check me-1"></i> Include hard-shell luggage, strollers, and large items
                     </div>
+                                         <div class="mt-2">
+                       <small class="text-muted">
+                         <strong>What counts:</strong> Hard-shell luggage (including carry-ons), strollers, large items<br>
+                         <strong>What doesn't:</strong> Soft carry-ons, small personal items
+                       </small>
+                     </div>
                     {% if reservation_form.luggage_count.errors %}
                       <div class="invalid-feedback d-block">
                         {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}

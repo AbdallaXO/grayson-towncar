@@ -22,13 +22,23 @@ from django.db.models import OuterRef, Subquery
 
 # App imports
 
-from reservations.models import Reservation, Leg, Customer
+from reservations.models import Reservation, Leg, Customer, Flight
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from drivers.models import Driver
 from payment.utils import get_or_create_stripe_customer
 from payment.models import Payment
-from rates.models import Vehicle
+from rates.models import Vehicle, Rate
 from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics
+from .forms import (
+    DispatcherCustomerForm,
+    DispatcherReservationForm,
+    DispatcherLegForm,
+    DispatcherFlightForm,
+    DispatcherLegFormSet,
+    DispatcherFlightFormSet,
+    DispatcherPricingForm,
+    TripTypeForm,
+)
 
 # Configure logging and Stripe
 logger = logging.getLogger(__name__)
@@ -73,6 +83,8 @@ def index(request):
             "reservation",
             "reservation__customer",
             "reservation__vehicle",
+            "reservation__travel_agent",
+            "reservation__travel_agent__user",
             "driver",
         )
         .prefetch_related(
@@ -110,7 +122,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
     def get_queryset(self):
         queryset = (
-            Reservation.objects.select_related("customer", "vehicle", "rate")
+            Reservation.objects.select_related("customer", "vehicle", "rate", "travel_agent", "travel_agent__user")
             .prefetch_related("legs", "payments")
             .order_by("-created_at")
         )
@@ -577,6 +589,12 @@ def update_leg_assignment(request):
                     leg.status = value
                     leg.save()
                     logger.info(f"Updated leg {leg_id} status to {value}")
+                    
+                    # Check if reservation should be auto-completed
+                    if value == "completed":
+                        reservation_updated = leg.reservation.check_and_update_completion_status()
+                        if reservation_updated:
+                            logger.info(f"Auto-completed reservation {leg.reservation.id} - all legs completed")
                 else:
                     logger.warning(f"Invalid status value: {value}")
                     return JsonResponse(
@@ -1272,3 +1290,489 @@ def update_leg_info(request):
     except Exception as e:
         logger.error(f"Error updating leg info: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+# ============================================================================
+# DISPATCHER BOOKING SYSTEM - Multi-Step Flow
+# ============================================================================
+
+@login_required(login_url="login")
+def dispatcher_booking_start(request):
+    """
+    Step 1: Trip type selection for dispatcher booking
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    if request.method == "POST":
+        form = TripTypeForm(request.POST)
+        if form.is_valid():
+            trip_type = form.cleaned_data['trip_type']
+            num_legs = form.cleaned_data.get('num_legs', 1)
+            
+            # Store in session for next steps
+            request.session['dispatcher_booking'] = {
+                'trip_type': trip_type,
+                'num_legs': num_legs if trip_type == 'multi_leg' else (2 if trip_type == 'round_trip' else 1),
+                'step': 1
+            }
+            
+            return redirect('dispatcher_booking_customer')
+    else:
+        form = TripTypeForm()
+    
+    context = {
+        'form': form,
+        'step': 1,
+        'step_title': 'Select Trip Type',
+        'step_description': 'Choose the type of trip for this reservation'
+    }
+    
+    return render(request, 'dispatching/booking/step_trip_type.html', context)
+
+
+@login_required(login_url="login")
+def dispatcher_booking_customer(request):
+    """
+    Step 2: Customer information collection
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    # Check if we have booking session
+    booking_data = request.session.get('dispatcher_booking')
+    if not booking_data:
+        messages.error(request, "Please start the booking process from the beginning.")
+        return redirect('dispatcher_booking_start')
+    
+    if request.method == "POST":
+        form = DispatcherCustomerForm(request.POST)
+        if form.is_valid():
+            customer = form.save()
+            
+            # Update session with customer ID
+            booking_data['customer_id'] = customer.id
+            booking_data['step'] = 2
+            request.session['dispatcher_booking'] = booking_data
+            
+            messages.success(request, f"Customer {customer.get_full_name()} saved successfully.")
+            return redirect('dispatcher_booking_reservation')
+    else:
+        form = DispatcherCustomerForm()
+    
+    context = {
+        'form': form,
+        'step': 2,
+        'step_title': 'Customer Information',
+        'step_description': 'Enter customer contact details',
+        'booking_data': booking_data
+    }
+    
+    return render(request, 'dispatching/booking/step_customer.html', context)
+
+
+@login_required(login_url="login")
+def dispatcher_booking_reservation(request):
+    """
+    Step 3: Reservation details (pricing, vehicle, passengers, etc.)
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    booking_data = request.session.get('dispatcher_booking')
+    if not booking_data or not booking_data.get('customer_id'):
+        messages.error(request, "Please complete the customer information step first.")
+        return redirect('dispatcher_booking_customer')
+    
+    customer = get_object_or_404(Customer, id=booking_data['customer_id'])
+    
+    if request.method == "POST":
+        form = DispatcherReservationForm(request.POST)
+        if form.is_valid():
+            # Save reservation details to session (don't create reservation yet)
+            reservation_data = {}
+            for field in form.cleaned_data:
+                value = form.cleaned_data[field]
+                if hasattr(value, 'id'):  # Handle model instances
+                    reservation_data[field] = value.id
+                else:
+                    reservation_data[field] = str(value) if value is not None else None
+            
+            booking_data['reservation_data'] = reservation_data
+            booking_data['step'] = 3
+            request.session['dispatcher_booking'] = booking_data
+            
+            return redirect('dispatcher_booking_legs')
+    else:
+        form = DispatcherReservationForm()
+    
+    context = {
+        'form': form,
+        'customer': customer,
+        'step': 3,
+        'step_title': 'Reservation Details',
+        'step_description': 'Set pricing, vehicle type, and passenger details',
+        'booking_data': booking_data
+    }
+    
+    return render(request, 'dispatching/booking/step_reservation.html', context)
+
+
+@login_required(login_url="login")
+def dispatcher_booking_legs(request):
+    """
+    Step 4: Trip legs and flight information
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    booking_data = request.session.get('dispatcher_booking')
+    if not booking_data or not booking_data.get('reservation_data'):
+        messages.error(request, "Please complete the reservation details step first.")
+        return redirect('dispatcher_booking_reservation')
+    
+    customer = get_object_or_404(Customer, id=booking_data['customer_id'])
+    num_legs = booking_data.get('num_legs', 1)
+    
+    if request.method == "POST":
+        leg_formset = DispatcherLegFormSet(request.POST, prefix='legs')
+        flight_formset = DispatcherFlightFormSet(request.POST, prefix='flights')
+        
+        if leg_formset.is_valid() and flight_formset.is_valid():
+            # Save legs and flights data to session
+            legs_data = []
+            flights_data = []
+            
+            for form in leg_formset:
+                if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                    leg_data = {}
+                    for field, value in form.cleaned_data.items():
+                        if field != 'DELETE':
+                            leg_data[field] = str(value) if value is not None else None
+                    legs_data.append(leg_data)
+            
+            for form in flight_formset:
+                if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                    flight_data = {}
+                    for field, value in form.cleaned_data.items():
+                        if field != 'DELETE':
+                            flight_data[field] = str(value) if value is not None else None
+                    flights_data.append(flight_data)
+            
+            booking_data['legs_data'] = legs_data
+            booking_data['flights_data'] = flights_data
+            booking_data['step'] = 4
+            request.session['dispatcher_booking'] = booking_data
+            
+            return redirect('dispatcher_booking_pricing')
+    else:
+        # Initialize formsets with the right number of forms
+        leg_formset = DispatcherLegFormSet(prefix='legs', initial=[{} for _ in range(num_legs)])
+        flight_formset = DispatcherFlightFormSet(prefix='flights', initial=[{} for _ in range(num_legs)])
+    
+    context = {
+        'leg_formset': leg_formset,
+        'flight_formset': flight_formset,
+        'customer': customer,
+        'num_legs': num_legs,
+        'step': 4,
+        'step_title': 'Trip Details',
+        'step_description': f'Enter details for {num_legs} trip leg(s)',
+        'booking_data': booking_data
+    }
+    
+    return render(request, 'dispatching/booking/step_legs.html', context)
+
+
+@login_required(login_url="login")
+def dispatcher_booking_pricing(request):
+    """
+    Step 5: Pricing and final details
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    booking_data = request.session.get('dispatcher_booking')
+    if not booking_data or not booking_data.get('legs_data'):
+        messages.error(request, "Please complete all previous steps first.")
+        return redirect('dispatcher_booking_legs')
+    
+    customer = get_object_or_404(Customer, id=booking_data['customer_id'])
+    
+    if request.method == "POST":
+        form = DispatcherPricingForm(request.POST)
+        
+        if form.is_valid():
+            # Save pricing data to session
+            pricing_data = {
+                'manual_base_price': str(form.cleaned_data['manual_base_price']),
+                'additional_charges': str(form.cleaned_data.get('additional_charges', Decimal('0.00'))),
+                'total_price': str(form.cleaned_data['total_price']),
+                'private_notes': form.cleaned_data.get('private_notes', ''),
+            }
+            
+            booking_data['pricing_data'] = pricing_data
+            booking_data['step'] = 5
+            request.session['dispatcher_booking'] = booking_data
+            
+            return redirect('dispatcher_booking_review')
+    else:
+        # Pre-populate with any existing pricing data
+        initial_data = booking_data.get('pricing_data', {})
+        form = DispatcherPricingForm(initial=initial_data)
+    
+    # Get reservation data for context
+    reservation_data = booking_data.get('reservation_data', {})
+    vehicle = None
+    if reservation_data.get('manual_vehicle'):
+        vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
+    
+    context = {
+        'form': form,
+        'customer': customer,
+        'vehicle': vehicle,
+        'legs_data': booking_data.get('legs_data', []),
+        'flights_data': booking_data.get('flights_data', []),
+        'step': 5,
+        'step_title': 'Pricing & Notes',
+        'step_description': 'Set pricing and add any final notes',
+        'booking_data': booking_data
+    }
+    
+    return render(request, 'dispatching/booking/step_pricing.html', context)
+
+
+@login_required(login_url="login")
+def dispatcher_booking_review(request):
+    """
+    Step 6: Review and confirm reservation
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    booking_data = request.session.get('dispatcher_booking')
+    if not booking_data or not booking_data.get('pricing_data'):
+        messages.error(request, "Please complete all previous steps first.")
+        return redirect('dispatcher_booking_pricing')
+    
+    customer = get_object_or_404(Customer, id=booking_data['customer_id'])
+    
+    # Reconstruct data for review
+    reservation_data = booking_data.get('reservation_data', {})
+    pricing_data = booking_data.get('pricing_data', {})
+    legs_data = booking_data.get('legs_data', [])
+    flights_data = booking_data.get('flights_data', [])
+    
+    # Combine legs and flights data for easier template access
+    combined_legs = []
+    for i, leg_data in enumerate(legs_data):
+        combined_leg = leg_data.copy()
+        
+        # Convert string dates back to date/time objects for template filters
+        if combined_leg.get('pickup_date'):
+            try:
+                from datetime import datetime
+                combined_leg['pickup_date'] = datetime.strptime(combined_leg['pickup_date'], '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                pass
+                
+        if combined_leg.get('pickup_time'):
+            try:
+                from datetime import datetime
+                # Handle both HH:MM:SS and HH:MM formats
+                try:
+                    combined_leg['pickup_time'] = datetime.strptime(combined_leg['pickup_time'], '%H:%M:%S').time()
+                except ValueError:
+                    combined_leg['pickup_time'] = datetime.strptime(combined_leg['pickup_time'], '%H:%M').time()
+            except (ValueError, TypeError):
+                pass
+        
+        if i < len(flights_data) and flights_data[i]:
+            combined_leg['flight_info'] = flights_data[i]
+        else:
+            combined_leg['flight_info'] = None
+        combined_legs.append(combined_leg)
+    
+    # Get vehicle for display
+    vehicle = None
+    if reservation_data.get('manual_vehicle'):
+        vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
+    
+    if request.method == "POST":
+        if 'confirm' in request.POST:
+            try:
+                # Create the actual reservation and legs
+                reservation = create_dispatcher_reservation(booking_data)
+                
+                # Clear session data
+                del request.session['dispatcher_booking']
+                
+                messages.success(
+                    request, 
+                    f"Reservation #{reservation.id} created successfully for {customer.get_full_name()}!"
+                )
+                return redirect('reservation_details', id=reservation.uuid)
+                
+            except Exception as e:
+                logger.error(f"Error creating dispatcher reservation: {str(e)}")
+                messages.error(request, f"Error creating reservation: {str(e)}")
+        
+        elif 'back' in request.POST:
+            return redirect('dispatcher_booking_pricing')
+    
+    context = {
+        'customer': customer,
+        'reservation_data': reservation_data,
+        'pricing_data': pricing_data,
+        'legs_data': combined_legs,  # Use combined legs data
+        'flights_data': flights_data,
+        'vehicle': vehicle,
+        'step': 6,
+        'step_title': 'Review & Confirm',
+        'step_description': 'Review all details and create the reservation',
+        'booking_data': booking_data
+    }
+    
+    return render(request, 'dispatching/booking/step_review.html', context)
+
+
+def create_dispatcher_reservation(booking_data):
+    """
+    Helper function to create reservation from session data
+    """
+    customer = Customer.objects.get(id=booking_data['customer_id'])
+    reservation_data = booking_data['reservation_data']
+    pricing_data = booking_data['pricing_data']
+    legs_data = booking_data['legs_data']
+    flights_data = booking_data['flights_data']
+    
+    # Get vehicle
+    vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
+    
+    # Try to find an existing rate for this vehicle (for system compatibility)
+    rate = Rate.objects.filter(vehicle=vehicle).first()
+    
+    # Create reservation
+    reservation = Reservation.objects.create(
+        customer=customer,
+        vehicle=vehicle,
+        rate=rate,  # May be None, which is OK for dispatcher bookings
+        trip_type=booking_data['trip_type'],
+        passenger_count=int(reservation_data.get('passenger_count', 1)),
+        luggage_count=int(reservation_data.get('luggage_count', 1)),
+        store_stop=reservation_data.get('store_stop') == 'True',
+        special_requests=reservation_data.get('special_requests', ''),
+        need_carseats=reservation_data.get('need_carseats') == 'True',
+        rf_carseats=int(reservation_data.get('rf_carseats', 0)),
+        ff_carseats=int(reservation_data.get('ff_carseats', 0)),
+        booster_seats=int(reservation_data.get('booster_seats', 0)),
+        base_price=Decimal(pricing_data.get('manual_base_price', '0')),
+        additional_charges=Decimal(pricing_data.get('additional_charges', '0')),
+        total_price=Decimal(pricing_data.get('total_price', '0')),
+        private_notes=pricing_data.get('private_notes', ''),
+        status='confirmed'  # Dispatcher bookings are confirmed by default
+    )
+    
+    # Create legs
+    for i, leg_data in enumerate(legs_data):
+        # Create flight if provided
+        flight = None
+        if i < len(flights_data) and flights_data[i]:
+            flight_info = flights_data[i]
+            if flight_info.get('airline') or flight_info.get('flight_number'):
+                flight = Flight.objects.create(
+                    airline=flight_info.get('airline', ''),
+                    flight_number=flight_info.get('flight_number', ''),
+                    flight_type=flight_info.get('flight_type', '')
+                )
+        
+        # Create leg
+        from datetime import datetime, time
+        pickup_date = datetime.strptime(leg_data['pickup_date'], '%Y-%m-%d').date() if leg_data.get('pickup_date') else None
+        pickup_time_str = leg_data.get('pickup_time')
+        pickup_time = None
+        if pickup_time_str:
+            try:
+                pickup_time = datetime.strptime(pickup_time_str, '%H:%M:%S').time()
+            except ValueError:
+                try:
+                    pickup_time = datetime.strptime(pickup_time_str, '%H:%M').time()
+                except ValueError:
+                    pickup_time = None
+        
+        leg = Leg.objects.create(
+            reservation=reservation,
+            flight_information=flight,
+            pickup_date=pickup_date,
+            pickup_time=pickup_time,
+            pickup_location=leg_data.get('pickup_location', ''),
+            dropoff_location=leg_data.get('dropoff_location', ''),
+            private_notes=leg_data.get('private_notes', ''),
+            driver_pay_amount=Decimal(leg_data.get('driver_pay_amount', '0')) if leg_data.get('driver_pay_amount') else None
+        )
+    
+    return reservation
+
+
+@login_required(login_url="login")
+def dispatcher_booking_cancel(request):
+    """
+    Cancel dispatcher booking and clear session
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    if 'dispatcher_booking' in request.session:
+        del request.session['dispatcher_booking']
+    
+    messages.info(request, "Booking process cancelled.")
+    return redirect('dashboard')
+
+
+@login_required
+def customer_search_api(request):
+    """
+    AJAX endpoint to search for existing customers
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    
+    query = request.GET.get('q', '').strip()
+    
+    if not query or len(query) < 2:
+        return JsonResponse({"success": False, "error": "Query too short"})
+    
+    # Clean query for phone number search (remove common formatting)
+    phone_query = ''.join(filter(str.isdigit, query))
+    
+    # Search customers by multiple fields
+    search_conditions = Q(first_name__icontains=query) | Q(last_name__icontains=query) | Q(email__icontains=query)
+    
+    # Add phone number search with different formats
+    if phone_query:
+        search_conditions |= (
+            Q(phone_number__icontains=query) |  # Original query
+            Q(phone_number__icontains=phone_query)  # Digits only
+        )
+    
+    customers = Customer.objects.filter(search_conditions).order_by('-created_at')[:10]  # Limit to 10 results
+    
+    results = []
+    for customer in customers:
+        results.append({
+            'id': customer.id,
+            'first_name': customer.first_name,
+            'last_name': customer.last_name,
+            'email': customer.email,
+            'phone_number': customer.phone_number,
+            'zipcode': customer.zipcode,
+            'full_name': customer.get_full_name(),
+            'reservation_count': customer.reservation_count,
+            'is_returning': customer.is_returning,
+        })
+    
+    return JsonResponse({
+        "success": True,
+        "customers": results,
+        "count": len(results)
+    })

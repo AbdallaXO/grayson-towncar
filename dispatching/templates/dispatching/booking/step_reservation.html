@@ -1,0 +1,224 @@
+{% extends "dispatching/booking/base_booking.html" %}
+
+{% block step_content %}
+  <form method="post" class="needs-validation" novalidate>
+    {% csrf_token %}
+
+    <!-- Passenger Details Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-users me-2"></i>
+          Passenger Details
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="{{ form.passenger_count.id_for_label }}"
+                     class="form-label fw-bold">
+                {{ form.passenger_count.label }} <span class="text-danger">*</span>
+              </label>
+              {{ form.passenger_count }}
+              {% if form.passenger_count.errors %}<div class="invalid-feedback">{{ form.passenger_count.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="{{ form.luggage_count.id_for_label }}"
+                     class="form-label fw-bold">{{ form.luggage_count.label }}</label>
+              {{ form.luggage_count }}
+              {% if form.luggage_count.errors %}<div class="invalid-feedback">{{ form.luggage_count.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Car Seats Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-baby me-2"></i>
+          Car Seats
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="form-check">
+            {{ form.need_carseats }}
+            <label class="form-check-label fw-bold"
+                   for="{{ form.need_carseats.id_for_label }}">{{ form.need_carseats.label }}</label>
+          </div>
+          {% if form.need_carseats.errors %}
+            <div class="invalid-feedback d-block">{{ form.need_carseats.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div id="carseat-details" style="display: none;">
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Dispatcher Note:</strong> You can add as many car seats as needed for any vehicle type.
+          </div>
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="{{ form.rf_carseats.id_for_label }}" class="form-label">{{ form.rf_carseats.label }}</label>
+                {{ form.rf_carseats }}
+                <div class="form-text">No limit for dispatchers</div>
+                {% if form.rf_carseats.errors %}<div class="invalid-feedback">{{ form.rf_carseats.errors.0 }}</div>{% endif %}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="{{ form.ff_carseats.id_for_label }}" class="form-label">{{ form.ff_carseats.label }}</label>
+                {{ form.ff_carseats }}
+                <div class="form-text">No limit for dispatchers</div>
+                {% if form.ff_carseats.errors %}<div class="invalid-feedback">{{ form.ff_carseats.errors.0 }}</div>{% endif %}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="{{ form.booster_seats.id_for_label }}" class="form-label">{{ form.booster_seats.label }}</label>
+                {{ form.booster_seats }}
+                <div class="form-text">No limit for dispatchers</div>
+                {% if form.booster_seats.errors %}<div class="invalid-feedback">{{ form.booster_seats.errors.0 }}</div>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vehicle Selection Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-car me-2"></i>
+          Vehicle Selection
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-8">
+            <div class="mb-3">
+              <label for="{{ form.manual_vehicle.id_for_label }}"
+                     class="form-label fw-bold">
+                {{ form.manual_vehicle.label }} <span class="text-danger">*</span>
+              </label>
+              {{ form.manual_vehicle }}
+              <div class="form-text">{{ form.manual_vehicle.help_text }}</div>
+              {% if form.manual_vehicle.errors %}<div class="invalid-feedback">{{ form.manual_vehicle.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="alert alert-dark h-100 d-flex align-items-center">
+              <div>
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Note:</strong> Pricing will be set in the next step after adding trip details.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Additional Options Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-plus-circle me-2"></i>
+          Additional Options
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="form-check">
+            {{ form.store_stop }}
+            <label class="form-check-label" for="{{ form.store_stop.id_for_label }}">{{ form.store_stop.label }}</label>
+          </div>
+          {% if form.store_stop.errors %}<div class="invalid-feedback d-block">{{ form.store_stop.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label for="{{ form.special_requests.id_for_label }}"
+                 class="form-label fw-bold">{{ form.special_requests.label }}</label>
+          {{ form.special_requests }}
+          <div class="form-text">{{ form.special_requests.help_text }}</div>
+          {% if form.special_requests.errors %}
+            <div class="invalid-feedback">{{ form.special_requests.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+      <a href="{% url 'dispatcher_booking_customer' %}"
+         class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i>
+        Back
+      </a>
+      <button type="submit" class="btn btn-primary">
+        Next: Trip Details
+        <i class="fas fa-arrow-right ms-2"></i>
+      </button>
+    </div>
+  </form>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const needCarseatsCheckbox = document.getElementById('{{ form.need_carseats.id_for_label }}');
+          const carseatDetails = document.getElementById('carseat-details');
+
+          // Toggle car seat details
+          function toggleCarseatDetails() {
+              if (needCarseatsCheckbox.checked) {
+                  carseatDetails.style.display = 'block';
+              } else {
+                  carseatDetails.style.display = 'none';
+                  // Reset car seat values
+                  document.getElementById('{{ form.rf_carseats.id_for_label }}').value = '0';
+                  document.getElementById('{{ form.ff_carseats.id_for_label }}').value = '0';
+                  document.getElementById('{{ form.booster_seats.id_for_label }}').value = '0';
+              }
+          }
+
+          // Event listeners
+          needCarseatsCheckbox.addEventListener('change', toggleCarseatDetails);
+
+          // Initialize
+          toggleCarseatDetails();
+
+          // Form validation
+          const form = document.querySelector('form');
+          form.addEventListener('submit', function(e) {
+              const requiredFields = form.querySelectorAll('input[required], select[required]');
+              let isValid = true;
+
+              requiredFields.forEach(field => {
+                  if (!field.value.trim()) {
+                      field.classList.add('is-invalid');
+                      isValid = false;
+                  } else {
+                      field.classList.remove('is-invalid');
+                  }
+              });
+
+              if (!isValid) {
+                  e.preventDefault();
+                  // Scroll to first invalid field
+                  const firstInvalid = form.querySelector('.is-invalid');
+                  if (firstInvalid) {
+                      firstInvalid.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'center'
+                      });
+                  }
+              }
+          });
+      });
+  </script>
+{% endblock %}

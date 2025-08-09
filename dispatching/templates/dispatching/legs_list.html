@@ -260,6 +260,13 @@
                   <div class="text-muted small">
                     <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
                   </div>
+                  {% if leg.reservation.travel_agent %}
+                    <div class="mt-1">
+                      <span class="badge bg-info text-white small">
+                        <i class="bi bi-briefcase me-1"></i>{{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                      </span>
+                    </div>
+                  {% endif %}
                 </td>
 
                 <!-- Trip Details -->
@@ -420,6 +427,13 @@
                   <div class="text-muted small">
                     <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
                   </div>
+                  {% if leg.reservation.travel_agent %}
+                    <div class="mt-1">
+                      <span class="badge bg-info text-white small">
+                        <i class="bi bi-briefcase me-1"></i>{{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                      </span>
+                    </div>
+                  {% endif %}
                 </div>
 
                 <div class="card-body p-2">

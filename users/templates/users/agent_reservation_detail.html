@@ -16,7 +16,7 @@
 
     <!-- Status and Commission -->
     <div class="row mb-4">
-      <div class="col-md-3">
+      <div class="col-md-2">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Status</h6>
@@ -24,7 +24,7 @@
           </div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Trip Type</h6>
@@ -32,11 +32,30 @@
           </div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center">
             <h6 class="text-muted mb-2">Total Price</h6>
             <h4 class="mb-0">${{ reservation.total_price|floatformat:2 }}</h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <h6 class="text-muted mb-2">Payment Status</h6>
+            <span class="badge {% if reservation.payment_status == 'paid' %}bg-success{% elif reservation.payment_status == 'pending' %}bg-warning{% elif reservation.get_payment_status == 'card_saved' %}bg-dark{% else %}bg-danger{% endif %} mb-2">
+              {{ reservation.payment_status|title }}
+            </span>
+            {% if reservation.payment_status == 'unpaid' %}
+              <div class="mt-2">
+                <a href="{% url 'create_checkout_session' reservation_id=reservation.uuid %}"
+                   class="btn btn-primary btn-sm"
+                   target="_blank">
+                  <i class="fas fa-credit-card me-1"></i>Pay or Save a Card on File
+                </a>
+              </div>
+            {% endif %}
           </div>
         </div>
       </div>

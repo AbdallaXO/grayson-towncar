@@ -1,0 +1,305 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}Dispatcher Booking - Step {{ step }} - Grayson Towncar{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <style>
+      .booking-header {
+          background: #2c3e50;
+          color: white;
+          padding: 2rem 0;
+          margin-bottom: 2rem;
+      }
+
+      .step-indicator {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 2rem;
+      }
+
+      .step {
+          display: flex;
+          align-items: center;
+          margin: 0 1rem;
+      }
+
+      .step-number {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          margin-right: 0.5rem;
+      }
+
+      .step.active .step-number {
+          background-color: #28a745;
+          color: white;
+      }
+
+      .step.completed .step-number {
+          background-color: #6c757d;
+          color: white;
+      }
+
+      .step.inactive .step-number {
+          background-color: #e9ecef;
+          color: #6c757d;
+      }
+
+      .step-connector {
+          width: 50px;
+          height: 2px;
+          background-color: #e9ecef;
+          margin: 0 0.5rem;
+      }
+
+      .step.completed+.step .step-connector {
+          background-color: #6c757d;
+      }
+
+      .booking-card {
+          background: white;
+          border-radius: 10px;
+          box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+          padding: 2rem;
+          margin-bottom: 2rem;
+      }
+
+      .form-control-lg {
+          padding: 0.75rem 1rem;
+          font-size: 1.1rem;
+      }
+
+      .btn-primary {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border: none;
+          padding: 0.75rem 2rem;
+          font-size: 1.1rem;
+          border-radius: 25px;
+      }
+
+      .btn-secondary {
+          padding: 0.75rem 2rem;
+          font-size: 1.1rem;
+          border-radius: 25px;
+      }
+
+      .alert {
+          border-radius: 10px;
+          margin-bottom: 1.5rem;
+      }
+
+      .booking-summary {
+          background-color: #f8f9fa;
+          border-radius: 10px;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+      }
+
+      .progress-bar {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="booking-header">
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h1 class="mb-0">
+            <i class="fas fa-calendar-plus me-2"></i>
+            Dispatcher Booking System
+          </h1>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+      <div class="step {% if step == 1 %}active{% elif step > 1 %}completed{% else %}inactive{% endif %}">
+        <div class="step-number">1</div>
+        <span>Trip Type</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step {% if step == 2 %}active{% elif step > 2 %}completed{% else %}inactive{% endif %}">
+        <div class="step-number">2</div>
+        <span>Customer</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step {% if step == 3 %}active{% elif step > 3 %}completed{% else %}inactive{% endif %}">
+        <div class="step-number">3</div>
+        <span>Details</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step {% if step == 4 %}active{% elif step > 4 %}completed{% else %}inactive{% endif %}">
+        <div class="step-number">4</div>
+        <span>Trips</span>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step {% if step == 5 %}active{% elif step > 5 %}completed{% else %}inactive{% endif %}">
+        <div class="step-number">5</div>
+        <span>Review</span>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress mb-4" style="height: 8px;">
+      {% if step == 1 %}
+        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+      {% elif step == 2 %}
+        <div class="progress-bar" role="progressbar" style="width: 25%"></div>
+      {% elif step == 3 %}
+        <div class="progress-bar" role="progressbar" style="width: 50%"></div>
+      {% elif step == 4 %}
+        <div class="progress-bar" role="progressbar" style="width: 60%"></div>
+      {% elif step == 5 %}
+        <div class="progress-bar" role="progressbar" style="width: 80%"></div>
+      {% else %}
+        <div class="progress-bar" role="progressbar" style="width: 100%"></div>
+      {% endif %}
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show"
+             role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <!-- Step Content -->
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="booking-card">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h2 class="mb-1">{{ step_title }}</h2>
+              <p class="text-muted mb-0">{{ step_description }}</p>
+            </div>
+            {% if step > 1 %}
+              <a href="{% url 'dispatcher_booking_cancel' %}"
+                 class="btn btn-outline-danger btn-sm">
+                <i class="fas fa-times me-1"></i>
+                Cancel Booking
+              </a>
+            {% endif %}
+          </div>
+
+          {% block step_content %}<!-- Step-specific content goes here -->{% endblock %}
+        </div>
+      </div>
+
+      <!-- Booking Summary Sidebar -->
+      {% if booking_data %}
+        <div class="col-lg-4">
+          <div class="booking-summary">
+            <h5 class="mb-3">
+              <i class="fas fa-clipboard-list me-2"></i>
+              Booking Summary
+            </h5>
+
+            {% if booking_data.trip_type %}
+              <div class="mb-2">
+                <strong>Trip Type:</strong>
+                {% if booking_data.trip_type == 'one_way' %}
+                  One Way
+                {% elif booking_data.trip_type == 'round_trip' %}
+                  Round Trip
+                {% else %}
+                  Multiple Legs
+                {% endif %}
+              </div>
+            {% endif %}
+
+            {% if booking_data.num_legs %}
+              <div class="mb-2">
+                <strong>Number of Legs:</strong> {{ booking_data.num_legs }}
+              </div>
+            {% endif %}
+
+            {% if customer %}
+              <div class="mb-2">
+                <strong>Customer:</strong> {{ customer.get_full_name }}
+              </div>
+              <div class="mb-2">
+                <strong>Phone:</strong> {{ customer.phone_number }}
+              </div>
+              <div class="mb-2">
+                <strong>Email:</strong> {{ customer.email }}
+              </div>
+            {% endif %}
+
+            {% if reservation_data %}
+              <hr>
+              <div class="mb-2">
+                <strong>Vehicle:</strong> {{ vehicle.vehicle_type|title }}
+              </div>
+              <div class="mb-2">
+                <strong>Passengers:</strong> {{ reservation_data.passenger_count }}
+              </div>
+              <div class="mb-3">
+                <strong>Base Price:</strong> ${{ pricing_data.manual_base_price }}
+                {% if reservation_data.additional_charges != '0' %}
+                  <div class="mb-2">
+                    <strong>Additional:</strong> ${{ pricing_data.additional_charges }}
+                  </div>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% block extra_js %}
+      <script>
+          // Auto-hide alerts after 5 seconds
+          setTimeout(function() {
+              $('.alert').fadeOut();
+          }, 5000);
+
+          // Form validation enhancement
+          $(document).ready(function() {
+              // Add Bootstrap validation classes
+              $('form').on('submit', function(e) {
+                  var isValid = true;
+                  $(this).find('input[required], select[required], textarea[required]').each(function() {
+                      if (!$(this).val()) {
+                          $(this).addClass('is-invalid');
+                          isValid = false;
+                      } else {
+                          $(this).removeClass('is-invalid').addClass('is-valid');
+                      }
+                  });
+
+                  if (!isValid) {
+                      e.preventDefault();
+                      $('html, body').animate({
+                          scrollTop: $('.is-invalid').first().offset().top - 100
+                      }, 500);
+                  }
+              });
+
+              // Remove validation classes on input
+              $('input, select, textarea').on('input change', function() {
+                  $(this).removeClass('is-invalid is-valid');
+              });
+          });
+      </script>
+    {% endblock %}
+  {% endblock %}
+  {% block footer %}
+  {% endblock footer %}
+  {% block newsletter %}
+  {% endblock newsletter %}

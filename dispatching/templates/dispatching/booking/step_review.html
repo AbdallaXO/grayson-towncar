@@ -1,0 +1,245 @@
+{% extends "dispatching/booking/base_booking.html" %}
+
+{% block step_content %}
+  <div class="alert alert-success">
+    <i class="fas fa-check-circle me-2"></i>
+    <strong>Almost Done!</strong> Please review all the details below and confirm to create the reservation.
+  </div>
+
+  <!-- Customer Information -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="fas fa-user me-2"></i>
+        Customer Information
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <p>
+            <strong>Name:</strong> {{ customer.get_full_name }}
+          </p>
+          <p>
+            <strong>Email:</strong> {{ customer.email }}
+          </p>
+        </div>
+        <div class="col-md-6">
+          <p>
+            <strong>Phone:</strong> {{ customer.phone_number }}
+          </p>
+          <p>
+            <strong>Zip Code:</strong> {{ customer.zipcode|default:"Not provided" }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reservation Details -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="fas fa-car me-2"></i>
+        Reservation Details
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <p>
+            <strong>Vehicle Type:</strong> {{ vehicle.vehicle_type|title }}
+          </p>
+          <p>
+            <strong>Passengers:</strong> {{ reservation_data.passenger_count }}
+          </p>
+          <p>
+            <strong>Luggage:</strong> {{ reservation_data.luggage_count }}
+          </p>
+          <p>
+            <strong>Car Seats:</strong>
+            {% if reservation_data.need_carseats == 'True' %}
+              {% with rf=reservation_data.rf_carseats|default:'0' ff=reservation_data.ff_carseats|default:'0' booster=reservation_data.booster_seats|default:'0' %}
+                {% if rf != '0' or ff != '0' or booster != '0' %}
+                  <br>
+                  {% if rf != '0' %}<span class="badge bg-info me-1">{{ rf }} Rear-Facing</span>{% endif %}
+                  {% if ff != '0' %}<span class="badge bg-info me-1">{{ ff }} Forward-Facing</span>{% endif %}
+                  {% if booster != '0' %}<span class="badge bg-info me-1">{{ booster }} Booster{{ booster|pluralize }}</span>{% endif %}
+                {% else %}
+                  <span class="text-muted">None</span>
+                {% endif %}
+              {% endwith %}
+            {% else %}
+              <span class="text-muted">None</span>
+            {% endif %}
+          </p>
+        </div>
+        <div class="col-md-6">
+          <p>
+            <strong>Base Price:</strong> ${{ pricing_data.manual_base_price }}
+          </p>
+          {% if pricing_data.additional_charges != '0' %}
+            <p>
+              <strong>Additional Charges:</strong> ${{ pricing_data.additional_charges }}
+            </p>
+          {% endif %}
+          <p class="fs-5">
+            <strong>Total Price:</strong>
+            <span class="text-success fw-bold">${{ pricing_data.total_price }}</span>
+          </p>
+          {% if reservation_data.store_stop == 'True' %}
+            <p>
+              <strong>Grocery Stop:</strong> <span class="badge bg-info">Yes</span>
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if reservation_data.special_requests %}
+        <hr>
+        <p>
+          <strong>Special Requests:</strong>
+        </p>
+        <div class="bg-light p-3 rounded">{{ reservation_data.special_requests|linebreaks }}</div>
+      {% endif %}
+
+      {% if pricing_data.private_notes %}
+        <hr>
+        <p>
+          <strong>Private Notes:</strong>
+        </p>
+        <div class="bg-warning bg-opacity-10 p-3 rounded border-start border-warning border-4">
+          {{ pricing_data.private_notes|linebreaks }}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Trip Legs -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="fas fa-route me-2"></i>
+        Trip Details ({{ legs_data|length }} leg{{ legs_data|length|pluralize }})
+      </h5>
+    </div>
+    <div class="card-body">
+      {% for leg_data in legs_data %}
+        <div class="{% if not forloop.last %}border-bottom pb-3 mb-3{% endif %}">
+
+
+          <div class="row">
+            <div class="col-md-6">
+              <p>
+                <strong>Date:</strong> {{ leg_data.pickup_date|date:"l F d, Y" }}
+              </p>
+              <p>
+                <strong>Time:</strong> {{ leg_data.pickup_time|time:"g:i A" }}
+              </p>
+              <p>
+                <strong>Pickup:</strong> {{ leg_data.pickup_location }}
+              </p>
+              <p>
+                <strong>Drop-off:</strong> {{ leg_data.dropoff_location }}
+              </p>
+            </div>
+            <div class="col-md-6">
+              {% if leg_data.flight_info and leg_data.flight_info.airline %}
+                <p>
+                  <strong>Flight Info:</strong>
+                </p>
+                <div class="bg-light p-2 rounded">
+                  <small>
+                    <i class="fas fa-plane me-1"></i>
+                    {{ leg_data.flight_info.airline }} {{ leg_data.flight_info.flight_number }}
+                    {% if leg_data.flight_info.flight_type %}
+                      <br>
+                      <span class="text-muted">{{ leg_data.flight_info.flight_type|title }}</span>
+                    {% endif %}
+                  </small>
+                </div>
+              {% endif %}
+
+              {% if leg_data.driver_pay_amount and leg_data.driver_pay_amount != '0' %}
+                <p>
+                  <strong>Driver Pay:</strong> ${{ leg_data.driver_pay_amount }}
+                </p>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if leg_data.private_notes %}
+            <p>
+              <strong>Trip Notes:</strong>
+            </p>
+            <div class="bg-light p-2 rounded small">{{ leg_data.private_notes|linebreaks }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Confirmation Form -->
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="alert alert-warning">
+      <i class="fas fa-exclamation-triangle me-2"></i>
+      <strong>Important:</strong> Once confirmed, this reservation will be created in the system and the customer will be notified. Please ensure all details are correct.
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+      <button type="submit" name="back" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i>
+        Back to Pricing
+      </button>
+      <button type="submit" name="confirm" class="btn btn-success btn-lg">
+        <i class="fas fa-check me-2"></i>
+        Create Reservation
+      </button>
+    </div>
+  </form>
+
+  <!-- Quick Actions -->
+  <div class="card mt-4 bg-light">
+    <div class="card-body">
+      <h6 class="card-title">
+        <i class="fas fa-lightning-bolt me-2"></i>
+        Quick Actions After Creation
+      </h6>
+      <p class="card-text small text-muted">After creating the reservation, you'll be able to:</p>
+      <ul class="small text-muted">
+        <li>Assign drivers to specific legs</li>
+        <li>Process payment or save customer's card</li>
+        <li>Send confirmation email to customer</li>
+        <li>Update trip details if needed</li>
+        <li>Add private dispatcher notes</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          // Confirm before creating reservation
+          const confirmBtn = document.querySelector('button[name="confirm"]');
+          confirmBtn.addEventListener('click', function(e) {
+              const customerName = '{{ customer.get_full_name }}';
+              const basePrice = parseFloat('{{ reservation_data.manual_base_price }}') || 0;
+              const additionalCharges = parseFloat('{{ reservation_data.additional_charges }}') || 0;
+              const totalPrice = '$' + (basePrice + additionalCharges).toFixed(2);
+
+              const confirmed = confirm(
+                  `Are you sure you want to create this reservation?\n\n` +
+                  `Customer: ${customerName}\n` +
+                  `Total Price: ${totalPrice}\n` +
+                  `Legs: {{ legs_data|length }}\n\n` +
+                  `This action cannot be undone.`
+              );
+
+              if (!confirmed) {
+                  e.preventDefault();
+              }
+          });
+      });
+  </script>
+{% endblock step_content %}

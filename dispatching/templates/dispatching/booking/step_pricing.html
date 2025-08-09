@@ -1,0 +1,199 @@
+{% extends "dispatching/booking/base_booking.html" %}
+
+{% block step_content %}
+  <form method="post" class="needs-validation" novalidate>
+    {% csrf_token %}
+
+    <!-- Summary Section -->
+    <div class="card mb-4 bg-light">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Reservation Summary
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <p>
+              <strong>Customer:</strong> {{ customer.get_full_name }}
+            </p>
+            <p>
+              <strong>Vehicle:</strong> {{ vehicle.get_vehicle_type_display|default:"Not selected" }}
+            </p>
+            <p>
+              <strong>Passengers:</strong> {{ booking_data.reservation_data.passenger_count|default:"1" }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p>
+              <strong>Trip Legs:</strong> {{ legs_data|length }}
+            </p>
+            {% if booking_data.reservation_data.need_carseats == 'True' %}
+              <p>
+                <strong>Car Seats:</strong>
+                RF: {{ booking_data.reservation_data.rf_carseats|default:"0" }},
+                FF: {{ booking_data.reservation_data.ff_carseats|default:"0" }},
+                Booster: {{ booking_data.reservation_data.booster_seats|default:"0" }}
+              </p>
+            {% endif %}
+            {% if booking_data.reservation_data.store_stop == 'True' %}
+              <p>
+                <strong>Store Stop:</strong> Yes
+              </p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pricing Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-dollar-sign me-2"></i>
+          Pricing & Charges
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="{{ form.manual_base_price.id_for_label }}"
+                     class="form-label fw-bold">
+                {{ form.manual_base_price.label }} <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.manual_base_price }}
+              </div>
+              <div class="form-text">{{ form.manual_base_price.help_text }}</div>
+              {% if form.manual_base_price.errors %}
+                <div class="invalid-feedback">{{ form.manual_base_price.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="{{ form.additional_charges.id_for_label }}"
+                     class="form-label fw-bold">{{ form.additional_charges.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.additional_charges }}
+              </div>
+              <div class="form-text">{{ form.additional_charges.help_text }}</div>
+              {% if form.additional_charges.errors %}
+                <div class="invalid-feedback">{{ form.additional_charges.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Total Price</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                <input type="text"
+                       class="form-control form-control-lg"
+                       id="total-price"
+                       readonly>
+              </div>
+              <div class="form-text">Automatically calculated</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-info h-100 d-flex align-items-center">
+              <div>
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Dispatcher Privilege:</strong> You can set any price regardless of standard rates.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-sticky-note me-2"></i>
+          Private Notes
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="{{ form.private_notes.id_for_label }}"
+                 class="form-label fw-bold">{{ form.private_notes.label }}</label>
+          {{ form.private_notes }}
+          <div class="form-text">{{ form.private_notes.help_text }}</div>
+          {% if form.private_notes.errors %}<div class="invalid-feedback">{{ form.private_notes.errors.0 }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+      <a href="{% url 'dispatcher_booking_legs' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left me-2"></i>
+        Back to Trip Details
+      </a>
+      <button type="submit" class="btn btn-primary">
+        Next: Review & Confirm
+        <i class="fas fa-arrow-right ms-2"></i>
+      </button>
+    </div>
+  </form>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const basePriceInput = document.getElementById('{{ form.manual_base_price.id_for_label }}');
+          const additionalChargesInput = document.getElementById('{{ form.additional_charges.id_for_label }}');
+          const totalPriceInput = document.getElementById('total-price');
+
+          // Calculate total price
+          function updateTotalPrice() {
+              const basePrice = parseFloat(basePriceInput.value) || 0;
+              const additionalCharges = parseFloat(additionalChargesInput.value) || 0;
+              const total = basePrice + additionalCharges;
+              totalPriceInput.value = total.toFixed(2);
+          }
+
+          // Event listeners
+          basePriceInput.addEventListener('input', updateTotalPrice);
+          additionalChargesInput.addEventListener('input', updateTotalPrice);
+
+          // Initialize
+          updateTotalPrice();
+
+          // Form validation
+          const form = document.querySelector('form');
+          form.addEventListener('submit', function(e) {
+              const requiredFields = form.querySelectorAll('input[required], select[required]');
+              let isValid = true;
+
+              requiredFields.forEach(field => {
+                  if (!field.value.trim()) {
+                      field.classList.add('is-invalid');
+                      isValid = false;
+                  } else {
+                      field.classList.remove('is-invalid');
+                  }
+              });
+
+              if (!isValid) {
+                  e.preventDefault();
+                  // Scroll to first invalid field
+                  const firstInvalid = form.querySelector('.is-invalid');
+                  if (firstInvalid) {
+                      firstInvalid.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'center'
+                      });
+                  }
+              }
+          });
+      });
+  </script>
+{% endblock %}

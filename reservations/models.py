@@ -313,6 +313,35 @@ class Reservation(models.Model):
         else:
             return {"status": "unknown", "type": None, "display": "Unknown"}
 
+    def check_and_update_completion_status(self):
+        """
+        Check if all legs in this reservation are completed and update 
+        reservation status to 'completed' if so.
+        
+        Returns:
+            bool: True if reservation was updated to completed, False otherwise
+        """
+        # Skip if already completed or cancelled
+        if self.status in ['completed', 'cancelled']:
+            return False
+            
+        # Get all legs for this reservation
+        legs = self.legs.all()
+        
+        # If no legs exist, don't auto-complete
+        if not legs.exists():
+            return False
+            
+        # Check if all legs are completed
+        all_completed = all(leg.status == 'completed' for leg in legs)
+        
+        if all_completed:
+            self.status = 'completed'
+            self.save(update_fields=['status'])
+            return True
+            
+        return False
+
     def __str__(self):
         """
         Returns a simple string representation, showing the reservation's ID

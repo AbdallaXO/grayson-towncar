@@ -28,14 +28,21 @@
     <!-- Header Section with Stats -->
     <div class="row mb-4">
       <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h1 class="fs-1 fw-bold mb-0">All Reservations</h1>
+          <a href="{% url 'dispatcher_booking_start' %}"
+             class="btn btn-success btn-lg">
+            <i class="fas fa-plus me-2"></i>Create New Reservation
+          </a>
+        </div>
         <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
-          <h1 class="mb-0 fs-1 fw-bold">Reservations</h1>
+          <div></div>
           <div class="d-flex gap-2">
             <a href="{% url 'dashboard' %}" class="btn btn-dark"><i class="bi bi-calendar-date me-2"></i>Dashboard</a>
             <a href="{% url 'legs_list' %}" class="btn btn-warning"><i class="bi bi-list-ul me-2"></i>View Legs</a>
           </div>
         </div>
-        
+
         <!-- Compact Stats Bar -->
         <div class="d-flex gap-3 mb-4">
           <div class="d-flex align-items-center bg-light rounded px-3 py-2">
@@ -107,20 +114,28 @@
                 <label class="form-label small">Status</label>
                 <select name="status" class="form-select" id="statusFilter">
                   <option value="">All Statuses</option>
-                  <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
-                  <option value="confirmed" {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                  <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
-                  <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                  <option value="pending"
+                          {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                  <option value="confirmed"
+                          {% if status_filter == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                  <option value="completed"
+                          {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                  <option value="cancelled"
+                          {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
                 </select>
               </div>
 
               <!-- Filter Actions -->
               <div class="col-lg-2">
                 <div class="d-flex gap-2">
-                  <button type="button" class="btn btn-outline-secondary btn-sm" id="clearFilters">
+                  <button type="button"
+                          class="btn btn-outline-secondary btn-sm"
+                          id="clearFilters">
                     <i class="bi bi-x-circle me-1"></i>Clear
                   </button>
-                  <button type="button" class="btn btn-outline-primary btn-sm" id="resetFilters">
+                  <button type="button"
+                          class="btn btn-outline-primary btn-sm"
+                          id="resetFilters">
                     <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
                   </button>
                 </div>
