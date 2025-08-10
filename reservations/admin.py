@@ -5,14 +5,18 @@ from django.contrib import admin
 from django import forms
 from django.utils.html import format_html
 from django.utils import timezone
-from django.db.models import Min, Count, Q
+from django.db.models import Min, Count, Q, Max
 from django.urls import reverse
 from django.contrib.admin import SimpleListFilter
+from django.contrib.admin.actions import delete_selected
+from django.contrib import messages
+from django.http import HttpResponseRedirect
+from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-
 from .models import Customer, Reservation, Leg, Flight, Lead, Quote
+from django.db import models
 
 
 # ─── Import / Export resources ──────────────────────────────────────────
@@ -170,7 +174,8 @@ class FirstPickupDateFilter(SimpleListFilter):
             ("next3", "Next 3 days"),
             ("next7", "Next 7 days"),
             ("next30", "Next 30 days"),
-            ("past", "Past pickups"),
+            ("next90", "Next 90 days"),
+            ("next120", "Next 120 days"),
             ("no_pickup", "No pickup date"),
         )
 
@@ -192,8 +197,14 @@ class FirstPickupDateFilter(SimpleListFilter):
             return qs.filter(
                 earliest_leg_date__range=(today, today + timedelta(days=30))
             )
-        if self.value() == "past":
-            return qs.filter(earliest_leg_date__lt=today)
+        if self.value() == "next90":
+            return qs.filter(
+                earliest_leg_date__range=(today, today + timedelta(days=90))
+            )
+        if self.value() == "next120":
+            return qs.filter(
+                earliest_leg_date__range=(today, today + timedelta(days=120))
+            )
         if self.value() == "no_pickup":
             return qs.filter(earliest_leg_date__isnull=True)
         return qs
@@ -238,23 +249,305 @@ class CommissionStatusFilter(SimpleListFilter):
         return qs
 
 
-class MultipleQuotesFilter(SimpleListFilter):
-    title = "quote requests"
-    parameter_name = "quote_requests"
+
+# ─── Custom Filters ─────────────────────────────────────────────────────
+class LeadTripDateFilter(SimpleListFilter):
+    title = "trip date range"
+    parameter_name = "trip_date_range"
 
     def lookups(self, request, model_admin):
         return (
-            ("single", "Single Quote"),
-            ("multiple", "Multiple Quotes"),
+            ("today", "🚨 Today"),
+            ("tomorrow", "⚡ Tomorrow"),
+            ("next_3_days", "⚡ Next 3 Days"),
+            ("next_7_days", "🔔 Next 7 Days"),
+            ("next_14_days", "📅 Next 14 Days"),
+            ("next_30_days", "📅 Next 30 Days"),
+            ("next_60_days", "📅 Next 60 Days"),
+            ("next_90_days", "📅 Next 90 Days"),
+            ("next_120_days", "📅 Next 120 Days"),
+            ("this_week", "📅 This Week"),
+            ("next_week", "📅 Next Week"),
+            ("this_month", "📅 This Month"),
+            ("next_month", "📅 Next Month"),
+            ("no_date", "❓ No Date Set"),
         )
 
-    def queryset(self, request, queryset):
-        if self.value() == "single":
-            return queryset.annotate(quote_count=Count("quotes")).filter(quote_count=1)
-        elif self.value() == "multiple":
-            return queryset.annotate(quote_count=Count("quotes")).filter(
-                quote_count__gt=1
+    def queryset(self, request, qs):
+        today = timezone.now().date()
+        
+        if self.value() == "today":
+            return qs.filter(pickup_date=today)
+        
+        elif self.value() == "tomorrow":
+            tomorrow = today + timedelta(days=1)
+            return qs.filter(pickup_date=tomorrow)
+        
+        elif self.value() == "next_3_days":
+            end_date = today + timedelta(days=3)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
             )
+        
+        elif self.value() == "next_7_days":
+            end_date = today + timedelta(days=7)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
+            )
+        
+        elif self.value() == "next_14_days":
+            end_date = today + timedelta(days=14)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
+            )
+        
+        elif self.value() == "next_30_days":
+            end_date = today + timedelta(days=30)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
+            )
+        
+        elif self.value() == "next_60_days":
+            end_date = today + timedelta(days=60)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
+            )
+        
+        elif self.value() == "next_90_days":
+            end_date = today + timedelta(days=90)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
+            )
+        
+        elif self.value() == "next_120_days":
+            end_date = today + timedelta(days=120)
+            return qs.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=end_date
+            )
+        
+        elif self.value() == "this_week":
+            # Get start and end of current week (Monday to Sunday)
+            days_since_monday = today.weekday()
+            start_of_week = today - timedelta(days=days_since_monday)
+            end_of_week = start_of_week + timedelta(days=6)
+            return qs.filter(
+                pickup_date__gte=start_of_week,
+                pickup_date__lte=end_of_week
+            )
+        
+        elif self.value() == "next_week":
+            # Get start and end of next week (Monday to Sunday)
+            days_since_monday = today.weekday()
+            start_of_week = today - timedelta(days=days_since_monday)
+            start_of_next_week = start_of_week + timedelta(days=7)
+            end_of_next_week = start_of_next_week + timedelta(days=6)
+            return qs.filter(
+                pickup_date__gte=start_of_next_week,
+                pickup_date__lte=end_of_next_week
+            )
+        
+        elif self.value() == "this_month":
+            # Get start and end of current month
+            start_of_month = today.replace(day=1)
+            if today.month == 12:
+                end_of_month = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_of_month = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
+            return qs.filter(
+                pickup_date__gte=start_of_month,
+                pickup_date__lte=end_of_month
+            )
+        
+        elif self.value() == "next_month":
+            # Get start and end of next month
+            if today.month == 12:
+                start_of_next_month = today.replace(year=today.year + 1, month=1, day=1)
+            else:
+                start_of_next_month = today.replace(month=today.month + 1, day=1)
+            
+            if start_of_next_month.month == 12:
+                end_of_next_month = start_of_next_month.replace(year=start_of_next_month.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_of_next_month = start_of_next_month.replace(month=start_of_next_month.month + 1, day=1) - timedelta(days=1)
+            
+            return qs.filter(
+                pickup_date__gte=start_of_next_month,
+                pickup_date__lte=end_of_next_month
+            )
+        
+        elif self.value() == "no_date":
+            return qs.filter(pickup_date__isnull=True)
+        
+        return qs
+
+
+class LeadFollowUpFilter(SimpleListFilter):
+    title = "follow-up status"
+    parameter_name = "follow_up_status"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("overdue", "🚨 Overdue Follow-up"),
+            ("due_today", "⚡ Due Today"),
+            ("due_tomorrow", "🔔 Due Tomorrow"),
+            ("due_this_week", "📅 Due This Week"),
+            ("due_next_week", "📅 Due Next Week"),
+            ("no_follow_up", "❓ No Follow-up Scheduled"),
+            ("completed", "✅ Follow-up Completed"),
+        )
+
+    def queryset(self, request, qs):
+        today = timezone.now().date()
+        
+        if self.value() == "overdue":
+            return qs.filter(
+                next_follow_up__lt=today
+            ).exclude(status__in=["converted", "lost"])
+        
+        elif self.value() == "due_today":
+            return qs.filter(
+                next_follow_up__date=today
+            )
+        
+        elif self.value() == "due_tomorrow":
+            tomorrow = today + timedelta(days=1)
+            return qs.filter(
+                next_follow_up__date=tomorrow
+            )
+        
+        elif self.value() == "due_this_week":
+            end_of_week = today + timedelta(days=6)
+            return qs.filter(
+                next_follow_up__date__gte=today,
+                next_follow_up__date__lte=end_of_week
+            )
+        
+        elif self.value() == "due_next_week":
+            start_of_next_week = today + timedelta(days=7)
+            end_of_next_week = today + timedelta(days=13)
+            return qs.filter(
+                next_follow_up__date__gte=start_of_next_week,
+                next_follow_up__date__lte=end_of_next_week
+            )
+        
+        elif self.value() == "no_follow_up":
+            return qs.filter(next_follow_up__isnull=True)
+        
+        elif self.value() == "completed":
+            return qs.filter(
+                next_follow_up__isnull=False,
+                last_contact_date__gte=models.F('next_follow_up')
+            )
+        
+        return qs
+
+class LeadSourceFilter(SimpleListFilter):
+    title = "lead source"
+    parameter_name = "lead_source"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("website", "🌐 Website"),
+            ("phone", "📞 Phone"),
+            ("email", "📧 Email"),
+            ("referral", "👥 Referral"),
+            ("social_media", "📱 Social Media"),
+            ("google_ads", "🔍 Google Ads"),
+            ("facebook_ads", "📘 Facebook Ads"),
+            ("other", "❓ Other"),
+            ("unknown", "❓ Unknown"),
+        )
+
+    def queryset(self, request, qs):
+        if self.value() == "website":
+            return qs.filter(
+                Q(source="website") | Q(source__icontains="web")
+            )
+        elif self.value() == "phone":
+            return qs.filter(
+                Q(source="phone") | Q(source__icontains="call")
+            )
+        elif self.value() == "email":
+            return qs.filter(
+                Q(source="email") | Q(source__icontains="mail")
+            )
+        elif self.value() == "referral":
+            return qs.filter(
+                Q(source="referral") | Q(source__icontains="refer")
+            )
+        elif self.value() == "social_media":
+            return qs.filter(
+                Q(source__icontains="social") | 
+                Q(source__icontains="facebook") | 
+                Q(source__icontains="instagram") |
+                Q(source__icontains="twitter")
+            )
+        elif self.value() == "google_ads":
+            return qs.filter(
+                Q(source__icontains="google") | Q(source__icontains="ads")
+            )
+        elif self.value() == "facebook_ads":
+            return qs.filter(
+                Q(source__icontains="facebook") | Q(source__icontains="fb")
+            )
+        elif self.value() == "other":
+            return qs.filter(
+                source__isnull=False
+            ).exclude(
+                Q(source__icontains="website") |
+                Q(source__icontains="phone") |
+                Q(source__icontains="email") |
+                Q(source__icontains="referral") |
+                Q(source__icontains="social") |
+                Q(source__icontains="google") |
+                Q(source__icontains="facebook")
+            )
+        elif self.value() == "unknown":
+            return qs.filter(source__isnull=True)
+        
+        return qs
+
+
+class LeadValueFilter(SimpleListFilter):
+    title = "estimated value"
+    parameter_name = "estimated_value"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("high_value", "💰 High Value ($500+)"),
+            ("medium_value", "💵 Medium Value ($200-$499)"),
+            ("low_value", "💸 Low Value (<$200)"),
+            ("no_price", "❓ No Price Set"),
+        )
+
+    def queryset(self, request, qs):
+        if self.value() == "high_value":
+            return qs.filter(
+                estimated_price__gte=500
+            )
+        elif self.value() == "medium_value":
+            return qs.filter(
+                estimated_price__gte=200,
+                estimated_price__lt=500
+            )
+        elif self.value() == "low_value":
+            return qs.filter(
+                estimated_price__lt=200
+            )
+        elif self.value() == "no_price":
+            return qs.filter(
+                estimated_price__isnull=True
+            )
+        
+        return qs
+
 
 
 # ─── Admin classes ──────────────────────────────────────────────────────
@@ -925,6 +1218,7 @@ class LeadAdmin(admin.ModelAdmin):
         "status_display",
         "priority_display",
         "pickup_date",
+        "days_until_trip",
         "follow_up_date",
         "quote_requests_count",
         "created_at",
@@ -934,9 +1228,10 @@ class LeadAdmin(admin.ModelAdmin):
         "status",
         "priority",
         "converted",
-        "pickup_date",
         "created_at",
-        MultipleQuotesFilter,
+        LeadTripDateFilter,
+        LeadFollowUpFilter,
+        LeadValueFilter,
     )
 
     search_fields = (
@@ -948,53 +1243,120 @@ class LeadAdmin(admin.ModelAdmin):
         "dropoff_location",
     )
 
-    list_per_page = 25
-    date_hierarchy = "created_at"
-
     fieldsets = (
-        (
-            "Contact Information",
-            {"fields": ("first_name", "last_name", "email", "phone")},
-        ),
-        (
-            "Trip Details",
-            {
-                "fields": (
-                    "pickup_location",
-                    "dropoff_location",
-                    "pickup_date",
-                    "vehicle",
-                    "trip_type",
-                    "estimated_price",
-                )
-            },
-        ),
-        (
-            "Lead Management",
-            {"fields": ("status", "priority", "next_follow_up", "contact_attempts")},
-        ),
-        ("Notes", {"fields": ("notes",)}),
-        (
-            "System Info",
-            {
-                "fields": ("created_at", "converted", "converted_at"),
-                "classes": ("collapse",),
-            },
-        ),
+        ("Basic Information", {
+            "fields": (
+                ("first_name", "last_name"),
+                ("email", "phone"),
+                ("pickup_date", "trip_type"),
+                ("pickup_location", "dropoff_location"),
+                "notes",
+            )
+        }),
+        ("Lead Details", {
+            "fields": (
+                ("status", "priority"),
+                "vehicle",
+                ("converted", "converted_at"),
+                ("contact_attempts", "last_contact_date"),
+                "next_follow_up",
+            )
+        }),
+        ("Trip Information", {
+            "fields": (
+                "estimated_price",
+            ),
+            "classes": ("collapse",)
+        }),
+        ("System Information", {
+            "fields": (
+                "created_at",
+            ),
+            "classes": ("collapse",)
+        }),
     )
 
-    readonly_fields = ("created_at", "converted_at")
+    readonly_fields = (
+        "created_at",
+        "converted_at",
+        "contact_attempts",
+        "last_contact_date",
+        "quote_count",
+        "latest_quote",
+    )
 
+    list_per_page = 50
+    list_max_show_all = 500
+    date_hierarchy = "pickup_date"
+    ordering = ("-created_at",)
+    
     actions = [
         "mark_contacted",
-        "mark_interested",
+        "mark_interested", 
         "mark_converted",
         "mark_lost",
         "set_high_priority",
-        "schedule_follow_up_tomorrow",
+        "set_medium_priority",
+        "set_low_priority",
+        "set_urgent_priority",
         "schedule_follow_up_week",
-        "identify_duplicates",
     ]
+
+    def get_list_display(self, request):
+        """Customize list display based on user preferences"""
+        # Always return the default list display
+        return self.list_display
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Optimize queries to prevent N+1 problem
+        qs = (
+            qs.select_related("vehicle")
+            .prefetch_related(
+                "quotes",
+                "quotes__vehicle"
+            )
+            .annotate(
+                total_quotes=Count("quotes", distinct=True),
+                latest_quote_date=Max("quotes__created_at")
+            )
+        )
+        return qs
+
+    def changelist_view(self, request, extra_context=None):
+        """Customize the changelist view with additional context"""
+        # Temporarily disabled to fix loading issue
+        return super().changelist_view(request, extra_context)
+        
+        # Original code commented out:
+        # extra_context = extra_context or {}
+        # 
+        # # Add summary statistics
+        # today = timezone.now().date()
+        # qs = self.get_queryset(request)
+        # 
+        # extra_context.update({
+        #     "total_leads": qs.count(),
+        #     "leads_tomorrow": qs.filter(pickup_date=today + timedelta(days=1)).count(),
+        #     "leads_this_week": qs.filter(
+        #         pickup_date__gte=today,
+        #         pickup_date__lte=today + timedelta(days=6)
+        #     ).count(),
+        #     "leads_next_week": qs.filter(
+        #         pickup_date__gte=today + timedelta(days=7),
+        #         pickup_date__lte=today + timedelta(days=13)
+        #     ).count(),
+        #     "leads_next_30_days": qs.filter(
+        #         pickup_date__gte=today,
+        #         pickup_date__lte=today + timedelta(days=30)
+        #     ).exclude(status__in=["converted", "lost"]).count(),
+        #     "contacted_leads": qs.filter(status="contacted").count(),
+        #     "conversion_rate": round(
+        #         (qs.filter(status="converted").count() / max(qs.count(), 1)) * 100, 1
+        #     ),
+        # })
+        # 
+        # return super().changelist_view(request, extra_context)
 
     # Display Methods
     @admin.display(description="Name", ordering="last_name")
@@ -1018,167 +1380,205 @@ class LeadAdmin(admin.ModelAdmin):
 
     @admin.display(description="Trip Details")
     def trip_summary(self, obj):
-        # Get the latest quote for this lead
-        latest_quote = obj.latest_quote
-
-        if latest_quote:
-            date_str = (
-                latest_quote.pickup_date.strftime("%b %d")
-                if latest_quote.pickup_date
-                else "No date"
-            )
-            arrow = "→" if latest_quote.trip_type == "oneway" else "⇄"
-            location = f"{latest_quote.pickup_location or 'Unknown'} {arrow} {latest_quote.dropoff_location or 'Unknown'}"
-            price = (
-                f"${latest_quote.estimated_price:,.0f}"
-                if latest_quote.estimated_price
-                else "No price"
-            )
-            vehicle = (
-                latest_quote.vehicle.vehicle_type
-                if latest_quote.vehicle
-                else "No vehicle"
-            )
-        else:
-            # Fallback to lead data if no quotes exist
-            date_str = (
-                obj.pickup_date.strftime("%b %d") if obj.pickup_date else "No date"
-            )
-            arrow = "→" if obj.trip_type == "oneway" else "⇄"
-            location = f"{obj.pickup_location or 'Unknown'} {arrow} {obj.dropoff_location or 'Unknown'}"
-            price = (
-                f"${obj.estimated_price:,.0f}" if obj.estimated_price else "No price"
-            )
-            vehicle = obj.vehicle.vehicle_type if obj.vehicle else "No vehicle"
-
-        return format_html(
-            '<div style="font-size: 0.9em;">'
-            "<div><strong>{}</strong></div>"
-            "<div>{}</div>"
-            '<div style="color: #007bff;">{}</div>'
-            '<div style="color: #6c757d; font-size: 0.8em;">{}</div></div>',
-            date_str,
-            location,
-            price,
-            vehicle,
-        )
+        # Use prefetched quotes to avoid additional queries
+        quotes = obj.quotes.all()
+        if quotes:
+            # Get the latest quote (most recent created_at)
+            latest_quote = max(quotes, key=lambda q: q.created_at) if quotes else None
+            if latest_quote:
+                pickup = latest_quote.pickup_location or "TBD"
+                dropoff = latest_quote.dropoff_location or "TBD"
+                vehicle = latest_quote.vehicle or "TBD"
+                price = latest_quote.estimated_price or "TBD"
+                
+                return format_html(
+                    '<div style="font-size: 0.9em;">'
+                    '<div><strong>From:</strong> {}</div>'
+                    '<div><strong>To:</strong> {}</div>'
+                    '<div><strong>Vehicle:</strong> {}</div>'
+                    '<div><strong>Price:</strong> ${}</div>'
+                    '</div>',
+                    pickup, dropoff, vehicle, price
+                )
+        return "No quote details"
 
     @admin.display(description="Status", ordering="status")
     def status_display(self, obj):
-        colors = {
-            "new": "#6c757d",
-            "contacted": "#007bff",
-            "interested": "#28a745",
-            "future_contact": "#17a2b8",
+        status_colors = {
+            "new": "#007bff",
+            "contacted": "#ffc107",
+            "interested": "#17a2b8",
+            "future_contact": "#6c757d",
             "converted": "#28a745",
             "lost": "#dc3545",
         }
-
-        color = colors.get(obj.status, "#6c757d")
+        
+        color = status_colors.get(obj.status, "#6c757d")
         return format_html(
-            '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">{}</span>',
+            '<span style="color: {}; font-weight: bold;">{}</span>',
             color,
-            obj.get_status_display(),
+            obj.get_status_display()
         )
 
     @admin.display(description="Priority", ordering="priority")
     def priority_display(self, obj):
-        colors = {
+        priority_colors = {
             "low": "#6c757d",
-            "medium": "#ffc107",
-            "high": "#dc3545",
+            "medium": "#17a2b8",
+            "high": "#ffc107",
             "urgent": "#dc3545",
         }
-
-        color = colors.get(obj.priority, "#6c757d")
-        text_color = "white" if obj.priority in ["high", "urgent"] else "black"
-
+        
+        color = priority_colors.get(obj.priority, "#6c757d")
         return format_html(
-            '<span style="background-color: {}; color: {}; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: bold;">{}</span>',
+            '<span style="color: {}; font-weight: bold;">{}</span>',
             color,
-            text_color,
-            obj.get_priority_display().upper(),
+            obj.get_priority_display()
         )
+
+    @admin.display(description="Days Until Trip", ordering="pickup_date")
+    def days_until_trip(self, obj):
+        if not obj.pickup_date:
+            return format_html('<span style="color: #6c757d;">No date set</span>')
+        
+        today = timezone.now().date()
+        days_diff = (obj.pickup_date - today).days
+        
+        if days_diff < 0:
+            return format_html('<span style="color: #dc3545; font-weight: bold;">{} Days</span>', abs(days_diff))
+        elif days_diff == 0:
+            return format_html('<span style="color: #dc3545; font-weight: bold;">TODAY</span>')
+        elif days_diff <= 3:
+            return format_html('<span style="color: #ffc107; font-weight: bold;">{} days</span>', days_diff)
+        elif days_diff <= 7:
+            return format_html('<span style="color: #17a2b8; font-weight: bold;">{} days</span>', days_diff)
+        else:
+            return format_html('<span style="color: #28a745;">{} days</span>', days_diff)
+
+    @admin.display(description="Urgency", ordering="priority")
+    def urgency_indicator(self, obj):
+        if not obj.pickup_date:
+            if obj.priority in ["urgent", "high"]:
+                return format_html('<span style="color: #dc3545; font-weight: bold;">⚠️ URGENT</span>')
+            return format_html('<span style="color: #6c757d;">No date</span>')
+        
+        today = timezone.now().date()
+        days_diff = (obj.pickup_date - today).days
+        
+        if days_diff < 0:
+            return format_html('<span style="color: #dc3545; font-weight: bold;">🚨 OVERDUE</span>')
+        elif days_diff == 0:
+            return format_html('<span style="color: #dc3545; font-weight: bold;">🚨 TODAY</span>')
+        elif days_diff <= 3:
+            return format_html('<span style="color: #ffc107; font-weight: bold;">⚡ URGENT</span>')
+        elif days_diff <= 7:
+            return format_html('<span style="color: #17a2b8; font-weight: bold;">🔔 SOON</span>')
+        else:
+            return format_html('<span style="color: #28a745;">📅 Scheduled</span>')
 
     @admin.display(description="Follow-Up", ordering="next_follow_up")
     def follow_up_date(self, obj):
         if not obj.next_follow_up:
-            return "-"
-
-        now = timezone.now()
-        due_date = obj.next_follow_up.date()
-        today = now.date()
-
-        if due_date < today:
-            return format_html(
-                '<span style="color: #dc3545; font-weight: bold;">OVERDUE</span>'
-            )
-        elif due_date == today:
-            return format_html(
-                '<span style="color: #fd7e14; font-weight: bold;">TODAY</span>'
-            )
+            return format_html('<span style="color: #6c757d;">No follow-up scheduled</span>')
+        
+        today = timezone.now().date()
+        follow_up_date = obj.next_follow_up.date()
+        days_diff = (follow_up_date - today).days
+        
+        if days_diff < 0:
+            return format_html('<span style="color: #dc3545; font-weight: bold;">{} days overdue</span>', abs(days_diff))
+        elif days_diff == 0:
+            return format_html('<span style="color: #ffc107; font-weight: bold;">Due today</span>')
+        elif days_diff == 1:
+            return format_html('<span style="color: #17a2b8; font-weight: bold;">Due tomorrow</span>')
+        elif days_diff <= 7:
+            return format_html('<span style="color: #17a2b8;">Due in {} days</span>', days_diff)
         else:
-            return obj.next_follow_up.strftime("%b %d")
+            return format_html('<span style="color: #28a745;">Due in {} days</span>', days_diff)
 
     @admin.display(description="Quote Requests")
     def quote_requests_count(self, obj):
-        """Show how many quote requests this lead has made"""
-        return obj.quote_count
+        # Use the annotation if available, otherwise fall back to the property
+        count = getattr(obj, 'total_quotes', obj.quote_count)
+        if count == 0:
+            return format_html('<span style="color: #6c757d;">0</span>')
+        elif count == 1:
+            return format_html('<span style="color: #28a745;">1</span>')
+        else:
+            return format_html('<span style="color: #17a2b8; font-weight: bold;">{}</span>', count)
 
     # Actions
     @admin.action(description="Mark as Contacted")
     def mark_contacted(self, request, queryset):
-        updated = queryset.filter(status="new").update(
-            status="contacted", contact_attempts=1, last_contact_date=timezone.now()
+        queryset.update(
+            status="contacted",
+            contact_attempts=models.F('contact_attempts') + 1,
+            last_contact_date=timezone.now()
         )
-        self.message_user(request, f"Marked {updated} leads as contacted.")
+        self.message_user(request, f"Marked {queryset.count()} leads as contacted.")
 
     @admin.action(description="Mark as Interested")
     def mark_interested(self, request, queryset):
-        updated = queryset.exclude(status__in=["converted", "lost"]).update(
-            status="interested"
-        )
-        self.message_user(request, f"Marked {updated} leads as interested.")
+        queryset.update(status="interested")
+        self.message_user(request, f"Marked {queryset.count()} leads as interested.")
 
     @admin.action(description="Mark as Converted")
     def mark_converted(self, request, queryset):
-        count = 0
-        for lead in queryset.exclude(converted=True):
-            lead.status = "converted"
-            lead.converted = True
-            lead.converted_at = timezone.now()
-            lead.next_follow_up = None
-            lead.save()
-            count += 1
-        self.message_user(request, f"Converted {count} leads.")
+        queryset.update(
+            status="converted",
+            converted=True,
+            converted_at=timezone.now()
+        )
+        self.message_user(request, f"Marked {queryset.count()} leads as converted.")
 
     @admin.action(description="Mark as Lost")
     def mark_lost(self, request, queryset):
-        updated = queryset.exclude(status="lost").update(
-            status="lost", converted=False, next_follow_up=None
-        )
-        self.message_user(request, f"Marked {updated} leads as lost.")
+        queryset.update(status="lost")
+        self.message_user(request, f"Marked {queryset.count()} leads as lost.")
 
     @admin.action(description="Set High Priority")
     def set_high_priority(self, request, queryset):
-        updated = queryset.update(priority="high")
-        self.message_user(request, f"Set {updated} leads to high priority.")
+        queryset.update(priority="high")
+        self.message_user(request, f"Set {queryset.count()} leads to high priority.")
+
+    @admin.action(description="Set Low Priority")
+    def set_low_priority(self, request, queryset):
+        queryset.update(priority="low")
+        self.message_user(request, f"Set {queryset.count()} leads to low priority.")
+
+    @admin.action(description="Set Urgent Priority")
+    def set_urgent_priority(self, request, queryset):
+        queryset.update(priority="urgent")
+        self.message_user(request, f"Set {queryset.count()} leads to urgent priority.")
 
     @admin.action(description="Follow-up Tomorrow")
     def schedule_follow_up_tomorrow(self, request, queryset):
         tomorrow = timezone.now() + timedelta(days=1)
-        updated = queryset.exclude(status__in=["converted", "lost"]).update(
-            next_follow_up=tomorrow
-        )
-        self.message_user(request, f"Scheduled follow-up for {updated} leads.")
+        queryset.update(next_follow_up=tomorrow)
+        self.message_user(request, f"Scheduled follow-up for {queryset.count()} leads for tomorrow.")
 
     @admin.action(description="Follow-up Next Week")
     def schedule_follow_up_week(self, request, queryset):
         next_week = timezone.now() + timedelta(days=7)
-        updated = queryset.exclude(status__in=["converted", "lost"]).update(
-            next_follow_up=next_week
-        )
-        self.message_user(request, f"Scheduled follow-up for {updated} leads.")
+        queryset.update(next_follow_up=next_week)
+        self.message_user(request, f"Scheduled follow-up for {queryset.count()} leads for next week.")
+
+    @admin.action(description="Follow-up Next Month")
+    def schedule_follow_up_month(self, request, queryset):
+        next_month = timezone.now() + timedelta(days=30)
+        queryset.update(next_follow_up=next_month)
+        self.message_user(request, f"Scheduled follow-up for {queryset.count()} leads for next month.")
+
+    @admin.action(description="Identify Duplicates")
+    def identify_duplicates(self, request, queryset):
+        # This would implement duplicate detection logic
+        self.message_user(request, "Duplicate detection feature coming soon!")
+
+    @admin.action(description="Export Leads to CSV")
+    def export_leads_csv(self, request, queryset):
+        # This would implement CSV export functionality
+        self.message_user(request, f"CSV export feature coming soon! Would export {queryset.count()} leads.")
+
 
 
 @admin.register(Quote)
