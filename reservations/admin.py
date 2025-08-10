@@ -1210,6 +1210,15 @@ class QuoteInline(admin.TabularInline):
 
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
+    """
+    Lead management with automatic conversion tracking.
+    
+    Features:
+    - Automatic conversion when reservations are created (matching by email/phone)
+    - Visual status indicators with background colors
+    - Bulk actions for lead management
+    - Conversion tracking and analytics
+    """
     inlines = [QuoteInline]
     list_display = (
         "full_name",
@@ -1294,6 +1303,7 @@ class LeadAdmin(admin.ModelAdmin):
         "mark_contacted",
         "mark_interested", 
         "mark_converted",
+        "check_auto_conversion",
         "mark_lost",
         "set_high_priority",
         "set_medium_priority",
@@ -1425,13 +1435,25 @@ class LeadAdmin(admin.ModelAdmin):
         }
         
         colors = status_colors.get(obj.status, {"bg": "#ffeb3b", "text": "#000000"})
-        return format_html(
-            '<span style="background-color: {}; color: {}; font-weight: 900; font-size: 14px; padding: 8px 12px; border-radius: 8px; display: inline-block; min-width: 100px; text-align: center; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid {};">{}</span>',
-            colors["bg"],
-            colors["text"],
-            colors["bg"],
-            obj.get_status_display()
-        )
+        
+        # Build the HTML content properly
+        if obj.status == "converted" and obj.converted_at:
+            return format_html(
+                '<span style="background-color: {}; color: {}; font-weight: 900; font-size: 14px; padding: 8px 12px; border-radius: 8px; display: inline-block; min-width: 100px; text-align: center; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid {};">{}<br><small style="color: #ffffff; font-size: 11px; font-weight: bold;">Converted: {}</small></span>',
+                colors["bg"],
+                colors["text"],
+                colors["bg"],
+                obj.get_status_display(),
+                obj.converted_at.strftime('%m/%d/%Y')
+            )
+        else:
+            return format_html(
+                '<span style="background-color: {}; color: {}; font-weight: 900; font-size: 14px; padding: 8px 12px; border-radius: 8px; display: inline-block; min-width: 100px; text-align: center; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid {};">{}</span>',
+                colors["bg"],
+                colors["text"],
+                colors["bg"],
+                obj.get_status_display()
+            )
 
     @admin.display(description="Priority", ordering="priority")
     def priority_display(self, obj):
@@ -1462,13 +1484,13 @@ class LeadAdmin(admin.ModelAdmin):
         if days_diff < 0:
             return format_html('<span style="color: #dc3545; font-weight: bold;">{} Days</span>', abs(days_diff))
         elif days_diff == 0:
-            return format_html('<span style="color: #dc3545; font-weight: bold;">TODAY</span>')
+            return format_html('<span style="color: #ff0018; font-weight: bold;">TODAY</span>')
         elif days_diff <= 3:
             return format_html('<span style="color: #ffc107; font-weight: bold;">{} days</span>', days_diff)
         elif days_diff <= 7:
-            return format_html('<span style="color: #17a2b8; font-weight: bold;">{} days</span>', days_diff)
+            return format_html('<span style="color: #ffcc00; font-weight: bold;">{} days</span>', days_diff)
         else:
-            return format_html('<span style="color: #28a745;">{} days</span>', days_diff)
+            return format_html('<span style="color: #000;">{} days</span>', days_diff)
 
     @admin.display(description="Urgency", ordering="priority")
     def urgency_indicator(self, obj):
@@ -1545,6 +1567,50 @@ class LeadAdmin(admin.ModelAdmin):
             converted_at=timezone.now()
         )
         self.message_user(request, f"Marked {queryset.count()} leads as converted.")
+    
+    @admin.action(description="Check for Auto-Conversion")
+    def check_auto_conversion(self, request, queryset):
+        """
+        Check if any of the selected leads should be auto-converted based on existing reservations.
+        This is useful for leads that existed before the auto-conversion system was implemented.
+        """
+        from .models import Reservation
+        
+        converted_count = 0
+        for lead in queryset:
+            if lead.status != 'converted':
+                # Check if there's a reservation with matching email or phone
+                matching_reservation = None
+                
+                if lead.email:
+                    matching_reservation = Reservation.objects.filter(
+                        customer__email__iexact=lead.email
+                    ).first()
+                
+                if not matching_reservation and lead.phone:
+                    matching_reservation = Reservation.objects.filter(
+                        customer__phone_number__iexact=lead.phone
+                    ).first()
+                
+                if matching_reservation:
+                    lead.status = 'converted'
+                    lead.converted = True
+                    lead.converted_at = timezone.now()
+                    
+                    # Add conversion note
+                    conversion_note = f"Auto-converted on {timezone.now().strftime('%Y-%m-%d %H:%M')} - Found existing Reservation #{matching_reservation.id}"
+                    if lead.notes:
+                        lead.notes += f"\n\n{conversion_note}"
+                    else:
+                        lead.notes = conversion_note
+                    
+                    lead.save()
+                    converted_count += 1
+        
+        if converted_count > 0:
+            self.message_user(request, f"Auto-converted {converted_count} leads based on existing reservations.")
+        else:
+            self.message_user(request, "No leads were auto-converted. All selected leads are either already converted or don't have matching reservations.")
 
     @admin.action(description="Mark as Lost")
     def mark_lost(self, request, queryset):

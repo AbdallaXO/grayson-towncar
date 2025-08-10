@@ -6,6 +6,8 @@ from .models import Reservation
 from users.emails import send_reservation_confirmation
 from django.db import transaction
 from decimal import Decimal
+from django.utils import timezone
+from .models import Reservation, Lead
 
 logger = logging.getLogger(__name__)  # Get a logger instance
 
@@ -364,3 +366,47 @@ def update_agent_commission_on_delete(sender, instance, **kwargs):
         # Save agent if any fields were updated
         if update_fields:
             agent.save(update_fields=update_fields)
+
+
+@receiver(post_save, sender=Reservation)
+def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
+    """
+    Automatically convert leads to 'converted' status when a reservation is created.
+    This matches leads by email or phone number to find the corresponding lead.
+    """
+    if created:  # Only run when a new reservation is created
+        customer = instance.customer
+        
+        # Try to find a matching lead by email first, then by phone
+        matching_lead = None
+        
+        if customer.email:
+            matching_lead = Lead.objects.filter(
+                email__iexact=customer.email,
+                status__in=['new', 'contacted', 'interested', 'future_contact']
+            ).first()
+        
+        # If no match by email, try by phone
+        if not matching_lead and customer.phone_number:
+            matching_lead = Lead.objects.filter(
+                phone__iexact=customer.phone_number,
+                status__in=['new', 'contacted', 'interested', 'future_contact']
+            ).first()
+        
+        # If we found a matching lead, convert it
+        if matching_lead:
+            matching_lead.status = 'converted'
+            matching_lead.converted = True
+            matching_lead.converted_at = timezone.now()
+            
+            # Add a note about the conversion
+            conversion_note = f"Auto-converted on {timezone.now().strftime('%Y-%m-%d %H:%M')} - Reservation #{instance.id} created"
+            if matching_lead.notes:
+                matching_lead.notes += f"\n\n{conversion_note}"
+            else:
+                matching_lead.notes = conversion_note
+            
+            matching_lead.save()
+            
+            # Log the conversion for debugging
+            print(f"Auto-converted lead {matching_lead.id} ({matching_lead.first_name} {matching_lead.last_name}) to converted status")
