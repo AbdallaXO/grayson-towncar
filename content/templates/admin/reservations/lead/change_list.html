@@ -203,7 +203,7 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center py-4">
-            <div class="h2 text-primary mb-1" id="total-leads">-</div>
+            <div class="h2 text-primary mb-1">{{ total_leads|default:"0" }}</div>
             <div class="text-muted">Total Leads</div>
           </div>
         </div>
@@ -211,7 +211,7 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center py-4">
-            <div class="h2 text-success mb-1" id="converted-leads">-</div>
+            <div class="h2 text-success mb-1">{{ converted_leads|default:"0" }}</div>
             <div class="text-muted">Converted</div>
           </div>
         </div>
@@ -219,7 +219,7 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center py-4">
-            <div class="h2 text-warning mb-1" id="conversion-rate">-</div>
+            <div class="h2 text-warning mb-1">{{ conversion_rate|default:"0" }}%</div>
             <div class="text-muted">Conversion Rate</div>
           </div>
         </div>
@@ -227,220 +227,90 @@
       <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body text-center py-4">
-            <div class="h2 text-info mb-1" id="active-leads">-</div>
-            <div class="text-muted">Active Leads</div>
+            <div class="h2 text-info mb-1">{{ contacted_leads|default:"0" }}</div>
+            <div class="text-muted">Contacted</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-4">
+            <div class="h2 text-secondary mb-1">{{ new_leads|default:"0" }}</div>
+            <div class="text-muted">New</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-4">
+            <div class="h2 text-danger mb-1">{{ lost_leads|default:"0" }}</div>
+            <div class="text-muted">Lost</div>
           </div>
         </div>
       </div>
     </div>
-  </div>
-{% endblock content_title %}
 
-{% block object-tools-items %}
-  {{ block.super }}
-{% endblock object-tools-items %}
+    <!-- Upcoming Trips Summary -->
 
-{% block content %}
-  <!-- Quick Actions -->
-  <div class="module aligned quick-actions">
-    <h2>
-      <i class="bi bi-lightning"></i> Quick Actions
-    </h2>
-    <div class="actions-grid">
-      <a href="?trip_date_range=next_30_days"
-         class="action-card action-warning">
-        <h4>
-          <i class="bi bi-calendar-week"></i> Next 30 Days
-        </h4>
-        <p>View leads with trips in the next 30 days</p>
-      </a>
+  {% endblock content_title %}
 
-      <a href="?status=new" class="action-card action-primary">
-        <h4>
-          <i class="bi bi-plus-circle"></i> New Leads
-        </h4>
-        <p>View new leads</p>
-      </a>
+  {% block object-tools-items %}
+    {{ block.super }}
+  {% endblock object-tools-items %}
 
-      <a href="?status=contacted" class="action-card action-info">
-        <h4>
-          <i class="bi bi-telephone"></i> Contacted
-        </h4>
-        <p>View contacted leads</p>
-      </a>
+  {% block content %}
+    <!-- Quick Actions -->
+    <div class="module aligned quick-actions">
+      <h2>
+        <i class="bi bi-lightning"></i> Quick Actions
+      </h2>
+      <div class="actions-grid">
+        <a href="?trip_date_range=next_30_days"
+           class="action-card action-warning">
+          <h4>
+            <i class="bi bi-calendar-week"></i> Next 30 Days
+          </h4>
+          <p>View leads with trips in the next 30 days</p>
+        </a>
 
-      <a href="?status=converted" class="action-card action-success">
-        <h4>
-          <i class="bi bi-check-circle"></i> Converted
-        </h4>
-        <p>View converted leads</p>
-      </a>
+        <a href="?status=new" class="action-card action-primary">
+          <h4>
+            <i class="bi bi-plus-circle"></i> New Leads
+          </h4>
+          <p>View new leads</p>
+        </a>
 
-      <a href="?" class="action-card action-secondary">
-        <h4>
-          <i class="bi bi-arrow-clockwise"></i> Clear All Filters
-        </h4>
-        <p>Reset all filters and show all leads</p>
-      </a>
+        <a href="?status=contacted" class="action-card action-info">
+          <h4>
+            <i class="bi bi-telephone"></i> Contacted
+          </h4>
+          <p>View contacted leads</p>
+        </a>
+
+        <a href="?status=converted" class="action-card action-success">
+          <h4>
+            <i class="bi bi-check-circle"></i> Converted
+          </h4>
+          <p>View converted leads</p>
+        </a>
+
+        <a href="?" class="action-card action-secondary">
+          <h4>
+            <i class="bi bi-arrow-clockwise"></i> Clear All Filters
+          </h4>
+          <p>Reset all filters and show all leads</p>
+        </a>
+      </div>
     </div>
-  </div>
 
-  <!-- Original Admin Content -->
-  {{ block.super }}
-{% endblock content %}
+    <!-- Original Admin Content -->
+    {{ block.super }}
+  {% endblock content %}
 
-{% block extrajs %}
-  {{ block.super }}
-  <!-- Bootstrap JS for dropdowns and responsive behavior -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  {% block extrajs %}
+    {{ block.super }}
+    <!-- Bootstrap JS for dropdowns and responsive behavior -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Stats Population Script -->
-  <script>
-      document.addEventListener('DOMContentLoaded', function() {
-          // Function to populate stats
-          function populateStats() {
-              console.log('Populating stats...');
-
-              // Wait for the table to be fully loaded
-              const waitForTable = setInterval(function() {
-                  // Try multiple selectors for the results table
-                  const table = document.querySelector('.results') ||
-                      document.querySelector('.module') ||
-                      document.querySelector('table') ||
-                      document.querySelector('.change-list');
-
-                  if (table && table.querySelectorAll('tbody tr').length > 0) {
-                      clearInterval(waitForTable);
-                      console.log('Table found, calculating stats...');
-                      calculateStats();
-                  }
-              }, 100);
-
-              // Stop waiting after 10 seconds
-              setTimeout(function() {
-                  clearInterval(waitForTable);
-                  console.log('Timeout reached, trying to calculate anyway...');
-                  calculateStats();
-              }, 10000);
-          }
-
-          function calculateStats() {
-              // Get total leads count from the results info
-              let totalLeads = 0;
-
-              // Try multiple selectors for the paginator info
-              const resultsInfo = document.querySelector('.paginator') ||
-                  document.querySelector('.paginator-info') ||
-                  document.querySelector('.results-info');
-
-              if (resultsInfo) {
-                  const infoText = resultsInfo.textContent;
-                  console.log('Paginator text:', infoText);
-
-                  // Look for various patterns Django might use
-                  const patterns = [
-                      /(\d+) leads?/,
-                      /(\d+) results?/,
-                      /Showing (\d+) of (\d+)/,
-                      /(\d+) total/
-                  ];
-
-                  for (let pattern of patterns) {
-                      const match = infoText.match(pattern);
-                      if (match) {
-                          if (match[2]) {
-                              totalLeads = parseInt(match[2]); // For "Showing X of Y" pattern
-                          } else {
-                              totalLeads = parseInt(match[1]);
-                          }
-                          console.log('Found total leads:', totalLeads);
-                          break;
-                      }
-                  }
-              }
-
-              // If we still don't have total leads, count the table rows
-              if (totalLeads === 0) {
-                  const tableRows = document.querySelectorAll('tbody tr');
-                  totalLeads = tableRows.length;
-                  console.log('Counted table rows:', totalLeads);
-              }
-
-              // Count converted leads by looking for status cells
-              let convertedLeads = 0;
-              let activeLeads = 0;
-
-              // Look for the status column - it should be the 4th column (status_display)
-              const allRows = document.querySelectorAll('tbody tr');
-              console.log('Found rows:', allRows.length);
-
-              allRows.forEach((row, index) => {
-                  const cells = row.querySelectorAll('td');
-                  console.log(`Row ${index + 1} has ${cells.length} cells`);
-
-                  // The status_display is typically the 4th column (index 3)
-                  if (cells.length > 3) {
-                      const statusCell = cells[3]; // 4th column (0-indexed)
-                      const statusText = statusCell.textContent.toLowerCase();
-                      console.log(`Row ${index + 1} status:`, statusText);
-
-                      if (statusText.includes('converted')) {
-                          convertedLeads++;
-                          console.log('Found converted lead');
-                      }
-
-                      if (!statusText.includes('converted') && !statusText.includes('lost')) {
-                          activeLeads++;
-                      }
-                  }
-              });
-
-              console.log('Converted leads:', convertedLeads);
-              console.log('Active leads:', activeLeads);
-
-              // Calculate conversion rate
-              const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0.0';
-
-              // Update the stats display
-              document.getElementById('total-leads').textContent = totalLeads.toLocaleString();
-              document.getElementById('converted-leads').textContent = convertedLeads.toLocaleString();
-              document.getElementById('conversion-rate').textContent = conversionRate + '%';
-              document.getElementById('active-leads').textContent = activeLeads.toLocaleString();
-
-              // Add color coding to conversion rate
-              const conversionRateElement = document.getElementById('conversion-rate');
-              const rate = parseFloat(conversionRate);
-              if (rate >= 20) {
-                  conversionRateElement.className = 'h2 text-success mb-1'; // Green for high conversion
-              } else if (rate >= 10) {
-                  conversionRateElement.className = 'h2 text-warning mb-1'; // Yellow for medium conversion
-              } else {
-                  conversionRateElement.className = 'h2 text-danger mb-1'; // Red for low conversion
-              }
-
-              console.log('Stats updated successfully');
-          }
-
-          // Populate stats when page loads
-          setTimeout(populateStats, 1000); // Increased delay to ensure DOM is fully loaded
-
-          // Also populate when filters change
-          const observer = new MutationObserver(function(mutations) {
-              mutations.forEach(function(mutation) {
-                  if (mutation.type === 'childList') {
-                      setTimeout(calculateStats, 100);
-                  }
-              });
-          });
-
-          // Observe changes to the results area
-          const resultsArea = document.querySelector('.results') || document.querySelector('.module');
-          if (resultsArea) {
-              observer.observe(resultsArea, {
-                  childList: true,
-                  subtree: true
-              });
-          }
-      });
-  </script>
-{% endblock extrajs %}
+    <!-- No stats population script needed - stats come from admin context -->
+  {% endblock extrajs %}

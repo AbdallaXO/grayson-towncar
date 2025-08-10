@@ -1325,38 +1325,49 @@ class LeadAdmin(admin.ModelAdmin):
 
     def changelist_view(self, request, extra_context=None):
         """Customize the changelist view with additional context"""
-        # Temporarily disabled to fix loading issue
-        return super().changelist_view(request, extra_context)
+        extra_context = extra_context or {}
         
-        # Original code commented out:
-        # extra_context = extra_context or {}
-        # 
-        # # Add summary statistics
-        # today = timezone.now().date()
-        # qs = self.get_queryset(request)
-        # 
-        # extra_context.update({
-        #     "total_leads": qs.count(),
-        #     "leads_tomorrow": qs.filter(pickup_date=today + timedelta(days=1)).count(),
-        #     "leads_this_week": qs.filter(
-        #         pickup_date__gte=today,
-        #         pickup_date__lte=today + timedelta(days=6)
-        #     ).count(),
-        #     "leads_next_week": qs.filter(
-        #         pickup_date__gte=today + timedelta(days=7),
-        #         pickup_date__lte=today + timedelta(days=13)
-        #     ).count(),
-        #     "leads_next_30_days": qs.filter(
-        #         pickup_date__gte=today,
-        #         pickup_date__lte=today + timedelta(days=30)
-        #     ).exclude(status__in=["converted", "lost"]).count(),
-        #     "contacted_leads": qs.filter(status="contacted").count(),
-        #     "conversion_rate": round(
-        #         (qs.filter(status="converted").count() / max(qs.count(), 1)) * 100, 1
-        #     ),
-        # })
-        # 
-        # return super().changelist_view(request, extra_context)
+        # Get stats from ALL leads (not just the current page)
+        today = timezone.now().date()
+        
+        # Use the base model manager to get ALL leads, not filtered by admin
+        from .models import Lead
+        all_leads = Lead.objects.all()
+        
+        # Calculate summary statistics from all leads
+        extra_context.update({
+            "total_leads": all_leads.count(),
+            "leads_tomorrow": all_leads.filter(pickup_date=today + timedelta(days=1)).count(),
+            "leads_this_week": all_leads.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=today + timedelta(days=6)
+            ).count(),
+            "leads_next_week": all_leads.filter(
+                pickup_date__gte=today + timedelta(days=7),
+                pickup_date__lte=today + timedelta(days=13)
+            ).count(),
+            "leads_next_30_days": all_leads.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=today + timedelta(days=30)
+            ).exclude(status__in=["converted", "lost"]).count(),
+            "leads_next_60_days": all_leads.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=today + timedelta(days=60)
+            ).exclude(status__in=["converted", "lost"]).count(),
+            "urgent_leads": all_leads.filter(
+                pickup_date__gte=today,
+                pickup_date__lte=today + timedelta(days=7)
+            ).exclude(status__in=["converted", "lost"]).count(),
+            "contacted_leads": all_leads.filter(status="contacted").count(),
+            "new_leads": all_leads.filter(status="new").count(),
+            "converted_leads": all_leads.filter(status="converted").count(),
+            "lost_leads": all_leads.filter(status="lost").count(),
+            "conversion_rate": round(
+                (all_leads.filter(status="converted").count() / max(all_leads.count(), 1)) * 100, 1
+            ),
+        })
+        
+        return super().changelist_view(request, extra_context)
 
     # Display Methods
     @admin.display(description="Name", ordering="last_name")
@@ -1405,34 +1416,38 @@ class LeadAdmin(admin.ModelAdmin):
     @admin.display(description="Status", ordering="status")
     def status_display(self, obj):
         status_colors = {
-            "new": "#007bff",
-            "contacted": "#ffc107",
-            "interested": "#17a2b8",
-            "future_contact": "#6c757d",
-            "converted": "#28a745",
-            "lost": "#dc3545",
+            "new": {"bg": "#ffeb3b", "text": "#000000"},  # Bright yellow background, black text
+            "contacted": {"bg": "#2196f3", "text": "#ffffff"},  # Bright blue background, white text
+            "interested": {"bg": "#00bcd4", "text": "#ffffff"},  # Bright cyan background, white text
+            "future_contact": {"bg": "#ff9800", "text": "#ffffff"},  # Bright orange background, white text
+            "converted": {"bg": "#4caf50", "text": "#ffffff"},  # Bright green background, white text
+            "lost": {"bg": "#f44336", "text": "#ffffff"},  # Bright red background, white text
         }
         
-        color = status_colors.get(obj.status, "#6c757d")
+        colors = status_colors.get(obj.status, {"bg": "#ffeb3b", "text": "#000000"})
         return format_html(
-            '<span style="color: {}; font-weight: bold;">{}</span>',
-            color,
+            '<span style="background-color: {}; color: {}; font-weight: 900; font-size: 14px; padding: 8px 12px; border-radius: 8px; display: inline-block; min-width: 100px; text-align: center; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid {};">{}</span>',
+            colors["bg"],
+            colors["text"],
+            colors["bg"],
             obj.get_status_display()
         )
 
     @admin.display(description="Priority", ordering="priority")
     def priority_display(self, obj):
         priority_colors = {
-            "low": "#6c757d",
-            "medium": "#17a2b8",
-            "high": "#ffc107",
-            "urgent": "#dc3545",
+            "low": {"bg": "#9e9e9e", "text": "#ffffff"},  # Bright grey background, white text
+            "medium": {"bg": "#00bcd4", "text": "#ffffff"},  # Bright cyan background, white text
+            "high": {"bg": "#ff9800", "text": "#ffffff"},  # Bright orange background, white text
+            "urgent": {"bg": "#f44336", "text": "#ffffff"},  # Bright red background, white text
         }
         
-        color = priority_colors.get(obj.priority, "#6c757d")
+        colors = priority_colors.get(obj.priority, {"bg": "#9e9e9e", "text": "#ffffff"})
         return format_html(
-            '<span style="color: {}; font-weight: bold;">{}</span>',
-            color,
+            '<span style="background-color: {}; color: {}; font-weight: 900; font-size: 14px; padding: 8px 12px; border-radius: 8px; display: inline-block; min-width: 100px; text-align: center; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: 2px solid {};">{}</span>',
+            colors["bg"],
+            colors["text"],
+            colors["bg"],
             obj.get_priority_display()
         )
 
