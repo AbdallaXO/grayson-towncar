@@ -67,6 +67,13 @@
             </div>
           </div>
           <div class="d-flex align-items-center bg-light rounded px-3 py-2">
+            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+            <div>
+              <small class="text-muted d-block">Need Payment</small>
+              <span class="fw-bold" id="needPaymentCount">{{ need_payment_count }}</span>
+            </div>
+          </div>
+          <div class="d-flex align-items-center bg-light rounded px-3 py-2">
             <i class="bi bi-currency-dollar text-danger me-2"></i>
             <div>
               <small class="text-muted d-block">Revenue</small>
@@ -122,6 +129,8 @@
                           {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
                   <option value="cancelled"
                           {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                  <option value="need_payment"
+                          {% if status_filter == 'need_payment' %}selected{% endif %}>Need Payment</option>
                 </select>
               </div>
 
@@ -214,6 +223,7 @@
                     document.getElementById('totalCount').textContent = data.total_count;
                     document.getElementById('pendingCount').textContent = data.pending_count;
                     document.getElementById('confirmedCount').textContent = data.confirmed_count;
+                    document.getElementById('needPaymentCount').textContent = data.need_payment_count;
                     document.getElementById('totalRevenue').textContent = data.total_revenue.toFixed(2);
 
                     // Update URL without page reload

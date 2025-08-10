@@ -1,6 +1,14 @@
 {% extends "main.html" %}
 {% load static %}
 
+{% block extra_css %}
+  <style>
+      .field-hidden {
+          display: none;
+      }
+  </style>
+{% endblock extra_css %}
+
 {% block content %}
   <div class="container py-5">
     <div class="row">
@@ -34,7 +42,7 @@
               {% endfor %}
             {% endif %}
 
-            <form method="POST" id="dispatcherActionForm">
+            <form method="post" id="dispatcherActionForm">
               {% csrf_token %}
               <div class="mb-3">
                 <label for="action" class="form-label">
@@ -49,30 +57,30 @@
                     Save / Update Card on File
                   </option>
                   {% if has_saved_cards %}
-                  <option value="use_saved_card"
-                          {% if selected_action == 'use_saved_card' %}selected{% endif %}>
-                    Use Saved Card
-                  </option>
+                    <option value="use_saved_card"
+                            {% if selected_action == 'use_saved_card' %}selected{% endif %}>Use Saved Card</option>
                   {% endif %}
                 </select>
               </div>
 
               {% if has_saved_cards %}
-              <div class="mb-3" id="saved_cards_field_group" style="display: none;">
-                <label for="payment_method_id" class="form-label">
-                  <strong>Select Saved Card:</strong>
-                </label>
-                <select name="payment_method_id" id="payment_method_id" class="form-select form-select-lg">
-                  {% for method in payment_methods %}
-                    <option value="{{ method.id }}">
-                      {{ method.card.brand|title }} ending in {{ method.card.last4 }} (Exp: {{ method.card.exp_month }}/{{ method.card.exp_year }})
-                    </option>
-                  {% endfor %}
-                </select>
-              </div>
+                <div class="mb-3 field-hidden" id="saved_cards_field_group">
+                  <label for="payment_method_id" class="form-label">
+                    <strong>Select Saved Card:</strong>
+                  </label>
+                  <select name="payment_method_id"
+                          id="payment_method_id"
+                          class="form-select form-select-lg">
+                    {% for method in payment_methods %}
+                      <option value="{{ method.id }}">
+                        {{ method.card.brand|title }} ending in {{ method.card.last4 }} (Exp: {{ method.card.exp_month }}/{{ method.card.exp_year }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
               {% endif %}
 
-              <div class="mb-3" id="amount_field_group" style="display: none;">
+              <div class="mb-3 field-hidden" id="amount_field_group">
                 <label for="amount" class="form-label">
                   <strong>Payment Amount (USD):</strong>
                 </label>
@@ -85,7 +93,7 @@
                        value="{{ entered_amount|default:reservation.total_price|stringformat:'.2f' }}">
               </div>
 
-              <div class="mb-3" id="description_field_group" style="display: none;">
+              <div class="mb-3 field-hidden" id="description_field_group">
                 <label for="description" class="form-label">
                   <strong>Receipt Description:</strong>
                 </label>
@@ -93,9 +101,12 @@
                        name="description"
                        id="description"
                        class="form-control form-control-lg"
-                       placeholder="e.g., Payment for reservation service"
-                       value="{{ entered_description|default:'Payment for reservation #'|add:reservation.id|stringformat:'d' }}">
-                <div class="form-text">This will appear on the customer's receipt</div>
+                       placeholder="Trip Fare for Res ID #50{{ reservation.id }}"
+                       value="{{ entered_description|default:'' }}">
+                <div class="form-text">
+                  <i class="fas fa-info-circle text-info"></i>
+                  Auto-generated description: "Trip Fare for Res ID #50{{ reservation.id }}". You can edit this before proceeding.
+                </div>
               </div>
 
               <button type="submit" class="btn btn-primary btn-lg w-100" id="submit_button">Proceed to Stripe</button>
@@ -121,33 +132,41 @@
 
           function togglePaymentFields() {
               const selectedAction = actionSelect.value;
-              
+
               // Reset display for all fields
-              amountFieldGroup.style.display = 'none';
-              descriptionFieldGroup.style.display = 'none';
+              amountFieldGroup.classList.add('field-hidden');
+              descriptionFieldGroup.classList.add('field-hidden');
               if (savedCardsFieldGroup) {
-                  savedCardsFieldGroup.style.display = 'none';
+                  savedCardsFieldGroup.classList.add('field-hidden');
               }
-              
+
               // Required fields reset
               amountInput.required = false;
               descriptionInput.required = false;
-              
+
               // Set button text
               submitButton.textContent = 'Proceed to Stripe';
-              
+
               if (selectedAction === 'make_payment') {
-                  amountFieldGroup.style.display = 'block';
-                  descriptionFieldGroup.style.display = 'block';
+                  amountFieldGroup.classList.remove('field-hidden');
+                  descriptionFieldGroup.classList.remove('field-hidden');
                   amountInput.required = true;
                   descriptionInput.required = true;
+                  // Auto-generate description if field is empty
+                  if (!descriptionInput.value.trim()) {
+                      descriptionInput.value = `Trip Fare for Res ID #50{{ reservation.id }}`;
+                  }
               } else if (selectedAction === 'use_saved_card') {
-                  amountFieldGroup.style.display = 'block';
-                  descriptionFieldGroup.style.display = 'block';
-                  savedCardsFieldGroup.style.display = 'block';
+                  amountFieldGroup.classList.remove('field-hidden');
+                  descriptionFieldGroup.classList.remove('field-hidden');
+                  savedCardsFieldGroup.classList.remove('field-hidden');
                   amountInput.required = true;
                   descriptionInput.required = true;
                   submitButton.textContent = 'Process Payment';
+                  // Auto-generate description if field is empty
+                  if (!descriptionInput.value.trim()) {
+                      descriptionInput.value = `Trip Fare for Res ID #{{ reservation.id }}`;
+                  }
               } else if (selectedAction === 'save_card') {
                   submitButton.textContent = 'Save Card Details';
               }
@@ -159,4 +178,4 @@
           togglePaymentFields();
       });
   </script>
-{% endblock %}
+{% endblock content %}

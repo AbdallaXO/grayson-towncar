@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from django import forms
 from decimal import Decimal
 import stripe
+import stripe.error
 import logging
 import json
 from datetime import datetime, timedelta
@@ -150,7 +151,11 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
         status_filter = self.request.GET.get("status")
         if status_filter:
-            queryset = queryset.filter(status=status_filter)
+            if status_filter == "need_payment":
+                # Filter for reservations with no payments
+                queryset = queryset.filter(payments__isnull=True)
+            else:
+                queryset = queryset.filter(status=status_filter)
 
         # Add is_first_leg property to each leg - optimized to avoid N+1
         for reservation in queryset:
@@ -171,6 +176,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             total_count=Count("id"),
             pending_count=Count("id", filter=Q(status="pending")),
             confirmed_count=Count("id", filter=Q(status="confirmed")),
+            need_payment_count=Count("id", filter=Q(payments__isnull=True)),
             total_revenue=Sum("total_price", filter=Q(payments__status="paid")),
         )
 
@@ -180,6 +186,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 "total_reservations": stats["total_count"],
                 "pending_reservations": stats["pending_count"],
                 "confirmed_reservations": stats["confirmed_count"],
+                "need_payment_count": stats["need_payment_count"],
                 "total_revenue": stats["total_revenue"] or 0,
                 "search_query": self.request.GET.get("search_q", ""),
                 "status_filter": self.request.GET.get("status", ""),
@@ -202,6 +209,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                     "total_count": context["total_reservations"],
                     "pending_count": context["pending_reservations"],
                     "confirmed_count": context["confirmed_reservations"],
+                    "need_payment_count": context["need_payment_count"],
                     "total_revenue": context["total_revenue"],
                 }
             )
@@ -779,6 +787,9 @@ def save_card(request, reservation_id):
         )
 
 
+
+
+
 def dispatcher_payment_portal(request, reservation_id):
     """
     A portal for dispatchers to process payments or save cards for reservations.
@@ -813,14 +824,21 @@ def dispatcher_payment_portal(request, reservation_id):
                 customer=customer.stripe_customer_id, type="card"
             )
             has_saved_cards = len(payment_methods.data) > 0
-        except Exception as e:
+        except stripe.error.StripeError as e:
             logger.error(f"Error fetching payment methods: {e}")
+            # If there's a Stripe error (like invalid customer ID), clear it and create new customer
+            if "No such customer" in str(e):
+                logger.info(f"Clearing invalid Stripe customer ID for customer {customer.id}")
+                customer.stripe_customer_id = None
+                customer.save()
+        except Exception as e:
+            logger.error(f"Unexpected error fetching payment methods: {e}")
 
     if request.method == "POST":
         action = request.POST.get("action")
         amount_str = request.POST.get("amount")
         description = request.POST.get(
-            "description", f"Payment for Reservation #{reservation.id}"
+            "description", f"Trip Fare for Res ID #{reservation.id}"
         )
         selected_payment_method = request.POST.get("payment_method_id")
 
@@ -832,6 +850,15 @@ def dispatcher_payment_portal(request, reservation_id):
                 # Only create if doesn't exist
                 stripe_customer = get_or_create_stripe_customer(reservation)
                 stripe_customer_id = stripe_customer.id
+                
+            # Verify the customer ID is still valid by attempting to retrieve it
+            try:
+                stripe.Customer.retrieve(stripe_customer_id)
+            except stripe.error.StripeError as e:
+                if "No such customer" in str(e):
+                    logger.info(f"Stripe customer {stripe_customer_id} no longer exists, creating new one")
+                    stripe_customer = get_or_create_stripe_customer(reservation)
+                    stripe_customer_id = stripe_customer.id
 
             if action == "make_payment":
                 # Validate amount
