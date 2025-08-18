@@ -26,6 +26,11 @@ urlpatterns = [
         views.agent_reservation_detail,
         name="agent_reservation_detail",
     ),
+    path(
+        "agent/reservation/<uuid:uuid>/send-email/",
+        views.send_custom_confirmation_email,
+        name="send_custom_confirmation_email",
+    ),
     path("agent/profile/", views.agent_profile, name="agent_profile"),
     path("agent-login/", views.agent_login, name="agent_login"),
     # Agency management URLs - Updated for multiple heads

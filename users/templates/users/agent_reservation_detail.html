@@ -194,6 +194,46 @@
         </div>
       </div>
     {% endif %}
+    <!-- Email Confirmation Section -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Send Confirmation Email</h5>
+        <div class="row">
+          <div class="col-md-8">
+            <form id="emailForm" class="d-flex gap-2">
+              {% csrf_token %}
+              <div class="flex-grow-1">
+                <input type="email"
+                       id="recipientEmail"
+                       name="recipient_email"
+                       class="form-control"
+                       placeholder="Enter recipient email address"
+                       value="{{ reservation.customer.email }}"
+                       required>
+              </div>
+              <button type="submit" class="btn btn-primary" id="sendEmailBtn">
+                <i class="fas fa-envelope me-2"></i>Send Confirmation
+              </button>
+            </form>
+            <div id="emailStatus" class="mt-2"></div>
+          </div>
+          <div class="col-md-4">
+            <small class="text-muted">
+              <i class="fas fa-info-circle me-1"></i>
+              Send a confirmation email to any email address. The email will include all reservation details.
+              <br>
+              <br>
+              <strong>Common uses:</strong>
+              <ul class="mt-1 mb-0">
+                <li>Send to client's directly instead of forwarding to them</li>
+                <li>re-send to self again</li>
+              </ul>
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Commission Details -->
     <div class="card border-0 shadow-sm">
       <div class="card-body">
@@ -277,7 +317,75 @@
           color: #000;
       }
   </style>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const emailForm = document.getElementById('emailForm');
+          const sendEmailBtn = document.getElementById('sendEmailBtn');
+          const emailStatus = document.getElementById('emailStatus');
+          const recipientEmail = document.getElementById('recipientEmail');
+
+          emailForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+
+              // Validate email
+              if (!recipientEmail.value.trim()) {
+                  showStatus('Please enter a valid email address.', 'error');
+                  return;
+              }
+
+              // Show loading state
+              sendEmailBtn.disabled = true;
+              sendEmailBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+              showStatus('Sending email...', 'info');
+
+              // Prepare form data
+              const formData = new FormData();
+              formData.append('recipient_email', recipientEmail.value.trim());
+              formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+              // Send request
+              fetch('{% url "send_custom_confirmation_email" reservation.uuid %}', {
+                      method: 'POST',
+                      body: formData
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          showStatus(data.message || 'Email sent successfully!', 'success');
+                          // Clear the email field after successful send
+                          recipientEmail.value = '';
+                      } else {
+                          showStatus(data.error || 'Failed to send email. Please try again.', 'error');
+                      }
+                  })
+                  .catch(error => {
+                      console.error('Error:', error);
+                      showStatus('An error occurred while sending the email. Please try again.', 'error');
+                  })
+                  .finally(() => {
+                      // Reset button state
+                      sendEmailBtn.disabled = false;
+                      sendEmailBtn.innerHTML = '<i class="fas fa-envelope me-2"></i>Send Confirmation';
+                  });
+          });
+
+          function showStatus(message, type) {
+              const alertClass = type === 'success' ? 'alert-success' :
+                  type === 'error' ? 'alert-danger' : 'alert-info';
+
+              emailStatus.innerHTML = `
+                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+          }
+      });
+  </script>
 {% endblock %}
 
-{% block footer %}{% endblock %}
-{% block newsletter %}{% endblock %}
+{% block footer %}
+{% endblock %}
+{% block newsletter %}
+{% endblock %}

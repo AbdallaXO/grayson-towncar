@@ -20,7 +20,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
-from django.http import Http404
+from django.http import Http404, JsonResponse
+import logging
 
 from reservations.models import Reservation, Leg
 from .forms import (
@@ -36,6 +37,8 @@ from .models import (
     Agency,
     AgencyCommissionPayout,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def format_decimal(value):
@@ -597,6 +600,59 @@ def agent_profile(request):
     except TravelAgent.DoesNotExist:
         messages.error(request, "You are not registered as a travel agent.")
         return redirect("register_agent")
+
+
+@agent_required
+def send_custom_confirmation_email(request, uuid):
+    """Send confirmation email to a custom recipient for travel agents."""
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "Invalid request method"})
+    
+    try:
+        # Get the reservation and verify it belongs to the agent
+        reservation = get_object_or_404(Reservation, uuid=uuid)
+        travel_agent = TravelAgent.objects.get(user=request.user)
+        
+        if reservation.travel_agent != travel_agent:
+            return JsonResponse({"success": False, "error": "Permission denied"})
+        
+        # Get the recipient email from the request
+        recipient_email = request.POST.get("recipient_email")
+        if not recipient_email:
+            return JsonResponse({"success": False, "error": "Recipient email is required"})
+        
+        # Import the email function
+        from .emails import send_reservation_confirmation_custom_recipient
+        
+        # Send the email
+        success = send_reservation_confirmation_custom_recipient(
+            reservation=reservation,
+            recipient_email=recipient_email,
+            sender_name=travel_agent.agent_name
+        )
+        
+        if success:
+            # Log the action in private notes
+            timestamp = timezone.now().strftime("%Y-%m-%d %H:%M")
+            note_addition = (
+                f"\n[{timestamp}] Custom confirmation email sent to {recipient_email} by {request.user.username}"
+            )
+
+            if reservation.private_notes:
+                reservation.private_notes += note_addition
+            else:
+                reservation.private_notes = note_addition
+
+            reservation.save(update_fields=["private_notes"])
+            
+            messages.success(request, f"Confirmation email sent successfully to {recipient_email}")
+            return JsonResponse({"success": True, "message": f"Email sent to {recipient_email}"})
+        else:
+            return JsonResponse({"success": False, "error": "Failed to send email"})
+            
+    except Exception as e:
+        logger.error(f"Error sending custom confirmation email: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)})
 
 
 # =============================================

@@ -170,3 +170,44 @@ def agent_register_email(instance):
         msg.send()
     except Exception as e:
         logger.error(f"Error sending confirmation email: {e}")
+
+
+def send_reservation_confirmation_custom_recipient(reservation, recipient_email, sender_name=None):
+    """
+    Send reservation confirmation email to a custom recipient.
+    This allows travel agents to send confirmations to different email addresses.
+    """
+    logger.info(
+        f"Preparing to send reservation confirmation for {reservation.customer} to {recipient_email}"
+    )
+
+    try:
+        context = {
+            "reservation": reservation,
+            "legs": reservation.legs.all(),
+            "date": timezone.now().date(),
+            "sender_name": sender_name,
+        }
+
+        subject = "Thank you for booking with Grayson Towncar!"
+        from_email = "reservations@graysontowncar.com"
+        to = [recipient_email]
+        logger.info(f"Email subject: {subject}")
+        logger.info(f"Sending to: {to}")
+        html_content = render_to_string("users/confirmation_email.html", context)
+        logger.info("HTML content rendered successfully")
+
+        msg = EmailMultiAlternatives(subject, "", from_email, to)
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+
+        logger.info(
+            f"Confirmation email sent successfully for reservation {reservation.uuid} to {recipient_email}"
+        )
+        return True
+
+    except Exception as e:
+        logger.exception(
+            f"Error sending confirmation email for reservation {reservation.uuid} to {recipient_email}: {e}"
+        )
+        return False
