@@ -41,3 +41,7 @@ hubspot-api-client
 hubspot
 simplejson
 delorean
+celery
+redis
+django-celery-beat
+django-celery-results
