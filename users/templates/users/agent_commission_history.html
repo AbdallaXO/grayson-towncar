@@ -1,7 +1,5 @@
 {% extends 'main.html' %}
-{% block title %}
-  Travel Agent Commission Overview | Grayson Towncar
-{% endblock %}
+{% block title %}Travel Agent Commission Overview | Grayson Towncar{% endblock %}
 {% block content %}
   <div class="container py-5">
     <!-- Header -->
@@ -23,7 +21,9 @@
         <a class="nav-link" href="{% url 'agent_dashboard' %}">Dashboard</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link active" href="{% url 'agent_commission_history' %}" aria-current="page">Commission History</a>
+        <a class="nav-link active"
+           href="{% url 'agent_commission_history' %}"
+           aria-current="page">Commission History</a>
       </li>
     </ul>
 
@@ -66,11 +66,17 @@
               <div class="d-flex align-items-end h-100 justify-content-between flex-wrap">
                 {% for payout in payouts %}
                   {% if forloop.counter <= 12 %}
-                    <div class="d-flex flex-column align-items-center mx-1 mb-3" style="width: 30px">
-                      <div class="bg-success rounded-top" style="width: 100%;
+                    <div class="d-flex flex-column align-items-center mx-1 mb-3"
+                         style="width: 30px">
+                      <div class="bg-success rounded-top"
+                           style="width: 100%;
                                   height: {% widthratio payout.total_amount total_paid 150 %}px;
-                                  min-height: 5px" data-bs-toggle="tooltip" data-bs-placement="top" title="${{ payout.total_amount|floatformat:2 }}"></div>
-                      <small class="text-muted mt-1" style="font-size: 0.7rem;
+                                  min-height: 5px"
+                           data-bs-toggle="tooltip"
+                           data-bs-placement="top"
+                           title="${{ payout.total_amount|floatformat:2 }}"></div>
+                      <small class="text-muted mt-1"
+                             style="font-size: 0.7rem;
                                     writing-mode: vertical-lr;
                                     transform: rotate(180deg)">{{ payout.paid_at|date:'M y' }}</small>
                     </div>
@@ -92,7 +98,7 @@
             <table class="table table-hover">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>Date Completed</th>
                   <th>Customer</th>
                   <th>Trip Type</th>
                   <th>Total Price</th>
@@ -103,7 +109,13 @@
               <tbody>
                 {% for reservation in unpaid_reservations %}
                   <tr>
-                    <td>{{ reservation.created_at|date:'M d, Y' }}</td>
+                    <td>
+                      {% if reservation.get_completion_date %}
+                        {{ reservation.get_completion_date|date:'M d, Y' }}
+                      {% else %}
+                        {{ reservation.updated_at|date:'M d, Y' }}
+                      {% endif %}
+                    </td>
                     <td>{{ reservation.customer.get_full_name }}</td>
                     <td>{{ reservation.get_trip_type_display }}</td>
                     <td>${{ reservation.total_price|floatformat:2 }}</td>
@@ -152,7 +164,11 @@
                     <td>{{ payout.reservations.count }}</td>
                     <td>{{ payout.notes|truncatewords:4 }}</td>
                     <td>
-                      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#payoutModal{{ payout.id }}" aria-label="View payout details">Details</button>
+                      <button type="button"
+                              class="btn btn-sm btn-outline-primary"
+                              data-bs-toggle="modal"
+                              data-bs-target="#payoutModal{{ payout.id }}"
+                              aria-label="View payout details">Details</button>
                     </td>
                     <td class="text-success">${{ payout.total_amount|floatformat:2 }}</td>
                   </tr>
@@ -173,7 +189,9 @@
               <ul class="pagination justify-content-center flex-wrap">
                 {% if payouts.has_previous %}
                   <li class="page-item">
-                    <a class="page-link" href="?page={{ payouts.previous_page_number }}" aria-label="Previous page">Previous</a>
+                    <a class="page-link"
+                       href="?page={{ payouts.previous_page_number }}"
+                       aria-label="Previous page">Previous</a>
                   </li>
                 {% endif %}
 
@@ -191,7 +209,9 @@
 
                 {% if payouts.has_next %}
                   <li class="page-item">
-                    <a class="page-link" href="?page={{ payouts.next_page_number }}" aria-label="Next page">Next</a>
+                    <a class="page-link"
+                       href="?page={{ payouts.next_page_number }}"
+                       aria-label="Next page">Next</a>
                   </li>
                 {% endif %}
               </ul>
@@ -206,12 +226,21 @@
 
   <!-- Payout Detail Modals -->
   {% for payout in payouts %}
-    <div class="modal fade" id="payoutModal{{ payout.id }}" tabindex="-1" aria-labelledby="payoutModalLabel{{ payout.id }}" aria-hidden="true">
+    <div class="modal fade"
+         id="payoutModal{{ payout.id }}"
+         tabindex="-1"
+         aria-labelledby="payoutModalLabel{{ payout.id }}"
+         aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}"><i class="fas fa-file-invoice-dollar me-2"></i>Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <h5 class="modal-title" id="payoutModalLabel{{ payout.id }}">
+              <i class="fas fa-file-invoice-dollar me-2"></i>Payout Details - {{ payout.payout_period_start|date:'M d' }} to {{ payout.payout_period_end|date:'M d, Y' }}
+            </h5>
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <!-- Payout Summary Cards -->
@@ -245,24 +274,29 @@
             <!-- Payout Information -->
             <div class="card mb-4">
               <div class="card-header bg-light">
-                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Payout Information</h6>
+                <h6 class="mb-0">
+                  <i class="fas fa-info-circle me-2"></i>Payout Information
+                </h6>
               </div>
               <div class="card-body">
                 <div class="row">
                   <div class="col-md-6">
                     <p class="mb-2">
-                      <strong><i class="fas fa-calendar me-2"></i>Paid On:</strong><br />
+                      <strong><i class="fas fa-calendar me-2"></i>Paid On:</strong>
+                      <br />
                       {{ payout.paid_at|date:'F d, Y g:i A' }}
                     </p>
                     <p class="mb-2">
-                      <strong><i class="fas fa-clock me-2"></i>Period:</strong><br />
+                      <strong><i class="fas fa-clock me-2"></i>Period:</strong>
+                      <br />
                       {{ payout.payout_period_start|date:'M d, Y' }} to {{ payout.payout_period_end|date:'M d, Y' }}
                     </p>
                   </div>
                   <div class="col-md-6">
                     {% if payout.notes %}
                       <p class="mb-2">
-                        <strong><i class="fas fa-sticky-note me-2"></i>Notes:</strong><br />
+                        <strong><i class="fas fa-sticky-note me-2"></i>Notes:</strong>
+                        <br />
                         {{ payout.notes }}
                       </p>
                     {% endif %}
@@ -274,7 +308,9 @@
             <!-- Reservation Details -->
             <div class="card">
               <div class="card-header bg-light">
-                <h6 class="mb-0"><i class="fas fa-list me-2"></i>Reservation Details</h6>
+                <h6 class="mb-0">
+                  <i class="fas fa-list me-2"></i>Reservation Details
+                </h6>
               </div>
               <div class="card-body p-0">
                 <div class="table-responsive">
@@ -318,68 +354,67 @@
 
   <!-- Custom Styles -->
   <style>
-    body {
-      background-color: #f4f6f9;
-    }
-    
-    .card {
-      border-radius: 0.75rem;
-    }
-    
-    .chart-container {
-      overflow-x: auto;
-    }
-    
-    @media (max-width: 767.98px) {
-      .chart-container {
-        height: 150px !important;
-      }
-    
-      .chart-container .d-flex {
-        min-width: 500px;
-      }
-    }
-    
-    @media print {
-      .btn,
-      .nav-tabs,
-      .modal,
-      .pagination {
-        display: none !important;
-      }
-    
       body {
-        background-color: white !important;
+          background-color: #f4f6f9;
       }
-    
+
       .card {
-        border: 1px solid #dee2e6 !important;
-        box-shadow: none !important;
+          border-radius: 0.75rem;
       }
-    
-      .container {
-        width: 100% !important;
-        max-width: 100% !important;
-        padding: 0 !important;
+
+      .chart-container {
+          overflow-x: auto;
       }
-    
-      .table {
-        font-size: 10pt;
+
+      @media (max-width: 767.98px) {
+          .chart-container {
+              height: 150px !important;
+          }
+
+          .chart-container .d-flex {
+              min-width: 500px;
+          }
       }
-    }
+
+      @media print {
+
+          .btn,
+          .nav-tabs,
+          .modal,
+          .pagination {
+              display: none !important;
+          }
+
+          body {
+              background-color: white !important;
+          }
+
+          .card {
+              border: 1px solid #dee2e6 !important;
+              box-shadow: none !important;
+          }
+
+          .container {
+              width: 100% !important;
+              max-width: 100% !important;
+              padding: 0 !important;
+          }
+
+          .table {
+              font-size: 10pt;
+          }
+      }
   </style>
 
   <!-- Initialize tooltips -->
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-      tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl)
+      document.addEventListener('DOMContentLoaded', function() {
+          var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+          tooltipTriggerList.map(function(tooltipTriggerEl) {
+              return new bootstrap.Tooltip(tooltipTriggerEl)
+          })
       })
-    })
   </script>
 
-  {% block footer %}
-
-  {% endblock %}
+  {% block footer %}{% endblock %}
 {% endblock %}

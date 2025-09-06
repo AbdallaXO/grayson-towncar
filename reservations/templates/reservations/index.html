@@ -1037,6 +1037,23 @@
 
     {% include 'call-to-action.html' %}
   </main>
+
+  <!-- Sticky Action Buttons -->
+  <div class="sticky-buttons">
+    <a href="tel:+14072127190"
+       class="sticky-btn sticky-call"
+       title="Call Now">
+      <i class="fas fa-phone"></i>
+    </a>
+    <a href="sms:+14072127190"
+       class="sticky-btn sticky-text"
+       title="Text Now">
+      <i class="fas fa-sms"></i>
+    </a>
+    <button class="sticky-btn sticky-scroll" id="scrollToTop" title="Back to Top">
+      <i class="fas fa-chevron-up"></i>
+    </button>
+  </div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1047,6 +1064,102 @@
           carousel.addEventListener('slide.bs.carousel', function(e) {
               // Add any additional slide transition effects here if needed
           })
+
+          // Scroll to top functionality
+          const scrollToTopBtn = document.getElementById('scrollToTop')
+          scrollToTopBtn.addEventListener('click', function() {
+              window.scrollTo({
+                  top: 0,
+                  behavior: 'smooth'
+              })
+          })
+
+          // Show/hide scroll to top button based on scroll position
+          window.addEventListener('scroll', function() {
+              if (window.pageYOffset > 300) {
+                  scrollToTopBtn.style.display = 'flex'
+              } else {
+                  scrollToTopBtn.style.display = 'none'
+              }
+          })
       })
   </script>
+
+  <style>
+      .sticky-buttons {
+          position: fixed;
+          right: 20px;
+          bottom: 20px;
+          z-index: 1000;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+      }
+
+      .sticky-btn {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+          border: none;
+          cursor: pointer;
+          font-size: 18px;
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .sticky-call {
+          background-color: #28a745;
+          color: white;
+      }
+
+      .sticky-call:hover {
+          background-color: #218838;
+          color: white;
+          transform: scale(1.1);
+      }
+
+      .sticky-text {
+          background-color: #007bff;
+          color: white;
+      }
+
+      .sticky-text:hover {
+          background-color: #0056b3;
+          color: white;
+          transform: scale(1.1);
+      }
+
+      .sticky-scroll {
+          background-color: #6c757d;
+          color: white;
+          display: none;
+      }
+
+      .sticky-scroll:hover {
+          background-color: #545b62;
+          color: white;
+          transform: scale(1.1);
+      }
+
+      .sticky-scroll.show {
+          display: flex;
+      }
+
+      @media (max-width: 768px) {
+          .sticky-buttons {
+              right: 15px;
+              bottom: 15px;
+          }
+
+          .sticky-btn {
+              width: 45px;
+              height: 45px;
+              font-size: 16px;
+          }
+      }
+  </style>
 {% endblock %}

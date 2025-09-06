@@ -342,6 +342,17 @@ class Reservation(models.Model):
             
         return False
 
+    def get_completion_date(self):
+        """
+        Get the completion date of the last completed leg.
+        Returns the pickup_date of the last completed leg, or None if no legs are completed.
+        """
+        completed_legs = self.legs.filter(status='completed').order_by('-pickup_date', '-pickup_time')
+        if completed_legs.exists():
+            last_leg = completed_legs.first()
+            return last_leg.pickup_date
+        return None
+
     def __str__(self):
         """
         Returns a simple string representation, showing the reservation's ID

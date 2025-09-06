@@ -6,12 +6,12 @@
       <link rel="stylesheet" href="{% static "css/book_form.css" %}">
     {% endblock extra_css %}
 
-    <main class="container form-container py-4">
+    <main class="container form-container py-2 py-md-4">
       <div class="row">
-        <div class="col-lg-10 mx-auto">
+        <div class="col-12 col-lg-10 mx-auto">
           <!-- Trip Overview Card -->
-          <section class="form-card shadow-sm border-0 mb-4">
-            <div class="card-header bg-white">
+          <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+            <div class="card-header bg-white px-3 px-md-4 py-3">
               <div class="d-flex align-items-center">
                 <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
                       style="width: 40px;
@@ -20,18 +20,18 @@
                              padding: 0">
                   <img src="{% static 'images/find.webp' %}"
                        alt="Find Icon"
-                       style="width: 20px;
-                              height: 20px;
-                              object-fit: contain">
+                       width="20"
+                       height="20"
+                       style="object-fit: contain">
                 </span>
                 <h2 class="fs-5 mb-0 fw-bold">Trip Overview</h2>
               </div>
             </div>
-            <div class="card-body">
+            <div class="card-body px-3 px-md-4">
               <!-- Trip Type & Vehicle -->
-              <div class="mb-3 d-flex justify-content-center align-items-center gap-3">
+              <div class="mb-3 d-flex flex-wrap justify-content-center align-items-center gap-2 gap-md-3">
                 <!-- Trip Type Badge -->
-                <div class="badge {% if trip_type == 'round trip' %}bg-primary{% else %}bg-dark{% endif %} p-2">
+                <div class="badge {% if trip_type == 'round trip' %}bg-primary{% else %}bg-dark{% endif %} p-2 px-3">
                   {% if trip_type == 'round trip' %}
                     <i class="bi bi-arrow-left-right me-1"></i> Round Trip
                   {% else %}
@@ -40,12 +40,12 @@
                 </div>
 
                 <!-- Vehicle Type Badge -->
-                <div class="badge bg-secondary p-2">
+                <div class="badge bg-secondary p-2 px-3">
                   <i class="bi bi-car-front me-1"></i> {{ vehicle }}
                 </div>
 
                 <!-- Price Badge -->
-                <div class="badge bg-success p-2">
+                <div class="badge bg-success p-2 px-3">
                   <i class="bi bi-tag-fill me-1"></i> ${{ price }}
                 </div>
               </div>
@@ -53,25 +53,25 @@
               <!-- Visual Route Display -->
               <div class="route-visual p-3 bg-light rounded position-relative mb-3">
                 <div class="d-flex justify-content-center align-items-center">
-                  <div class="route-box border shadow-sm p-3">
-                    <div class="d-flex justify-content-center align-items-center gap-5">
+                  <div class="route-box border shadow-sm p-3 w-100">
+                    <div class="d-flex justify-content-center align-items-center gap-3 gap-md-5">
                       <i class="bi bi-geo-alt-fill fs-4 text-secondary"></i>
-                      <div class="border-top border-2" style="width: 80px;"></div>
+                      <div class="border-top border-2 flex-grow-1" style="max-width: 80px;"></div>
                       <i class="bi bi-geo-alt-fill fs-4 text-warning"></i>
                     </div>
 
-                    <div class="mt-2 pt-2 border-top fw-bold text-center">{{ route }}</div>
+                    <div class="mt-2 pt-2 border-top fw-bold text-center small">{{ route }}</div>
 
                     <!-- Direction Indicator -->
                     <div class="mt-2 text-center">
                       {% if trip_type == 'round trip' %}
-                        <span class="badge bg-primary bg-opacity-10 text-primary">
+                        <span class="badge bg-primary bg-opacity-10 text-primary small">
                           <i class="bi bi-arrow-left"></i>
                           <span class="mx-1">Round Trip</span>
                           <i class="bi bi-arrow-right"></i>
                         </span>
                       {% else %}
-                        <span class="badge bg-dark bg-opacity-10 text-dark">
+                        <span class="badge bg-dark bg-opacity-10 text-dark small">
                           <i class="bi bi-arrow-right"></i>
                           <span class="mx-1">One Way</span>
                         </span>
@@ -82,36 +82,36 @@
               </div>
 
               <!-- Travel Tips -->
-              <div class="travel-tips d-flex flex-column gap-3">
+              <div class="travel-tips d-flex flex-column gap-2 gap-md-3">
 
                 <!-- Arrival Tip -->
-                <div class="d-flex align-items-center bg-light rounded p-3 shadow-sm">
-                  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3"
+                <div class="d-flex align-items-start bg-light rounded p-3 shadow-sm">
+                  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3 flex-shrink-0"
                        style="min-width: 40px;
                               height: 40px">
                     <img src="{% static 'images/arrival.webp' %}"
                          alt="Arrival Icon"
-                         style="width: 20px;
-                                height: 20px;
-                                object-fit: contain">
+                         width="20"
+                         height="20"
+                         style="object-fit: contain">
                   </div>
-                  <div>
+                  <div class="small">
                     <strong>Arrival Tip:</strong> Schedule pickup for your flight's landing time — we monitor delays and adjust automatically.
                   </div>
                 </div>
 
                 <!-- Departure Tip -->
-                <div class="d-flex align-items-center bg-light rounded p-3 shadow-sm">
-                  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3"
+                <div class="d-flex align-items-start bg-light rounded p-3 shadow-sm">
+                  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3 flex-shrink-0"
                        style="min-width: 40px;
                               height: 40px">
                     <img src="{% static 'images/departure.webp' %}"
-                         alt="Arrival Icon"
-                         style="width: 20px;
-                                height: 20px;
-                                object-fit: contain">
+                         alt="Departure Icon"
+                         width="20"
+                         height="20"
+                         style="object-fit: contain">
                   </div>
-                  <div>
+                  <div class="small">
                     <strong>Departure Tip:</strong> Book pickup at least 2.5 hours before domestic flights, or 3 hours for international travel.
                   </div>
                 </div>
@@ -119,6 +119,35 @@
               </div>
             </div>
           </section>
+
+          <!-- Sticky Form Progress -->
+          <div class="sticky-top bg-white shadow-sm py-2 mb-3 d-none d-md-block"
+               style="z-index: 100">
+            <div class="container">
+              <div class="row">
+                <div class="col-12">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <span class="badge bg-primary me-2">1</span>
+                      <span class="small fw-semibold">Contact Info</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <span class="badge bg-light text-dark me-2">2</span>
+                      <span class="small text-muted">Passenger Details</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <span class="badge bg-light text-dark me-2">3</span>
+                      <span class="small text-muted">Trip Details</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                      <span class="badge bg-light text-dark">4</span>
+                      <span class="small text-muted">Complete</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <form method="POST"
                 class="needs-validation"
@@ -135,8 +164,8 @@
             <input type="hidden" name="utm_content" id="utm_content_field">
 
             <!-- Contact Information -->
-            <section class="form-card shadow-sm border-0 mb-4">
-              <div class="card-header bg-white">
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+              <div class="card-header bg-white px-3 px-md-4 py-3">
                 <div class="d-flex align-items-center">
                   <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
                         style="width: 40px;
@@ -145,19 +174,19 @@
                                padding: 0">
                     <img src="{% static 'images/id-card.webp' %}"
                          alt="Passenger Icon"
-                         style="width: 20px;
-                                height: 20px;
-                                object-fit: contain">
+                         width="20"
+                         height="20"
+                         style="object-fit: contain">
                   </span>
                   <h2 class="fs-5 mb-0 fw-bold">Contact Information</h2>
                 </div>
               </div>
-              <div class="card-body">
+              <div class="card-body px-3 px-md-4">
                 <div class="row g-3">
                   <!-- First and Last Name on same row -->
-                  <div class="col-md-6 form-row">
+                  <div class="col-12 col-md-6 form-row">
                     <label for="{{ customer_form.first_name.id_for_label }}"
-                           class="form-label required">First Name</label>
+                           class="form-label required fw-semibold">First Name</label>
                     {{ customer_form.first_name }}
                     {% if customer_form.first_name.errors %}
                       <div class="invalid-feedback d-block">
@@ -166,9 +195,9 @@
                     {% endif %}
                   </div>
 
-                  <div class="col-md-6 form-row">
+                  <div class="col-12 col-md-6 form-row">
                     <label for="{{ customer_form.last_name.id_for_label }}"
-                           class="form-label required">Last Name</label>
+                           class="form-label required fw-semibold">Last Name</label>
                     {{ customer_form.last_name }}
                     {% if customer_form.last_name.errors %}
                       <div class="invalid-feedback d-block">
@@ -178,11 +207,11 @@
                   </div>
 
                   <!-- Email and Phone on same row -->
-                  <div class="col-md-6 form-row">
+                  <div class="col-12 col-md-6 form-row">
                     <label for="{{ customer_form.email.id_for_label }}"
-                           class="form-label required">Email Address</label>
+                           class="form-label required fw-semibold">Email Address</label>
                     {{ customer_form.email }}
-                    <div class="form-text">
+                    <div class="form-text small">
                       <i class="bi bi-envelope-check me-1"></i> We'll send your confirmation here
                     </div>
                     {% if customer_form.email.errors %}
@@ -192,11 +221,11 @@
                     {% endif %}
                   </div>
 
-                  <div class="col-md-6 form-row">
+                  <div class="col-12 col-md-6 form-row">
                     <label for="{{ customer_form.phone_number.id_for_label }}"
-                           class="form-label required">Phone Number</label>
+                           class="form-label required fw-semibold">Phone Number</label>
                     {{ customer_form.phone_number }}
-                    <div class="form-text">
+                    <div class="form-text small">
                       <i class="bi bi-telephone me-1"></i> For day-of-travel updates
                     </div>
                     {% if customer_form.phone_number.errors %}
@@ -207,9 +236,9 @@
                   </div>
 
                   <!-- Zipcode on its own row -->
-                  <div class="col-md-6 form-row">
+                  <div class="col-12 col-md-6 form-row">
                     <label for="{{ customer_form.zipcode.id_for_label }}"
-                           class="form-label required">Zipcode</label>
+                           class="form-label required fw-semibold">Zipcode</label>
                     {{ customer_form.zipcode }}
                     {% if customer_form.zipcode.errors %}
                       <div class="invalid-feedback d-block">
@@ -222,7 +251,7 @@
             </section>
 
             <!-- Passenger Details -->
-            <section class="form-card shadow-sm border-0 mb-4">
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
               <div id="vehicle-limits"
                    data-max-passengers="{{ vehicle.capacity }}"
                    data-max-luggage="{{ vehicle.luggage_capacity }}"
@@ -230,7 +259,7 @@
                    data-max-rf="{{ vehicle.rf_carseats_max }}"
                    data-max-boosters="{{ vehicle.boosters_max }}"
                    data-max-carseats="{{ vehicle.carseats_capacity }}"></div>
-              <div class="card-header bg-white">
+              <div class="card-header bg-white px-3 px-md-4 py-3">
                 <div class="d-flex align-items-center">
                   <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
                         style="width: 40px;
@@ -239,27 +268,27 @@
                                padding: 0">
                     <img src="{% static 'images/travel-guy.webp' %}"
                          alt="Passenger Icon"
-                         style="width: 30px;
-                                height: 30px;
-                                object-fit: contain">
+                         width="30"
+                         height="30"
+                         style="object-fit: contain">
                   </span>
                   <h2 class="fs-5 mb-0 fw-bold">Passenger Details</h2>
                 </div>
               </div>
 
-              <div class="card-body">
+              <div class="card-body px-3 px-md-4">
                 <div class="row g-3">
                   <!-- Passenger Count -->
-                  <div class="col-md-6">
+                  <div class="col-12 col-md-6">
                     <label for="{{ reservation_form.passenger_count.id_for_label }}"
-                           class="form-label required d-flex align-items-center">
+                           class="form-label required d-flex align-items-center fw-semibold">
                       <span>Number of Passengers</span>
                       <i class="bi bi-question-circle ms-2 info-tooltip"
                          data-bs-toggle="tooltip"
                          title="Include all travelers who need a seat, including infants and children"></i>
                     </label>
                     {{ reservation_form.passenger_count }}
-                    <div class="form-text">
+                    <div class="form-text small">
                       <i class="bi bi-people me-1"></i> Include all travelers needing a seat
                     </div>
                     {% if reservation_form.passenger_count.errors %}
@@ -270,24 +299,25 @@
                   </div>
 
                   <!-- Luggage Count -->
-                  <div class="col-md-6">
+                  <div class="col-12 col-md-6">
                     <label for="{{ reservation_form.luggage_count.id_for_label }}"
-                           class="form-label required d-flex align-items-center">
+                           class="form-label required d-flex align-items-center fw-semibold">
                       <span>Number of Luggage Items</span>
                       <i class="bi bi-question-circle ms-2 info-tooltip"
                          data-bs-toggle="tooltip"
                          title="Count all hard-shell luggage, strollers, and large items. Single stroller = 1 suitcase, double stroller = 2 suitcases"></i>
                     </label>
                     {{ reservation_form.luggage_count }}
-                    <div class="form-text">
+                    <div class="form-text small">
                       <i class="bi bi-bag-check me-1"></i> Include hard-shell luggage, strollers, and large items
                     </div>
-                                         <div class="mt-2">
-                       <small class="text-muted">
-                         <strong>What counts:</strong> Hard-shell luggage (including carry-ons), strollers, large items<br>
-                         <strong>What doesn't:</strong> Soft carry-ons, small personal items
-                       </small>
-                     </div>
+                    <div class="mt-2">
+                      <small class="text-muted">
+                        <strong>What counts:</strong> Hard-shell luggage (including carry-ons), strollers, large items
+                        <br>
+                        <strong>What doesn't:</strong> Soft carry-ons, small personal items
+                      </small>
+                    </div>
                     {% if reservation_form.luggage_count.errors %}
                       <div class="invalid-feedback d-block">
                         {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
@@ -826,39 +856,39 @@
 
         <!-- Autofill customer information from URL parameters -->
         <script>
-          function autofillForm() {
-            const urlParams = new URLSearchParams(window.location.search);
-            
-            // Get customer information from URL parameters
-            const firstName = urlParams.get('first_name');
-            const lastName = urlParams.get('last_name');
-            const email = urlParams.get('email');
-            const phone = urlParams.get('phone');
-            
-            // Autofill the form fields if the data exists
-            if (firstName) {
-              const firstNameField = document.querySelector('input[name="first_name"]');
-              if (firstNameField) firstNameField.value = firstName;
+            function autofillForm() {
+                const urlParams = new URLSearchParams(window.location.search);
+
+                // Get customer information from URL parameters
+                const firstName = urlParams.get('first_name');
+                const lastName = urlParams.get('last_name');
+                const email = urlParams.get('email');
+                const phone = urlParams.get('phone');
+
+                // Autofill the form fields if the data exists
+                if (firstName) {
+                    const firstNameField = document.querySelector('input[name="first_name"]');
+                    if (firstNameField) firstNameField.value = firstName;
+                }
+
+                if (lastName) {
+                    const lastNameField = document.querySelector('input[name="last_name"]');
+                    if (lastNameField) lastNameField.value = lastName;
+                }
+
+                if (email) {
+                    const emailField = document.querySelector('input[name="email"]');
+                    if (emailField) emailField.value = email;
+                }
+
+                if (phone) {
+                    const phoneField = document.querySelector('input[name="phone_number"]');
+                    if (phoneField) phoneField.value = phone;
+                }
             }
-            
-            if (lastName) {
-              const lastNameField = document.querySelector('input[name="last_name"]');
-              if (lastNameField) lastNameField.value = lastName;
-            }
-            
-            if (email) {
-              const emailField = document.querySelector('input[name="email"]');
-              if (emailField) emailField.value = email;
-            }
-            
-            if (phone) {
-              const phoneField = document.querySelector('input[name="phone_number"]');
-              if (phoneField) phoneField.value = phone;
-            }
-          }
-          
-          // Autofill when DOM is ready
-          document.addEventListener('DOMContentLoaded', autofillForm);
+
+            // Autofill when DOM is ready
+            document.addEventListener('DOMContentLoaded', autofillForm);
         </script>
 
         <!-- UTM Parameter Capture Script -->
@@ -892,5 +922,91 @@
         <!-- End UTM Parameter Capture Script -->
 
       {% endblock %}
+
+      <!-- Mobile Form Enhancements -->
+      <style>
+          /* Mobile Form Improvements */
+          @media (max-width: 768px) {
+              .form-container {
+                  padding-left: 0.5rem;
+                  padding-right: 0.5rem;
+              }
+
+              .form-card {
+                  margin-bottom: 1rem;
+              }
+
+              .card-body {
+                  padding: 1rem;
+              }
+
+              .form-label {
+                  font-size: 0.9rem;
+                  margin-bottom: 0.5rem;
+              }
+
+              .form-control,
+              .form-select {
+                  font-size: 16px;
+                  /* Prevents zoom on iOS */
+                  padding: 0.75rem;
+                  border-radius: 0.5rem;
+              }
+
+              .btn {
+                  font-size: 1rem;
+                  padding: 0.75rem 1.5rem;
+              }
+
+              .badge {
+                  font-size: 0.75rem;
+                  padding: 0.5rem 0.75rem;
+              }
+
+              .travel-tips .d-flex {
+                  flex-direction: column;
+                  text-align: center;
+              }
+
+              .travel-tips .me-3 {
+                  margin-right: 0 !important;
+                  margin-bottom: 0.75rem;
+              }
+
+              .route-visual .route-box {
+                  padding: 1rem;
+              }
+
+              .info-tooltip {
+                  font-size: 0.8rem;
+              }
+          }
+
+          /* Touch-friendly improvements */
+          .form-check-input {
+              width: 1.25rem;
+              height: 1.25rem;
+          }
+
+          .form-check-label {
+              font-size: 0.9rem;
+              padding-left: 0.5rem;
+          }
+
+          /* Better focus states for mobile */
+          .form-control:focus,
+          .form-select:focus {
+              border-color: #0d6efd;
+              box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+          }
+
+          /* Sticky progress bar mobile adjustments */
+          @media (max-width: 768px) {
+              .sticky-top {
+                  position: relative !important;
+                  margin-bottom: 1rem;
+              }
+          }
+      </style>
 
     {% endblock content %}
