@@ -51,7 +51,7 @@ def index(request):
     )
 
 
-@login_required
+@login_required(login_url="login")
 def completed_trips(request):
     driver = get_object_or_404(Driver, profile=request.user)
 
@@ -76,7 +76,7 @@ def completed_trips(request):
     )
 
 
-@login_required
+@login_required(login_url="login")
 def schedule(request):
     driver = get_object_or_404(Driver, profile=request.user)
     today = timezone.localdate()
@@ -108,7 +108,7 @@ def schedule(request):
     )
 
 
-@login_required
+@login_required(login_url="login")
 @require_http_methods(["POST"])
 def update_leg_status(request, leg_id):
     try:

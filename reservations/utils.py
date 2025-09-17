@@ -237,6 +237,184 @@ Priority: {lead.priority}
         logger.error(f"Error sending lead notification: {str(e)}")
 
 
+def send_driver_status_notification(leg, old_status=None, new_status=None):
+    """
+    Send a notification for driver leg status updates
+
+    Args:
+        leg: Leg object with driver and reservation details
+        old_status: Previous status (optional)
+        new_status: New status (optional, defaults to leg.status)
+    """
+    try:
+        if not leg.driver:
+            logger.warning(f"No driver assigned to leg {leg.id}")
+            return
+
+        if new_status is None:
+            new_status = leg.status
+
+        # Get status display information
+        status_info = get_driver_status_info(new_status)
+        
+        # Format customer information
+        customer_name = leg.reservation.customer.get_full_name()
+        driver_name = leg.driver.__str__()
+        
+        # Format pickup/dropoff locations
+        pickup_location = leg.pickup_location or "N/A"
+        dropoff_location = leg.dropoff_location or "N/A"
+        
+        # Format date and time
+        pickup_datetime = f"{leg.pickup_date} at {leg.pickup_time}"
+        
+        # Create natural notification title and message
+        title = f"{status_info['emoji']} {driver_name} {status_info['action_phrase']}"
+        
+        # Create a natural message based on status
+        if new_status == "on-location":
+            message = f"{driver_name} is on location for {customer_name}'s pickup"
+        elif new_status == "on-the-way":
+            message = f"{driver_name} is on the way to pickup {customer_name}"
+        elif new_status == "picked-up":
+            message = f"{driver_name} has picked up {customer_name}"
+        elif new_status == "confirmed":
+            message = f"{driver_name} has confirmed the job for {customer_name}"
+        elif new_status == "completed":
+            message = f"{driver_name} has completed the trip for {customer_name}"
+        else:
+            message = f"{driver_name} - {status_info['label']} for {customer_name}"
+        
+        # Add trip details
+        message += f"\n\n📍 {pickup_location} → {dropoff_location}"
+        message += f"\n🕐 {pickup_datetime}"
+        message += f"\n🚗 {leg.reservation.vehicle or 'Vehicle TBD'}"
+        message += f"\n📋 Reservation #{leg.reservation.id}"
+
+        # Add status change info if old status provided
+        if old_status and old_status != new_status:
+            old_status_info = get_driver_status_info(old_status)
+            message += f"\n\nChanged from: {old_status_info['label']}"
+
+        # Set appropriate tags and priority
+        tags = ["car", "driver", status_info['tag']]
+        priority = status_info['priority']
+
+        # Send notification to driver-specific topic
+        send_driver_ntfy_notification(title, message, priority=priority, tags=tags)
+
+    except Exception as e:
+        logger.error(f"Error sending driver status notification: {str(e)}")
+
+
+def get_driver_status_info(status):
+    """
+    Get display information for driver status
+    
+    Args:
+        status: Driver status string
+        
+    Returns:
+        dict: Status information including emoji, label, tag, and priority
+    """
+    status_map = {
+        "in-progress": {
+            "emoji": "⏳",
+            "label": "In Progress",
+            "action_phrase": "is working on",
+            "tag": "in_progress",
+            "priority": "default"
+        },
+        "confirmed": {
+            "emoji": "✅",
+            "label": "Confirmed",
+            "action_phrase": "confirmed",
+            "tag": "confirmed",
+            "priority": "high"
+        },
+        "on-the-way": {
+            "emoji": "🚗",
+            "label": "On the Way",
+            "action_phrase": "is on the way",
+            "tag": "on_the_way",
+            "priority": "high"
+        },
+        "on-location": {
+            "emoji": "📍",
+            "label": "On Location",
+            "action_phrase": "is on location",
+            "tag": "on_location",
+            "priority": "high"
+        },
+        "picked-up": {
+            "emoji": "👥",
+            "label": "Picked Up",
+            "action_phrase": "picked up",
+            "tag": "picked_up",
+            "priority": "high"
+        },
+        "completed": {
+            "emoji": "🎉",
+            "label": "Completed",
+            "action_phrase": "completed",
+            "tag": "completed",
+            "priority": "default"
+        }
+    }
+    
+    return status_map.get(status, {
+        "emoji": "❓",
+        "label": status.title(),
+        "action_phrase": "updated status to",
+        "tag": "unknown",
+        "priority": "default"
+    })
+
+
+def send_driver_ntfy_notification(title, message, priority="default", tags=None):
+    """
+    Send a notification via ntfy to the driver topic
+
+    Args:
+        title (str): Notification title
+        message (str): Notification message
+        priority (str): Priority level (min, low, default, high, urgent)
+        tags (list): List of tags for the notification
+    """
+    if not getattr(settings, "NTFY_ENABLED", False):
+        logger.info("NTFY notifications are disabled")
+        return
+
+    try:
+        # Use driver-specific topic
+        topic = getattr(settings, "NTFY_DRIVER_TOPIC", "grayson-driver-noti")
+        server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
+
+        url = f"{server}/{topic}"
+
+        headers = {
+            "Content-Type": "text/plain",
+        }
+
+        if priority != "default":
+            headers["Priority"] = priority
+
+        if tags:
+            headers["Tags"] = ",".join(tags)
+
+        response = requests.post(url, data=message, headers=headers, timeout=10)
+
+        if response.status_code == 200:
+            logger.info(f"Driver NTFY notification sent successfully: {title}")
+        else:
+            logger.error(
+                f"Failed to send driver NTFY notification. Status: {response.status_code}"
+            )
+
+    except Exception as e:
+        logger.error(f"Error sending driver NTFY notification: {str(e)}")
+
+
 def add_utm_to_metadata(metadata: Dict[str, Any], reservation) -> Dict[str, Any]:
     """
     Add UTM parameters from a reservation to Stripe metadata.
