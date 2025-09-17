@@ -8,7 +8,7 @@ from reservations.models import Leg
 
 
 def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None, 
-                              status_filter=None, time_filter="all"):
+                              status_filter=None, time_filter="all", driver_filter=None):
     """
     Get a filtered queryset of legs based on various filter parameters.
     
@@ -18,6 +18,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         date_to: End date for range filter
         status_filter: Status filter
         time_filter: Time range filter (all, week, next_week)
+        driver_filter: Driver ID filter
     
     Returns:
         Filtered Leg queryset
@@ -67,6 +68,10 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
     # Apply status filter
     if status_filter:
         legs_query = legs_query.filter(status=status_filter)
+    
+    # Apply driver filter
+    if driver_filter:
+        legs_query = legs_query.filter(driver_id=driver_filter)
     
     return legs_query.order_by("pickup_date", "pickup_time")
 
@@ -238,7 +243,7 @@ def calculate_driver_statistics(legs):
 
 
 def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None, 
-                                status_filter=None, time_filter="all"):
+                                status_filter=None, time_filter="all", driver_filter=None):
     """
     Get comprehensive statistics for the statistics page.
     
@@ -248,13 +253,14 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
         date_to: End date for range filter
         status_filter: Status filter
         time_filter: Time range filter
+        driver_filter: Driver ID filter
     
     Returns:
         Dictionary with all statistics
     """
     # Get filtered legs with optimized queries
     legs_query = get_filtered_legs_queryset(
-        date_filter, date_from, date_to, status_filter, time_filter
+        date_filter, date_from, date_to, status_filter, time_filter, driver_filter
     )
     all_legs = list(legs_query)
     
@@ -280,7 +286,7 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
     }
 
 
-def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=None):
+def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=None, driver_filter=None):
     """
     Get optimized legs queryset specifically for calendar views.
     Includes all necessary related data to avoid N+1 queries.
@@ -289,6 +295,7 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
         date_from: Start date
         date_to: End date
         status_filter: Status filter
+        driver_filter: Driver ID filter
     
     Returns:
         Optimized Leg queryset
@@ -311,5 +318,9 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
     # Apply status filter
     if status_filter:
         legs_query = legs_query.filter(status=status_filter)
+    
+    # Apply driver filter
+    if driver_filter:
+        legs_query = legs_query.filter(driver_id=driver_filter)
     
     return legs_query.order_by("pickup_date", "pickup_time")

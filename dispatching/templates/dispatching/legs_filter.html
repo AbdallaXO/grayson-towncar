@@ -24,7 +24,7 @@
     <!-- Dashboard Controls -->
     <div class="row mb-4 align-items-stretch g-3">
       <!-- Date Filter Card -->
-      <div class="col-md-5 col-lg-4">
+      <div class="col-md-4 col-lg-3">
         <div class="card h-100 border-0 shadow-sm">
           <div class="card-header bg-light py-2">
             <h5 class="mb-0">
@@ -48,8 +48,42 @@
         </div>
       </div>
 
+      <!-- Driver Filter Card -->
+      <div class="col-md-4 col-lg-3">
+        <div class="card h-100 border-0 shadow-sm">
+          <div class="card-header bg-light py-2">
+            <h5 class="mb-0">
+              <i class="bi bi-person me-2"></i>Filter by Driver
+            </h5>
+          </div>
+          <div class="card-body">
+            <form method="get" id="driverFilterForm">
+              <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+              <div class="d-flex gap-2">
+                <div class="flex-grow-1">
+                  <select name="driver" class="form-select" id="driverFilter">
+                    <option value="">All Drivers</option>
+                    {% for driver in drivers %}
+                      <option value="{{ driver.id }}"
+                              {% if driver_filter == driver.id|stringformat:"s" %}selected{% endif %}>
+                        {{ driver }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-dark">Apply</button>
+                <a href="?date={{ selected_date|date:'Y-m-d' }}"
+                   class="btn btn-outline-secondary">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <!-- Stats Card -->
-      <div class="col-md-7 col-lg-8">
+      <div class="col-md-4 col-lg-6">
         <div class="card h-100 border-0 shadow-sm">
           <div class="card-header bg-light py-2">
             <h5 class="mb-0">

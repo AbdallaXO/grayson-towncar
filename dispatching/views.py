@@ -68,6 +68,8 @@ def index(request):
         return redirect("home")
 
     selected_date = request.GET.get("date")
+    driver_filter = request.GET.get("driver")
+    
     try:
         selected_date = (
             datetime.strptime(selected_date, "%Y-%m-%d").date()
@@ -78,8 +80,14 @@ def index(request):
         selected_date = timezone.localdate()
 
     # Get all legs for the selected date
+    legs_query = Leg.objects.filter(pickup_date=selected_date)
+    
+    # Apply driver filter if specified
+    if driver_filter:
+        legs_query = legs_query.filter(driver_id=driver_filter)
+    
     legs = (
-        Leg.objects.filter(pickup_date=selected_date)
+        legs_query
         .select_related(
             "reservation",
             "reservation__customer",
@@ -104,6 +112,7 @@ def index(request):
     context = {
         "legs": legs,
         "selected_date": selected_date,
+        "driver_filter": driver_filter,
         "total_legs": legs.count(),
         "total_revenue": total_revenue,
         "drivers": drivers,
@@ -388,6 +397,7 @@ def legs_list(request):
     time_filter = request.GET.get("time_filter", "all")
     trip_type_filter = request.GET.get("trip_type")  # New filter for arrival/return
     vehicle_filter = request.GET.get("vehicle")  # New filter for vehicle type
+    driver_filter = request.GET.get("driver")  # New filter for driver
     today = timezone.localdate()
 
     # Get filtered legs using utils
@@ -396,7 +406,8 @@ def legs_list(request):
         date_from=date_from,
         date_to=date_to,
         status_filter=status_filter,
-        time_filter=time_filter
+        time_filter=time_filter,
+        driver_filter=driver_filter
     )
 
     # Apply vehicle filter
@@ -483,6 +494,7 @@ def legs_list(request):
         "time_filter": time_filter,
         "trip_type_filter": trip_type_filter,  # Add to context
         "vehicle_filter": vehicle_filter,  # Add vehicle filter to context
+        "driver_filter": driver_filter,  # Add driver filter to context
         "trip_type_stats": trip_type_stats,  # Add statistics
         "vehicle_stats": vehicle_stats,  # Add vehicle statistics
         "current_page_stats": current_page_stats,  # Add current page statistics
@@ -1140,6 +1152,7 @@ def statistics_page(request):
     date_to = request.GET.get("date_to")
     status_filter = request.GET.get("status")
     time_filter = request.GET.get("time_filter", "all")
+    driver_filter = request.GET.get("driver")
     
     # Get comprehensive statistics using utils
     stats = get_comprehensive_statistics(
@@ -1147,7 +1160,8 @@ def statistics_page(request):
         date_from=date_from,
         date_to=date_to,
         status_filter=status_filter,
-        time_filter=time_filter
+        time_filter=time_filter,
+        driver_filter=driver_filter
     )
     
     context = {
@@ -1163,6 +1177,7 @@ def statistics_page(request):
         'date_to': date_to,
         'status_filter': status_filter,
         'time_filter': time_filter,
+        'driver_filter': driver_filter,
     }
     
     return render(request, "dispatching/statistics.html", context)

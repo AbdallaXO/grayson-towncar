@@ -129,7 +129,7 @@
                 <!-- Secondary Filters Row -->
                 <div class="row g-3 mb-3">
                   <!-- Vehicle Filter -->
-                  <div class="col-lg-4 col-md-6">
+                  <div class="col-lg-3 col-md-6">
                     <label class="form-label fw-semibold text-muted small">Vehicle Type</label>
                     <select name="vehicle" class="form-select" id="vehicleFilter">
                       <option value="">All Vehicles</option>
@@ -142,8 +142,22 @@
                     </select>
                   </div>
 
+                  <!-- Driver Filter -->
+                  <div class="col-lg-3 col-md-6">
+                    <label class="form-label fw-semibold text-muted small">Driver</label>
+                    <select name="driver" class="form-select" id="driverFilter">
+                      <option value="">All Drivers</option>
+                      {% for driver in drivers %}
+                        <option value="{{ driver.id }}"
+                                {% if driver_filter == driver.id|stringformat:"s" %}selected{% endif %}>
+                          {{ driver }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
                   <!-- Action Buttons -->
-                  <div class="col-lg-8 col-md-6">
+                  <div class="col-lg-6 col-md-6">
                     <label class="form-label fw-semibold text-muted small">Actions</label>
                     <div class="d-flex gap-2 flex-wrap">
                       <button type="submit" class="btn btn-dark">
@@ -164,12 +178,12 @@
               <div class="border-top pt-3">
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                   <span class="text-muted small fw-semibold me-2">Quick Filters:</span>
-                  <a href="?trip_type=arrival{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+                  <a href="?trip_type=arrival{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}"
                      class="badge bg-primary text-decoration-none">✈️ Arrivals</a>
-                  <a href="?trip_type=return{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
+                  <a href="?trip_type=return{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}"
                      class="badge bg-success text-decoration-none">🛬 Returns</a>
                   {% for vehicle in vehicles %}
-                    <a href="?vehicle={{ vehicle.vehicle_type }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+                    <a href="?vehicle={{ vehicle.vehicle_type }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if time_filter %}&time_filter={{ time_filter }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}"
                        class="badge bg-dark text-decoration-none">{{ vehicle.get_vehicle_type_display }}</a>
                   {% endfor %}
                   <a href="?" class="badge bg-secondary text-decoration-none">❌ Clear All</a>
