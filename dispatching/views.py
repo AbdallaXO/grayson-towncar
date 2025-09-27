@@ -1159,6 +1159,15 @@ def statistics_page(request):
     time_filter = request.GET.get("time_filter", "all")
     driver_filter = request.GET.get("driver")
     
+    # Get pagination and grouping parameters
+    group_by = request.GET.get("group_by", "day")
+    page = int(request.GET.get("page", 1))
+    per_page = int(request.GET.get("per_page", 50))
+    
+    # Validate group_by parameter
+    if group_by not in ['day', 'week', 'month']:
+        group_by = 'day'
+    
     # Get comprehensive statistics using utils
     stats = get_comprehensive_statistics(
         date_filter=date_filter,
@@ -1166,7 +1175,10 @@ def statistics_page(request):
         date_to=date_to,
         status_filter=status_filter,
         time_filter=time_filter,
-        driver_filter=driver_filter
+        driver_filter=driver_filter,
+        group_by=group_by,
+        page=page,
+        per_page=per_page
     )
     
     context = {
@@ -1174,6 +1186,7 @@ def statistics_page(request):
         'trip_type_stats': stats['trip_type_stats'],
         'status_stats': stats['status_stats'],
         'driver_stats': stats['driver_stats'],
+        'daily_stats': stats['daily_stats'],
         'active_drivers_count': stats['active_drivers_count'],
         'total_legs': stats['total_legs'],
         'total_revenue': stats['total_revenue'],
@@ -1183,6 +1196,9 @@ def statistics_page(request):
         'status_filter': status_filter,
         'time_filter': time_filter,
         'driver_filter': driver_filter,
+        'group_by': group_by,
+        'page': page,
+        'per_page': per_page,
     }
     
     return render(request, "dispatching/statistics.html", context)

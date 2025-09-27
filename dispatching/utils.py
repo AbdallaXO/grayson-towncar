@@ -8,7 +8,8 @@ from reservations.models import Leg
 
 
 def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None, 
-                              status_filter=None, time_filter="all", driver_filter=None):
+                              status_filter=None, time_filter="all", driver_filter=None, 
+                              optimize_for_stats=False):
     """
     Get a filtered queryset of legs based on various filter parameters.
     
@@ -19,26 +20,36 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         status_filter: Status filter
         time_filter: Time range filter (all, week, next_week)
         driver_filter: Driver ID filter
+        optimize_for_stats: If True, use minimal select_related for better performance
     
     Returns:
         Filtered Leg queryset
     """
     today = timezone.localdate()
     
-    # Base queryset with all necessary related fields
-    legs_query = Leg.objects.select_related(
-        "reservation",
-        "reservation__customer",
-        "reservation__vehicle",
-        "reservation__travel_agent",
-        "reservation__travel_agent__user",
-        "driver",
-        "driver__profile",
-        "flight_information",
-    ).prefetch_related(
-        "reservation__legs",
-        Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
-    )
+    # Base queryset with optimized related fields for statistics
+    if optimize_for_stats:
+        # Minimal select_related for better performance with large datasets
+        legs_query = Leg.objects.select_related(
+            "reservation",
+            "reservation__vehicle",
+            "driver",
+        )
+    else:
+        # Full select_related for detailed views
+        legs_query = Leg.objects.select_related(
+            "reservation",
+            "reservation__customer",
+            "reservation__vehicle",
+            "reservation__travel_agent",
+            "reservation__travel_agent__user",
+            "driver",
+            "driver__profile",
+            "flight_information",
+        ).prefetch_related(
+            "reservation__legs",
+            Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+        )
     
     # Apply date filters
     if date_from and date_to:
@@ -253,7 +264,8 @@ def calculate_driver_statistics(legs):
 
 
 def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None, 
-                                status_filter=None, time_filter="all", driver_filter=None):
+                                status_filter=None, time_filter="all", driver_filter=None,
+                                group_by='day', page=1, per_page=50):
     """
     Get comprehensive statistics for the statistics page.
     
@@ -264,13 +276,17 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
         status_filter: Status filter
         time_filter: Time range filter
         driver_filter: Driver ID filter
+        group_by: Group daily stats by 'day', 'week', or 'month'
+        page: Page number for pagination
+        per_page: Items per page
     
     Returns:
         Dictionary with all statistics
     """
-    # Get filtered legs with optimized queries
+    # Get filtered legs with optimized queries for statistics
     legs_query = get_filtered_legs_queryset(
-        date_filter, date_from, date_to, status_filter, time_filter, driver_filter
+        date_filter, date_from, date_to, status_filter, time_filter, driver_filter, 
+        optimize_for_stats=True
     )
     all_legs = list(legs_query)
     
@@ -279,6 +295,7 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
     trip_type_stats = calculate_trip_type_statistics(all_legs)
     status_stats = calculate_status_statistics(all_legs)
     driver_stats, active_drivers_count = calculate_driver_statistics(all_legs)
+    daily_stats = calculate_daily_leg_statistics(all_legs, group_by, page, per_page)
     
     # Calculate total revenue using cached data
     total_revenue = sum(
@@ -290,10 +307,210 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
         'trip_type_stats': trip_type_stats,
         'status_stats': status_stats,
         'driver_stats': driver_stats,
+        'daily_stats': daily_stats,
         'active_drivers_count': active_drivers_count,
         'total_legs': len(all_legs),
         'total_revenue': total_revenue,
     }
+
+
+def calculate_daily_leg_statistics(legs, group_by='day', page=1, per_page=50):
+    """
+    Calculate daily leg statistics showing legs per day with pagination and grouping.
+    
+    Args:
+        legs: List of Leg objects
+        group_by: 'day', 'week', or 'month'
+        page: Page number for pagination
+        per_page: Items per page
+    
+    Returns:
+        Dictionary with daily statistics including pagination and grouping
+    """
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    from django.core.paginator import Paginator
+    
+    daily_counts = defaultdict(int)
+    daily_revenue = defaultdict(lambda: Decimal("0.00"))
+    daily_vehicle_breakdown = defaultdict(lambda: defaultdict(int))
+    
+    for leg in legs:
+        date = leg.pickup_date
+        daily_counts[date] += 1
+        
+        if leg.reservation:
+            daily_revenue[date] += leg.reservation.total_price
+            
+        if leg.reservation and leg.reservation.vehicle:
+            vehicle_type = leg.reservation.vehicle.get_vehicle_type_display()
+            daily_vehicle_breakdown[date][vehicle_type] += 1
+    
+    # Convert to sorted list of daily stats
+    daily_stats = []
+    for date in sorted(daily_counts.keys()):
+        daily_stats.append({
+            'date': date,
+            'leg_count': daily_counts[date],
+            'revenue': daily_revenue[date],
+            'vehicle_breakdown': dict(daily_vehicle_breakdown[date]),
+            'day_of_week': date.strftime('%A'),
+            'formatted_date': date.strftime('%Y-%m-%d')
+        })
+    
+    # Group by week or month if requested
+    if group_by == 'week':
+        grouped_stats = group_daily_stats_by_week(daily_stats)
+    elif group_by == 'month':
+        grouped_stats = group_daily_stats_by_month(daily_stats)
+    else:
+        grouped_stats = daily_stats
+    
+    # Get top 10 days with most legs
+    top_days = sorted(daily_stats, key=lambda x: x['leg_count'], reverse=True)[:10]
+    
+    # Calculate weekly averages
+    weekly_averages = defaultdict(list)
+    for stat in daily_stats:
+        # Get the Monday of the week for this date
+        monday = stat['date'] - timedelta(days=stat['date'].weekday())
+        week_key = monday.strftime('%Y-%m-%d')
+        weekly_averages[week_key].append(stat['leg_count'])
+    
+    # Calculate averages for each week
+    weekly_stats = []
+    for week_start, leg_counts in weekly_averages.items():
+        weekly_stats.append({
+            'week_start': week_start,
+            'week_end': (datetime.strptime(week_start, '%Y-%m-%d').date() + timedelta(days=6)).strftime('%Y-%m-%d'),
+            'total_legs': sum(leg_counts),
+            'avg_legs_per_day': round(sum(leg_counts) / len(leg_counts), 2),
+            'days_in_week': len(leg_counts)
+        })
+    
+    weekly_stats.sort(key=lambda x: x['week_start'], reverse=True)
+    
+    # Paginate the grouped stats
+    paginator = Paginator(grouped_stats, per_page)
+    try:
+        paginated_stats = paginator.page(page)
+    except:
+        paginated_stats = paginator.page(1)
+    
+    return {
+        'daily_stats': paginated_stats,
+        'top_days': top_days,
+        'weekly_stats': weekly_stats,
+        'total_days': len(daily_stats),
+        'avg_legs_per_day': round(sum(daily_counts.values()) / len(daily_counts), 2) if daily_counts else 0,
+        'max_legs_in_day': max(daily_counts.values()) if daily_counts else 0,
+        'min_legs_in_day': min(daily_counts.values()) if daily_counts else 0,
+        'group_by': group_by,
+        'has_pagination': paginator.num_pages > 1,
+        'pagination_info': {
+            'current_page': page,
+            'total_pages': paginator.num_pages,
+            'per_page': per_page,
+            'total_items': paginator.count,
+            'has_previous': paginated_stats.has_previous(),
+            'has_next': paginated_stats.has_next(),
+            'previous_page': paginated_stats.previous_page_number() if paginated_stats.has_previous() else None,
+            'next_page': paginated_stats.next_page_number() if paginated_stats.has_next() else None,
+        }
+    }
+
+
+def group_daily_stats_by_week(daily_stats):
+    """Group daily stats by week (Monday to Sunday)"""
+    from collections import defaultdict
+    from datetime import timedelta
+    
+    weekly_groups = defaultdict(lambda: {
+        'week_start': None,
+        'week_end': None,
+        'total_legs': 0,
+        'total_revenue': Decimal("0.00"),
+        'days_count': 0,
+        'vehicle_breakdown': defaultdict(int),
+        'daily_details': []
+    })
+    
+    for stat in daily_stats:
+        # Get the Monday of the week for this date
+        monday = stat['date'] - timedelta(days=stat['date'].weekday())
+        sunday = monday + timedelta(days=6)
+        
+        week_key = monday.strftime('%Y-%m-%d')
+        
+        weekly_groups[week_key]['week_start'] = monday.strftime('%Y-%m-%d')
+        weekly_groups[week_key]['week_end'] = sunday.strftime('%Y-%m-%d')
+        weekly_groups[week_key]['total_legs'] += stat['leg_count']
+        weekly_groups[week_key]['total_revenue'] += stat['revenue']
+        weekly_groups[week_key]['days_count'] += 1
+        weekly_groups[week_key]['daily_details'].append(stat)
+        
+        # Aggregate vehicle breakdown
+        for vehicle, count in stat['vehicle_breakdown'].items():
+            weekly_groups[week_key]['vehicle_breakdown'][vehicle] += count
+    
+    # Convert to list format
+    weekly_stats = []
+    for week_key in sorted(weekly_groups.keys(), reverse=True):
+        group = weekly_groups[week_key]
+        weekly_stats.append({
+            'period_label': f"{group['week_start']} to {group['week_end']}",
+            'leg_count': group['total_legs'],
+            'revenue': group['total_revenue'],
+            'vehicle_breakdown': dict(group['vehicle_breakdown']),
+            'days_count': group['days_count'],
+            'avg_legs_per_day': round(group['total_legs'] / group['days_count'], 2) if group['days_count'] > 0 else 0,
+            'daily_details': group['daily_details']
+        })
+    
+    return weekly_stats
+
+
+def group_daily_stats_by_month(daily_stats):
+    """Group daily stats by month"""
+    from collections import defaultdict
+    
+    monthly_groups = defaultdict(lambda: {
+        'month_label': None,
+        'total_legs': 0,
+        'total_revenue': Decimal("0.00"),
+        'days_count': 0,
+        'vehicle_breakdown': defaultdict(int),
+        'daily_details': []
+    })
+    
+    for stat in daily_stats:
+        month_key = stat['date'].strftime('%Y-%m')
+        
+        monthly_groups[month_key]['month_label'] = stat['date'].strftime('%B %Y')
+        monthly_groups[month_key]['total_legs'] += stat['leg_count']
+        monthly_groups[month_key]['total_revenue'] += stat['revenue']
+        monthly_groups[month_key]['days_count'] += 1
+        monthly_groups[month_key]['daily_details'].append(stat)
+        
+        # Aggregate vehicle breakdown
+        for vehicle, count in stat['vehicle_breakdown'].items():
+            monthly_groups[month_key]['vehicle_breakdown'][vehicle] += count
+    
+    # Convert to list format
+    monthly_stats = []
+    for month_key in sorted(monthly_groups.keys(), reverse=True):
+        group = monthly_groups[month_key]
+        monthly_stats.append({
+            'period_label': group['month_label'],
+            'leg_count': group['total_legs'],
+            'revenue': group['total_revenue'],
+            'vehicle_breakdown': dict(group['vehicle_breakdown']),
+            'days_count': group['days_count'],
+            'avg_legs_per_day': round(group['total_legs'] / group['days_count'], 2) if group['days_count'] > 0 else 0,
+            'daily_details': group['daily_details']
+        })
+    
+    return monthly_stats
 
 
 def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=None, driver_filter=None):
