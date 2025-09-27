@@ -82,4 +82,9 @@ urlpatterns = [
         views.customer_search_api,
         name="customer_search_api",
     ),
+    path(
+        "add-leg/",
+        views.add_leg_to_reservation,
+        name="add_leg_to_reservation",
+    ),
 ]

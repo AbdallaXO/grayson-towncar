@@ -3,7 +3,7 @@
 
 {% block extra_head %}
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-{% endblock %}
+{% endblock extra_head %}
 
 {% block content %}
   {% block navbar %}
@@ -291,6 +291,102 @@
     </div>
 
     <!-- Trip Legs -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Trip Legs</h4>
+          <button id="addLegBtn" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Add Leg
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Leg Form (Hidden by default) -->
+    <div id="addLegForm" class="d-none mb-4">
+      <div class="card border-success">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">Add New Leg</h5>
+        </div>
+        <div class="card-body">
+          <form id="newLegForm">
+            {% csrf_token %}
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="form-label">Pickup Date</label>
+                <input type="date" class="form-control" name="pickup_date" required>
+              </div>
+              <div class="col-sm-6">
+                <label class="form-label">Pickup Time</label>
+                <input type="time" class="form-control" name="pickup_time" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Pickup Location</label>
+                <input type="text"
+                       class="form-control"
+                       name="pickup_location"
+                       placeholder="e.g. MCO Airport"
+                       required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Drop-off Location</label>
+                <input type="text"
+                       class="form-control"
+                       name="dropoff_location"
+                       placeholder="e.g. Disney All Star Music"
+                       required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Private Notes</label>
+                <textarea class="form-control"
+                          name="private_notes"
+                          rows="2"
+                          placeholder="Optional private notes for this leg"></textarea>
+              </div>
+
+              <!-- Flight Information -->
+              <div class="col-12">
+                <div class="card border-secondary">
+                  <div class="card-header bg-light">
+                    <h6 class="mb-0">Flight Information (Optional)</h6>
+                  </div>
+                  <div class="card-body">
+                    <div class="row g-3">
+                      <div class="col-sm-6">
+                        <label class="form-label">Airline</label>
+                        <input type="text"
+                               class="form-control"
+                               name="airline"
+                               placeholder="e.g., Delta, American, etc.">
+                      </div>
+                      <div class="col-sm-6">
+                        <label class="form-label">Flight Number</label>
+                        <input type="text"
+                               class="form-control"
+                               name="flight_number"
+                               placeholder="e.g., DL1234">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="btn-group" role="group">
+                  <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check"></i> Add Leg
+                  </button>
+                  <button type="button" class="btn btn-secondary" id="cancelAddLeg">
+                    <i class="bi bi-x"></i> Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <div class="row">
       {% for leg in reservation.legs.all %}
         <div class="col-lg-6 mb-3">
@@ -337,18 +433,18 @@
                         <select class="form-select status-select"
                                 name="status"
                                 data-leg-id="{{ leg.id }}">
-                                                <option value="in-progress"
-                              {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
-                      <option value="confirmed"
-                              {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                      <option value="on-the-way"
-                              {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
-                      <option value="on-location"
-                              {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
-                      <option value="picked-up"
-                              {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
-                      <option value="completed"
-                              {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                          <option value="in-progress"
+                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                          <option value="confirmed"
+                                  {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                          <option value="on-the-way"
+                                  {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                          <option value="on-location"
+                                  {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
+                          <option value="picked-up"
+                                  {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                          <option value="completed"
+                                  {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                         </select>
                       </div>
                     </div>
@@ -580,8 +676,6 @@
       </div>
     </div>
   </div>
-
-
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
@@ -964,6 +1058,89 @@
                           submitBtn.innerHTML = originalText;
                       });
               });
+          });
+
+          // Add Leg functionality
+          const addLegBtn = document.getElementById('addLegBtn');
+          const addLegForm = document.getElementById('addLegForm');
+          const newLegForm = document.getElementById('newLegForm');
+          const cancelAddLeg = document.getElementById('cancelAddLeg');
+
+          // Show add leg form
+          addLegBtn.addEventListener('click', function() {
+              addLegForm.classList.remove('d-none');
+              addLegBtn.classList.add('d-none');
+          });
+
+          // Cancel add leg
+          cancelAddLeg.addEventListener('click', function() {
+              addLegForm.classList.add('d-none');
+              addLegBtn.classList.remove('d-none');
+              newLegForm.reset();
+          });
+
+          // Submit new leg form
+          newLegForm.addEventListener('submit', function(e) {
+              e.preventDefault();
+
+              const formData = new FormData(newLegForm);
+              const legData = {};
+              const flightData = {};
+
+              // Separate leg data and flight data
+              for (let [key, value] of formData.entries()) {
+                  if (key === 'airline' || key === 'flight_number') {
+                      flightData[key] = value;
+                  } else {
+                      legData[key] = value;
+                  }
+              }
+
+              // Show loading state
+              const submitBtn = newLegForm.querySelector('button[type="submit"]');
+              const originalText = submitBtn.innerHTML;
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Adding...';
+
+              fetch('/dispatching/add-leg/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({
+                          reservation_id: '{{ reservation.uuid }}',
+                          leg_data: legData,
+                          flight_data: flightData
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          // Show success toast
+                          legToast.show();
+
+                          // Hide form and show button
+                          addLegForm.classList.add('d-none');
+                          addLegBtn.classList.remove('d-none');
+                          newLegForm.reset();
+
+                          // Reload the page to show the new leg
+                          setTimeout(() => {
+                              window.location.reload();
+                          }, 1000);
+                      } else {
+                          alert('Error adding leg: ' + data.error);
+                      }
+                  })
+                  .catch(error => {
+                      alert('Error: ' + error);
+                  })
+                  .finally(() => {
+                      // Reset button state
+                      submitBtn.disabled = false;
+                      submitBtn.innerHTML = originalText;
+                  });
           });
       });
   </script>

@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Sum, Q, Count, Prefetch
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django import forms
 from decimal import Decimal
 import stripe
@@ -23,7 +23,7 @@ from django.db.models import OuterRef, Subquery
 
 # App imports
 
-from reservations.models import Reservation, Leg, Customer
+from reservations.models import Reservation, Leg, Customer, Flight
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from drivers.models import Driver
@@ -1839,3 +1839,91 @@ def customer_search_api(request):
         "customers": results,
         "count": len(results)
     })
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def add_leg_to_reservation(request):
+    """
+    Add a new leg to an existing reservation.
+    
+    Args:
+        request: The HTTP request containing leg data
+        
+    Returns:
+        JSON response with success status and leg data
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        reservation_id = data.get('reservation_id')
+        leg_data = data.get('leg_data', {})
+        flight_data = data.get('flight_data', {})
+        
+        if not reservation_id:
+            return JsonResponse({"success": False, "error": "Reservation ID is required"})
+        
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_id)
+        
+        # Validate required leg fields
+        required_fields = ['pickup_date', 'pickup_time', 'pickup_location', 'dropoff_location']
+        for field in required_fields:
+            if not leg_data.get(field):
+                return JsonResponse({"success": False, "error": f"{field.replace('_', ' ').title()} is required"})
+        
+        # Convert string dates to proper date/time objects
+        from datetime import datetime, date, time
+        
+        pickup_date = datetime.strptime(leg_data['pickup_date'], '%Y-%m-%d').date()
+        pickup_time = datetime.strptime(leg_data['pickup_time'], '%H:%M').time()
+        
+        # Create the leg
+        leg = Leg.objects.create(
+            reservation=reservation,
+            pickup_date=pickup_date,
+            pickup_time=pickup_time,
+            pickup_location=leg_data['pickup_location'],
+            dropoff_location=leg_data['dropoff_location'],
+            private_notes=leg_data.get('private_notes', ''),
+            status='in-progress'
+        )
+        
+        # Create flight information if provided
+        if flight_data.get('airline') or flight_data.get('flight_number'):
+            flight = Flight.objects.create(
+                airline=flight_data.get('airline', ''),
+                flight_number=flight_data.get('flight_number', '')
+            )
+            leg.flight_information = flight
+            leg.save()
+        
+        # Update reservation pricing if needed (recalculate revenue share for all legs)
+        for existing_leg in reservation.legs.all():
+            existing_leg.save()  # This will recalculate revenue share
+        
+        logger.info(f"Added new leg {leg.id} to reservation {reservation.id}")
+        
+        return JsonResponse({
+            "success": True,
+            "leg": {
+                "id": leg.id,
+                "pickup_date": leg.pickup_date.isoformat(),
+                "pickup_time": leg.pickup_time.isoformat(),
+                "pickup_location": leg.pickup_location,
+                "dropoff_location": leg.dropoff_location,
+                "private_notes": leg.private_notes,
+                "flight_info": {
+                    "airline": leg.flight_information.airline if leg.flight_information else '',
+                    "flight_number": leg.flight_information.flight_number if leg.flight_information else ''
+                }
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error adding leg to reservation: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
