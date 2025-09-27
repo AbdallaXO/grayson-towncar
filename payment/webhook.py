@@ -8,7 +8,7 @@ from reservations.models import Reservation, Customer
 from .models import Payment
 from users.emails import send_reservation_confirmation  # Added import
 from decimal import Decimal  # Added import
-from reservations.hubspot_service import update_deal_payment_status
+# HubSpot integration removed
 from reservations.conversions import send_purchase_event
 
 logging.basicConfig(level=logging.INFO)
@@ -64,17 +64,7 @@ def stripe_webhook(request):
                     payment_result.get("payment_method_type").replace("_", " ").title()
                 )
 
-            # Update HubSpot deal
-            update_deal_payment_status(
-                reservation_id=reservation_id,
-                payment_status=payment_status,
-                payment_amount=payment_result.get("amount"),
-                payment_method=payment_method,
-            )
-
-            logger.info(
-                f"Updated HubSpot deal for reservation #{reservation_id} with payment status: {payment_status}"
-            )
+            # HubSpot integration removed - no longer updating HubSpot deals
 
     return HttpResponse(status=200)
 

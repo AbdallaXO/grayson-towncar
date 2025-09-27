@@ -238,32 +238,48 @@ class Reservation(models.Model):
     def payment_status(self):
         """
         Get the payment status for this reservation
+        Uses prefetched payments to avoid N+1 queries
         """
-        payments = self.payments.all()
-        if not payments.exists():
+        # Use prefetched payments if available, otherwise fall back to query
+        if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
+            payments = self._prefetched_objects_cache['payments']
+        else:
+            payments = self.payments.all()
+            
+        if not payments:
             return "unpaid"
         
         # Check if any payment is marked as paid
-        if payments.filter(status="paid").exists():
-            return "paid"
-        elif payments.filter(status="card_saved").exists():
-            return "card_saved"
-        elif payments.filter(status="pending").exists():
-            return "pending"
-        else:
-            return "failed"
+        for payment in payments:
+            if payment.status == "paid":
+                return "paid"
+            elif payment.status == "card_saved":
+                return "card_saved"
+            elif payment.status == "pending":
+                return "pending"
+        
+        return "failed"
 
     @property
     def detailed_payment_status(self):
         """
         Get detailed payment status including payment type and status
+        Uses prefetched payments to avoid N+1 queries
         """
-        payments = self.payments.all()
-        if not payments.exists():
+        # Use prefetched payments if available, otherwise fall back to query
+        if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
+            payments = self._prefetched_objects_cache['payments']
+        else:
+            payments = self.payments.all()
+            
+        if not payments:
             return {"status": "unpaid", "type": None, "display": "Unpaid"}
         
-        # Get the most recent payment
-        latest_payment = payments.order_by('-created_at').first()
+        # Get the most recent payment (payments are already ordered by created_at desc from prefetch)
+        latest_payment = payments[0] if payments else None
+        
+        if not latest_payment:
+            return {"status": "unpaid", "type": None, "display": "Unpaid"}
         
         if latest_payment.status == "paid":
             if latest_payment.payment_type == "pay_now":

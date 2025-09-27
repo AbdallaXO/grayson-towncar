@@ -1,4 +1,4 @@
-from django.db.models import OuterRef, Subquery, Count, Sum, Q
+from django.db.models import OuterRef, Subquery, Count, Sum, Q, Prefetch
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -30,11 +30,14 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         "reservation",
         "reservation__customer",
         "reservation__vehicle",
+        "reservation__travel_agent",
+        "reservation__travel_agent__user",
         "driver",
+        "driver__profile",
         "flight_information",
     ).prefetch_related(
         "reservation__legs",
-        "reservation__payments",
+        Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
     )
     
     # Apply date filters
@@ -182,7 +185,14 @@ def calculate_status_statistics(legs):
     Returns:
         Dictionary with status counts
     """
-    status_stats = {"completed": 0, "in-progress": 0, "picked-up": 0, "on-location": 0}
+    status_stats = {
+        "completed": 0, 
+        "in-progress": 0, 
+        "confirmed": 0,
+        "on-the-way": 0,
+        "picked-up": 0, 
+        "on-location": 0
+    }
     
     for leg in legs:
         if leg.status:
@@ -304,11 +314,14 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
         "reservation",
         "reservation__customer",
         "reservation__vehicle",
+        "reservation__travel_agent",
+        "reservation__travel_agent__user",
         "driver",
+        "driver__profile",
         "flight_information",
     ).prefetch_related(
         "reservation__legs",
-        "reservation__payments",
+        Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
     )
     
     # Apply date filters

@@ -11,6 +11,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Sum, Count
 from django.utils.safestring import mark_safe
+from django.utils import timezone
 from decimal import Decimal
 from django.contrib import messages
 import logging
@@ -285,10 +286,15 @@ class TravelAgentAdmin(admin.ModelAdmin):
                 commission_total = sum(
                     r.calculated_commission for r in unpaid_reservations
                 )
-                start_date = unpaid_reservations.earliest(
-                    "created_at"
-                ).created_at.date()
-                end_date = unpaid_reservations.latest("created_at").created_at.date()
+                # Get date range based on actual service dates (pickup dates) and current date
+                earliest_pickup_date = None
+                for reservation in unpaid_reservations:
+                    for leg in reservation.legs.all():
+                        if earliest_pickup_date is None or leg.pickup_date < earliest_pickup_date:
+                            earliest_pickup_date = leg.pickup_date
+                
+                start_date = earliest_pickup_date if earliest_pickup_date else timezone.localtime(timezone.now()).date()
+                end_date = timezone.localtime(timezone.now()).date()  # Current date when processing payout
 
                 preview_data["agents"].append(
                     {

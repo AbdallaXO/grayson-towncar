@@ -14,7 +14,7 @@ from .models import (
     AgencyCommissionPayout,  # Added Agency and AgencyCommissionPayout
 )
 from .emails import thankyou_email, agent_register_email
-from .utils import create_or_find_travel_agent
+# HubSpot integration removed - no longer using create_or_find_travel_agent
 # from reservations.models import Reservation # Import if other signals need it
 
 logger = logging.getLogger(__name__)
@@ -34,15 +34,7 @@ def handle_form_submission(sender, instance, created, **kwargs):
             logger.error(f"Error sending email for {sender.__name__}: {e}")
 
 
-@receiver(post_save, sender=TravelAgent)
-def create_hubspot_contact(sender, instance, created, **kwargs):
-    """Create a HubSpot contact for new travel agents"""
-    if created:
-        try:
-            logger.info(f"Creating a Hubspot Contact for {instance.agent_name}")
-            create_or_find_travel_agent(instance)
-        except Exception as e:
-            logger.error(f"Error creating an agent contact: {e}")
+# HubSpot integration removed - no longer creating HubSpot contacts for travel agents
 
 
 @receiver(post_save, sender=TravelAgent)

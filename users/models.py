@@ -300,11 +300,16 @@ class TravelAgent(models.Model):
                     r.calculated_commission for r in reservations_with_commission
                 )
 
-                # Get date range
-                period_start = unpaid_reservations.earliest(
-                    "created_at"
-                ).created_at.date()
-                period_end = unpaid_reservations.latest("created_at").created_at.date()
+                # Get date range based on actual service dates (pickup dates) and current date
+                # Find the earliest pickup date among all legs of unpaid reservations
+                earliest_pickup_date = None
+                for reservation in unpaid_reservations:
+                    for leg in reservation.legs.all():
+                        if earliest_pickup_date is None or leg.pickup_date < earliest_pickup_date:
+                            earliest_pickup_date = leg.pickup_date
+                
+                period_start = earliest_pickup_date if earliest_pickup_date else timezone.localtime(timezone.now()).date()
+                period_end = timezone.localtime(timezone.now()).date()  # Current date when processing payout
 
                 # Build detailed reservation summary for notes
                 reservation_details = []
@@ -642,13 +647,15 @@ class Agency(models.Model):
                     )
 
                     if agent_commission_total > 0:
-                        # Get date range for this agent's reservations
-                        agent_earliest_date = unpaid_reservations.earliest(
-                            "created_at"
-                        ).created_at.date()
-                        agent_latest_date = unpaid_reservations.latest(
-                            "created_at"
-                        ).created_at.date()
+                        # Get date range for this agent's reservations based on pickup dates
+                        agent_earliest_pickup_date = None
+                        for reservation in unpaid_reservations:
+                            for leg in reservation.legs.all():
+                                if agent_earliest_pickup_date is None or leg.pickup_date < agent_earliest_pickup_date:
+                                    agent_earliest_pickup_date = leg.pickup_date
+                        
+                        agent_earliest_date = agent_earliest_pickup_date if agent_earliest_pickup_date else timezone.localtime(timezone.now()).date()
+                        agent_latest_date = timezone.localtime(timezone.now()).date()  # Current date when processing payout
 
                         # Update overall date range
                         if earliest_date is None or agent_earliest_date < earliest_date:

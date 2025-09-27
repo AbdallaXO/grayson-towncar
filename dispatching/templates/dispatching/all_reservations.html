@@ -1,5 +1,44 @@
 {% extends 'main.html' %}
 
+{% block extra_css %}
+  <style>
+      /* Disable animations for travel agent booking section */
+      .travel-agent-booking {
+          animation: none !important;
+          transition: none !important;
+          padding: 0.25rem 0.5rem !important;
+          display: inline-block !important;
+          max-width: 200px !important;
+          margin: 0 !important;
+      }
+
+      .travel-agent-booking .badge {
+          animation: none !important;
+          transition: none !important;
+          font-size: 0.7rem !important;
+          padding: 0.2rem 0.4rem !important;
+          margin-bottom: 0.25rem !important;
+      }
+
+      .travel-agent-booking .small {
+          font-size: 0.75rem !important;
+          line-height: 1.2 !important;
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .travel-agent-booking .text-muted {
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .travel-agent-booking .fw-semibold {
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+  </style>
+{% endblock extra_css %}
+
 {% block content %}
   {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}

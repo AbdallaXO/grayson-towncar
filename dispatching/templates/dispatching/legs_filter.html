@@ -1,6 +1,45 @@
 {% extends 'main.html' %}
 {% load static %}
 
+{% block extra_css %}
+  <style>
+      /* Disable animations for travel agent booking section */
+      .travel-agent-booking {
+          animation: none !important;
+          transition: none !important;
+          padding: 0.25rem 0.5rem !important;
+          display: inline-block !important;
+          max-width: 200px !important;
+          margin: 0 !important;
+      }
+
+      .travel-agent-booking .badge {
+          animation: none !important;
+          transition: none !important;
+          font-size: 0.7rem !important;
+          padding: 0.2rem 0.4rem !important;
+          margin-bottom: 0.25rem !important;
+      }
+
+      .travel-agent-booking .small {
+          font-size: 0.75rem !important;
+          line-height: 1.2 !important;
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .travel-agent-booking .text-muted {
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .travel-agent-booking .fw-semibold {
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+  </style>
+{% endblock extra_css %}
+
 {% block content %}
   {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
@@ -158,16 +197,30 @@
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                            class="text-decoration-underline">Reservation ID #{{ leg.reservation.id }}</a>
                       </div>
-                      {% if leg.reservation.travel_agent %}
-                        <div class="mt-1">
-                          <span class="badge bg-info text-white small">
-                            <i class="bi bi-briefcase me-1"></i>{{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
-                          </span>
-                        </div>
-                      {% endif %}
                       <div class="border-top my-1"></div>
                       <div class="small">{{ leg.reservation.customer.phone_number }}</div>
                       <div class="small">{{ leg.reservation.customer.email }}</div>
+                      {% if leg.reservation.travel_agent %}
+                        <div class="border-top my-2"></div>
+                        <div class="p-2 border border-dark rounded bg-light travel-agent-booking">
+                          <div class="badge bg-dark text-white mb-2 d-block">
+                            <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
+                          </div>
+                          <div class="small">
+                            <div class="fw-semibold text-dark">
+                              {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                            </div>
+                            {% if leg.reservation.travel_agent.agency_name %}
+                              <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
+                            {% endif %}
+                            {% if leg.reservation.travel_agent.phone %}
+                              <div class="text-muted">
+                                <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      {% endif %}
                     </div>
                   </td>
 
@@ -335,10 +388,24 @@
                       <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
                     </div>
                     {% if leg.reservation.travel_agent %}
-                      <div class="mt-1">
-                        <span class="badge bg-info text-white small">
-                          <i class="bi bi-briefcase me-1"></i>{{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
-                        </span>
+                      <div class="border-top my-2"></div>
+                      <div class="p-2 border border-dark rounded bg-light">
+                        <div class="badge bg-dark text-white mb-2 d-block">
+                          <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
+                        </div>
+                        <div class="small">
+                          <div class="fw-semibold text-dark">
+                            {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                          </div>
+                          {% if leg.reservation.travel_agent.agency_name %}
+                            <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
+                          {% endif %}
+                          {% if leg.reservation.travel_agent.phone %}
+                            <div class="text-muted">
+                              <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                            </div>
+                          {% endif %}
+                        </div>
                       </div>
                     {% endif %}
                   </div>

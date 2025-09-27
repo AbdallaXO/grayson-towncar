@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Sum, Q, Count
+from django.db.models import Sum, Q, Count, Prefetch
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django import forms
@@ -23,11 +23,11 @@ from django.db.models import OuterRef, Subquery
 
 # App imports
 
-from reservations.models import Reservation, Leg, Customer, Flight
+from reservations.models import Reservation, Leg, Customer
+from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from drivers.models import Driver
 from payment.utils import get_or_create_stripe_customer
-from payment.models import Payment
 from rates.models import Vehicle, Rate
 from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics
 from .forms import (
@@ -95,10 +95,11 @@ def index(request):
             "reservation__travel_agent",
             "reservation__travel_agent__user",
             "driver",
+            "driver__profile",
         )
         .prefetch_related(
             "reservation__legs",
-            "reservation__payments",
+            Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
         )
         .order_by("pickup_time")
     )
@@ -469,7 +470,11 @@ def legs_list(request):
     for leg in page_obj:
         reservation_id = leg.reservation.id
         if reservation_id not in reservation_leg_counts:
-            reservation_leg_counts[reservation_id] = len(leg.reservation.legs.all())
+            # Use prefetched legs if available, otherwise fall back to query
+            if hasattr(leg.reservation, '_prefetched_objects_cache') and 'legs' in leg.reservation._prefetched_objects_cache:
+                reservation_leg_counts[reservation_id] = len(leg.reservation._prefetched_objects_cache['legs'])
+            else:
+                reservation_leg_counts[reservation_id] = len(leg.reservation.legs.all())
     
     for leg in page_obj:
         # Count trip types for current page
