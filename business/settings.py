@@ -35,8 +35,7 @@ SECRET_KEY = os.environ.get(
 # STORAGE_PATH = CONTENT_DIR
 
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 
 ALLOWED_HOSTS = [

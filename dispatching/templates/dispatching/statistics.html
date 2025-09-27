@@ -374,7 +374,7 @@
                         </li>
                       {% endif %}
 
-                      {% for page_num in daily_stats.pagination_info.total_pages|slice:":10" %}
+                      {% for page_num in daily_stats.pagination_info.page_range %}
                         {% if page_num == daily_stats.pagination_info.current_page %}
                           <li class="page-item active">
                             <span class="page-link">{{ page_num }}</span>

@@ -397,6 +397,11 @@ def calculate_daily_leg_statistics(legs, group_by='day', page=1, per_page=50):
     except:
         paginated_stats = paginator.page(1)
     
+    # Create page range for pagination (show max 10 pages)
+    start_page = max(1, page - 5)
+    end_page = min(paginator.num_pages, page + 5)
+    page_range = range(start_page, end_page + 1)
+    
     return {
         'daily_stats': paginated_stats,
         'top_days': top_days,
@@ -416,6 +421,7 @@ def calculate_daily_leg_statistics(legs, group_by='day', page=1, per_page=50):
             'has_next': paginated_stats.has_next(),
             'previous_page': paginated_stats.previous_page_number() if paginated_stats.has_previous() else None,
             'next_page': paginated_stats.next_page_number() if paginated_stats.has_next() else None,
+            'page_range': page_range,
         }
     }
 
