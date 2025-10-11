@@ -1946,30 +1946,32 @@ def driver_payment_management(request):
     legs = []
     total_pay = 0
 
-    # Get all drivers for dropdown
-    drivers = Driver.objects.select_related("profile").all()
+    # Get only drivers who have unpaid legs for dropdown
+    drivers = Driver.objects.select_related("profile").filter(
+        legs__payment_status='unpaid'
+    ).distinct().order_by("profile__first_name", "profile__last_name")
 
     if selected_driver_id:
         try:
             selected_driver = get_object_or_404(Driver, id=selected_driver_id)
             
-            # Get all legs for the driver (not just completed/unpaid)
+            # Get only unpaid legs for the driver with optimized queries
             legs = (
-                Leg.objects
-                .select_related(
-                    "reservation",
-                    "reservation__customer",
-                    "reservation__vehicle",
-                    "reservation__travel_agent",
-                    "reservation__travel_agent__user",
+                    Leg.objects
+                    .select_related(
+                        "reservation",
+                        "reservation__customer",
+                        "reservation__vehicle",
+                        "reservation__travel_agent",
+                        "reservation__travel_agent__user",
+                        "flight_information",
+                    )
+                    .prefetch_related(
+                        Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+                    )
+                    .filter(driver=selected_driver, payment_status='unpaid')
+                    .order_by("pickup_date", "pickup_time")
                 )
-                .prefetch_related(
-                    "reservation__legs",
-                    Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
-                )
-                .filter(driver=selected_driver)
-                .order_by("pickup_date", "pickup_time")
-            )
             
             # Calculate total pay amount
             total_pay = sum(leg.driver_pay_amount or 0 for leg in legs)

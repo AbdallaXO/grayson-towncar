@@ -155,9 +155,9 @@
           <div class="card-header bg-light py-2 px-3">
             <div class="d-flex justify-content-between align-items-center">
               <h5 class="mb-0">
-                <i class="bi bi-list-check me-2"></i>Driver's Legs
+                <i class="bi bi-list-check me-2"></i>Driver's Unpaid Legs
               </h5>
-              <div class="badge bg-primary">{{ leg_count }} legs</div>
+              <div class="badge bg-primary">{{ leg_count }} unpaid legs</div>
             </div>
           </div>
           <div class="card-body p-0">
@@ -166,13 +166,14 @@
               <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
                 <thead class="table-dark">
                   <tr>
-                    <th style="width: 15%;">Customer</th>
-                    <th style="width: 10%;">Date & Time</th>
-                    <th style="width: 20%;">Locations</th>
-                    <th style="width: 15%;">Vehicle & Passengers</th>
-                    <th style="width: 10%;">Payment</th>
-                    <th style="width: 15%;">Notes</th>
-                    <th style="width: 10%;">Status</th>
+                    <th style="width: 12%;">Customer</th>
+                    <th style="width: 8%;">Date & Time</th>
+                    <th style="width: 18%;">Locations</th>
+                    <th style="width: 12%;">Vehicle & Passengers</th>
+                    <th style="width: 8%;">Payment</th>
+                    <th style="width: 12%;">Notes</th>
+                    <th style="width: 8%;">Status</th>
+                    <th style="width: 10%;">Driver Notes</th>
                     <th style="width: 10%;">Driver Pay</th>
                   </tr>
                 </thead>
@@ -320,6 +321,20 @@
                           <span class="badge {% if leg.payment_status == 'paid' %}bg-success {% elif leg.payment_status == 'unpaid' %}bg-danger {% else %}bg-secondary{% endif %} status-badge">
                             {{ leg.payment_status|title }}
                           </span>
+                        </div>
+                      </td>
+
+                      <!-- Driver Notes -->
+                      <td>
+                        <div class="d-flex">
+                          <i class="bi bi-person-lines-fill me-2 mt-1 text-info"></i>
+                          <div class="small">
+                            {% if leg.driver_notes %}
+                              {{ leg.driver_notes }}
+                            {% else %}
+                              <span class="text-muted fst-italic">No driver notes</span>
+                            {% endif %}
+                          </div>
                         </div>
                       </td>
 
@@ -500,6 +515,18 @@
                             </div>
                           </div>
 
+                          <!-- Driver Notes -->
+                          <div class="col-12">
+                            <div class="d-flex">
+                              <i class="bi bi-person-lines-fill text-info me-2"></i>
+                              <div class="small w-100">
+                                <div>
+                                  <strong>Driver Notes:</strong> {{ leg.driver_notes|default:"None" }}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
                           <!-- Driver Pay -->
                           <div class="col-12">
                             <div class="d-flex justify-content-between align-items-center">
@@ -536,7 +563,7 @@
         <div class="alert alert-info" role="alert">
           <div class="d-flex align-items-center">
             <i class="bi bi-info-circle fs-4 me-3"></i>
-            <span>No legs found for {{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}.</span>
+            <span>No unpaid legs found for {{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}.</span>
           </div>
         </div>
       {% endif %}
@@ -544,7 +571,7 @@
       <div class="alert alert-light" role="alert">
         <div class="d-flex align-items-center">
           <i class="bi bi-person-plus fs-4 me-3 text-secondary"></i>
-          <span>Please select a driver to view their legs and set driver pay amounts.</span>
+          <span>Please select a driver to view their unpaid legs and set driver pay amounts.</span>
         </div>
       </div>
     {% endif %}
