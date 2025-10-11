@@ -61,6 +61,9 @@
             <a href="{% url 'reservations_list' %}" class="btn btn-warning">
               <i class="bi bi-list-ul me-1"></i>View All Reservations
             </a>
+            <a href="{% url 'driver_payment_management' %}" class="btn btn-info">
+              <i class="bi bi-currency-dollar me-1"></i>Driver Pay
+            </a>
           </div>
         </div>
       </div>
@@ -182,6 +185,8 @@
                     <label class="form-label fw-semibold text-muted small">Driver</label>
                     <select name="driver" class="form-select" id="driverFilter">
                       <option value="">All Drivers</option>
+                      <option value="unassigned"
+                              {% if driver_filter == "unassigned" %}selected{% endif %}>Unassigned</option>
                       {% for driver in drivers %}
                         <option value="{{ driver.id }}"
                                 {% if driver_filter == driver.id|stringformat:"s" %}selected{% endif %}>

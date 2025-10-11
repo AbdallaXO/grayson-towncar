@@ -85,7 +85,10 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
     
     # Apply driver filter
     if driver_filter:
-        legs_query = legs_query.filter(driver_id=driver_filter)
+        if driver_filter == "unassigned":
+            legs_query = legs_query.filter(driver__isnull=True)
+        else:
+            legs_query = legs_query.filter(driver_id=driver_filter)
     
     return legs_query.order_by("pickup_date", "pickup_time")
 

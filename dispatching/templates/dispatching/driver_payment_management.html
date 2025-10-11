@@ -1,0 +1,650 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block extra_css %}
+  <style>
+      /* Disable animations for travel agent booking section */
+      .travel-agent-booking {
+          animation: none !important;
+          transition: none !important;
+          padding: 0.25rem 0.5rem !important;
+          display: inline-block !important;
+          max-width: 200px !important;
+          margin: 0 !important;
+      }
+
+      .travel-agent-booking .badge {
+          animation: none !important;
+          transition: none !important;
+          font-size: 0.7rem !important;
+          padding: 0.2rem 0.4rem !important;
+          margin-bottom: 0.25rem !important;
+      }
+
+      .travel-agent-booking .small {
+          font-size: 0.75rem !important;
+          line-height: 1.2 !important;
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .travel-agent-booking .text-muted {
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .travel-agent-booking .fw-semibold {
+          color: #000000 !important;
+          font-weight: bold !important;
+      }
+
+      .driver-pay-input {
+          width: 100px;
+          text-align: center;
+      }
+
+      .status-badge {
+          font-size: 0.75rem;
+      }
+  </style>
+{% endblock extra_css %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+  {% csrf_token %}
+  <div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <h1 class="mb-3 mb-md-0 fs-1 fw-bold">Driver Pay Management</h1>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'dashboard' %}" class="btn btn-dark">
+              <i class="bi bi-calendar-date me-1"></i>Legs Dashboard
+            </a>
+            <a href="{% url 'legs_list' %}" class="btn btn-warning">
+              <i class="bi bi-list-ul me-1"></i>All Legs
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Driver Selection -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-light py-2">
+            <h5 class="mb-0">
+              <i class="bi bi-person me-2"></i>Select Driver
+            </h5>
+          </div>
+          <div class="card-body">
+            <form method="get" id="driverSelectForm">
+              <div class="row align-items-end">
+                <div class="col-md-6">
+                  <label for="driverSelect" class="form-label fw-semibold">Driver</label>
+                  <select name="driver" class="form-select" id="driverSelect" required>
+                    <option value="">Select a driver...</option>
+                    {% for driver in drivers %}
+                      <option value="{{ driver.id }}"
+                              {% if selected_driver_id == driver.id|stringformat:"s" %}selected{% endif %}>
+                        {{ driver.profile.get_full_name|default:driver.profile.username }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <button type="submit" class="btn btn-dark">
+                    <i class="bi bi-search me-1"></i>Load Driver's Legs
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if selected_driver %}
+      <!-- Driver Summary -->
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white py-2">
+              <h5 class="mb-0">
+                <i class="bi bi-person-check me-2"></i>{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}
+              </h5>
+            </div>
+            <div class="card-body">
+              <div class="row text-center">
+                <div class="col-md-3">
+                  <div class="d-flex flex-column">
+                    <div class="text-secondary">Total Legs:</div>
+                    <div class="fw-bold fs-4 text-primary">{{ leg_count }}</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="d-flex flex-column">
+                    <div class="text-secondary">Total Driver Pay:</div>
+                    <div class="fw-bold fs-4 text-success">${{ total_pay|floatformat:2 }}</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="d-flex flex-column">
+                    <div class="text-secondary">Payment Method:</div>
+                    <div class="fw-bold">{{ selected_driver.payment_method|title }}</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="d-flex flex-column">
+                    <div class="text-secondary">Vehicle:</div>
+                    <div class="fw-bold">{{ selected_driver.vehicle|default:"Not assigned" }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% if legs %}
+        <!-- Legs Table -->
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-light py-2 px-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="bi bi-list-check me-2"></i>Driver's Legs
+              </h5>
+              <div class="badge bg-primary">{{ leg_count }} legs</div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <!-- Desktop View -->
+            <div class="table-responsive d-none d-lg-block">
+              <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
+                <thead class="table-dark">
+                  <tr>
+                    <th style="width: 15%;">Customer</th>
+                    <th style="width: 10%;">Date & Time</th>
+                    <th style="width: 20%;">Locations</th>
+                    <th style="width: 15%;">Vehicle & Passengers</th>
+                    <th style="width: 10%;">Payment</th>
+                    <th style="width: 15%;">Notes</th>
+                    <th style="width: 10%;">Status</th>
+                    <th style="width: 10%;">Driver Pay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for leg in legs %}
+                    <tr class="align-middle">
+                      <!-- Customer -->
+                      <td>
+                        <div class="d-flex flex-column">
+                          <div class="fw-bold">{{ leg.reservation.customer.get_full_name }}</div>
+                          <div class="small text-muted">
+                            <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                               class="text-decoration-underline">Reservation #{{ leg.reservation.id }}</a>
+                          </div>
+                          <div class="border-top my-1"></div>
+                          <div class="small">{{ leg.reservation.customer.phone_number }}</div>
+                          <div class="small">{{ leg.reservation.customer.email }}</div>
+                          {% if leg.reservation.travel_agent %}
+                            <div class="border-top my-2"></div>
+                            <div class="p-2 border border-dark rounded bg-light travel-agent-booking">
+                              <div class="badge bg-dark text-white mb-2 d-block">
+                                <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
+                              </div>
+                              <div class="small">
+                                <div class="fw-semibold text-dark">
+                                  {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                                </div>
+                                {% if leg.reservation.travel_agent.agency_name %}
+                                  <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
+                                {% endif %}
+                                {% if leg.reservation.travel_agent.phone %}
+                                  <div class="text-muted">
+                                    <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                                  </div>
+                                {% endif %}
+                              </div>
+                            </div>
+                          {% endif %}
+                        </div>
+                      </td>
+
+                      <!-- Date & Time -->
+                      <td>
+                        {% if leg.flight_information %}
+                          <div class="text-primary mb-1">
+                            <i class="bi bi-airplane me-1"></i>
+                            {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                          </div>
+                        {% endif %}
+                        <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
+                        <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
+                      </td>
+
+                      <!-- Locations -->
+                      <td>
+                        <div class="mb-2">
+                          <div class="text-secondary small">Pickup:</div>
+                          <div>{{ leg.pickup_location }}</div>
+                        </div>
+                        <div class="border-top my-1"></div>
+                        <div>
+                          <div class="text-secondary small">Dropoff:</div>
+                          <div>{{ leg.dropoff_location }}</div>
+                        </div>
+                      </td>
+
+                      <!-- Vehicle & Passengers -->
+                      <td>
+                        <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
+                        <div class="border-top my-1"></div>
+                        <div>{{ leg.reservation.passenger_count }} Passengers</div>
+                        <div class="text-secondary">
+                          {% if leg.reservation.display_carseats %}
+                            {{ leg.reservation.display_carseats }}
+                          {% else %}
+                            <span class="text-muted fst-italic">No car seats</span>
+                          {% endif %}
+                        </div>
+                      </td>
+
+                      <!-- Payment Status -->
+                      <td>
+                        <div class="d-flex align-items-center">
+                          <i class="bi bi-cash-coin me-2 {% if leg.reservation.payments.last %}text-success{% else %}text-danger{% endif %}"></i>
+                          <div>
+                            <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
+                            {% if leg.reservation.payments.last %}
+                              <span class="badge bg-success status-badge">{{ leg.reservation.payments.last }}</span>
+                            {% else %}
+                              <span class="badge bg-warning text-dark status-badge">No Payment</span>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </td>
+
+                      <!-- Notes -->
+                      <td>
+                        <div class="d-flex">
+                          <i class="bi bi-sticky me-2 mt-1 text-secondary"></i>
+                          <div>
+                            <div class="fw-bold small">
+                              Leg Notes:
+                              {% if leg.private_notes %}
+                                {{ leg.private_notes }}
+                              {% else %}
+                                <span class="text-muted fst-italic">None</span>
+                              {% endif %}
+                            </div>
+                            <div class="border-top my-1"></div>
+                            <div class="small">
+                              Customer Comments:
+                              {% if leg.reservation.special_requests %}
+                                {{ leg.reservation.special_requests }}
+                              {% else %}
+                                <span class="text-muted fst-italic">None</span>
+                              {% endif %}
+                            </div>
+                            {% if leg.reservation.store_stop %}
+                              <div class="mt-1">
+                                <span class="badge bg-success text-white">
+                                  <i class="bi bi-shop me-1"></i>Publix Stop
+                                </span>
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </td>
+
+                      <!-- Status -->
+                      <td class="text-center">
+                        <span class="badge {% if leg.status == 'completed' %}bg-success {% elif leg.status == 'in-progress' %}bg-warning text-dark {% elif leg.status == 'confirmed' %}bg-info {% elif leg.status == 'on-the-way' %}bg-primary {% elif leg.status == 'on-location' %}bg-secondary {% elif leg.status == 'picked-up' %}bg-dark {% else %}bg-light text-dark{% endif %} status-badge">
+                          {% if leg.status == 'in-progress' %}
+                            In Progress
+                          {% elif leg.status == 'on-the-way' %}
+                            On The Way
+                          {% elif leg.status == 'on-location' %}
+                            On Location
+                          {% elif leg.status == 'picked-up' %}
+                            Picked Up
+                          {% else %}
+                            {{ leg.status|title }}
+                          {% endif %}
+                        </span>
+                        <div class="mt-1">
+                          <span class="badge {% if leg.payment_status == 'paid' %}bg-success {% elif leg.payment_status == 'unpaid' %}bg-danger {% else %}bg-secondary{% endif %} status-badge">
+                            {{ leg.payment_status|title }}
+                          </span>
+                        </div>
+                      </td>
+
+                      <!-- Driver Pay Amount -->
+                      <td class="text-center">
+                        <div class="d-flex align-items-center justify-content-center">
+                          <input type="number"
+                                 class="form-control form-control-sm driver-pay-input"
+                                 value="{% if leg.driver_pay_amount and leg.driver_pay_amount > 0 %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
+                                 data-leg-id="{{ leg.id }}"
+                                 step="0.01"
+                                 min="0"
+                                 max="999.99"
+                                 placeholder="0">
+                          <div class="ms-1">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-success save-pay-btn"
+                                    data-leg-id="{{ leg.id }}"
+                                    style="display: none">
+                              <i class="bi bi-check"></i>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Mobile Card View -->
+            <div class="d-lg-none">
+              <div class="row g-3 p-2">
+                {% for leg in legs %}
+                  <div class="col-12">
+                    <div class="card shadow-sm">
+                      <div class="card-header bg-light p-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                          <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
+                          <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                             class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
+                        </div>
+                        <div class="text-muted small">
+                          <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
+                        </div>
+                        <div class="text-muted small">
+                          <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
+                        </div>
+                        {% if leg.reservation.travel_agent %}
+                          <div class="border-top my-2"></div>
+                          <div class="p-2 border border-dark rounded bg-light">
+                            <div class="badge bg-dark text-white mb-2 d-block">
+                              <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
+                            </div>
+                            <div class="small">
+                              <div class="fw-semibold text-dark">
+                                {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                              </div>
+                              {% if leg.reservation.travel_agent.agency_name %}
+                                <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
+                              {% endif %}
+                              {% if leg.reservation.travel_agent.phone %}
+                                <div class="text-muted">
+                                  <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                                </div>
+                              {% endif %}
+                            </div>
+                          </div>
+                        {% endif %}
+                      </div>
+
+                      <div class="card-body p-2">
+                        <div class="row g-2">
+                          <!-- Trip Details -->
+                          <div class="col-12">
+                            <div class="d-flex">
+                              <i class="bi bi-calendar-event text-primary me-2"></i>
+                              <div class="small">
+                                <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
+                                {% if leg.flight_information %}
+                                  <div>
+                                    <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
+                                  </div>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Locations -->
+                          <div class="col-12">
+                            <div class="d-flex">
+                              <i class="bi bi-geo-alt text-success me-2"></i>
+                              <div class="small">
+                                <div>
+                                  <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
+                                </div>
+                                <div>
+                                  <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Vehicle & Passengers -->
+                          <div class="col-12">
+                            <div class="d-flex">
+                              <i class="bi bi-people text-success me-2"></i>
+                              <div class="small">
+                                <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
+                                <div>{{ leg.reservation.passenger_count }} Passengers</div>
+                                {% if leg.reservation.display_carseats %}
+                                  <div>
+                                    <i class="bi bi-car-front me-1"></i>{{ leg.reservation.display_carseats }}
+                                  </div>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Payment Status -->
+                          <div class="col-12">
+                            <div class="d-flex">
+                              <i class="bi bi-cash-coin {% if leg.reservation.payments.last %}text-success{% else %}text-danger{% endif %} me-2"></i>
+                              <div class="small">
+                                <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
+                                {% if leg.reservation.payments.last %}
+                                  <span class="badge bg-success">{{ leg.reservation.payments.last }}</span>
+                                {% else %}
+                                  <span class="badge bg-warning text-dark">No Payment</span>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Notes -->
+                          <div class="col-12">
+                            <div class="d-flex">
+                              <i class="bi bi-journal-text text-primary me-2"></i>
+                              <div class="small w-100">
+                                <div>
+                                  <strong>Leg Notes:</strong> {{ leg.private_notes|default:"None" }}
+                                </div>
+                                <div>
+                                  <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}
+                                </div>
+                                {% if leg.reservation.store_stop %}
+                                  <span class="badge bg-success text-white">
+                                    <i class="bi bi-shop me-1"></i>Publix Stop
+                                  </span>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Status -->
+                          <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center">
+                              <span class="fw-bold">Status:</span>
+                              <div>
+                                <span class="badge {% if leg.status == 'completed' %}bg-success {% elif leg.status == 'in-progress' %}bg-warning text-dark {% elif leg.status == 'confirmed' %}bg-info {% elif leg.status == 'on-the-way' %}bg-primary {% elif leg.status == 'on-location' %}bg-secondary {% elif leg.status == 'picked-up' %}bg-dark {% else %}bg-light text-dark{% endif %} status-badge">
+                                  {% if leg.status == 'in-progress' %}
+                                    In Progress
+                                  {% elif leg.status == 'on-the-way' %}
+                                    On The Way
+                                  {% elif leg.status == 'on-location' %}
+                                    On Location
+                                  {% elif leg.status == 'picked-up' %}
+                                    Picked Up
+                                  {% else %}
+                                    {{ leg.status|title }}
+                                  {% endif %}
+                                </span>
+                                <span class="badge {% if leg.payment_status == 'paid' %}bg-success {% elif leg.payment_status == 'unpaid' %}bg-danger {% else %}bg-secondary{% endif %} status-badge">
+                                  {{ leg.payment_status|title }}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Driver Pay -->
+                          <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center">
+                              <span class="fw-bold">Driver Pay:</span>
+                              <div class="d-flex align-items-center">
+                                <input type="number"
+                                       class="form-control form-control-sm driver-pay-input"
+                                       value="{% if leg.driver_pay_amount and leg.driver_pay_amount > 0 %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
+                                       data-leg-id="{{ leg.id }}"
+                                       step="0.01"
+                                       min="0"
+                                       max="999.99"
+                                       placeholder="0">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-success save-pay-btn ms-1"
+                                        data-leg-id="{{ leg.id }}"
+                                        style="display: none">
+                                  <i class="bi bi-check"></i>
+                                </button>
+                              </div>
+                            </div>
+                            <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="alert alert-info" role="alert">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle fs-4 me-3"></i>
+            <span>No legs found for {{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}.</span>
+          </div>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="alert alert-light" role="alert">
+        <div class="d-flex align-items-center">
+          <i class="bi bi-person-plus fs-4 me-3 text-secondary"></i>
+          <span>Please select a driver to view their legs and set driver pay amounts.</span>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const driverPayInputs = document.querySelectorAll('.driver-pay-input');
+          const saveButtons = document.querySelectorAll('.save-pay-btn');
+
+          // Get CSRF token
+          const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+          if (!csrfToken) {
+              console.error('CSRF token not found');
+              return;
+          }
+
+          // Handle input changes
+          driverPayInputs.forEach(input => {
+              const legId = input.dataset.legId;
+              const saveBtn = document.querySelector(`.save-pay-btn[data-leg-id="${legId}"]`);
+              const statusDiv = document.getElementById(`status-${legId}`);
+
+              input.addEventListener('input', function() {
+                  // Show save button when value changes
+                  saveBtn.style.display = 'inline-block';
+              });
+
+              // Handle save button click
+              saveBtn.addEventListener('click', function() {
+                  const inputValue = input.value.trim();
+
+                  // Allow empty values (will be treated as 0)
+                  if (inputValue === '') {
+                      var newAmount = 0;
+                  } else {
+                      var newAmount = parseFloat(inputValue);
+                      if (isNaN(newAmount) || newAmount < 0) {
+                          alert('Please enter a valid amount');
+                          return;
+                      }
+                  }
+
+                  // Disable input and button during save
+                  input.disabled = true;
+                  saveBtn.disabled = true;
+                  saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+                  // Send AJAX request
+                  fetch('{% url "update_driver_pay_amount" %}', {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken.value
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId,
+                              driver_pay_amount: newAmount
+                          })
+                      })
+                      .then(response => response.json())
+                      .then(data => {
+                          if (data.success) {
+                              statusDiv.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                              saveBtn.style.display = 'none';
+                              // Update the input value to match what was saved
+                              input.value = data.new_amount.toFixed(2);
+                          } else {
+                              statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + data.error + '</div>';
+                          }
+                      })
+                      .catch(error => {
+                          console.error('Error:', error);
+                          statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error updating amount</div>';
+                      })
+                      .finally(() => {
+                          // Re-enable input and button
+                          input.disabled = false;
+                          saveBtn.disabled = false;
+                          saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+
+                          // Hide status message after 3 seconds
+                          setTimeout(() => {
+                              statusDiv.innerHTML = '';
+                          }, 3000);
+                      });
+              });
+
+              // Handle Enter key press
+              input.addEventListener('keypress', function(e) {
+                  if (e.key === 'Enter') {
+                      saveBtn.click();
+                  }
+              });
+          });
+      });
+  </script>
+{% endblock %}
+
+{% block footer %}
+{% endblock %}
+{% block newsletter %}
+{% endblock %}

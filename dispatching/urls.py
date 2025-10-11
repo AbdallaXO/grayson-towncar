@@ -87,4 +87,15 @@ urlpatterns = [
         views.add_leg_to_reservation,
         name="add_leg_to_reservation",
     ),
+    # Driver Payment Management
+    path(
+        "driver-payments/",
+        views.driver_payment_management,
+        name="driver_payment_management",
+    ),
+    path(
+        "update-driver-pay-amount/",
+        views.update_driver_pay_amount,
+        name="update_driver_pay_amount",
+    ),
 ]

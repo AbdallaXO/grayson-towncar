@@ -26,7 +26,7 @@ from django.db.models import OuterRef, Subquery
 from reservations.models import Reservation, Leg, Customer, Flight
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
-from drivers.models import Driver
+from drivers.models import Driver, DriverPayment, LegPayment
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate
 from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics
@@ -84,7 +84,10 @@ def index(request):
     
     # Apply driver filter if specified
     if driver_filter:
-        legs_query = legs_query.filter(driver_id=driver_filter)
+        if driver_filter == "unassigned":
+            legs_query = legs_query.filter(driver__isnull=True)
+        else:
+            legs_query = legs_query.filter(driver_id=driver_filter)
     
     legs = (
         legs_query
@@ -1926,4 +1929,105 @@ def add_leg_to_reservation(request):
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
     except Exception as e:
         logger.error(f"Error adding leg to reservation: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+def driver_payment_management(request):
+    """
+    Driver Payment Management Dashboard
+    Shows legs for selected driver with ability to set driver pay amounts
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+
+    selected_driver_id = request.GET.get("driver")
+    selected_driver = None
+    legs = []
+    total_pay = 0
+
+    # Get all drivers for dropdown
+    drivers = Driver.objects.select_related("profile").all()
+
+    if selected_driver_id:
+        try:
+            selected_driver = get_object_or_404(Driver, id=selected_driver_id)
+            
+            # Get all legs for the driver (not just completed/unpaid)
+            legs = (
+                Leg.objects
+                .select_related(
+                    "reservation",
+                    "reservation__customer",
+                    "reservation__vehicle",
+                    "reservation__travel_agent",
+                    "reservation__travel_agent__user",
+                )
+                .prefetch_related(
+                    "reservation__legs",
+                    Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+                )
+                .filter(driver=selected_driver)
+                .order_by("pickup_date", "pickup_time")
+            )
+            
+            # Calculate total pay amount
+            total_pay = sum(leg.driver_pay_amount or 0 for leg in legs)
+            
+        except (ValueError, Driver.DoesNotExist):
+            messages.error(request, "Invalid driver selected")
+
+    context = {
+        "drivers": drivers,
+        "selected_driver": selected_driver,
+        "selected_driver_id": selected_driver_id,
+        "legs": legs,
+        "total_pay": total_pay,
+        "leg_count": len(legs),
+    }
+
+    return render(request, "dispatching/driver_payment_management.html", context)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def update_driver_pay_amount(request):
+    """
+    Update driver pay amount for a specific leg via AJAX
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+        driver_pay_amount = data.get("driver_pay_amount")
+
+        if not leg_id:
+            return JsonResponse({"success": False, "error": "Missing leg ID"}, status=400)
+        
+        # Handle empty or null values as 0
+        if driver_pay_amount is None or driver_pay_amount == "":
+            driver_pay_amount = 0
+
+        # Get the leg
+        leg = get_object_or_404(Leg, id=leg_id)
+        
+        # Update the driver pay amount
+        from decimal import Decimal
+        leg.driver_pay_amount = Decimal(str(driver_pay_amount))
+        leg.save(update_fields=['driver_pay_amount'])
+
+        return JsonResponse({
+            "success": True,
+            "message": "Driver pay amount updated successfully",
+            "new_amount": float(leg.driver_pay_amount),
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid amount format"}, status=400)
+    except Exception as e:
+        logger.error(f"Error updating driver pay amount: {str(e)}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
