@@ -549,6 +549,225 @@ class LeadValueFilter(SimpleListFilter):
         return qs
 
 
+class ReservationSourceFilter(SimpleListFilter):
+    title = "source"
+    parameter_name = "utm_source"
+
+    def lookups(self, request, model_admin):
+        # Get all unique UTM sources from the database
+        sources = Reservation.objects.exclude(
+            utm_source__isnull=True
+        ).exclude(
+            utm_source__exact=""
+        ).values_list('utm_source', flat=True).distinct().order_by('utm_source')
+        
+        lookups = []
+        for source in sources:
+            if source:  # Make sure source is not empty
+                lookups.append((source, source))
+        
+        # Add option for reservations with no source
+        lookups.append(("no_source", "No Source"))
+        
+        return lookups
+
+    def queryset(self, request, qs):
+        if self.value() == "no_source":
+            return qs.filter(
+                Q(utm_source__isnull=True) | Q(utm_source__exact="")
+            )
+        elif self.value():
+            return qs.filter(utm_source=self.value())
+        
+        return qs
+
+
+class ReservationCreatedAtFilter(SimpleListFilter):
+    title = "created date"
+    parameter_name = "created_at_range"
+
+    def lookups(self, request, model_admin):
+        current_year = timezone.now().year
+        
+        # Base lookups
+        lookups = [
+            ("today", "📅 Today"),
+            ("yesterday", "📅 Yesterday"),
+            ("this_week", "📅 This Week"),
+            ("last_week", "📅 Last Week"),
+            ("this_month", "📅 This Month"),
+            ("last_month", "📅 Last Month"),
+            ("last_30_days", "📅 Last 30 Days"),
+            ("last_60_days", "📅 Last 60 Days"),
+            ("last_90_days", "📅 Last 90 Days"),
+            ("this_quarter", "📅 This Quarter"),
+            ("last_quarter", "📅 Last Quarter"),
+            ("this_year", "📅 This Year"),
+            ("last_year", "📅 Last Year"),
+        ]
+        
+        # Add current year months only
+        months = [
+            ("january", "January"),
+            ("february", "February"), 
+            ("march", "March"),
+            ("april", "April"),
+            ("may", "May"),
+            ("june", "June"),
+            ("july", "July"),
+            ("august", "August"),
+            ("september", "September"),
+            ("october", "October"),
+            ("november", "November"),
+            ("december", "December"),
+        ]
+        
+        # Add current year months only
+        for month_key, month_name in months:
+            lookups.append((f"{month_key}_{current_year}", f"📅 {month_name} {current_year}"))
+        
+        return lookups
+
+    def queryset(self, request, qs):
+        today = timezone.now().date()
+        
+        if self.value() == "today":
+            return qs.filter(created_at__date=today)
+        
+        elif self.value() == "yesterday":
+            yesterday = today - timedelta(days=1)
+            return qs.filter(created_at__date=yesterday)
+        
+        elif self.value() == "this_week":
+            # Get start of current week (Monday)
+            days_since_monday = today.weekday()
+            start_of_week = today - timedelta(days=days_since_monday)
+            return qs.filter(created_at__date__gte=start_of_week)
+        
+        elif self.value() == "last_week":
+            # Get start and end of last week
+            days_since_monday = today.weekday()
+            start_of_current_week = today - timedelta(days=days_since_monday)
+            start_of_last_week = start_of_current_week - timedelta(days=7)
+            end_of_last_week = start_of_current_week - timedelta(days=1)
+            return qs.filter(
+                created_at__date__gte=start_of_last_week,
+                created_at__date__lte=end_of_last_week
+            )
+        
+        elif self.value() == "this_month":
+            start_of_month = today.replace(day=1)
+            return qs.filter(created_at__date__gte=start_of_month)
+        
+        elif self.value() == "last_month":
+            # Get start and end of last month
+            if today.month == 1:
+                start_of_last_month = today.replace(year=today.year - 1, month=12, day=1)
+            else:
+                start_of_last_month = today.replace(month=today.month - 1, day=1)
+            
+            start_of_current_month = today.replace(day=1)
+            end_of_last_month = start_of_current_month - timedelta(days=1)
+            
+            return qs.filter(
+                created_at__date__gte=start_of_last_month,
+                created_at__date__lte=end_of_last_month
+            )
+        
+        # Handle dynamic year-month filtering
+        elif self.value() and "_" in self.value():
+            try:
+                month_year = self.value().split("_")
+                if len(month_year) == 2:
+                    month_name, year_str = month_year
+                    year = int(year_str)
+                    
+                    # Map month names to numbers
+                    month_map = {
+                        "january": 1, "february": 2, "march": 3, "april": 4,
+                        "may": 5, "june": 6, "july": 7, "august": 8,
+                        "september": 9, "october": 10, "november": 11, "december": 12
+                    }
+                    
+                    if month_name in month_map:
+                        month_num = month_map[month_name]
+                        
+                        # Calculate start and end of month
+                        start_date = timezone.datetime(year, month_num, 1).date()
+                        
+                        # Calculate end of month
+                        if month_num == 12:
+                            end_date = timezone.datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                        else:
+                            end_date = timezone.datetime(year, month_num + 1, 1).date() - timedelta(days=1)
+                        
+                        return qs.filter(
+                            created_at__date__gte=start_date,
+                            created_at__date__lte=end_date
+                        )
+            except (ValueError, KeyError):
+                pass
+        
+        elif self.value() == "last_30_days":
+            thirty_days_ago = today - timedelta(days=30)
+            return qs.filter(created_at__date__gte=thirty_days_ago)
+        
+        elif self.value() == "last_60_days":
+            sixty_days_ago = today - timedelta(days=60)
+            return qs.filter(created_at__date__gte=sixty_days_ago)
+        
+        elif self.value() == "last_90_days":
+            ninety_days_ago = today - timedelta(days=90)
+            return qs.filter(created_at__date__gte=ninety_days_ago)
+        
+        elif self.value() == "this_quarter":
+            # Calculate current quarter
+            current_quarter = (today.month - 1) // 3 + 1
+            quarter_start_month = (current_quarter - 1) * 3 + 1
+            start_of_quarter = today.replace(month=quarter_start_month, day=1)
+            return qs.filter(created_at__date__gte=start_of_quarter)
+        
+        elif self.value() == "last_quarter":
+            # Calculate last quarter
+            current_quarter = (today.month - 1) // 3 + 1
+            if current_quarter == 1:
+                last_quarter = 4
+                last_quarter_year = today.year - 1
+            else:
+                last_quarter = current_quarter - 1
+                last_quarter_year = today.year
+            
+            last_quarter_start_month = (last_quarter - 1) * 3 + 1
+            start_of_last_quarter = timezone.datetime(last_quarter_year, last_quarter_start_month, 1).date()
+            
+            # End of last quarter
+            if last_quarter == 4:
+                end_of_last_quarter = timezone.datetime(last_quarter_year + 1, 1, 1).date() - timedelta(days=1)
+            else:
+                next_quarter_start_month = last_quarter * 3 + 1
+                end_of_last_quarter = timezone.datetime(last_quarter_year, next_quarter_start_month, 1).date() - timedelta(days=1)
+            
+            return qs.filter(
+                created_at__date__gte=start_of_last_quarter,
+                created_at__date__lte=end_of_last_quarter
+            )
+        
+        elif self.value() == "this_year":
+            start_of_year = today.replace(month=1, day=1)
+            return qs.filter(created_at__date__gte=start_of_year)
+        
+        elif self.value() == "last_year":
+            start_of_last_year = today.replace(year=today.year - 1, month=1, day=1)
+            start_of_this_year = today.replace(month=1, day=1)
+            end_of_last_year = start_of_this_year - timedelta(days=1)
+            return qs.filter(
+                created_at__date__gte=start_of_last_year,
+                created_at__date__lte=end_of_last_year
+            )
+        
+        return qs
+
+
 
 # ─── Admin classes ──────────────────────────────────────────────────────
 @admin.register(Customer)
@@ -650,9 +869,11 @@ class ReservationAdmin(ImportExportModelAdmin):
     list_editable = ("status",)
     list_filter = (
         FirstPickupDateFilter,
+        ReservationCreatedAtFilter,
         "trip_type",
         "status",
         CommissionStatusFilter,
+        ReservationSourceFilter,
         ("travel_agent", admin.RelatedOnlyFieldListFilter),
     )
     search_fields = (
