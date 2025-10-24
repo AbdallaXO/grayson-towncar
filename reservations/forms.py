@@ -89,6 +89,7 @@ class ReservationForm(forms.ModelForm):
             "rf_carseats",
             "ff_carseats",
             "booster_seats",
+            "gratuity_percentage",
         ]
         widgets = {
             "passenger_count": forms.NumberInput(
@@ -102,7 +103,7 @@ class ReservationForm(forms.ModelForm):
                 attrs={
                     "class": "form-control",
                     "rows": 4,
-                    "placeholder": "Special car seat needs, gratuity method preferance, or other notes…",
+                    "placeholder": "Special requests, accessibility needs, surprise arrangements, or other notes…",
                 }
             ),
             "need_carseats": forms.CheckboxInput(
@@ -123,6 +124,9 @@ class ReservationForm(forms.ModelForm):
             "booster_seats": forms.NumberInput(
                 attrs={"class": "form-control", "type": "number"}
             ),
+            "gratuity_percentage": forms.NumberInput(
+                attrs={"class": "form-control", "type": "number", "step": "0.01", "min": "0", "max": "100"}
+            ),
         }
         help_texts = {
             "special_requests": "Optional. We'll do our best to accommodate. ",
@@ -134,6 +138,7 @@ class ReservationForm(forms.ModelForm):
             "booster_seats": "Boosters",
             "need_carseats": "Traveling with children?",
             "store_stop": "Need to stop at Publix on the way? (Optional)",
+            "gratuity_percentage": "Gratuity Percentage",
         }
 
     # Grab and store rate when the reservation is created.

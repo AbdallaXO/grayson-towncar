@@ -80,6 +80,8 @@ class Reservation(models.Model):
     # Price and Payment Details
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    gratuity_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    gratuity_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(
         max_length=20, choices=RESERVTION_STATUS, default="confirmed"
