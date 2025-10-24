@@ -2015,11 +2015,32 @@ def update_driver_pay_amount(request):
         # Get the leg
         leg = get_object_or_404(Leg, id=leg_id)
         
+        # Validate the amount
+        try:
+            from decimal import Decimal
+            amount_decimal = Decimal(str(driver_pay_amount))
+            
+            # Check for reasonable limits
+            if amount_decimal < 0:
+                return JsonResponse({"success": False, "error": "Amount cannot be negative"}, status=400)
+            if amount_decimal > Decimal('9999.99'):
+                return JsonResponse({"success": False, "error": "Amount too large (max $9999.99)"}, status=400)
+                
+        except (ValueError, TypeError) as e:
+            return JsonResponse({"success": False, "error": "Invalid amount format"}, status=400)
+        
         # Update the driver pay amount
-        from decimal import Decimal
-        leg.driver_pay_amount = Decimal(str(driver_pay_amount))
+        leg.driver_pay_amount = amount_decimal
         leg.save(update_fields=['driver_pay_amount'])
+        
+        # Update reservation profit calculations if needed
+        try:
+            leg.reservation.update_profit_calculations()
+        except Exception as e:
+            logger.warning(f"Could not update reservation profit calculations: {e}")
 
+        logger.info(f"Updated driver pay amount for leg {leg_id} to {amount_decimal}")
+        
         return JsonResponse({
             "success": True,
             "message": "Driver pay amount updated successfully",
@@ -2028,8 +2049,60 @@ def update_driver_pay_amount(request):
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
-    except ValueError:
-        return JsonResponse({"success": False, "error": "Invalid amount format"}, status=400)
     except Exception as e:
         logger.error(f"Error updating driver pay amount: {str(e)}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def delete_leg(request):
+    """
+    Delete a leg from a reservation via AJAX
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+
+        if not leg_id:
+            return JsonResponse({"success": False, "error": "Missing leg ID"}, status=400)
+        
+        # Get the leg
+        leg = get_object_or_404(Leg, id=leg_id)
+        reservation = leg.reservation
+        
+        # Check if this is the last leg
+        total_legs = reservation.legs.count()
+        if total_legs <= 1:
+            return JsonResponse({
+                "success": False, 
+                "error": "Cannot delete the last leg of a reservation. Delete the entire reservation instead."
+            }, status=400)
+        
+        # Store leg info for logging
+        leg_info = f"Leg {leg_id}: {leg.pickup_date} {leg.pickup_time} - {leg.pickup_location} to {leg.dropoff_location}"
+        
+        # Delete the leg
+        leg.delete()
+        
+        # Update reservation profit calculations
+        try:
+            reservation.update_profit_calculations()
+        except Exception as e:
+            logger.warning(f"Could not update reservation profit calculations after leg deletion: {e}")
+
+        logger.info(f"Deleted {leg_info} from reservation {reservation.id}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Leg deleted successfully",
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error deleting leg: {str(e)}")
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)

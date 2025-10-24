@@ -98,4 +98,9 @@ urlpatterns = [
         views.update_driver_pay_amount,
         name="update_driver_pay_amount",
     ),
+    path(
+        "delete-leg/",
+        views.delete_leg,
+        name="delete_leg",
+    ),
 ]

@@ -343,12 +343,12 @@
                         <div class="d-flex align-items-center justify-content-center">
                           <input type="number"
                                  class="form-control form-control-sm driver-pay-input"
-                                 value="{% if leg.driver_pay_amount and leg.driver_pay_amount > 0 %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
+                                 value="{% if leg.driver_pay_amount %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
                                  data-leg-id="{{ leg.id }}"
                                  step="0.01"
                                  min="0"
-                                 max="999.99"
-                                 placeholder="0">
+                                 max="9999.99"
+                                 placeholder="0.00">
                           <div class="ms-1">
                             <button type="button"
                                     class="btn btn-sm btn-outline-success save-pay-btn"
@@ -534,12 +534,12 @@
                               <div class="d-flex align-items-center">
                                 <input type="number"
                                        class="form-control form-control-sm driver-pay-input"
-                                       value="{% if leg.driver_pay_amount and leg.driver_pay_amount > 0 %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
+                                       value="{% if leg.driver_pay_amount %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
                                        data-leg-id="{{ leg.id }}"
                                        step="0.01"
                                        min="0"
-                                       max="999.99"
-                                       placeholder="0">
+                                       max="9999.99"
+                                       placeholder="0.00">
                                 <button type="button"
                                         class="btn btn-sm btn-outline-success save-pay-btn ms-1"
                                         data-leg-id="{{ leg.id }}"
@@ -595,20 +595,36 @@
               const saveBtn = document.querySelector(`.save-pay-btn[data-leg-id="${legId}"]`);
               const statusDiv = document.getElementById(`status-${legId}`);
 
+              // Store original value for comparison
+              let originalValue = input.value;
+
+              // Add a unique identifier to track this input
+              input.setAttribute('data-leg-id', legId);
+
               input.addEventListener('input', function() {
-                  // Show save button when value changes
-                  saveBtn.style.display = 'inline-block';
+                  const currentValue = input.value.trim();
+                  // Show save button when value changes from original
+                  // Only show save button if there's a meaningful change
+                  if (currentValue !== originalValue && (currentValue !== '' || originalValue !== '')) {
+                      saveBtn.style.display = 'inline-block';
+                  } else {
+                      saveBtn.style.display = 'none';
+                  }
               });
 
               // Handle save button click
               saveBtn.addEventListener('click', function() {
+                  // Prevent multiple simultaneous saves for the same leg
+                  if (input.disabled || saveBtn.disabled) {
+                      return;
+                  }
+
                   const inputValue = input.value.trim();
 
                   // Allow empty values (will be treated as 0)
-                  if (inputValue === '') {
-                      var newAmount = 0;
-                  } else {
-                      var newAmount = parseFloat(inputValue);
+                  let newAmount = 0;
+                  if (inputValue !== '') {
+                      newAmount = parseFloat(inputValue);
                       if (isNaN(newAmount) || newAmount < 0) {
                           alert('Please enter a valid amount');
                           return;
@@ -619,6 +635,9 @@
                   input.disabled = true;
                   saveBtn.disabled = true;
                   saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+                  // Clear any existing status messages
+                  statusDiv.innerHTML = '';
 
                   // Send AJAX request
                   fetch('{% url "update_driver_pay_amount" %}', {
@@ -632,20 +651,27 @@
                               driver_pay_amount: newAmount
                           })
                       })
-                      .then(response => response.json())
+                      .then(response => {
+                          if (!response.ok) {
+                              throw new Error(`HTTP error! status: ${response.status}`);
+                          }
+                          return response.json();
+                      })
                       .then(data => {
                           if (data.success) {
                               statusDiv.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
                               saveBtn.style.display = 'none';
                               // Update the input value to match what was saved
                               input.value = data.new_amount.toFixed(2);
+                              // Update original value for future comparisons
+                              originalValue = data.new_amount.toFixed(2);
                           } else {
-                              statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + data.error + '</div>';
+                              statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + (data.error || 'Unknown error') + '</div>';
                           }
                       })
                       .catch(error => {
                           console.error('Error:', error);
-                          statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error updating amount</div>';
+                          statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error updating amount: ' + error.message + '</div>';
                       })
                       .finally(() => {
                           // Re-enable input and button
@@ -653,19 +679,23 @@
                           saveBtn.disabled = false;
                           saveBtn.innerHTML = '<i class="bi bi-check"></i>';
 
-                          // Hide status message after 3 seconds
+                          // Hide status message after 5 seconds
                           setTimeout(() => {
                               statusDiv.innerHTML = '';
-                          }, 3000);
+                          }, 5000);
                       });
               });
 
               // Handle Enter key press
               input.addEventListener('keypress', function(e) {
                   if (e.key === 'Enter') {
+                      e.preventDefault();
                       saveBtn.click();
                   }
               });
+
+              // Remove auto-save on blur to prevent accidental saves
+              // Users should explicitly click save or press Enter
           });
       });
   </script>

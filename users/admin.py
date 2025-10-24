@@ -9,7 +9,7 @@ commission processing and financial tracking.
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q, Exists, OuterRef
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from decimal import Decimal
@@ -120,6 +120,69 @@ class AgentPayoutInline(admin.TabularInline):
 
 
 # =============================================
+# CUSTOM FILTERS
+# =============================================
+
+class HasUnpaidReservationsFilter(admin.SimpleListFilter):
+    """Filter to show agents with unpaid reservations."""
+    
+    title = 'Unpaid Reservations'
+    parameter_name = 'has_unpaid_reservations'
+    
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Has Unpaid Reservations'),
+            ('no', 'No Unpaid Reservations'),
+        )
+    
+    def queryset(self, request, queryset):
+        from reservations.models import Reservation
+        
+        if self.value() == 'yes':
+            # Filter for agents with unpaid completed reservations
+            return queryset.filter(
+                reservations__commission_paid=False,
+                reservations__status='completed'
+            ).distinct()
+        elif self.value() == 'no':
+            # Filter for agents without unpaid completed reservations
+            return queryset.exclude(
+                reservations__commission_paid=False,
+                reservations__status='completed'
+            ).distinct()
+        return queryset
+
+
+class UnpaidCommissionAmountFilter(admin.SimpleListFilter):
+    """Filter agents by unpaid commission amount ranges."""
+    
+    title = 'Unpaid Commission Amount'
+    parameter_name = 'unpaid_amount'
+    
+    def lookups(self, request, model_admin):
+        return (
+            ('0', 'No Unpaid Commission'),
+            ('1-50', '$1 - $50'),
+            ('50-100', '$50 - $100'),
+            ('100-500', '$100 - $500'),
+            ('500+', '$500+'),
+        )
+    
+    def queryset(self, request, queryset):
+        if self.value() == '0':
+            return queryset.filter(unpaid_commissions=0)
+        elif self.value() == '1-50':
+            return queryset.filter(unpaid_commissions__gt=0, unpaid_commissions__lte=50)
+        elif self.value() == '50-100':
+            return queryset.filter(unpaid_commissions__gt=50, unpaid_commissions__lte=100)
+        elif self.value() == '100-500':
+            return queryset.filter(unpaid_commissions__gt=100, unpaid_commissions__lte=500)
+        elif self.value() == '500+':
+            return queryset.filter(unpaid_commissions__gt=500)
+        return queryset
+
+
+# =============================================
 # TRAVEL AGENT ADMIN
 # =============================================
 
@@ -141,7 +204,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
         "total_reservations",
         "is_active",
     ]
-    list_filter = ["is_active", "agency_handles_payment", "agency", "created_at"]
+    list_filter = ["is_active", "agency_handles_payment", "agency", "created_at", HasUnpaidReservationsFilter, UnpaidCommissionAmountFilter]
     search_fields = [
         "user__username",
         "agent_name",
@@ -237,6 +300,8 @@ class TravelAgentAdmin(admin.ModelAdmin):
         "preview_commission_payments",
         "process_agent_commissions",
         "process_dual_commissions",
+        "update_commission_stats",
+        "mark_agents_for_payment",
     ]
 
     def preview_commission_payments(self, request, queryset):
@@ -264,6 +329,40 @@ class TravelAgentAdmin(admin.ModelAdmin):
         self._process_commissions(request, queryset, create_agency_payout=True)
 
     process_dual_commissions.short_description = "Process dual payouts (Agent + Agency)"
+
+    def update_commission_stats(self, request, queryset):
+        """Update commission statistics for selected agents."""
+        updated_count = 0
+        
+        for agent in queryset:
+            try:
+                stats = agent.update_commission_stats()
+                updated_count += 1
+                logger.info(f"Updated commission stats for {agent}: {stats}")
+            except Exception as e:
+                logger.error(f"Error updating stats for {agent}: {e}")
+                messages.error(request, f"Error updating {agent}: {e}")
+        
+        if updated_count:
+            messages.success(request, f"Updated commission statistics for {updated_count} agents.")
+        else:
+            messages.info(request, "No agents selected or no updates needed.")
+
+    update_commission_stats.short_description = "Update commission statistics"
+
+    def mark_agents_for_payment(self, request, queryset):
+        """Mark agents with unpaid commissions for payment processing."""
+        agents_with_unpaid = queryset.filter(unpaid_commissions__gt=0)
+        
+        if agents_with_unpaid.exists():
+            total_unpaid = sum(agent.unpaid_commissions for agent in agents_with_unpaid)
+            message = f"Found {agents_with_unpaid.count()} agents with unpaid commissions totaling ${total_unpaid:,.2f}. "
+            message += "Use 'Preview commission payments' to see details, then 'Process agent commissions' to pay them."
+            messages.info(request, message)
+        else:
+            messages.info(request, "No agents with unpaid commissions found in selection.")
+
+    mark_agents_for_payment.short_description = "Check agents for payment"
 
     def _calculate_commission_preview(self, queryset):
         """Calculate commission preview data."""

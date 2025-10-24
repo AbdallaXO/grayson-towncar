@@ -204,7 +204,7 @@
 
             <div class="btn-toolbar mt-3" role="toolbar">
               <div class="btn-group" role="group">
-                <a href="https://www.graysontowncar.com/admin/reservations/customer/{{ reservation.customer.id }}/change/"
+                <a href="https://www.graysontowncar.com/admin/reservations/reservation/{{ reservation.id }}/change/"
                    class="btn btn-outline-dark btn-sm"
                    target="_blank">
                   <i class="bi bi-gear"></i> Admin Edit
@@ -520,6 +520,11 @@
                     <a href="https://www.graysontowncar.com/admin/reservations/leg/{{ leg.id }}/change/"
                        target="_blank"
                        class="btn btn-dark btn-sm">Admin Edit</a>
+                    <button class="btn btn-danger btn-sm delete-leg-btn"
+                            data-leg-id="{{ leg.id }}"
+                            data-leg-info="{{ leg.pickup_date|date:'M j, Y' }} {{ leg.pickup_time|time:'g:i A' }} - {{ leg.pickup_location }} to {{ leg.dropoff_location }}">
+                      <i class="bi bi-trash"></i> Delete Leg
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1057,6 +1062,62 @@
                           submitBtn.disabled = false;
                           submitBtn.innerHTML = originalText;
                       });
+              });
+          });
+
+          // Delete Leg functionality
+          document.querySelectorAll('.delete-leg-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const legInfo = this.dataset.legInfo;
+
+                  // Show confirmation dialog
+                  if (confirm(`Are you sure you want to delete this leg?\n\n${legInfo}\n\nThis action cannot be undone.`)) {
+                      // Show second confirmation
+                      if (confirm('Please confirm deletion:\n\nClick "OK" to DELETE this leg permanently.\nClick "Cancel" to keep this leg.')) {
+                          // Show loading state
+                          this.disabled = true;
+                          this.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting...';
+
+                          // Send delete request
+                          fetch('/dispatching/delete-leg/', {
+                                  method: 'POST',
+                                  headers: {
+                                      'Content-Type': 'application/json',
+                                      'X-CSRFToken': '{{ csrf_token }}'
+                                  },
+                                  body: JSON.stringify({
+                                      leg_id: legId
+                                  })
+                              })
+                              .then(response => response.json())
+                              .then(data => {
+                                  if (data.success) {
+                                      // Remove the leg from the page
+                                      const legContainer = this.closest('.col-lg-6');
+                                      legContainer.remove();
+
+                                      // Show success message
+                                      alert('Leg deleted successfully!');
+                                  } else {
+                                      alert('Error deleting leg: ' + (data.error || 'Unknown error'));
+                                      // Reset button
+                                      this.disabled = false;
+                                      this.innerHTML = '<i class="bi bi-trash"></i> Delete Leg';
+                                  }
+                              })
+                              .catch(error => {
+                                  alert('Error: ' + error);
+                                  // Reset button
+                                  this.disabled = false;
+                                  this.innerHTML = '<i class="bi bi-trash"></i> Delete Leg';
+                              });
+                      } else {
+                          // User cancelled, reset button
+                          this.disabled = false;
+                          this.innerHTML = '<i class="bi bi-trash"></i> Delete Leg';
+                      }
+                  }
               });
           });
 
