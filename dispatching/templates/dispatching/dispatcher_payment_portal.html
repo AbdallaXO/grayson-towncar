@@ -165,7 +165,7 @@
                   submitButton.textContent = 'Process Payment';
                   // Auto-generate description if field is empty
                   if (!descriptionInput.value.trim()) {
-                      descriptionInput.value = `Trip Fare for Res ID #{{ reservation.id }}`;
+                      descriptionInput.value = `Trip Fare for Res ID #50{{ reservation.id }}`;
                   }
               } else if (selectedAction === 'save_card') {
                   submitButton.textContent = 'Save Card Details';

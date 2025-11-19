@@ -77,6 +77,12 @@ def handle_checkout_session(session):
     if not reservation_id:
         logger.error("No Reservation ID in session metadata")
         return
+    
+    # Check if this payment was initiated by a dispatcher
+    metadata = session.get("metadata", {})
+    initiated_by = metadata.get("initiated_by", "")
+    is_dispatcher_payment = initiated_by == "dispatcher"
+    
     try:
         reservation = Reservation.objects.select_related("customer").get(
             id=reservation_id
@@ -120,8 +126,12 @@ def handle_checkout_session(session):
                         payment.save()
                         reservation.save()
 
-                    send_reservation_confirmation(reservation)
-                    logger.info(f"Card Saved for Reservation {reservation_id}")
+                    # Only send confirmation email for customer-initiated payments
+                    if not is_dispatcher_payment:
+                        send_reservation_confirmation(reservation)
+                        logger.info(f"Card Saved for Reservation {reservation_id}")
+                    else:
+                        logger.info(f"Card Saved for Reservation {reservation_id} (dispatcher-initiated, no email sent)")
                 else:
                     logger.error("Failed to save card to customer")
 
@@ -170,15 +180,23 @@ def handle_checkout_session(session):
                     payment.stripe_payment_method_id = payment_method_id
 
                 reservation.status = "confirmed"
-                reservation.base_price = final_amount
-                reservation.total_price = final_amount
+                # Only update prices if they haven't been set yet (first payment)
+                # Don't overwrite existing prices for additional payments (e.g., gratuity)
+                if reservation.total_price == 0:
+                    reservation.base_price = final_amount
+                    reservation.total_price = final_amount
 
                 with transaction.atomic():
                     payment.save()
                     reservation.save()
 
-                send_reservation_confirmation(reservation)
-                logger.info(f"Payment processed for reservation {reservation_id}")
+                # Only send confirmation email for customer-initiated payments
+                if not is_dispatcher_payment:
+                    send_reservation_confirmation(reservation)
+                    logger.info(f"Payment processed for reservation {reservation_id}")
+                else:
+                    logger.info(f"Payment processed for reservation {reservation_id} (dispatcher-initiated, no email sent)")
+                
                 send_purchase_event(reservation, final_amount)
             else:
                 logger.error("No payment_intent in session")

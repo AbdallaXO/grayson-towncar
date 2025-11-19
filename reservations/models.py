@@ -267,17 +267,21 @@ class Reservation(models.Model):
         """
         Get detailed payment status including payment type and status
         Uses prefetched payments to avoid N+1 queries
+        Always returns the LATEST payment (most recent)
         """
         # Use prefetched payments if available, otherwise fall back to query
         if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
-            payments = self._prefetched_objects_cache['payments']
+            payments = list(self._prefetched_objects_cache['payments'])
+            # Ensure prefetched payments are ordered by created_at desc (most recent first)
+            payments.sort(key=lambda p: p.created_at, reverse=True)
         else:
-            payments = self.payments.all()
+            # Explicitly order by created_at desc to get the latest payment
+            payments = list(self.payments.all().order_by('-created_at'))
             
         if not payments:
             return {"status": "unpaid", "type": None, "display": "Unpaid"}
         
-        # Get the most recent payment (payments are already ordered by created_at desc from prefetch)
+        # Get the most recent payment (first in the ordered list)
         latest_payment = payments[0] if payments else None
         
         if not latest_payment:

@@ -633,7 +633,7 @@
         <div class="card">
           <div class="card-header bg-dark text-white fw-normal h6">Payment Information</div>
           <div class="card-body">
-            {% with payment=reservation.payments.first %}
+            {% with payment=latest_payment %}
               <dl class="row mb-0">
                 <dt class="col-sm-4">Payment Status</dt>
                 <dd class="col-sm-8 fw-semibold">
