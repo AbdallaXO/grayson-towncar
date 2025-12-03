@@ -567,6 +567,7 @@ class Flight(models.Model):
     """
     Stores specific flight details, including airline, flight number, date, and time.
     Ties into a Leg model via a OneToOneField.
+    Includes AeroAPI tracking data for real-time flight status.
     """
 
     flight_type = models.CharField(
@@ -574,6 +575,56 @@ class Flight(models.Model):
     )
     airline = models.CharField(max_length=50, blank=True)
     flight_number = models.CharField(max_length=50, blank=True)
+    
+    # AeroAPI Tracking Fields
+    flight_iata = models.CharField(
+        max_length=20, blank=True, 
+        help_text="IATA flight code (e.g., DL1691)"
+    )
+    origin = models.CharField(
+        max_length=255, blank=True,
+        help_text="Origin airport (e.g., SLC - Salt Lake City Intl)"
+    )
+    destination = models.CharField(
+        max_length=255, blank=True,
+        help_text="Destination airport (e.g., MCO - Orlando Intl)"
+    )
+    status = models.CharField(
+        max_length=100, blank=True,
+        help_text="Flight status (e.g., En Route, Landed, Scheduled)"
+    )
+    scheduled_arrival_local = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Scheduled runway arrival time in local timezone"
+    )
+    estimated_arrival_local = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Estimated runway arrival time in local timezone"
+    )
+    scheduled_gate_arrival_local = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Scheduled gate arrival time in local timezone"
+    )
+    estimated_gate_arrival_local = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Estimated gate arrival time in local timezone"
+    )
+    terminal = models.CharField(
+        max_length=10, blank=True,
+        help_text="Arrival terminal (e.g., B)"
+    )
+    gate = models.CharField(
+        max_length=20, blank=True,
+        help_text="Arrival gate (e.g., 76)"
+    )
+    baggage_claim = models.CharField(
+        max_length=20, blank=True,
+        help_text="Baggage claim area (e.g., 31)"
+    )
+    last_updated = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When flight data was last fetched from AeroAPI"
+    )
 
     def __str__(self):
         """
@@ -581,6 +632,53 @@ class Flight(models.Model):
         and flight number for quick reference.
         """
         return f"{self.airline} {self.flight_number}"
+    
+    def get_flight_ident(self):
+        """
+        Get the flight identifier for AeroAPI (combines airline and flight number)
+        Returns IATA format like 'DL1691' or falls back to airline + flight_number
+        
+        Prioritizes current airline/flight_number over stored flight_iata to ensure
+        we use the most up-to-date flight information.
+        """
+        # Prioritize current airline/flight_number over stored flight_iata
+        # This ensures we use the updated flight info if the user changed it
+        if self.airline and self.flight_number:
+            # Clean airline code (remove spaces, get IATA code)
+            airline_code = self.airline.strip().upper()
+            # Handle common airline names
+            airline_mapping = {
+                'UNITED AIRLINES': 'UA',
+                'UNITED': 'UA',
+                'AMERICAN AIRLINES': 'AA',
+                'AMERICAN': 'AA',
+                'DELTA AIRLINES': 'DL',
+                'DELTA': 'DL',
+                'SOUTHWEST AIRLINES': 'WN',
+                'SOUTHWEST': 'WN',
+                'JETBLUE': 'B6',
+                'SPIRIT AIRLINES': 'NK',
+                'SPIRIT': 'NK',
+                'FRONTIER AIRLINES': 'F9',
+                'FRONTIER': 'F9',
+                'ALASKA AIRLINES': 'AS',
+                'ALASKA': 'AS',
+                'HAWAIIAN AIRLINES': 'HA',
+                'HAWAIIAN': 'HA',
+                'ALLEGIANT AIR': 'G4',
+                'ALLEGIANT': 'G4'
+            }
+            if airline_code in airline_mapping:
+                airline_code = airline_mapping[airline_code]
+            # Remove non-alphanumeric from flight number
+            flight_num = ''.join(c for c in self.flight_number if c.isalnum())
+            return f"{airline_code}{flight_num}"
+        
+        # Fallback to stored flight_iata if airline/flight_number not available
+        if self.flight_iata:
+            return self.flight_iata
+        
+        return None
 
 
 # yourapp/models.py

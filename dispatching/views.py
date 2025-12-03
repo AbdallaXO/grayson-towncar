@@ -34,6 +34,7 @@ from users.emails import send_reservation_confirmation
 from reservations.conversions import send_purchase_event
 from payment.webhook import save_card_to_customer
 from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics
+from .aeroapi_service import AeroAPIService
 from .forms import (
     DispatcherCustomerForm,
     DispatcherReservationForm,
@@ -103,6 +104,7 @@ def index(request):
             "reservation__travel_agent__user",
             "driver",
             "driver__profile",
+            "flight_information",
         )
         .prefetch_related(
             "reservation__legs",
@@ -1533,6 +1535,143 @@ def update_contact_info(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error updating contact info: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def refresh_flight_data(request):
+    """
+    Refresh flight data from AeroAPI for a specific leg.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+
+        if not leg_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing leg ID"}, status=400
+            )
+
+        # Get the leg
+        leg = get_object_or_404(Leg, id=leg_id)
+        
+        # Check if leg has flight information
+        if not leg.flight_information:
+            return JsonResponse(
+                {"success": False, "error": "Leg does not have flight information"}, status=400
+            )
+
+        flight = leg.flight_information
+        
+        # Get flight identifier
+        flight_ident = flight.get_flight_ident()
+        if not flight_ident:
+            return JsonResponse(
+                {"success": False, "error": "Could not determine flight identifier"}, status=400
+            )
+
+        # Get the leg's pickup date to fetch flight data for the correct date
+        flight_date = leg.pickup_date.strftime('%Y-%m-%d') if leg.pickup_date else None
+        trip_type = leg.get_trip_type()  # 'arrival', 'return', or 'other'
+        logger.info(f"Fetching flight data for leg pickup date: {flight_date}, trip type: {trip_type}")
+
+        # Fetch flight data from AeroAPI
+        aeroapi = AeroAPIService()
+        flight_data = aeroapi.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+
+        logger.info(f"Flight data response: {flight_data}")
+
+        if flight_data.get('status') != 'success':
+            error_msg = flight_data.get('error', 'Unknown error')
+            logger.error(f"AeroAPI error: {error_msg}")
+            return JsonResponse({
+                "success": False,
+                "error": error_msg
+            }, status=400)
+
+        # Update flight model with AeroAPI data
+        # Only update fields that have values (don't overwrite with empty strings)
+        if flight_data.get('flight_iata'):
+            flight.flight_iata = flight_data.get('flight_iata')
+        if flight_data.get('origin'):
+            flight.origin = flight_data.get('origin')
+        if flight_data.get('destination'):
+            flight.destination = flight_data.get('destination')
+        # Use 'flight_status' for the actual flight status, fallback to 'status' for backwards compatibility
+        flight_status = flight_data.get('flight_status') or flight_data.get('status', '')
+        if flight_status:
+            flight.status = flight_status
+        
+        # Handle datetime fields - only set if not None
+        scheduled_arrival = flight_data.get('scheduled_arrival_local')
+        if scheduled_arrival is not None:
+            flight.scheduled_arrival_local = scheduled_arrival
+        elif scheduled_arrival is None and flight_data.get('scheduled_arrival_local') is None:
+            # Keep existing value if new value is None
+            pass
+        
+        estimated_arrival = flight_data.get('estimated_arrival_local')
+        if estimated_arrival is not None:
+            flight.estimated_arrival_local = estimated_arrival
+        elif estimated_arrival is None and flight_data.get('estimated_arrival_local') is None:
+            # Keep existing value if new value is None
+            pass
+        
+        # Handle gate arrival times
+        scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
+        if scheduled_gate_arrival is not None:
+            flight.scheduled_gate_arrival_local = scheduled_gate_arrival
+        
+        estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
+        if estimated_gate_arrival is not None:
+            flight.estimated_gate_arrival_local = estimated_gate_arrival
+        
+        if flight_data.get('terminal'):
+            flight.terminal = flight_data.get('terminal')
+        if flight_data.get('gate'):
+            flight.gate = flight_data.get('gate')
+        if flight_data.get('baggage_claim'):
+            flight.baggage_claim = flight_data.get('baggage_claim')
+        
+        flight.last_updated = flight_data.get('last_updated', timezone.now())
+        
+        try:
+            flight.save()
+        except Exception as e:
+            logger.error(f"Error saving flight data: {e}")
+            return JsonResponse({
+                "success": False,
+                "error": f"Error saving flight data: {str(e)}"
+            }, status=500)
+
+        # Return updated flight data
+        return JsonResponse({
+            "success": True,
+            "message": "Flight data refreshed successfully",
+            "flight_data": {
+                "flight_iata": flight.flight_iata or "",
+                "origin": flight.origin or "",
+                "destination": flight.destination or "",
+                "status": flight.status or "",
+                "scheduled_arrival_local": flight.scheduled_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_arrival_local else "",
+                "estimated_arrival_local": flight.estimated_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_arrival_local else "",
+                "terminal": flight.terminal or "",
+                "gate": flight.gate or "",
+                "baggage_claim": flight.baggage_claim or "",
+                "last_updated": flight.last_updated.strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
+            }
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error refreshing flight data: {e}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

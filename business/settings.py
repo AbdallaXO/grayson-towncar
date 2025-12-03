@@ -185,6 +185,10 @@ NTFY_DRIVER_TOPIC = os.environ.get("NTFY_DRIVER_TOPIC", "grayson-driver-noti")
 NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
 NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
 
+# AeroAPI Settings
+AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")
+AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -217,7 +221,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.app",
     "https://graysontowncar.com",
     "https://www.graysontowncar.com",
-]
+    ]
 
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 

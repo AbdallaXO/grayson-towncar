@@ -104,7 +104,7 @@
                       <input type="date"
                              name="date_from"
                              class="form-control border-start-0"
-                             value="{{ date_from }}"
+                             value="{{ date_from|default:'' }}"
                              id="dateFrom"
                              placeholder="From">
                       <span class="input-group-text bg-light border-start-0 border-end-0">
@@ -113,7 +113,7 @@
                       <input type="date"
                              name="date_to"
                              class="form-control border-start-0"
-                             value="{{ date_to }}"
+                             value="{{ date_to|default:'' }}"
                              id="dateTo"
                              placeholder="To">
                     </div>
@@ -340,9 +340,114 @@
                 <!-- Trip Details -->
                 <td>
                   {% if leg.flight_information %}
-                    <div class="text-primary mb-1">
-                      <i class="bi bi-airplane me-1"></i>
-                      {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                    <div class="mb-2">
+                      <div class="text-primary mb-1">
+                        <i class="bi bi-airplane me-1"></i>
+                        {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                        {% if leg.flight_information.flight_iata %}
+                          <span class="text-muted small">({{ leg.flight_information.flight_iata }})</span>
+                        {% endif %}
+                      </div>
+                      {% if leg.flight_information.status %}
+                        <div class="small mb-1">
+                          <span class="badge bg-info text-white">{{ leg.flight_information.status }}</span>
+                        </div>
+                      {% endif %}
+                      
+                      <!-- Collapsible Flight Details -->
+                      <div class="mb-1">
+                        <button 
+                          class="btn btn-sm btn-outline-secondary" 
+                          type="button" 
+                          data-bs-toggle="collapse" 
+                          data-bs-target="#flightDetails{{ leg.id }}" 
+                          aria-expanded="false" 
+                          aria-controls="flightDetails{{ leg.id }}"
+                          title="Show/Hide flight details">
+                          <i class="bi bi-chevron-down me-1"></i>Details
+                        </button>
+                        <button 
+                          class="btn btn-sm btn-outline-primary refresh-flight-btn" 
+                          data-leg-id="{{ leg.id }}"
+                          title="Refresh flight data from AeroAPI">
+                          <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                      </div>
+                      
+                      <div class="collapse" id="flightDetails{{ leg.id }}">
+                        <div class="card card-body p-2 mt-1" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                          {% if leg.flight_information.origin or leg.flight_information.destination %}
+                            <div class="small text-muted mb-2">
+                              {% if leg.flight_information.origin %}
+                                <div><i class="bi bi-arrow-up-circle me-1"></i>{{ leg.flight_information.origin }}</div>
+                              {% endif %}
+                              {% if leg.flight_information.destination %}
+                                <div><i class="bi bi-arrow-down-circle me-1"></i>{{ leg.flight_information.destination }}</div>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                          
+                          {% if leg.flight_information.gate or leg.flight_information.terminal %}
+                            <div class="small mb-2">
+                              {% if leg.flight_information.terminal %}
+                                <span class="badge bg-secondary">Terminal {{ leg.flight_information.terminal }}</span>
+                              {% endif %}
+                              {% if leg.flight_information.gate %}
+                                <span class="badge bg-primary">Gate {{ leg.flight_information.gate }}</span>
+                              {% endif %}
+                              {% if leg.flight_information.baggage_claim %}
+                                <span class="badge bg-warning text-dark">Baggage {{ leg.flight_information.baggage_claim }}</span>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                          
+                          {% if leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_arrival_local %}
+                            <div class="small mb-2">
+                              {% if leg.get_trip_type == 'return' %}
+                                <div class="text-secondary fw-semibold mb-1">
+                                  <i class="bi bi-airplane-takeoff me-1"></i>Runway Departure:
+                                </div>
+                              {% else %}
+                                <div class="text-secondary fw-semibold mb-1">
+                                  <i class="bi bi-airplane-landing me-1"></i>Runway Landing:
+                                </div>
+                              {% endif %}
+                              {% if leg.flight_information.scheduled_arrival_local %}
+                                <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</div>
+                              {% endif %}
+                              {% if leg.flight_information.estimated_arrival_local %}
+                                <div class="fw-bold text-primary ms-3">Est: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</div>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                          
+                          {% if leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
+                            <div class="small mb-2">
+                              {% if leg.get_trip_type == 'return' %}
+                                <div class="text-secondary fw-semibold mb-1">
+                                  <i class="bi bi-door-closed me-1"></i>Gate Departure:
+                                </div>
+                              {% else %}
+                                <div class="text-secondary fw-semibold mb-1">
+                                  <i class="bi bi-door-open me-1"></i>Gate Arrival:
+                                </div>
+                              {% endif %}
+                              {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</div>
+                              {% endif %}
+                              {% if leg.flight_information.estimated_gate_arrival_local %}
+                                <div class="fw-bold text-success ms-3">Est: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</div>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                          
+                          {% if leg.flight_information.last_updated %}
+                            <div class="text-muted" style="font-size: 0.7rem;">
+                              <i class="bi bi-clock me-1"></i>Updated: {{ leg.flight_information.last_updated|date:"g:i A" }}
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
                     </div>
                   {% endif %}
                   <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
@@ -833,8 +938,82 @@
                       });
               });
           });
+
+          // --- Flight Data Refresh ---
+          document.querySelectorAll('.refresh-flight-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const btn = this;
+                  const originalHtml = btn.innerHTML;
+                  
+                  // Disable button and show loading
+                  btn.disabled = true;
+                  btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Refreshing...';
+                  
+                  // Get CSRF token
+                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                                   document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+                  
+                  fetch('/dispatching/refresh-flight-data/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': csrfToken
+                      },
+                      body: JSON.stringify({
+                          leg_id: legId
+                      })
+                  })
+                  .then(response => {
+                      if (!response.ok) {
+                          return response.json().then(data => {
+                              throw new Error(data.error || 'Server error: ' + response.status);
+                          });
+                      }
+                      return response.json();
+                  })
+                  .then(data => {
+                      if (data.success) {
+                          // Show success message
+                          btn.innerHTML = '<i class="bi bi-check-circle text-success"></i> Refreshed';
+                          btn.classList.remove('btn-outline-primary');
+                          btn.classList.add('btn-success');
+                          
+                          // Reload page after 1 second to show updated data
+                          setTimeout(() => {
+                              window.location.reload();
+                          }, 1000);
+                      } else {
+                          throw new Error(data.error || 'Unknown error');
+                      }
+                  })
+                  .catch(error => {
+                      btn.innerHTML = '<i class="bi bi-x-circle text-danger"></i> Error';
+                      btn.classList.remove('btn-outline-primary');
+                      btn.classList.add('btn-danger');
+                      alert('Error refreshing flight data: ' + error.message);
+                      
+                      // Reset button after 3 seconds
+                      setTimeout(() => {
+                          btn.disabled = false;
+                          btn.innerHTML = originalHtml;
+                          btn.classList.remove('btn-danger');
+                          btn.classList.add('btn-outline-primary');
+                      }, 3000);
+                  });
+              });
+          });
       });
   </script>
+  <style>
+      .spin {
+          animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+      }
+  </style>
 {% endblock content %}
 
 {% block footer %}
