@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.conf import settings
 import requests
+import re
 from .forms import (
     ReservationForm,
     CustomerForm,
@@ -136,7 +137,166 @@ AIRLINES = [
     "Spirit Airlines",
     "Alaska Airlines",
     "Frontier Airlines",
+    "Air Canada",
+    "Allegiant Air",
+    "Avelo Airlines",
+    "Breeze Airways",
+    "British Airways",
+    "Sun Country Airlines",
+    "Virgin Atlantic",
 ]
+
+
+def normalize_airline(airline_input):
+    """
+    Normalize airline input to a standard IATA code format.
+    
+    Handles various input formats:
+    - Full airline names: "JetBlue", "Southwest Airlines"
+    - Variations with spaces: "jet blue", "south west"
+    - IATA codes: "B6", "WN"
+    - Combinations: "jet blue b6", "southwest wn"
+    - Case variations: "JETBLUE", "jetBlue", "JET BLUE"
+    - Common misspellings/abbreviations: "wna" for "wn"
+    
+    Args:
+        airline_input (str): Raw airline input from user
+        
+    Returns:
+        str: Normalized IATA code (e.g., "B6", "WN", "AA") or original input if not recognized
+    """
+    if not airline_input:
+        return ""
+    
+    # Convert to uppercase and strip whitespace
+    airline = airline_input.strip().upper()
+    
+    # Remove extra spaces and normalize
+    airline = ' '.join(airline.split())
+    
+    # Comprehensive airline mapping
+    # Maps various airline name formats and codes to standard IATA codes
+    airline_mapping = {
+        # JetBlue variations
+        'JETBLUE': 'B6',
+        'JET BLUE': 'B6',
+        'JETBLUE AIRWAYS': 'B6',
+        'JET BLUE AIRWAYS': 'B6',
+        'B6': 'B6',
+        
+        # Southwest variations
+        'SOUTHWEST': 'WN',
+        'SOUTHWEST AIRLINES': 'WN',
+        'SOUTH WEST': 'WN',
+        'SOUTH WEST AIRLINES': 'WN',
+        'WN': 'WN',
+        'WNA': 'WN',  # Common typo
+        
+        # American Airlines variations
+        'AMERICAN': 'AA',
+        'AMERICAN AIRLINES': 'AA',
+        'AMERICAN AIR': 'AA',
+        'AA': 'AA',
+        
+        # Delta variations
+        'DELTA': 'DL',
+        'DELTA AIRLINES': 'DL',
+        'DELTA AIR LINES': 'DL',
+        'DELTA AIR': 'DL',
+        'DL': 'DL',
+        
+        # United variations
+        'UNITED': 'UA',
+        'UNITED AIRLINES': 'UA',
+        'UNITED AIR': 'UA',
+        'UA': 'UA',
+        
+        # Spirit variations
+        'SPIRIT': 'NK',
+        'SPIRIT AIRLINES': 'NK',
+        'SPIRIT AIR': 'NK',
+        'NK': 'NK',
+        
+        # Frontier variations
+        'FRONTIER': 'F9',
+        'FRONTIER AIRLINES': 'F9',
+        'FRONTIER AIR': 'F9',
+        'F9': 'F9',
+        
+        # Alaska variations
+        'ALASKA': 'AS',
+        'ALASKA AIRLINES': 'AS',
+        'ALASKA AIR': 'AS',
+        'AS': 'AS',
+                
+        # Allegiant variations
+        'ALLEGIANT': 'G4',
+        'ALLEGIANT AIR': 'G4',
+        'ALLEGIANT AIRLINES': 'G4',
+        'G4': 'G4',
+        
+        # Air Canada variations
+        'AIR CANADA': 'AC',
+        'AIR CANADA AIRLINES': 'AC',
+        'AC': 'AC',
+        
+        # Avelo variations
+        'AVELO': 'XP',
+        'AVELO AIRLINES': 'XP',
+        'AVELO AIR': 'XP',
+        'XP': 'XP',
+        
+        # Breeze variations
+        'BREEZE': 'MX',
+        'BREEZE AIRWAYS': 'MX',
+        'BREEZE AIR': 'MX',
+        'MX': 'MX',
+        
+        # British Airways variations
+        'BRITISH AIRWAYS': 'BA',
+        'BRITISH': 'BA',
+        'BA': 'BA',
+        
+        # Sun Country variations
+        'SUN COUNTRY': 'SY',
+        'SUN COUNTRY AIRLINES': 'SY',
+        'SUN COUNTRY AIR': 'SY',
+        'SY': 'SY',
+        
+        # Virgin Atlantic variations
+        'VIRGIN ATLANTIC': 'VS',
+        'VIRGIN ATLANTIC AIRWAYS': 'VS',
+        'VIRGIN': 'VS',
+        'VS': 'VS',
+    }
+    
+    # First, try exact match
+    if airline in airline_mapping:
+        return airline_mapping[airline]
+    
+    # Check if input contains a known IATA code (2 characters)
+    # This handles cases like "jet blue b6" or "southwest wn"
+    # Look for 2-letter codes at the end or standalone
+    code_pattern = r'\b([A-Z]{2})\b'
+    codes_found = re.findall(code_pattern, airline)
+    
+    for code in codes_found:
+        if code in airline_mapping.values():
+            return code
+    
+    # Check if input contains airline name keywords
+    # This handles partial matches like "jet blue" in "jet blue airways"
+    for key, value in airline_mapping.items():
+        # Remove common suffixes for matching
+        key_clean = key.replace(' AIRLINES', '').replace(' AIR', '').replace(' AIRWAYS', '')
+        airline_clean = airline.replace(' AIRLINES', '').replace(' AIR', '').replace(' AIRWAYS', '')
+        
+        if key_clean in airline_clean or airline_clean in key_clean:
+            return value
+    
+    # If no match found, return original input (normalized to uppercase)
+    # This allows for airlines we don't have in our mapping
+    return airline
 
 
 def extra_charges(reservation):

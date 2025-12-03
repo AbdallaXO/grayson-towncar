@@ -626,6 +626,17 @@ class Flight(models.Model):
         help_text="When flight data was last fetched from AeroAPI"
     )
 
+    def save(self, *args, **kwargs):
+        """
+        Override save to normalize airline field before saving.
+        This ensures consistent airline formatting regardless of how it's entered.
+        """
+        if self.airline:
+            # Import here to avoid circular import
+            from .utils import normalize_airline
+            self.airline = normalize_airline(self.airline)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         """
         Display flight type (e.g., 'Arrival' or 'Departure'), airline,
@@ -644,32 +655,10 @@ class Flight(models.Model):
         # Prioritize current airline/flight_number over stored flight_iata
         # This ensures we use the updated flight info if the user changed it
         if self.airline and self.flight_number:
-            # Clean airline code (remove spaces, get IATA code)
-            airline_code = self.airline.strip().upper()
-            # Handle common airline names
-            airline_mapping = {
-                'UNITED AIRLINES': 'UA',
-                'UNITED': 'UA',
-                'AMERICAN AIRLINES': 'AA',
-                'AMERICAN': 'AA',
-                'DELTA AIRLINES': 'DL',
-                'DELTA': 'DL',
-                'SOUTHWEST AIRLINES': 'WN',
-                'SOUTHWEST': 'WN',
-                'JETBLUE': 'B6',
-                'SPIRIT AIRLINES': 'NK',
-                'SPIRIT': 'NK',
-                'FRONTIER AIRLINES': 'F9',
-                'FRONTIER': 'F9',
-                'ALASKA AIRLINES': 'AS',
-                'ALASKA': 'AS',
-                'HAWAIIAN AIRLINES': 'HA',
-                'HAWAIIAN': 'HA',
-                'ALLEGIANT AIR': 'G4',
-                'ALLEGIANT': 'G4'
-            }
-            if airline_code in airline_mapping:
-                airline_code = airline_mapping[airline_code]
+            # Import here to avoid circular import
+            from .utils import normalize_airline
+            # Normalize airline to IATA code (already normalized in save, but double-check)
+            airline_code = normalize_airline(self.airline)
             # Remove non-alphanumeric from flight number
             flight_num = ''.join(c for c in self.flight_number if c.isalnum())
             return f"{airline_code}{flight_num}"
