@@ -1,5 +1,7 @@
 {% extends 'main.html' %}
 {% load static %}
+{% load tz %}
+{% load flight_filters %}
 
 {% block extra_css %}
   <style>
@@ -171,7 +173,27 @@
           <h5 class="mb-0">
             <i class="bi bi-list-check me-2"></i>Trip Legs
           </h5>
-          <div class="badge bg-dark">{{ selected_date|date:'l, F j, Y' }}</div>
+          <div class="d-flex align-items-center gap-2">
+            <button 
+              id="expandAllFlightsBtn"
+              class="btn btn-sm btn-outline-secondary"
+              title="Expand all flight details">
+              <i class="bi bi-chevron-down me-1"></i>Expand All
+            </button>
+            <button 
+              id="collapseAllFlightsBtn"
+              class="btn btn-sm btn-outline-secondary"
+              title="Collapse all flight details">
+              <i class="bi bi-chevron-up me-1"></i>Collapse All
+            </button>
+            <button 
+              id="refreshAllFlightsBtn"
+              class="btn btn-sm btn-primary"
+              title="Refresh all flight data for {{ selected_date|date:'l, F j, Y' }}">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh All Flights
+            </button>
+            <div class="badge bg-dark">{{ selected_date|date:'l, F j, Y' }}</div>
+          </div>
         </div>
       </div>
       <div class="card-body p-0">
@@ -245,21 +267,63 @@
                         </div>
                         {% if leg.flight_information.status %}
                           <div class="small mb-1">
-                            <span class="badge bg-info text-white">{{ leg.flight_information.status }}</span>
+                            <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{{ leg.flight_information.status }}</span>
                           </div>
                         {% endif %}
+                        
+                        <!-- Key Flight Details (Always Visible) -->
+                        <div class="mb-2">
+                          {% if leg.flight_information.gate or leg.flight_information.terminal %}
+                            <div class="mb-2 d-flex flex-wrap gap-1">
+                              {% if leg.flight_information.terminal %}
+                                <span class="badge bg-secondary" style="font-size: 0.75rem;">Terminal {{ leg.flight_information.terminal }}</span>
+                              {% endif %}
+                              {% if leg.flight_information.gate %}
+                                <span class="badge bg-primary" style="font-size: 0.75rem;">Gate {{ leg.flight_information.gate }}</span>
+                              {% endif %}
+                              {% if leg.flight_information.baggage_claim %}
+                                <span class="badge bg-warning text-dark" style="font-size: 0.75rem;"><i class="bi bi-bag me-1"></i>{{ leg.flight_information.baggage_claim }}</span>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                          
+                          {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
+                            <div class="d-flex flex-column gap-1">
+                              {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                <div class="d-flex align-items-center">
+                                  <span class="text-muted small me-2" style="min-width: 75px;">Scheduled:</span>
+                                  <span class="fw-semibold">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                </div>
+                              {% endif %}
+                              {% if leg.flight_information.actual_gate_arrival_local %}
+                                <div class="d-flex align-items-center">
+                                  <span class="text-success small me-2 fw-bold" style="min-width: 75px;">Arrived:</span>
+                                  <span class="fw-bold text-success">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
+                                </div>
+                              {% elif leg.flight_information.estimated_gate_arrival_local %}
+                                <div class="d-flex align-items-center">
+                                  <span class="text-primary small me-2 fw-bold" style="min-width: 75px;">
+                                    <i class="bi bi-clock-history me-1"></i>Landing:
+                                  </span>
+                                  <span class="fw-bold text-primary">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
+                                </div>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                        </div>
                         
                         <!-- Collapsible Flight Details -->
                         <div class="mb-1">
                           <button 
-                            class="btn btn-sm btn-outline-secondary" 
+                            class="btn btn-sm btn-outline-secondary flight-details-toggle" 
                             type="button" 
                             data-bs-toggle="collapse" 
                             data-bs-target="#flightDetails{{ leg.id }}" 
                             aria-expanded="false" 
                             aria-controls="flightDetails{{ leg.id }}"
-                            title="Show/Hide flight details">
-                            <i class="bi bi-chevron-down me-1"></i>Details
+                            data-leg-id="{{ leg.id }}"
+                            title="Show/Hide additional flight details">
+                            <i class="bi bi-chevron-down me-1"></i>More Details
                           </button>
                           <button 
                             class="btn btn-sm btn-outline-primary refresh-flight-btn" 
@@ -270,76 +334,125 @@
                         </div>
                         
                         <div class="collapse" id="flightDetails{{ leg.id }}">
-                          <div class="card card-body p-2 mt-1" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
+                          <div class="card card-body p-3 mt-1" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
                             {% if leg.flight_information.origin or leg.flight_information.destination %}
-                              <div class="small text-muted mb-2">
+                              <div class="text-muted mb-3">
                                 {% if leg.flight_information.origin %}
-                                  <div><i class="bi bi-arrow-up-circle me-1"></i>{{ leg.flight_information.origin }}</div>
+                                  <div data-field="origin" class="mb-1"><i class="bi bi-arrow-up-circle me-1"></i>{{ leg.flight_information.origin }}</div>
+                                {% else %}
+                                  <div data-field="origin" style="display: none;"></div>
                                 {% endif %}
                                 {% if leg.flight_information.destination %}
-                                  <div><i class="bi bi-arrow-down-circle me-1"></i>{{ leg.flight_information.destination }}</div>
+                                  <div data-field="destination"><i class="bi bi-arrow-down-circle me-1"></i>{{ leg.flight_information.destination }}</div>
+                                {% else %}
+                                  <div data-field="destination" style="display: none;"></div>
                                 {% endif %}
+                              </div>
+                            {% else %}
+                              <div class="text-muted mb-3" style="display: none;">
+                                <div data-field="origin" style="display: none;"></div>
+                                <div data-field="destination" style="display: none;"></div>
                               </div>
                             {% endif %}
                             
                             {% if leg.flight_information.gate or leg.flight_information.terminal %}
-                              <div class="small mb-2">
+                              <div class="mb-3 d-flex flex-wrap gap-1">
                                 {% if leg.flight_information.terminal %}
-                                  <span class="badge bg-secondary">Terminal {{ leg.flight_information.terminal }}</span>
+                                  <span class="badge bg-secondary" data-field="terminal" style="font-size: 0.875rem;">Terminal {{ leg.flight_information.terminal }}</span>
+                                {% else %}
+                                  <span class="badge bg-secondary" data-field="terminal" style="display: none;"></span>
                                 {% endif %}
                                 {% if leg.flight_information.gate %}
-                                  <span class="badge bg-primary">Gate {{ leg.flight_information.gate }}</span>
+                                  <span class="badge bg-primary" data-field="gate" style="font-size: 0.875rem;">Gate {{ leg.flight_information.gate }}</span>
+                                {% else %}
+                                  <span class="badge bg-primary" data-field="gate" style="display: none;"></span>
                                 {% endif %}
                                 {% if leg.flight_information.baggage_claim %}
-                                  <span class="badge bg-warning text-dark">Baggage {{ leg.flight_information.baggage_claim }}</span>
+                                  <span class="badge bg-warning text-dark" data-field="baggage_claim" style="font-size: 0.875rem;"><i class="bi bi-bag me-1"></i>Baggage: {{ leg.flight_information.baggage_claim }}</span>
+                                {% else %}
+                                  <span class="badge bg-warning text-dark" data-field="baggage_claim" style="display: none;"></span>
                                 {% endif %}
+                              </div>
+                            {% else %}
+                              <div class="mb-3" style="display: none;">
+                                <span class="badge bg-secondary" data-field="terminal" style="display: none;"></span>
+                                <span class="badge bg-primary" data-field="gate" style="display: none;"></span>
+                                <span class="badge bg-warning text-dark" data-field="baggage_claim" style="display: none;"></span>
                               </div>
                             {% endif %}
                             
-                            {% if leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_arrival_local %}
-                              <div class="small mb-2">
+                            {% if leg.flight_information.actual_arrival_local or leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_arrival_local %}
+                              <div class="mb-3">
                                 {% if leg.get_trip_type == 'return' %}
-                                  <div class="text-secondary fw-semibold mb-1">
+                                  <div class="text-secondary fw-semibold mb-2">
                                     <i class="bi bi-airplane-takeoff me-1"></i>Runway Departure:
                                   </div>
                                 {% else %}
-                                  <div class="text-secondary fw-semibold mb-1">
+                                  <div class="text-secondary fw-semibold mb-2">
                                     <i class="bi bi-airplane-landing me-1"></i>Runway Landing:
                                   </div>
                                 {% endif %}
                                 {% if leg.flight_information.scheduled_arrival_local %}
-                                  <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</div>
+                                  <div class="text-muted ms-3 mb-1" data-field="scheduled_arrival">
+                                    <i class="bi bi-clock me-1"></i>Scheduled: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}
+                                  </div>
+                                {% else %}
+                                  <div class="text-muted ms-3" data-field="scheduled_arrival" style="display: none;"></div>
                                 {% endif %}
-                                {% if leg.flight_information.estimated_arrival_local %}
-                                  <div class="fw-bold text-primary ms-3">Est: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</div>
+                                {% if leg.flight_information.actual_arrival_local %}
+                                  <div class="fw-bold text-success ms-3" data-field="actual_arrival">
+                                    <i class="bi bi-check-circle me-1"></i><strong>Landed:</strong> {{ leg.flight_information.actual_arrival_local|date:"g:i A" }}
+                                  </div>
+                                {% elif leg.flight_information.estimated_arrival_local %}
+                                  <div class="fw-bold text-primary ms-3" data-field="estimated_arrival">
+                                    <i class="bi bi-clock-history me-1"></i><strong>Landing:</strong> {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}
+                                  </div>
+                                {% else %}
+                                  <div class="fw-bold text-primary ms-3" data-field="estimated_arrival" style="display: none;"></div>
                                 {% endif %}
+                              </div>
+                            {% else %}
+                              <div class="mb-3" style="display: none;">
+                                <div class="text-muted ms-3" data-field="scheduled_arrival" style="display: none;"></div>
+                                <div class="fw-bold text-success ms-3" data-field="actual_arrival" style="display: none;"></div>
+                                <div class="fw-bold text-primary ms-3" data-field="estimated_arrival" style="display: none;"></div>
                               </div>
                             {% endif %}
                             
-                            {% if leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
-                              <div class="small mb-2">
+                            {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
+                              <div class="mb-3">
                                 {% if leg.get_trip_type == 'return' %}
-                                  <div class="text-secondary fw-semibold mb-1">
+                                  <div class="text-secondary fw-semibold mb-2">
                                     <i class="bi bi-door-closed me-1"></i>Gate Departure:
                                   </div>
                                 {% else %}
-                                  <div class="text-secondary fw-semibold mb-1">
-                                    <i class="bi bi-door-open me-1"></i>Gate Arrival:
+                                  <div class="text-secondary fw-semibold mb-2">
+                                    <i class="bi bi-door-open me-1"></i>Arrived:
                                   </div>
                                 {% endif %}
                                 {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                  <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</div>
+                                  <div class="text-muted ms-3 mb-1">
+                                    <i class="bi bi-clock me-1"></i>Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}
+                                  </div>
                                 {% endif %}
-                                {% if leg.flight_information.estimated_gate_arrival_local %}
-                                  <div class="fw-bold text-success ms-3">Est: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</div>
+                                {% if leg.flight_information.actual_gate_arrival_local %}
+                                  <div class="fw-bold text-success ms-3">
+                                    <i class="bi bi-check-circle me-1"></i><strong>Arrived:</strong> {{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}
+                                  </div>
+                                {% elif leg.flight_information.estimated_gate_arrival_local %}
+                                  <div class="fw-bold text-primary ms-3">
+                                    <i class="bi bi-clock-history me-1"></i><strong>Estimated:</strong> {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
+                                  </div>
                                 {% endif %}
                               </div>
                             {% endif %}
                             
                             {% if leg.flight_information.last_updated %}
-                              <div class="text-muted" style="font-size: 0.7rem;">
-                                <i class="bi bi-clock me-1"></i>Updated: {{ leg.flight_information.last_updated|date:"g:i A" }}
+                              <div class="text-muted mt-2" style="font-size: 0.875rem;" data-field="last_updated">
+                                <i class="bi bi-info-circle me-1"></i>Last Updated: {{ leg.flight_information.last_updated|localtime|date:"g:i A" }}
                               </div>
+                            {% else %}
+                              <div class="text-muted" style="font-size: 0.875rem; display: none;" data-field="last_updated"></div>
                             {% endif %}
                           </div>
                         </div>
@@ -788,7 +901,315 @@
               });
           });
           
-          // Flight data refresh functionality
+          // Helper function to determine flight status color
+          function getFlightStatusColor(status) {
+              if (!status) return 'bg-secondary';
+              
+              const statusLower = status.toLowerCase().trim();
+              
+              // Red: Problem statuses
+              const redStatuses = ['delayed', 'delay', 'cancelled', 'canceled', 'diverted', 'error', 'failed', 'problem', 'issues'];
+              if (redStatuses.some(word => statusLower.includes(word))) {
+                  return 'bg-danger';
+              }
+              
+              // Green: On time, successful completion
+              const greenStatuses = ['on time', 'ontime', 'landed', 'arrived', 'arrival', 'departed', 'departure', 'completed', 'complete', 'in flight', 'en route', 'in the air'];
+              if (greenStatuses.some(word => statusLower.includes(word))) {
+                  return 'bg-success';
+              }
+              
+              // Blue: Scheduled, normal status
+              const blueStatuses = ['scheduled', 'schedule', 'boarding', 'gate', 'ready', 'on schedule', 'normal', 'active'];
+              if (blueStatuses.some(word => statusLower.includes(word))) {
+                  return 'bg-primary';
+              }
+              
+              // Default to blue
+              return 'bg-primary';
+          }
+          
+          // Helper function to update flight UI without page reload
+          function updateFlightUI(legId, flightData) {
+              // Find the flight details section for this leg - try multiple selectors
+              let flightSection = null;
+              const refreshBtn = document.querySelector(`.refresh-flight-btn[data-leg-id="${legId}"]`);
+              if (refreshBtn) {
+                  flightSection = refreshBtn.closest('td');
+              }
+              if (!flightSection) {
+                  // Try finding by the flight details collapse
+                  const collapseSection = document.querySelector(`#flightDetails${legId}`);
+                  if (collapseSection) {
+                      flightSection = collapseSection.closest('td');
+                  }
+              }
+              if (!flightSection) return;
+              
+              // Update flight IATA if present
+              const flightIataSpan = flightSection.querySelector('.text-primary .text-muted');
+              if (flightIataSpan && flightData.flight_iata) {
+                  const parent = flightIataSpan.parentElement;
+                  const airlineText = parent.textContent.trim().split('(')[0].trim();
+                  parent.innerHTML = `<i class="bi bi-airplane me-1"></i>${airlineText} <span class="text-muted small">(${flightData.flight_iata})</span>`;
+              }
+              
+              // Update status badge with correct color
+              const statusBadge = flightSection.querySelector('.badge.text-white, .badge.bg-info, .badge.bg-danger, .badge.bg-success, .badge.bg-primary');
+              if (statusBadge && flightData.status) {
+                  const colorClass = getFlightStatusColor(flightData.status);
+                  // Remove all color classes
+                  statusBadge.classList.remove('bg-info', 'bg-danger', 'bg-success', 'bg-primary', 'bg-secondary');
+                  // Add the correct color class
+                  statusBadge.classList.add(colorClass);
+                  statusBadge.textContent = flightData.status;
+              }
+              
+              // Update inline key details (always visible section)
+              // Update terminal badge
+              const inlineTerminal = flightSection.querySelector('.badge.bg-secondary[style*="font-size: 0.7rem"]');
+              if (inlineTerminal && flightData.terminal) {
+                  inlineTerminal.textContent = `Terminal ${flightData.terminal}`;
+                  inlineTerminal.style.display = '';
+                  inlineTerminal.parentElement.style.display = '';
+              }
+              
+              // Update gate badge
+              const inlineGate = flightSection.querySelector('.badge.bg-primary[style*="font-size: 0.7rem"]');
+              if (inlineGate && flightData.gate) {
+                  inlineGate.textContent = `Gate ${flightData.gate}`;
+                  inlineGate.style.display = '';
+                  inlineGate.parentElement.style.display = '';
+              }
+              
+              // Update baggage claim badge
+              const inlineBaggage = flightSection.querySelector('.badge.bg-warning[style*="font-size: 0.7rem"]');
+              if (inlineBaggage && flightData.baggage_claim) {
+                  inlineBaggage.innerHTML = `<i class="bi bi-bag me-1"></i>${flightData.baggage_claim}`;
+                  inlineBaggage.style.display = '';
+                  inlineBaggage.parentElement.style.display = '';
+              }
+              
+              // Update gate arrival time (inline) - prioritize Actual over Estimated
+              const arrivalTimeContainer = flightSection.querySelector('.text-muted[style*="font-size: 0.75rem"]')?.parentElement;
+              if (arrivalTimeContainer) {
+                  // Update scheduled gate time
+                  if (flightData.scheduled_gate_arrival_local) {
+                      const scheduledTimeSpan = arrivalTimeContainer.querySelector('span[style*="color"]');
+                      if (scheduledTimeSpan && scheduledTimeSpan.querySelector('i.bi-clock')) {
+                          scheduledTimeSpan.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_gate_arrival_local}`;
+                          scheduledTimeSpan.style.display = '';
+                          scheduledTimeSpan.style.fontSize = '0.95rem';
+                          scheduledTimeSpan.style.fontWeight = '600';
+                          scheduledTimeSpan.style.color = '#000000';
+                      } else {
+                          // Create new scheduled span if it doesn't exist
+                          const container = arrivalTimeContainer.querySelector('div[style*="font-size: 0.95rem"]') || arrivalTimeContainer;
+                          const newSpan = document.createElement('span');
+                          newSpan.style.fontWeight = '600';
+                          newSpan.style.color = '#000000';
+                          newSpan.style.fontSize = '0.95rem';
+                          newSpan.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_gate_arrival_local}`;
+                          if (container.firstChild) {
+                              container.insertBefore(newSpan, container.firstChild);
+                          } else {
+                              container.appendChild(newSpan);
+                          }
+                      }
+                  }
+                  
+                  // Show "Arrived" if available, otherwise "Landing" (Estimated)
+                  if (flightData.actual_gate_arrival_local) {
+                      let actualTimeSpan = arrivalTimeContainer.querySelector('.text-success[style*="font-size"]');
+                      if (!actualTimeSpan) {
+                          actualTimeSpan = document.createElement('span');
+                          actualTimeSpan.className = 'ms-2 fw-bold text-success';
+                      actualTimeSpan.style.fontSize = '0.95rem';
+                      actualTimeSpan.style.fontWeight = '700';
+                          arrivalTimeContainer.appendChild(actualTimeSpan);
+                      }
+                      actualTimeSpan.innerHTML = `<i class="bi bi-check-circle me-1"></i><strong>Arrived:</strong> ${flightData.actual_gate_arrival_local}`;
+                      actualTimeSpan.style.display = '';
+                      actualTimeSpan.style.fontSize = '0.95rem';
+                      actualTimeSpan.style.fontWeight = '700';
+                      
+                      // Hide estimated if actual is shown
+                      const estimatedTimeSpan = arrivalTimeContainer.querySelector('.text-primary[style*="font-size"]');
+                      if (estimatedTimeSpan) estimatedTimeSpan.style.display = 'none';
+                  } else if (flightData.estimated_gate_arrival_local) {
+                      let estimatedTimeSpan = arrivalTimeContainer.querySelector('.text-primary[style*="font-size"]');
+                      if (!estimatedTimeSpan) {
+                          estimatedTimeSpan = document.createElement('span');
+                          estimatedTimeSpan.className = 'ms-2 fw-bold text-primary';
+                          estimatedTimeSpan.style.fontSize = '0.95rem';
+                          estimatedTimeSpan.style.fontWeight = '700';
+                          arrivalTimeContainer.appendChild(estimatedTimeSpan);
+                      }
+                      estimatedTimeSpan.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Landing:</strong> ${flightData.estimated_gate_arrival_local}`;
+                      estimatedTimeSpan.style.display = '';
+                      estimatedTimeSpan.style.fontSize = '0.95rem';
+                      estimatedTimeSpan.style.fontWeight = '700';
+                  }
+              }
+              
+              // Update flight details in collapse section
+              const collapseSection = document.querySelector(`#flightDetails${legId}`);
+              if (collapseSection) {
+                  // Update origin
+                  const originDiv = collapseSection.querySelector('[data-field="origin"]');
+                  if (originDiv) {
+                      if (flightData.origin) {
+                          originDiv.innerHTML = `<i class="bi bi-arrow-up-circle me-1"></i>${flightData.origin}`;
+                          originDiv.style.display = '';
+                          const parentContainer = originDiv.closest('.small.text-muted');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update destination
+                  const destDiv = collapseSection.querySelector('[data-field="destination"]');
+                  if (destDiv) {
+                      if (flightData.destination) {
+                          destDiv.innerHTML = `<i class="bi bi-arrow-down-circle me-1"></i>${flightData.destination}`;
+                          destDiv.style.display = '';
+                          const parentContainer = destDiv.closest('.small.text-muted');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update terminal
+                  const terminalBadge = collapseSection.querySelector('[data-field="terminal"]');
+                  if (terminalBadge) {
+                      if (flightData.terminal) {
+                          terminalBadge.textContent = `Terminal ${flightData.terminal}`;
+                          terminalBadge.style.display = '';
+                          const parentContainer = terminalBadge.closest('.small');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update gate
+                  const gateBadge = collapseSection.querySelector('[data-field="gate"]');
+                  if (gateBadge) {
+                      if (flightData.gate) {
+                          gateBadge.textContent = `Gate ${flightData.gate}`;
+                          gateBadge.style.display = '';
+                          const parentContainer = gateBadge.closest('.small');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update baggage claim
+                  const baggageBadge = collapseSection.querySelector('[data-field="baggage_claim"]');
+                  if (baggageBadge) {
+                      if (flightData.baggage_claim) {
+                          baggageBadge.innerHTML = `<i class="bi bi-bag me-1"></i>Baggage ${flightData.baggage_claim}`;
+                          baggageBadge.style.display = '';
+                          const parentContainer = baggageBadge.closest('.small');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update scheduled arrival
+                  const scheduledDiv = collapseSection.querySelector('[data-field="scheduled_arrival"]');
+                  if (scheduledDiv) {
+                      if (flightData.scheduled_arrival_local) {
+                          scheduledDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_arrival_local}`;
+                          scheduledDiv.style.display = '';
+                          const parentContainer = scheduledDiv.closest('.small');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update arrival time - prioritize Actual over Estimated
+                  if (flightData.actual_arrival_local) {
+                      // Show actual arrival
+                      let actualDiv = collapseSection.querySelector('[data-field="actual_arrival"]');
+                      if (!actualDiv) {
+                          // Create actual div if it doesn't exist
+                          actualDiv = document.createElement('div');
+                          actualDiv.className = 'fw-bold text-success ms-3';
+                          actualDiv.setAttribute('data-field', 'actual_arrival');
+                          const parentContainer = scheduledDiv?.closest('.small');
+                          if (parentContainer) {
+                              parentContainer.appendChild(actualDiv);
+                          }
+                      }
+                      actualDiv.innerHTML = `<i class="bi bi-check-circle me-1"></i><strong>Landed:</strong> ${flightData.actual_arrival_local}`;
+                      actualDiv.style.display = '';
+                      
+                      // Hide estimated if actual is shown
+                      const estimatedDiv = collapseSection.querySelector('[data-field="estimated_arrival"]');
+                      if (estimatedDiv) estimatedDiv.style.display = 'none';
+                  } else if (flightData.estimated_arrival_local) {
+                      // Show estimated arrival as "Landing"
+                      const estimatedDiv = collapseSection.querySelector('[data-field="estimated_arrival"]');
+                      if (estimatedDiv) {
+                          estimatedDiv.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Landing:</strong> ${flightData.estimated_arrival_local}`;
+                          estimatedDiv.style.display = '';
+                          const parentContainer = estimatedDiv.closest('.small');
+                          if (parentContainer) parentContainer.style.display = '';
+                      }
+                  }
+                  
+                  // Update gate arrival - change "Gate Arrival" to "Arrived" and "Actual" to "Arrived"
+                  const gateSection = collapseSection.querySelector('.text-secondary.fw-semibold');
+                  if (gateSection && (gateSection.textContent.includes('Gate Arrival') || gateSection.textContent.includes('Arrived') || gateSection.textContent.includes('Gate Departure'))) {
+                      // Update header to say "Arrived" instead of "Gate Arrival"
+                      if (gateSection.textContent.includes('Gate Arrival')) {
+                          gateSection.innerHTML = '<i class="bi bi-door-open me-1"></i>Arrived:';
+                      }
+                      
+                      const gateContainer = gateSection.closest('.small');
+                      if (gateContainer) {
+                          // Update scheduled gate arrival
+                          const scheduledGateDiv = gateContainer.querySelector('.text-muted.ms-3');
+                          if (scheduledGateDiv && flightData.scheduled_gate_arrival_local) {
+                              scheduledGateDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_gate_arrival_local}`;
+                              scheduledGateDiv.style.display = '';
+                          }
+                          
+                          // Show "Arrived" gate arrival if available, otherwise Estimated
+                          if (flightData.actual_gate_arrival_local) {
+                              let actualGateDiv = gateContainer.querySelector('.text-success.ms-3');
+                              if (!actualGateDiv) {
+                                  actualGateDiv = document.createElement('div');
+                                  actualGateDiv.className = 'fw-bold text-success ms-3';
+                                  gateContainer.appendChild(actualGateDiv);
+                              }
+                              actualGateDiv.innerHTML = `<i class="bi bi-check-circle me-1"></i><strong>Arrived:</strong> ${flightData.actual_gate_arrival_local}`;
+                              actualGateDiv.style.display = '';
+                              
+                              // Hide estimated gate arrival if actual is shown
+                              const estimatedGateDiv = gateContainer.querySelector('.text-primary.ms-3');
+                              if (estimatedGateDiv && estimatedGateDiv.textContent.includes('Estimated')) {
+                                  estimatedGateDiv.style.display = 'none';
+                              }
+                          } else if (flightData.estimated_gate_arrival_local) {
+                              let estimatedGateDiv = gateContainer.querySelector('.text-primary.ms-3');
+                              if (!estimatedGateDiv) {
+                                  estimatedGateDiv = document.createElement('div');
+                                  estimatedGateDiv.className = 'fw-bold text-primary ms-3';
+                                  gateContainer.appendChild(estimatedGateDiv);
+                              }
+                              estimatedGateDiv.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Estimated:</strong> ${flightData.estimated_gate_arrival_local}`;
+                              estimatedGateDiv.style.display = '';
+                          }
+                      }
+                  }
+                  
+                  // Update last updated
+                  const lastUpdatedDiv = collapseSection.querySelector('[data-field="last_updated"]');
+                  if (lastUpdatedDiv) {
+                      if (flightData.last_updated) {
+                          lastUpdatedDiv.innerHTML = `<i class="bi bi-info-circle me-1"></i>Last Updated: ${flightData.last_updated}`;
+                          lastUpdatedDiv.style.display = '';
+                      }
+                  }
+              }
+          }
+          
+          // Flight data refresh functionality (individual)
           document.querySelectorAll('.refresh-flight-btn').forEach(btn => {
               btn.addEventListener('click', function() {
                   const legId = this.dataset.legId;
@@ -811,8 +1232,14 @@
                   .then(response => response.json())
                   .then(data => {
                       if (data.success) {
-                          // Reload the page to show updated data
-                          location.reload();
+                          // Update UI without reloading
+                          updateFlightUI(legId, data.flight_data);
+                          // Show success indicator
+                          this.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+                          setTimeout(() => {
+                              this.disabled = false;
+                              this.innerHTML = originalHTML;
+                          }, 2000);
                       } else {
                           alert('Error refreshing flight data: ' + (data.error || 'Unknown error'));
                           this.disabled = false;
@@ -827,6 +1254,216 @@
                   });
               });
           });
+          
+          // Expand All / Collapse All functionality
+          const expandAllBtn = document.getElementById('expandAllFlightsBtn');
+          const collapseAllBtn = document.getElementById('collapseAllFlightsBtn');
+          
+          if (expandAllBtn) {
+              expandAllBtn.addEventListener('click', function() {
+                  // Get all collapse elements
+                  const collapseElements = document.querySelectorAll('.collapse[id^="flightDetails"]');
+                  collapseElements.forEach(collapse => {
+                      const bsCollapse = new bootstrap.Collapse(collapse, {
+                          toggle: false
+                      });
+                      bsCollapse.show();
+                  });
+                  
+                  // Update all toggle buttons
+                  document.querySelectorAll('.flight-details-toggle').forEach(btn => {
+                      btn.setAttribute('aria-expanded', 'true');
+                      const icon = btn.querySelector('i');
+                      if (icon) {
+                          icon.classList.remove('bi-chevron-down');
+                          icon.classList.add('bi-chevron-up');
+                      }
+                  });
+              });
+          }
+          
+          if (collapseAllBtn) {
+              collapseAllBtn.addEventListener('click', function() {
+                  // Get all collapse elements
+                  const collapseElements = document.querySelectorAll('.collapse[id^="flightDetails"]');
+                  collapseElements.forEach(collapse => {
+                      const bsCollapse = new bootstrap.Collapse(collapse, {
+                          toggle: false
+                      });
+                      bsCollapse.hide();
+                  });
+                  
+                  // Update all toggle buttons
+                  document.querySelectorAll('.flight-details-toggle').forEach(btn => {
+                      btn.setAttribute('aria-expanded', 'false');
+                      const icon = btn.querySelector('i');
+                      if (icon) {
+                          icon.classList.remove('bi-chevron-up');
+                          icon.classList.add('bi-chevron-down');
+                      }
+                  });
+              });
+          }
+          
+          // Update toggle button icons when individual collapses are toggled
+          document.querySelectorAll('.flight-details-toggle').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const targetId = this.getAttribute('data-bs-target');
+                  const collapseElement = document.querySelector(targetId);
+                  if (collapseElement) {
+                      collapseElement.addEventListener('shown.bs.collapse', function() {
+                          const toggleBtn = document.querySelector(`[data-bs-target="${targetId}"]`);
+                          if (toggleBtn) {
+                              toggleBtn.setAttribute('aria-expanded', 'true');
+                              const icon = toggleBtn.querySelector('i');
+                              if (icon) {
+                                  icon.classList.remove('bi-chevron-down');
+                                  icon.classList.add('bi-chevron-up');
+                              }
+                          }
+                      });
+                      
+                      collapseElement.addEventListener('hidden.bs.collapse', function() {
+                          const toggleBtn = document.querySelector(`[data-bs-target="${targetId}"]`);
+                          if (toggleBtn) {
+                              toggleBtn.setAttribute('aria-expanded', 'false');
+                              const icon = toggleBtn.querySelector('i');
+                              if (icon) {
+                                  icon.classList.remove('bi-chevron-up');
+                                  icon.classList.add('bi-chevron-down');
+                              }
+                          }
+                      });
+                  }
+              });
+          });
+          
+          // Bulk refresh all flights functionality
+          const refreshAllBtn = document.getElementById('refreshAllFlightsBtn');
+          if (refreshAllBtn) {
+              refreshAllBtn.addEventListener('click', function() {
+                  const btn = this;
+                  const originalHTML = btn.innerHTML;
+                  const selectedDate = '{{ selected_date|date:"Y-m-d" }}';
+                  
+                  // Disable button and show loading
+                  btn.disabled = true;
+                  btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>Refreshing...';
+                  
+                  // Create progress modal
+                  const progressModal = document.createElement('div');
+                  progressModal.className = 'modal fade show';
+                  progressModal.style.display = 'block';
+                  progressModal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+                  progressModal.innerHTML = `
+                      <div class="modal-dialog modal-dialog-centered">
+                          <div class="modal-content">
+                              <div class="modal-header">
+                                  <h5 class="modal-title">Refreshing Flights</h5>
+                              </div>
+                              <div class="modal-body">
+                                  <div class="progress mb-3" style="height: 25px;">
+                                      <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                           role="progressbar" 
+                                           style="width: 0%" 
+                                           id="refreshProgressBar">0%</div>
+                                  </div>
+                                  <div id="refreshStatus" class="text-center">Starting refresh...</div>
+                                  <div id="refreshResults" class="mt-3 small"></div>
+                              </div>
+                          </div>
+                      </div>
+                  `;
+                  document.body.appendChild(progressModal);
+                  
+                  fetch('/dispatching/refresh-all-flights/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({
+                          date: selectedDate
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      const progressBar = document.getElementById('refreshProgressBar');
+                      const statusDiv = document.getElementById('refreshStatus');
+                      const resultsDiv = document.getElementById('refreshResults');
+                      
+                      if (data.success) {
+                          // Update progress bar
+                          progressBar.style.width = '100%';
+                          progressBar.textContent = '100%';
+                          progressBar.classList.remove('progress-bar-animated');
+                          progressBar.classList.add('bg-success');
+                          
+                          // Update status
+                          statusDiv.innerHTML = `<div class="alert alert-success mb-0">
+                              <i class="bi bi-check-circle me-2"></i>
+                              ${data.message}
+                          </div>`;
+                          
+                          // Show results
+                          let resultsHTML = '<div class="mt-2"><strong>Results:</strong><ul class="list-unstyled mt-2">';
+                          data.results.forEach(result => {
+                              if (result.success) {
+                                  // Update UI for each successful refresh
+                                  updateFlightUI(result.leg_id, result.flight_data);
+                                  resultsHTML += `<li class="text-success"><i class="bi bi-check-circle me-1"></i>Leg ${result.leg_id}: Success</li>`;
+                              } else {
+                                  resultsHTML += `<li class="text-danger"><i class="bi bi-x-circle me-1"></i>Leg ${result.leg_id}: ${result.error || 'Failed'}</li>`;
+                              }
+                          });
+                          resultsHTML += '</ul></div>';
+                          resultsDiv.innerHTML = resultsHTML;
+                          
+                          // Close modal after 3 seconds
+                          setTimeout(() => {
+                              progressModal.remove();
+                              btn.disabled = false;
+                              btn.innerHTML = originalHTML;
+                          }, 3000);
+                      } else {
+                          progressBar.classList.remove('progress-bar-animated');
+                          progressBar.classList.add('bg-danger');
+                          statusDiv.innerHTML = `<div class="alert alert-danger mb-0">
+                              <i class="bi bi-x-circle me-2"></i>
+                              Error: ${data.error || 'Unknown error'}
+                          </div>`;
+                          
+                          setTimeout(() => {
+                              progressModal.remove();
+                              btn.disabled = false;
+                              btn.innerHTML = originalHTML;
+                          }, 3000);
+                      }
+                  })
+                  .catch(error => {
+                      console.error('Error:', error);
+                      const progressBar = document.getElementById('refreshProgressBar');
+                      const statusDiv = document.getElementById('refreshStatus');
+                      
+                      if (progressBar) {
+                          progressBar.classList.remove('progress-bar-animated');
+                          progressBar.classList.add('bg-danger');
+                      }
+                      if (statusDiv) {
+                          statusDiv.innerHTML = `<div class="alert alert-danger mb-0">
+                              <i class="bi bi-x-circle me-2"></i>
+                              Error: ${error.message}
+                          </div>`;
+                      }
+                      
+                      setTimeout(() => {
+                          progressModal.remove();
+                          btn.disabled = false;
+                          btn.innerHTML = originalHTML;
+                      }, 3000);
+                  });
+              });
+          }
       });
   </script>
   <style>

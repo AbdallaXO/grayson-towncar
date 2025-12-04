@@ -16,6 +16,7 @@ import stripe.error
 import logging
 import json
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.template.loader import render_to_string
@@ -1619,9 +1620,11 @@ def refresh_flight_data(request):
         estimated_arrival = flight_data.get('estimated_arrival_local')
         if estimated_arrival is not None:
             flight.estimated_arrival_local = estimated_arrival
-        elif estimated_arrival is None and flight_data.get('estimated_arrival_local') is None:
-            # Keep existing value if new value is None
-            pass
+        
+        # Handle actual arrival times (prioritize actual over estimated)
+        actual_arrival = flight_data.get('actual_runway_arrival_local')
+        if actual_arrival is not None:
+            flight.actual_arrival_local = actual_arrival
         
         # Handle gate arrival times
         scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
@@ -1631,6 +1634,11 @@ def refresh_flight_data(request):
         estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
         if estimated_gate_arrival is not None:
             flight.estimated_gate_arrival_local = estimated_gate_arrival
+        
+        # Handle actual gate arrival times (prioritize actual over estimated)
+        actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
+        if actual_gate_arrival is not None:
+            flight.actual_gate_arrival_local = actual_gate_arrival
         
         if flight_data.get('terminal'):
             flight.terminal = flight_data.get('terminal')
@@ -1661,6 +1669,10 @@ def refresh_flight_data(request):
                 "status": flight.status or "",
                 "scheduled_arrival_local": flight.scheduled_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_arrival_local else "",
                 "estimated_arrival_local": flight.estimated_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_arrival_local else "",
+                "actual_arrival_local": flight.actual_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_arrival_local else "",
+                "scheduled_gate_arrival_local": flight.scheduled_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_gate_arrival_local else "",
+                "estimated_gate_arrival_local": flight.estimated_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_gate_arrival_local else "",
+                "actual_gate_arrival_local": flight.actual_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_gate_arrival_local else "",
                 "terminal": flight.terminal or "",
                 "gate": flight.gate or "",
                 "baggage_claim": flight.baggage_claim or "",
@@ -1672,6 +1684,201 @@ def refresh_flight_data(request):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error refreshing flight data: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def refresh_all_flights(request):
+    """
+    Bulk refresh flight data from AeroAPI for multiple legs.
+    Accepts either a list of leg_ids or a date to refresh all flights for that date.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        leg_ids = data.get("leg_ids", [])
+        date = data.get("date")
+        
+        # If date is provided, get all legs for that date with flight information
+        if date:
+            try:
+                from datetime import datetime
+                target_date = datetime.strptime(date, "%Y-%m-%d").date()
+                legs = Leg.objects.filter(
+                    pickup_date=target_date,
+                    flight_information__isnull=False
+                ).select_related('flight_information')
+                leg_ids = list(legs.values_list('id', flat=True))
+            except ValueError:
+                return JsonResponse(
+                    {"success": False, "error": "Invalid date format"}, status=400
+                )
+        
+        if not leg_ids:
+            return JsonResponse(
+                {"success": False, "error": "No legs to refresh"}, status=400
+            )
+        
+        # Get all legs with flight information
+        legs = Leg.objects.filter(
+            id__in=leg_ids,
+            flight_information__isnull=False
+        ).select_related('flight_information')
+        
+        # Helper function to refresh a single flight
+        def refresh_single_flight(leg):
+            """Refresh flight data for a single leg"""
+            try:
+                flight = leg.flight_information
+                flight_ident = flight.get_flight_ident()
+                
+                if not flight_ident:
+                    return {
+                        "leg_id": leg.id,
+                        "success": False,
+                        "error": "Could not determine flight identifier"
+                    }
+                
+                # Get the leg's pickup date to fetch flight data for the correct date
+                flight_date = leg.pickup_date.strftime('%Y-%m-%d') if leg.pickup_date else None
+                trip_type = leg.get_trip_type()
+                
+                # Create a new AeroAPI instance for this thread (thread-safe)
+                aeroapi = AeroAPIService()
+                
+                # Fetch flight data from AeroAPI
+                flight_data = aeroapi.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+                
+                if flight_data.get('status') != 'success':
+                    error_msg = flight_data.get('error', 'Unknown error')
+                    return {
+                        "leg_id": leg.id,
+                        "success": False,
+                        "error": error_msg
+                    }
+                
+                # Update flight model with AeroAPI data
+                if flight_data.get('flight_iata'):
+                    flight.flight_iata = flight_data.get('flight_iata')
+                if flight_data.get('origin'):
+                    flight.origin = flight_data.get('origin')
+                if flight_data.get('destination'):
+                    flight.destination = flight_data.get('destination')
+                
+                flight_status = flight_data.get('flight_status') or flight_data.get('status', '')
+                if flight_status:
+                    flight.status = flight_status
+                
+                # Handle datetime fields
+                scheduled_arrival = flight_data.get('scheduled_arrival_local')
+                if scheduled_arrival is not None:
+                    flight.scheduled_arrival_local = scheduled_arrival
+                
+                estimated_arrival = flight_data.get('estimated_arrival_local')
+                if estimated_arrival is not None:
+                    flight.estimated_arrival_local = estimated_arrival
+                
+                # Handle actual arrival times (prioritize actual over estimated)
+                actual_arrival = flight_data.get('actual_runway_arrival_local')
+                if actual_arrival is not None:
+                    flight.actual_arrival_local = actual_arrival
+                
+                scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
+                if scheduled_gate_arrival is not None:
+                    flight.scheduled_gate_arrival_local = scheduled_gate_arrival
+                
+                estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
+                if estimated_gate_arrival is not None:
+                    flight.estimated_gate_arrival_local = estimated_gate_arrival
+                
+                # Handle actual gate arrival times (prioritize actual over estimated)
+                actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
+                if actual_gate_arrival is not None:
+                    flight.actual_gate_arrival_local = actual_gate_arrival
+                
+                if flight_data.get('terminal'):
+                    flight.terminal = flight_data.get('terminal')
+                if flight_data.get('gate'):
+                    flight.gate = flight_data.get('gate')
+                if flight_data.get('baggage_claim'):
+                    flight.baggage_claim = flight_data.get('baggage_claim')
+                
+                flight.last_updated = flight_data.get('last_updated', timezone.now())
+                flight.save()
+                
+                return {
+                    "leg_id": leg.id,
+                    "success": True,
+                    "flight_data": {
+                        "flight_iata": flight.flight_iata or "",
+                        "origin": flight.origin or "",
+                        "destination": flight.destination or "",
+                        "status": flight.status or "",
+                        "scheduled_arrival_local": flight.scheduled_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_arrival_local else "",
+                        "estimated_arrival_local": flight.estimated_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_arrival_local else "",
+                        "actual_arrival_local": flight.actual_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_arrival_local else "",
+                        "scheduled_gate_arrival_local": flight.scheduled_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_gate_arrival_local else "",
+                        "estimated_gate_arrival_local": flight.estimated_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_gate_arrival_local else "",
+                        "actual_gate_arrival_local": flight.actual_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_gate_arrival_local else "",
+                        "terminal": flight.terminal or "",
+                        "gate": flight.gate or "",
+                        "baggage_claim": flight.baggage_claim or "",
+                        "last_updated": flight.last_updated.strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Error refreshing flight for leg {leg.id}: {e}")
+                return {
+                    "leg_id": leg.id,
+                    "success": False,
+                    "error": str(e)
+                }
+        
+        # Process flights concurrently using ThreadPoolExecutor
+        # Limit to 15 concurrent requests to avoid overwhelming the API
+        max_workers = min(15, len(legs))
+        results = []
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_leg = {executor.submit(refresh_single_flight, leg): leg for leg in legs}
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_leg):
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    leg = future_to_leg[future]
+                    logger.error(f"Unexpected error processing leg {leg.id}: {e}")
+                    results.append({
+                        "leg_id": leg.id,
+                        "success": False,
+                        "error": f"Unexpected error: {str(e)}"
+                    })
+        
+        # Count successes and failures
+        success_count = sum(1 for r in results if r.get('success'))
+        failure_count = len(results) - success_count
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Refreshed {success_count} flight(s) successfully" + (f", {failure_count} failed" if failure_count > 0 else ""),
+            "results": results,
+            "total": len(results),
+            "success_count": success_count,
+            "failure_count": failure_count
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error in bulk refresh: {e}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 

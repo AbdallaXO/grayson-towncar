@@ -609,6 +609,14 @@ class Flight(models.Model):
         null=True, blank=True,
         help_text="Estimated gate arrival time in local timezone"
     )
+    actual_arrival_local = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Actual runway arrival time in local timezone (what actually happened)"
+    )
+    actual_gate_arrival_local = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Actual gate arrival time in local timezone (what actually happened)"
+    )
     terminal = models.CharField(
         max_length=10, blank=True,
         help_text="Arrival terminal (e.g., B)"

@@ -1,5 +1,7 @@
 {% extends "main.html" %}
 {% load static %}
+{% load tz %}
+{% load flight_filters %}
 
 {% block extra_css %}
   <style>
@@ -350,7 +352,7 @@
                       </div>
                       {% if leg.flight_information.status %}
                         <div class="small mb-1">
-                          <span class="badge bg-info text-white">{{ leg.flight_information.status }}</span>
+                          <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{{ leg.flight_information.status }}</span>
                         </div>
                       {% endif %}
                       
@@ -443,7 +445,7 @@
                           
                           {% if leg.flight_information.last_updated %}
                             <div class="text-muted" style="font-size: 0.7rem;">
-                              <i class="bi bi-clock me-1"></i>Updated: {{ leg.flight_information.last_updated|date:"g:i A" }}
+                              <i class="bi bi-clock me-1"></i>Updated: {{ leg.flight_information.last_updated|localtime|date:"g:i A" }}
                             </div>
                           {% endif %}
                         </div>

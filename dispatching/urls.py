@@ -17,6 +17,7 @@ urlpatterns = [
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
     path("refresh-flight-data/", views.refresh_flight_data, name="refresh_flight_data"),
+    path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path(
         "send_confirmation_email/",
         send_reservation_confirmation_ajax,
