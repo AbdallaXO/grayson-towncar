@@ -1839,28 +1839,29 @@ def refresh_all_flights(request):
                     "error": str(e)
                 }
         
-        # Process flights concurrently using ThreadPoolExecutor
-        # Limit to 15 concurrent requests to avoid overwhelming the API
-        max_workers = min(15, len(legs))
+        # Process flights with rate limiting to avoid hitting API limits
+        # AeroAPI typically allows ~100 requests per minute, so we'll do 2 requests per second max
+        import time
         results = []
         
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            future_to_leg = {executor.submit(refresh_single_flight, leg): leg for leg in legs}
-            
-            # Collect results as they complete
-            for future in as_completed(future_to_leg):
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    leg = future_to_leg[future]
-                    logger.error(f"Unexpected error processing leg {leg.id}: {e}")
-                    results.append({
-                        "leg_id": leg.id,
-                        "success": False,
-                        "error": f"Unexpected error: {str(e)}"
-                    })
+        # Process sequentially with a small delay between requests to respect rate limits
+        # This is slower but avoids 429 errors
+        for leg in legs:
+            try:
+                result = refresh_single_flight(leg)
+                results.append(result)
+                
+                # Add delay between requests (0.6 seconds = ~100 requests per minute)
+                # Only delay if not the last leg
+                if leg != legs[len(legs) - 1]:
+                    time.sleep(0.6)
+            except Exception as e:
+                logger.error(f"Unexpected error processing leg {leg.id}: {e}")
+                results.append({
+                    "leg_id": leg.id,
+                    "success": False,
+                    "error": f"Unexpected error: {str(e)}"
+                })
         
         # Count successes and failures
         success_count = sum(1 for r in results if r.get('success'))

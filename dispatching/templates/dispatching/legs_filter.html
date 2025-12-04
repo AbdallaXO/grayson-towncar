@@ -290,22 +290,22 @@
                           {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
                             <div class="d-flex flex-column gap-1">
                               {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                <div class="d-flex align-items-center">
-                                  <span class="text-muted small me-2" style="min-width: 75px;">Scheduled:</span>
-                                  <span class="fw-semibold">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                <div class="d-flex flex-wrap align-items-center">
+                                  <span class="text-muted small me-2" style="min-width: fit-content; flex-shrink: 0;">Scheduled:</span>
+                                  <span class="fw-semibold text-nowrap">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
                                 </div>
                               {% endif %}
                               {% if leg.flight_information.actual_gate_arrival_local %}
-                                <div class="d-flex align-items-center">
-                                  <span class="text-success small me-2 fw-bold" style="min-width: 75px;">Arrived:</span>
-                                  <span class="fw-bold text-success">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
+                                <div class="d-flex flex-wrap align-items-center">
+                                  <span class="text-success small me-2 fw-bold" style="min-width: fit-content; flex-shrink: 0;">Arrived:</span>
+                                  <span class="fw-bold text-success text-nowrap">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
                                 </div>
                               {% elif leg.flight_information.estimated_gate_arrival_local %}
-                                <div class="d-flex align-items-center">
-                                  <span class="text-primary small me-2 fw-bold" style="min-width: 75px;">
+                                <div class="d-flex flex-wrap align-items-center">
+                                  <span class="text-primary small me-2 fw-bold" style="min-width: fit-content; flex-shrink: 0;">
                                     <i class="bi bi-clock-history me-1"></i>Landing:
                                   </span>
-                                  <span class="fw-bold text-primary">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
+                                  <span class="fw-bold text-primary text-nowrap">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
                                 </div>
                               {% endif %}
                             </div>
@@ -393,19 +393,19 @@
                                   </div>
                                 {% endif %}
                                 {% if leg.flight_information.scheduled_arrival_local %}
-                                  <div class="text-muted ms-3 mb-1" data-field="scheduled_arrival">
-                                    <i class="bi bi-clock me-1"></i>Scheduled: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}
+                                  <div class="text-muted ms-3 mb-1 d-flex flex-wrap align-items-center" data-field="scheduled_arrival">
+                                    <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% else %}
                                   <div class="text-muted ms-3" data-field="scheduled_arrival" style="display: none;"></div>
                                 {% endif %}
                                 {% if leg.flight_information.actual_arrival_local %}
-                                  <div class="fw-bold text-success ms-3" data-field="actual_arrival">
-                                    <i class="bi bi-check-circle me-1"></i><strong>Landed:</strong> {{ leg.flight_information.actual_arrival_local|date:"g:i A" }}
+                                  <div class="fw-bold text-success ms-3 d-flex flex-wrap align-items-center" data-field="actual_arrival">
+                                    <i class="bi bi-check-circle me-1"></i><strong class="me-1">Landed:</strong><span class="text-nowrap">{{ leg.flight_information.actual_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% elif leg.flight_information.estimated_arrival_local %}
-                                  <div class="fw-bold text-primary ms-3" data-field="estimated_arrival">
-                                    <i class="bi bi-clock-history me-1"></i><strong>Landing:</strong> {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}
+                                  <div class="fw-bold text-primary ms-3 d-flex flex-wrap align-items-center" data-field="estimated_arrival">
+                                    <i class="bi bi-clock-history me-1"></i><strong class="me-1">Landing:</strong><span class="text-nowrap">{{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% else %}
                                   <div class="fw-bold text-primary ms-3" data-field="estimated_arrival" style="display: none;"></div>
@@ -431,17 +431,17 @@
                                   </div>
                                 {% endif %}
                                 {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                  <div class="text-muted ms-3 mb-1">
-                                    <i class="bi bi-clock me-1"></i>Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}
+                                  <div class="text-muted ms-3 mb-1 d-flex flex-wrap align-items-center">
+                                    <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% endif %}
                                 {% if leg.flight_information.actual_gate_arrival_local %}
-                                  <div class="fw-bold text-success ms-3">
-                                    <i class="bi bi-check-circle me-1"></i><strong>Arrived:</strong> {{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}
+                                  <div class="fw-bold text-success ms-3 d-flex flex-wrap align-items-center">
+                                    <i class="bi bi-check-circle me-1"></i><strong class="me-1">Arrived:</strong><span class="text-nowrap">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% elif leg.flight_information.estimated_gate_arrival_local %}
-                                  <div class="fw-bold text-primary ms-3">
-                                    <i class="bi bi-clock-history me-1"></i><strong>Estimated:</strong> {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
+                                  <div class="fw-bold text-primary ms-3 d-flex flex-wrap align-items-center">
+                                    <i class="bi bi-clock-history me-1"></i><strong class="me-1">Estimated:</strong><span class="text-nowrap">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% endif %}
                               </div>
@@ -1369,12 +1369,42 @@
                                            id="refreshProgressBar">0%</div>
                                   </div>
                                   <div id="refreshStatus" class="text-center">Starting refresh...</div>
+                                  <div id="refreshElapsed" class="text-center text-muted small mt-2"></div>
                                   <div id="refreshResults" class="mt-3 small"></div>
                               </div>
                           </div>
                       </div>
                   `;
                   document.body.appendChild(progressModal);
+                  
+                  // Start progress simulation
+                  const startTime = Date.now();
+                  let progressPercent = 0;
+                  const progressBar = document.getElementById('refreshProgressBar');
+                  const statusDiv = document.getElementById('refreshStatus');
+                  const elapsedDiv = document.getElementById('refreshElapsed');
+                  
+                  // Update progress every 500ms
+                  const progressInterval = setInterval(() => {
+                      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                      elapsedDiv.textContent = `Elapsed time: ${elapsed}s`;
+                      
+                      // Gradually increase progress (capped at 90% until actual completion)
+                      if (progressPercent < 90) {
+                          progressPercent = Math.min(90, Math.floor(elapsed / 2)); // ~2 seconds per percent
+                          progressBar.style.width = progressPercent + '%';
+                          progressBar.textContent = progressPercent + '%';
+                          
+                          // Update status message
+                          if (elapsed < 5) {
+                              statusDiv.textContent = 'Connecting to AeroAPI...';
+                          } else if (elapsed < 15) {
+                              statusDiv.textContent = 'Fetching flight data...';
+                          } else {
+                              statusDiv.textContent = `Processing flights... (${elapsed}s elapsed)`;
+                          }
+                      }
+                  }, 500);
                   
                   fetch('/dispatching/refresh-all-flights/', {
                       method: 'POST',
@@ -1388,9 +1418,17 @@
                   })
                   .then(response => response.json())
                   .then(data => {
+                      // Clear progress interval
+                      clearInterval(progressInterval);
+                      
                       const progressBar = document.getElementById('refreshProgressBar');
                       const statusDiv = document.getElementById('refreshStatus');
                       const resultsDiv = document.getElementById('refreshResults');
+                      const elapsedDiv = document.getElementById('refreshElapsed');
+                      
+                      // Calculate total elapsed time
+                      const totalElapsed = Math.floor((Date.now() - startTime) / 1000);
+                      elapsedDiv.textContent = `Completed in ${totalElapsed}s`;
                       
                       if (data.success) {
                           // Update progress bar
@@ -1441,6 +1479,9 @@
                       }
                   })
                   .catch(error => {
+                      // Clear progress interval
+                      clearInterval(progressInterval);
+                      
                       console.error('Error:', error);
                       const progressBar = document.getElementById('refreshProgressBar');
                       const statusDiv = document.getElementById('refreshStatus');
@@ -1473,6 +1514,32 @@
       @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+      }
+      
+      /* Responsive flight information */
+      @media (max-width: 1200px) {
+          .table-responsive table {
+              font-size: 0.9rem;
+          }
+          .table-responsive .badge {
+              font-size: 0.7rem;
+          }
+      }
+      
+      @media (max-width: 992px) {
+          .table-responsive table {
+              font-size: 0.85rem;
+          }
+      }
+      
+      /* Ensure flight times don't shrink awkwardly */
+      .text-nowrap {
+          white-space: nowrap;
+      }
+      
+      /* Allow flex items to wrap on smaller screens */
+      .d-flex.flex-wrap {
+          gap: 0.25rem;
       }
   </style>
 {% endblock %}

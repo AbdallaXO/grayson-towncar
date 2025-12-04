@@ -334,8 +334,10 @@ class AeroAPIService:
                 if parsed_dt and parsed_dt.tzinfo:
                     eastern_tz = ZoneInfo('America/New_York')
                     parsed_dt = parsed_dt.astimezone(eastern_tz)
-                    # Make it timezone-naive for Django
-                    parsed_dt = parsed_dt.replace(tzinfo=None)
+                elif parsed_dt:
+                    # If naive, assume it's already in Eastern Time and make it timezone-aware
+                    eastern_tz = ZoneInfo('America/New_York')
+                    parsed_dt = parsed_dt.replace(tzinfo=eastern_tz)
                 
                 return parsed_dt
             
@@ -469,7 +471,7 @@ class AeroAPIService:
                 'terminal': terminal,
                 'gate': gate,
                 'baggage_claim': baggage_claim,
-                'last_updated': datetime.now()
+                'last_updated': django_timezone.now()
             }
             
             # Add destination arrival times for return trips (when plane lands at destination airport)
