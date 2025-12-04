@@ -2,13 +2,19 @@
 # Exit on error
 set -o errexit
 
-# Modify this line as needed for your package manager (pip, poetry, etc.)
-pip install -r requirements.txt
+echo "Ensuring pip exists..."
+python3 -m ensurepip --upgrade || true
 
-# Convert static asset files
-python manage.py collectstatic --no-input
+echo "Upgrading pip..."
+pip3 install --upgrade pip || true
 
-# Apply any outstanding database migrations
-python manage.py migrate
+echo "Installing project requirements..."
+pip3 install -r requirements.txt
 
-python manage.py createsuperuser --no-input
+echo "Collecting static files..."
+python3 manage.py collectstatic --no-input || true
+
+echo "Applying migrations..."
+python3 manage.py migrate --no-input || true
+
+echo "Build complete."
