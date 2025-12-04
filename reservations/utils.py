@@ -147,6 +147,60 @@ AIRLINES = [
 ]
 
 
+def normalize_flight_number(flight_number_input):
+    """
+    Normalize flight number by removing letters and keeping only digits.
+    
+    Args:
+        flight_number_input (str): Raw flight number input (e.g., "WN1234", "1234", "AA-5678")
+        
+    Returns:
+        str: Cleaned flight number with only digits (e.g., "1234", "5678")
+    """
+    if not flight_number_input:
+        return ""
+    
+    # Remove all non-digit characters
+    flight_number = ''.join(c for c in str(flight_number_input) if c.isdigit())
+    
+    return flight_number
+
+
+def extract_airline_from_flight_number(flight_number_input):
+    """
+    Extract airline IATA code from flight number if present.
+    
+    Examples:
+        "WN1234" -> "WN"
+        "B61234" -> "B6"
+        "AA5678" -> "AA"
+        "1234" -> None (no airline code)
+    
+    Args:
+        flight_number_input (str): Flight number that might contain airline code
+        
+    Returns:
+        str or None: Extracted airline code, or None if not found
+    """
+    if not flight_number_input:
+        return None
+    
+    # Convert to uppercase and strip
+    flight_num = str(flight_number_input).strip().upper()
+    
+    # List of all known IATA codes (2 letters)
+    known_codes = ['AA', 'DL', 'UA', 'WN', 'B6', 'NK', 'F9', 'AS', 'HA', 'G4', 
+                   'AC', 'XP', 'MX', 'BA', 'SY', 'VS']
+    
+    # Check if flight number starts with a known 2-letter code
+    if len(flight_num) >= 2:
+        potential_code = flight_num[:2]
+        if potential_code in known_codes:
+            return potential_code
+    
+    return None
+
+
 def normalize_airline(airline_input):
     """
     Normalize airline input to a standard IATA code format.

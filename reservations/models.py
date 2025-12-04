@@ -628,13 +628,40 @@ class Flight(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override save to normalize airline field before saving.
+        Override save to normalize airline and flight_number fields before saving.
         This ensures consistent airline formatting regardless of how it's entered.
+        Also extracts airline codes from flight numbers if present.
         """
+        # Import here to avoid circular import
+        from .utils import normalize_airline, normalize_flight_number, extract_airline_from_flight_number
+        
+        # Normalize airline field first
         if self.airline:
-            # Import here to avoid circular import
-            from .utils import normalize_airline
             self.airline = normalize_airline(self.airline)
+        
+        # Handle flight_number
+        if self.flight_number:
+            # If airline is already set, check if flight_number starts with that airline code
+            if self.airline and len(self.airline) == 2:
+                # Check if flight_number starts with the airline code
+                flight_upper = str(self.flight_number).strip().upper()
+                if flight_upper.startswith(self.airline):
+                    # Remove the airline code prefix from flight_number
+                    self.flight_number = flight_upper[len(self.airline):]
+            
+            # If airline is empty, try to extract it from flight_number
+            if not self.airline or self.airline.strip() == "":
+                extracted_airline = extract_airline_from_flight_number(self.flight_number)
+                if extracted_airline:
+                    self.airline = extracted_airline
+                    # Remove the airline code from flight_number
+                    flight_upper = str(self.flight_number).strip().upper()
+                    if flight_upper.startswith(extracted_airline):
+                        self.flight_number = flight_upper[len(extracted_airline):]
+            
+            # Clean the flight number (remove all letters, keep only digits)
+            self.flight_number = normalize_flight_number(self.flight_number)
+        
         super().save(*args, **kwargs)
 
     def __str__(self):
