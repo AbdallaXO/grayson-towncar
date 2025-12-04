@@ -66,6 +66,22 @@ class AeroAPIService:
             
             logger.info(f"AeroAPI Response Status: {response.status_code}")
             
+            # Handle rate limiting (429 Too Many Requests)
+            if response.status_code == 429:
+                retry_after = response.headers.get('Retry-After', '60')  # Default to 60 seconds
+                try:
+                    retry_after = int(retry_after)
+                except ValueError:
+                    retry_after = 60
+                
+                logger.warning(f"AeroAPI rate limit exceeded. Retry after {retry_after} seconds")
+                return {
+                    'error': f'Rate limit exceeded. Please wait {retry_after} seconds before retrying.',
+                    'status': 'rate_limited',
+                    'retry_after': retry_after,
+                    'flight_ident': flight_ident
+                }
+            
             if response.status_code == 404:
                 return {
                     'error': f'Flight {flight_ident} not found',

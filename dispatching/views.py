@@ -1754,6 +1754,17 @@ def refresh_all_flights(request):
                 # Fetch flight data from AeroAPI
                 flight_data = aeroapi.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
                 
+                # Handle rate limiting
+                if flight_data.get('status') == 'rate_limited':
+                    retry_after = flight_data.get('retry_after', 60)
+                    return {
+                        "leg_id": leg.id,
+                        "success": False,
+                        "error": f"Rate limit exceeded. Please wait {retry_after} seconds.",
+                        "rate_limited": True,
+                        "retry_after": retry_after
+                    }
+                
                 if flight_data.get('status') != 'success':
                     error_msg = flight_data.get('error', 'Unknown error')
                     return {
@@ -1840,21 +1851,24 @@ def refresh_all_flights(request):
                 }
         
         # Process flights with rate limiting to avoid hitting API limits
-        # AeroAPI typically allows ~100 requests per minute, so we'll do 2 requests per second max
+        # AeroAPI allows 10 requests per minute, so we need 6 seconds between requests
+        # (60 seconds / 10 requests = 6 seconds per request)
         import time
         results = []
         
-        # Process sequentially with a small delay between requests to respect rate limits
-        # This is slower but avoids 429 errors
-        for leg in legs:
+        # Process sequentially with proper delay between requests to respect rate limits
+        # This ensures we don't exceed 10 requests per minute
+        total_legs = len(legs)
+        for index, leg in enumerate(legs):
             try:
                 result = refresh_single_flight(leg)
                 results.append(result)
                 
-                # Add delay between requests (0.6 seconds = ~100 requests per minute)
+                # Add delay between requests (6 seconds = 10 requests per minute)
                 # Only delay if not the last leg
-                if leg != legs[len(legs) - 1]:
-                    time.sleep(0.6)
+                if index < total_legs - 1:
+                    # Wait 6 seconds between requests to respect 10 requests/minute limit
+                    time.sleep(6)
             except Exception as e:
                 logger.error(f"Unexpected error processing leg {leg.id}: {e}")
                 results.append({
