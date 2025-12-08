@@ -101,6 +101,11 @@ urlpatterns = [
         name="update_driver_pay_amount",
     ),
     path(
+        "process-driver-payment/",
+        views.process_driver_payment,
+        name="process_driver_payment",
+    ),
+    path(
         "delete-leg/",
         views.delete_leg,
         name="delete_leg",

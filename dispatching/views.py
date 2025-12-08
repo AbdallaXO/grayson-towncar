@@ -1919,8 +1919,8 @@ def update_leg_info(request):
                 {"success": False, "error": "Missing leg ID"}, status=400
             )
 
-        # Get the leg
-        leg = get_object_or_404(Leg, id=leg_id)
+        # Get the leg with related objects
+        leg = get_object_or_404(Leg.objects.select_related('driver', 'driver__profile'), id=leg_id)
 
         # Update leg fields
         update_fields = []
@@ -1973,6 +1973,9 @@ def update_leg_info(request):
         if update_fields:
             leg.save(update_fields=update_fields)
 
+        # Refresh leg from database to get latest data including driver
+        leg.refresh_from_db()
+        
         return JsonResponse({
             "success": True,
             "message": "Leg information updated successfully",
@@ -1982,6 +1985,8 @@ def update_leg_info(request):
                 "pickup_location": leg.pickup_location,
                 "dropoff_location": leg.dropoff_location,
                 "private_notes": leg.private_notes,
+                "driver_id": leg.driver.id if leg.driver else None,
+                "driver_name": leg.driver.profile.username if leg.driver and leg.driver.profile else None,
                 "flight_info": {
                     "airline": leg.flight_information.airline if leg.flight_information else "",
                     "flight_number": leg.flight_information.flight_number if leg.flight_information else "",
@@ -2583,6 +2588,7 @@ def driver_payment_management(request):
     selected_driver = None
     legs = []
     total_pay = 0
+    total_pay_completed = 0
 
     # Get only drivers who have unpaid legs for dropdown
     drivers = Driver.objects.select_related("profile").filter(
@@ -2591,7 +2597,7 @@ def driver_payment_management(request):
 
     if selected_driver_id:
         try:
-            selected_driver = get_object_or_404(Driver, id=selected_driver_id)
+            selected_driver = get_object_or_404(Driver.objects.select_related('profile'), id=selected_driver_id)
             
             # Get only unpaid legs for the driver with optimized queries
             legs = (
@@ -2611,11 +2617,18 @@ def driver_payment_management(request):
                     .order_by("pickup_date", "pickup_time")
                 )
             
-            # Calculate total pay amount
+            # Calculate total pay amounts
             total_pay = sum(leg.driver_pay_amount or 0 for leg in legs)
+            # Calculate total pay for completed legs only
+            total_pay_completed = sum(
+                leg.driver_pay_amount or 0 
+                for leg in legs 
+                if leg.status == 'completed'
+            )
             
         except (ValueError, Driver.DoesNotExist):
             messages.error(request, "Invalid driver selected")
+            selected_driver = None
 
     context = {
         "drivers": drivers,
@@ -2623,6 +2636,7 @@ def driver_payment_management(request):
         "selected_driver_id": selected_driver_id,
         "legs": legs,
         "total_pay": total_pay,
+        "total_pay_completed": total_pay_completed,
         "leg_count": len(legs),
     }
 
@@ -2689,6 +2703,112 @@ def update_driver_pay_amount(request):
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
     except Exception as e:
         logger.error(f"Error updating driver pay amount: {str(e)}")
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def process_driver_payment(request):
+    """
+    Process payment for a driver's unpaid legs via AJAX
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        driver_id = data.get("driver_id")
+        leg_ids = data.get("leg_ids", [])  # Optional: specific legs to process
+        
+        if not driver_id:
+            return JsonResponse({"success": False, "error": "Missing driver ID"}, status=400)
+        
+        driver = get_object_or_404(Driver, id=driver_id)
+        
+        # Get unpaid legs for this driver that are completed
+        unpaid_legs = Leg.objects.filter(
+            driver=driver,
+            payment_status='unpaid',
+            status='completed'  # Only process completed legs
+        )
+        
+        # If specific leg IDs provided, filter to those
+        if leg_ids:
+            unpaid_legs = unpaid_legs.filter(id__in=leg_ids)
+        
+        # Only process legs that have a driver_pay_amount > 0
+        unpaid_legs = unpaid_legs.filter(driver_pay_amount__gt=0)
+        
+        if not unpaid_legs.exists():
+            return JsonResponse({
+                "success": False,
+                "error": "No completed unpaid legs with driver pay amount found for this driver"
+            }, status=400)
+        
+        # Calculate total
+        payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
+        
+        # Group legs by reservation for notes
+        reservation_legs = {}
+        for leg in unpaid_legs:
+            if leg.reservation:
+                if leg.reservation not in reservation_legs:
+                    reservation_legs[leg.reservation] = []
+                reservation_legs[leg.reservation].append(leg)
+        
+        # Create notes similar to admin action
+        from django.utils import timezone
+        notes = []
+        notes.append(f"Payment Summary for {driver.profile.get_full_name()}")
+        notes.append(f"Payment Date: {timezone.now().strftime('%B %d, %Y')}")
+        notes.append(f"Total Legs: {unpaid_legs.count()}")
+        notes.append("\nReservation Details:")
+        notes.append("-" * 50)
+        
+        for reservation, legs in reservation_legs.items():
+            leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
+            notes.append(
+                f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}"
+            )
+            for leg in legs:
+                notes.append(
+                    f"  • {leg.pickup_date.strftime('%m/%d/%Y')} | "
+                    f"{leg.pickup_location} → {leg.dropoff_location} | "
+                    f"Payment: ${leg.driver_pay_amount or 0:.2f}"
+                )
+            if len(legs) > 1:
+                notes.append(f"  Subtotal: ${leg_total:.2f}")
+        
+        notes.append("\n" + "-" * 50)
+        notes.append(f"TOTAL PAYMENT: ${payment_total:.2f}")
+        notes.append(f"Payment Method: {driver.payment_method or 'Direct Deposit'}")
+        notes.append(f"Reference: Auto-{timezone.now().strftime('%Y%m%d')}")
+        
+        # Create payment using the model method
+        from drivers.models import DriverPayment
+        payment = DriverPayment.create_payment(
+            driver=driver,
+            legs=list(unpaid_legs),
+            payment_method=driver.payment_method or "direct deposit",
+            reference_number=f"Auto-{timezone.now().strftime('%Y%m%d')}",
+            notes="\n".join(notes),
+            created_by=request.user,
+        )
+        
+        logger.info(f"Processed payment {payment.id} for driver {driver} with {unpaid_legs.count()} legs. Total: ${payment_total}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": f"Payment processed successfully for {unpaid_legs.count()} leg(s). Total: ${payment_total:.2f}",
+            "payment_id": payment.id,
+            "legs_processed": unpaid_legs.count(),
+            "total_amount": float(payment_total),
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error processing driver payment: {str(e)}", exc_info=True)
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
 
 

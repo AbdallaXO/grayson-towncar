@@ -90,7 +90,7 @@
                     {% for driver in drivers %}
                       <option value="{{ driver.id }}"
                               {% if selected_driver_id == driver.id|stringformat:"s" %}selected{% endif %}>
-                        {{ driver.profile.get_full_name|default:driver.profile.username }}
+                        {% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %}
                       </option>
                     {% endfor %}
                   </select>
@@ -114,33 +114,51 @@
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-primary text-white py-2">
               <h5 class="mb-0">
-                <i class="bi bi-person-check me-2"></i>{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}
+                <i class="bi bi-person-check me-2"></i>{% if selected_driver and selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% elif selected_driver %}Driver #{{ selected_driver.id }}{% else %}No Driver Selected{% endif %}
               </h5>
             </div>
             <div class="card-body">
               <div class="row text-center">
-                <div class="col-md-3">
+                <div class="col-md-2">
                   <div class="d-flex flex-column">
                     <div class="text-secondary">Total Legs:</div>
                     <div class="fw-bold fs-4 text-primary">{{ leg_count }}</div>
                   </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                   <div class="d-flex flex-column">
                     <div class="text-secondary">Total Driver Pay:</div>
-                    <div class="fw-bold fs-4 text-success">${{ total_pay|floatformat:2 }}</div>
+                    <div class="fw-bold fs-4 text-dark">${{ total_pay|floatformat:2 }}</div>
                   </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                  <div class="d-flex flex-column">
+                    <div class="text-secondary">Completed Legs Pay:</div>
+                    <div class="fw-bold fs-4 text-success">${{ total_pay_completed|floatformat:2 }}</div>
+                  </div>
+                </div>
+                <div class="col-md-2">
                   <div class="d-flex flex-column">
                     <div class="text-secondary">Payment Method:</div>
                     <div class="fw-bold">{{ selected_driver.payment_method|title }}</div>
                   </div>
                 </div>
                 <div class="col-md-3">
-                  <div class="d-flex flex-column">
-                    <div class="text-secondary">Vehicle:</div>
-                    <div class="fw-bold">{{ selected_driver.vehicle|default:"Not assigned" }}</div>
+                  <div class="d-flex flex-column align-items-center justify-content-center h-100">
+                    {% if total_pay_completed > 0 %}
+                      <button type="button" 
+                              class="btn btn-success btn-lg w-100" 
+                              id="processPaymentBtn"
+                              data-driver-id="{{ selected_driver.id }}">
+                        <i class="bi bi-cash-coin me-2"></i>Process Payment
+                      </button>
+                      <small class="text-muted mt-2">Process all completed unpaid legs with pay amounts</small>
+                    {% else %}
+                      <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        No completed legs with pay amounts
+                      </div>
+                    {% endif %}
                   </div>
                 </div>
               </div>
@@ -563,7 +581,7 @@
         <div class="alert alert-info" role="alert">
           <div class="d-flex align-items-center">
             <i class="bi bi-info-circle fs-4 me-3"></i>
-            <span>No unpaid legs found for {{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}.</span>
+            <span>No unpaid legs found for {% if selected_driver and selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% elif selected_driver %}Driver #{{ selected_driver.id }}{% else %}this driver{% endif %}.</span>
           </div>
         </div>
       {% endif %}
@@ -575,6 +593,38 @@
         </div>
       </div>
     {% endif %}
+  </div>
+
+  <!-- Process Payment Confirmation Modal -->
+  <div class="modal fade" id="processPaymentModal" tabindex="-1" aria-labelledby="processPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title" id="processPaymentModalLabel">
+            <i class="bi bi-cash-coin me-2"></i>Confirm Payment Processing
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Note:</strong> This will process payment for all <strong>completed</strong> unpaid legs that have a driver pay amount set.
+          </div>
+          <div id="paymentPreview">
+            <p><strong>Driver:</strong> <span id="previewDriverName"></span></p>
+            <p><strong>Total Legs:</strong> <span id="previewLegCount"></span></p>
+            <p><strong>Total Amount:</strong> <span id="previewTotalAmount" class="fw-bold text-success"></span></p>
+            <p><strong>Payment Method:</strong> <span id="previewPaymentMethod"></span></p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-success" id="confirmProcessPayment">
+            <i class="bi bi-check-circle me-2"></i>Confirm & Process Payment
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -697,6 +747,88 @@
               // Remove auto-save on blur to prevent accidental saves
               // Users should explicitly click save or press Enter
           });
+
+          // Process Payment functionality
+          const processPaymentBtn = document.getElementById('processPaymentBtn');
+          const processPaymentModal = new bootstrap.Modal(document.getElementById('processPaymentModal'));
+          const confirmProcessPaymentBtn = document.getElementById('confirmProcessPayment');
+          
+          if (processPaymentBtn) {
+              processPaymentBtn.addEventListener('click', function() {
+                  const driverId = this.dataset.driverId;
+                  
+                  // Get driver info from the page
+                  const driverName = '{% if selected_driver and selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% elif selected_driver %}Driver #{{ selected_driver.id }}{% else %}Unknown Driver{% endif %}';
+                  const legCount = {{ leg_count }};
+                  const totalPay = {{ total_pay }};
+                  const paymentMethod = '{% if selected_driver %}{{ selected_driver.payment_method|title|default:"Direct Deposit" }}{% else %}Direct Deposit{% endif %}';
+                  
+                  // Update preview
+                  document.getElementById('previewDriverName').textContent = driverName;
+                  document.getElementById('previewLegCount').textContent = legCount;
+                  document.getElementById('previewTotalAmount').textContent = '$' + totalPay.toFixed(2);
+                  document.getElementById('previewPaymentMethod').textContent = paymentMethod;
+                  
+                  // Store driver ID for confirmation
+                  confirmProcessPaymentBtn.dataset.driverId = driverId;
+                  
+                  // Show modal
+                  processPaymentModal.show();
+              });
+          }
+          
+          if (confirmProcessPaymentBtn) {
+              confirmProcessPaymentBtn.addEventListener('click', function() {
+                  const driverId = this.dataset.driverId;
+                  
+                  if (!driverId) {
+                      alert('Error: Driver ID not found');
+                      return;
+                  }
+                  
+                  // Disable button and show loading
+                  this.disabled = true;
+                  this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                  
+                  // Get CSRF token
+                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+                  
+                  // Send AJAX request
+                  fetch('{% url "process_driver_payment" %}', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': csrfToken.value
+                      },
+                      body: JSON.stringify({
+                          driver_id: driverId
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          // Show success message
+                          alert('Payment processed successfully!\n\n' + data.message);
+                          
+                          // Close modal
+                          processPaymentModal.hide();
+                          
+                          // Reload page to show updated status
+                          window.location.reload();
+                      } else {
+                          alert('Error processing payment: ' + (data.error || 'Unknown error'));
+                          this.disabled = false;
+                          this.innerHTML = '<i class="bi bi-check-circle me-2"></i>Confirm & Process Payment';
+                      }
+                  })
+                  .catch(error => {
+                      console.error('Error:', error);
+                      alert('Error processing payment: ' + error.message);
+                      this.disabled = false;
+                      this.innerHTML = '<i class="bi bi-check-circle me-2"></i>Confirm & Process Payment';
+                  });
+              });
+          }
       });
   </script>
 {% endblock %}

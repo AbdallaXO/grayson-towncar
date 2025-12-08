@@ -1014,44 +1014,13 @@
                       .then(response => response.json())
                       .then(data => {
                           if (data.success) {
-                              // Update the display with new data
-                              const legDisplay = document.getElementById(`legDisplay_${legId}`);
-                              const legEditForm = document.getElementById(`legEditForm_${legId}`);
-                              const editBtn = document.querySelector(`.edit-leg-btn[data-leg-id="${legId}"]`);
-
-                              // Update pickup date/time in header
-                              const header = editBtn.closest('.panel-heading').querySelector('.h6');
-                              if (data.leg.pickup_date) {
-                                  const pickupDate = new Date(data.leg.pickup_date);
-                                  const pickupTime = data.leg.pickup_time || '';
-                                  header.innerHTML = `Pickup: <span class="fw-semibold">${pickupDate.toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})} ${pickupTime}</span>`;
-                              }
-
-                              // Update pickup/dropoff locations
-                              const pickupLocationEl = legDisplay.closest('.panel-body').querySelector('dd:nth-of-type(1)');
-                              const dropoffLocationEl = legDisplay.closest('.panel-body').querySelector('dd:nth-of-type(2)');
-                              if (pickupLocationEl) pickupLocationEl.textContent = data.leg.pickup_location;
-                              if (dropoffLocationEl) dropoffLocationEl.textContent = data.leg.dropoff_location;
-
-                              // Update private notes
-                              const privateNotesEl = legDisplay.closest('.panel-body').querySelector('dd:last-of-type');
-                              if (privateNotesEl) privateNotesEl.textContent = data.leg.private_notes || 'None';
-
-                              // Update flight information if it exists
-                              const flightEl = legDisplay.closest('.panel-body').querySelector('dd:nth-of-type(6)');
-                              if (flightEl && (data.leg.flight_info.airline || data.leg.flight_info.flight_number)) {
-                                  flightEl.textContent = `${data.leg.flight_info.airline} ${data.leg.flight_info.flight_number}`;
-                              }
-
-                              // Show success toast
-                              legToast.show();
-
-                              // Hide edit form and show display
-                              legDisplay.classList.remove('d-none');
-                              legEditForm.classList.add('d-none');
-                              editBtn.classList.remove('d-none');
+                              // Reload the page to show all updated data (driver, date, etc.)
+                              window.location.reload();
                           } else {
                               alert('Error updating leg: ' + data.error);
+                              // Reset button state on error
+                              submitBtn.disabled = false;
+                              submitBtn.innerHTML = originalText;
                           }
                       })
                       .catch(error => {
