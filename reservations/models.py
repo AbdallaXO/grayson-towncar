@@ -769,6 +769,14 @@ class Lead(models.Model):
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 
+    # GoHighLevel Integration Fields
+    ghl_contact_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    ghl_synced_at = models.DateTimeField(null=True, blank=True)
+    initial_sms_sent = models.BooleanField(default=False)
+    initial_sms_sent_at = models.DateTimeField(null=True, blank=True)
+    last_reply_at = models.DateTimeField(null=True, blank=True)
+    has_replied = models.BooleanField(default=False)
+
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "Lead"

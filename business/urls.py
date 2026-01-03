@@ -30,6 +30,7 @@ urlpatterns = [
     path("payment/", include("payment.urls")),
     path("drivers/", include("drivers.urls")),
     path("dispatching/", include("dispatching.urls")),
+    path("ghl/", include("ghl_integration.urls")),
 ]
 
 if settings.DEBUG:

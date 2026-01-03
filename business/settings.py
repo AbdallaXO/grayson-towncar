@@ -68,6 +68,7 @@ THIRD_PARTY_APPS = [
     "storages",
     "ckeditor",
     "ckeditor_uploader",
+    "django_celery_beat",
 ]
 
 if DEBUG:
@@ -82,6 +83,7 @@ OUR_APPS = [
     "payment",
     "drivers",
     "dispatching",
+    "ghl_integration",
 ]
 
 # After DEbuyg toolbar
@@ -188,6 +190,20 @@ NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
 # AeroAPI Settings
 AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
+
+# GoHighLevel Settings
+GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
+GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
+
+# Celery Beat Schedule
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'batch-send-lead-sms': {
+        'task': 'ghl_integration.tasks.batch_send_unsent_leads',
+        'schedule': crontab(minute=0),  # Every hour
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

@@ -874,16 +874,6 @@
                             <input class="form-check-input"
                                    type="radio"
                                    name="gratuity_option"
-                                   id="gratuity_custom"
-                                   value="custom">
-                            <label class="form-check-label fw-semibold" for="gratuity_custom">Custom</label>
-                          </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                          <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="gratuity_option"
                                    id="gratuity_none"
                                    value="0"
                                    checked>
@@ -891,23 +881,6 @@
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    <!-- Custom gratuity input (hidden by default) -->
-                    <div class="col-12" id="custom_gratuity_section" style="display: none;">
-                      <label for="custom_gratuity_percentage" class="form-label fw-semibold">Custom Gratuity Percentage</label>
-                      <div class="input-group">
-                        <input type="number"
-                               class="form-control"
-                               id="custom_gratuity_percentage"
-                               name="custom_gratuity_percentage"
-                               min="0"
-                               max="100"
-                               step="0.01"
-                               placeholder="Enter percentage">
-                        <span class="input-group-text">%</span>
-                      </div>
-                      <div class="form-text">Enter a custom gratuity percentage (0-100%)</div>
                     </div>
 
                     <!-- Gratuity amount display -->
@@ -1030,8 +1003,6 @@
                 // Gratuity calculation functionality
                 const basePrice = {{price |default:0}};
                 const gratuityOptions = document.querySelectorAll('input[name="gratuity_option"]');
-                const customGratuitySection = document.getElementById('custom_gratuity_section');
-                const customGratuityInput = document.getElementById('custom_gratuity_percentage');
                 const gratuityDisplay = document.getElementById('gratuity_display');
                 const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
                 const newTotalDisplay = document.getElementById('new_total_display');
@@ -1042,11 +1013,7 @@
                     let percentage = 0;
 
                     if (selectedOption) {
-                        if (selectedOption.value === 'custom') {
-                            percentage = parseFloat(customGratuityInput.value) || 0;
-                        } else {
-                            percentage = parseFloat(selectedOption.value) || 0;
-                        }
+                        percentage = parseFloat(selectedOption.value) || 0;
                     }
 
                     if (percentage > 0) {
@@ -1066,22 +1033,9 @@
                 // Handle gratuity option changes
                 gratuityOptions.forEach(option => {
                     option.addEventListener('change', function() {
-                        if (this.value === 'custom') {
-                            customGratuitySection.style.display = 'block';
-                            customGratuityInput.focus();
-                        } else {
-                            customGratuitySection.style.display = 'none';
-                            calculateGratuity();
-                        }
-                    });
-                });
-
-                // Handle custom gratuity input
-                if (customGratuityInput) {
-                    customGratuityInput.addEventListener('input', function() {
                         calculateGratuity();
                     });
-                }
+                });
 
                 // Initial calculation
                 calculateGratuity();

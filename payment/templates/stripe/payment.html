@@ -188,7 +188,7 @@
                   </div>
                 </div>
               </div>
-              {% if reservation.has_children %}
+              {% if reservation.need_carseats and reservation.display_carseats %}
                 <div class="col-md-3">
                   <div class="card h-100 border-0 shadow-sm">
                     <div class="card-body py-3">
@@ -201,8 +201,8 @@
                                       height: 1.4em">
                         </div>
                         <div>
-                          <p class="mb-0 medium">{{ reservation.display_carseats }}</p>
-                          <small class="text-muted">Car Seats</small>
+                          <p class="mb-0 small fw-bold">{{ reservation.display_carseats }}</p>
+                          <small class="text-muted">Child Seats</small>
                         </div>
                       </div>
                     </div>

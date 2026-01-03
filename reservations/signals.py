@@ -238,3 +238,62 @@ def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
             
             # Log the conversion for debugging
             print(f"Auto-converted lead {matching_lead.id} ({matching_lead.first_name} {matching_lead.last_name}) to converted status")
+
+
+@receiver(post_save, sender=Lead)
+def sync_lead_to_ghl_on_create(sender, instance, created, **kwargs):
+    """
+    Automatically sync new leads to GoHighLevel when they are created.
+    This syncs the contact to GHL without sending SMS initially.
+    SMS can be sent later via admin actions or batch tasks.
+    
+    Always runs in background thread to avoid blocking the request.
+    """
+    if created:  # Only run when a new lead is created
+        # Skip if lead doesn't have a phone number (required for GHL)
+        if not instance.phone:
+            logger.debug(f"Lead #{instance.id} has no phone number, skipping GHL sync")
+            return
+        
+        # Skip if already synced (shouldn't happen on create, but safety check)
+        if instance.ghl_contact_id:
+            logger.debug(f"Lead #{instance.id} already has GHL contact ID, skipping sync")
+            return
+        
+        # Always run in background thread to avoid blocking the request
+        from threading import Thread
+        
+        def sync_ghl_in_background():
+            """Sync lead to GHL in background thread"""
+            local_logger = logging.getLogger(__name__)
+            
+            try:
+                # Try Celery first (non-blocking)
+                from ghl_integration.tasks import sync_lead_to_ghl_without_sms
+                sync_lead_to_ghl_without_sms.delay(instance.id)
+                local_logger.info(f"Queued Lead #{instance.id} for GHL sync (Celery)")
+            except Exception as e:
+                # If Celery fails, do direct sync in thread (still non-blocking for main request)
+                local_logger.warning(f"Could not queue GHL sync task for Lead #{instance.id}: {e}. Syncing directly in thread.")
+                try:
+                    from ghl_integration.services import GoHighLevelService
+                    
+                    service = GoHighLevelService()
+                    contact_id = service.create_or_update_contact(instance)
+                    
+                    if contact_id:
+                        # Update the lead with GHL contact ID (use update to avoid signal recursion)
+                        Lead.objects.filter(id=instance.id).update(
+                            ghl_contact_id=contact_id,
+                            ghl_synced_at=timezone.now()
+                        )
+                        local_logger.info(f"Successfully synced Lead #{instance.id} to GHL (contact_id: {contact_id})")
+                    else:
+                        local_logger.warning(f"Failed to sync Lead #{instance.id} to GHL - no contact ID returned")
+                except Exception as sync_error:
+                    # Don't break lead creation if GHL sync fails
+                    local_logger.error(f"Error syncing Lead #{instance.id} to GHL: {sync_error}", exc_info=True)
+        
+        # Start background thread (non-blocking)
+        thread = Thread(target=sync_ghl_in_background, daemon=True)
+        thread.start()

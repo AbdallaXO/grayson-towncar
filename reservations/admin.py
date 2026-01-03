@@ -1,5 +1,6 @@
 # reservations/admin.py
 from datetime import timedelta
+import logging
 
 from django.contrib import admin
 from django import forms
@@ -17,6 +18,8 @@ from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 from .models import Customer, Reservation, Leg, Flight, Lead, Quote
 from django.db import models
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Import / Export resources ──────────────────────────────────────────
@@ -1451,6 +1454,9 @@ class LeadAdmin(admin.ModelAdmin):
         "days_until_trip",
         "follow_up_date",
         "quote_requests_count",
+        "initial_sms_sent",
+        "has_replied",
+        "ghl_synced",
         "created_at",
     )
 
@@ -1458,6 +1464,8 @@ class LeadAdmin(admin.ModelAdmin):
         "status",
         "priority",
         "converted",
+        "initial_sms_sent",
+        "has_replied",
         "created_at",
         LeadTripDateFilter,
         LeadFollowUpFilter,
@@ -1531,6 +1539,8 @@ class LeadAdmin(admin.ModelAdmin):
         "set_low_priority",
         "set_urgent_priority",
         "schedule_follow_up_week",
+        "send_sms_to_selected",
+        "sync_to_ghl_without_sms",
     ]
 
     def get_list_display(self, request):
@@ -1765,6 +1775,14 @@ class LeadAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: #17a2b8; font-weight: bold;">{}</span>', count)
 
+    @admin.display(description="GHL Synced", ordering="ghl_contact_id")
+    def ghl_synced(self, obj):
+        """Display checkmark if lead is synced to GHL, X if not."""
+        if obj.ghl_contact_id:
+            return format_html('<span style="color: #28a745; font-size: 16px;">✅</span>')
+        else:
+            return format_html('<span style="color: #dc3545; font-size: 16px;">❌</span>')
+
     # Actions
     @admin.action(description="Mark as Contacted")
     def mark_contacted(self, request, queryset):
@@ -1880,6 +1898,119 @@ class LeadAdmin(admin.ModelAdmin):
     def export_leads_csv(self, request, queryset):
         # This would implement CSV export functionality
         self.message_user(request, f"CSV export feature coming soon! Would export {queryset.count()} leads.")
+
+    @admin.action(description="📱 Send SMS to selected leads")
+    def send_sms_to_selected(self, request, queryset):
+        """
+        Queue selected leads for SMS sending via GoHighLevel.
+        Skips leads without phone numbers or that already have SMS sent.
+        """
+        from ghl_integration.tasks import sync_lead_to_ghl_and_send_sms
+        from threading import Thread
+        
+        queued_count = 0
+        processed_count = 0
+        skipped_no_phone = 0
+        skipped_already_sent = 0
+        
+        for lead in queryset:
+            # Skip if no phone number
+            if not lead.phone:
+                skipped_no_phone += 1
+                continue
+            
+            # Skip if SMS already sent
+            if lead.initial_sms_sent:
+                skipped_already_sent += 1
+                continue
+            
+            # Try to queue with Celery, fallback to thread if Celery unavailable
+            try:
+                sync_lead_to_ghl_and_send_sms.delay(lead.id)
+                queued_count += 1
+            except Exception as e:
+                # Celery not available, run in background thread
+                logger.warning(f"Could not queue Celery task for lead {lead.id}: {e}. Running in thread instead.")
+                def run_task():
+                    try:
+                        sync_lead_to_ghl_and_send_sms(lead.id)
+                    except Exception as task_error:
+                        logger.error(f"Error processing lead {lead.id} in thread: {task_error}")
+                
+                thread = Thread(target=run_task, daemon=True)
+                thread.start()
+                processed_count += 1
+        
+        # Build success message
+        message_parts = []
+        total_processed = queued_count + processed_count
+        if total_processed > 0:
+            if queued_count > 0:
+                message_parts.append(f"Queued {queued_count} lead{'s' if queued_count != 1 else ''} for SMS sending")
+            if processed_count > 0:
+                message_parts.append(f"Processing {processed_count} lead{'s' if processed_count != 1 else ''} in background")
+        if skipped_no_phone > 0:
+            message_parts.append(f"{skipped_no_phone} skipped (no phone number)")
+        if skipped_already_sent > 0:
+            message_parts.append(f"{skipped_already_sent} skipped (SMS already sent)")
+        
+        if total_processed > 0:
+            self.message_user(request, ". ".join(message_parts) + ".", messages.SUCCESS)
+        else:
+            self.message_user(request, "No leads were queued. " + ". ".join(message_parts) + ".", messages.WARNING)
+
+    @admin.action(description="🔄 Sync to GHL without SMS")
+    def sync_to_ghl_without_sms(self, request, queryset):
+        """
+        Sync selected leads to GoHighLevel without sending SMS.
+        Useful for importing existing leads or syncing contact information.
+        Skips leads without phone numbers.
+        """
+        from ghl_integration.tasks import sync_lead_to_ghl_without_sms
+        from threading import Thread
+        
+        queued_count = 0
+        processed_count = 0
+        skipped_no_phone = 0
+        
+        for lead in queryset:
+            # Skip if no phone number
+            if not lead.phone:
+                skipped_no_phone += 1
+                continue
+            
+            # Try to queue with Celery, fallback to thread if Celery unavailable
+            try:
+                sync_lead_to_ghl_without_sms.delay(lead.id)
+                queued_count += 1
+            except Exception as e:
+                # Celery not available, run in background thread
+                logger.warning(f"Could not queue Celery task for lead {lead.id}: {e}. Running in thread instead.")
+                def run_task():
+                    try:
+                        sync_lead_to_ghl_without_sms(lead.id)
+                    except Exception as task_error:
+                        logger.error(f"Error syncing lead {lead.id} in thread: {task_error}")
+                
+                thread = Thread(target=run_task, daemon=True)
+                thread.start()
+                processed_count += 1
+        
+        # Build success message
+        message_parts = []
+        total_processed = queued_count + processed_count
+        if total_processed > 0:
+            if queued_count > 0:
+                message_parts.append(f"Queued {queued_count} lead{'s' if queued_count != 1 else ''} for GHL sync")
+            if processed_count > 0:
+                message_parts.append(f"Processing {processed_count} lead{'s' if processed_count != 1 else ''} in background")
+        if skipped_no_phone > 0:
+            message_parts.append(f"{skipped_no_phone} skipped (no phone number)")
+        
+        if total_processed > 0:
+            self.message_user(request, ". ".join(message_parts) + ".", messages.SUCCESS)
+        else:
+            self.message_user(request, "No leads were queued. " + ". ".join(message_parts) + ".", messages.WARNING)
 
 
 

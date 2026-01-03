@@ -339,28 +339,40 @@ class QuoteFormHandlerView(View):
 
                     logger.info(f"Created new quote for existing lead: {existing_lead}")
 
-                    # Send ntfy notification for updated lead
-                    try:
-                        send_lead_notification(existing_lead)
-                        logger.info(
-                            "Successfully sent ntfy notification for updated lead"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Error sending ntfy notification for updated lead: {str(e)}"
-                        )
+                    # Run notifications in background threads to avoid blocking the response
+                    from threading import Thread
 
-                    # Send lead event to Meta Conversions API
-                    try:
-                        send_lead_event(existing_lead, request)
-                        logger.info(
-                            "Successfully sent lead event to Meta Conversions API"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"Error sending lead event to Meta Conversions API: {str(e)}"
-                        )
+                    def send_notifications():
+                        """Send notifications in background thread"""
+                        local_logger = logging.getLogger(__name__)
+                        
+                        # Send ntfy notification for updated lead
+                        try:
+                            send_lead_notification(existing_lead)
+                            local_logger.info(
+                                "Successfully sent ntfy notification for updated lead"
+                            )
+                        except Exception as e:
+                            local_logger.error(
+                                f"Error sending ntfy notification for updated lead: {str(e)}"
+                            )
 
+                        # Send lead event to Meta Conversions API
+                        try:
+                            send_lead_event(existing_lead, request)
+                            local_logger.info(
+                                "Successfully sent lead event to Meta Conversions API"
+                            )
+                        except Exception as e:
+                            local_logger.error(
+                                f"Error sending lead event to Meta Conversions API: {str(e)}"
+                            )
+
+                    # Start background thread for notifications (non-blocking)
+                    notification_thread = Thread(target=send_notifications, daemon=True)
+                    notification_thread.start()
+
+                    # Return response immediately (don't wait for notifications)
                     return JsonResponse(
                         {
                             "success": True,
@@ -412,24 +424,36 @@ class QuoteFormHandlerView(View):
                 # Log the lead creation
                 logger.info(f"New lead created with quote: {lead}")
 
-                # Send ntfy notification for new lead
-                try:
-                    send_lead_notification(lead)
-                    logger.info("Successfully sent ntfy notification for new lead")
-                except Exception as e:
-                    logger.error(
-                        f"Error sending ntfy notification for new lead: {str(e)}"
-                    )
+                # Run notifications in background threads to avoid blocking the response
+                from threading import Thread
 
-                # Send lead event to Meta Conversions API
-                try:
-                    send_lead_event(lead, request)
-                    logger.info("Successfully sent lead event to Meta Conversions API")
-                except Exception as e:
-                    logger.error(
-                        f"Error sending lead event to Meta Conversions API: {str(e)}"
-                    )
+                def send_notifications():
+                    """Send notifications in background thread"""
+                    local_logger = logging.getLogger(__name__)
+                    
+                    # Send ntfy notification for new lead
+                    try:
+                        send_lead_notification(lead)
+                        local_logger.info("Successfully sent ntfy notification for new lead")
+                    except Exception as e:
+                        local_logger.error(
+                            f"Error sending ntfy notification for new lead: {str(e)}"
+                        )
 
+                    # Send lead event to Meta Conversions API
+                    try:
+                        send_lead_event(lead, request)
+                        local_logger.info("Successfully sent lead event to Meta Conversions API")
+                    except Exception as e:
+                        local_logger.error(
+                            f"Error sending lead event to Meta Conversions API: {str(e)}"
+                        )
+
+                # Start background thread for notifications (non-blocking)
+                notification_thread = Thread(target=send_notifications, daemon=True)
+                notification_thread.start()
+
+                # Return response immediately (don't wait for notifications)
                 return JsonResponse(
                     {"success": True, "lead_id": lead.id, "quote_id": quote.id}
                 )
