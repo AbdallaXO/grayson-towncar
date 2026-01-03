@@ -3,6 +3,7 @@ from django.db.models.signals import post_save, pre_save, pre_delete, post_delet
 from django.dispatch import receiver
 from django.db import transaction
 from decimal import Decimal
+from django.utils import timezone
 
 # Make sure all necessary models are imported
 from .models import (
@@ -20,6 +21,30 @@ from .emails import thankyou_email, agent_register_email
 logger = logging.getLogger(__name__)
 
 # ======== FORM EMAIL NOTIFICATIONS ========
+
+
+@receiver(pre_save, sender=ContactUsForm)
+def set_contacted_timestamp(sender, instance, **kwargs):
+    """Set contacted_at timestamp when status changes to 'contacted'"""
+    if instance.status == "contacted":
+        # Only set timestamp if it's not already set, or if status is changing to contacted
+        if instance.pk:  # Existing instance
+            try:
+                old_instance = ContactUsForm.objects.get(pk=instance.pk)
+                # If status is changing from something else to "contacted", set timestamp
+                if old_instance.status != "contacted":
+                    instance.contacted_at = timezone.now()
+                    logger.info(f"Setting contacted_at timestamp for ContactUsForm #{instance.pk}")
+            except ContactUsForm.DoesNotExist:
+                # New instance being saved for the first time
+                instance.contacted_at = timezone.now()
+        else:
+            # New instance, set timestamp if status is contacted
+            instance.contacted_at = timezone.now()
+    elif instance.status != "contacted" and instance.pk:
+        # If status is changing away from "contacted", we could clear the timestamp
+        # But it's probably better to keep it for historical purposes
+        pass
 
 
 @receiver(post_save, sender=PartnerForm)

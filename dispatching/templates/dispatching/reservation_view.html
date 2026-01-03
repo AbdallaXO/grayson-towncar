@@ -10,6 +10,43 @@
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
   <div class="container py-3">
+    <!-- Django Messages Display - Prominent Success/Error Alerts -->
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show mb-4" 
+             role="alert" 
+             id="paymentMessageAlert"
+             style="font-size: 1.1rem; padding: 1rem 1.5rem;">
+          {% if message.tags == 'success' %}
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <strong>Success!</strong> {{ message }}
+          {% elif message.tags == 'error' %}
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Error!</strong> {{ message }}
+          {% elif message.tags == 'warning' %}
+            <i class="bi bi-exclamation-circle-fill me-2"></i>
+            <strong>Warning!</strong> {{ message }}
+          {% else %}
+            <i class="bi bi-info-circle-fill me-2"></i>
+            <strong>Info:</strong> {{ message }}
+          {% endif %}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+      <script>
+        // Auto-dismiss success messages after 10 seconds (instead of 1 second)
+        document.addEventListener('DOMContentLoaded', function() {
+          const alert = document.getElementById('paymentMessageAlert');
+          if (alert && alert.classList.contains('alert-success')) {
+            setTimeout(function() {
+              const bsAlert = new bootstrap.Alert(alert);
+              bsAlert.close();
+            }, 10000); // 10 seconds
+          }
+        });
+      </script>
+    {% endif %}
+    
     <!-- Toast Container -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
       <div id="contactToast"
@@ -209,6 +246,13 @@
                    target="_blank">
                   <i class="bi bi-gear"></i> Admin Edit
                 </a>
+                <button type="button" 
+                        class="btn btn-outline-secondary btn-sm" 
+                        id="copyCheckoutLinkBtn"
+                        data-checkout-url="https://www.graysontowncar.com/payment/checkout-session/{{ reservation.uuid }}/"
+                        title="Copy checkout link">
+                  <i class="bi bi-link-45deg"></i> Copy Checkout Link
+                </button>
               </div>
             </div>
           </div>
@@ -1172,6 +1216,53 @@
                       submitBtn.innerHTML = originalText;
                   });
           });
+
+          // Copy Checkout Link functionality
+          const copyCheckoutLinkBtn = document.getElementById('copyCheckoutLinkBtn');
+          if (copyCheckoutLinkBtn) {
+              copyCheckoutLinkBtn.addEventListener('click', function() {
+                  const checkoutUrl = this.dataset.checkoutUrl;
+                  
+                  // Copy to clipboard
+                  navigator.clipboard.writeText(checkoutUrl).then(() => {
+                      // Show feedback
+                      const originalHTML = this.innerHTML;
+                      this.innerHTML = '<i class="bi bi-check-circle"></i> Copied!';
+                      this.classList.remove('btn-outline-secondary');
+                      this.classList.add('btn-success');
+                      
+                      // Reset after 2 seconds
+                      setTimeout(() => {
+                          this.innerHTML = originalHTML;
+                          this.classList.remove('btn-success');
+                          this.classList.add('btn-outline-secondary');
+                      }, 2000);
+                  }).catch(err => {
+                      // Fallback for older browsers
+                      const textArea = document.createElement('textarea');
+                      textArea.value = checkoutUrl;
+                      textArea.style.position = 'fixed';
+                      textArea.style.left = '-999999px';
+                      document.body.appendChild(textArea);
+                      textArea.select();
+                      try {
+                          document.execCommand('copy');
+                          const originalHTML = this.innerHTML;
+                          this.innerHTML = '<i class="bi bi-check-circle"></i> Copied!';
+                          this.classList.remove('btn-outline-secondary');
+                          this.classList.add('btn-success');
+                          setTimeout(() => {
+                              this.innerHTML = originalHTML;
+                              this.classList.remove('btn-success');
+                              this.classList.add('btn-outline-secondary');
+                          }, 2000);
+                      } catch (err) {
+                          alert('Failed to copy link. Please copy manually: ' + checkoutUrl);
+                      }
+                      document.body.removeChild(textArea);
+                  });
+              });
+          }
       });
   </script>
 {% endblock content %}

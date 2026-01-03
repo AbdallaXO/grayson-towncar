@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # SIMPLE MODEL REGISTRATIONS
 # =============================================
 
-admin.site.register([UserProfile, PartnerForm, ContactUsForm, NewsLetter])
+admin.site.register([UserProfile, PartnerForm, NewsLetter])
 
 
 # =============================================
@@ -1028,6 +1028,129 @@ class AgencyCommissionPayoutAdmin(admin.ModelAdmin):
             )
 
     cancel_agency_payouts.short_description = "Cancel agency payouts"
+
+
+# =============================================
+# CONTACT US FORM ADMIN
+# =============================================
+
+
+@admin.register(ContactUsForm)
+class ContactUsFormAdmin(admin.ModelAdmin):
+    """Admin interface for contact form submissions with status management."""
+
+    list_display = [
+        "id",
+        "full_name",
+        "email",
+        "phone_number",
+        "contact_method",
+        "status",
+        "status_display",
+        "contacted_at",
+        "created_at",
+    ]
+    list_filter = ["status", "contact_method", "created_at", "contacted_at"]
+    search_fields = [
+        "first_name",
+        "last_name",
+        "email",
+        "phone_number",
+        "about",
+    ]
+    list_editable = ["status"]
+    list_per_page = 50
+    readonly_fields = ["created_at", "contacted_at"]
+    date_hierarchy = "created_at"
+
+    fieldsets = (
+        (
+            "Contact Information",
+            {
+                "fields": (
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "phone_number",
+                    "contact_method",
+                )
+            },
+        ),
+        ("Message", {"fields": ("about",)}),
+        ("Status", {"fields": ("status", "contacted_at")}),
+        ("System Information", {"fields": ("created_at",), "classes": ("collapse",)}),
+    )
+
+    def full_name(self, obj):
+        """Display full name."""
+        return f"{obj.first_name} {obj.last_name}"
+
+    full_name.short_description = "Name"
+
+    def status_display(self, obj):
+        """Display status with color coding."""
+        colors = {
+            "pending": "orange",
+            "contacted": "blue",
+            "closed": "green",
+        }
+        color = colors.get(obj.status, "gray")
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color,
+            obj.get_status_display(),
+        )
+
+    status_display.short_description = "Status"
+
+    actions = [
+        "mark_as_contacted",
+        "mark_as_closed",
+        "mark_as_pending",
+    ]
+
+    def mark_as_contacted(self, request, queryset):
+        """Mark selected forms as contacted and set contacted_at timestamp."""
+        from django.utils import timezone
+        
+        now = timezone.now()
+        updated = 0
+        for form in queryset:
+            form.status = "contacted"
+            if not form.contacted_at:  # Only set if not already set
+                form.contacted_at = now
+            form.save()
+            updated += 1
+        
+        self.message_user(
+            request,
+            f"Successfully marked {updated} form(s) as contacted.",
+            messages.SUCCESS,
+        )
+
+    mark_as_contacted.short_description = "Mark selected as contacted"
+
+    def mark_as_closed(self, request, queryset):
+        """Mark selected forms as closed."""
+        updated = queryset.update(status="closed")
+        self.message_user(
+            request,
+            f"Successfully marked {updated} form(s) as closed.",
+            messages.SUCCESS,
+        )
+
+    mark_as_closed.short_description = "Mark selected as closed"
+
+    def mark_as_pending(self, request, queryset):
+        """Mark selected forms as pending."""
+        updated = queryset.update(status="pending")
+        self.message_user(
+            request,
+            f"Successfully marked {updated} form(s) as pending.",
+            messages.SUCCESS,
+        )
+
+    mark_as_pending.short_description = "Mark selected as pending"
 
 
 # =============================================

@@ -60,6 +60,11 @@ class ContactUsForm(models.Model):
         ("phone", "Phone Call"),
         ("text", "Text Message"),
     ]
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("contacted", "Contacted"),
+        ("closed", "Closed"),
+    ]
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField()
@@ -68,6 +73,10 @@ class ContactUsForm(models.Model):
         max_length=10, choices=CONTACT_METHODS, default="email"
     )
     about = models.TextField()
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending"
+    )
+    contacted_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when form was marked as contacted")
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):

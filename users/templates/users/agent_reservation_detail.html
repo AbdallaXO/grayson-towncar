@@ -118,20 +118,21 @@
               <label class="text-muted small">Passengers</label>
               <p class="mb-0">{{ reservation.passenger_count }}</p>
             </div>
-            {% if reservation.needs_carseaets %}
-              <div class="mb-3">
-                <label class="text-muted small">Children</label>
-                <p class="mb-0">{{ reservation.display_carseats }}</p>
-              </div>
-            {% endif %}
             <div class="mb-3">
               <label class="text-muted small">Luggage</label>
               <p class="mb-0">{{ reservation.luggage_count }}</p>
             </div>
-            <div class="mb-3">
-              <label class="text-muted small">Child Seats</label>
-              <p class="mb-0">{{ reservation.get_carseats_display | default:"0" }}</p>
-            </div>
+            {% if reservation.need_carseats %}
+              <div class="mb-3">
+                <label class="text-muted small">Child Seats</label>
+                <p class="mb-0">{{ reservation.display_carseats|default:"0" }}</p>
+              </div>
+            {% else %}
+              <div class="mb-3">
+                <label class="text-muted small">Child Seats</label>
+                <p class="mb-0">0</p>
+              </div>
+            {% endif %}
 
             <div class="mb-3">
               <label class="text-muted small">Store Stop</label>
