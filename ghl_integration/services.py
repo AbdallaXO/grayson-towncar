@@ -144,51 +144,81 @@ class GoHighLevelService:
         Map Lead model fields to GHL custom fields.
         
         Note: Custom field IDs need to be configured in GHL first.
-        This method returns a structure that can be used with customField object.
+        GHL API v2 expects customFields as an array of objects with 'id' and 'value'.
         
         Args:
             lead: Lead instance
             
         Returns:
-            Dictionary with custom field mappings
+            Dictionary with custom field mappings in GHL API v2 format:
+            {"customFields": [{"id": "fieldId", "value": "value"}]}
         """
-        # Custom field mapping structure
-        # Note: These field IDs need to be created in GHL and configured
-        # The actual field IDs will need to be set based on your GHL setup
-        custom_fields = {}
+        custom_fields = []
         
-        # Map Lead fields to custom fields
-        # Format: {customFieldId: value}
+        # Pickup Location
+        # Field ID: qxfllIiOHmUowHxyiPzo
         if lead.pickup_location:
-            # custom_fields['pickup_location_field_id'] = lead.pickup_location
-            pass  # Will be populated when field IDs are known
+            custom_fields.append({
+                "id": "qxfllIiOHmUowHxyiPzo",
+                "value": lead.pickup_location
+            })
+            logger.debug(f"Mapping pickup_location '{lead.pickup_location}' to custom field")
         
+        # Dropoff Location
+        # Field ID: 9VIxaKV3LeDEto4VmcYj
         if lead.dropoff_location:
-            # custom_fields['dropoff_location_field_id'] = lead.dropoff_location
-            pass
+            custom_fields.append({
+                "id": "9VIxaKV3LeDEto4VmcYj",
+                "value": lead.dropoff_location
+            })
+            logger.debug(f"Mapping dropoff_location '{lead.dropoff_location}' to custom field")
         
+        # Pickup Date
+        # Field ID: U9tJFtE5ltig14LWtJnr
         if lead.pickup_date:
-            # Format date as string
-            # custom_fields['pickup_date_field_id'] = lead.pickup_date.strftime('%Y-%m-%d')
-            pass
+            # Format date as YYYY-MM-DD string
+            custom_fields.append({
+                "id": "U9tJFtE5ltig14LWtJnr",
+                "value": lead.pickup_date.strftime('%Y-%m-%d')
+            })
+            logger.debug(f"Mapping pickup_date '{lead.pickup_date}' to custom field")
         
-        if lead.id:
-            # custom_fields['django_lead_id_field_id'] = str(lead.id)
-            pass
-        
+        # Price (Estimated Price)
+        # Field ID: EyM1niSr1adL5PUoQnIv
         if lead.estimated_price:
-            # custom_fields['estimated_price_field_id'] = str(lead.estimated_price)
-            pass
+            # Convert Decimal to string
+            custom_fields.append({
+                "id": "EyM1niSr1adL5PUoQnIv",
+                "value": str(lead.estimated_price)
+            })
+            logger.debug(f"Mapping estimated_price '{lead.estimated_price}' to custom field")
         
+        # Vehicle
+        # Field ID: UMD2o916mrxPVHOPBUhO
         if lead.vehicle:
-            # custom_fields['vehicle_type_field_id'] = lead.vehicle.name if hasattr(lead.vehicle, 'name') else str(lead.vehicle)
-            pass
+            # Get vehicle type display name (e.g., "Towncar", "SUV", "Mini Van")
+            vehicle_name = lead.vehicle.get_vehicle_type_display() if hasattr(lead.vehicle, 'get_vehicle_type_display') else str(lead.vehicle)
+            custom_fields.append({
+                "id": "UMD2o916mrxPVHOPBUhO",
+                "value": vehicle_name
+            })
+            logger.debug(f"Mapping vehicle '{vehicle_name}' to custom field")
         
-        # Return custom fields structure
-        # Note: The actual implementation will depend on how GHL expects custom fields
-        # This is a placeholder structure
+        # Trip Type
+        # Field ID: rLvcE5ovYliVmNYQnYan
+        if lead.trip_type:
+            # Format trip type: "oneway" -> "One Way", "roundtrip" -> "Round Trip"
+            trip_type_display = lead.get_trip_type_display() if hasattr(lead, 'get_trip_type_display') else lead.trip_type.title()
+            custom_fields.append({
+                "id": "rLvcE5ovYliVmNYQnYan",
+                "value": trip_type_display
+            })
+            logger.debug(f"Mapping trip_type '{trip_type_display}' to custom field")
+        
+        # Return in GHL API v2 format: { "customFields": [{"id": "fieldId", "value": "value"}] }
+        # GHL expects customFields as an array of objects with 'id' and 'value' properties
         return {
-            'customField': custom_fields
+            'customFields': custom_fields
         } if custom_fields else {}
     
     def find_contact_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
@@ -339,17 +369,39 @@ class GoHighLevelService:
                             logger.info(f"Using existing contact ID: {contact_id}")
                             
                             # Try to update the existing contact with latest data
+                            # Note: locationId should NOT be included in PUT requests
                             try:
                                 update_url = f"{self.base_url}/contacts/{contact_id}"
-                                logger.debug(f"GHL API Request - PUT {update_url} (updating existing contact)")
-                                update_response = requests.put(update_url, json=contact_data, headers=self.headers, timeout=10)
                                 
-                                if update_response.status_code == 200:
-                                    logger.info(f"Updated existing GHL contact {contact_id} for lead {lead.id}")
+                                # Prepare update data - exclude locationId for PUT requests
+                                update_data = {
+                                    "firstName": lead.first_name or "",
+                                    "lastName": lead.last_name or "",
+                                    "email": lead.email or "",
+                                    "phone": formatted_phone,
+                                }
+                                
+                                # Add custom fields if configured (same format as create)
+                                if custom_fields:
+                                    update_data.update(custom_fields)
+                                
+                                logger.debug(f"GHL API Request - PUT {update_url} (updating existing contact)")
+                                logger.debug(f"GHL API Request - Update Data: {update_data}")
+                                update_response = requests.put(update_url, json=update_data, headers=self.headers, timeout=10)
+                                
+                                logger.debug(f"GHL API Update Response - Status: {update_response.status_code}")
+                                if update_response.status_code != 200:
+                                    error_body = update_response.text
+                                    try:
+                                        error_json = update_response.json()
+                                        error_body = error_json
+                                    except:
+                                        pass
+                                    logger.warning(f"Could not update contact {contact_id}: {update_response.status_code} - Full response: {error_body}")
                                 else:
-                                    logger.warning(f"Could not update contact {contact_id}: {update_response.status_code}")
+                                    logger.info(f"Updated existing GHL contact {contact_id} for lead {lead.id}")
                             except Exception as update_error:
-                                logger.warning(f"Error updating existing contact: {update_error}")
+                                logger.warning(f"Error updating existing contact: {update_error}", exc_info=True)
                             
                             return contact_id
                         else:
