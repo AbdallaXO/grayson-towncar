@@ -94,12 +94,19 @@ def handle_checkout_session(session):
             Decimal(amount_total if amount_total is not None else 0) / 100
         )
 
+        # Extract description from metadata if available
+        payment_description = metadata.get("payment_description", "")
+        if not payment_description:
+            # Fallback to default description
+            payment_description = f"Payment for Reservation #{reservation.id}"
+
         payment, created = Payment.objects.get_or_create(
             reservation=reservation,
             customer=customer,
             stripe_checkout_id=session.get("id"),
             defaults={
                 "amount": session_total_amount,
+                "description": payment_description,
                 "payment_type": "pay_now",
                 "status": "pending",
             },
@@ -156,6 +163,9 @@ def handle_checkout_session(session):
 
                 final_amount = Decimal(full_payment_intent.amount) / 100
 
+                # Calculate amount owed BEFORE this payment
+                amount_owed_before = reservation.amount_owed
+
                 # Handle card payments - try to save card details
                 if payment_method_type == "card":
                     card_saved = save_card_to_customer(
@@ -175,16 +185,35 @@ def handle_checkout_session(session):
                 payment.status = "paid"
                 payment.amount = final_amount
 
+                # Update description if it wasn't set during payment creation
+                if not payment.description or payment.description == f"Payment for Reservation #{reservation.id}":
+                    # Try to get description from payment intent metadata
+                    pi_description = full_payment_intent.metadata.get("payment_description", "")
+                    if pi_description:
+                        payment.description = pi_description
+
                 # If we have payment method info, still record it
                 if payment_method_id:
                     payment.stripe_payment_method_id = payment_method_id
 
                 reservation.status = "confirmed"
-                # Only update prices if they haven't been set yet (first payment)
-                # Don't overwrite existing prices for additional payments (e.g., gratuity)
+
+                # Automatic total_price adjustment logic:
+                # If amount owed was $0 (or nearly $0), this is a NEW charge, so add to total_price
+                # Otherwise, this is a payment toward existing balance, don't add
+                # Special case: if total_price is 0, this is the initial setup, set it directly
                 if reservation.total_price == 0:
+                    # First payment setup
                     reservation.base_price = final_amount
                     reservation.total_price = final_amount
+                    logger.info(f"Initial payment setup: total_price set to ${final_amount}")
+                elif amount_owed_before <= Decimal("0.01"):
+                    # Amount owed was nearly zero, this is a new charge
+                    reservation.total_price += final_amount
+                    logger.info(
+                        f"Auto-added ${final_amount} to reservation total (was ${reservation.total_price - final_amount}, "
+                        f"now ${reservation.total_price}) - detected as new charge via webhook"
+                    )
 
                 with transaction.atomic():
                     payment.save()

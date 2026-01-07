@@ -9,6 +9,7 @@ class UserPaymentAdmin(admin.ModelAdmin):
     list_display = (
         "status_badge",
         "payment_type",
+        "description",
         "customer",
         "reservation_link",
         "amount_display",

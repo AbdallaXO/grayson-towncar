@@ -957,6 +957,10 @@ def dispatcher_payment_portal(request, reservation_id):
                     product=product.id,
                 )
 
+                # Prepare statement descriptor (appears on customer's bank statement)
+                # Stripe limits this to 22 characters, so truncate if needed
+                statement_desc = description[:22] if len(description) > 22 else description
+
                 checkout_session_params = {
                     "customer": stripe_customer_id,
                     "line_items": [{"price": price.id, "quantity": 1}],
@@ -964,7 +968,12 @@ def dispatcher_payment_portal(request, reservation_id):
                     "success_url": success_url_with_context,
                     "cancel_url": cancel_url_with_context,
                     "payment_intent_data": {
-                        "setup_future_usage": "off_session"  # Allow saving the card for future use
+                        "setup_future_usage": "off_session",  # Allow saving the card for future use
+                        "description": description,  # Shows in Stripe dashboard and receipts
+                        "statement_descriptor_suffix": statement_desc,  # Shows on customer's bank statement
+                        "metadata": {
+                            "payment_description": description,
+                        },
                     },
                     "metadata": {
                         "reservation_uuid": str(reservation.uuid),
@@ -1099,6 +1108,10 @@ def dispatcher_payment_portal(request, reservation_id):
 
                 # Create PaymentIntent with saved card
                 try:
+                    # Prepare statement descriptor (appears on customer's bank statement)
+                    # Stripe limits this to 22 characters, so truncate if needed
+                    statement_desc = description[:22] if len(description) > 22 else description
+
                     payment_intent = stripe.PaymentIntent.create(
                         amount=amount_in_cents,
                         currency="usd",
@@ -1106,6 +1119,8 @@ def dispatcher_payment_portal(request, reservation_id):
                         payment_method=selected_payment_method,
                         off_session=True,  # Important for using saved card
                         confirm=True,  # Confirm immediately
+                        description=description,  # Shows in Stripe dashboard and receipts
+                        statement_descriptor_suffix=statement_desc,  # Shows on customer's bank statement
                         metadata={
                             "reservation_uuid": str(reservation.uuid),
                             "reservation_id": reservation.id,
@@ -1121,6 +1136,9 @@ def dispatcher_payment_portal(request, reservation_id):
                     if payment_intent.status == "succeeded":
                         # Payment successful - create Payment record and update reservation
                         final_amount = Decimal(payment_intent.amount) / 100
+
+                        # Calculate amount owed BEFORE this payment
+                        amount_owed_before = reservation.amount_owed
 
                         # Save card details to customer if card payment
                         if payment_intent.payment_method:
@@ -1144,6 +1162,7 @@ def dispatcher_payment_portal(request, reservation_id):
                             stripe_payment_intent_id=payment_intent.id,
                             defaults={
                                 "amount": final_amount,
+                                "description": description,
                                 "payment_type": "pay_now",
                                 "status": "paid",
                                 "stripe_customer_id": stripe_customer_id,
@@ -1154,17 +1173,31 @@ def dispatcher_payment_portal(request, reservation_id):
                         if not created:
                             # Update existing payment
                             payment.amount = final_amount
+                            payment.description = description
                             payment.status = "paid"
                             payment.stripe_payment_method_id = payment_intent.payment_method
                             payment.save()
 
-                        # Update reservation status only - don't modify pricing
-                        # The reservation.total_price should remain as originally set
-                        # Individual payments are tracked in Payment records
+                        # Automatic total_price adjustment logic:
+                        # If amount owed was $0 (or nearly $0), this is a NEW charge, so add to total_price
+                        # Otherwise, this is a payment toward existing balance, don't add
+                        should_add_to_total = amount_owed_before <= Decimal("0.01")
+
+                        if should_add_to_total:
+                            reservation.total_price += final_amount
+                            logger.info(
+                                f"Auto-added ${final_amount} to reservation total (was ${reservation.total_price - final_amount}, "
+                                f"now ${reservation.total_price}) - detected as new charge"
+                            )
+
+                        # Update reservation status
                         reservation.status = "confirmed"
 
                         with transaction.atomic():
-                            reservation.save(update_fields=["status"])
+                            if should_add_to_total:
+                                reservation.save(update_fields=["status", "total_price"])
+                            else:
+                                reservation.save(update_fields=["status"])
                             payment.save()
 
                         # Note: Confirmation emails are NOT sent for dispatcher-initiated payments

@@ -716,53 +716,152 @@
     </div>
 
     <div class="row mb-4">
-      <div class="col-6">
+      <div class="col-12">
         <div class="card">
-          <div class="card-header bg-dark text-white fw-normal h6">Payment Information</div>
+          <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <span class="fw-normal h6 mb-0">Payment Information</span>
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
+                 class="btn btn-outline-light">
+                <i class="bi bi-credit-card"></i> Process Payment
+              </a>
+            </div>
+          </div>
           <div class="card-body">
-            {% with payment=latest_payment %}
-              <dl class="row mb-0">
-                <dt class="col-sm-4">Payment Status</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ payment.status|title|default:'Unpaid' }}
-                </dd>
+            <div class="row">
+              <!-- Pricing Summary -->
+              <div class="col-md-4">
+                <h6 class="text-muted mb-3">Pricing Summary</h6>
+                <dl class="row mb-0">
+                  <dt class="col-sm-6">Base Price</dt>
+                  <dd class="col-sm-6 fw-semibold text-end">
+                    ${{ reservation.base_price }}
+                  </dd>
 
-                <dt class="col-sm-4">Payment Type</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ payment.payment_type|title|default:'N/A' }}
-                </dd>
+                  {% if reservation.gratuity_amount > 0 %}
+                    <dt class="col-sm-6">Gratuity
+                      {% if reservation.gratuity_percentage %}
+                        ({{ reservation.gratuity_percentage }}%)
+                      {% endif %}
+                    </dt>
+                    <dd class="col-sm-6 fw-semibold text-end">
+                      ${{ reservation.gratuity_amount }}
+                    </dd>
+                  {% endif %}
 
-                <dt class="col-sm-4">Total Price</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  ${{ reservation.total_price }}
-                </dd>
+                  {% if reservation.additional_charges > 0 %}
+                    <dt class="col-sm-6">Additional Charges</dt>
+                    <dd class="col-sm-6 fw-semibold text-end">
+                      ${{ reservation.additional_charges }}
+                    </dd>
+                  {% endif %}
 
-                <dt class="col-sm-4">Base Price</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  ${{ reservation.base_price }}
-                </dd>
+                  <dt class="col-sm-6 border-top pt-2 mt-2"><strong>Total Price</strong></dt>
+                  <dd class="col-sm-6 fw-bold text-end border-top pt-2 mt-2">
+                    ${{ reservation.total_price }}
+                  </dd>
 
-                <dt class="col-sm-4">Additional Charges</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  ${{ reservation.additional_charges }}
-                </dd>
+                  <dt class="col-sm-6 text-success"><strong>Total Paid</strong></dt>
+                  <dd class="col-sm-6 fw-bold text-success text-end">
+                    ${{ reservation.total_paid }}
+                  </dd>
 
-                <dt class="col-sm-4">Stripe Payment ID</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ payment.stripe_payment_intent_id|default:'N/A' }}
-                </dd>
+                  <dt class="col-sm-6 {% if reservation.amount_owed > 0 %}text-danger{% else %}text-muted{% endif %}">
+                    <strong>Amount Owed</strong>
+                  </dt>
+                  <dd class="col-sm-6 fw-bold {% if reservation.amount_owed > 0 %}text-danger{% else %}text-muted{% endif %} text-end">
+                    ${{ reservation.amount_owed }}
+                  </dd>
+                </dl>
+              </div>
 
-                <dt class="col-sm-4">Created At</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ payment.created_at }}
-                </dd>
-                <dt class="col-sm-4">Stripe Customer ID</dt>
-                <dd class="col-sm-8 fw-semibold">
-                  {{ reservation.customer.stripe_customer_id|default:'No ID' }}
-                </dd>
+              <!-- Payment History -->
+              <div class="col-md-8">
+                <h6 class="text-muted mb-3">Payment History</h6>
+                {% if reservation.all_payments %}
+                  <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Date</th>
+                          <th>Description</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for payment in reservation.all_payments %}
+                          <tr>
+                            <td class="text-nowrap">
+                              {{ payment.created_at|date:"M d, Y" }}<br>
+                              <small class="text-muted">{{ payment.created_at|time:"g:i A" }}</small>
+                            </td>
+                            <td>
+                              {% if payment.description %}
+                                {{ payment.description }}
+                              {% else %}
+                                <span class="text-muted fst-italic">No description</span>
+                              {% endif %}
+                            </td>
+                            <td class="fw-semibold">${{ payment.amount }}</td>
+                            <td>
+                              {% if payment.status == 'paid' %}
+                                <span class="badge bg-success">Paid</span>
+                              {% elif payment.status == 'pending' %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                              {% elif payment.status == 'card_saved' %}
+                                <span class="badge bg-info">Card Saved</span>
+                              {% elif payment.status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                              {% else %}
+                                <span class="badge bg-secondary">{{ payment.status|title }}</span>
+                              {% endif %}
+                            </td>
+                            <td>
+                              <small class="text-muted">{{ payment.payment_type|title }}</small>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No payments recorded yet. Click "Process Payment" to get started.
+                  </div>
+                {% endif %}
+              </div>
+            </div>
 
-              </dl>
-            {% endwith %}
+            <!-- Customer Payment Info -->
+            <hr class="my-3">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-muted mb-2">Customer Payment Details</h6>
+                <dl class="row mb-0 small">
+                  <dt class="col-sm-5">Stripe Customer ID</dt>
+                  <dd class="col-sm-7 text-break">
+                    {% if reservation.customer.stripe_customer_id %}
+                      <code>{{ reservation.customer.stripe_customer_id }}</code>
+                    {% else %}
+                      <span class="text-muted">Not created yet</span>
+                    {% endif %}
+                  </dd>
+
+                  <dt class="col-sm-5">Saved Card</dt>
+                  <dd class="col-sm-7">
+                    {% if reservation.customer.card_last4 %}
+                      {{ reservation.customer.card_brand|title }} ending in {{ reservation.customer.card_last4 }}
+                      (Exp: {{ reservation.customer.card_exp_month }}/{{ reservation.customer.card_exp_year }})
+                    {% else %}
+                      <span class="text-muted">No card on file</span>
+                    {% endif %}
+                  </dd>
+                </dl>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -237,6 +237,22 @@ class Reservation(models.Model):
         return self.payments.all()
 
     @property
+    def total_paid(self):
+        """
+        Calculate total amount paid (sum of all successful payments)
+        """
+        from django.db.models import Sum
+        paid_sum = self.payments.filter(status="paid").aggregate(total=Sum("amount"))["total"]
+        return paid_sum or Decimal("0.00")
+
+    @property
+    def amount_owed(self):
+        """
+        Calculate remaining amount owed (total price - total paid)
+        """
+        return (self.total_price - self.total_paid).quantize(Decimal("0.01"))
+
+    @property
     def payment_status(self):
         """
         Get the payment status for this reservation

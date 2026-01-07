@@ -1070,8 +1070,8 @@ class ReservationAdmin(ImportExportModelAdmin):
         if not hasattr(obj, "payments") or not obj.payments.exists():
             return "-"
 
-        # Get the last payment
-        payment = obj.payments.last()
+        # Get the latest payment (most recent by created_at)
+        payment = obj.payments.order_by('-created_at').first()
 
         # Generate the correct URL to the Payment admin page
         payment_url = reverse("admin:payment_payment_change", args=[payment.id])
