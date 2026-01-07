@@ -1,6 +1,6 @@
 import logging
 import time
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from .models import Reservation
 from users.emails import send_reservation_confirmation
@@ -10,6 +10,9 @@ from django.utils import timezone
 from .models import Reservation, Lead
 
 logger = logging.getLogger(__name__)  # Get a logger instance
+
+# Store old values before save to compare in post_save
+_lead_old_values = {}
 
 
 
@@ -287,6 +290,17 @@ def sync_lead_to_ghl_on_create(sender, instance, created, **kwargs):
                             ghl_contact_id=contact_id,
                             ghl_synced_at=timezone.now()
                         )
+                        # Also sync status to GHL for newly created contact
+                        # This ensures status is synced even if it was set before contact was created
+                        try:
+                            service.update_contact_status_fields(
+                                contact_id=contact_id,
+                                status=instance.status
+                            )
+                            local_logger.debug(f"Synced status '{instance.status}' to GHL for newly created Lead #{instance.id}")
+                        except Exception as status_error:
+                            local_logger.warning(f"Failed to sync status to GHL for Lead #{instance.id}: {status_error}")
+                        
                         local_logger.info(f"Successfully synced Lead #{instance.id} to GHL (contact_id: {contact_id})")
                     else:
                         local_logger.warning(f"Failed to sync Lead #{instance.id} to GHL - no contact ID returned")
@@ -297,3 +311,95 @@ def sync_lead_to_ghl_on_create(sender, instance, created, **kwargs):
         # Start background thread (non-blocking)
         thread = Thread(target=sync_ghl_in_background, daemon=True)
         thread.start()
+
+
+@receiver(pre_save, sender=Lead)
+def store_lead_old_values(sender, instance, **kwargs):
+    """
+    Store old values before save to compare in post_save signal.
+    This allows us to detect if status or converted actually changed.
+    """
+    if instance.pk:
+        try:
+            old_instance = Lead.objects.get(pk=instance.pk)
+            _lead_old_values[instance.pk] = {
+                'status': old_instance.status,
+                'ghl_contact_id': old_instance.ghl_contact_id,
+            }
+        except Lead.DoesNotExist:
+            # New instance, no old values
+            pass
+
+
+@receiver(post_save, sender=Lead)
+def sync_lead_status_to_ghl(sender, instance, created, **kwargs):
+    """
+    Sync lead status changes to GHL custom field.
+    Only updates if status or converted changed and contact exists in GHL.
+    Runs in background to avoid blocking Lead save.
+    """
+    # Skip if no GHL contact ID (contact not in GHL yet)
+    if not instance.ghl_contact_id:
+        return
+    
+    # Skip if this is a new lead (will be handled by sync_lead_to_ghl_on_create)
+    if created:
+        return
+    
+    # Get old values from pre_save signal
+    old_values = _lead_old_values.get(instance.pk)
+    if not old_values:
+        # No old values stored, skip (might be first save or signal didn't fire)
+        return
+    
+    # Check if status changed (converted is part of status now)
+    status_changed = old_values.get('status') != instance.status
+    
+    # Also check if ghl_contact_id was just set (newly synced contact)
+    contact_id_changed = old_values.get('ghl_contact_id') != instance.ghl_contact_id
+    
+    if not (status_changed or contact_id_changed):
+        # No relevant changes, skip sync
+        # Clean up old values
+        _lead_old_values.pop(instance.pk, None)
+        return
+    
+    # Run in background thread to avoid blocking
+    from threading import Thread
+    
+    def sync_status_in_background():
+        """Sync status to GHL in background thread"""
+        local_logger = logging.getLogger(__name__)
+        
+        try:
+            from ghl_integration.services import GoHighLevelService
+            
+            service = GoHighLevelService()
+            success = service.update_contact_status_fields(
+                contact_id=instance.ghl_contact_id,
+                status=instance.status
+            )
+            
+            if success:
+                local_logger.info(
+                    f"Successfully synced status '{instance.status}' to GHL for Lead #{instance.id} "
+                    f"(contact_id: {instance.ghl_contact_id})"
+                )
+            else:
+                local_logger.warning(
+                    f"Failed to sync status to GHL for Lead #{instance.id} "
+                    f"(contact_id: {instance.ghl_contact_id})"
+                )
+        except Exception as sync_error:
+            # Don't break lead save if GHL sync fails
+            local_logger.error(
+                f"Error syncing status to GHL for Lead #{instance.id}: {sync_error}",
+                exc_info=True
+            )
+        finally:
+            # Clean up old values
+            _lead_old_values.pop(instance.pk, None)
+    
+    # Start background thread (non-blocking)
+    thread = Thread(target=sync_status_in_background, daemon=True)
+    thread.start()

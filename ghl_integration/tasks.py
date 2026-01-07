@@ -177,6 +177,20 @@ def sync_lead_to_ghl_without_sms(lead_id):
             lead.ghl_synced_at = timezone.now()
             lead.save(update_fields=['ghl_contact_id', 'ghl_synced_at'])
         
+        # Also sync status to GHL if contact was just created/synced
+        # This ensures status is synced even if it was changed before ghl_contact_id was set
+        try:
+            from ghl_integration.services import GoHighLevelService
+            service = GoHighLevelService()
+            service.update_contact_status_fields(
+                contact_id=contact_id,
+                status=lead.status
+            )
+            logger.debug(f"Synced status '{lead.status}' to GHL for newly synced Lead #{lead_id}")
+        except Exception as status_sync_error:
+            # Don't fail the whole sync if status update fails
+            logger.warning(f"Failed to sync status to GHL for Lead #{lead_id}: {status_sync_error}")
+        
         logger.info(f"Successfully synced Lead #{lead_id} to GHL without SMS (contact_id: {contact_id})")
         
         return {

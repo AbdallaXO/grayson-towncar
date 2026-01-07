@@ -215,6 +215,22 @@ class GoHighLevelService:
             })
             logger.debug(f"Mapping trip_type '{trip_type_display}' to custom field")
         
+        # Status
+        # Field ID: Sd0n5FsD7X95Y5XtXKkl
+        status_display = {
+            'new': 'New Lead',
+            'contacted': 'Contacted',
+            'converted': 'Converted',
+            'lost': 'Lost',
+            'future_contact': 'Future Contact',
+            'interested': 'Interested',
+        }.get(lead.status, 'New Lead')
+        custom_fields.append({
+            "id": "Sd0n5FsD7X95Y5XtXKkl",
+            "value": status_display
+        })
+        logger.debug(f"Mapping status '{lead.status}' to custom field as '{status_display}'")
+        
         # Return in GHL API v2 format: { "customFields": [{"id": "fieldId", "value": "value"}] }
         # GHL expects customFields as an array of objects with 'id' and 'value' properties
         return {
@@ -427,6 +443,77 @@ class GoHighLevelService:
         except requests.exceptions.RequestException as e:
             logger.error(f"Exception creating/updating contact: {str(e)}", exc_info=True)
             return None
+    
+    def update_contact_status_fields(self, contact_id: str, status: str, converted: bool = False) -> bool:
+        """
+        Update only the status custom field in GHL for a contact.
+        More efficient than full contact update when only status changes.
+        
+        Args:
+            contact_id: GHL contact ID
+            status: Lead status value ('new', 'contacted', 'converted', etc.)
+            converted: Whether lead is converted (not used, kept for compatibility)
+            
+        Returns:
+            bool: True if update successful, False otherwise
+        """
+        if not self.api_key or not self.location_id:
+            logger.error("GHL API credentials not configured")
+            return False
+        
+        if not contact_id:
+            logger.warning("No contact ID provided for status update")
+            return False
+        
+        try:
+            # Map status to display value
+            status_display = {
+                'new': 'New Lead',
+                'contacted': 'Contacted',
+                'converted': 'Converted',
+                'lost': 'Lost',
+                'future_contact': 'Future Contact',
+                'interested': 'Interested',
+            }.get(status, 'New Lead')
+            
+            # Prepare update data with only status custom field
+            update_data = {
+                "customFields": [
+                    {
+                        "id": "Sd0n5FsD7X95Y5XtXKkl",  # Status field ID
+                        "value": status_display
+                    }
+                ]
+            }
+            
+            update_url = f"{self.base_url}/contacts/{contact_id}"
+            
+            logger.debug(f"GHL API Request - PUT {update_url} (updating status to '{status_display}')")
+            logger.debug(f"GHL API Request - Update Data: {update_data}")
+            
+            response = requests.put(update_url, json=update_data, headers=self.headers, timeout=10)
+            
+            logger.debug(f"GHL API Status Update Response - Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                logger.info(f"Successfully updated status to '{status_display}' for GHL contact {contact_id}")
+                return True
+            else:
+                error_body = response.text
+                try:
+                    error_json = response.json()
+                    error_body = error_json
+                except:
+                    pass
+                logger.error(f"Failed to update status for contact {contact_id}: {response.status_code} - {error_body}")
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Exception updating contact status: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error updating contact status: {str(e)}", exc_info=True)
+            return False
     
     def send_sms(self, contact_id: str, message: str) -> bool:
         """

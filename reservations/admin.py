@@ -1859,26 +1859,113 @@ class LeadAdmin(admin.ModelAdmin):
     # Actions
     @admin.action(description="Mark as Contacted")
     def mark_contacted(self, request, queryset):
-        queryset.update(
+        # Get leads with GHL contact IDs before update (for syncing)
+        leads_with_ghl = list(queryset.filter(ghl_contact_id__isnull=False).values_list('id', 'ghl_contact_id'))
+        
+        # Update status
+        updated = queryset.update(
             status="contacted",
             contact_attempts=models.F('contact_attempts') + 1,
             last_contact_date=timezone.now()
         )
-        self.message_user(request, f"Marked {queryset.count()} leads as contacted.")
+        
+        # Sync status to GHL for leads that have contact IDs
+        if leads_with_ghl:
+            from ghl_integration.services import GoHighLevelService
+            from threading import Thread
+            
+            def sync_statuses_in_background():
+                service = GoHighLevelService()
+                synced_count = 0
+                for lead_id, contact_id in leads_with_ghl:
+                    try:
+                        success = service.update_contact_status_fields(
+                            contact_id=contact_id,
+                            status="contacted"
+                        )
+                        if success:
+                            synced_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
+                
+                logger.info(f"Synced status to GHL for {synced_count} out of {len(leads_with_ghl)} leads")
+            
+            thread = Thread(target=sync_statuses_in_background, daemon=True)
+            thread.start()
+        
+        self.message_user(request, f"Marked {updated} leads as contacted.")
 
     @admin.action(description="Mark as Interested")
     def mark_interested(self, request, queryset):
-        queryset.update(status="interested")
-        self.message_user(request, f"Marked {queryset.count()} leads as interested.")
+        # Get leads with GHL contact IDs before update (for syncing)
+        leads_with_ghl = list(queryset.filter(ghl_contact_id__isnull=False).values_list('id', 'ghl_contact_id'))
+        
+        # Update status
+        updated = queryset.update(status="interested")
+        
+        # Sync status to GHL for leads that have contact IDs
+        if leads_with_ghl:
+            from ghl_integration.services import GoHighLevelService
+            from threading import Thread
+            
+            def sync_statuses_in_background():
+                service = GoHighLevelService()
+                synced_count = 0
+                for lead_id, contact_id in leads_with_ghl:
+                    try:
+                        success = service.update_contact_status_fields(
+                            contact_id=contact_id,
+                            status="interested"
+                        )
+                        if success:
+                            synced_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
+                
+                logger.info(f"Synced status to GHL for {synced_count} out of {len(leads_with_ghl)} leads")
+            
+            thread = Thread(target=sync_statuses_in_background, daemon=True)
+            thread.start()
+        
+        self.message_user(request, f"Marked {updated} leads as interested.")
 
     @admin.action(description="Mark as Converted")
     def mark_converted(self, request, queryset):
-        queryset.update(
+        # Get leads with GHL contact IDs before update (for syncing)
+        leads_with_ghl = list(queryset.filter(ghl_contact_id__isnull=False).values_list('id', 'ghl_contact_id'))
+        
+        # Update status
+        updated = queryset.update(
             status="converted",
             converted=True,
             converted_at=timezone.now()
         )
-        self.message_user(request, f"Marked {queryset.count()} leads as converted.")
+        
+        # Sync status to GHL for leads that have contact IDs
+        if leads_with_ghl:
+            from ghl_integration.services import GoHighLevelService
+            from threading import Thread
+            
+            def sync_statuses_in_background():
+                service = GoHighLevelService()
+                synced_count = 0
+                for lead_id, contact_id in leads_with_ghl:
+                    try:
+                        success = service.update_contact_status_fields(
+                            contact_id=contact_id,
+                            status="converted"
+                        )
+                        if success:
+                            synced_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
+                
+                logger.info(f"Synced status to GHL for {synced_count} out of {len(leads_with_ghl)} leads")
+            
+            thread = Thread(target=sync_statuses_in_background, daemon=True)
+            thread.start()
+        
+        self.message_user(request, f"Marked {updated} leads as converted.")
     
     @admin.action(description="Check for Auto-Conversion")
     def check_auto_conversion(self, request, queryset):
@@ -1926,8 +2013,37 @@ class LeadAdmin(admin.ModelAdmin):
 
     @admin.action(description="Mark as Lost")
     def mark_lost(self, request, queryset):
-        queryset.update(status="lost")
-        self.message_user(request, f"Marked {queryset.count()} leads as lost.")
+        # Get leads with GHL contact IDs before update (for syncing)
+        leads_with_ghl = list(queryset.filter(ghl_contact_id__isnull=False).values_list('id', 'ghl_contact_id'))
+        
+        # Update status
+        updated = queryset.update(status="lost")
+        
+        # Sync status to GHL for leads that have contact IDs
+        if leads_with_ghl:
+            from ghl_integration.services import GoHighLevelService
+            from threading import Thread
+            
+            def sync_statuses_in_background():
+                service = GoHighLevelService()
+                synced_count = 0
+                for lead_id, contact_id in leads_with_ghl:
+                    try:
+                        success = service.update_contact_status_fields(
+                            contact_id=contact_id,
+                            status="lost"
+                        )
+                        if success:
+                            synced_count += 1
+                    except Exception as e:
+                        logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
+                
+                logger.info(f"Synced status to GHL for {synced_count} out of {len(leads_with_ghl)} leads")
+            
+            thread = Thread(target=sync_statuses_in_background, daemon=True)
+            thread.start()
+        
+        self.message_user(request, f"Marked {updated} leads as lost.")
 
     @admin.action(description="Set High Priority")
     def set_high_priority(self, request, queryset):
