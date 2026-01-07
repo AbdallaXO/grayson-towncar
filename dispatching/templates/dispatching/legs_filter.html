@@ -166,6 +166,27 @@
       </div>
     </div>
 
+    <!-- Quick Filter Pills -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <span class="text-muted small fw-semibold me-2">Quick Filters:</span>
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}&trip_type=arrival"
+             class="badge {% if trip_type_filter == 'arrival' %}bg-primary text-white{% else %}bg-light border border-primary text-primary{% endif %} text-decoration-none">
+            ✈️ Arrivals
+          </a>
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}&trip_type=return"
+             class="badge {% if trip_type_filter == 'return' %}bg-success text-white{% else %}bg-light border border-success text-success{% endif %} text-decoration-none">
+            🛬 Returns
+          </a>
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}"
+             class="badge {% if not trip_type_filter %}bg-dark text-white{% else %}bg-secondary text-white{% endif %} text-decoration-none">
+            All Trips
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- Legs Table Section -->
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-light py-2 px-3">
@@ -189,8 +210,8 @@
             <button 
               id="refreshAllFlightsBtn"
               class="btn btn-sm btn-primary"
-              title="Refresh all flight data for {{ selected_date|date:'l, F j, Y' }}">
-              <i class="bi bi-arrow-clockwise me-1"></i>Refresh All Flights
+              title="Refresh all arrival flight data for {{ selected_date|date:'l, F j, Y' }} (Returns are not refreshed)">
+              <i class="bi bi-arrow-clockwise me-1"></i>Refresh Arrival Flights
             </button>
           <div class="badge bg-dark">{{ selected_date|date:'l, F j, Y' }}</div>
           </div>
@@ -217,10 +238,7 @@
                   <!-- Customer -->
                   <td>
                     <div class="d-flex flex-column">
-                      <div class="fw-bold d-flex align-items-center">
-                        {% with trip_display=leg.get_trip_type_display %}
-                          <i class="bi {{ trip_display.icon }} text-{{ trip_display.color }} me-2 fs-5" title="{{ trip_display.label }}" style="opacity: 0.9;"></i>
-                        {% endwith %}
+                      <div class="fw-bold">
                         {{ leg.reservation.customer.get_full_name }}
                       </div>
                       <div class="small text-muted">
@@ -291,7 +309,7 @@
                             <div class="d-flex flex-column gap-1">
                               {% if leg.flight_information.scheduled_gate_arrival_local %}
                                 <div class="d-flex flex-wrap align-items-center">
-                                  <span class="text-muted small me-2" style="min-width: fit-content; flex-shrink: 0;">Scheduled:</span>
+                                  <span class="text-muted small me-2" style="min-width: fit-content; flex-shrink: 0;">Scheduled Arrival:</span>
                                   <span class="fw-semibold text-nowrap">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
                                 </div>
                               {% endif %}
@@ -303,7 +321,7 @@
                               {% elif leg.flight_information.estimated_gate_arrival_local %}
                                 <div class="d-flex flex-wrap align-items-center">
                                   <span class="text-primary small me-2 fw-bold" style="min-width: fit-content; flex-shrink: 0;">
-                                    <i class="bi bi-clock-history me-1"></i>Landing:
+                                    <i class="bi bi-clock-history me-1"></i>Arriving:
                                   </span>
                                   <span class="fw-bold text-primary text-nowrap">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
                                 </div>
@@ -394,7 +412,7 @@
                                 {% endif %}
                                 {% if leg.flight_information.scheduled_arrival_local %}
                                   <div class="text-muted ms-3 mb-1 d-flex flex-wrap align-items-center" data-field="scheduled_arrival">
-                                    <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</span>
+                                    <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled Runway:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% else %}
                                   <div class="text-muted ms-3" data-field="scheduled_arrival" style="display: none;"></div>
@@ -405,7 +423,7 @@
                                   </div>
                                 {% elif leg.flight_information.estimated_arrival_local %}
                                   <div class="fw-bold text-primary ms-3 d-flex flex-wrap align-items-center" data-field="estimated_arrival">
-                                    <i class="bi bi-clock-history me-1"></i><strong class="me-1">Landing:</strong><span class="text-nowrap">{{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</span>
+                                    <i class="bi bi-clock-history me-1"></i><strong class="me-1">Est. Runway:</strong><span class="text-nowrap">{{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% else %}
                                   <div class="fw-bold text-primary ms-3" data-field="estimated_arrival" style="display: none;"></div>
@@ -432,7 +450,7 @@
                                 {% endif %}
                                 {% if leg.flight_information.scheduled_gate_arrival_local %}
                                   <div class="text-muted ms-3 mb-1 d-flex flex-wrap align-items-center">
-                                    <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                    <i class="bi bi-clock me-1"></i><span class="me-1">Scheduled Arrival:</span><span class="text-nowrap">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% endif %}
                                 {% if leg.flight_information.actual_gate_arrival_local %}
@@ -460,6 +478,13 @@
                     {% endif %}
                     <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
                     <div class="fw-bold">{{ leg.pickup_date | date:'D, M d, Y' }}</div>
+                    <div class="mt-2">
+                      {% with trip_display=leg.get_trip_type_display %}
+                        <span class="badge bg-{{ trip_display.color }}">
+                          <i class="bi {{ trip_display.icon }} me-1"></i>{{ trip_display.label }}
+                        </span>
+                      {% endwith %}
+                    </div>
                   </td>
 
                   <!-- Locations -->
@@ -603,10 +628,7 @@
                 <div class="card shadow-sm">
                   <div class="card-header bg-light p-2">
                     <div class="d-flex justify-content-between align-items-center">
-                      <h6 class="mb-0 fw-bold d-flex align-items-center">
-                        {% with trip_display=leg.get_trip_type_display %}
-                          <i class="bi {{ trip_display.icon }} text-{{ trip_display.color }} me-2 fs-5" title="{{ trip_display.label }}" style="opacity: 0.9;"></i>
-                        {% endwith %}
+                      <h6 class="mb-0 fw-bold">
                         {{ leg.reservation.customer.get_full_name }}
                       </h6>
                       <a href="{% url 'reservation_details' leg.reservation.uuid %}"
@@ -654,6 +676,13 @@
                                 <i class="bi bi-airplane me-1"></i>{{ leg.flight_information }}
                               </div>
                             {% endif %}
+                            <div class="mt-2">
+                              {% with trip_display=leg.get_trip_type_display %}
+                                <span class="badge bg-{{ trip_display.color }}">
+                                  <i class="bi {{ trip_display.icon }} me-1"></i>{{ trip_display.label }}
+                                </span>
+                              {% endwith %}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -997,7 +1026,7 @@
                   if (flightData.scheduled_gate_arrival_local) {
                       const scheduledTimeSpan = arrivalTimeContainer.querySelector('span[style*="color"]');
                       if (scheduledTimeSpan && scheduledTimeSpan.querySelector('i.bi-clock')) {
-                          scheduledTimeSpan.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_gate_arrival_local}`;
+                          scheduledTimeSpan.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled Arrival: ${flightData.scheduled_gate_arrival_local}`;
                           scheduledTimeSpan.style.display = '';
                           scheduledTimeSpan.style.fontSize = '0.95rem';
                           scheduledTimeSpan.style.fontWeight = '600';
@@ -1009,7 +1038,7 @@
                           newSpan.style.fontWeight = '600';
                           newSpan.style.color = '#000000';
                           newSpan.style.fontSize = '0.95rem';
-                          newSpan.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_gate_arrival_local}`;
+                          newSpan.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled Arrival: ${flightData.scheduled_gate_arrival_local}`;
                           if (container.firstChild) {
                               container.insertBefore(newSpan, container.firstChild);
                           } else {
@@ -1045,7 +1074,7 @@
                           estimatedTimeSpan.style.fontWeight = '700';
                           arrivalTimeContainer.appendChild(estimatedTimeSpan);
                       }
-                      estimatedTimeSpan.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Landing:</strong> ${flightData.estimated_gate_arrival_local}`;
+                      estimatedTimeSpan.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Arriving:</strong> ${flightData.estimated_gate_arrival_local}`;
                       estimatedTimeSpan.style.display = '';
                       estimatedTimeSpan.style.fontSize = '0.95rem';
                       estimatedTimeSpan.style.fontWeight = '700';
@@ -1114,7 +1143,7 @@
                   const scheduledDiv = collapseSection.querySelector('[data-field="scheduled_arrival"]');
                   if (scheduledDiv) {
                       if (flightData.scheduled_arrival_local) {
-                          scheduledDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_arrival_local}`;
+                          scheduledDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled Runway: ${flightData.scheduled_arrival_local}`;
                           scheduledDiv.style.display = '';
                           const parentContainer = scheduledDiv.closest('.small');
                           if (parentContainer) parentContainer.style.display = '';
@@ -1145,7 +1174,7 @@
                       // Show estimated arrival as "Landing"
                       const estimatedDiv = collapseSection.querySelector('[data-field="estimated_arrival"]');
                       if (estimatedDiv) {
-                          estimatedDiv.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Landing:</strong> ${flightData.estimated_arrival_local}`;
+                          estimatedDiv.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Est. Runway:</strong> ${flightData.estimated_arrival_local}`;
                           estimatedDiv.style.display = '';
                           const parentContainer = estimatedDiv.closest('.small');
                           if (parentContainer) parentContainer.style.display = '';
@@ -1165,7 +1194,7 @@
                           // Update scheduled gate arrival
                           const scheduledGateDiv = gateContainer.querySelector('.text-muted.ms-3');
                           if (scheduledGateDiv && flightData.scheduled_gate_arrival_local) {
-                              scheduledGateDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled: ${flightData.scheduled_gate_arrival_local}`;
+                              scheduledGateDiv.innerHTML = `<i class="bi bi-clock me-1"></i>Scheduled Arrival: ${flightData.scheduled_gate_arrival_local}`;
                               scheduledGateDiv.style.display = '';
                           }
                           
@@ -1412,14 +1441,14 @@
                           <div class="modal-content">
                               <div class="modal-header">
                                   <h5 class="modal-title">
-                                      <i class="bi bi-arrow-clockwise spin me-2"></i>Refreshing Flights
+                                      <i class="bi bi-arrow-clockwise spin me-2"></i>Refreshing Arrival Flights
                                   </h5>
                                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" id="closeRefreshModal"></button>
                               </div>
                               <div class="modal-body">
                                   <div class="alert alert-info mb-3">
                                       <i class="bi bi-info-circle me-2"></i>
-                                      <strong>Note:</strong> API rate limit is 10 requests/minute. This may take a while for many flights (~6 seconds per flight).
+                                      <strong>Note:</strong> Only arrival flights are being refreshed (return flights are skipped). API rate limit is 10 requests/minute. This may take a while for many flights (~6 seconds per flight).
                                       <br><small>You can close this window and continue working. You'll be notified when the refresh completes.</small>
                                   </div>
                                   <div class="progress mb-3" style="height: 25px;">
@@ -1478,9 +1507,9 @@
                           if (elapsed < 5) {
                               statusDiv.textContent = 'Connecting to AeroAPI...';
                           } else if (elapsed < 15) {
-                              statusDiv.textContent = 'Fetching flight data...';
+                              statusDiv.textContent = 'Fetching arrival flight data...';
                           } else {
-                              statusDiv.textContent = `Processing flights... (${elapsed}s elapsed)`;
+                              statusDiv.textContent = `Processing arrival flights... (${elapsed}s elapsed)`;
                           }
                       }
                   }, 500);

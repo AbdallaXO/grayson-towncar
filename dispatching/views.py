@@ -75,6 +75,7 @@ def index(request):
 
     selected_date = request.GET.get("date")
     driver_filter = request.GET.get("driver")
+    trip_type_filter = request.GET.get("trip_type")
     
     try:
         selected_date = (
@@ -113,6 +114,14 @@ def index(request):
         )
         .order_by("pickup_time")
     )
+    
+    # Apply trip type filter if specified (filter in Python since it's a computed property)
+    if trip_type_filter:
+        filtered_legs = []
+        for leg in legs:
+            if leg.get_trip_type() == trip_type_filter:
+                filtered_legs.append(leg)
+        legs = filtered_legs
 
     # Get all drivers for assignment dropdown
     drivers = Driver.objects.all()
@@ -124,7 +133,8 @@ def index(request):
         "legs": legs,
         "selected_date": selected_date,
         "driver_filter": driver_filter,
-        "total_legs": legs.count(),
+        "trip_type_filter": trip_type_filter,
+        "total_legs": len(legs),
         "total_revenue": total_revenue,
         "drivers": drivers,
     }
@@ -1621,11 +1631,6 @@ def refresh_flight_data(request):
         if estimated_arrival is not None:
             flight.estimated_arrival_local = estimated_arrival
         
-        # Handle actual arrival times (prioritize actual over estimated)
-        actual_arrival = flight_data.get('actual_runway_arrival_local')
-        if actual_arrival is not None:
-            flight.actual_arrival_local = actual_arrival
-        
         # Handle gate arrival times
         scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
         if scheduled_gate_arrival is not None:
@@ -1635,10 +1640,30 @@ def refresh_flight_data(request):
         if estimated_gate_arrival is not None:
             flight.estimated_gate_arrival_local = estimated_gate_arrival
         
-        # Handle actual gate arrival times (prioritize actual over estimated)
+        # Handle actual arrival times (prioritize actual over estimated)
+        # BUT: Clear old actual times if flight is scheduled for the future (stale data from previous flights)
+        now = timezone.now()
+        actual_arrival = flight_data.get('actual_runway_arrival_local')
         actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
-        if actual_gate_arrival is not None:
-            flight.actual_gate_arrival_local = actual_gate_arrival
+        
+        # Check if flight is scheduled for the future
+        is_future_flight = False
+        if scheduled_arrival and scheduled_arrival > now:
+            is_future_flight = True
+        elif scheduled_gate_arrival and scheduled_gate_arrival > now:
+            is_future_flight = True
+        
+        if is_future_flight:
+            # For future flights, clear any actual arrival times (they're from old flight data)
+            flight.actual_arrival_local = None
+            flight.actual_gate_arrival_local = None
+            logger.info(f"Cleared stale actual arrival times for future flight (leg {leg.id})")
+        else:
+            # For past/current flights, use actual times if provided
+            if actual_arrival is not None:
+                flight.actual_arrival_local = actual_arrival
+            if actual_gate_arrival is not None:
+                flight.actual_gate_arrival_local = actual_gate_arrival
         
         if flight_data.get('terminal'):
             flight.terminal = flight_data.get('terminal')
@@ -1692,7 +1717,8 @@ def refresh_flight_data(request):
 def refresh_all_flights(request):
     """
     Bulk refresh flight data from AeroAPI for multiple legs.
-    Accepts either a list of leg_ids or a date to refresh all flights for that date.
+    Only refreshes "arrival" trips (pickup at airport, dropoff at destination).
+    Accepts either a list of leg_ids or a date to refresh all arrival flights for that date.
     """
     if not request.user.is_superuser:
         return JsonResponse(
@@ -1729,6 +1755,17 @@ def refresh_all_flights(request):
             id__in=leg_ids,
             flight_information__isnull=False
         ).select_related('flight_information')
+        
+        # Filter to only include "arrival" trip types (pickup at airport, dropoff at destination)
+        # We need to filter in Python since get_trip_type() is a computed property
+        arrival_legs = [leg for leg in legs if leg.get_trip_type() == 'arrival']
+        legs = arrival_legs
+        
+        if not legs:
+            return JsonResponse({
+                "success": False,
+                "error": "No arrival flights found to refresh. Only arrival trips are refreshed."
+            }, status=400)
         
         # Helper function to refresh a single flight
         def refresh_single_flight(leg):
@@ -1794,11 +1831,6 @@ def refresh_all_flights(request):
                 if estimated_arrival is not None:
                     flight.estimated_arrival_local = estimated_arrival
                 
-                # Handle actual arrival times (prioritize actual over estimated)
-                actual_arrival = flight_data.get('actual_runway_arrival_local')
-                if actual_arrival is not None:
-                    flight.actual_arrival_local = actual_arrival
-                
                 scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
                 if scheduled_gate_arrival is not None:
                     flight.scheduled_gate_arrival_local = scheduled_gate_arrival
@@ -1807,10 +1839,30 @@ def refresh_all_flights(request):
                 if estimated_gate_arrival is not None:
                     flight.estimated_gate_arrival_local = estimated_gate_arrival
                 
-                # Handle actual gate arrival times (prioritize actual over estimated)
+                # Handle actual arrival times (prioritize actual over estimated)
+                # BUT: Clear old actual times if flight is scheduled for the future (stale data from previous flights)
+                now = timezone.now()
+                actual_arrival = flight_data.get('actual_runway_arrival_local')
                 actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
-                if actual_gate_arrival is not None:
-                    flight.actual_gate_arrival_local = actual_gate_arrival
+                
+                # Check if flight is scheduled for the future
+                is_future_flight = False
+                if scheduled_arrival and scheduled_arrival > now:
+                    is_future_flight = True
+                elif scheduled_gate_arrival and scheduled_gate_arrival > now:
+                    is_future_flight = True
+                
+                if is_future_flight:
+                    # For future flights, clear any actual arrival times (they're from old flight data)
+                    flight.actual_arrival_local = None
+                    flight.actual_gate_arrival_local = None
+                    logger.info(f"Cleared stale actual arrival times for future flight (leg {leg.id})")
+                else:
+                    # For past/current flights, use actual times if provided
+                    if actual_arrival is not None:
+                        flight.actual_arrival_local = actual_arrival
+                    if actual_gate_arrival is not None:
+                        flight.actual_gate_arrival_local = actual_gate_arrival
                 
                 if flight_data.get('terminal'):
                     flight.terminal = flight_data.get('terminal')

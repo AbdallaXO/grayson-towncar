@@ -197,8 +197,28 @@ class AeroAPIService:
                 # Pick the best match
                 if candidates:
                     if target_date and len(candidates) > 1:
-                        # Sort by closest to target date/time, pick the first one
-                        candidates.sort(key=lambda x: x[0] if x[0] else datetime.min.replace(tzinfo=ZoneInfo('America/New_York')))
+                        # Sort by scheduled time, but prefer future flights over past flights
+                        # For future dates, pick the earliest flight on that date
+                        # For past dates, pick the latest flight on that date
+                        now = django_timezone.now()
+                        now_eastern = now.astimezone(ZoneInfo('America/New_York'))
+                        
+                        def sort_key(candidate):
+                            scheduled_dt = candidate[0]
+                            if not scheduled_dt:
+                                return datetime.max.replace(tzinfo=ZoneInfo('America/New_York'))
+                            
+                            # If scheduled time is in the future, prioritize it
+                            # If scheduled time is in the past, deprioritize it
+                            if scheduled_dt > now_eastern:
+                                # Future flight - use negative time to prioritize (earlier = better)
+                                return scheduled_dt
+                            else:
+                                # Past flight - add large offset to deprioritize
+                                return scheduled_dt.replace(year=2100)
+                        
+                        candidates.sort(key=sort_key)
+                        logger.info(f"Found {len(candidates)} candidates for {target_date}, selected: {candidates[0][0] if candidates[0][0] else 'unknown time'}")
                     flight_data = candidates[0][1]
                     logger.info(f"Selected flight: {flight_data.get('ident_iata', 'Unknown')}")
                 else:
@@ -449,6 +469,17 @@ class AeroAPIService:
                 elif data.get('position_only'):
                     status = 'Position Only'
                 else:
+                    # Check if flight is in the future - if so, don't mark as "Landed" even if progress is 100
+                    # This prevents showing "Landed" for future flights that might have old data
+                    now = django_timezone.now().astimezone(ZoneInfo('America/New_York'))
+                    is_future = False
+                    
+                    # Check if scheduled time is in the future (already parsed above)
+                    if scheduled_runway_arrival and scheduled_runway_arrival > now:
+                        is_future = True
+                    elif scheduled_gate_arrival and scheduled_gate_arrival > now:
+                        is_future = True
+                    
                     # Try to determine from progress
                     progress = data.get('progress_percent')
                     if progress is not None:
@@ -456,8 +487,18 @@ class AeroAPIService:
                             status = 'Scheduled'
                         elif progress < 100:
                             status = 'En Route'
-                        else:
+                        elif progress >= 100 and not is_future:
+                            # Only mark as "Landed" if flight is not in the future
                             status = 'Landed'
+                        else:
+                            # Progress is 100 but flight is in the future - likely old data, mark as Scheduled
+                            status = 'Scheduled'
+                    elif is_future:
+                        # No progress data but flight is in the future
+                        status = 'Scheduled'
+                    else:
+                        # No progress data and not clearly in the future - default to Scheduled
+                        status = 'Scheduled'
             
             result = {
                 'status': 'success',  # This indicates parsing was successful
