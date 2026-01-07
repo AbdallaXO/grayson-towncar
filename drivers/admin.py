@@ -13,6 +13,8 @@ class DriverAdmin(admin.ModelAdmin):
     list_display = [
         "driver_name",
         "email",
+        "phone_number",
+        "driver_type_display",
         "vehicle",
         "unpaid_legs_count",
         "unpaid_amount",
@@ -23,12 +25,14 @@ class DriverAdmin(admin.ModelAdmin):
     list_filter = [
         "profile__is_active",
         "payment_method",
+        "driver_type",
     ]
     search_fields = [
         "profile__username",
         "profile__first_name",
         "profile__last_name",
         "profile__email",
+        "phone_number",
         "vehicle",
     ]
 
@@ -38,8 +42,11 @@ class DriverAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "profile",
+                    "driver_type",
+                    "phone_number",
                     "vehicle",
                     "schedule",
+                    "notes",
                     "payment_method",
                 )
             },
@@ -77,6 +84,14 @@ class DriverAdmin(admin.ModelAdmin):
         return obj.profile.email
 
     email.short_description = "Email"
+    
+    def driver_type_display(self, obj):
+        if obj.driver_type == "inhouse":
+            return format_html('<span style="color: #0d6efd; font-weight: bold;">Inhouse</span>')
+        else:
+            return format_html('<span style="color: #ffc107; font-weight: bold;">Affiliate</span>')
+    
+    driver_type_display.short_description = "Type"
 
     def unpaid_legs_count(self, obj):
         count = obj.get_unpaid_legs().count()

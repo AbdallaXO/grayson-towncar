@@ -1,15 +1,14 @@
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render, redirect
 from .models import Driver
-from datetime import datetime
+from datetime import datetime, timedelta
 from reservations.models import Leg
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 import json
 from django.contrib import messages
-from django.db.models import Q, Prefetch
+from django.db.models import Q, Prefetch, Count
 
 
 @login_required(login_url="login")
@@ -207,5 +206,124 @@ def update_driver_notes(request, leg_id):
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required(login_url="login")
+def extend(request):
+    """
+    Extended driver list view for dispatchers
+    Shows all drivers with phone numbers, schedules, vehicles, and availability
+    """
+    if not request.user.is_superuser:
+        return redirect("home")
+    
+    # Get filter parameters
+    driver_type_filter = request.GET.get("type", "")  # "inhouse" or "affiliate"
+    search_query = request.GET.get("search", "")
+    availability_filter = request.GET.get("availability", "")  # "available" or "busy"
+    
+    # Get all drivers with related profile data
+    drivers = Driver.objects.select_related(
+        "profile"
+    ).all()
+    
+    # Apply filters
+    if driver_type_filter:
+        drivers = drivers.filter(driver_type=driver_type_filter)
+    
+    if search_query:
+        drivers = drivers.filter(
+            Q(profile__first_name__icontains=search_query) |
+            Q(profile__last_name__icontains=search_query) |
+            Q(profile__username__icontains=search_query) |
+            Q(vehicle__icontains=search_query)
+        )
+    
+    # Get upcoming legs for each driver (next 7 days)
+    today = timezone.localdate()
+    next_week = today + timedelta(days=7)
+    
+    # Annotate with upcoming leg counts
+    drivers = drivers.annotate(
+        upcoming_count=Count(
+            "legs",
+            filter=Q(
+                legs__pickup_date__gte=today,
+                legs__pickup_date__lte=next_week,
+                legs__status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
+            )
+        )
+    )
+    
+    # Apply availability filter
+    if availability_filter == "available":
+        drivers = drivers.filter(upcoming_count=0)
+    elif availability_filter == "busy":
+        drivers = drivers.filter(upcoming_count__gt=0)
+    
+    # Order by driver type (inhouse first), then by name
+    drivers = drivers.order_by("-driver_type", "profile__first_name", "profile__last_name")
+    
+    # Get upcoming legs for each driver for display
+    available_count = 0
+    inhouse_count = 0
+    
+    for driver in drivers:
+        driver.upcoming_legs = driver.get_upcoming_legs(days=7)
+        driver.is_available_today = driver.is_available_today()
+        driver.vehicle_display = driver.get_vehicle_display()
+        
+        # Count stats
+        if driver.upcoming_count == 0:
+            available_count += 1
+        if driver.driver_type == "inhouse":
+            inhouse_count += 1
+    
+    context = {
+        "drivers": drivers,
+        "driver_type_filter": driver_type_filter,
+        "search_query": search_query,
+        "availability_filter": availability_filter,
+        "today": today,
+        "next_week": next_week,
+        "total_drivers": drivers.count(),
+        "available_count": available_count,
+        "inhouse_count": inhouse_count,
+    }
+    
+    return render(request, "drivers/extend.html", context)
+
+
+@login_required
+@require_POST
+def update_driver_notes_ajax(request, driver_id):
+    """
+    Update driver notes via AJAX.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+        notes = data.get("notes", "")
+
+        # Get the driver
+        driver = get_object_or_404(Driver, id=driver_id)
+
+        # Update notes
+        driver.notes = notes
+        driver.save(update_fields=["notes"])
+
+        return JsonResponse({
+            "success": True,
+            "message": "Notes updated successfully"
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)

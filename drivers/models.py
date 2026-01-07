@@ -4,11 +4,24 @@ from reservations.models import Leg
 
 
 class Driver(models.Model):
+    DRIVER_TYPE_CHOICES = [
+        ("inhouse", "Inhouse"),
+        ("affiliate", "Affiliate/Outhouse"),
+    ]
+    
     profile = models.OneToOneField(User, on_delete=models.CASCADE)
+    phone_number = models.CharField(max_length=25, null=True, blank=True, help_text="Driver's phone number")
     vehicle = models.CharField(null=True, blank=True, max_length=55)
-    schedule = models.CharField(max_length=255, null=True, blank=True)
+    schedule = models.CharField(max_length=255, null=True, blank=True, help_text="Driver's availability schedule (e.g., 'Mon-Thu: 4AM-4PM, Fri: 6PM-8PM, Sat-Sun: 5AM-5PM')")
+    notes = models.TextField(null=True, blank=True, help_text="Internal notes about this driver for dispatchers")
     payment_method = models.CharField(
         max_length=50, default="direct deposit", blank=True
+    )
+    driver_type = models.CharField(
+        max_length=20,
+        choices=DRIVER_TYPE_CHOICES,
+        default="affiliate",
+        help_text="Inhouse drivers work for the company and can drive any vehicle. Affiliates are contractors with specific vehicles."
     )
 
     def get_unpaid_legs(self):
@@ -31,6 +44,50 @@ class Driver(models.Model):
             legs = legs.filter(pickup_date__lte=end_date)
 
         return legs.order_by("-pickup_date", "-pickup_time")
+    
+    def get_phone_number(self):
+        """Get driver's phone number"""
+        return self.phone_number or "N/A"
+    
+    def get_upcoming_legs(self, days=7):
+        """Get upcoming legs for the next N days"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        today = timezone.localdate()
+        end_date = today + timedelta(days=days)
+        
+        return self.legs.filter(
+            pickup_date__gte=today,
+            pickup_date__lte=end_date,
+            status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
+        ).order_by("pickup_date", "pickup_time")
+    
+    def is_available_today(self):
+        """Check if driver has any scheduled trips today"""
+        from django.utils import timezone
+        
+        today = timezone.localdate()
+        return self.legs.filter(
+            pickup_date=today,
+            status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"]
+        ).exists()
+    
+    def get_vehicle_display(self):
+        """Get vehicle display - 'Any' for inhouse, specific vehicle for affiliates"""
+        if self.driver_type == "inhouse":
+            return "Any (Inhouse)"
+        return self.vehicle or "Not specified"
+    
+    def get_schedule_display(self):
+        """Format schedule for display in multi-line format"""
+        if not self.schedule:
+            return None
+        
+        # Split by comma and format each part on a new line
+        # This handles formats like "Mon-Thu: 4AM-4PM, Fri: 6PM-8PM, Sat-Sun: 5AM-5PM"
+        schedule_parts = [part.strip() for part in self.schedule.split(',')]
+        return '\n'.join(schedule_parts)
 
     def __str__(self):
         if self.profile.first_name:

@@ -27,6 +27,10 @@
              href="{% url 'legs_list' %}"><i class="bi bi-signpost-split me-1"></i>All Legs</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'drivers_extend' %}active fw-bold{% endif %}"
+             href="{% url 'drivers_extend' %}"><i class="bi bi-people-fill me-1"></i>Drivers</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'driver_payment_management' %}active fw-bold{% endif %}"
              href="{% url 'driver_payment_management' %}"><i class="bi bi-currency-dollar me-1"></i>Driver Pay</a>
         </li>
