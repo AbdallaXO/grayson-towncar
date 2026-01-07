@@ -506,9 +506,6 @@
                         <label for="{{ flight1_form.flight_number.id_for_label }}"
                                class="form-label">Flight Number</label>
                         {{ flight1_form.flight_number }}
-                        <div class="form-text">
-                          <i class="bi bi-info-circle me-1"></i> Include airline code (e.g., DL1234)
-                        </div>
                         {% if flight1_form.flight_number.errors %}
                           <div class="invalid-feedback d-block">
                             {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
@@ -517,6 +514,37 @@
                       </div>
                     </div>
                   </div>
+
+                  <!-- Cruise Info Section (Only show for Port Canaveral routes) -->
+                  {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
+                    <div class="mb-4">
+                      <div class="row g-3">
+                        <div class="col-md-6 form-row mb-0">
+                          <label for="{{ cruise1_form.cruise_line.id_for_label }}" class="form-label">Cruise Line</label>
+                          {{ cruise1_form.cruise_line }}
+                          <datalist id="cruise_lines">
+                            {% for cruise_line in cruise_lines %}<option value="{{ cruise_line }}">{% endfor %}
+                          </datalist>
+                          {% if cruise1_form.cruise_line.errors %}
+                            <div class="invalid-feedback d-block">
+                              {% for error in cruise1_form.cruise_line.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-6 form-row mb-0">
+                          <label for="{{ cruise1_form.ship_name.id_for_label }}"
+                                 class="form-label">Ship Name</label>
+                          {{ cruise1_form.ship_name }}
+                          {% if cruise1_form.ship_name.errors %}
+                            <div class="invalid-feedback d-block">
+                              {% for error in cruise1_form.ship_name.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  {% endif %}
 
                   <!-- Pickup Info -->
                   <div>
@@ -635,9 +663,6 @@
                           <label for="{{ flight2_form.flight_number.id_for_label }}"
                                  class="form-label">Flight Number</label>
                           {{ flight2_form.flight_number }}
-                          <div class="form-text">
-                            <i class="bi bi-info-circle me-1"></i> Include airline code (e.g., DL1234)
-                          </div>
                           {% if flight2_form.flight_number.errors %}
                             <div class="invalid-feedback d-block">
                               {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
@@ -646,6 +671,34 @@
                         </div>
                       </div>
                     </div>
+
+                    <!-- Return Cruise Info Section (Only show for Port Canaveral routes) -->
+                    {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
+                      <div class="mb-4">
+                        <div class="row g-3">
+                          <div class="col-md-6 form-row mb-0">
+                            <label for="{{ cruise2_form.cruise_line.id_for_label }}" class="form-label">Cruise Line</label>
+                            {{ cruise2_form.cruise_line }}
+                            {% if cruise2_form.cruise_line.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in cruise2_form.cruise_line.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="col-md-6 form-row mb-0">
+                            <label for="{{ cruise2_form.ship_name.id_for_label }}"
+                                   class="form-label">Ship Name</label>
+                            {{ cruise2_form.ship_name }}
+                            {% if cruise2_form.ship_name.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in cruise2_form.ship_name.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    {% endif %}
 
                     <div>
                       <h3 class="section-heading fs-5 mb-3">

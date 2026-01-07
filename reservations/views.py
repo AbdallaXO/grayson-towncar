@@ -11,6 +11,7 @@ from .utils import (
     returns_post_form,
     validate_forms,
     AIRLINES,
+    CRUISE_LINES,
     extra_charges,
     send_lead_notification,
 )
@@ -89,8 +90,10 @@ def reservation_form(
             customer_form,
             reservation_form,
             flight1_form,
+            cruise1_form,
             leg1_form,
             flight2_form,
+            cruise2_form,
             leg2_form,
         ) = returns_post_form(request, trip_type, rate)
 
@@ -98,8 +101,10 @@ def reservation_form(
             customer_form,
             reservation_form,
             flight1_form,
+            cruise1_form,
             leg1_form,
             flight2_form,
+            cruise2_form,
             leg2_form,
             trip_type,
         )
@@ -148,6 +153,12 @@ def reservation_form(
                 leg1.flight_information = flight1
             else:
                 leg1.flight_information = None
+            
+            if cruise1_form and any(cruise1_form.cleaned_data.values()):
+                cruise1 = cruise1_form.save()
+                leg1.cruise_information = cruise1
+            else:
+                leg1.cruise_information = None
             leg1.save()
 
             if trip_type == "round_trip":
@@ -159,6 +170,12 @@ def reservation_form(
                     leg2.flight_information = flight2
                 else:
                     leg2.flight_information = None
+                
+                if cruise2_form and any(cruise2_form.cleaned_data.values()):
+                    cruise2 = cruise2_form.save()
+                    leg2.cruise_information = cruise2
+                else:
+                    leg2.cruise_information = None
                 leg2.save()
 
             extra_charges(reservation)
@@ -180,8 +197,10 @@ def reservation_form(
             customer_form,
             reservation_form,
             flight1_form,
+            cruise1_form,
             leg1_form,
             flight2_form,
+            cruise2_form,
             leg2_form,
         ) = _initalize_form(trip_type, rate, price)
 
@@ -189,7 +208,9 @@ def reservation_form(
         "customer_form": customer_form,
         "reservation_form": reservation_form,
         "flight1_form": flight1_form,
+        "cruise1_form": cruise1_form,
         "flight2_form": flight2_form,
+        "cruise2_form": cruise2_form,
         "leg1_form": leg1_form,
         "leg2_form": leg2_form,
         "route": rate.route,
@@ -197,6 +218,7 @@ def reservation_form(
         "trip_type": trip_type.replace("_", " "),
         "vehicle": rate.vehicle,
         "airlines": AIRLINES,
+        "cruise_lines": CRUISE_LINES,
         "canonical_url": request.build_absolute_uri("/rates-booking/"),
     }
     return render(request, "reservations/book_form.html", context)

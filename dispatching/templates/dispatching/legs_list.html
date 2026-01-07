@@ -43,6 +43,12 @@
           color: #000000 !important;
           font-weight: bold !important;
       }
+
+      /* Disable animations for cruise badge */
+      .badge.bg-dark {
+          animation: none !important;
+          transition: none !important;
+      }
   </style>
 {% endblock extra_css %}
 
@@ -456,6 +462,7 @@
                       </div>
                     </div>
                   {% endif %}
+                  
                   <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
                   <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
                 </td>
@@ -481,6 +488,20 @@
                   <div class="small">
                     <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                   </div>
+                  {% if leg.cruise_information %}
+                    <div class="mt-2">
+                      <span class="badge bg-dark text-white">
+                        <i class="bi bi-ship me-1"></i>
+                        {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                          {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                        {% elif leg.cruise_information.cruise_line %}
+                          {{ leg.cruise_information.cruise_line }}
+                        {% elif leg.cruise_information.ship_name %}
+                          {{ leg.cruise_information.ship_name }}
+                        {% endif %}
+                      </span>
+                    </div>
+                  {% endif %}
                 </td>
 
                 <!-- Vehicle & Passengers -->
@@ -675,6 +696,20 @@
                           <div>
                             <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                           </div>
+                            {% if leg.cruise_information %}
+                              <div class="mt-2">
+                                <span class="badge bg-dark text-white">
+                                  <i class="bi bi-ship me-1"></i>
+                                  {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                                    {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                                  {% elif leg.cruise_information.cruise_line %}
+                                    {{ leg.cruise_information.cruise_line }}
+                                  {% elif leg.cruise_information.ship_name %}
+                                    {{ leg.cruise_information.ship_name }}
+                                  {% endif %}
+                                </span>
+                              </div>
+                            {% endif %}
                         </div>
                       </div>
                     </div>

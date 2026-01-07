@@ -33,7 +33,8 @@ def index(request):
     # This prevents N+1 query problems
     legs = (
         Leg.objects.select_related(
-            "reservation", "reservation__customer", "reservation__vehicle"
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "flight_information", "cruise_information"
         )
         .filter(driver=driver, pickup_date=selected_date)
         .order_by("pickup_time")
@@ -57,7 +58,8 @@ def completed_trips(request):
     # Use select_related to fetch related data efficiently
     legs = (
         Leg.objects.select_related(
-            "reservation", "reservation__customer", "reservation__vehicle"
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "flight_information", "cruise_information"
         )
         .filter(driver=driver, status="completed")
         .order_by("-pickup_date", "-pickup_time")
@@ -84,7 +86,8 @@ def schedule(request):
     # Use select_related to fetch related data efficiently
     legs = (
         Leg.objects.select_related(
-            "reservation", "reservation__customer", "reservation__vehicle"
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "flight_information", "cruise_information"
         )
         .filter(
             driver=driver,

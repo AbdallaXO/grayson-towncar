@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, Flight, Lead, Quote
+from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote
 from django.db import models
 
 logger = logging.getLogger(__name__)
@@ -138,6 +138,7 @@ class LegInline(admin.StackedInline):
                     "pickup_time",
                     "pickup_location",
                     "flight_information",
+                    "cruise_information",
                 )
             },
         ),
@@ -843,7 +844,7 @@ class ReservationAdmin(ImportExportModelAdmin):
                 "customer", "vehicle", "travel_agent", "travel_agent__user"
             )
             .prefetch_related(
-                "legs", "legs__driver", "legs__flight_information", "payments"
+                "legs", "legs__driver", "legs__flight_information", "legs__cruise_information", "payments"
             )
             .annotate(
                 earliest_leg_date=Min("legs__pickup_date"),
@@ -1256,6 +1257,7 @@ class LegAdmin(ImportExportModelAdmin):
             "reservation__vehicle",
             "driver",
             "flight_information",
+            "cruise_information",
         )
 
     @admin.display(description="Pickup Date")
@@ -1412,6 +1414,14 @@ class FlightAdmin(admin.ModelAdmin):
     list_filter = ("flight_type", "airline")
     search_fields = ("airline", "flight_number")
     ordering = ("airline", "flight_number")
+
+
+@admin.register(Cruise)
+class CruiseAdmin(admin.ModelAdmin):
+    list_display = ("cruise_line", "ship_name")
+    list_filter = ("cruise_line",)
+    search_fields = ("cruise_line", "ship_name")
+    ordering = ("cruise_line", "ship_name")
 
 
 class QuoteInline(admin.TabularInline):

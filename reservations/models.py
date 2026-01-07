@@ -396,6 +396,9 @@ class Leg(models.Model):
     flight_information = models.OneToOneField(
         "Flight", on_delete=models.CASCADE, null=True, blank=True
     )
+    cruise_information = models.OneToOneField(
+        "Cruise", on_delete=models.CASCADE, null=True, blank=True
+    )
     pickup_date = models.DateField()
     pickup_time = models.TimeField()
     pickup_location = models.CharField(max_length=255)
@@ -718,6 +721,37 @@ class Flight(models.Model):
             return self.flight_iata
         
         return None
+
+
+class Cruise(models.Model):
+    """
+    Stores specific cruise details, including cruise line and ship name.
+    Ties into a Leg model via a OneToOneField.
+    Similar to Flight model but for cruise information.
+    """
+
+    cruise_line = models.CharField(
+        max_length=100, 
+        blank=True,
+        help_text="Cruise line name (e.g., Disney Cruise Line, Royal Caribbean, Carnival)"
+    )
+    ship_name = models.CharField(
+        max_length=100, 
+        blank=True,
+        help_text="Ship name (e.g., Disney Wish, Wonder of the Seas, Mardi Gras)"
+    )
+
+    def __str__(self):
+        """
+        Display cruise line and ship name for quick reference.
+        """
+        if self.cruise_line and self.ship_name:
+            return f"{self.cruise_line} - {self.ship_name}"
+        elif self.cruise_line:
+            return self.cruise_line
+        elif self.ship_name:
+            return self.ship_name
+        return "Cruise Information"
 
 
 # yourapp/models.py

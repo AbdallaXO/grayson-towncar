@@ -551,6 +551,20 @@
                   </dd>
                 {% endif %}
 
+                {% if leg.cruise_information %}
+                  <dt class="col-sm-4">Cruise</dt>
+                  <dd class="col-sm-8 fw-semibold">
+                    <i class="bi bi-ship me-1"></i>
+                    {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                      {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                    {% elif leg.cruise_information.cruise_line %}
+                      {{ leg.cruise_information.cruise_line }}
+                    {% elif leg.cruise_information.ship_name %}
+                      {{ leg.cruise_information.ship_name }}
+                    {% endif %}
+                  </dd>
+                {% endif %}
+
                 <dt class="col-sm-4">Private Notes</dt>
                 <dd class="col-sm-8 fw-semibold">
                   {{ leg.private_notes|default:"None" }}
@@ -638,6 +652,35 @@
                                      name="flight_number"
                                      value="{{ leg.flight_information.flight_number|default:'' }}"
                                      placeholder="e.g., DL1234">
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Cruise Information -->
+                    <div class="col-12">
+                      <div class="card border-secondary">
+                        <div class="card-header bg-light">
+                          <h6 class="mb-0"><i class="bi bi-ship me-1"></i> Cruise Information</h6>
+                        </div>
+                        <div class="card-body">
+                          <div class="row g-3">
+                            <div class="col-sm-6">
+                              <label class="form-label small">Cruise Line</label>
+                              <input type="text"
+                                     class="form-control"
+                                     name="cruise_line"
+                                     value="{{ leg.cruise_information.cruise_line|default:'' }}"
+                                     placeholder="e.g., Disney Cruise Line">
+                            </div>
+                            <div class="col-sm-6">
+                              <label class="form-label small">Ship Name</label>
+                              <input type="text"
+                                     class="form-control"
+                                     name="ship_name"
+                                     value="{{ leg.cruise_information.ship_name|default:'' }}"
+                                     placeholder="e.g., Disney Wish">
                             </div>
                           </div>
                         </div>
@@ -1025,13 +1068,16 @@
                   const legId = this.dataset.legId;
                   const formData = new FormData(this);
 
-                  // Separate leg data and flight data
+                  // Separate leg data, flight data, and cruise data
                   const legData = {};
                   const flightData = {};
+                  const cruiseData = {};
 
                   for (let [key, value] of formData.entries()) {
                       if (key === 'airline' || key === 'flight_number') {
                           flightData[key] = value;
+                      } else if (key === 'cruise_line' || key === 'ship_name') {
+                          cruiseData[key] = value;
                       } else {
                           legData[key] = value;
                       }
@@ -1052,7 +1098,8 @@
                           body: JSON.stringify({
                               leg_id: legId,
                               leg_data: legData,
-                              flight_data: flightData
+                              flight_data: flightData,
+                              cruise_data: cruiseData
                           })
                       })
                       .then(response => response.json())

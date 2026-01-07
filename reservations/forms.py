@@ -1,7 +1,7 @@
 # reservations/forms.py
 
 from django import forms
-from .models import Reservation, Customer, Leg, Flight, Lead
+from .models import Reservation, Customer, Leg, Flight, Cruise, Lead
 from django.utils import timezone
 from django.db.models import Q
 from typing import override
@@ -223,6 +223,26 @@ class FlightForm(forms.ModelForm):
                 attrs={"class": "form-control", "list": "airlines"}
             ),
             "flight_number": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+
+class CruiseForm(forms.ModelForm):
+    """Form for cruise information"""
+
+    class Meta:
+        model = Cruise
+        fields = ["cruise_line", "ship_name"]
+        widgets = {
+            "cruise_line": forms.TextInput(
+                attrs={"class": "form-control", "list": "cruise_lines", "placeholder": "e.g. Disney Cruise Line"}
+            ),
+            "ship_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "e.g. Disney Wish"}
+            ),
+        }
+        labels = {
+            "cruise_line": "Cruise Line",
+            "ship_name": "Ship Name",
         }
 
 

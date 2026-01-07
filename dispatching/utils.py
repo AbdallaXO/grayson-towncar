@@ -46,6 +46,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             "driver",
             "driver__profile",
             "flight_information",
+            "cruise_information",
         ).prefetch_related(
             "reservation__legs",
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
@@ -545,6 +546,7 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
         "driver",
         "driver__profile",
         "flight_information",
+        "cruise_information",
     ).prefetch_related(
         "reservation__legs",
         Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),

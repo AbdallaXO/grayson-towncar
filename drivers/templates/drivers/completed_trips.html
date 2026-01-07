@@ -201,6 +201,19 @@
                             <span class="fw-bold">Flight:</span> {{ leg.flight_information }}
                           </div>
                         {% endif %}
+                        {% if leg.cruise_information %}
+                          <div class="mt-1">
+                            <span class="fw-bold">Cruise:</span> 
+                            <i class="bi bi-ship me-1"></i>
+                            {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                              {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                            {% elif leg.cruise_information.cruise_line %}
+                              {{ leg.cruise_information.cruise_line }}
+                            {% elif leg.cruise_information.ship_name %}
+                              {{ leg.cruise_information.ship_name }}
+                            {% endif %}
+                          </div>
+                        {% endif %}
                       </td>
                       <td>
                         {% if leg.reservation.special_requests %}
@@ -304,6 +317,19 @@
                   {% if leg.flight_information %}
                     <div class="mt-1">
                       <strong>Flight:</strong> {{ leg.flight_information }}
+                    </div>
+                  {% endif %}
+                  {% if leg.cruise_information %}
+                    <div class="mt-1">
+                      <strong>Cruise:</strong> 
+                      <i class="bi bi-ship me-1"></i>
+                      {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                        {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                      {% elif leg.cruise_information.cruise_line %}
+                        {{ leg.cruise_information.cruise_line }}
+                      {% elif leg.cruise_information.ship_name %}
+                        {{ leg.cruise_information.ship_name }}
+                      {% endif %}
                     </div>
                   {% endif %}
                 </div>

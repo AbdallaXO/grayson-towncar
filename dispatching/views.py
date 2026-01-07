@@ -107,6 +107,7 @@ def index(request):
             "driver",
             "driver__profile",
             "flight_information",
+            "cruise_information",
         )
         .prefetch_related(
             "reservation__legs",
@@ -1965,6 +1966,7 @@ def update_leg_info(request):
         leg_id = data.get("leg_id")
         leg_data = data.get("leg_data", {})
         flight_data = data.get("flight_data", {})
+        cruise_data = data.get("cruise_data", {})
 
         if not leg_id:
             return JsonResponse(
@@ -1972,7 +1974,10 @@ def update_leg_info(request):
             )
 
         # Get the leg with related objects
-        leg = get_object_or_404(Leg.objects.select_related('driver', 'driver__profile'), id=leg_id)
+        leg = get_object_or_404(
+            Leg.objects.select_related('driver', 'driver__profile', 'flight_information', 'cruise_information'), 
+            id=leg_id
+        )
 
         # Update leg fields
         update_fields = []
@@ -2021,9 +2026,63 @@ def update_leg_info(request):
                 leg.flight_information = flight
                 update_fields.append("flight_information")
 
+        # Handle cruise information (only if cruise_data is provided in the request)
+        cruise_to_delete = None
+        if cruise_data:
+            cruise_line = cruise_data.get("cruise_line", "").strip() if cruise_data.get("cruise_line") else ""
+            cruise_ship = cruise_data.get("ship_name", "").strip() if cruise_data.get("ship_name") else ""
+            
+            if cruise_line or cruise_ship:
+                # Create or update cruise information
+                if leg.cruise_information:
+                    cruise = leg.cruise_information
+                    cruise.cruise_line = cruise_line
+                    cruise.ship_name = cruise_ship
+                    cruise.save()
+                else:
+                    # Create new cruise information
+                    from reservations.models import Cruise
+                    cruise = Cruise.objects.create(
+                        cruise_line=cruise_line,
+                        ship_name=cruise_ship
+                    )
+                    leg.cruise_information = cruise
+                    update_fields.append("cruise_information")
+            else:
+                # If both fields are empty, remove cruise information
+                if leg.cruise_information:
+                    # Get reference to cruise before removing relationship
+                    cruise_to_delete = leg.cruise_information
+                    # Remove the relationship
+                    leg.cruise_information = None
+                    update_fields.append("cruise_information")
+
         # Save the leg if any fields were updated
         if update_fields:
-            leg.save(update_fields=update_fields)
+            try:
+                leg.save(update_fields=update_fields)
+            except Exception as e:
+                logger.error(f"Error saving leg {leg.id} with update_fields: {e}")
+                # If save with update_fields fails (e.g., "did not affect any rows"), 
+                # try saving without it - this can happen if the leg was already updated
+                try:
+                    # Re-apply the cruise_information change if needed
+                    if 'cruise_information' in update_fields and cruise_to_delete:
+                        leg.cruise_information = None
+                    leg.save()
+                except Exception as save_error:
+                    logger.error(f"Error saving leg {leg.id} without update_fields: {save_error}")
+                    return JsonResponse({
+                        "success": False,
+                        "error": f"Failed to save leg: {str(save_error)}"
+                    }, status=500)
+        
+        # After saving the leg, delete the cruise if it was removed
+        if cruise_to_delete:
+            try:
+                cruise_to_delete.delete()
+            except Exception as e:
+                logger.warning(f"Could not delete cruise {cruise_to_delete.id}: {e}")
 
         # Refresh leg from database to get latest data including driver
         leg.refresh_from_db()

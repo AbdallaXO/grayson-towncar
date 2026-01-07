@@ -8,6 +8,7 @@ from .forms import (
     CustomerForm,
     LegForm,
     FlightForm,
+    CruiseForm,
 )
 from decimal import Decimal
 from datetime import time
@@ -35,7 +36,7 @@ def get_form_details(request, rate):
 
 def _initalize_form(trip_type, rate, price):
     """Initializes the forms for the GET request and returns forms for customer, reservation,
-    flight1,leg1, and if trip_type is round_trip, it returns a flight2 form and a leg2 form"""
+    flight1,leg1, cruise1, and if trip_type is round_trip, it returns a flight2 form, leg2 form, and cruise2 form"""
     customer_form = CustomerForm(label_suffix="*")
     reservation_form = ReservationForm(
         initial={
@@ -48,9 +49,11 @@ def _initalize_form(trip_type, rate, price):
         label_suffix="",
     )
     flight1_form = FlightForm(prefix="flight1")
+    cruise1_form = CruiseForm(prefix="cruise1")
     leg1_form = LegForm(prefix="leg1", label_suffix="*")
     # conditional forms if its a roundtrip
     flight2_form = FlightForm(prefix="flight2") if trip_type == "round_trip" else None
+    cruise2_form = CruiseForm(prefix="cruise2") if trip_type == "round_trip" else None
     leg2_form = (
         LegForm(prefix="leg2", label_suffix="*") if trip_type == "round_trip" else None
     )
@@ -59,21 +62,29 @@ def _initalize_form(trip_type, rate, price):
         customer_form,
         reservation_form,
         flight1_form,
+        cruise1_form,
         leg1_form,
         flight2_form,
+        cruise2_form,
         leg2_form,
     )
 
 
 def returns_post_form(request, trip_type, rate):
     """Returns Forms with Posted Data, just to Avoid Redundancy of repeating everything in the view
-    returns customer,reservatiom,flight1,leg1, flight 2 and leg 2 if trip_type == 2, else oneway"""
+    returns customer,reservatiom,flight1,cruise1,leg1, flight2, cruise2 and leg2 if trip_type == round_trip, else oneway"""
     customer_form = CustomerForm(request.POST)
     reservation_form = ReservationForm(request.POST, rate=rate)
     flight1_form = FlightForm(request.POST, prefix="flight1")
+    cruise1_form = CruiseForm(request.POST, prefix="cruise1")
     leg1_form = LegForm(request.POST, prefix="leg1")
     flight2_form = (
         FlightForm(request.POST, prefix="flight2")
+        if trip_type == "round_trip"
+        else None
+    )
+    cruise2_form = (
+        CruiseForm(request.POST, prefix="cruise2")
         if trip_type == "round_trip"
         else None
     )
@@ -84,8 +95,10 @@ def returns_post_form(request, trip_type, rate):
         customer_form,
         reservation_form,
         flight1_form,
+        cruise1_form,
         leg1_form,
         flight2_form,
+        cruise2_form,
         leg2_form,
     )
 
@@ -94,33 +107,40 @@ def validate_forms(
     customer_form,
     reservation_form,
     flight1_form,
+    cruise1_form,
     leg1_form,
     flight2_form,
+    cruise2_form,
     leg2_form,
     trip_type,
 ):
     """Validated all the submitted forms based on trip_type
-    received forms for customer, reservation, flight1, leg1, flight2 if round_trip, leg2 if round_trip
+    received forms for customer, reservation, flight1, cruise1, leg1, flight2, cruise2 if round_trip, leg2 if round_trip
     returns true if all forms are valid
     if trip_type is oneway will always return true for oneway+ roundtrip"""
     customer_valid = customer_form.is_valid()
     reservation_valid = reservation_form.is_valid()
     flight1_valid = flight1_form.is_valid()
+    cruise1_valid = cruise1_form.is_valid()
     leg1_valid = leg1_form.is_valid()
 
     if trip_type != "round_trip":
         leg2_valid = True
         flight2_valid = True
+        cruise2_valid = True
     else:
         leg2_valid = leg2_form.is_valid()
         flight2_valid = flight2_form.is_valid()
+        cruise2_valid = cruise2_form.is_valid()
     forms_valid = all(
         [
             customer_valid,
             reservation_valid,
             flight1_valid,
+            cruise1_valid,
             leg1_valid,
             flight2_valid,
+            cruise2_valid,
             leg2_valid,
         ]
     )
@@ -144,6 +164,19 @@ AIRLINES = [
     "British Airways",
     "Sun Country Airlines",
     "Virgin Atlantic",
+]
+
+CRUISE_LINES = [
+    "Disney Cruise Line",
+    "Royal Caribbean",
+    "Carnival Cruise Line",
+    "Norwegian Cruise Line",
+    "MSC Cruises",
+    "Celebrity Cruises",
+    "Princess Cruises",
+    "Holland America Line",
+    "Cunard Line",
+    "Virgin Voyages",
 ]
 
 
