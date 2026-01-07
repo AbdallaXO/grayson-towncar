@@ -141,8 +141,14 @@
                     <div>
                       <small class="text-muted d-block">Flight Details</small>
                       <span class="fw-bold">
-                        {{ leg.flight_information.airline|default:"Not specified" }}
-                        - Flight #{{ leg.flight_information.flight_number|default:"N/A" }}
+                        {% if leg.flight_information.airline_display_name %}
+                          {{ leg.flight_information.airline_display_name }}
+                        {% else %}
+                          {{ leg.flight_information.airline|default:"Not specified" }}
+                        {% endif %}
+                        {% if leg.flight_information.flight_number %}
+                          - Flight #{{ leg.flight_information.flight_number }}
+                        {% endif %}
                       </span>
                     </div>
                   </div>

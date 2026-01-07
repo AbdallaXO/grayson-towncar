@@ -2349,7 +2349,12 @@ def dispatcher_booking_review(request):
                 pass
         
         if i < len(flights_data) and flights_data[i]:
-            combined_leg['flight_info'] = flights_data[i]
+            flight_info = flights_data[i].copy()
+            # Add display name for airline if available
+            if flight_info.get('airline'):
+                from reservations.utils import get_airline_display_name
+                flight_info['airline_display_name'] = get_airline_display_name(flight_info['airline'])
+            combined_leg['flight_info'] = flight_info
         else:
             combined_leg['flight_info'] = None
         combined_legs.append(combined_leg)

@@ -291,7 +291,14 @@
                               {% if leg.flight_information %}
                                 <br />
                                 <i class="fas fa-plane me-1"></i>
-                                {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                                {% if leg.flight_information.airline_display_name %}
+                                  {{ leg.flight_information.airline_display_name }}
+                                {% else %}
+                                  {{ leg.flight_information.airline }}
+                                {% endif %}
+                                {% if leg.flight_information.flight_number %}
+                                  {{ leg.flight_information.flight_number }}
+                                {% endif %}
                               {% endif %}
                             </div>
                           {% endfor %}

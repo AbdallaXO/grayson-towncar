@@ -573,7 +573,11 @@ class Flight(models.Model):
     flight_type = models.CharField(
         max_length=10, choices=FLIGHT_TYPE_CHOICES, blank=True
     )
-    airline = models.CharField(max_length=50, blank=True)
+    airline = models.CharField(max_length=50, blank=True, help_text="IATA code (e.g., DL, WN, B6) for API calls")
+    airline_display_name = models.CharField(
+        max_length=100, blank=True,
+        help_text="Full airline name for display (e.g., Delta Airlines, Southwest Airlines)"
+    )
     flight_number = models.CharField(max_length=50, blank=True)
     
     # AeroAPI Tracking Fields
@@ -641,11 +645,15 @@ class Flight(models.Model):
         Also extracts airline codes from flight numbers if present.
         """
         # Import here to avoid circular import
-        from .utils import normalize_airline, normalize_flight_number, extract_airline_from_flight_number
+        from .utils import normalize_airline, normalize_flight_number, extract_airline_from_flight_number, get_airline_display_name
         
         # Normalize airline field first
         if self.airline:
             self.airline = normalize_airline(self.airline)
+        
+        # Set display name from IATA code if not already set
+        if self.airline and not self.airline_display_name:
+            self.airline_display_name = get_airline_display_name(self.airline)
         
         # Handle flight_number
         if self.flight_number:
@@ -662,6 +670,9 @@ class Flight(models.Model):
                 extracted_airline = extract_airline_from_flight_number(self.flight_number)
                 if extracted_airline:
                     self.airline = extracted_airline
+                    # Set display name when extracting airline
+                    if not self.airline_display_name:
+                        self.airline_display_name = get_airline_display_name(self.airline)
                     # Remove the airline code from flight_number
                     flight_upper = str(self.flight_number).strip().upper()
                     if flight_upper.startswith(extracted_airline):
@@ -676,13 +687,15 @@ class Flight(models.Model):
         """
         Display flight type (e.g., 'Arrival' or 'Departure'), airline,
         and flight number for quick reference.
+        Uses display name if available, falls back to IATA code.
         """
-        return f"{self.airline} {self.flight_number}"
+        airline_display = self.airline_display_name or self.airline or ""
+        return f"{airline_display} {self.flight_number}".strip()
     
     def get_flight_ident(self):
         """
         Get the flight identifier for AeroAPI (combines airline and flight number)
-        Returns IATA format like 'DL1691' or falls back to airline + flight_number
+        Returns FlightAware format like 'DL1691' or 'JBU123' (converts IATA to FlightAware codes)
         
         Prioritizes current airline/flight_number over stored flight_iata to ensure
         we use the most up-to-date flight information.
@@ -691,12 +704,14 @@ class Flight(models.Model):
         # This ensures we use the updated flight info if the user changed it
         if self.airline and self.flight_number:
             # Import here to avoid circular import
-            from .utils import normalize_airline
+            from .utils import normalize_airline, get_flightaware_code
             # Normalize airline to IATA code (already normalized in save, but double-check)
-            airline_code = normalize_airline(self.airline)
+            iata_code = normalize_airline(self.airline)
+            # Convert IATA code to FlightAware code for API calls
+            flightaware_code = get_flightaware_code(iata_code)
             # Remove non-alphanumeric from flight number
             flight_num = ''.join(c for c in self.flight_number if c.isalnum())
-            return f"{airline_code}{flight_num}"
+            return f"{flightaware_code}{flight_num}"
         
         # Fallback to stored flight_iata if airline/flight_number not available
         if self.flight_iata:

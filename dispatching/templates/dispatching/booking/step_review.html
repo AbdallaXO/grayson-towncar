@@ -151,7 +151,14 @@
                 <div class="bg-light p-2 rounded">
                   <small>
                     <i class="fas fa-plane me-1"></i>
-                    {{ leg_data.flight_info.airline }} {{ leg_data.flight_info.flight_number }}
+                    {% if leg_data.flight_info.airline_display_name %}
+                      {{ leg_data.flight_info.airline_display_name }}
+                    {% else %}
+                      {{ leg_data.flight_info.airline }}
+                    {% endif %}
+                    {% if leg_data.flight_info.flight_number %}
+                      {{ leg_data.flight_info.flight_number }}
+                    {% endif %}
                     {% if leg_data.flight_info.flight_type %}
                       <br>
                       <span class="text-muted">{{ leg_data.flight_info.flight_type|title }}</span>

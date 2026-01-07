@@ -190,7 +190,7 @@ def extract_airline_from_flight_number(flight_number_input):
     
     # List of all known IATA codes (2 letters)
     known_codes = ['AA', 'DL', 'UA', 'WN', 'B6', 'NK', 'F9', 'AS', 'HA', 'G4', 
-                   'AC', 'XP', 'MX', 'BA', 'SY', 'VS']
+                   'AC', 'XP', 'MX', 'BA', 'SY', 'VS', 'WS']
     
     # Check if flight number starts with a known 2-letter code
     if len(flight_num) >= 2:
@@ -322,6 +322,14 @@ def normalize_airline(airline_input):
         'VIRGIN ATLANTIC AIRWAYS': 'VS',
         'VIRGIN': 'VS',
         'VS': 'VS',
+        
+        # WestJet variations
+        'WESTJET': 'WS',
+        'WEST JET': 'WS',
+        'WESTJET AIRLINES': 'WS',
+        'WEST JET AIRLINES': 'WS',
+        'WS': 'WS',
+        'WJA': 'WS',  # FlightAware code, but normalize to IATA
     }
     
     # First, try exact match
@@ -351,6 +359,77 @@ def normalize_airline(airline_input):
     # If no match found, return original input (normalized to uppercase)
     # This allows for airlines we don't have in our mapping
     return airline
+
+
+def get_airline_display_name(iata_code):
+    """
+    Get the full display name for an airline from its IATA code.
+    
+    Args:
+        iata_code (str): IATA airline code (e.g., "DL", "WN", "B6")
+        
+    Returns:
+        str: Full airline name (e.g., "Delta Airlines", "Southwest Airlines") or IATA code if not found
+    """
+    if not iata_code:
+        return ""
+    
+    iata_code = iata_code.strip().upper()
+    
+    # Mapping from IATA codes to display names
+    display_name_mapping = {
+        'AA': 'American Airlines',
+        'DL': 'Delta Airlines',
+        'UA': 'United Airlines',
+        'WN': 'Southwest Airlines',
+        'B6': 'JetBlue Airways',
+        'NK': 'Spirit Airlines',
+        'F9': 'Frontier Airlines',
+        'AS': 'Alaska Airlines',
+        'G4': 'Allegiant Air',
+        'AC': 'Air Canada',
+        'XP': 'Avelo Airlines',
+        'MX': 'Breeze Airways',
+        'BA': 'British Airways',
+        'SY': 'Sun Country Airlines',
+        'VS': 'Virgin Atlantic',
+        'WS': 'WestJet',
+    }
+    
+    return display_name_mapping.get(iata_code, iata_code)
+
+
+def get_flightaware_code(iata_code):
+    """
+    Convert IATA airline code to FlightAware/AeroAPI code.
+    Most airlines use the same code, but some have different codes.
+    
+    Args:
+        iata_code (str): IATA airline code (e.g., "B6", "F9", "G4")
+        
+    Returns:
+        str: FlightAware code for API calls (e.g., "JBU", "FFT", "AAY")
+    """
+    if not iata_code:
+        return ""
+    
+    iata_code = iata_code.strip().upper()
+    
+    # Mapping from IATA codes to FlightAware codes
+    # Most airlines use the same code, only special cases are mapped
+    flightaware_mapping = {
+        'B6': 'JBU',  # JetBlue: IATA is B6, FlightAware uses JBU
+        'F9': 'FFT',  # Frontier: IATA is F9, FlightAware uses FFT
+        'G4': 'AAY',  # Allegiant: IATA is G4, FlightAware uses AAY
+        'AS': 'ASA',  # Alaska Airlines: IATA is AS, FlightAware uses ASA
+        'XP': 'VXP',  # Avelo: IATA is XP, FlightAware uses VXP
+        'MX': 'MXY',  # Breeze: IATA is MX, FlightAware uses MXY
+        'WS': 'WJA',  # WestJet: IATA is WS, FlightAware uses WJA
+        # All others use the same code
+    }
+    
+    # Return FlightAware code if mapped, otherwise return IATA code
+    return flightaware_mapping.get(iata_code, iata_code)
 
 
 def extra_charges(reservation):
