@@ -324,7 +324,7 @@
                   {% if reservation.store_stop %}
                     <tr>
                       <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Grocery Store: 20 Mins Publix Stop @9930 Universal Blvd</p>
+                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Grocery Store: 20-minute complimentary stop at Publix @9930 Universal Blvd.</p>
                       </td>
                     </tr>
                     <tr>
@@ -387,7 +387,8 @@
                     <td height="10"></td>
                   </tr>
 
-                  <!-- Gratuity Note -->
+                  <!-- Gratuity Note (only show if gratuity was not included during booking) -->
+                  {% if not reservation.gratuity_percentage or reservation.gratuity_percentage == 0 %}
                   <tr>
                     <td style="background-color:#f5f5f5; padding:10px; border-left:3px solid #C89B3C;">
                       <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">
@@ -398,6 +399,7 @@
                   <tr>
                     <td height="20"></td>
                   </tr>
+                  {% endif %}
 
                   <!-- Airport Pickup Instructions -->
                   <tr>
@@ -431,6 +433,49 @@
                       <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours: return trip will be refunded in full; arrival trip will receive a 50% credit.</p>
                     </td>
                   </tr>
+                  <tr>
+                    <td height="20"></td>
+                  </tr>
+
+                  <!-- Service Policies -->
+                  {% if reservation.store_stop %}
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Grocery Stop Policy</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td height="3"></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:26px; color:#555555;">We offer a complimentary 20-minute grocery stop at Publix (9930 Universal Blvd) upon request. For faster service, guests may pre-order through Instacart at no additional cost. In the event of a flight delay, we cannot guarantee the grocery stop due to scheduling adjustments. Any time beyond 20 minutes may incur an additional charge.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td height="20"></td>
+                  </tr>
+                  {% endif %}
+
+                  <!-- Return Trip Additional Time Policy -->
+                  {% if has_return_trip %}
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Departure Pickup Grace Period</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td height="3"></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:26px; color:#555555;">For departure pickups, our chauffeur will arrive at the scheduled pickup time. A 15-minute grace period is provided. After 15 minutes past the scheduled pickup time, we reserve the right to depart or apply additional waiting time charges.</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td height="20"></td>
+                  </tr>
+                  {% endif %}
                   <tr>
                     <td height="20"></td>
                   </tr>

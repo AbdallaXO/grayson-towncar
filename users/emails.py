@@ -95,10 +95,15 @@ def send_reservation_confirmation(reservation):
 
     def _send_email():
         try:
+            legs = reservation.legs.all()
+            # Check if any leg is a return trip
+            has_return_trip = any(leg.get_trip_type() == 'return' for leg in legs)
+            
             context = {
                 "reservation": reservation,
-                "legs": reservation.legs.all(),
+                "legs": legs,
                 "date": timezone.now().date(),
+                "has_return_trip": has_return_trip,
             }
 
             subject = "Thank you for booking with Grayson Towncar!"
