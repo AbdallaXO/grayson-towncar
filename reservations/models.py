@@ -651,12 +651,24 @@ class Flight(models.Model):
         from .utils import normalize_airline, normalize_flight_number, extract_airline_from_flight_number, get_airline_display_name
         
         # Normalize airline field first
+        original_airline = self.airline
         if self.airline:
             self.airline = normalize_airline(self.airline)
         
-        # Set display name from IATA code if not already set
-        if self.airline and not self.airline_display_name:
-            self.airline_display_name = get_airline_display_name(self.airline)
+        # Update display name whenever airline code changes
+        # Check if airline was changed (compare normalized versions)
+        if self.airline:
+            new_display_name = get_airline_display_name(self.airline)
+            # Update display name if:
+            # 1. It's not set yet, OR
+            # 2. The airline code has changed (normalized airline doesn't match current display name's code)
+            if not self.airline_display_name or new_display_name != self.airline_display_name:
+                # Only update if we got a proper display name (not just the code itself)
+                if new_display_name != self.airline:
+                    self.airline_display_name = new_display_name
+                elif not self.airline_display_name:
+                    # If display name lookup returned the code (unknown airline), set it anyway if empty
+                    self.airline_display_name = new_display_name
         
         # Handle flight_number
         if self.flight_number:

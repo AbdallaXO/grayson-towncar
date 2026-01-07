@@ -85,13 +85,20 @@ class ReservationInline(admin.TabularInline):
     verbose_name = "Reservation"
     verbose_name_plural = "Reservations in this Payout"
 
+    def get_queryset(self, request):
+        """Optimize queryset with related data."""
+        from reservations.models import Reservation
+        qs = super().get_queryset(request)
+        return qs.select_related("reservation__customer")
+
     def reservation_info(self, obj):
         """Display formatted reservation information."""
         reservation = obj.reservation
+        customer_name = str(reservation.customer) if reservation.customer else "N/A"
         return create_admin_link(
             "reservation",
             reservation.id,
-            f"#{reservation.id} - {reservation.customer} - ${reservation.total_price:.2f}",
+            f"#{reservation.id} - {customer_name} - ${reservation.total_price:.2f}",
             app_label="reservations",
         )
 
@@ -546,11 +553,22 @@ class CommissionPayoutAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """Optimize queryset with related data."""
+        from django.db.models import Prefetch
+        from reservations.models import Reservation
         return (
             super()
             .get_queryset(request)
             .select_related("agent__user", "agency")
-            .prefetch_related("reservations")
+            .prefetch_related(
+                Prefetch(
+                    "reservations",
+                    queryset=Reservation.objects.select_related("customer").only(
+                        "id", "customer__first_name", "customer__last_name", 
+                        "customer__email", "total_price", "commission_amount", 
+                        "created_at"
+                    )
+                )
+            )
         )
 
     def payout_id(self, obj):
@@ -597,6 +615,7 @@ class CommissionPayoutAdmin(admin.ModelAdmin):
 
     def reservation_details(self, obj):
         """Display detailed reservation table."""
+        # Use prefetched reservations from get_queryset
         reservations = obj.reservations.all()
         if not reservations:
             return "No reservations"
@@ -614,11 +633,13 @@ class CommissionPayoutAdmin(admin.ModelAdmin):
             edit_link = create_admin_link(
                 "reservation", res.id, f"#{res.id}", app_label="reservations"
             )
+            customer_name = str(res.customer) if res.customer else "N/A"
+            created_date = res.created_at.strftime('%b %d, %Y') if res.created_at else "N/A"
             html += (
                 f"<tr>"
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>{edit_link}</td>"
-                f"<td style='padding: 4px; border: 1px solid #ddd;'>{res.customer}</td>"
-                f"<td style='padding: 4px; border: 1px solid #ddd;'>{res.created_at.strftime('%b %d, %Y')}</td>"
+                f"<td style='padding: 4px; border: 1px solid #ddd;'>{customer_name}</td>"
+                f"<td style='padding: 4px; border: 1px solid #ddd;'>{created_date}</td>"
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>${res.total_price:.2f}</td>"
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>${res.commission_amount:.2f}</td>"
                 f"</tr>"

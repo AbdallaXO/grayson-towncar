@@ -1408,12 +1408,75 @@ class LegAdmin(ImportExportModelAdmin):
         return "-"
 
 
+class FlightInUseFilter(SimpleListFilter):
+    """Filter to show flights that are in use (linked to legs) vs orphaned."""
+    title = 'in use'
+    parameter_name = 'in_use'
+    
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'In Use (Linked to Legs)'),
+            ('no', 'Orphaned (Not Linked)'),
+        )
+    
+    def queryset(self, request, queryset):
+        from .models import Leg
+        from django.db.models import Exists, OuterRef
+        if self.value() == 'yes':
+            # OneToOneField reverse relationship - flights that have a leg
+            return queryset.filter(
+                Exists(Leg.objects.filter(flight_information=OuterRef('pk')))
+            )
+        elif self.value() == 'no':
+            # Flights not linked to any leg
+            return queryset.exclude(
+                Exists(Leg.objects.filter(flight_information=OuterRef('pk')))
+            )
+        return queryset
+
+
 @admin.register(Flight)
 class FlightAdmin(admin.ModelAdmin):
-    list_display = ("airline", "flight_number", "flight_type")
-    list_filter = ("flight_type", "airline")
-    search_fields = ("airline", "flight_number")
+    list_display = ("airline", "airline_display_name", "flight_number", "flight_type", "leg_count", "is_in_use")
+    list_filter = ("flight_type", "airline", FlightInUseFilter)
+    search_fields = ("airline", "airline_display_name", "flight_number")
     ordering = ("airline", "flight_number")
+    readonly_fields = ("airline_display_name", "leg_count", "is_in_use")
+    
+    def get_queryset(self, request):
+        """Optimize queryset to check if flight is in use."""
+        qs = super().get_queryset(request)
+        # Check if flight is linked to any leg via subquery
+        from .models import Leg
+        from django.db.models import Exists, OuterRef
+        return qs.annotate(
+            is_linked=Exists(Leg.objects.filter(flight_information=OuterRef('pk')))
+        )
+    
+    def leg_count(self, obj):
+        """Show if flight is linked to a leg."""
+        # OneToOneField means there can only be 0 or 1 leg per flight
+        if hasattr(obj, 'is_linked'):
+            return "Yes" if obj.is_linked else "No"
+        # Fallback: check directly
+        from .models import Leg
+        return "Yes" if Leg.objects.filter(flight_information=obj).exists() else "No"
+    
+    leg_count.short_description = "Linked to Leg"
+    
+    def is_in_use(self, obj):
+        """Show if flight is currently linked to any leg."""
+        if hasattr(obj, 'is_linked'):
+            in_use = obj.is_linked
+        else:
+            from .models import Leg
+            in_use = Leg.objects.filter(flight_information=obj).exists()
+        
+        if in_use:
+            return format_html('<span style="color: green;">✓ Yes</span>')
+        return format_html('<span style="color: red;">✗ No</span>')
+    
+    is_in_use.short_description = "Status"
 
 
 @admin.register(Cruise)
@@ -1913,15 +1976,31 @@ class LeadAdmin(admin.ModelAdmin):
     def send_sms_to_selected(self, request, queryset):
         """
         Queue selected leads for SMS sending via GoHighLevel.
-        Skips leads without phone numbers or that already have SMS sent.
+        Prevents duplicate SMS by:
+        - Grouping leads by phone number
+        - Sending to most expensive lead per phone (or newest if same/no price)
+        - Skipping phones that received SMS in last 18 hours
         """
         from ghl_integration.tasks import sync_lead_to_ghl_and_send_sms
         from threading import Thread
+        from datetime import timedelta
+        from collections import defaultdict
         
+        # Time window for preventing duplicate SMS (18 hours)
+        SMS_COOLDOWN_HOURS = 18
+        cutoff_time = timezone.now() - timedelta(hours=SMS_COOLDOWN_HOURS)
+        
+        # Statistics
         queued_count = 0
         processed_count = 0
         skipped_no_phone = 0
         skipped_already_sent = 0
+        skipped_duplicate_phone = 0
+        skipped_recent_sms = 0
+        
+        # Group leads by phone number
+        leads_by_phone = defaultdict(list)
+        leads_to_process = []
         
         for lead in queryset:
             # Skip if no phone number
@@ -1929,11 +2008,60 @@ class LeadAdmin(admin.ModelAdmin):
                 skipped_no_phone += 1
                 continue
             
-            # Skip if SMS already sent
+            # Skip if SMS already sent (individual check)
             if lead.initial_sms_sent:
                 skipped_already_sent += 1
                 continue
             
+            # Normalize phone for grouping (remove spaces, dashes, etc.)
+            normalized_phone = ''.join(filter(str.isdigit, lead.phone))
+            if normalized_phone:
+                leads_by_phone[normalized_phone].append(lead)
+        
+        # Process each phone number group
+        for phone, phone_leads in leads_by_phone.items():
+            # Check if this phone received SMS in last 18 hours (anywhere in database)
+            # Use last 10 digits for US phone matching (handles different formats)
+            recent_sms_check = False
+            if len(phone) >= 10:
+                last_10_digits = phone[-10:]
+                # Get all leads that received SMS recently
+                recent_leads = Lead.objects.filter(
+                    initial_sms_sent=True,
+                    initial_sms_sent_at__gte=cutoff_time
+                ).exclude(phone__isnull=True).exclude(phone='')
+                
+                # Check if any recent lead has matching phone (normalize and compare last 10 digits)
+                for recent_lead in recent_leads:
+                    recent_phone_digits = ''.join(filter(str.isdigit, recent_lead.phone))
+                    if recent_phone_digits and len(recent_phone_digits) >= 10:
+                        if recent_phone_digits[-10:] == last_10_digits:
+                            recent_sms_check = True
+                            break
+            
+            if recent_sms_check:
+                # Skip all leads with this phone (received SMS recently)
+                skipped_recent_sms += len(phone_leads)
+                continue
+            
+            # Pick ONE lead to send to: most expensive first, then newest if same/no price
+            selected_lead = max(
+                phone_leads,
+                key=lambda l: (
+                    l.estimated_price if l.estimated_price else 0,
+                    l.created_at if l.created_at else timezone.now()
+                )
+            )
+            
+            # Add selected lead to process list
+            leads_to_process.append(selected_lead)
+            
+            # Count skipped duplicates
+            if len(phone_leads) > 1:
+                skipped_duplicate_phone += len(phone_leads) - 1
+        
+        # Process selected leads
+        for lead in leads_to_process:
             # Try to queue with Celery, fallback to thread if Celery unavailable
             try:
                 sync_lead_to_ghl_and_send_sms.delay(lead.id)
@@ -1941,11 +2069,11 @@ class LeadAdmin(admin.ModelAdmin):
             except Exception as e:
                 # Celery not available, run in background thread
                 logger.warning(f"Could not queue Celery task for lead {lead.id}: {e}. Running in thread instead.")
-                def run_task():
+                def run_task(lead_id=lead.id):
                     try:
-                        sync_lead_to_ghl_and_send_sms(lead.id)
+                        sync_lead_to_ghl_and_send_sms(lead_id)
                     except Exception as task_error:
-                        logger.error(f"Error processing lead {lead.id} in thread: {task_error}")
+                        logger.error(f"Error processing lead {lead_id} in thread: {task_error}")
                 
                 thread = Thread(target=run_task, daemon=True)
                 thread.start()
@@ -1963,6 +2091,10 @@ class LeadAdmin(admin.ModelAdmin):
             message_parts.append(f"{skipped_no_phone} skipped (no phone number)")
         if skipped_already_sent > 0:
             message_parts.append(f"{skipped_already_sent} skipped (SMS already sent)")
+        if skipped_duplicate_phone > 0:
+            message_parts.append(f"{skipped_duplicate_phone} skipped (duplicate phone)")
+        if skipped_recent_sms > 0:
+            message_parts.append(f"{skipped_recent_sms} skipped (SMS sent in last {SMS_COOLDOWN_HOURS} hours)")
         
         if total_processed > 0:
             self.message_user(request, ". ".join(message_parts) + ".", messages.SUCCESS)
