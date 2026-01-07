@@ -862,8 +862,9 @@ def dispatcher_payment_portal(request, reservation_id):
 
     if hasattr(customer, "stripe_customer_id") and customer.stripe_customer_id:
         try:
+            # Retrieve ALL payment methods (card, link, etc.) - not just cards
             payment_methods = stripe.PaymentMethod.list(
-                customer=customer.stripe_customer_id, type="card"
+                customer=customer.stripe_customer_id
             )
             has_saved_cards = len(payment_methods.data) > 0
         except stripe.error.StripeError as e:

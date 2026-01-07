@@ -58,7 +58,7 @@
                   </option>
                   {% if has_saved_cards %}
                     <option value="use_saved_card"
-                            {% if selected_action == 'use_saved_card' %}selected{% endif %}>Use Saved Card</option>
+                            {% if selected_action == 'use_saved_card' %}selected{% endif %}>Use Saved Payment Method</option>
                   {% endif %}
                 </select>
               </div>
@@ -66,14 +66,22 @@
               {% if has_saved_cards %}
                 <div class="mb-3 field-hidden" id="saved_cards_field_group">
                   <label for="payment_method_id" class="form-label">
-                    <strong>Select Saved Card:</strong>
+                    <strong>Select Saved Payment Method:</strong>
                   </label>
                   <select name="payment_method_id"
                           id="payment_method_id"
                           class="form-select form-select-lg">
                     {% for method in payment_methods %}
                       <option value="{{ method.id }}">
-                        {{ method.card.brand|title }} ending in {{ method.card.last4 }} (Exp: {{ method.card.exp_month }}/{{ method.card.exp_year }})
+                        {% if method.type == 'card' %}
+                          {{ method.card.brand|title }} ending in {{ method.card.last4 }} (Exp: {{ method.card.exp_month }}/{{ method.card.exp_year }})
+                        {% elif method.type == 'link' %}
+                          Link ({{ method.link.email }})
+                        {% elif method.type == 'us_bank_account' %}
+                          Bank Account ending in {{ method.us_bank_account.last4 }}
+                        {% else %}
+                          {{ method.type|title }} Payment Method
+                        {% endif %}
                       </option>
                     {% endfor %}
                   </select>
