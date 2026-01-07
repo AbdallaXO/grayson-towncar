@@ -2172,7 +2172,39 @@ class LeadAdmin(admin.ModelAdmin):
             # Add selected lead to process list
             leads_to_process.append(selected_lead)
             
-            # Count skipped duplicates
+            # Mark ALL leads with this phone as "contacted" (even if they didn't get SMS)
+            # This ensures all quotes for the same person are marked as contacted
+            leads_to_mark_contacted = []
+            for lead in phone_leads:
+                if lead.status != 'contacted':
+                    lead.status = 'contacted'
+                    lead.contact_attempts = (lead.contact_attempts or 0) + 1
+                    lead.last_contact_date = timezone.now()
+                    lead.save(update_fields=['status', 'contact_attempts', 'last_contact_date'])
+                    # Track leads that need GHL status sync
+                    if lead.ghl_contact_id:
+                        leads_to_mark_contacted.append(lead.ghl_contact_id)
+            
+            # Sync status to GHL for all leads with this phone (in background)
+            if leads_to_mark_contacted:
+                from ghl_integration.services import GoHighLevelService
+                from threading import Thread
+                
+                def sync_all_contacted_statuses():
+                    service = GoHighLevelService()
+                    for contact_id in leads_to_mark_contacted:
+                        try:
+                            service.update_contact_status_fields(
+                                contact_id=contact_id,
+                                status="contacted"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to sync contacted status to GHL for contact {contact_id}: {e}")
+                
+                thread = Thread(target=sync_all_contacted_statuses, daemon=True)
+                thread.start()
+            
+            # Count skipped duplicates (for SMS sending, not for status update)
             if len(phone_leads) > 1:
                 skipped_duplicate_phone += len(phone_leads) - 1
         
