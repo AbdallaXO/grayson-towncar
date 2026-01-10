@@ -2212,7 +2212,6 @@ class LeadAdmin(admin.ModelAdmin):
         # Process selected leads with rate limiting (no Celery/Redis)
         # Batch leads to avoid overwhelming the server
         from ghl_integration.services import GoHighLevelService, get_sms_template
-        from reservations.models import Lead
         import time
         
         BATCH_SIZE = 10  # Process 10 leads at a time
@@ -2305,10 +2304,12 @@ class LeadAdmin(admin.ModelAdmin):
         
         # Process in background thread with batching
         if lead_ids:
+            # Use non-daemon thread so processing completes even if request ends
+            # Note: Thread will still be killed on server restart, but will complete for normal requests
             thread = Thread(
                 target=process_leads_in_batches,
                 args=(lead_ids,),
-                daemon=True
+                daemon=False  # Changed to False so processing completes
             )
             thread.start()
             processed_count = len(lead_ids)
