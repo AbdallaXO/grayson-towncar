@@ -49,6 +49,18 @@
                         title="Cancel">
                   <i class="bi bi-x-circle small"></i>
                 </button>
+                {% with payment_count=reservation.payments.all|length %}
+                  {% if payment_count == 0 %}
+                    <button onclick="showDeleteReservationModal('{{ reservation.uuid }}', '{{ reservation.id }}', '{{ reservation.customer.get_full_name }}')"
+                            class="btn btn-sm btn-outline-danger p-0"
+                            style="width: 32px;
+                                   height: 32px;
+                                   line-height: 32px"
+                            title="Delete Reservation">
+                      <i class="bi bi-trash small"></i>
+                    </button>
+                  {% endif %}
+                {% endwith %}
               </div>
             </td>
 
@@ -292,6 +304,18 @@
                           title="Cancel">
                     <i class="bi bi-x-circle small"></i>
                   </button>
+                  {% with payment_count=reservation.payments.all|length %}
+                    {% if payment_count == 0 %}
+                      <button onclick="showDeleteReservationModal('{{ reservation.uuid }}', '{{ reservation.id }}', '{{ reservation.customer.get_full_name }}')"
+                              class="btn btn-sm btn-outline-danger p-0"
+                              style="width: 32px;
+                                     height: 32px;
+                                     line-height: 32px"
+                              title="Delete Reservation">
+                        <i class="bi bi-trash small"></i>
+                      </button>
+                    {% endif %}
+                  {% endwith %}
                 </div>
               </div>
             </div>

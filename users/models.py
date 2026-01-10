@@ -173,7 +173,8 @@ class TravelAgent(models.Model):
         logger = logging.getLogger(__name__)
 
         # Calculate the sum of unpaid commissions from completed reservations
-        # This applies the agent's commission rate to each reservation total_price
+        # This applies the agent's commission rate to each reservation base_price only
+        # (not additional fees or gratuity)
         unpaid_reservations = Reservation.objects.filter(
             travel_agent=self, commission_paid=False, status="completed"
         )
@@ -185,7 +186,7 @@ class TravelAgent(models.Model):
         unpaid_commissions = (
             unpaid_reservations.annotate(
                 calculated_commission=ExpressionWrapper(
-                    F("total_price") * (self.commission_rate / 100),
+                    F("base_price") * (self.commission_rate / 100),
                     output_field=DecimalField(max_digits=10, decimal_places=2),
                 )
             ).aggregate(total=Sum("calculated_commission"))["total"]
@@ -204,11 +205,12 @@ class TravelAgent(models.Model):
         from reservations.models import Reservation
 
         # Calculate pending commissions (confirmed but not completed)
+        # Commission is calculated on base_price only, not additional fees or gratuity
         pending_commissions = (
             Reservation.objects.filter(travel_agent=self, status="confirmed")
             .annotate(
                 calculated_commission=ExpressionWrapper(
-                    F("total_price") * (self.commission_rate / 100),
+                    F("base_price") * (self.commission_rate / 100),
                     output_field=DecimalField(max_digits=10, decimal_places=2),
                 )
             )
@@ -296,15 +298,18 @@ class TravelAgent(models.Model):
             )
 
             if unpaid_reservations.exists():
-                # Calculate commission amounts for each reservation
+                # IMPORTANT: Recalculate commission amounts for each reservation
+                # We recalculate here (not using stored commission_amount) to ensure accuracy
+                # Commission is calculated on base_price only, not additional fees or gratuity
                 reservations_with_commission = unpaid_reservations.annotate(
                     calculated_commission=ExpressionWrapper(
-                        F("total_price") * (self.commission_rate / 100),
+                        F("base_price") * (self.commission_rate / 100),
                         output_field=DecimalField(max_digits=10, decimal_places=2),
                     )
                 )
 
-                # Calculate total commission
+                # Calculate total commission from recalculated values
+                # This ensures we're using base_price, not total_price (which includes fees/gratuity)
                 commission_total = sum(
                     r.calculated_commission for r in reservations_with_commission
                 )
@@ -321,10 +326,11 @@ class TravelAgent(models.Model):
                 period_end = timezone.localtime(timezone.now()).date()  # Current date when processing payout
 
                 # Build detailed reservation summary for notes
+                # Note: calculated_commission is based on base_price only (not additional fees/gratuity)
                 reservation_details = []
                 for res in reservations_with_commission:
                     reservation_details.append(
-                        f"#{res.id} - {res.customer} (${res.total_price:.2f} -> ${res.calculated_commission:.2f})"
+                        f"#{res.id} - {res.customer} (Base: ${res.base_price:.2f}, Total: ${res.total_price:.2f} -> Commission: ${res.calculated_commission:.2f})"
                     )
 
                 # Create comprehensive notes
@@ -642,15 +648,18 @@ class Agency(models.Model):
                 )
 
                 if unpaid_reservations.exists():
-                    # Calculate commission amounts for each reservation
+                    # IMPORTANT: Recalculate commission amounts for each reservation
+                    # We recalculate here (not using stored commission_amount) to ensure accuracy
+                    # Commission is calculated on base_price only, not additional fees or gratuity
                     reservations_with_commission = unpaid_reservations.annotate(
                         calculated_commission=ExpressionWrapper(
-                            F("total_price") * (agent.commission_rate / 100),
+                            F("base_price") * (agent.commission_rate / 100),
                             output_field=DecimalField(max_digits=10, decimal_places=2),
                         )
                     )
 
-                    # Calculate total commission for this agent
+                    # Calculate total commission from recalculated values
+                    # This ensures we're using base_price, not total_price (which includes fees/gratuity)
                     agent_commission_total = sum(
                         r.calculated_commission for r in reservations_with_commission
                     )
@@ -680,10 +689,11 @@ class Agency(models.Model):
                         total_reservations += reservation_count
 
                         # Build detailed notes for individual agent payout
+                        # Note: calculated_commission is based on base_price only (not additional fees/gratuity)
                         agent_reservation_details = []
                         for res in reservations_with_commission:
                             agent_reservation_details.append(
-                                f"ID #{res.id} For {res.customer.get_full_name()} - (${res.total_price:.2f} -> ${res.calculated_commission:.2f})"
+                                f"ID #{res.id} For {res.customer.get_full_name()} - (Base: ${res.base_price:.2f}, Total: ${res.total_price:.2f} -> Commission: ${res.calculated_commission:.2f})"
                             )
 
                         individual_agent_notes = (

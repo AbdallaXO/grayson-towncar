@@ -1201,8 +1201,13 @@ def dispatcher_payment_portal(request, reservation_id):
                                 reservation.save(update_fields=["status"])
                             payment.save()
 
-                        # Note: Confirmation emails are NOT sent for dispatcher-initiated payments
-                        # Emails are only sent for customer-initiated payments via webhook
+                        # Send confirmation email after successful payment
+                        try:
+                            send_reservation_confirmation(reservation)
+                            logger.info(f"Confirmation email sent for dispatcher payment on reservation {reservation.uuid}")
+                        except Exception as e:
+                            logger.error(f"Error sending confirmation email for dispatcher payment on reservation {reservation.uuid}: {e}")
+                            # Don't fail payment processing if email fails
 
                         # Send purchase event
                         try:
@@ -3013,4 +3018,52 @@ def delete_leg(request):
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
     except Exception as e:
         logger.error(f"Error deleting leg: {str(e)}")
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def delete_reservation(request):
+    """
+    Delete a reservation via AJAX.
+    Only allows deletion if reservation has no payments.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        reservation_uuid = data.get("reservation_uuid")
+
+        if not reservation_uuid:
+            return JsonResponse({"success": False, "error": "Missing reservation UUID"}, status=400)
+        
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+        
+        # Check if reservation has any payments
+        payment_count = reservation.payments.count()
+        if payment_count > 0:
+            return JsonResponse({
+                "success": False, 
+                "error": f"Cannot delete reservation with {payment_count} payment(s). Please remove payments first or contact support."
+            }, status=400)
+        
+        # Store reservation info for logging
+        reservation_info = f"Reservation #{reservation.id} - {reservation.customer.get_full_name()}"
+        
+        # Delete the reservation (this will cascade delete legs, etc.)
+        reservation.delete()
+        
+        logger.info(f"Deleted {reservation_info} by user {request.user.username}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Reservation deleted successfully",
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error deleting reservation: {str(e)}", exc_info=True)
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)

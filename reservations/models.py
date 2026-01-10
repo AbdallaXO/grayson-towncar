@@ -186,10 +186,10 @@ class Reservation(models.Model):
             self.total_price = self.base_price + (self.additional_charges or 0)
 
         # Calculate commission if this is a travel agent reservation
+        # Commission is calculated on base_price only, not additional fees or gratuity
         if self.travel_agent and self.commission_amount is None:
-            self.commission_amount = self.total_price * Decimal(
-                "0.10"
-            )  # 10% commission
+            commission_rate = (self.travel_agent.commission_rate / Decimal("100")) if hasattr(self.travel_agent, 'commission_rate') and self.travel_agent.commission_rate else Decimal("0.10")
+            self.commission_amount = self.base_price * commission_rate
 
         # Call the original save() method
         super().save(*args, **kwargs)
@@ -283,16 +283,21 @@ class Reservation(models.Model):
         """
         Get detailed payment status including payment type and status
         Uses prefetched payments to avoid N+1 queries
-        Always returns the LATEST payment (most recent)
+        Always returns the LATEST payment (most recent by created_at)
         """
         # Use prefetched payments if available, otherwise fall back to query
         if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
             payments = list(self._prefetched_objects_cache['payments'])
-            # Ensure prefetched payments are ordered by created_at desc (most recent first)
-            payments.sort(key=lambda p: p.created_at, reverse=True)
+            # Sort by created_at desc, then by id desc (most recent first)
+            # This ensures we get the truly latest payment even if timestamps are identical
+            # Use id as secondary sort since higher id = more recent payment
+            payments.sort(key=lambda p: (
+                p.created_at if p.created_at else timezone.make_aware(timezone.datetime.min), 
+                p.id if p.id else 0
+            ), reverse=True)
         else:
-            # Explicitly order by created_at desc to get the latest payment
-            payments = list(self.payments.all().order_by('-created_at'))
+            # Explicitly order by created_at desc, then id desc to get the latest payment
+            payments = list(self.payments.all().order_by('-created_at', '-id'))
             
         if not payments:
             return {"status": "unpaid", "type": None, "display": "Unpaid"}

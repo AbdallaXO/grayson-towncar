@@ -110,4 +110,9 @@ urlpatterns = [
         views.delete_leg,
         name="delete_leg",
     ),
+    path(
+        "delete-reservation/",
+        views.delete_reservation,
+        name="delete_reservation",
+    ),
 ]

@@ -133,12 +133,9 @@ def handle_checkout_session(session):
                         payment.save()
                         reservation.save()
 
-                    # Only send confirmation email for customer-initiated payments
-                    if not is_dispatcher_payment:
-                        send_reservation_confirmation(reservation)
-                        logger.info(f"Card Saved for Reservation {reservation_id}")
-                    else:
-                        logger.info(f"Card Saved for Reservation {reservation_id} (dispatcher-initiated, no email sent)")
+                    # Note: Card saved but no payment yet - don't send confirmation email
+                    # Email will be sent when payment is actually processed
+                    logger.info(f"Card Saved for Reservation {reservation_id} (initiated by: {initiated_by})")
                 else:
                     logger.error("Failed to save card to customer")
 
@@ -219,12 +216,13 @@ def handle_checkout_session(session):
                     payment.save()
                     reservation.save()
 
-                # Only send confirmation email for customer-initiated payments
-                if not is_dispatcher_payment:
+                # Send confirmation email after successful payment (for both customer and dispatcher payments)
+                try:
                     send_reservation_confirmation(reservation)
-                    logger.info(f"Payment processed for reservation {reservation_id}")
-                else:
-                    logger.info(f"Payment processed for reservation {reservation_id} (dispatcher-initiated, no email sent)")
+                    logger.info(f"Confirmation email sent for reservation {reservation_id} (initiated by: {initiated_by})")
+                except Exception as e:
+                    logger.error(f"Error sending confirmation email for reservation {reservation_id}: {e}")
+                    # Don't fail payment processing if email fails
                 
                 send_purchase_event(reservation, final_amount)
             else:
