@@ -3253,9 +3253,9 @@ def refund_management(request):
     # Get filter parameters
     status_filter = request.GET.get("status", "")
     
-    # Get all reservations with refund requests (including completed and rejected for history)
+    # Get all reservations with refund requests
     refund_requests = Reservation.objects.filter(
-        refund_status__in=['requested', 'processing', 'approved', 'completed', 'rejected']
+        refund_status__in=['requested', 'processing', 'approved']
     ).select_related(
         'customer',
         'refund_requested_by',
