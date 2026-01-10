@@ -170,6 +170,46 @@ def agent_register_email(instance):
         logger.error(f"Error sending agent welcome email: {e}")
 
 
+def send_internal_confirmation(reservation):
+    """Emails Self when a reservation gets made in case of any errors and customer does not get an email"""
+    logger.info(
+        f"Preparing to send internal confirmation email for {reservation.customer}"
+    )
+
+    def _send_email():
+        try:
+            context = {
+                "reservation": reservation,
+                "legs": reservation.legs.all(),
+                "date": timezone.now().date(),
+            }
+
+            subject = "Reservation Submission"
+            from_email = "reservations@graysontowncar.com"
+            to = ["reservations@graysontowncar.com"]
+            logger.info(f"Email subject: {subject}")
+            logger.info(f"Sending to: {to}")
+            html_content = render_to_string("users/confirmation_email.html", context)
+            logger.info("HTML content rendered successfully")
+
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+
+            logger.info(
+                f"Internal confirmation email sent successfully for reservation {reservation.uuid}"
+            )
+
+        except Exception as e:
+            logger.exception(
+                f"Error sending internal confirmation email for reservation {reservation.uuid}: {e}"
+            )
+            raise  # Re-raise for retry logic
+
+    # Send with retry in background thread
+    _send_email_with_retry(_send_email, max_retries=3)
+
+
 def thankyou_email(instance):
     """
     Sends a thank you email to the customer after they submit a contact form.

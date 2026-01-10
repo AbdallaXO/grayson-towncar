@@ -24,7 +24,6 @@ def reservation_saved(sender, instance, created, **kwargs):
         from users.emails import send_internal_confirmation
 
         # Run in a background task or thread
-        from django.core.signals import request_finished
         from threading import Thread
 
         def background_tasks():
@@ -41,22 +40,6 @@ def reservation_saved(sender, instance, created, **kwargs):
                 local_logger.error(
                     f"Error sending internal confirmation for reservation #{instance.id}: {e}"
                 )
-
-            # Add adaptive retry logic instead of fixed delay
-            max_attempts = 3
-            attempt = 0
-            success = False
-
-            while attempt < max_attempts and not success:
-                attempt += 1
-                local_logger.info(
-                    f"Processing reservation #{instance.id} (attempt {attempt}/{max_attempts})"
-                )
-
-                # HubSpot sync removed - no longer needed
-                success = True
-                break
-
 
         # Start a background thread to handle these tasks
         thread = Thread(target=background_tasks)
