@@ -4,6 +4,30 @@
   <form method="post" class="needs-validation" novalidate>
     {% csrf_token %}
 
+    <!-- Formset Errors Summary -->
+    {% if leg_formset.non_form_errors %}
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Form Errors:</strong>
+        <ul class="mb-0 mt-2">
+          {% for error in leg_formset.non_form_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+    {% if flight_formset.non_form_errors %}
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Flight Form Errors:</strong>
+        <ul class="mb-0 mt-2">
+          {% for error in flight_formset.non_form_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     <div class="alert alert-info">
       <i class="fas fa-info-circle me-2"></i>
       <strong>Trip Legs:</strong> Enter details for each segment of the trip.

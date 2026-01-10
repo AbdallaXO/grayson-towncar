@@ -4,6 +4,19 @@
   <form method="post" class="needs-validation" novalidate>
     {% csrf_token %}
 
+    <!-- Form Errors Summary -->
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>Form Errors:</strong>
+        <ul class="mb-0 mt-2">
+          {% for error in form.non_field_errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
     <!-- Passenger Details Section -->
     <div class="card mb-4">
       <div class="card-header">

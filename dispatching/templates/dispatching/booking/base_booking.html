@@ -170,10 +170,16 @@
     <!-- Messages -->
     {% if messages %}
       {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show"
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show"
              role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          <i class="fas fa-{% if message.tags == 'error' %}exclamation-circle{% elif message.tags == 'success' %}check-circle{% elif message.tags == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+          <strong>{% if message.tags == 'error' %}Error:{% elif message.tags == 'success' %}Success:{% elif message.tags == 'warning' %}Warning:{% else %}Info:{% endif %}</strong>
+          {% if message.tags == 'error' %}
+            <div class="mt-2">{{ message|safe }}</div>
+          {% else %}
+            {{ message }}
+          {% endif %}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
       {% endfor %}
     {% endif %}

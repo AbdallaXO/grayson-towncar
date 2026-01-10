@@ -2335,6 +2335,25 @@ def dispatcher_booking_reservation(request):
             request.session['dispatcher_booking'] = booking_data
             
             return redirect('dispatcher_booking_legs')
+        else:
+            # Form validation failed - show specific error messages
+            error_details = []
+            for field, errors in form.errors.items():
+                field_label = form.fields[field].label if field in form.fields else field.replace('_', ' ').title()
+                for error in errors:
+                    error_details.append(f"{field_label}: {error}")
+            
+            if form.non_field_errors():
+                for error in form.non_field_errors():
+                    error_details.append(error)
+            
+            if error_details:
+                # Show first 5 errors in the message
+                if len(error_details) <= 5:
+                    error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details)
+                else:
+                    error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
+                messages.error(request, error_msg)
     else:
         form = DispatcherReservationForm()
     
@@ -2371,7 +2390,7 @@ def dispatcher_booking_legs(request):
         flight_formset = DispatcherFlightFormSet(request.POST, prefix='flights')
         
         if leg_formset.is_valid() and flight_formset.is_valid():
-            # Save legs and flights data to session
+            # Validate that at least one leg is provided
             legs_data = []
             flights_data = []
             
@@ -2391,12 +2410,54 @@ def dispatcher_booking_legs(request):
                             flight_data[field] = str(value) if value is not None else None
                     flights_data.append(flight_data)
             
-            booking_data['legs_data'] = legs_data
-            booking_data['flights_data'] = flights_data
-            booking_data['step'] = 4
-            request.session['dispatcher_booking'] = booking_data
+            if not legs_data:
+                messages.error(request, "At least one trip leg is required. Please add leg details.")
+            else:
+                booking_data['legs_data'] = legs_data
+                booking_data['flights_data'] = flights_data
+                booking_data['step'] = 4
+                request.session['dispatcher_booking'] = booking_data
+                
+                return redirect('dispatcher_booking_pricing')
+        else:
+            # Formset validation failed - show specific error messages
+            error_details = []
             
-            return redirect('dispatcher_booking_pricing')
+            # Collect leg form errors
+            for i, leg_form in enumerate(leg_formset):
+                if leg_form.errors:
+                    leg_num = i + 1
+                    for field, errors in leg_form.errors.items():
+                        if field != 'DELETE':
+                            field_label = leg_form.fields[field].label if field in leg_form.fields else field.replace('_', ' ').title()
+                            for error in errors:
+                                error_details.append(f"Leg {leg_num} - {field_label}: {error}")
+            
+            # Collect flight form errors
+            for i, flight_form in enumerate(flight_formset):
+                if flight_form.errors:
+                    leg_num = i + 1
+                    for field, errors in flight_form.errors.items():
+                        if field != 'DELETE':
+                            field_label = flight_form.fields[field].label if field in flight_form.fields else field.replace('_', ' ').title()
+                            for error in errors:
+                                error_details.append(f"Leg {leg_num} Flight - {field_label}: {error}")
+            
+            # Collect non-form errors
+            if leg_formset.non_form_errors():
+                for error in leg_formset.non_form_errors():
+                    error_details.append(f"Form Error: {error}")
+            if flight_formset.non_form_errors():
+                for error in flight_formset.non_form_errors():
+                    error_details.append(f"Flight Form Error: {error}")
+            
+            if error_details:
+                # Show first 5 errors in the message, then indicate if there are more
+                if len(error_details) <= 5:
+                    error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details)
+                else:
+                    error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
+                messages.error(request, error_msg)
     else:
         # Initialize formsets with the right number of forms
         leg_formset = DispatcherLegFormSet(prefix='legs', initial=[{} for _ in range(num_legs)])
@@ -2435,19 +2496,50 @@ def dispatcher_booking_pricing(request):
         form = DispatcherPricingForm(request.POST)
         
         if form.is_valid():
-            # Save pricing data to session
-            pricing_data = {
-                'manual_base_price': str(form.cleaned_data['manual_base_price']),
-                'additional_charges': str(form.cleaned_data.get('additional_charges', Decimal('0.00'))),
-                'total_price': str(form.cleaned_data['total_price']),
-                'private_notes': form.cleaned_data.get('private_notes', ''),
-            }
+            # Validate pricing values
+            base_price = form.cleaned_data['manual_base_price']
+            additional_charges = form.cleaned_data.get('additional_charges', Decimal('0.00'))
+            total_price = form.cleaned_data['total_price']
             
-            booking_data['pricing_data'] = pricing_data
-            booking_data['step'] = 5
-            request.session['dispatcher_booking'] = booking_data
+            if base_price < 0:
+                messages.error(request, "Base price cannot be negative.")
+            elif total_price < 0:
+                messages.error(request, "Total price cannot be negative.")
+            elif total_price != base_price + additional_charges:
+                messages.error(request, "Total price must equal base price plus additional charges.")
+            else:
+                # Save pricing data to session
+                pricing_data = {
+                    'manual_base_price': str(base_price),
+                    'additional_charges': str(additional_charges),
+                    'total_price': str(total_price),
+                    'private_notes': form.cleaned_data.get('private_notes', ''),
+                }
+                
+                booking_data['pricing_data'] = pricing_data
+                booking_data['step'] = 5
+                request.session['dispatcher_booking'] = booking_data
+                
+                return redirect('dispatcher_booking_review')
+        else:
+            # Form validation failed - show specific error messages
+            error_details = []
+            for field, errors in form.errors.items():
+                field_label = form.fields[field].label if field in form.fields else field.replace('_', ' ').title()
+                for error in errors:
+                    error_details.append(f"{field_label}: {error}")
             
-            return redirect('dispatcher_booking_review')
+            if form.non_field_errors():
+                for error in form.non_field_errors():
+                    error_details.append(error)
+            
+            if error_details:
+                # Show first 5 errors in the message
+                if len(error_details) <= 5:
+                    error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details)
+                else:
+                    error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
+                messages.error(request, error_msg)
     else:
         # Pre-populate with any existing pricing data
         initial_data = booking_data.get('pricing_data', {})
@@ -2538,21 +2630,47 @@ def dispatcher_booking_review(request):
     if request.method == "POST":
         if 'confirm' in request.POST:
             try:
-                # Create the actual reservation and legs
-                reservation = create_dispatcher_reservation(booking_data)
+                # Validate required data before creating reservation
+                if not booking_data.get('legs_data'):
+                    messages.error(request, "Cannot create reservation: No trip legs found. Please go back and add leg details.")
+                elif not booking_data.get('pricing_data'):
+                    messages.error(request, "Cannot create reservation: Pricing information is missing. Please go back and set pricing.")
+                elif not booking_data.get('reservation_data'):
+                    messages.error(request, "Cannot create reservation: Reservation details are missing. Please start over.")
+                else:
+                    # Create the actual reservation and legs
+                    reservation = create_dispatcher_reservation(booking_data)
+                    
+                    # Clear session data
+                    del request.session['dispatcher_booking']
+                    
+                    messages.success(
+                        request, 
+                        f"Reservation #{reservation.id} created successfully for {customer.get_full_name()}!"
+                    )
+                    return redirect('reservation_details', id=reservation.uuid)
                 
-                # Clear session data
-                del request.session['dispatcher_booking']
-                
-                messages.success(
-                    request, 
-                    f"Reservation #{reservation.id} created successfully for {customer.get_full_name()}!"
-                )
-                return redirect('reservation_details', id=reservation.uuid)
-                
+            except Customer.DoesNotExist:
+                logger.error(f"Customer not found for booking: {booking_data.get('customer_id')}")
+                messages.error(request, "Error: Customer not found. Please start over.")
+            except Vehicle.DoesNotExist:
+                logger.error(f"Vehicle not found for booking: {booking_data.get('reservation_data', {}).get('manual_vehicle')}")
+                messages.error(request, "Error: Selected vehicle not found. Please go back and select a valid vehicle.")
+            except (ValueError, KeyError) as e:
+                logger.error(f"Invalid data in booking: {str(e)}")
+                messages.error(request, f"Error: Invalid data provided. {str(e)} Please check all fields and try again.")
             except Exception as e:
-                logger.error(f"Error creating dispatcher reservation: {str(e)}")
-                messages.error(request, f"Error creating reservation: {str(e)}")
+                logger.error(f"Error creating dispatcher reservation: {str(e)}", exc_info=True)
+                error_msg = str(e)
+                # Make error message more user-friendly
+                if "pickup_date" in error_msg.lower() or "date" in error_msg.lower():
+                    messages.error(request, "Error: Invalid date format in trip legs. Please check all dates and try again.")
+                elif "pickup_time" in error_msg.lower() or "time" in error_msg.lower():
+                    messages.error(request, "Error: Invalid time format in trip legs. Please check all times and try again.")
+                elif "leg" in error_msg.lower():
+                    messages.error(request, "Error: Problem creating trip legs. Please verify all leg details are correct.")
+                else:
+                    messages.error(request, f"Error creating reservation: {error_msg}. Please check all information and try again.")
         
         elif 'back' in request.POST:
             return redirect('dispatcher_booking_pricing')
@@ -2576,15 +2694,32 @@ def dispatcher_booking_review(request):
 def create_dispatcher_reservation(booking_data):
     """
     Helper function to create reservation from session data
+    Raises specific exceptions with clear error messages
     """
+    # Validate required data
+    if not booking_data.get('customer_id'):
+        raise ValueError("Customer ID is missing from booking data")
+    if not booking_data.get('reservation_data'):
+        raise ValueError("Reservation data is missing from booking data")
+    if not booking_data.get('pricing_data'):
+        raise ValueError("Pricing data is missing from booking data")
+    if not booking_data.get('legs_data'):
+        raise ValueError("Legs data is missing from booking data. At least one trip leg is required.")
+    
     customer = Customer.objects.get(id=booking_data['customer_id'])
     reservation_data = booking_data['reservation_data']
     pricing_data = booking_data['pricing_data']
     legs_data = booking_data['legs_data']
-    flights_data = booking_data['flights_data']
+    flights_data = booking_data.get('flights_data', [])
     
-    # Get vehicle
-    vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
+    # Validate vehicle
+    if not reservation_data.get('manual_vehicle'):
+        raise ValueError("Vehicle selection is missing")
+    
+    try:
+        vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
+    except Vehicle.DoesNotExist:
+        raise ValueError(f"Vehicle with ID {reservation_data['manual_vehicle']} not found")
     
     # Try to find an existing rate for this vehicle (for system compatibility)
     rate = Rate.objects.filter(vehicle=vehicle).first()
@@ -2593,67 +2728,103 @@ def create_dispatcher_reservation(booking_data):
     from reservations.middleware import get_current_user
     current_user = get_current_user()
     
-    # Create reservation
-    reservation = Reservation.objects.create(
-        customer=customer,
-        vehicle=vehicle,
-        rate=rate,  # May be None, which is OK for dispatcher bookings
-        trip_type=booking_data['trip_type'],
-        passenger_count=int(reservation_data.get('passenger_count', 1)),
-        luggage_count=int(reservation_data.get('luggage_count', 1)),
-        store_stop=reservation_data.get('store_stop') == 'True',
-        special_requests=reservation_data.get('special_requests', ''),
-        need_carseats=reservation_data.get('need_carseats') == 'True',
-        rf_carseats=int(reservation_data.get('rf_carseats', 0)),
-        ff_carseats=int(reservation_data.get('ff_carseats', 0)),
-        booster_seats=int(reservation_data.get('booster_seats', 0)),
-        base_price=Decimal(pricing_data.get('manual_base_price', '0')),
-        additional_charges=Decimal(pricing_data.get('additional_charges', '0')),
-        total_price=Decimal(pricing_data.get('total_price', '0')),
-        private_notes=pricing_data.get('private_notes', ''),
-        status='confirmed',  # Dispatcher bookings are confirmed by default
-        created_by=current_user,  # Track who created the reservation
-        modified_by=current_user,  # Track who last modified
-        last_modified_at=timezone.now()
-    )
+    # Validate pricing
+    try:
+        base_price = Decimal(pricing_data.get('manual_base_price', '0'))
+        additional_charges = Decimal(pricing_data.get('additional_charges', '0'))
+        total_price = Decimal(pricing_data.get('total_price', '0'))
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid pricing values: {str(e)}")
     
-    # Create legs
-    for i, leg_data in enumerate(legs_data):
-        # Create flight if provided
-        flight = None
-        if i < len(flights_data) and flights_data[i]:
-            flight_info = flights_data[i]
-            if flight_info.get('airline') or flight_info.get('flight_number'):
-                flight = Flight.objects.create(
-                    airline=flight_info.get('airline', ''),
-                    flight_number=flight_info.get('flight_number', ''),
-                    flight_type=flight_info.get('flight_type', '')
-                )
-        
-        # Create leg
-        from datetime import datetime, time
-        pickup_date = datetime.strptime(leg_data['pickup_date'], '%Y-%m-%d').date() if leg_data.get('pickup_date') else None
-        pickup_time_str = leg_data.get('pickup_time')
-        pickup_time = None
-        if pickup_time_str:
-            try:
-                pickup_time = datetime.strptime(pickup_time_str, '%H:%M:%S').time()
-            except ValueError:
-                try:
-                    pickup_time = datetime.strptime(pickup_time_str, '%H:%M').time()
-                except ValueError:
-                    pickup_time = None
-        
-        leg = Leg.objects.create(
-            reservation=reservation,
-            flight_information=flight,
-            pickup_date=pickup_date,
-            pickup_time=pickup_time,
-            pickup_location=leg_data.get('pickup_location', ''),
-            dropoff_location=leg_data.get('dropoff_location', ''),
-            private_notes=leg_data.get('private_notes', ''),
-            driver_pay_amount=Decimal(leg_data.get('driver_pay_amount', '0')) if leg_data.get('driver_pay_amount') else None
+    # Create reservation within transaction
+    from django.db import transaction
+    with transaction.atomic():
+        reservation = Reservation.objects.create(
+            customer=customer,
+            vehicle=vehicle,
+            rate=rate,  # May be None, which is OK for dispatcher bookings
+            trip_type=booking_data.get('trip_type', 'one_way'),
+            passenger_count=int(reservation_data.get('passenger_count', 1)),
+            luggage_count=int(reservation_data.get('luggage_count', 1)),
+            store_stop=reservation_data.get('store_stop') == 'True',
+            special_requests=reservation_data.get('special_requests', ''),
+            need_carseats=reservation_data.get('need_carseats') == 'True',
+            rf_carseats=int(reservation_data.get('rf_carseats', 0)),
+            ff_carseats=int(reservation_data.get('ff_carseats', 0)),
+            booster_seats=int(reservation_data.get('booster_seats', 0)),
+            base_price=base_price,
+            additional_charges=additional_charges,
+            total_price=total_price,
+            private_notes=pricing_data.get('private_notes', ''),
+            status='confirmed',  # Dispatcher bookings are confirmed by default
+            created_by=current_user,  # Track who created the reservation
+            modified_by=current_user,  # Track who last modified
+            last_modified_at=timezone.now()
         )
+        
+        # Create legs
+        if not legs_data:
+            raise ValueError("Cannot create reservation: No trip legs provided")
+        
+        for i, leg_data in enumerate(legs_data):
+            # Validate required leg fields
+            if not leg_data.get('pickup_date'):
+                raise ValueError(f"Leg {i+1}: Pickup date is required")
+            if not leg_data.get('pickup_time'):
+                raise ValueError(f"Leg {i+1}: Pickup time is required")
+            if not leg_data.get('pickup_location'):
+                raise ValueError(f"Leg {i+1}: Pickup location is required")
+            if not leg_data.get('dropoff_location'):
+                raise ValueError(f"Leg {i+1}: Dropoff location is required")
+            
+            # Create flight if provided
+            flight = None
+            if i < len(flights_data) and flights_data[i]:
+                flight_info = flights_data[i]
+                if flight_info.get('airline') or flight_info.get('flight_number'):
+                    flight = Flight.objects.create(
+                        airline=flight_info.get('airline', ''),
+                        flight_number=flight_info.get('flight_number', ''),
+                        flight_type=flight_info.get('flight_type', '')
+                    )
+            
+            # Parse date and time
+            from datetime import datetime, time
+            try:
+                pickup_date = datetime.strptime(leg_data['pickup_date'], '%Y-%m-%d').date()
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Leg {i+1}: Invalid pickup date format: {leg_data.get('pickup_date')}")
+            
+            pickup_time_str = leg_data.get('pickup_time')
+            pickup_time = None
+            if pickup_time_str:
+                try:
+                    pickup_time = datetime.strptime(pickup_time_str, '%H:%M:%S').time()
+                except ValueError:
+                    try:
+                        pickup_time = datetime.strptime(pickup_time_str, '%H:%M').time()
+                    except ValueError:
+                        raise ValueError(f"Leg {i+1}: Invalid pickup time format: {pickup_time_str}")
+            
+            # Parse driver pay amount if provided
+            driver_pay_amount = None
+            if leg_data.get('driver_pay_amount'):
+                try:
+                    driver_pay_amount = Decimal(leg_data.get('driver_pay_amount', '0'))
+                except (ValueError, TypeError):
+                    # If invalid, just set to None
+                    driver_pay_amount = None
+            
+            leg = Leg.objects.create(
+                reservation=reservation,
+                flight_information=flight,
+                pickup_date=pickup_date,
+                pickup_time=pickup_time,
+                pickup_location=leg_data.get('pickup_location', ''),
+                dropoff_location=leg_data.get('dropoff_location', ''),
+                private_notes=leg_data.get('private_notes', ''),
+                driver_pay_amount=driver_pay_amount
+            )
     
     return reservation
 
@@ -3253,18 +3424,25 @@ def refund_management(request):
     # Get filter parameters
     status_filter = request.GET.get("status", "")
     
-    # Get all reservations with refund requests
-    refund_requests = Reservation.objects.filter(
-        refund_status__in=['requested', 'processing', 'approved']
-    ).select_related(
-        'customer',
-        'refund_requested_by',
-        'refund_processed_by'
-    ).order_by('-refund_requested_at')
-    
-    # Apply status filter
+    # Get all reservations with refund requests (include all statuses for filtering)
     if status_filter:
-        refund_requests = refund_requests.filter(refund_status=status_filter)
+        # If filtering by specific status, only get that status
+        refund_requests = Reservation.objects.filter(
+            refund_status=status_filter
+        ).select_related(
+            'customer',
+            'refund_requested_by',
+            'refund_processed_by'
+        ).order_by('-refund_requested_at')
+    else:
+        # Default: show active refund requests (not completed/rejected)
+        refund_requests = Reservation.objects.filter(
+            refund_status__in=['requested', 'processing', 'approved']
+        ).select_related(
+            'customer',
+            'refund_requested_by',
+            'refund_processed_by'
+        ).order_by('-refund_requested_at')
     
     # Count by status
     status_counts = {

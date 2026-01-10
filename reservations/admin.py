@@ -2209,24 +2209,109 @@ class LeadAdmin(admin.ModelAdmin):
             if len(phone_leads) > 1:
                 skipped_duplicate_phone += len(phone_leads) - 1
         
-        # Process selected leads
-        for lead in leads_to_process:
-            # Try to queue with Celery, fallback to thread if Celery unavailable
-            try:
-                sync_lead_to_ghl_and_send_sms.delay(lead.id)
-                queued_count += 1
-            except Exception as e:
-                # Celery not available, run in background thread
-                logger.warning(f"Could not queue Celery task for lead {lead.id}: {e}. Running in thread instead.")
-                def run_task(lead_id=lead.id):
-                    try:
-                        sync_lead_to_ghl_and_send_sms(lead_id)
-                    except Exception as task_error:
-                        logger.error(f"Error processing lead {lead_id} in thread: {task_error}")
+        # Process selected leads with rate limiting (no Celery/Redis)
+        # Batch leads to avoid overwhelming the server
+        from ghl_integration.services import GoHighLevelService, get_sms_template
+        from reservations.models import Lead
+        import time
+        
+        BATCH_SIZE = 10  # Process 10 leads at a time
+        DELAY_BETWEEN_BATCHES = 2  # 2 seconds between batches
+        DELAY_BETWEEN_LEADS = 0.5  # 0.5 seconds between individual leads
+        
+        def process_leads_in_batches(lead_ids):
+            """Process leads in batches with delays to avoid server overload"""
+            local_logger = logging.getLogger(__name__)
+            total_processed = 0
+            total_skipped = 0
+            
+            # Split into batches
+            for i in range(0, len(lead_ids), BATCH_SIZE):
+                batch = lead_ids[i:i + BATCH_SIZE]
+                local_logger.info(f"Processing batch {i // BATCH_SIZE + 1} with {len(batch)} leads")
                 
-                thread = Thread(target=run_task, daemon=True)
-                thread.start()
-                processed_count += 1
+                # Process each lead in the batch
+                for lead_id in batch:
+                    try:
+                        lead = Lead.objects.get(id=lead_id)
+                        
+                        # Skip if already sent
+                        if lead.initial_sms_sent:
+                            local_logger.info(f"Lead #{lead_id} already has SMS sent, skipping")
+                            total_skipped += 1
+                            continue
+                        
+                        # Skip if no phone
+                        if not lead.phone:
+                            local_logger.warning(f"Lead #{lead_id} has no phone number")
+                            total_skipped += 1
+                            continue
+                        
+                        service = GoHighLevelService()
+                        
+                        # Step 1: Create/update contact in GHL
+                        contact_id = service.create_or_update_contact(lead)
+                        
+                        if not contact_id:
+                            local_logger.error(f"Failed to create/update GHL contact for lead #{lead_id}")
+                            continue
+                        
+                        # Step 2: Generate and send SMS
+                        message = get_sms_template(lead)
+                        sms_sent = service.send_sms(contact_id, message)
+                        
+                        if not sms_sent:
+                            local_logger.error(f"Failed to send SMS to contact {contact_id} for lead #{lead_id}")
+                            continue
+                        
+                        # Step 3: Update lead within transaction
+                        from django.db import transaction
+                        with transaction.atomic():
+                            lead.ghl_contact_id = contact_id
+                            lead.ghl_synced_at = timezone.now()
+                            lead.initial_sms_sent = True
+                            lead.initial_sms_sent_at = timezone.now()
+                            lead.status = Lead.StatusChoices.CONTACTED
+                            lead.contact_attempts = (lead.contact_attempts or 0) + 1
+                            lead.last_contact_date = timezone.now()
+                            lead.save(update_fields=[
+                                'ghl_contact_id', 
+                                'ghl_synced_at', 
+                                'initial_sms_sent',
+                                'initial_sms_sent_at', 
+                                'status', 
+                                'contact_attempts', 
+                                'last_contact_date'
+                            ])
+                        
+                        total_processed += 1
+                        local_logger.info(f"Successfully processed lead #{lead_id}")
+                        
+                        # Small delay between individual leads
+                        time.sleep(DELAY_BETWEEN_LEADS)
+                        
+                    except Exception as e:
+                        local_logger.error(f"Error processing lead {lead_id}: {e}", exc_info=True)
+                
+                # Wait between batches (except for the last batch)
+                if i + BATCH_SIZE < len(lead_ids):
+                    time.sleep(DELAY_BETWEEN_BATCHES)
+            
+            local_logger.info(f"Completed processing: {total_processed} sent, {total_skipped} skipped")
+            return total_processed
+        
+        # Get lead IDs to process
+        lead_ids = [lead.id for lead in leads_to_process]
+        
+        # Process in background thread with batching
+        if lead_ids:
+            thread = Thread(
+                target=process_leads_in_batches,
+                args=(lead_ids,),
+                daemon=True
+            )
+            thread.start()
+            processed_count = len(lead_ids)
         
         # Build success message
         message_parts = []
