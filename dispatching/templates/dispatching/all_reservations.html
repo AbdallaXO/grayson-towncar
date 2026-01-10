@@ -112,6 +112,7 @@
               <span class="fw-bold" id="needPaymentCount">{{ need_payment_count }}</span>
             </div>
           </div>
+          {% if can_view_revenue %}
           <div class="d-flex align-items-center bg-light rounded px-3 py-2">
             <i class="bi bi-currency-dollar text-danger me-2"></i>
             <div>
@@ -119,6 +120,7 @@
               <span class="fw-bold">$<span id="totalRevenue">{{ total_revenue|floatformat:2 }}</span></span>
             </div>
           </div>
+          {% endif %}
         </div>
       </div>
     </div>

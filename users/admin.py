@@ -26,6 +26,7 @@ from .models import (
     Agency,
     AgencyCommissionPayout,
 )
+from dispatching.admin_mixins import DispatcherAdminMixin
 
 logger = logging.getLogger(__name__)
 
@@ -512,8 +513,28 @@ class TravelAgentAdmin(admin.ModelAdmin):
 
 
 @admin.register(CommissionPayout)
-class CommissionPayoutAdmin(admin.ModelAdmin):
-    """Admin interface for individual agent commission payouts."""
+class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
+    """Admin interface for individual agent commission payouts - hidden from dispatchers."""
+    
+    def has_module_permission(self, request):
+        """Only show to superusers."""
+        return request.user.is_superuser
+    
+    def has_view_permission(self, request, obj=None):
+        """Only superusers can view."""
+        return request.user.is_superuser
+    
+    def has_add_permission(self, request):
+        """Only superusers can add."""
+        return request.user.is_superuser
+    
+    def has_change_permission(self, request, obj=None):
+        """Only superusers can change."""
+        return request.user.is_superuser
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only superusers can delete."""
+        return request.user.is_superuser
 
     list_display = [
         "payout_id",
@@ -911,7 +932,28 @@ class AgencyAdmin(admin.ModelAdmin):
 
 
 @admin.register(AgencyCommissionPayout)
-class AgencyCommissionPayoutAdmin(admin.ModelAdmin):
+class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
+    """Admin for agency commission payouts - hidden from dispatchers."""
+    
+    def has_module_permission(self, request):
+        """Only show to superusers."""
+        return request.user.is_superuser
+    
+    def has_view_permission(self, request, obj=None):
+        """Only superusers can view."""
+        return request.user.is_superuser
+    
+    def has_add_permission(self, request):
+        """Only superusers can add."""
+        return request.user.is_superuser
+    
+    def has_change_permission(self, request, obj=None):
+        """Only superusers can change."""
+        return request.user.is_superuser
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only superusers can delete."""
+        return request.user.is_superuser
     """Admin interface for agency commission payouts."""
 
     list_display = [

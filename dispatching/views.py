@@ -52,6 +52,17 @@ logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
+# Permission helpers
+def can_view_revenue(user):
+    """Check if user can view revenue information (admins only)"""
+    return user.is_superuser
+
+
+def can_view_statistics(user):
+    """Check if user can view statistics page (admins only)"""
+    return user.is_superuser
+
+
 class DateForm(forms.Form):
     """Simple form for date selection."""
 
@@ -70,7 +81,7 @@ def index(request):
     Returns:
         Rendered template with legs for the selected date
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
 
     selected_date = request.GET.get("date")
@@ -127,8 +138,11 @@ def index(request):
     # Get all drivers for assignment dropdown
     drivers = Driver.objects.all()
 
-    # Calculate total revenue from legs on this day
-    total_revenue = sum(leg.reservation.total_price for leg in legs)
+    # Calculate total revenue from legs on this day (only for admins)
+    if can_view_revenue(request.user):
+        total_revenue = sum(leg.reservation.total_price for leg in legs)
+    else:
+        total_revenue = None
 
     context = {
         "legs": legs,
@@ -137,6 +151,7 @@ def index(request):
         "trip_type_filter": trip_type_filter,
         "total_legs": len(legs),
         "total_revenue": total_revenue,
+        "can_view_revenue": can_view_revenue(request.user),
         "drivers": drivers,
     }
 
@@ -150,7 +165,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     paginate_by = 10
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return self.request.user.is_staff
 
     def get_queryset(self):
         queryset = (
@@ -208,8 +223,16 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             pending_count=Count("id", filter=Q(status="pending")),
             confirmed_count=Count("id", filter=Q(status="confirmed")),
             need_payment_count=Count("id", filter=Q(payments__isnull=True)),
-            total_revenue=Sum("total_price", filter=Q(payments__status="paid")),
         )
+        
+        # Only calculate revenue for admins
+        if can_view_revenue(self.request.user):
+            revenue_stats = queryset.aggregate(
+                total_revenue=Sum("total_price", filter=Q(payments__status="paid")),
+            )
+            total_revenue = revenue_stats["total_revenue"] or 0
+        else:
+            total_revenue = None
 
         # Add statistics to context
         context.update(
@@ -218,7 +241,8 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 "pending_reservations": stats["pending_count"],
                 "confirmed_reservations": stats["confirmed_count"],
                 "need_payment_count": stats["need_payment_count"],
-                "total_revenue": stats["total_revenue"] or 0,
+                "total_revenue": total_revenue,
+                "can_view_revenue": can_view_revenue(self.request.user),
                 "search_query": self.request.GET.get("search_q", ""),
                 "status_filter": self.request.GET.get("status", ""),
                 "time_filter": self.request.GET.get("time_filter", "all"),
@@ -259,16 +283,24 @@ def reservation_details(request, id):
     Returns:
         Rendered template with detailed reservation information
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
 
     # Get the reservation with all related data
     reservation = get_object_or_404(
         Reservation.objects.prefetch_related(
             "legs__flight_information", 
-            "legs__driver", 
+            "legs__driver",
+            "legs__driver_assigned_by",
+            "legs__status_changed_by",
             Prefetch("payments", queryset=Payment.objects.order_by('-created_at'))
-        ).select_related("customer", "vehicle", "rate"),
+        ).select_related(
+            "customer", 
+            "vehicle", 
+            "rate",
+            "created_by",
+            "modified_by"
+        ),
         uuid=id,
     )
 
@@ -320,7 +352,7 @@ def modify_reservation(request, id):
     Returns:
         Redirect to reservation details on success or form with errors
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
 
     reservation = get_object_or_404(
@@ -339,6 +371,9 @@ def modify_reservation(request, id):
             updated_reservation = reservation_form.save(commit=False)
 
             updated_reservation.customer = customer
+            # Track who modified the reservation and when
+            updated_reservation.modified_by = request.user
+            updated_reservation.last_modified_at = timezone.now()
             # Save the reservation
             updated_reservation.save()
 
@@ -412,7 +447,7 @@ def legs_list(request):
     Returns:
         Rendered template with filtered legs
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
 
     # Get filter parameters
@@ -487,33 +522,39 @@ def legs_list(request):
         "arrival": 0,
         "return": 0,
         "other": 0,
-        "total_revenue": 0
     }
     
-    # Pre-calculate leg counts for each reservation to avoid N+1 queries
-    reservation_leg_counts = {}
-    for leg in page_obj:
-        reservation_id = leg.reservation.id
-        if reservation_id not in reservation_leg_counts:
-            # Use prefetched legs if available, otherwise fall back to query
-            if hasattr(leg.reservation, '_prefetched_objects_cache') and 'legs' in leg.reservation._prefetched_objects_cache:
-                reservation_leg_counts[reservation_id] = len(leg.reservation._prefetched_objects_cache['legs'])
+    # Only calculate revenue for admins
+    if can_view_revenue(request.user):
+        current_page_stats["total_revenue"] = 0
+        
+        # Pre-calculate leg counts for each reservation to avoid N+1 queries
+        reservation_leg_counts = {}
+        for leg in page_obj:
+            reservation_id = leg.reservation.id
+            if reservation_id not in reservation_leg_counts:
+                # Use prefetched legs if available, otherwise fall back to query
+                if hasattr(leg.reservation, '_prefetched_objects_cache') and 'legs' in leg.reservation._prefetched_objects_cache:
+                    reservation_leg_counts[reservation_id] = len(leg.reservation._prefetched_objects_cache['legs'])
+                else:
+                    reservation_leg_counts[reservation_id] = len(leg.reservation.legs.all())
+        
+        for leg in page_obj:
+            # Sum revenue for current page using leg's revenue share
+            if leg.revenue_share:
+                current_page_stats["total_revenue"] += leg.revenue_share
             else:
-                reservation_leg_counts[reservation_id] = len(leg.reservation.legs.all())
+                # Use pre-calculated leg count
+                leg_count = reservation_leg_counts.get(leg.reservation.id, 1)
+                if leg_count > 0:
+                    current_page_stats["total_revenue"] += leg.reservation.total_price / leg_count
+    else:
+        current_page_stats["total_revenue"] = None
     
+    # Count trip types for current page (always calculate)
     for leg in page_obj:
-        # Count trip types for current page
         trip_type = leg.get_trip_type()
         current_page_stats[trip_type] += 1
-        
-        # Sum revenue for current page using leg's revenue share
-        if leg.revenue_share:
-            current_page_stats["total_revenue"] += leg.revenue_share
-        else:
-            # Use pre-calculated leg count
-            leg_count = reservation_leg_counts.get(leg.reservation.id, 1)
-            if leg_count > 0:
-                current_page_stats["total_revenue"] += leg.reservation.total_price / leg_count
 
     context = {
         "legs": page_obj,
@@ -528,6 +569,7 @@ def legs_list(request):
         "trip_type_stats": trip_type_stats,  # Add statistics
         "vehicle_stats": vehicle_stats,  # Add vehicle statistics
         "current_page_stats": current_page_stats,  # Add current page statistics
+        "can_view_revenue": can_view_revenue(request.user),
         "drivers": drivers,
         "vehicles": vehicles,  # Add vehicles to context
         "today_count": today_count,
@@ -551,7 +593,7 @@ def update_leg_assignment(request):
     """
     logger.info("Received update_leg_assignment request")
 
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         logger.warning(f"Permission denied for user {request.user.username}")
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
@@ -597,9 +639,12 @@ def update_leg_assignment(request):
                     driver = Driver.objects.get(id=value)
                     logger.info(f"Found driver with ID {value}")
                     leg.driver = driver
+                    # Track who assigned the driver and when
+                    leg.driver_assigned_by = request.user
+                    leg.driver_assigned_at = timezone.now()
                     leg.save()
                     logger.info(
-                        f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id}"
+                        f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
                     )
                 except Driver.DoesNotExist:
                     logger.warning(f"Driver with ID {value} not found")
@@ -622,8 +667,11 @@ def update_leg_assignment(request):
                     )
             else:
                 leg.driver = None
+                # Track who unassigned the driver
+                leg.driver_assigned_by = request.user
+                leg.driver_assigned_at = timezone.now()
                 leg.save()
-                logger.info(f"Removed driver from leg {leg_id}")
+                logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
         elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
@@ -637,8 +685,11 @@ def update_leg_assignment(request):
                 ]
                 if value in valid_statuses:
                     leg.status = value
+                    # Track who changed the status and when
+                    leg.status_changed_by = request.user
+                    leg.status_changed_at = timezone.now()
                     leg.save()
-                    logger.info(f"Updated leg {leg_id} status to {value}")
+                    logger.info(f"Updated leg {leg_id} status to {value} by {request.user.username}")
                     
                     # Check if reservation should be auto-completed
                     if value == "completed":
@@ -684,7 +735,7 @@ def update_private_notes(request):
     Returns:
         JsonResponse indicating success or failure
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )
@@ -714,6 +765,10 @@ def update_private_notes(request):
             update_fields.append("special_requests")
 
         if update_fields:
+            # Track who modified the reservation
+            reservation.modified_by = request.user
+            reservation.last_modified_at = timezone.now()
+            update_fields.extend(["modified_by", "last_modified_at"])
             reservation.save(update_fields=update_fields)
 
         return JsonResponse({"success": True})
@@ -1442,7 +1497,7 @@ def update_reservation_status(request):
     """
     Update a reservation's status via AJAX.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )
@@ -1464,7 +1519,10 @@ def update_reservation_status(request):
         valid_statuses = ["pending", "confirmed", "completed", "cancelled"]
         if status in valid_statuses:
             reservation.status = status
-            reservation.save()
+            # Track who modified the reservation
+            reservation.modified_by = request.user
+            reservation.last_modified_at = timezone.now()
+            reservation.save(update_fields=["status", "modified_by", "last_modified_at"])
             return JsonResponse({"success": True, "status": status})
         else:
             return JsonResponse(
@@ -1480,9 +1538,11 @@ def update_reservation_status(request):
 def statistics_page(request):
     """
     Dedicated statistics page showing comprehensive vehicle and trip statistics.
+    Only accessible to superusers (admins).
     """
-    if not request.user.is_superuser:
-        return redirect("home")
+    if not can_view_statistics(request.user):
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect("dashboard")
     
     # Get filter parameters
     date_filter = request.GET.get("date")
@@ -1543,7 +1603,7 @@ def update_contact_info(request):
     """
     Update customer contact information via AJAX.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )
@@ -1595,7 +1655,7 @@ def refresh_flight_data(request):
     """
     Refresh flight data from AeroAPI for a specific leg.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )
@@ -1760,7 +1820,7 @@ def refresh_all_flights(request):
     Only refreshes "arrival" trips (pickup at airport, dropoff at destination).
     Accepts either a list of leg_ids or a date to refresh all arrival flights for that date.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )
@@ -1995,7 +2055,7 @@ def update_leg_info(request):
     """
     Update leg information including flight details via AJAX.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )
@@ -2160,7 +2220,7 @@ def dispatcher_booking_start(request):
     """
     Step 1: Trip type selection for dispatcher booking
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     if request.method == "POST":
@@ -2195,7 +2255,7 @@ def dispatcher_booking_customer(request):
     """
     Step 2: Customer information collection
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     # Check if we have booking session
@@ -2235,7 +2295,7 @@ def dispatcher_booking_reservation(request):
     """
     Step 3: Reservation details (pricing, vehicle, passengers, etc.)
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     booking_data = request.session.get('dispatcher_booking')
@@ -2282,7 +2342,7 @@ def dispatcher_booking_legs(request):
     """
     Step 4: Trip legs and flight information
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     booking_data = request.session.get('dispatcher_booking')
@@ -2348,7 +2408,7 @@ def dispatcher_booking_pricing(request):
     """
     Step 5: Pricing and final details
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     booking_data = request.session.get('dispatcher_booking')
@@ -2406,7 +2466,7 @@ def dispatcher_booking_review(request):
     """
     Step 6: Review and confirm reservation
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     booking_data = request.session.get('dispatcher_booking')
@@ -2516,6 +2576,10 @@ def create_dispatcher_reservation(booking_data):
     # Try to find an existing rate for this vehicle (for system compatibility)
     rate = Rate.objects.filter(vehicle=vehicle).first()
     
+    # Get the current user from thread-local storage (set by middleware)
+    from reservations.middleware import get_current_user
+    current_user = get_current_user()
+    
     # Create reservation
     reservation = Reservation.objects.create(
         customer=customer,
@@ -2534,7 +2598,10 @@ def create_dispatcher_reservation(booking_data):
         additional_charges=Decimal(pricing_data.get('additional_charges', '0')),
         total_price=Decimal(pricing_data.get('total_price', '0')),
         private_notes=pricing_data.get('private_notes', ''),
-        status='confirmed'  # Dispatcher bookings are confirmed by default
+        status='confirmed',  # Dispatcher bookings are confirmed by default
+        created_by=current_user,  # Track who created the reservation
+        modified_by=current_user,  # Track who last modified
+        last_modified_at=timezone.now()
     )
     
     # Create legs
@@ -2583,7 +2650,7 @@ def dispatcher_booking_cancel(request):
     """
     Cancel dispatcher booking and clear session
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     if 'dispatcher_booking' in request.session:
@@ -2598,7 +2665,7 @@ def customer_search_api(request):
     """
     AJAX endpoint to search for existing customers
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     
     query = request.GET.get('q', '').strip()
@@ -2654,7 +2721,7 @@ def add_leg_to_reservation(request):
     Returns:
         JSON response with success status and leg data
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     
     try:
@@ -2736,7 +2803,7 @@ def driver_payment_management(request):
     Driver Payment Management Dashboard
     Shows legs for selected driver with ability to set driver pay amounts
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
 
     selected_driver_id = request.GET.get("driver")
@@ -2804,7 +2871,7 @@ def update_driver_pay_amount(request):
     """
     Update driver pay amount for a specific leg via AJAX
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:
@@ -2867,7 +2934,7 @@ def process_driver_payment(request):
     """
     Process payment for a driver's unpaid legs via AJAX
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:
@@ -2973,7 +3040,7 @@ def delete_leg(request):
     """
     Delete a leg from a reservation via AJAX
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:
@@ -3028,7 +3095,7 @@ def delete_reservation(request):
     Delete a reservation via AJAX.
     Only allows deletion if reservation has no payments.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
     try:

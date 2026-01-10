@@ -6,10 +6,11 @@ from django.utils.safestring import mark_safe
 from .models import Driver, DriverPayment, LegPayment
 from reservations.models import Leg
 from decimal import Decimal
+from dispatching.admin_mixins import DispatcherAdminMixin
 
 
 @admin.register(Driver)
-class DriverAdmin(admin.ModelAdmin):
+class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     list_display = [
         "driver_name",
         "email",

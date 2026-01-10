@@ -257,11 +257,27 @@
             </div>
           </div>
           <div class="panel-footer border border-top-0 bg-light p-2">
-            <small>
-              <strong>Date Modified:</strong>
-              <span class="fw-semibold">{{ reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
-            </small>
-            <small>({{ request.user }})</small>
+            <div class="small">
+              {% if reservation.created_by %}
+                <div>
+                  <strong>Created:</strong>
+                  <span class="fw-semibold">{{ reservation.created_at|date:"n/j/Y g:i:s A" }}</span>
+                  <span class="text-muted">by {{ reservation.created_by.get_full_name|default:reservation.created_by.username }}</span>
+                </div>
+              {% endif %}
+              {% if reservation.modified_by and reservation.last_modified_at %}
+                <div class="mt-1">
+                  <strong>Last Modified:</strong>
+                  <span class="fw-semibold">{{ reservation.last_modified_at|date:"n/j/Y g:i:s A" }}</span>
+                  <span class="text-muted">by {{ reservation.modified_by.get_full_name|default:reservation.modified_by.username }}</span>
+                </div>
+              {% elif reservation.updated_at %}
+                <div class="mt-1">
+                  <strong>Last Updated:</strong>
+                  <span class="fw-semibold">{{ reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
+                </div>
+              {% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -324,11 +340,20 @@
             </div>
           </div>
           <div class="panel-footer border border-top-0 bg-light p-2">
-            <small>
-              <strong>Date Modified:</strong>
-              {{ reservation.updated_at|date:"n/j/Y g:i:s A" }}
-            </small>
-            <small>({{ request.user }})</small>
+            <div class="small">
+              {% if reservation.modified_by and reservation.last_modified_at %}
+                <div>
+                  <strong>Last Modified:</strong>
+                  <span class="fw-semibold">{{ reservation.last_modified_at|date:"n/j/Y g:i:s A" }}</span>
+                  <span class="text-muted">by {{ reservation.modified_by.get_full_name|default:reservation.modified_by.username }}</span>
+                </div>
+              {% elif reservation.updated_at %}
+                <div>
+                  <strong>Last Updated:</strong>
+                  <span class="fw-semibold">{{ reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
+                </div>
+              {% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -704,11 +729,28 @@
               </div>
             </div>
             <div class="panel-footer border border-top-0 bg-light p-2">
-              <small>
-                <strong>Date Modified:</strong>
-                <span class="fw-semibold">{{ leg.updated_at|date:"n/j/Y g:i:s A"|default:reservation.updated_at|date:"n/j/Y g:i:s A" }}</span>
-              </small>
-              <small>({{ request.user }})</small>
+              <div class="small">
+                {% if leg.driver_assigned_by and leg.driver_assigned_at %}
+                  <div>
+                    <strong>Driver Assigned:</strong>
+                    <span class="fw-semibold">{{ leg.driver_assigned_at|date:"n/j/Y g:i:s A" }}</span>
+                    <span class="text-muted">by {{ leg.driver_assigned_by.get_full_name|default:leg.driver_assigned_by.username }}</span>
+                  </div>
+                {% endif %}
+                {% if leg.status_changed_by and leg.status_changed_at %}
+                  <div class="mt-1">
+                    <strong>Status Changed:</strong>
+                    <span class="fw-semibold">{{ leg.status_changed_at|date:"n/j/Y g:i:s A" }}</span>
+                    <span class="text-muted">by {{ leg.status_changed_by.get_full_name|default:leg.status_changed_by.username }}</span>
+                  </div>
+                {% endif %}
+                {% if not leg.driver_assigned_by and not leg.status_changed_by and leg.updated_at %}
+                  <div>
+                    <strong>Last Updated:</strong>
+                    <span class="fw-semibold">{{ leg.updated_at|date:"n/j/Y g:i:s A" }}</span>
+                  </div>
+                {% endif %}
+              </div>
             </div>
           </div>
         </div>

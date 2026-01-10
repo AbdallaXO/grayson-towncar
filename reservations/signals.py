@@ -2,7 +2,7 @@ import logging
 import time
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
-from .models import Reservation
+from .models import Reservation, Leg
 from users.emails import send_reservation_confirmation
 from django.db import transaction
 from decimal import Decimal
@@ -403,3 +403,277 @@ def sync_lead_status_to_ghl(sender, instance, created, **kwargs):
     # Start background thread (non-blocking)
     thread = Thread(target=sync_status_in_background, daemon=True)
     thread.start()
+
+
+# ======== AUDIT LOGGING ========
+
+# Store old values for comparison
+_reservation_old_values = {}
+_leg_old_values = {}
+
+
+def get_request_user():
+    """Get the current user from thread-local storage"""
+    try:
+        from reservations.middleware import get_current_user
+        return get_current_user()
+    except:
+        pass
+    return None
+
+
+def get_client_ip(request):
+    """Extract client IP address from request"""
+    if not request:
+        return None
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
+def create_audit_log(model_name, object_id, action, user=None, field_name=None, 
+                     old_value=None, new_value=None, request=None, notes=None):
+    """Helper function to create audit log entries"""
+    from .models import AuditLog
+    
+    try:
+        username = None
+        if user:
+            username = user.username if hasattr(user, 'username') else str(user)
+        elif request and hasattr(request, 'user') and request.user.is_authenticated:
+            user = request.user
+            username = user.username
+        
+        ip_address = get_client_ip(request) if request else None
+        user_agent = request.META.get('HTTP_USER_AGENT') if request else None
+        
+        # Truncate long values for storage
+        if old_value and len(str(old_value)) > 500:
+            old_value = str(old_value)[:500] + "..."
+        if new_value and len(str(new_value)) > 500:
+            new_value = str(new_value)[:500] + "..."
+        
+        AuditLog.objects.create(
+            model_name=model_name,
+            object_id=object_id,
+            action=action,
+            field_name=field_name,
+            old_value=str(old_value) if old_value is not None else None,
+            new_value=str(new_value) if new_value is not None else None,
+            user=user,
+            username=username,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            notes=notes,
+        )
+    except Exception as e:
+        logger.error(f"Error creating audit log: {e}", exc_info=True)
+
+
+@receiver(pre_save, sender=Reservation)
+def store_reservation_old_values(sender, instance, **kwargs):
+    """Store old values before save to compare in post_save"""
+    if instance.pk:
+        try:
+            old_instance = Reservation.objects.get(pk=instance.pk)
+            _reservation_old_values[instance.pk] = {
+                'status': old_instance.status,
+                'total_price': old_instance.total_price,
+                'base_price': old_instance.base_price,
+                'modified_by': old_instance.modified_by_id,  # Store ID to compare properly
+            }
+        except Reservation.DoesNotExist:
+            pass
+
+
+@receiver(post_save, sender=Reservation)
+def log_reservation_changes(sender, instance, created, **kwargs):
+    """Log reservation changes to audit log"""
+    from threading import local
+    
+    try:
+        # Try to get user from thread-local storage (set by middleware)
+        user = None
+        request = None
+        try:
+            from reservations.middleware import get_current_request, get_current_user
+            request = get_current_request()
+            user = get_current_user()
+        except:
+            pass
+        
+        if created:
+            # New reservation created
+            create_audit_log(
+                model_name='Reservation',
+                object_id=instance.id,
+                action='created',
+                user=user,
+                request=request,
+                notes=f"Reservation #{instance.id} created for {instance.customer.get_full_name()}"
+            )
+        else:
+            # Reservation updated - check what changed
+            old_values = _reservation_old_values.get(instance.pk, {})
+            
+            # Only log if something meaningful changed
+            has_meaningful_change = False
+            
+            # Track status changes (important)
+            if 'status' in old_values and old_values['status'] != instance.status:
+                has_meaningful_change = True
+                create_audit_log(
+                    model_name='Reservation',
+                    object_id=instance.id,
+                    action='status_changed',
+                    user=user or instance.modified_by,
+                    field_name='status',
+                    old_value=old_values['status'],
+                    new_value=instance.status,
+                    request=request,
+                    notes=f"Status changed from {old_values['status']} to {instance.status}"
+                )
+            
+            # Track significant price changes (only if change is > $1 to avoid logging tiny adjustments)
+            if 'total_price' in old_values and old_values['total_price'] != instance.total_price:
+                price_diff = abs(float(instance.total_price) - float(old_values['total_price']))
+                if price_diff >= 1.00:  # Only log if change is $1 or more
+                    has_meaningful_change = True
+                    create_audit_log(
+                        model_name='Reservation',
+                        object_id=instance.id,
+                        action='updated',
+                        user=user or instance.modified_by,
+                        field_name='total_price',
+                        old_value=str(old_values['total_price']),
+                        new_value=str(instance.total_price),
+                        request=request,
+                    )
+            
+            # Track base_price changes (for commission tracking)
+            if 'base_price' in old_values and old_values['base_price'] != instance.base_price:
+                price_diff = abs(float(instance.base_price) - float(old_values['base_price']))
+                if price_diff >= 1.00:  # Only log if change is $1 or more
+                    has_meaningful_change = True
+                    create_audit_log(
+                        model_name='Reservation',
+                        object_id=instance.id,
+                        action='updated',
+                        user=user or instance.modified_by,
+                        field_name='base_price',
+                        old_value=str(old_values['base_price']),
+                        new_value=str(instance.base_price),
+                        request=request,
+                    )
+            
+            # Only log general update if modified_by changed AND user is explicitly set
+            # This prevents logging every automatic save or system update
+            # Skip general updates to reduce log volume - we already track status/price changes
+            # if not has_meaningful_change:
+            #     old_modified_by_id = old_values.get('modified_by')
+            #     new_modified_by_id = instance.modified_by_id if instance.modified_by else None
+            #     if old_modified_by_id != new_modified_by_id and new_modified_by_id:
+            #         # User explicitly modified - log it (but only if user is set)
+            #         create_audit_log(
+            #             model_name='Reservation',
+            #             object_id=instance.id,
+            #             action='updated',
+            #             user=user or instance.modified_by,
+            #             request=request,
+            #             notes="Reservation modified by user"
+            #         )
+            
+            # Clean up old values
+            _reservation_old_values.pop(instance.pk, None)
+    except Exception as e:
+        logger.error(f"Error logging reservation changes: {e}", exc_info=True)
+
+
+@receiver(pre_save, sender=Leg)
+def store_leg_old_values(sender, instance, **kwargs):
+    """Store old values before save to compare in post_save"""
+    if instance.pk:
+        try:
+            old_instance = Leg.objects.get(pk=instance.pk)
+            _leg_old_values[instance.pk] = {
+                'driver_id': old_instance.driver_id if old_instance.driver else None,
+                'status': old_instance.status,
+            }
+        except:
+            pass
+
+
+@receiver(post_save, sender=Leg)
+def log_leg_changes(sender, instance, created, **kwargs):
+    """Log leg changes to audit log"""
+    
+    try:
+        # Try to get user from thread-local storage
+        user = None
+        request = None
+        try:
+            from reservations.middleware import get_current_request, get_current_user
+            request = get_current_request()
+            user = get_current_user()
+        except:
+            pass
+        
+        if created:
+            # New leg created
+            create_audit_log(
+                model_name='Leg',
+                object_id=instance.id,
+                action='created',
+                user=user,
+                request=request,
+                notes=f"Leg created for reservation #{instance.reservation.id}"
+            )
+        else:
+            # Leg updated - check what changed
+            old_values = _leg_old_values.get(instance.pk, {})
+            
+            # Track driver assignment changes
+            old_driver_id = old_values.get('driver_id')
+            new_driver_id = instance.driver_id if instance.driver else None
+            
+            if old_driver_id != new_driver_id:
+                if new_driver_id:
+                    action = 'driver_assigned'
+                    notes = f"Driver assigned: {instance.driver}"
+                else:
+                    action = 'driver_unassigned'
+                    notes = f"Driver unassigned (was: {old_driver_id})"
+                
+                create_audit_log(
+                    model_name='Leg',
+                    object_id=instance.id,
+                    action=action,
+                    user=user or instance.driver_assigned_by,
+                    field_name='driver',
+                    old_value=str(old_driver_id) if old_driver_id else None,
+                    new_value=str(new_driver_id) if new_driver_id else None,
+                    request=request,
+                    notes=notes
+                )
+            
+            # Track status changes
+            if 'status' in old_values and old_values['status'] != instance.status:
+                create_audit_log(
+                    model_name='Leg',
+                    object_id=instance.id,
+                    action='status_changed',
+                    user=user or instance.status_changed_by,
+                    field_name='status',
+                    old_value=old_values['status'],
+                    new_value=instance.status,
+                    request=request,
+                    notes=f"Status changed from {old_values['status']} to {instance.status}"
+                )
+            
+            # Clean up old values
+            _leg_old_values.pop(instance.pk, None)
+    except Exception as e:
+        logger.error(f"Error logging leg changes: {e}", exc_info=True)

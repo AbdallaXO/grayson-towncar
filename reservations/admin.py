@@ -16,8 +16,9 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote
+from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog
 from django.db import models
+from dispatching.admin_mixins import DispatcherAdminMixin
 
 logger = logging.getLogger(__name__)
 
@@ -824,7 +825,7 @@ class CustomerAdmin(ImportExportModelAdmin):
 
 
 @admin.register(Reservation)
-class ReservationAdmin(ImportExportModelAdmin):
+class ReservationAdmin(DispatcherAdminMixin, ImportExportModelAdmin):
     ordering = ("-id",)
     resource_class = ReservationResource
     inlines = [LegInline]
@@ -2410,3 +2411,89 @@ class QuoteAdmin(admin.ModelAdmin):
                 '<span style="color: #28a745; font-weight: bold;">✓</span>'
             )
         return "-"
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """
+    Admin interface for viewing audit logs.
+    Provides comprehensive history of all changes to reservations and legs.
+    """
+    list_display = (
+        'timestamp',
+        'model_name',
+        'object_id',
+        'action',
+        'field_name',
+        'user_display',
+        'ip_address',
+    )
+    list_filter = (
+        'model_name',
+        'action',
+        'timestamp',
+        'user',
+    )
+    search_fields = (
+        'username',
+        'model_name',
+        'object_id',
+        'field_name',
+        'notes',
+    )
+    readonly_fields = (
+        'model_name',
+        'object_id',
+        'action',
+        'field_name',
+        'old_value',
+        'new_value',
+        'user',
+        'username',
+        'timestamp',
+        'ip_address',
+        'user_agent',
+        'notes',
+    )
+    date_hierarchy = 'timestamp'
+    ordering = ['-timestamp']
+    list_per_page = 50
+    
+    fieldsets = (
+        ('Change Information', {
+            'fields': ('model_name', 'object_id', 'action', 'field_name')
+        }),
+        ('Values', {
+            'fields': ('old_value', 'new_value'),
+            'classes': ('collapse',)
+        }),
+        ('User Information', {
+            'fields': ('user', 'username', 'timestamp')
+        }),
+        ('Additional Context', {
+            'fields': ('ip_address', 'user_agent', 'notes'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    @admin.display(description="User")
+    def user_display(self, obj):
+        if obj.user:
+            return format_html(
+                '<a href="{}">{}</a>',
+                reverse('admin:auth_user_change', args=[obj.user.pk]),
+                obj.user.username
+            )
+        return obj.username or "System"
+    
+    def has_add_permission(self, request):
+        """Prevent manual creation of audit logs"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Make audit logs read-only"""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Allow deletion only for superusers (for data cleanup)"""
+        return request.user.is_superuser

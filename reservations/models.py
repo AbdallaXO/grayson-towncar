@@ -141,6 +141,29 @@ class Reservation(models.Model):
         max_length=100, blank=True, null=True, help_text="UTM content parameter"
     )
 
+    # Audit fields - track who created/modified and when
+    created_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reservations_created",
+        help_text="User who created this reservation",
+    )
+    modified_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reservations_modified",
+        help_text="User who last modified this reservation",
+    )
+    last_modified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of last modification",
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=["customer"]),
@@ -156,6 +179,18 @@ class Reservation(models.Model):
         """
         # Initialize changed fields list
         self._changed_fields = []
+        
+        # Auto-set modified_by if not set and user is available
+        if self.pk:  # Only for existing instances (updates)
+            try:
+                from reservations.middleware import get_current_user
+                current_user = get_current_user()
+                if current_user and not self.modified_by:
+                    self.modified_by = current_user
+                if not self.last_modified_at:
+                    self.last_modified_at = timezone.now()
+            except:
+                pass  # If middleware not available, skip
 
         # Check for changes if this is an existing instance
         if self.pk:
@@ -472,6 +507,34 @@ class Leg(models.Model):
             ("canceled", "Canceled"),
         ],
         default="unpaid",
+    )
+
+    # Audit fields - track driver assignments and status changes
+    driver_assigned_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="legs_driver_assigned",
+        help_text="User who last assigned/changed the driver",
+    )
+    driver_assigned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when driver was last assigned/changed",
+    )
+    status_changed_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="legs_status_changed",
+        help_text="User who last changed the leg status",
+    )
+    status_changed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when leg status was last changed",
     )
 
     def calculate_revenue_share(self):
@@ -939,3 +1002,108 @@ class Quote(models.Model):
                 is_current=False
             )
         super().save(*args, **kwargs)
+
+
+class AuditLog(models.Model):
+    """
+    Comprehensive audit log for tracking all changes to important models.
+    Provides full history for compliance, debugging, and accountability.
+    """
+    
+    ACTION_CHOICES = [
+        ('created', 'Created'),
+        ('updated', 'Updated'),
+        ('deleted', 'Deleted'),
+        ('driver_assigned', 'Driver Assigned'),
+        ('driver_unassigned', 'Driver Unassigned'),
+        ('status_changed', 'Status Changed'),
+        ('payment_processed', 'Payment Processed'),
+        ('commission_processed', 'Commission Processed'),
+    ]
+    
+    # What was changed
+    model_name = models.CharField(
+        max_length=100,
+        help_text="Name of the model that was changed (e.g., 'Reservation', 'Leg')"
+    )
+    object_id = models.PositiveIntegerField(
+        help_text="ID of the object that was changed"
+    )
+    action = models.CharField(
+        max_length=50,
+        choices=ACTION_CHOICES,
+        help_text="Type of action performed"
+    )
+    
+    # What field changed (if applicable)
+    field_name = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Name of the field that changed (if specific field change)"
+    )
+    old_value = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Previous value (before change)"
+    )
+    new_value = models.TextField(
+        null=True,
+        blank=True,
+        help_text="New value (after change)"
+    )
+    
+    # Who made the change
+    user = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+        help_text="User who made the change"
+    )
+    username = models.CharField(
+        max_length=150,
+        null=True,
+        blank=True,
+        help_text="Username at time of change (for historical reference)"
+    )
+    
+    # When it happened
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="When the change occurred"
+    )
+    
+    # Additional context
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address of the user who made the change"
+    )
+    user_agent = models.TextField(
+        null=True,
+        blank=True,
+        help_text="User agent string from the request"
+    )
+    notes = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Additional notes or context about the change"
+    )
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['model_name', 'object_id']),
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['action', '-timestamp']),
+            models.Index(fields=['-timestamp']),
+        ]
+        verbose_name = "Audit Log"
+        verbose_name_plural = "Audit Logs"
+    
+    def __str__(self):
+        user_str = self.username or (self.user.username if self.user else "System")
+        return f"{self.action} {self.model_name}#{self.object_id} by {user_str} at {self.timestamp}"

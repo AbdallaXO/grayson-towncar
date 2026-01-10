@@ -219,7 +219,7 @@ def extend(request):
     Extended driver list view for dispatchers
     Shows all drivers with phone numbers, schedules, vehicles, and availability
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("home")
     
     # Get filter parameters
@@ -305,7 +305,7 @@ def update_driver_notes_ajax(request, driver_id):
     """
     Update driver notes via AJAX.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse(
             {"success": False, "error": "Permission denied"}, status=403
         )

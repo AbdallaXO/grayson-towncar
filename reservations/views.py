@@ -141,8 +141,18 @@ def reservation_form(
                 try:
                     travel_agent = TravelAgent.objects.get(user=request.user)
                     reservation.travel_agent = travel_agent
+                    # Track who created the reservation
+                    reservation.created_by = request.user
+                    reservation.modified_by = request.user
+                    reservation.last_modified_at = timezone.now()
                     reservation.save()
                 except TravelAgent.DoesNotExist:
+                    # Not a travel agent, but still track if user is logged in
+                    if request.user.is_superuser:
+                        reservation.created_by = request.user
+                        reservation.modified_by = request.user
+                        reservation.last_modified_at = timezone.now()
+                        reservation.save()
                     pass  # User is not a travel agent, continue normally
 
             leg1 = leg1_form.save(commit=False)

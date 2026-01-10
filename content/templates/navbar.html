@@ -47,6 +47,38 @@
               </li>
             </ul>
           </li>
+        {% elif request.user.is_staff %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle text-white"
+               href="#"
+               id="dispatchingDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">Dispatching</a>
+            <ul class="dropdown-menu bg-light" aria-labelledby="dispatchingDropdown">
+              <li>
+                <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'reservations_list' %}">All Reservations</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'legs_list' %}">All Legs</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'drivers_extend' %}">Drivers</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'driver_payment_management' %}">Driver Pay</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'admin:index' %}" target="_blank">Admin</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'logout' %}">Logout</a>
+              </li>
+            </ul>
+          </li>
         {% endif %}
         {% if request.user.is_authenticated and request.user.managed_agency.exists %}
           <li class="nav-item dropdown">

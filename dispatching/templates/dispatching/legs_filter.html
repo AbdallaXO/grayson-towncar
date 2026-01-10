@@ -160,12 +160,14 @@
                   <div class="fw-bold fs-5">{{ total_legs }}</div>
                 </div>
               </div>
+              {% if can_view_revenue %}
               <div class="col-md-3">
                 <div class="d-flex flex-column">
                   <div class="text-secondary">Total Revenue:</div>
                   <div class="fw-bold fs-5">${{ total_revenue|floatformat:2 }}</div>
                 </div>
               </div>
+              {% endif %}
             </div>
           </div>
         </div>
