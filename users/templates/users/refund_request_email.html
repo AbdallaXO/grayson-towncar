@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .content {
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .info-row {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .info-row:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+            display: inline-block;
+            width: 150px;
+        }
+        .value {
+            color: #333;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #000000;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .button:hover {
+            background-color: #333333;
+        }
+        .alert {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2 style="margin: 0; color: #333;">New Refund Request</h2>
+    </div>
+    
+    <div class="content">
+        <div class="alert">
+            <strong>⚠️ Action Required:</strong> A refund has been requested and requires your review.
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Reservation ID:</span>
+            <span class="value"><strong>#{{ reservation.id }}</strong></span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Customer:</span>
+            <span class="value">{{ reservation.customer.get_full_name }}</span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Customer Email:</span>
+            <span class="value">{{ reservation.customer.email }}</span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Requested By:</span>
+            <span class="value">{{ requested_by }}</span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Requested At:</span>
+            <span class="value">{{ requested_at|date:"F d, Y g:i A" }}</span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Refund Amount:</span>
+            <span class="value"><strong>${{ refund_amount|floatformat:2 }}</strong></span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Total Paid:</span>
+            <span class="value">${{ total_paid|floatformat:2 }}</span>
+        </div>
+        
+        <div class="info-row">
+            <span class="label">Reason:</span>
+            <div class="value" style="margin-top: 5px; padding: 10px; background-color: #f8f9fa; border-radius: 3px;">
+                {{ refund_reason|linebreaks }}
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="{{ admin_url }}" class="button">Review Refund Request</a>
+        </div>
+    </div>
+    
+    <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; font-size: 12px; color: #666;">
+        <p style="margin: 0;">This is an automated notification from the Grayson Towncar reservation system.</p>
+    </div>
+</body>
+</html>

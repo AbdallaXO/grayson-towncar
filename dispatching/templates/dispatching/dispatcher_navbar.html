@@ -40,6 +40,10 @@
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'statistics_page' %}active fw-bold{% endif %}"
              href="{% url 'statistics_page' %}"><i class="bi bi-graph-up me-1"></i>Statistics</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active fw-bold{% endif %}"
+             href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds</a>
+        </li>
         {% endif %}
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-white"

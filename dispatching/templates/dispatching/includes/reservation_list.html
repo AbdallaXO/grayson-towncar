@@ -224,6 +224,38 @@
                     {% endif %}
                   {% endwith %}
                 </div>
+                
+                {% if reservation.refund_status != 'none' %}
+                <div class="mt-2">
+                  <strong>Refund:</strong>
+                  <br />
+                  {% if reservation.refund_status == 'requested' %}
+                    <span class="badge bg-warning text-dark">
+                      <i class="bi bi-exclamation-triangle me-1"></i>Requested
+                    </span>
+                  {% elif reservation.refund_status == 'processing' %}
+                    <span class="badge bg-info text-white">
+                      <i class="bi bi-hourglass-split me-1"></i>Processing
+                    </span>
+                  {% elif reservation.refund_status == 'approved' %}
+                    <span class="badge bg-primary text-white">
+                      <i class="bi bi-check-circle me-1"></i>Approved
+                    </span>
+                  {% elif reservation.refund_status == 'completed' %}
+                    <span class="badge bg-success text-white">
+                      <i class="bi bi-check-circle-fill me-1"></i>Completed
+                    </span>
+                  {% elif reservation.refund_status == 'rejected' %}
+                    <span class="badge bg-secondary text-white">
+                      <i class="bi bi-x-circle me-1"></i>Rejected
+                    </span>
+                  {% endif %}
+                  {% if reservation.refund_amount %}
+                    <br><small class="text-muted">${{ reservation.refund_amount|floatformat:2 }}</small>
+                  {% endif %}
+                </div>
+                {% endif %}
+                </div>
               </div>
             </td>
           </tr>
@@ -445,6 +477,37 @@
                           {% endif %}
                         {% endwith %}
                       </div>
+                      
+                      {% if reservation.refund_status != 'none' %}
+                      <div class="mt-2">
+                        <strong>Refund:</strong>
+                        <br />
+                        {% if reservation.refund_status == 'requested' %}
+                          <span class="badge bg-warning text-dark">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Requested
+                          </span>
+                        {% elif reservation.refund_status == 'processing' %}
+                          <span class="badge bg-info text-white">
+                            <i class="bi bi-hourglass-split me-1"></i>Processing
+                          </span>
+                        {% elif reservation.refund_status == 'approved' %}
+                          <span class="badge bg-primary text-white">
+                            <i class="bi bi-check-circle me-1"></i>Approved
+                          </span>
+                        {% elif reservation.refund_status == 'completed' %}
+                          <span class="badge bg-success text-white">
+                            <i class="bi bi-check-circle-fill me-1"></i>Completed
+                          </span>
+                        {% elif reservation.refund_status == 'rejected' %}
+                          <span class="badge bg-secondary text-white">
+                            <i class="bi bi-x-circle me-1"></i>Rejected
+                          </span>
+                        {% endif %}
+                        {% if reservation.refund_amount %}
+                          <br><small class="text-muted">${{ reservation.refund_amount|floatformat:2 }}</small>
+                        {% endif %}
+                      </div>
+                      {% endif %}
                     </div>
                   </div>
                 </div>

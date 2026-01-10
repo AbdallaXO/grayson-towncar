@@ -46,8 +46,22 @@ class Payment(models.Model):
             ("card_saved", "Card Saved On File"),
             ("paid", "Paid"),
             ("failed", "Failed"),
+            ("refunded", "Refunded"),
         ],
         default="pending",
+    )
+    refunded_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Amount refunded from this payment (for partial refunds)",
+    )
+    stripe_refund_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Stripe refund ID for tracking",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

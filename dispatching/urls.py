@@ -115,4 +115,20 @@ urlpatterns = [
         views.delete_reservation,
         name="delete_reservation",
     ),
+    # Refund Management
+    path(
+        "request-refund/",
+        views.request_refund,
+        name="request_refund",
+    ),
+    path(
+        "refund-management/",
+        views.refund_management,
+        name="refund_management",
+    ),
+    path(
+        "process-refund/",
+        views.process_refund,
+        name="process_refund",
+    ),
 ]

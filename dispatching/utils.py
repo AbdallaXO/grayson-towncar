@@ -52,6 +52,9 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
         )
     
+    # Exclude refunded reservations - they should be hidden from normal operations
+    legs_query = legs_query.exclude(reservation__refund_status='completed')
+    
     # Apply date filters
     if date_from and date_to:
         try:

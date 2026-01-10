@@ -1,0 +1,308 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block content %}
+  {% block navbar %}
+  {% endblock navbar %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+  
+  <div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <h1 class="mb-0 fs-2 fw-bold">
+            <i class="bi bi-currency-exchange me-2"></i>Refund Management
+          </h1>
+          <div class="d-flex gap-2">
+            <a href="{% url 'dashboard' %}" class="btn btn-dark">
+              <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Filter Tabs -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if not status_filter %}active{% endif %}" 
+               href="{% url 'refund_management' %}">
+              All ({{ status_counts.requested|add:status_counts.processing|add:status_counts.approved }})
+            </a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if status_filter == 'requested' %}active{% endif %}" 
+               href="{% url 'refund_management' %}?status=requested">
+              Requested <span class="badge bg-warning text-dark">{{ status_counts.requested }}</span>
+            </a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if status_filter == 'processing' %}active{% endif %}" 
+               href="{% url 'refund_management' %}?status=processing">
+              Processing <span class="badge bg-dark text-white">{{ status_counts.processing }}</span>
+            </a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if status_filter == 'approved' %}active{% endif %}" 
+               href="{% url 'refund_management' %}?status=approved">
+              Approved <span class="badge bg-dark text-white">{{ status_counts.approved }}</span>
+            </a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if status_filter == 'completed' %}active{% endif %}" 
+               href="{% url 'refund_management' %}?status=completed">
+              Completed <span class="badge bg-success">{{ status_counts.completed }}</span>
+            </a>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link {% if status_filter == 'rejected' %}active{% endif %}" 
+               href="{% url 'refund_management' %}?status=rejected">
+              Rejected <span class="badge bg-secondary">{{ status_counts.rejected }}</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Refund Requests Table -->
+    {% if refund_requests %}
+    <div class="row">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Reservation</th>
+                    <th>Customer</th>
+                    <th>Requested By</th>
+                    <th>Requested At</th>
+                    <th>Amount</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for req in refund_requests %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'reservation_details' req.uuid %}" class="fw-bold">
+                        #{{ req.id }}
+                      </a>
+                      <br>
+                      <small class="text-muted">{{ req.created_at|date:"M d, Y" }}</small>
+                    </td>
+                    <td>
+                      <div class="fw-semibold">{{ req.customer.get_full_name }}</div>
+                      <small class="text-muted">{{ req.customer.email }}</small>
+                    </td>
+                    <td>
+                      <div class="fw-semibold">{{ req.refund_requested_by.get_full_name|default:req.refund_requested_by.username }}</div>
+                      {% if req.refund_requested_by.email %}
+                        <small class="text-muted">{{ req.refund_requested_by.email }}</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {{ req.refund_requested_at|date:"M d, Y" }}<br>
+                      <small class="text-muted">{{ req.refund_requested_at|time:"g:i A" }}</small>
+                    </td>
+                    <td>
+                      <span class="fw-bold">${{ req.refund_amount|floatformat:2 }}</span>
+                      <br>
+                      <small class="text-muted">Paid: ${{ req.total_paid|floatformat:2 }}</small>
+                    </td>
+                    <td>
+                      <div class="text-truncate" style="max-width: 200px;" title="{{ req.refund_reason }}">
+                        {{ req.refund_reason|truncatewords:10 }}
+                      </div>
+                    </td>
+                    <td>
+                      {% if req.refund_status == 'requested' %}
+                        <span class="badge bg-warning text-dark">Requested</span>
+                      {% elif req.refund_status == 'processing' %}
+                        <span class="badge bg-dark text-white">Processing</span>
+                      {% elif req.refund_status == 'approved' %}
+                        <span class="badge bg-dark text-white">Approved</span>
+                      {% elif req.refund_status == 'completed' %}
+                        <span class="badge bg-success">Completed</span>
+                      {% elif req.refund_status == 'rejected' %}
+                        <span class="badge bg-secondary">Rejected</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="btn-group btn-group-sm" role="group">
+                        <a href="{% url 'reservation_details' req.uuid %}" 
+                           class="btn btn-outline-dark" 
+                           title="View Reservation">
+                          <i class="bi bi-eye"></i>
+                        </a>
+                        {% if req.refund_status == 'requested' %}
+                          <button class="btn btn-outline-success approve-refund-btn" 
+                                  data-reservation-uuid="{{ req.uuid }}"
+                                  title="Approve">
+                            <i class="bi bi-check-circle"></i>
+                          </button>
+                          <button class="btn btn-outline-danger reject-refund-btn" 
+                                  data-reservation-uuid="{{ req.uuid }}"
+                                  title="Reject">
+                            <i class="bi bi-x-circle"></i>
+                          </button>
+                        {% elif req.refund_status == 'approved' %}
+                          <button class="btn btn-outline-dark process-refund-btn" 
+                                  data-reservation-uuid="{{ req.uuid }}"
+                                  title="Process Refund">
+                            <i class="bi bi-currency-dollar"></i>
+                          </button>
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="row">
+      <div class="col-12">
+        <div class="alert alert-dark">
+          <i class="bi bi-info-circle me-2"></i>
+          No refund requests found{% if status_filter %} with status "{{ status_filter }}"{% endif %}.
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Process/Approve/Reject Refund Modal -->
+  <div class="modal fade" id="refundActionModal" tabindex="-1" aria-labelledby="refundActionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header" id="refundActionModalHeader">
+          <h5 class="modal-title" id="refundActionModalLabel">Refund Action</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="refundActionForm">
+          <div class="modal-body">
+            <div id="refundActionAlert" class="alert" role="alert"></div>
+            <div class="mb-3">
+              <label for="refundActionNotes" class="form-label">Admin Notes (Optional)</label>
+              <textarea class="form-control" 
+                        id="refundActionNotes" 
+                        name="refund_notes" 
+                        rows="3" 
+                        placeholder="Add any notes about this refund action..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn" id="refundActionSubmitBtn">
+              <i class="bi bi-check me-1"></i>Confirm
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+      document.addEventListener('DOMContentLoaded', function() {
+          const refundActionModal = new bootstrap.Modal(document.getElementById('refundActionModal'));
+          let currentAction = '';
+          let currentReservationUuid = '';
+
+          // Approve refund
+          document.querySelectorAll('.approve-refund-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  currentAction = 'approve';
+                  currentReservationUuid = this.dataset.reservationUuid;
+                  showRefundActionModal('Approve Refund', 'dark', 'Are you sure you want to approve this refund request?');
+              });
+          });
+
+          // Reject refund
+          document.querySelectorAll('.reject-refund-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  currentAction = 'reject';
+                  currentReservationUuid = this.dataset.reservationUuid;
+                  showRefundActionModal('Reject Refund', 'danger', 'Are you sure you want to reject this refund request?');
+              });
+          });
+
+          // Process refund
+          document.querySelectorAll('.process-refund-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  currentAction = 'process';
+                  currentReservationUuid = this.dataset.reservationUuid;
+                  showRefundActionModal('Process Refund', 'success', 'This will process the refund through Stripe. Are you sure?');
+              });
+          });
+
+          function showRefundActionModal(title, type, message) {
+              document.getElementById('refundActionModalLabel').textContent = title;
+              const header = document.getElementById('refundActionModalHeader');
+              header.className = `modal-header bg-${type} text-white`;
+              document.getElementById('refundActionAlert').className = `alert alert-${type}`;
+              document.getElementById('refundActionAlert').textContent = message;
+              document.getElementById('refundActionSubmitBtn').className = `btn btn-${type}`;
+              document.getElementById('refundActionNotes').value = '';
+              refundActionModal.show();
+          }
+
+          // Submit refund action
+          document.getElementById('refundActionForm').addEventListener('submit', function(e) {
+              e.preventDefault();
+              
+              const refundNotes = document.getElementById('refundActionNotes').value.trim();
+              const submitBtn = document.getElementById('refundActionSubmitBtn');
+              const originalText = submitBtn.innerHTML;
+              
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+              
+              fetch('/dispatching/process-refund/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({
+                          reservation_uuid: currentReservationUuid,
+                          action: currentAction,
+                          refund_notes: refundNotes
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (data.success) {
+                          alert(data.message + (data.warnings ? '\n\nWarnings: ' + data.warnings.join('; ') : ''));
+                          window.location.reload();
+                      } else {
+                          alert('Error: ' + (data.error || 'Unknown error'));
+                          submitBtn.disabled = false;
+                          submitBtn.innerHTML = originalText;
+                      }
+                  })
+                  .catch(error => {
+                      alert('Error: ' + error);
+                      submitBtn.disabled = false;
+                      submitBtn.innerHTML = originalText;
+                  });
+          });
+      });
+  </script>
+{% endblock content %}
+
+{% block newsletter %}
+{% endblock newsletter %}
+
+{% block footer %}
+{% endblock footer %}

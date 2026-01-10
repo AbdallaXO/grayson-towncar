@@ -164,6 +164,66 @@ class Reservation(models.Model):
         help_text="Timestamp of last modification",
     )
 
+    # Refund Request Fields
+    REFUND_STATUS_CHOICES = [
+        ('none', 'No Refund Requested'),
+        ('requested', 'Refund Requested'),
+        ('processing', 'Processing Refund'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Refund Completed'),
+    ]
+    
+    refund_status = models.CharField(
+        max_length=20,
+        choices=REFUND_STATUS_CHOICES,
+        default='none',
+        help_text="Current status of refund request",
+    )
+    refund_requested_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="refund_requests_made",
+        help_text="Staff member who requested the refund",
+    )
+    refund_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the refund was requested",
+    )
+    refund_reason = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Reason for refund request from staff",
+    )
+    refund_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Amount to refund (can be partial or full)",
+    )
+    refund_processed_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="refunds_processed",
+        help_text="Admin who processed the refund",
+    )
+    refund_processed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the refund was processed",
+    )
+    refund_notes = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Admin notes about the refund processing",
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=["customer"]),
@@ -274,11 +334,16 @@ class Reservation(models.Model):
     @property
     def total_paid(self):
         """
-        Calculate total amount paid (sum of all successful payments)
+        Calculate total amount paid (sum of all successful payments, excluding refunded amounts)
         """
         from django.db.models import Sum
-        paid_sum = self.payments.filter(status="paid").aggregate(total=Sum("amount"))["total"]
-        return paid_sum or Decimal("0.00")
+        # Calculate total paid (excluding refunded payments)
+        paid_sum = self.payments.filter(status="paid").aggregate(total=Sum("amount"))["total"] or Decimal('0.00')
+        # Subtract partial refunds from paid payments
+        partial_refunded_sum = self.payments.filter(status="paid", refunded_amount__isnull=False).aggregate(
+            total=Sum("refunded_amount")
+        )["total"] or Decimal('0.00')
+        return (paid_sum - partial_refunded_sum).quantize(Decimal("0.01"))
 
     @property
     def amount_owed(self):
@@ -387,6 +452,20 @@ class Reservation(models.Model):
                     "status": "failed",
                     "type": "pay_later",
                     "display": "Save Card Failed"
+                }
+        elif latest_payment.status == "refunded":
+            # Check if it's a full or partial refund
+            if latest_payment.refunded_amount and latest_payment.refunded_amount < latest_payment.amount:
+                return {
+                    "status": "refunded",
+                    "type": latest_payment.payment_type,
+                    "display": f"Partially Refunded (${latest_payment.refunded_amount} of ${latest_payment.amount})"
+                }
+            else:
+                return {
+                    "status": "refunded",
+                    "type": latest_payment.payment_type,
+                    "display": "Refunded"
                 }
         else:
             return {"status": "unknown", "type": None, "display": "Unknown"}

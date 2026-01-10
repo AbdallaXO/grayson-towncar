@@ -97,8 +97,8 @@ def index(request):
     except ValueError:
         selected_date = timezone.localdate()
 
-    # Get all legs for the selected date
-    legs_query = Leg.objects.filter(pickup_date=selected_date)
+    # Get all legs for the selected date, excluding refunded reservations
+    legs_query = Leg.objects.filter(pickup_date=selected_date).exclude(reservation__refund_status='completed')
     
     # Apply driver filter if specified
     if driver_filter:
@@ -202,6 +202,11 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 queryset = queryset.filter(payments__isnull=True)
             else:
                 queryset = queryset.filter(status=status_filter)
+
+        # Exclude refunded reservations from default view (they're cancelled and archived)
+        # BUT if filtering by 'cancelled' or 'pending', show all including refunded ones
+        if status_filter not in ['cancelled', 'pending']:
+            queryset = queryset.exclude(refund_status='completed')
 
         # Add is_first_leg property to each leg - optimized to avoid N+1
         for reservation in queryset:
@@ -632,6 +637,14 @@ def update_leg_assignment(request):
             return JsonResponse(
                 {"success": False, "error": "Leg not found"}, status=404
             )
+        
+        # Prevent driver assignment on refunded reservations
+        if field == "driver" and leg.reservation.refund_status == 'completed':
+            logger.warning(f"Attempted to assign driver to refunded reservation {leg.reservation.id}")
+            return JsonResponse({
+                "success": False,
+                "error": "Cannot assign driver to a refunded reservation"
+            }, status=400)
 
         if field == "driver":
             if value:
@@ -3133,4 +3146,363 @@ def delete_reservation(request):
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
     except Exception as e:
         logger.error(f"Error deleting reservation: {str(e)}", exc_info=True)
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required
+@require_POST
+def request_refund(request):
+    """
+    Staff can request a refund for a reservation.
+    Creates a refund request that admins can process.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        reservation_uuid = data.get("reservation_uuid")
+        refund_reason = data.get("refund_reason", "").strip()
+        refund_amount = data.get("refund_amount")
+
+        if not reservation_uuid:
+            return JsonResponse({"success": False, "error": "Missing reservation UUID"}, status=400)
+        
+        if not refund_reason:
+            return JsonResponse({"success": False, "error": "Refund reason is required"}, status=400)
+
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+        
+        # Check if refund already completed - no new refunds allowed
+        if reservation.refund_status == 'completed':
+            return JsonResponse({
+                "success": False, 
+                "error": "Refund has already been completed. Cannot create a new refund request."
+            }, status=400)
+        
+        # Check if refund already requested (admins can override this for non-completed refunds)
+        if reservation.refund_status != 'none' and not request.user.is_superuser:
+            return JsonResponse({
+                "success": False, 
+                "error": f"Refund already {reservation.get_refund_status_display().lower()}"
+            }, status=400)
+        
+        # For admins, allow creating new refund requests even if one exists (except completed)
+        # This allows them to request a refund after a previous one was rejected, etc.
+        if reservation.refund_status != 'none' and request.user.is_superuser:
+            # Log that admin is overriding existing refund status
+            logger.info(f"Admin {request.user.username} creating new refund request for reservation {reservation.id} (previous status: {reservation.refund_status})")
+        
+        # Validate refund amount
+        # For admins, allow refunds even if total_paid is 0 (they might be refunding after partial refunds)
+        max_refund = reservation.total_paid if reservation.total_paid > 0 else reservation.total_price
+        
+        if refund_amount:
+            try:
+                refund_amount = Decimal(str(refund_amount))
+                if refund_amount <= 0:
+                    return JsonResponse({"success": False, "error": "Refund amount must be greater than 0"}, status=400)
+                if refund_amount > max_refund:
+                    return JsonResponse({
+                        "success": False, 
+                        "error": f"Refund amount cannot exceed ${max_refund}"
+                    }, status=400)
+            except (ValueError, TypeError):
+                return JsonResponse({"success": False, "error": "Invalid refund amount"}, status=400)
+        else:
+            # Default to full refund if not specified
+            refund_amount = max_refund if max_refund > 0 else reservation.total_price
+        
+        # Create refund request
+        reservation.refund_status = 'requested'
+        reservation.refund_requested_by = request.user
+        reservation.refund_requested_at = timezone.now()
+        reservation.refund_reason = refund_reason
+        reservation.refund_amount = refund_amount
+        reservation.save()
+        
+        # Send email notification to admin
+        from users.emails import send_refund_request_notification
+        send_refund_request_notification(reservation)
+        
+        logger.info(f"Refund requested for reservation {reservation.id} by {request.user.username}")
+        
+        return JsonResponse({
+            "success": True,
+            "message": "Refund request submitted successfully. Admin will review and process it.",
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error requesting refund: {str(e)}", exc_info=True)
+        return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required
+def refund_management(request):
+    """
+    Admin page to view and manage refund requests.
+    Shows a queue of all refund requests with ability to process them.
+    """
+    if not request.user.is_superuser:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect("dashboard")
+    
+    # Get filter parameters
+    status_filter = request.GET.get("status", "")
+    
+    # Get all reservations with refund requests (including completed and rejected for history)
+    refund_requests = Reservation.objects.filter(
+        refund_status__in=['requested', 'processing', 'approved', 'completed', 'rejected']
+    ).select_related(
+        'customer',
+        'refund_requested_by',
+        'refund_processed_by'
+    ).order_by('-refund_requested_at')
+    
+    # Apply status filter
+    if status_filter:
+        refund_requests = refund_requests.filter(refund_status=status_filter)
+    
+    # Count by status
+    status_counts = {
+        'requested': Reservation.objects.filter(refund_status='requested').count(),
+        'processing': Reservation.objects.filter(refund_status='processing').count(),
+        'approved': Reservation.objects.filter(refund_status='approved').count(),
+        'completed': Reservation.objects.filter(refund_status='completed').count(),
+        'rejected': Reservation.objects.filter(refund_status='rejected').count(),
+    }
+    
+    context = {
+        'refund_requests': refund_requests,
+        'status_filter': status_filter,
+        'status_counts': status_counts,
+    }
+    
+    return render(request, "dispatching/refund_management.html", context)
+
+
+@login_required
+@require_POST
+def process_refund(request):
+    """
+    Admin can process, approve, or reject a refund request.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        reservation_uuid = data.get("reservation_uuid")
+        action = data.get("action")  # 'approve', 'reject', 'process'
+        refund_notes = data.get("refund_notes", "").strip()
+
+        if not reservation_uuid or not action:
+            return JsonResponse({"success": False, "error": "Missing required fields"}, status=400)
+        
+        if action not in ['approve', 'reject', 'process']:
+            return JsonResponse({"success": False, "error": "Invalid action"}, status=400)
+
+        # Get the reservation
+        reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+        
+        if reservation.refund_status == 'none':
+            return JsonResponse({"success": False, "error": "No refund request found"}, status=400)
+        
+        if action == 'reject':
+            reservation.refund_status = 'rejected'
+            reservation.refund_processed_by = request.user
+            reservation.refund_processed_at = timezone.now()
+            reservation.refund_notes = refund_notes
+            reservation.save()
+            
+            logger.info(f"Refund rejected for reservation {reservation.id} by {request.user.username}")
+            
+            return JsonResponse({
+                "success": True,
+                "message": "Refund request rejected",
+            })
+        
+        elif action == 'approve':
+            # Approve and automatically process the refund
+            reservation.refund_status = 'approved'
+            reservation.refund_processed_by = request.user
+            reservation.refund_processed_at = timezone.now()
+            reservation.refund_notes = refund_notes
+            reservation.save()
+            
+            logger.info(f"Refund approved for reservation {reservation.id} by {request.user.username}, processing now...")
+            
+            # Automatically process the refund after approval
+            # Get all paid payments for this reservation
+            paid_payments = reservation.payments.filter(status='paid').order_by('-created_at')
+            
+            if not paid_payments.exists():
+                return JsonResponse({
+                    "success": False, 
+                    "error": "No paid payments found for this reservation"
+                }, status=400)
+            
+            # Process refund through Stripe
+            refund_amount = reservation.refund_amount
+            refunded_amount = Decimal('0.00')
+            refund_errors = []
+            
+            for payment in paid_payments:
+                if refunded_amount >= refund_amount:
+                    break
+                
+                remaining_to_refund = refund_amount - refunded_amount
+                amount_to_refund = min(remaining_to_refund, payment.amount)
+                
+                try:
+                    # Get Stripe payment intent ID from payment
+                    if not payment.stripe_payment_intent_id:
+                        refund_errors.append(f"Payment #{payment.id} has no Stripe payment intent ID")
+                        continue
+                    
+                    # Create refund in Stripe
+                    refund = stripe.Refund.create(
+                        payment_intent=payment.stripe_payment_intent_id,
+                        amount=int(amount_to_refund * 100),  # Convert to cents
+                        reason='requested_by_customer',
+                    )
+                    
+                    refunded_amount += amount_to_refund
+                    
+                    # Update payment record to reflect refund
+                    payment.refunded_amount = (payment.refunded_amount or Decimal('0.00')) + amount_to_refund
+                    payment.stripe_refund_id = refund.id  # Store the latest refund ID
+                    
+                    # If full payment is refunded, mark as refunded; otherwise keep as paid with refunded_amount
+                    if payment.refunded_amount >= payment.amount:
+                        payment.status = 'refunded'
+                    # If partial refund, keep status as 'paid' but track refunded_amount
+                    
+                    payment.save()
+                    logger.info(f"Refunded ${amount_to_refund} for payment {payment.id} via Stripe. Total refunded: ${payment.refunded_amount}")
+                    
+                except stripe.error.StripeError as e:
+                    refund_errors.append(f"Stripe error for payment #{payment.id}: {str(e)}")
+                    logger.error(f"Stripe refund error: {e}")
+                except Exception as e:
+                    refund_errors.append(f"Error processing payment #{payment.id}: {str(e)}")
+                    logger.error(f"Refund processing error: {e}")
+            
+            if refund_errors and refunded_amount == 0:
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Failed to process refund: {'; '.join(refund_errors)}"
+                }, status=500)
+            
+            # Update reservation status to completed
+            reservation.refund_status = 'completed'
+            reservation.status = 'cancelled'  # Cancel the reservation
+            if refund_errors:
+                reservation.refund_notes = (refund_notes or "") + f"\n\nRefund processing notes: {'; '.join(refund_errors)}"
+            reservation.save()
+            
+            logger.info(f"Refund processed for reservation {reservation.id} by {request.user.username}. Amount: ${refunded_amount}")
+            
+            return JsonResponse({
+                "success": True,
+                "message": f"Refund approved and processed successfully. Amount refunded: ${refunded_amount}",
+                "warnings": refund_errors if refund_errors else None,
+            })
+        
+        elif action == 'process':
+            # Process the actual Stripe refund
+            if reservation.refund_status != 'approved':
+                return JsonResponse({
+                    "success": False, 
+                    "error": "Refund must be approved before processing"
+                }, status=400)
+            
+            # Get all paid payments for this reservation
+            paid_payments = reservation.payments.filter(status='paid').order_by('-created_at')
+            
+            if not paid_payments.exists():
+                return JsonResponse({
+                    "success": False, 
+                    "error": "No paid payments found for this reservation"
+                }, status=400)
+            
+            # Process refund through Stripe
+            refund_amount = reservation.refund_amount
+            refunded_amount = Decimal('0.00')
+            refund_errors = []
+            
+            for payment in paid_payments:
+                if refunded_amount >= refund_amount:
+                    break
+                
+                remaining_to_refund = refund_amount - refunded_amount
+                amount_to_refund = min(remaining_to_refund, payment.amount)
+                
+                try:
+                    # Get Stripe payment intent ID from payment
+                    if not payment.stripe_payment_intent_id:
+                        refund_errors.append(f"Payment #{payment.id} has no Stripe payment intent ID")
+                        continue
+                    
+                    # Create refund in Stripe
+                    refund = stripe.Refund.create(
+                        payment_intent=payment.stripe_payment_intent_id,
+                        amount=int(amount_to_refund * 100),  # Convert to cents
+                        reason='requested_by_customer',
+                    )
+                    
+                    refunded_amount += amount_to_refund
+                    
+                    # Update payment record to reflect refund
+                    payment.refunded_amount = (payment.refunded_amount or Decimal('0.00')) + amount_to_refund
+                    payment.stripe_refund_id = refund.id  # Store the latest refund ID
+                    
+                    # If full payment is refunded, mark as refunded; otherwise keep as paid with refunded_amount
+                    if payment.refunded_amount >= payment.amount:
+                        payment.status = 'refunded'
+                    # If partial refund, keep status as 'paid' but track refunded_amount
+                    
+                    payment.save()
+                    logger.info(f"Refunded ${amount_to_refund} for payment {payment.id} via Stripe. Total refunded: ${payment.refunded_amount}")
+                    
+                except stripe.error.StripeError as e:
+                    refund_errors.append(f"Stripe error for payment #{payment.id}: {str(e)}")
+                    logger.error(f"Stripe refund error: {e}")
+                except Exception as e:
+                    refund_errors.append(f"Error processing payment #{payment.id}: {str(e)}")
+                    logger.error(f"Refund processing error: {e}")
+            
+            if refund_errors and refunded_amount == 0:
+                return JsonResponse({
+                    "success": False,
+                    "error": f"Failed to process refund: {'; '.join(refund_errors)}"
+                }, status=500)
+            
+            # Update reservation status
+            reservation.refund_status = 'completed'
+            reservation.refund_processed_by = request.user
+            reservation.refund_processed_at = timezone.now()
+            # Cancel the reservation so it doesn't show in legs list or allow driver assignment
+            reservation.status = 'cancelled'
+            if refund_notes:
+                reservation.refund_notes = refund_notes
+            if refund_errors:
+                reservation.refund_notes = (refund_notes or "") + f"\n\nRefund processing notes: {'; '.join(refund_errors)}"
+            reservation.save()
+            
+            logger.info(f"Refund processed for reservation {reservation.id} by {request.user.username}. Amount: ${refunded_amount}")
+            
+            return JsonResponse({
+                "success": True,
+                "message": f"Refund processed successfully. Amount refunded: ${refunded_amount}",
+                "warnings": refund_errors if refund_errors else None,
+            })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
+    except Exception as e:
+        logger.error(f"Error processing refund: {str(e)}", exc_info=True)
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)

@@ -1,4 +1,3 @@
-
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 import logging
@@ -42,46 +41,23 @@ def _send_email_with_retry(email_func, max_retries=3):
 @require_POST
 def send_reservation_confirmation_ajax(request):
     """
-    AJAX endpoint to send reservation confirmation email.
-    Uses the existing send_reservation_confirmation function.
+    AJAX endpoint to send reservation confirmation email
     """
-    if not request.user.is_superuser:
-        return JsonResponse(
-            {"success": False, "error": "Permission denied"}, status=403
-        )
-
     try:
         data = json.loads(request.body)
         reservation_id = data.get("reservation_id")
-
-        if not reservation_id:
-            return JsonResponse(
-                {"success": False, "error": "Missing reservation ID"}, status=400
-            )
-
-        # Get the reservation
         reservation = get_object_or_404(Reservation, uuid=reservation_id)
-
-        # Use the existing function to send the email
+        
+        # Check permissions - staff or superuser
+        if not request.user.is_staff:
+            return JsonResponse({"success": False, "error": "Permission denied"})
+        
         send_reservation_confirmation(reservation)
-
-        # Log the action in private notes
-        timestamp = timezone.now().strftime("%Y-%m-%d %H:%M")
-        note_addition = (
-            f"\n[{timestamp}] Confirmation email sent by {request.user.username}"
-        )
-
-        if reservation.private_notes:
-            reservation.private_notes += note_addition
-        else:
-            reservation.private_notes = note_addition
-
-        reservation.save(update_fields=["private_notes"])
-
+        
         return JsonResponse({"success": True})
-
+    
     except Exception as e:
-        logger.error(f"Error sending confirmation email via AJAX: {str(e)}")
+        logger.error(f"Error sending confirmation email: {e}")
         return JsonResponse({"success": False, "error": str(e)})
 
 
@@ -132,137 +108,83 @@ def send_reservation_confirmation(reservation):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
-def thankyou_email(instance):
-    """This Reservation is Called in the View
-    When a Reservation is created with the reservation Object
-    Renders a nicely formatted HTML and emails a Confirmation"""
-    def _send_email():
-        try:
-            name = instance.first_name if instance.first_name else instance.name
-            subject = f"Hello {name}, We've Received Your Message."
-            from_email = "contact@graysontowncar.com"
-            logger.info(f"Sending Email to ... {instance.email}")
-            to = [instance.email, "contact@graysontowncar.com"]
-            html_content = render_to_string("users/partner_contact_email.html")
-
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            logger.info(f"Thank you email sent successfully to {instance.email}")
-        except Exception as e:
-            logger.error(f"Error sending thank you email: {e}")
-            raise  # Re-raise for retry logic
-
-    # Send with retry in background thread
-    _send_email_with_retry(_send_email, max_retries=3)
-
-
-def send_internal_confirmation(reservation):
-    """Emails Self when a reservation gets made in case of any errors and customer does not get an email"""
-    logger.info(
-        f"Preparing to send internal confirmation email for {reservation.customer}"
-    )
+def send_refund_request_notification(reservation):
+    """
+    Send email notification to admin when a refund is requested.
+    """
+    logger.info(f"Preparing to send refund request notification for reservation {reservation.id}")
 
     def _send_email():
         try:
             context = {
                 "reservation": reservation,
-                "legs": reservation.legs.all(),
-                "date": timezone.now().date(),
+                "requested_by": reservation.refund_requested_by.get_full_name() if reservation.refund_requested_by else "Unknown",
+                "requested_at": reservation.refund_requested_at,
+                "refund_reason": reservation.refund_reason,
+                "refund_amount": reservation.refund_amount,
+                "total_paid": reservation.total_paid,
+                "admin_url": f"https://www.graysontowncar.com/dispatching/refund-management/",
             }
 
-            subject = "Reservation Submission"
+            subject = f"Refund Requested - Reservation #{reservation.id}"
             from_email = "reservations@graysontowncar.com"
-            to = ["reservations@graysontowncar.com"]
-            logger.info(f"Email subject: {subject}")
-            logger.info(f"Sending to: {to}")
-            html_content = render_to_string("users/confirmation_email.html", context)
-            logger.info("HTML content rendered successfully")
-
+            to = ["admin@graysontowncar.com"]
+            
+            html_content = render_to_string("users/refund_request_email.html", context)
+            
             msg = EmailMultiAlternatives(subject, "", from_email, to)
             msg.attach_alternative(html_content, "text/html")
             msg.send()
 
-            logger.info(
-                f"Internal confirmation email sent successfully for reservation {reservation.uuid}"
-            )
+            logger.info(f"Refund request notification sent successfully for reservation {reservation.id}")
 
         except Exception as e:
-            logger.exception(
-                f"Error sending internal confirmation email for reservation {reservation.uuid}: {e}"
-            )
-            raise  # Re-raise for retry logic
+            logger.exception(f"Error sending refund request notification: {e}")
+            raise
 
     # Send with retry in background thread
     _send_email_with_retry(_send_email, max_retries=3)
 
 
 def agent_register_email(instance):
-    """When a travelAgent Succesfully Registers this is a Thank You Email
-    And Some Instructions Sent Along with it"""
-    def _send_email():
-        try:
-            name = instance.agent_name.split(" ")[0]
-            subject = f"Welcome to Grayson Towncar! Your Agent Account is Now Live!"
-            from_email = "contact@graysontowncar.com"
-            logger.info(f"Sending Email to ... {instance.user.email}")
-            to = [instance.user.email, "contact@graysontowncar.com"]
-            html_content = render_to_string(
-                "users/agent_register_email.html", {"name": name}
-            )
-
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
-            logger.info(f"Agent registration email sent successfully to {instance.user.email}")
-        except Exception as e:
-            logger.error(f"Error sending agent registration email: {e}")
-            raise  # Re-raise for retry logic
-
-    # Send with retry in background thread
-    _send_email_with_retry(_send_email, max_retries=3)
-
-
-def send_reservation_confirmation_custom_recipient(reservation, recipient_email, sender_name=None):
     """
-    Send reservation confirmation email to a custom recipient.
-    This allows travel agents to send confirmations to different email addresses.
+    Sends a welcome email to new travel agents after registration.
     """
-    logger.info(
-        f"Preparing to send custom confirmation email for {reservation.customer} to {recipient_email}"
-    )
+    try:
+        context = {
+            "agent": instance,
+            "agent_name": instance.agent_name or instance.user.get_full_name() or instance.user.username,
+            "email": instance.user.email,
+        }
+        subject = "Welcome to Grayson Towncar Travel Agent Portal!"
+        from_email = "reservations@graysontowncar.com"
+        to = [instance.user.email]
+        html_content = render_to_string("users/agent_register_email.html", context)
 
-    def _send_email():
-        try:
-            context = {
-                "reservation": reservation,
-                "legs": reservation.legs.all(),
-                "date": timezone.now().date(),
-                "sender_name": sender_name,
-            }
+        msg = EmailMultiAlternatives(subject, "", from_email, to)
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+        logger.info(f"Welcome email sent to {instance.user.email}")
 
-            subject = "Thank you for booking with Grayson Towncar!"
-            from_email = "reservations@graysontowncar.com"
-            to = [recipient_email]
-            logger.info(f"Email subject: {subject}")
-            logger.info(f"Sending to: {to}")
-            html_content = render_to_string("users/confirmation_email.html", context)
-            logger.info("HTML content rendered successfully")
+    except Exception as e:
+        logger.error(f"Error sending agent welcome email: {e}")
 
-            msg = EmailMultiAlternatives(subject, "", from_email, to)
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
 
-            logger.info(
-                f"Custom confirmation email sent successfully for reservation {reservation.uuid} to {recipient_email}"
-            )
+def thankyou_email(instance):
+    """
+    Sends a thank you email to the customer after they submit a contact form.
+    """
+    try:
+        context = {"name": instance.name, "email": instance.email}
+        subject = "Thank you for contacting Grayson Towncar!"
+        from_email = "reservations@graysontowncar.com"
+        to = [instance.email]
+        html_content = render_to_string("users/thankyou_email.html", context)
 
-        except Exception as e:
-            logger.exception(
-                f"Error sending custom confirmation email for reservation {reservation.uuid} to {recipient_email}: {e}"
-            )
-            raise  # Re-raise for retry logic
+        msg = EmailMultiAlternatives(subject, "", from_email, to)
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+        logger.info(f"Thank you email sent to {instance.email}")
 
-    # Send with retry in background thread
-    _send_email_with_retry(_send_email, max_retries=3)
-    return True
+    except Exception as e:
+        logger.error(f"Error sending thank you email: {e}")

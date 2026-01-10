@@ -2209,17 +2209,19 @@ class LeadAdmin(admin.ModelAdmin):
             if len(phone_leads) > 1:
                 skipped_duplicate_phone += len(phone_leads) - 1
         
-        # Process selected leads
+        # Process selected leads using Celery
+        # Celery handles queuing, retries, and memory management better than threads
         for lead in leads_to_process:
-            # Try to queue with Celery, fallback to thread if Celery unavailable
             try:
+                # Queue with Celery - it will handle the work asynchronously
                 sync_lead_to_ghl_and_send_sms.delay(lead.id)
                 queued_count += 1
             except Exception as e:
-                # Celery not available, run in background thread
+                # If Celery is unavailable, fallback to direct call in thread
                 logger.warning(f"Could not queue Celery task for lead {lead.id}: {e}. Running in thread instead.")
                 def run_task(lead_id=lead.id):
                     try:
+                        # Call the task function directly (synchronous)
                         sync_lead_to_ghl_and_send_sms(lead_id)
                     except Exception as task_error:
                         logger.error(f"Error processing lead {lead_id} in thread: {task_error}")
