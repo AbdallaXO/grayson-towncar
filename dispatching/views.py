@@ -1277,9 +1277,12 @@ def dispatcher_payment_portal(request, reservation_id):
                             logger.error(f"Error sending confirmation email for dispatcher payment on reservation {reservation.uuid}: {e}")
                             # Don't fail payment processing if email fails
 
-                        # Send purchase event
+                        # Send purchase event to Meta - use None to default to reservation.total_price (matches Google Analytics)
+                        # Generate event_id from payment intent for deduplication
                         try:
-                            send_purchase_event(reservation, float(final_amount))
+                            import time
+                            event_id = f"{payment_intent_id}_{int(time.time())}" if payment_intent_id else None
+                            send_purchase_event(reservation, value=None, event_id=event_id)
                         except Exception as e:
                             logger.warning(f"Error sending purchase event: {e}")
 

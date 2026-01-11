@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.db import transaction  # Added for atomicity
 import logging
+import time
 from reservations.models import Reservation, Customer
 from .models import Payment
 from users.emails import send_reservation_confirmation  # Added import
@@ -224,7 +225,10 @@ def handle_checkout_session(session):
                     logger.error(f"Error sending confirmation email for reservation {reservation_id}: {e}")
                     # Don't fail payment processing if email fails
                 
-                send_purchase_event(reservation, final_amount)
+                # Send purchase event to Meta - use None to default to reservation.total_price (matches Google Analytics)
+                # Generate event_id from payment intent for deduplication
+                event_id = f"{payment_intent}_{int(time.time())}" if payment_intent else None
+                send_purchase_event(reservation, value=None, event_id=event_id)
             else:
                 logger.error("No payment_intent in session")
 

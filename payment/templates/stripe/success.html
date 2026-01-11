@@ -61,6 +61,8 @@
       const utm_source = getUTMValue('utm_source', '{{ reservation.utm_source|default:"" }}');
       const utm_medium = getUTMValue('utm_medium', '{{ reservation.utm_medium|default:"" }}');
       const utm_campaign = getUTMValue('utm_campaign', '{{ reservation.utm_campaign|default:"" }}');
+      
+      // Google Analytics Purchase Event
       window.dataLayer.push({
           event: 'purchase',
           transaction_id: '{{ purchase_data.transaction_id|default:"" }}',
@@ -71,5 +73,20 @@
           utm_medium: utm_medium,
           utm_campaign: utm_campaign
       });
+      
+      // Meta Pixel Purchase Event (matches Google Analytics value)
+      if (typeof fbq !== 'undefined') {
+          // Use server-generated event_id for deduplication with CAPI
+          const eventId = '{{ purchase_data.event_id|default:"" }}' || ('{{ purchase_data.transaction_id|default:"" }}' + '_' + Date.now());
+          
+          fbq('track', 'Purchase', {
+              content_type: 'product',
+              content_ids: ['{{ reservation.id|default:"" }}'],
+              value: {{purchase_data.value}},
+              currency: '{{ purchase_data.currency|default:"USD" }}',
+              num_items: 1,
+              order_id: '{{ purchase_data.transaction_id|default:"" }}'
+          }, {eventID: eventId});
+      }
   </script>
 {% endblock content %}

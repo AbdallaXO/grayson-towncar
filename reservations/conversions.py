@@ -3,6 +3,7 @@ import hashlib
 import time
 import os
 import logging
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,7 +23,7 @@ def hash_data(data):
 
 
 # Shared function to send event
-def send_capi_event(event_name, user_data, custom_data=None, request=None):
+def send_capi_event(event_name, user_data, custom_data=None, request=None, event_id=None):
     if not FB_PIXEL_ID or not FB_CAPI_ACCESS_TOKEN:
         logger.error(
             "Missing required environment variables: FB_PIXEL_ID or FB_CAPI_ACCESS_TOKEN"
@@ -38,9 +39,16 @@ def send_capi_event(event_name, user_data, custom_data=None, request=None):
         "action_source": "website",
         "event_source_url": request.build_absolute_uri()
         if request
-        else "https://your-production-url.com",
+        else "https://www.graysontowncar.com",
         "user_data": user_data,
     }
+
+    # Add event_id for deduplication (required for Purchase events)
+    if event_id:
+        event_payload["event_id"] = event_id
+    else:
+        # Generate a unique event_id if not provided
+        event_payload["event_id"] = str(uuid.uuid4())
 
     if custom_data:
         event_payload["custom_data"] = custom_data
@@ -52,8 +60,9 @@ def send_capi_event(event_name, user_data, custom_data=None, request=None):
             url, params={"access_token": FB_CAPI_ACCESS_TOKEN}, json=payload
         )
         response.raise_for_status()
-        logger.info(f"Successfully sent {event_name} event to Meta CAPI")
-        return response.json()
+        response_data = response.json()
+        logger.info(f"Successfully sent {event_name} event to Meta CAPI. Response: {response_data}")
+        return response_data
     except requests.exceptions.RequestException as e:
         logger.error(f"Error sending {event_name} event to Meta CAPI: {str(e)}")
         return None
@@ -86,7 +95,20 @@ def send_initiate_checkout_event(reservation, request):
 
 
 # Purchase event (payment successful via Stripe webhook)
-def send_purchase_event(reservation, value):
+def send_purchase_event(reservation, value=None, event_id=None, request=None):
+    """
+    Send Purchase event to Meta Conversions API.
+    
+    Args:
+        reservation: Reservation object
+        value: Optional payment amount. If not provided, uses reservation.total_price (matches Google Analytics)
+        event_id: Optional event_id for deduplication. If not provided, generates one.
+        request: Optional request object for IP/UA tracking
+    """
+    # Use reservation.total_price if value not provided (matches Google Analytics behavior)
+    if value is None:
+        value = float(reservation.total_price) if reservation.total_price else 0.0
+    
     user_data = {
         "em": hash_data(reservation.customer.email),
         "ph": hash_data(reservation.customer.phone_number),
@@ -94,10 +116,33 @@ def send_purchase_event(reservation, value):
         "ln": hash_data(reservation.customer.last_name),
         "zp": hash_data(reservation.customer.zipcode),
         "external_id": str(reservation.id),
-        "client_ip_address": None,  # No IP available in webhook context
     }
+    
+    # Add IP and User-Agent if request is available
+    if request:
+        user_data["client_ip_address"] = request.META.get("REMOTE_ADDR")
+        user_data["client_user_agent"] = request.headers.get("User-Agent")
+        
+        # Extract Facebook cookies for better attribution (_fbp and _fbc)
+        cookies = request.COOKIES
+        if "_fbp" in cookies:
+            user_data["fbp"] = cookies["_fbp"]
+        if "_fbc" in cookies:
+            user_data["fbc"] = cookies["_fbc"]
+    else:
+        user_data["client_ip_address"] = None
 
-    custom_data = {"currency": "USD", "value": value}
+    custom_data = {
+        "currency": "USD", 
+        "value": value,
+        "content_type": "product",
+        "content_ids": [str(reservation.id)],
+    }
+    
+    # Add transaction ID if available
+    if reservation.payments.exists():
+        latest_payment = reservation.payments.latest("created_at")
+        if latest_payment.stripe_payment_intent_id:
+            custom_data["order_id"] = latest_payment.stripe_payment_intent_id
 
-    # No request object here since webhook has no IP/UA
-    return send_capi_event("Purchase", user_data, custom_data=custom_data, request=None)
+    return send_capi_event("Purchase", user_data, custom_data=custom_data, request=request, event_id=event_id)

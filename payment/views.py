@@ -144,16 +144,33 @@ def payment_success(request):
                 stripe_transaction_id = latest_payment.stripe_payment_intent_id
 
             # Prepare purchase event data
+            transaction_id = stripe_transaction_id or str(reservation.uuid)
+            import time
+            # Generate event_id for Meta deduplication (same format as webhook)
+            event_id = f"{transaction_id}_{int(time.time())}"
+            
             purchase_data = {
-                "transaction_id": stripe_transaction_id
-                or str(
-                    reservation.uuid
-                ),  # Use Stripe ID if available, fallback to UUID
+                "transaction_id": transaction_id,
                 "value": float(reservation.total_price)
                 if reservation.total_price
                 else 0.0,
                 "currency": "USD",
+                "event_id": event_id,  # For Meta Pixel deduplication
             }
+
+            # Send Meta CAPI Purchase event from success page (better attribution with IP/UA)
+            # This will deduplicate with webhook event via event_id
+            if reservation and purchase_data:
+                try:
+                    from reservations.conversions import send_purchase_event
+                    send_purchase_event(
+                        reservation, 
+                        value=None,  # Use reservation.total_price (matches Google)
+                        event_id=purchase_data.get("event_id"),
+                        request=request  # Include request for IP/UA tracking
+                    )
+                except Exception as e:
+                    logger.warning(f"Error sending Meta CAPI purchase event from success page: {e}")
 
         except Exception as e:
             logger.error(f"Error retrieving reservation {reservation_uuid}: {e}")
