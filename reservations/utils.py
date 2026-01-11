@@ -770,6 +770,7 @@ def add_utm_to_metadata(metadata: Dict[str, Any], reservation) -> Dict[str, Any]
     """
     utm_params = [
         "gclid",
+        "fbclid",  # Facebook Click ID
         "utm_source",
         "utm_medium",
         "utm_campaign",

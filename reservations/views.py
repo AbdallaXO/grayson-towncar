@@ -118,9 +118,11 @@ def reservation_form(
                 vehicle=rate.vehicle,
             )
 
-            # Capture and save UTM parameters for Google Ads attribution
+            # Capture and save UTM parameters for Google Ads and Meta Ads attribution
+            # Check both POST data (from form) and cookies (for returning visitors)
             utm_params = [
                 "gclid",
+                "fbclid",  # Facebook Click ID
                 "utm_source",
                 "utm_medium",
                 "utm_campaign",
@@ -128,10 +130,17 @@ def reservation_form(
                 "utm_content",
             ]
             for param in utm_params:
-                value = request.POST.get(param)
+                # Try POST first (from form submission), then cookies (for returning visitors)
+                value = request.POST.get(param) or request.COOKIES.get(param)
                 if value:
                     setattr(reservation, param, value)
-                    logger.info(f"Captured UTM parameter {param}: {value}")
+                    logger.info(f"Captured parameter {param}: {value} (from {'POST' if request.POST.get(param) else 'cookie'})")
+            
+            # Auto-detect Meta/Facebook traffic if fbclid present but no utm_source
+            if reservation.fbclid and not reservation.utm_source:
+                reservation.utm_source = "facebook"
+                reservation.utm_medium = "cpc"
+                logger.info("Auto-detected Facebook/Meta traffic from fbclid")
 
             # Save the reservation with UTM data
             reservation.save()
@@ -423,6 +432,29 @@ class QuoteFormHandlerView(View):
                 lead.trip_type = trip_type
                 lead.vehicle_id = data.get("vehicle_id")
                 lead.estimated_price = data.get("estimated_price")
+
+                # Capture and save UTM parameters from cookies (set by main.html script)
+                utm_params = [
+                    "gclid",
+                    "fbclid",  # Facebook Click ID
+                    "utm_source",
+                    "utm_medium",
+                    "utm_campaign",
+                    "utm_term",
+                    "utm_content",
+                ]
+                for param in utm_params:
+                    # Try to get from request cookies first (set by JavaScript)
+                    value = request.COOKIES.get(param)
+                    if value:
+                        setattr(lead, param, value)
+                        logger.info(f"Captured parameter {param} for lead: {value}")
+                
+                # Auto-detect Meta/Facebook traffic if fbclid present but no utm_source
+                if lead.fbclid and not lead.utm_source:
+                    lead.utm_source = "facebook"
+                    lead.utm_medium = "cpc"
+                    logger.info("Auto-detected Facebook/Meta traffic from fbclid for lead")
 
                 # Set high/medium priority based on trip date
                 if lead.pickup_date:

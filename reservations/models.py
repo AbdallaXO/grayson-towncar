@@ -124,9 +124,17 @@ class Reservation(models.Model):
         blank=True,
         null=True,
         help_text="Google Click ID for conversion tracking",
+        db_index=True,
+    )
+    fbclid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Facebook Click ID for conversion tracking",
+        db_index=True,
     )
     utm_source = models.CharField(
-        max_length=100, blank=True, null=True, help_text="UTM source parameter"
+        max_length=100, blank=True, null=True, help_text="UTM source parameter", db_index=True
     )
     utm_medium = models.CharField(
         max_length=100, blank=True, null=True, help_text="UTM medium parameter"
@@ -1000,6 +1008,37 @@ class Lead(models.Model):
     initial_sms_sent_at = models.DateTimeField(null=True, blank=True)
     last_reply_at = models.DateTimeField(null=True, blank=True)
     has_replied = models.BooleanField(default=False)
+
+    # UTM Parameters for Lead Source Tracking
+    gclid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Google Click ID for conversion tracking",
+        db_index=True,
+    )
+    fbclid = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Facebook Click ID for conversion tracking",
+        db_index=True,
+    )
+    utm_source = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM source parameter", db_index=True
+    )
+    utm_medium = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM medium parameter", db_index=True
+    )
+    utm_campaign = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM campaign parameter", db_index=True
+    )
+    utm_term = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM term parameter"
+    )
+    utm_content = models.CharField(
+        max_length=100, blank=True, null=True, help_text="UTM content parameter"
+    )
 
     class Meta:
         ordering = ["-created_at"]

@@ -23,7 +23,7 @@
     <!-- UTM Parameter Capture Script -->
     <script>
         (function() {
-            const params = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+            const params = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 
             // Function to set cookie
             function setCookie(name, value, days = 30) {
@@ -38,14 +38,26 @@
                 return match ? decodeURIComponent(match[2]) : null;
             }
 
-            // Capture UTM parameters from URL and store in cookies
+            // Capture UTM parameters and fbclid from URL and store in cookies
             params.forEach(function(param) {
                 const value = new URLSearchParams(window.location.search).get(param);
                 if (value) {
                     setCookie(param, value);
-                    console.log('Stored UTM parameter in cookie:', param, '=', value);
+                    console.log('Stored parameter in cookie:', param, '=', value);
                 }
             });
+
+            // Auto-detect Meta/Facebook traffic if fbclid is present but no utm_source
+            const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+            const hasFbpCookie = document.cookie.includes('_fbp=');
+            if ((fbclid || hasFbpCookie) && !getCookie('utm_source')) {
+                // Auto-set utm_source to 'facebook' if coming from Meta but no UTM params
+                if (!getCookie('utm_source')) {
+                    setCookie('utm_source', 'facebook');
+                    setCookie('utm_medium', 'cpc');
+                    console.log('Auto-detected Facebook/Meta traffic');
+                }
+            }
 
             // Make getCookie function globally available for purchase event
             window.getCookie = getCookie;

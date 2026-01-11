@@ -157,6 +157,7 @@
 
             <!-- Hidden UTM Parameter Fields -->
             <input type="hidden" name="gclid" id="gclid_field">
+            <input type="hidden" name="fbclid" id="fbclid_field">
             <input type="hidden" name="utm_source" id="utm_source_field">
             <input type="hidden" name="utm_medium" id="utm_medium_field">
             <input type="hidden" name="utm_campaign" id="utm_campaign_field">
@@ -1041,7 +1042,7 @@
 
                 form.addEventListener('submit', function(e) {
                     // Capture UTM parameters from cookies
-                    const utmParams = ['gclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+                    const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
 
                     utmParams.forEach(function(param) {
                         const value = getCookie(param);

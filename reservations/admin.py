@@ -393,6 +393,63 @@ class LeadTripDateFilter(SimpleListFilter):
         return qs
 
 
+class LeadSourceFilter(SimpleListFilter):
+    title = "lead source"
+    parameter_name = "lead_source"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("meta_facebook", "📘 Meta/Facebook Ads (fbclid)"),
+            ("google_ads", "🔍 Google Ads (gclid)"),
+            ("facebook_utm", "📘 Facebook (utm_source)"),
+            ("meta_utm", "📘 Meta (utm_source)"),
+            ("direct_organic", "🌐 Direct/Organic"),
+            ("has_utm", "📊 Has UTM Parameters"),
+            ("no_source", "❓ No Source Data"),
+        )
+
+    def queryset(self, request, qs):
+        if self.value() == "meta_facebook":
+            # Meta/Facebook traffic detected by fbclid
+            return qs.filter(fbclid__isnull=False)
+        elif self.value() == "google_ads":
+            # Google Ads traffic detected by gclid
+            return qs.filter(gclid__isnull=False)
+        elif self.value() == "facebook_utm":
+            # Facebook traffic from UTM parameters
+            return qs.filter(
+                Q(utm_source__icontains="facebook") | 
+                Q(utm_source__icontains="fb")
+            )
+        elif self.value() == "meta_utm":
+            # Meta traffic from UTM parameters
+            return qs.filter(utm_source__icontains="meta")
+        elif self.value() == "direct_organic":
+            # No tracking parameters
+            return qs.filter(
+                fbclid__isnull=True,
+                gclid__isnull=True,
+                utm_source__isnull=True
+            )
+        elif self.value() == "has_utm":
+            # Has any UTM parameters
+            return qs.filter(
+                Q(utm_source__isnull=False) |
+                Q(utm_medium__isnull=False) |
+                Q(utm_campaign__isnull=False)
+            )
+        elif self.value() == "no_source":
+            # No source data at all
+            return qs.filter(
+                fbclid__isnull=True,
+                gclid__isnull=True,
+                utm_source__isnull=True,
+                utm_medium__isnull=True,
+                utm_campaign__isnull=True
+            )
+        return qs
+
+
 class LeadFollowUpFilter(SimpleListFilter):
     title = "follow-up status"
     parameter_name = "follow_up_status"
@@ -459,64 +516,54 @@ class LeadSourceFilter(SimpleListFilter):
 
     def lookups(self, request, model_admin):
         return (
-            ("website", "🌐 Website"),
-            ("phone", "📞 Phone"),
-            ("email", "📧 Email"),
-            ("referral", "👥 Referral"),
-            ("social_media", "📱 Social Media"),
-            ("google_ads", "🔍 Google Ads"),
-            ("facebook_ads", "📘 Facebook Ads"),
-            ("other", "❓ Other"),
-            ("unknown", "❓ Unknown"),
+            ("meta_facebook", "📘 Meta/Facebook (fbclid)"),
+            ("google_ads", "🔍 Google Ads (gclid)"),
+            ("facebook_utm", "📘 Facebook (utm_source)"),
+            ("meta_utm", "📘 Meta (utm_source)"),
+            ("direct_organic", "🌐 Direct/Organic"),
+            ("has_utm", "📊 Has UTM Parameters"),
+            ("no_source", "❓ No Source Data"),
         )
 
     def queryset(self, request, qs):
-        if self.value() == "website":
-            return qs.filter(
-                Q(source="website") | Q(source__icontains="web")
-            )
-        elif self.value() == "phone":
-            return qs.filter(
-                Q(source="phone") | Q(source__icontains="call")
-            )
-        elif self.value() == "email":
-            return qs.filter(
-                Q(source="email") | Q(source__icontains="mail")
-            )
-        elif self.value() == "referral":
-            return qs.filter(
-                Q(source="referral") | Q(source__icontains="refer")
-            )
-        elif self.value() == "social_media":
-            return qs.filter(
-                Q(source__icontains="social") | 
-                Q(source__icontains="facebook") | 
-                Q(source__icontains="instagram") |
-                Q(source__icontains="twitter")
-            )
+        if self.value() == "meta_facebook":
+            # Meta/Facebook traffic detected by fbclid (most reliable for Meta ads)
+            return qs.filter(fbclid__isnull=False)
         elif self.value() == "google_ads":
+            # Google Ads traffic detected by gclid
+            return qs.filter(gclid__isnull=False)
+        elif self.value() == "facebook_utm":
+            # Facebook traffic from UTM parameters
             return qs.filter(
-                Q(source__icontains="google") | Q(source__icontains="ads")
+                Q(utm_source__icontains="facebook") | 
+                Q(utm_source__icontains="fb")
             )
-        elif self.value() == "facebook_ads":
+        elif self.value() == "meta_utm":
+            # Meta traffic from UTM parameters
+            return qs.filter(utm_source__icontains="meta")
+        elif self.value() == "direct_organic":
+            # No tracking parameters
             return qs.filter(
-                Q(source__icontains="facebook") | Q(source__icontains="fb")
+                fbclid__isnull=True,
+                gclid__isnull=True,
+                utm_source__isnull=True
             )
-        elif self.value() == "other":
+        elif self.value() == "has_utm":
+            # Has any UTM parameters
             return qs.filter(
-                source__isnull=False
-            ).exclude(
-                Q(source__icontains="website") |
-                Q(source__icontains="phone") |
-                Q(source__icontains="email") |
-                Q(source__icontains="referral") |
-                Q(source__icontains="social") |
-                Q(source__icontains="google") |
-                Q(source__icontains="facebook")
+                Q(utm_source__isnull=False) |
+                Q(utm_medium__isnull=False) |
+                Q(utm_campaign__isnull=False)
             )
-        elif self.value() == "unknown":
-            return qs.filter(source__isnull=True)
-        
+        elif self.value() == "no_source":
+            # No source data at all
+            return qs.filter(
+                fbclid__isnull=True,
+                gclid__isnull=True,
+                utm_source__isnull=True,
+                utm_medium__isnull=True,
+                utm_campaign__isnull=True
+            )
         return qs
 
 
@@ -1526,6 +1573,7 @@ class LeadAdmin(admin.ModelAdmin):
         "priority_display",
         "pickup_date",
         "days_until_trip",
+        "source_info",
         "follow_up_date",
         "quote_requests_count",
         "initial_sms_sent",
@@ -1540,6 +1588,10 @@ class LeadAdmin(admin.ModelAdmin):
         "converted",
         "initial_sms_sent",
         "has_replied",
+        LeadSourceFilter,  # Custom filter for Meta/Google/Direct
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
         "created_at",
         LeadTripDateFilter,
         LeadFollowUpFilter,
@@ -1553,6 +1605,11 @@ class LeadAdmin(admin.ModelAdmin):
         "phone",
         "pickup_location",
         "dropoff_location",
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "gclid",
+        "fbclid",
     )
 
     fieldsets = (
@@ -1564,6 +1621,15 @@ class LeadAdmin(admin.ModelAdmin):
                 ("pickup_location", "dropoff_location"),
                 "notes",
             )
+        }),
+        ("Lead Source (UTM Parameters)", {
+            "fields": (
+                ("utm_source", "utm_medium"),
+                ("utm_campaign", "utm_term"),
+                ("utm_content",),
+                ("gclid", "fbclid"),
+            ),
+            "classes": ("collapse",),
         }),
         ("Lead Details", {
             "fields": (
@@ -1650,6 +1716,15 @@ class LeadAdmin(admin.ModelAdmin):
         all_leads = Lead.objects.all()
         
         # Calculate summary statistics from all leads
+        # Lead source breakdown
+        meta_fbclid_count = all_leads.filter(fbclid__isnull=False).count()
+        google_gclid_count = all_leads.filter(gclid__isnull=False).count()
+        facebook_utm_count = all_leads.filter(
+            Q(utm_source__icontains="facebook") | Q(utm_source__icontains="fb")
+        ).exclude(fbclid__isnull=False).count()  # Exclude ones already counted by fbclid
+        meta_utm_count = all_leads.filter(utm_source__icontains="meta").exclude(fbclid__isnull=False).count()
+        total_meta_leads = meta_fbclid_count + facebook_utm_count + meta_utm_count
+        
         extra_context.update({
             "total_leads": all_leads.count(),
             "leads_tomorrow": all_leads.filter(pickup_date=today + timedelta(days=1)).count(),
@@ -1680,6 +1755,12 @@ class LeadAdmin(admin.ModelAdmin):
             "conversion_rate": round(
                 (all_leads.filter(status="converted").count() / max(all_leads.count(), 1)) * 100, 1
             ),
+            # Lead source statistics
+            "meta_fbclid_leads": meta_fbclid_count,
+            "google_gclid_leads": google_gclid_count,
+            "facebook_utm_leads": facebook_utm_count,
+            "meta_utm_leads": meta_utm_count,
+            "total_meta_leads": total_meta_leads,
         })
         
         return super().changelist_view(request, extra_context)
@@ -1727,6 +1808,55 @@ class LeadAdmin(admin.ModelAdmin):
                     pickup, dropoff, vehicle, price
                 )
         return "No quote details"
+
+    @admin.display(description="Source", ordering="utm_source")
+    def source_info(self, obj):
+        """Display UTM source information"""
+        # Check for fbclid (Facebook/Meta traffic)
+        if obj.fbclid:
+            source = obj.utm_source or "facebook"
+            medium = obj.utm_medium or "cpc"
+            campaign = obj.utm_campaign or "-"
+            return format_html(
+                '<div style="font-size: 0.85em;">'
+                '<div><strong>Source:</strong> {}</div>'
+                '<div><strong>Medium:</strong> {}</div>'
+                '<div><strong>Campaign:</strong> {}</div>'
+                '<div style="color: #1877f2;">✓ Meta/Facebook Ads</div>'
+                '</div>',
+                source, medium, campaign
+            )
+        
+        # Check for gclid (Google Ads traffic)
+        if obj.gclid:
+            source = obj.utm_source or "google"
+            medium = obj.utm_medium or "cpc"
+            campaign = obj.utm_campaign or "-"
+            return format_html(
+                '<div style="font-size: 0.85em;">'
+                '<div><strong>Source:</strong> {}</div>'
+                '<div><strong>Medium:</strong> {}</div>'
+                '<div><strong>Campaign:</strong> {}</div>'
+                '<div style="color: #28a745;">✓ Google Ads</div>'
+                '</div>',
+                source, medium, campaign
+            )
+        
+        # Check for utm_source
+        if obj.utm_source:
+            source = obj.utm_source
+            medium = obj.utm_medium or "-"
+            campaign = obj.utm_campaign or "-"
+            return format_html(
+                '<div style="font-size: 0.85em;">'
+                '<div><strong>Source:</strong> {}</div>'
+                '<div><strong>Medium:</strong> {}</div>'
+                '<div><strong>Campaign:</strong> {}</div>'
+                '</div>',
+                source, medium, campaign
+            )
+        
+        return format_html('<span style="color: #999;">Direct/Organic</span>')
 
     @admin.display(description="Status", ordering="status")
     def status_display(self, obj):
