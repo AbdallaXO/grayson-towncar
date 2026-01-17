@@ -142,7 +142,7 @@ def index(request):
         legs = filtered_legs
 
     # Get all drivers for assignment dropdown
-    drivers = Driver.objects.all()
+    drivers = list(Driver.objects.select_related("profile").all())
 
     # Inhouse vehicle assignments for the selected date
     inhouse_drivers = (
@@ -152,12 +152,24 @@ def index(request):
     )
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
         date=selected_date, driver__in=inhouse_drivers
-    ).select_related("driver", "driver__profile")
-    assignment_map = {assignment.driver_id: assignment for assignment in inhouse_assignments}
+    ).select_related("driver", "driver__profile", "vehicle")
+    assignment_map = {
+        assignment.driver_id: assignment for assignment in inhouse_assignments
+    }
     inhouse_driver_rows = [
         {"driver": driver, "assignment": assignment_map.get(driver.id)}
         for driver in inhouse_drivers
     ]
+
+    for driver in drivers:
+        display_name = str(driver)
+        if driver.driver_type == "inhouse":
+            assignment = assignment_map.get(driver.id)
+            if assignment and assignment.vehicle and assignment.vehicle.vehicle_number:
+                vehicle_number = assignment.vehicle.vehicle_number
+                vehicle_number = vehicle_number.lstrip("#").strip()
+                display_name = f"{display_name} - #{vehicle_number}"
+        driver.dashboard_display_name = display_name
 
     # Calculate total revenue from legs on this day (only for admins)
     if can_view_revenue(request.user):

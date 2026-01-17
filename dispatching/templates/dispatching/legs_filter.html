@@ -683,7 +683,7 @@
                         {% for driver in drivers %}
                           <option value="{{ driver.id }}"
                                   {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                            {{ driver.profile.username }}{% if driver.vehicle %} - {{ driver.vehicle }}{% endif %}
+                            {{ driver.dashboard_display_name }}
                           </option>
                         {% endfor %}
                       </select>
@@ -888,7 +888,7 @@
                             {% for driver in drivers %}
                               <option value="{{ driver.id }}"
                                       {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                {{ driver.profile.username }}{% if driver.vehicle %} - {{ driver.vehicle }}{% endif %}
+                                {{ driver.dashboard_display_name }}
                               </option>
                             {% endfor %}
                           </select>
