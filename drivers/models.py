@@ -95,6 +95,37 @@ class Driver(models.Model):
         return self.profile.username
 
 
+class FleetVehicle(models.Model):
+    vehicle_number = models.CharField(max_length=50, unique=True)
+    year = models.PositiveIntegerField()
+    make = models.CharField(max_length=50)
+    model = models.CharField(max_length=50)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["vehicle_number"]
+
+    def __str__(self):
+        return f"{self.vehicle_number} - {self.year} {self.make} {self.model}"
+
+
+class DriverVehicleAssignment(models.Model):
+    driver = models.ForeignKey(
+        "Driver", on_delete=models.CASCADE, related_name="vehicle_assignments"
+    )
+    date = models.DateField()
+    vehicle = models.ForeignKey(
+        "FleetVehicle", on_delete=models.PROTECT, null=True, blank=True
+    )
+
+    class Meta:
+        unique_together = ("driver", "date")
+        ordering = ["date", "driver"]
+
+    def __str__(self):
+        return f"{self.driver} - {self.vehicle} ({self.date})"
+
+
 class DriverPayment(models.Model):
     """
     Tracks batches of payments made to drivers

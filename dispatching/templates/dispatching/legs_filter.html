@@ -195,6 +195,89 @@
       </div>
     </div>
 
+    <!-- Inhouse Vehicle Assignments -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-light py-2">
+        <div class="d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-truck me-2"></i>Inhouse Vehicles
+            <span class="text-muted small">(for {{ selected_date|date:'l, F j, Y' }})</span>
+          </h5>
+          <button
+            id="inhouseVehiclesToggle"
+            class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#inhouseVehiclesCollapse"
+            aria-expanded="false"
+            aria-controls="inhouseVehiclesCollapse">
+            <i class="bi bi-chevron-down me-1"></i><span class="inhouse-toggle-text">Show</span>
+          </button>
+        </div>
+      </div>
+      <div class="collapse" id="inhouseVehiclesCollapse">
+        <div class="card-body">
+          {% if inhouse_driver_rows %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Driver</th>
+                    <th style="width: 30%;">Vehicle</th>
+                    <th>Notes</th>
+                    <th style="width: 20%;">Action</th>
+                    <th style="width: 15%;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in inhouse_driver_rows %}
+                    <tr>
+                      <td class="fw-semibold">{{ row.driver }}</td>
+                      <td>
+                        <select
+                          class="form-select form-select-sm inhouse-vehicle-select"
+                          data-driver-id="{{ row.driver.id }}">
+                          <option value="">Select vehicle</option>
+                          {% for vehicle in inhouse_vehicles %}
+                            <option value="{{ vehicle.id }}"
+                                    {% if row.assignment and row.assignment.vehicle_id == vehicle.id %}selected{% endif %}>
+                              {{ vehicle.vehicle_number }} - {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }}
+                            </option>
+                          {% endfor %}
+                        </select>
+                      </td>
+                      <td class="small text-muted">
+                        {% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.notes %}
+                          {{ row.assignment.vehicle.notes }}
+                        {% else %}
+                          <span class="text-muted fst-italic">—</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <button
+                          class="btn btn-sm btn-primary save-inhouse-vehicle"
+                          data-driver-id="{{ row.driver.id }}">
+                          Save
+                        </button>
+                      </td>
+                      <td>
+                        <div class="small inhouse-vehicle-status" data-driver-id="{{ row.driver.id }}"></div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-muted small mt-2">
+              Choose a vehicle and click Save (or just change the dropdown to auto-save). Select the blank option to clear.
+            </div>
+          {% else %}
+            <div class="text-muted">No inhouse drivers found.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
     <!-- Legs Table Section -->
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-light py-2 px-3">
@@ -600,25 +683,9 @@
                         {% for driver in drivers %}
                           <option value="{{ driver.id }}"
                                   {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                            {{ driver.profile.username }}
+                            {{ driver.profile.username }}{% if driver.vehicle %} - {{ driver.vehicle }}{% endif %}
                           </option>
                         {% endfor %}
-                      </select>
-                      <select class="form-select form-select-sm status-select"
-                              name="status"
-                              data-leg-id="{{ leg.id }}">
-                        <option value="in-progress"
-                                {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
-                        <option value="confirmed"
-                                {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                        <option value="on-the-way"
-                                {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
-                        <option value="on-location"
-                                {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
-                        <option value="picked-up"
-                                {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
-                        <option value="completed"
-                                {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                       </select>
                       <div class="update-status mt-1"></div>
                       <div class="mt-2">
@@ -805,25 +872,9 @@
                             {% for driver in drivers %}
                               <option value="{{ driver.id }}"
                                       {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                {{ driver.profile.username }}
+                                {{ driver.profile.username }}{% if driver.vehicle %} - {{ driver.vehicle }}{% endif %}
                               </option>
                             {% endfor %}
-                          </select>
-                          <select class="form-select form-select-sm status-select"
-                                  name="status"
-                                  data-leg-id="{{ leg.id }}">
-                            <option value="in-progress"
-                                    {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
-                            <option value="confirmed"
-                                    {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                            <option value="on-the-way"
-                                    {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
-                            <option value="on-location"
-                                    {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
-                            <option value="picked-up"
-                                    {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
-                            <option value="completed"
-                                    {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                           </select>
                           <div class="update-status mt-1"></div>
                         </form>
@@ -920,7 +971,7 @@
           })
 
           // Driver and status selection handlers
-          document.querySelectorAll('.driver-select, .status-select').forEach(select => {
+          document.querySelectorAll('.driver-select').forEach(select => {
               select.addEventListener('change', function() {
                   const legId = this.dataset.legId;
                   const selectName = this.name;
@@ -1732,6 +1783,91 @@
                   });
               });
           }
+
+          // Inhouse vehicle assignment updates
+          const inhouseToggleBtn = document.getElementById('inhouseVehiclesToggle');
+          const inhouseCollapse = document.getElementById('inhouseVehiclesCollapse');
+
+          if (inhouseToggleBtn && inhouseCollapse) {
+              const toggleText = inhouseToggleBtn.querySelector('.inhouse-toggle-text');
+              inhouseCollapse.addEventListener('shown.bs.collapse', function() {
+                  const icon = inhouseToggleBtn.querySelector('i');
+                  if (icon) {
+                      icon.classList.remove('bi-chevron-down');
+                      icon.classList.add('bi-chevron-up');
+                  }
+                  if (toggleText) {
+                      toggleText.textContent = 'Hide';
+                  }
+              });
+
+              inhouseCollapse.addEventListener('hidden.bs.collapse', function() {
+                  const icon = inhouseToggleBtn.querySelector('i');
+                  if (icon) {
+                      icon.classList.remove('bi-chevron-up');
+                      icon.classList.add('bi-chevron-down');
+                  }
+                  if (toggleText) {
+                      toggleText.textContent = 'Show';
+                  }
+              });
+          }
+
+          function saveInhouseVehicle(driverId) {
+              const select = document.querySelector(`.inhouse-vehicle-select[data-driver-id="${driverId}"]`);
+              const status = document.querySelector(`.inhouse-vehicle-status[data-driver-id="${driverId}"]`);
+              if (!select || !status) return;
+
+              const vehicleId = select.value;
+              status.innerHTML = '<span class="text-muted">Saving...</span>';
+
+              fetch('/dispatching/update-inhouse-vehicle-assignment/', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': '{{ csrf_token }}'
+                  },
+                  body: JSON.stringify({
+                      driver_id: driverId,
+                      date: '{{ selected_date|date:"Y-m-d" }}',
+                      vehicle_id: vehicleId
+                  })
+              })
+              .then(response => {
+                  if (!response.ok) {
+                      return response.json().then(data => {
+                          throw new Error(data.error || 'Server error: ' + response.status);
+                      });
+                  }
+                  return response.json();
+              })
+              .then(data => {
+                  if (data.success) {
+                      if (data.cleared) {
+                          status.innerHTML = '<span class="text-success">Cleared</span>';
+                      } else {
+                          status.innerHTML = '<span class="text-success">Saved</span>';
+                      }
+                  } else {
+                      status.innerHTML = '<span class="text-danger">Failed: ' + (data.error || 'Unknown') + '</span>';
+                  }
+              })
+              .catch(error => {
+                  status.innerHTML = '<span class="text-danger">Error: ' + error.message + '</span>';
+              });
+          }
+
+          document.querySelectorAll('.save-inhouse-vehicle').forEach(button => {
+              button.addEventListener('click', function() {
+                  saveInhouseVehicle(this.dataset.driverId);
+              });
+          });
+
+          document.querySelectorAll('.inhouse-vehicle-select').forEach(select => {
+              select.addEventListener('change', function() {
+                  saveInhouseVehicle(this.dataset.driverId);
+              });
+          });
       });
   </script>
   <style>

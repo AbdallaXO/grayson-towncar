@@ -14,6 +14,11 @@ urlpatterns = [
     path("legs-list/", views.legs_list, name="legs_list"),
     path("statistics/", views.statistics_page, name="statistics_page"),
     path("update-leg-assignment/", views.update_leg_assignment, name="update_leg_assignment"),
+    path(
+        "update-inhouse-vehicle-assignment/",
+        views.update_inhouse_vehicle_assignment,
+        name="update_inhouse_vehicle_assignment",
+    ),
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
     path("refresh-flight-data/", views.refresh_flight_data, name="refresh_flight_data"),

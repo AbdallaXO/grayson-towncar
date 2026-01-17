@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.db.models import Sum, F, Q
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -794,3 +794,10 @@ class LegPaymentAdmin(admin.ModelAdmin):
             return format_html('<span style="color: red;">${0}</span>', abs(profit))
 
     profit_display.short_description = "Profit"
+
+
+@admin.register(FleetVehicle)
+class FleetVehicleAdmin(admin.ModelAdmin):
+    list_display = ["vehicle_number", "year", "make", "model"]
+    search_fields = ["vehicle_number", "make", "model"]
+    list_filter = ["year", "make"]

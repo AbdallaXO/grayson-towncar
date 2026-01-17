@@ -28,7 +28,13 @@ from django.db.models import OuterRef, Subquery
 from reservations.models import Reservation, Leg, Customer, Flight
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
-from drivers.models import Driver, DriverPayment, LegPayment
+from drivers.models import (
+    Driver,
+    DriverPayment,
+    LegPayment,
+    DriverVehicleAssignment,
+    FleetVehicle,
+)
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate
 from users.emails import send_reservation_confirmation
@@ -138,6 +144,21 @@ def index(request):
     # Get all drivers for assignment dropdown
     drivers = Driver.objects.all()
 
+    # Inhouse vehicle assignments for the selected date
+    inhouse_drivers = (
+        Driver.objects.filter(driver_type="inhouse")
+        .select_related("profile")
+        .order_by("profile__first_name", "profile__last_name", "profile__username")
+    )
+    inhouse_assignments = DriverVehicleAssignment.objects.filter(
+        date=selected_date, driver__in=inhouse_drivers
+    ).select_related("driver", "driver__profile")
+    assignment_map = {assignment.driver_id: assignment for assignment in inhouse_assignments}
+    inhouse_driver_rows = [
+        {"driver": driver, "assignment": assignment_map.get(driver.id)}
+        for driver in inhouse_drivers
+    ]
+
     # Calculate total revenue from legs on this day (only for admins)
     if can_view_revenue(request.user):
         total_revenue = sum(leg.reservation.total_price for leg in legs)
@@ -153,6 +174,8 @@ def index(request):
         "total_revenue": total_revenue,
         "can_view_revenue": can_view_revenue(request.user),
         "drivers": drivers,
+        "inhouse_driver_rows": inhouse_driver_rows,
+        "inhouse_vehicles": FleetVehicle.objects.order_by("vehicle_number"),
     }
 
     return render(request, "dispatching/legs_filter.html", context)
@@ -734,6 +757,76 @@ def update_leg_assignment(request):
         return JsonResponse(
             {"success": False, "error": f"Server error: {str(e)}"}, status=500
         )
+
+
+@login_required
+@require_POST
+def update_inhouse_vehicle_assignment(request):
+    """
+    Update or clear an inhouse driver's vehicle assignment for a specific date.
+    """
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError as e:
+        return JsonResponse(
+            {"success": False, "error": f"Invalid JSON: {str(e)}"}, status=400
+        )
+
+    driver_id = data.get("driver_id")
+    date_str = data.get("date")
+    vehicle_id = data.get("vehicle_id")
+
+    if not driver_id or not date_str:
+        return JsonResponse(
+            {"success": False, "error": "Missing required data"}, status=400
+        )
+
+    try:
+        assignment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid date format"}, status=400
+        )
+
+    try:
+        driver = Driver.objects.get(id=driver_id)
+    except Driver.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Driver not found"}, status=404
+        )
+
+    if driver.driver_type != "inhouse":
+        return JsonResponse(
+            {"success": False, "error": "Driver is not inhouse"}, status=400
+        )
+
+    if not vehicle_id:
+        DriverVehicleAssignment.objects.filter(
+            driver=driver, date=assignment_date
+        ).delete()
+        return JsonResponse({"success": True, "cleared": True})
+
+    try:
+        vehicle = FleetVehicle.objects.get(id=vehicle_id)
+    except FleetVehicle.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Vehicle not found"}, status=404
+        )
+
+    assignment, _ = DriverVehicleAssignment.objects.get_or_create(
+        driver=driver, date=assignment_date
+    )
+    assignment.vehicle = vehicle
+    assignment.save()
+
+    return JsonResponse(
+        {"success": True, "vehicle_id": assignment.vehicle_id}
+    )
 
 
 @login_required
