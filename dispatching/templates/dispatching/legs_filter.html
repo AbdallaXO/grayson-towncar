@@ -687,6 +687,22 @@
                           </option>
                         {% endfor %}
                       </select>
+                      <select class="form-select form-select-sm status-select"
+                              name="status"
+                              data-leg-id="{{ leg.id }}">
+                        <option value="in-progress"
+                                {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                        <option value="confirmed"
+                                {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                        <option value="on-the-way"
+                                {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                        <option value="on-location"
+                                {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
+                        <option value="picked-up"
+                                {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                        <option value="completed"
+                                {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                      </select>
                       <div class="update-status mt-1"></div>
                       <div class="mt-2">
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"
@@ -876,6 +892,22 @@
                               </option>
                             {% endfor %}
                           </select>
+                          <select class="form-select form-select-sm status-select"
+                                  name="status"
+                                  data-leg-id="{{ leg.id }}">
+                            <option value="in-progress"
+                                    {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                            <option value="confirmed"
+                                    {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                            <option value="on-the-way"
+                                    {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                            <option value="on-location"
+                                    {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
+                            <option value="picked-up"
+                                    {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                            <option value="completed"
+                                    {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                          </select>
                           <div class="update-status mt-1"></div>
                         </form>
                         <div class="d-grid mt-2">
@@ -971,7 +1003,7 @@
           })
 
           // Driver and status selection handlers
-          document.querySelectorAll('.driver-select').forEach(select => {
+          document.querySelectorAll('.driver-select, .status-select').forEach(select => {
               select.addEventListener('change', function() {
                   const legId = this.dataset.legId;
                   const selectName = this.name;
