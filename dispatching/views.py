@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.cache import cache
 from django.db.models import Sum, Q, Count, Prefetch
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
@@ -15,6 +16,8 @@ import stripe
 import stripe.error
 import logging
 import json
+import threading
+import uuid
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.views.generic import ListView
@@ -1933,6 +1936,288 @@ def refresh_flight_data(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+def _flight_refresh_cache_key(task_id):
+    return f"flight_refresh:{task_id}"
+
+
+def _refresh_single_flight(leg):
+    """Refresh flight data for a single leg."""
+    try:
+        flight = leg.flight_information
+        flight_ident = flight.get_flight_ident()
+
+        if not flight_ident:
+            return {
+                "leg_id": leg.id,
+                "success": False,
+                "error": "Could not determine flight identifier",
+            }
+
+        # Get the leg's pickup date to fetch flight data for the correct date
+        flight_date = leg.pickup_date.strftime("%Y-%m-%d") if leg.pickup_date else None
+        trip_type = leg.get_trip_type()
+
+        # Create a new AeroAPI instance for this thread (thread-safe)
+        aeroapi = AeroAPIService()
+
+        # Fetch flight data from AeroAPI
+        flight_data = aeroapi.get_flight_info(
+            flight_ident, flight_date=flight_date, trip_type=trip_type
+        )
+
+        # Handle rate limiting
+        if flight_data.get("status") == "rate_limited":
+            retry_after = flight_data.get("retry_after", 60)
+            return {
+                "leg_id": leg.id,
+                "success": False,
+                "error": f"Rate limit exceeded. Please wait {retry_after} seconds.",
+                "rate_limited": True,
+                "retry_after": retry_after,
+            }
+
+        if flight_data.get("status") != "success":
+            error_msg = flight_data.get("error", "Unknown error")
+            return {
+                "leg_id": leg.id,
+                "success": False,
+                "error": error_msg,
+            }
+
+        # Update flight model with AeroAPI data
+        if flight_data.get("flight_iata"):
+            flight.flight_iata = flight_data.get("flight_iata")
+        if flight_data.get("origin"):
+            flight.origin = flight_data.get("origin")
+        if flight_data.get("destination"):
+            flight.destination = flight_data.get("destination")
+
+        flight_status = flight_data.get("flight_status") or flight_data.get("status", "")
+        if flight_status:
+            flight.status = flight_status
+
+        # Handle datetime fields
+        scheduled_arrival = flight_data.get("scheduled_arrival_local")
+        if scheduled_arrival is not None:
+            flight.scheduled_arrival_local = scheduled_arrival
+
+        estimated_arrival = flight_data.get("estimated_arrival_local")
+        if estimated_arrival is not None:
+            flight.estimated_arrival_local = estimated_arrival
+
+        scheduled_gate_arrival = flight_data.get("scheduled_gate_arrival_local")
+        if scheduled_gate_arrival is not None:
+            flight.scheduled_gate_arrival_local = scheduled_gate_arrival
+
+        estimated_gate_arrival = flight_data.get("estimated_gate_arrival_local")
+        if estimated_gate_arrival is not None:
+            flight.estimated_gate_arrival_local = estimated_gate_arrival
+
+        # Handle actual arrival times (prioritize actual over estimated)
+        # BUT: Clear old actual times if flight is scheduled for the future
+        now = timezone.now()
+        actual_arrival = flight_data.get("actual_runway_arrival_local")
+        actual_gate_arrival = flight_data.get("actual_gate_arrival_local")
+
+        is_future_flight = False
+        if scheduled_arrival and scheduled_arrival > now:
+            is_future_flight = True
+        elif scheduled_gate_arrival and scheduled_gate_arrival > now:
+            is_future_flight = True
+
+        if is_future_flight:
+            flight.actual_arrival_local = None
+            flight.actual_gate_arrival_local = None
+            logger.info(
+                f"Cleared stale actual arrival times for future flight (leg {leg.id})"
+            )
+        else:
+            if actual_arrival is not None:
+                flight.actual_arrival_local = actual_arrival
+            if actual_gate_arrival is not None:
+                flight.actual_gate_arrival_local = actual_gate_arrival
+
+        if flight_data.get("terminal"):
+            flight.terminal = flight_data.get("terminal")
+        if flight_data.get("gate"):
+            flight.gate = flight_data.get("gate")
+        if flight_data.get("baggage_claim"):
+            flight.baggage_claim = flight_data.get("baggage_claim")
+
+        flight.last_updated = flight_data.get("last_updated", timezone.now())
+        flight.save()
+
+        return {
+            "leg_id": leg.id,
+            "success": True,
+            "flight_data": {
+                "flight_iata": flight.flight_iata or "",
+                "origin": flight.origin or "",
+                "destination": flight.destination or "",
+                "status": flight.status or "",
+                "scheduled_arrival_local": flight.scheduled_arrival_local.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                if flight.scheduled_arrival_local
+                else "",
+                "estimated_arrival_local": flight.estimated_arrival_local.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                if flight.estimated_arrival_local
+                else "",
+                "actual_arrival_local": flight.actual_arrival_local.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                if flight.actual_arrival_local
+                else "",
+                "scheduled_gate_arrival_local": flight.scheduled_gate_arrival_local.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                if flight.scheduled_gate_arrival_local
+                else "",
+                "estimated_gate_arrival_local": flight.estimated_gate_arrival_local.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                if flight.estimated_gate_arrival_local
+                else "",
+                "actual_gate_arrival_local": flight.actual_gate_arrival_local.strftime(
+                    "%Y-%m-%d %I:%M %p"
+                )
+                if flight.actual_gate_arrival_local
+                else "",
+                "terminal": flight.terminal or "",
+                "gate": flight.gate or "",
+                "baggage_claim": flight.baggage_claim or "",
+                "last_updated": flight.last_updated.strftime("%Y-%m-%d %I:%M %p")
+                if flight.last_updated
+                else "",
+            },
+        }
+    except Exception as e:
+        logger.error(f"Error refreshing flight for leg {leg.id}: {e}")
+        return {
+            "leg_id": leg.id,
+            "success": False,
+            "error": str(e),
+        }
+
+
+def _run_bulk_flight_refresh(task_id, leg_ids):
+    import time
+
+    task_key = _flight_refresh_cache_key(task_id)
+    timeout_seconds = 60 * 60
+    started_at = timezone.now().isoformat()
+
+    try:
+        legs = list(
+            Leg.objects.filter(id__in=leg_ids, flight_information__isnull=False).select_related(
+                "flight_information"
+            )
+        )
+
+        if not legs:
+            cache.set(
+                task_key,
+                {
+                    "status": "failed",
+                    "error": "No arrival flights found to refresh. Only arrival trips are refreshed.",
+                    "total": 0,
+                    "processed": 0,
+                    "success_count": 0,
+                    "failure_count": 0,
+                    "results": [],
+                    "started_at": started_at,
+                    "finished_at": timezone.now().isoformat(),
+                },
+                timeout=timeout_seconds,
+            )
+            return
+
+        results = []
+        success_count = 0
+        failure_count = 0
+        total_legs = len(legs)
+
+        cache.set(
+            task_key,
+            {
+                "status": "running",
+                "total": total_legs,
+                "processed": 0,
+                "success_count": 0,
+                "failure_count": 0,
+                "results": [],
+                "started_at": started_at,
+            },
+            timeout=timeout_seconds,
+        )
+
+        for index, leg in enumerate(legs):
+            result = _refresh_single_flight(leg)
+            results.append(result)
+
+            if result.get("success"):
+                success_count += 1
+            else:
+                failure_count += 1
+
+            cache.set(
+                task_key,
+                {
+                    "status": "running",
+                    "total": total_legs,
+                    "processed": index + 1,
+                    "success_count": success_count,
+                    "failure_count": failure_count,
+                    "results": results,
+                    "started_at": started_at,
+                },
+                timeout=timeout_seconds,
+            )
+
+            if index < total_legs - 1:
+                time.sleep(6)
+
+        message = (
+            f"Refreshed {success_count} flight(s) successfully"
+            + (f", {failure_count} failed" if failure_count > 0 else "")
+        )
+
+        cache.set(
+            task_key,
+            {
+                "status": "completed",
+                "message": message,
+                "total": total_legs,
+                "processed": total_legs,
+                "success_count": success_count,
+                "failure_count": failure_count,
+                "results": results,
+                "started_at": started_at,
+                "finished_at": timezone.now().isoformat(),
+            },
+            timeout=timeout_seconds,
+        )
+    except Exception as e:
+        logger.error(f"Error in bulk refresh thread: {e}")
+        cache.set(
+            task_key,
+            {
+                "status": "failed",
+                "error": str(e),
+                "total": 0,
+                "processed": 0,
+                "success_count": 0,
+                "failure_count": 0,
+                "results": [],
+                "started_at": started_at,
+                "finished_at": timezone.now().isoformat(),
+            },
+            timeout=timeout_seconds,
+        )
+
+
 @login_required
 @require_POST
 def refresh_all_flights(request):
@@ -1988,186 +2273,61 @@ def refresh_all_flights(request):
                 "error": "No arrival flights found to refresh. Only arrival trips are refreshed."
             }, status=400)
         
-        # Helper function to refresh a single flight
-        def refresh_single_flight(leg):
-            """Refresh flight data for a single leg"""
-            try:
-                flight = leg.flight_information
-                flight_ident = flight.get_flight_ident()
-                
-                if not flight_ident:
-                    return {
-                        "leg_id": leg.id,
-                        "success": False,
-                        "error": "Could not determine flight identifier"
-                    }
-                
-                # Get the leg's pickup date to fetch flight data for the correct date
-                flight_date = leg.pickup_date.strftime('%Y-%m-%d') if leg.pickup_date else None
-                trip_type = leg.get_trip_type()
-                
-                # Create a new AeroAPI instance for this thread (thread-safe)
-                aeroapi = AeroAPIService()
-                
-                # Fetch flight data from AeroAPI
-                flight_data = aeroapi.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
-                
-                # Handle rate limiting
-                if flight_data.get('status') == 'rate_limited':
-                    retry_after = flight_data.get('retry_after', 60)
-                    return {
-                        "leg_id": leg.id,
-                        "success": False,
-                        "error": f"Rate limit exceeded. Please wait {retry_after} seconds.",
-                        "rate_limited": True,
-                        "retry_after": retry_after
-                    }
-                
-                if flight_data.get('status') != 'success':
-                    error_msg = flight_data.get('error', 'Unknown error')
-                    return {
-                        "leg_id": leg.id,
-                        "success": False,
-                        "error": error_msg
-                    }
-                
-                # Update flight model with AeroAPI data
-                if flight_data.get('flight_iata'):
-                    flight.flight_iata = flight_data.get('flight_iata')
-                if flight_data.get('origin'):
-                    flight.origin = flight_data.get('origin')
-                if flight_data.get('destination'):
-                    flight.destination = flight_data.get('destination')
-                
-                flight_status = flight_data.get('flight_status') or flight_data.get('status', '')
-                if flight_status:
-                    flight.status = flight_status
-                
-                # Handle datetime fields
-                scheduled_arrival = flight_data.get('scheduled_arrival_local')
-                if scheduled_arrival is not None:
-                    flight.scheduled_arrival_local = scheduled_arrival
-                
-                estimated_arrival = flight_data.get('estimated_arrival_local')
-                if estimated_arrival is not None:
-                    flight.estimated_arrival_local = estimated_arrival
-                
-                scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
-                if scheduled_gate_arrival is not None:
-                    flight.scheduled_gate_arrival_local = scheduled_gate_arrival
-                
-                estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
-                if estimated_gate_arrival is not None:
-                    flight.estimated_gate_arrival_local = estimated_gate_arrival
-                
-                # Handle actual arrival times (prioritize actual over estimated)
-                # BUT: Clear old actual times if flight is scheduled for the future (stale data from previous flights)
-                now = timezone.now()
-                actual_arrival = flight_data.get('actual_runway_arrival_local')
-                actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
-                
-                # Check if flight is scheduled for the future
-                is_future_flight = False
-                if scheduled_arrival and scheduled_arrival > now:
-                    is_future_flight = True
-                elif scheduled_gate_arrival and scheduled_gate_arrival > now:
-                    is_future_flight = True
-                
-                if is_future_flight:
-                    # For future flights, clear any actual arrival times (they're from old flight data)
-                    flight.actual_arrival_local = None
-                    flight.actual_gate_arrival_local = None
-                    logger.info(f"Cleared stale actual arrival times for future flight (leg {leg.id})")
-                else:
-                    # For past/current flights, use actual times if provided
-                    if actual_arrival is not None:
-                        flight.actual_arrival_local = actual_arrival
-                    if actual_gate_arrival is not None:
-                        flight.actual_gate_arrival_local = actual_gate_arrival
-                
-                if flight_data.get('terminal'):
-                    flight.terminal = flight_data.get('terminal')
-                if flight_data.get('gate'):
-                    flight.gate = flight_data.get('gate')
-                if flight_data.get('baggage_claim'):
-                    flight.baggage_claim = flight_data.get('baggage_claim')
-                
-                flight.last_updated = flight_data.get('last_updated', timezone.now())
-                flight.save()
-                
-                return {
-                    "leg_id": leg.id,
-                    "success": True,
-                    "flight_data": {
-                        "flight_iata": flight.flight_iata or "",
-                        "origin": flight.origin or "",
-                        "destination": flight.destination or "",
-                        "status": flight.status or "",
-                        "scheduled_arrival_local": flight.scheduled_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_arrival_local else "",
-                        "estimated_arrival_local": flight.estimated_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_arrival_local else "",
-                        "actual_arrival_local": flight.actual_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_arrival_local else "",
-                        "scheduled_gate_arrival_local": flight.scheduled_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.scheduled_gate_arrival_local else "",
-                        "estimated_gate_arrival_local": flight.estimated_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.estimated_gate_arrival_local else "",
-                        "actual_gate_arrival_local": flight.actual_gate_arrival_local.strftime('%Y-%m-%d %I:%M %p') if flight.actual_gate_arrival_local else "",
-                        "terminal": flight.terminal or "",
-                        "gate": flight.gate or "",
-                        "baggage_claim": flight.baggage_claim or "",
-                        "last_updated": flight.last_updated.strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
-                    }
-                }
-            except Exception as e:
-                logger.error(f"Error refreshing flight for leg {leg.id}: {e}")
-                return {
-                    "leg_id": leg.id,
-                    "success": False,
-                    "error": str(e)
-                }
-        
-        # Process flights with rate limiting to avoid hitting API limits
-        # AeroAPI allows 10 requests per minute, so we need 6 seconds between requests
-        # (60 seconds / 10 requests = 6 seconds per request)
-        import time
-        results = []
-        
-        # Process sequentially with proper delay between requests to respect rate limits
-        # This ensures we don't exceed 10 requests per minute
-        total_legs = len(legs)
-        for index, leg in enumerate(legs):
-            try:
-                result = refresh_single_flight(leg)
-                results.append(result)
-                
-                # Add delay between requests (6 seconds = 10 requests per minute)
-                # Only delay if not the last leg
-                if index < total_legs - 1:
-                    # Wait 6 seconds between requests to respect 10 requests/minute limit
-                    time.sleep(6)
-            except Exception as e:
-                logger.error(f"Unexpected error processing leg {leg.id}: {e}")
-                results.append({
-                    "leg_id": leg.id,
-                    "success": False,
-                    "error": f"Unexpected error: {str(e)}"
-                })
-        
-        # Count successes and failures
-        success_count = sum(1 for r in results if r.get('success'))
-        failure_count = len(results) - success_count
-        
-        return JsonResponse({
-            "success": True,
-            "message": f"Refreshed {success_count} flight(s) successfully" + (f", {failure_count} failed" if failure_count > 0 else ""),
-            "results": results,
-            "total": len(results),
-            "success_count": success_count,
-            "failure_count": failure_count
-        })
+        task_id = uuid.uuid4().hex
+        task_key = _flight_refresh_cache_key(task_id)
+
+        cache.set(
+            task_key,
+            {
+                "status": "queued",
+                "total": len(legs),
+                "processed": 0,
+                "success_count": 0,
+                "failure_count": 0,
+                "results": [],
+                "started_at": timezone.now().isoformat(),
+            },
+            timeout=60 * 60,
+        )
+
+        worker = threading.Thread(
+            target=_run_bulk_flight_refresh, args=(task_id, [leg.id for leg in legs]), daemon=True
+        )
+        worker.start()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "status": "started",
+                "task_id": task_id,
+                "total": len(legs),
+            },
+            status=202,
+        )
         
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         logger.error(f"Error in bulk refresh: {e}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def refresh_all_flights_status(request, task_id):
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+
+    task_key = _flight_refresh_cache_key(task_id)
+    data = cache.get(task_key)
+    if not data:
+        return JsonResponse(
+            {"success": False, "error": "Refresh task not found"}, status=404
+        )
+
+    return JsonResponse({"success": True, **data})
 
 
 @login_required

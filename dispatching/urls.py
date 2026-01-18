@@ -24,6 +24,11 @@ urlpatterns = [
     path("refresh-flight-data/", views.refresh_flight_data, name="refresh_flight_data"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path(
+        "refresh-all-flights-status/<str:task_id>/",
+        views.refresh_all_flights_status,
+        name="refresh_all_flights_status",
+    ),
+    path(
         "send_confirmation_email/",
         send_reservation_confirmation_ajax,
         name="send_confirmation_email",

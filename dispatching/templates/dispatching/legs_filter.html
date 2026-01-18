@@ -1609,85 +1609,50 @@
                       bsModal.hide();
                   });
                   
-                  // Start progress simulation
                   const startTime = Date.now();
-                  let progressPercent = 0;
                   const progressBar = document.getElementById('refreshProgressBar');
                   const statusDiv = document.getElementById('refreshStatus');
                   const elapsedDiv = document.getElementById('refreshElapsed');
-                  
-                  // Update progress every 500ms
+                  const resultsDiv = document.getElementById('refreshResults');
+                  let pollInterval = null;
+
+                  // Update elapsed time every 500ms
                   const progressInterval = setInterval(() => {
                       const elapsed = Math.floor((Date.now() - startTime) / 1000);
                       elapsedDiv.textContent = `Elapsed time: ${elapsed}s`;
-                      
-                      // Gradually increase progress (capped at 90% until actual completion)
-                      if (progressPercent < 90) {
-                          progressPercent = Math.min(90, Math.floor(elapsed / 2)); // ~2 seconds per percent
-                          progressBar.style.width = progressPercent + '%';
-                          progressBar.textContent = progressPercent + '%';
-                          
-                          // Update status message
-                          if (elapsed < 5) {
-                              statusDiv.textContent = 'Connecting to AeroAPI...';
-                          } else if (elapsed < 15) {
-                              statusDiv.textContent = 'Fetching arrival flight data...';
-                          } else {
-                              statusDiv.textContent = `Processing arrival flights... (${elapsed}s elapsed)`;
-                          }
-                      }
                   }, 500);
-                  
-                  fetch('/dispatching/refresh-all-flights/', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'X-CSRFToken': '{{ csrf_token }}'
-                      },
-                      body: JSON.stringify({
-                          date: selectedDate
-                      })
-                  })
-                  .then(response => response.json())
-                  .then(data => {
-                      // Clear progress interval
+
+                  const finalizeRefreshUI = (data) => {
                       clearInterval(progressInterval);
-                      
-                      const progressBar = document.getElementById('refreshProgressBar');
-                      const statusDiv = document.getElementById('refreshStatus');
-                      const resultsDiv = document.getElementById('refreshResults');
-                      const elapsedDiv = document.getElementById('refreshElapsed');
-                      
-                      // Calculate total elapsed time
+                      if (pollInterval) {
+                          clearInterval(pollInterval);
+                      }
+
                       const totalElapsed = Math.floor((Date.now() - startTime) / 1000);
                       elapsedDiv.textContent = `Completed in ${totalElapsed}s`;
-                      
+
                       if (data.success) {
-                          // Update progress bar
                           if (progressBar) {
                               progressBar.style.width = '100%';
                               progressBar.textContent = '100%';
                               progressBar.classList.remove('progress-bar-animated');
                               progressBar.classList.add('bg-success');
                           }
-                          
-                          // Update status in modal if still open
+
                           if (statusDiv && !modalClosed) {
                               statusDiv.innerHTML = `<div class="alert alert-success mb-0">
                                   <i class="bi bi-check-circle me-2"></i>
                                   ${data.message}
                               </div>`;
                           }
-                          
-                          // Show results in modal if still open
+
                           let rateLimitedCount = 0;
                           let successCount = 0;
                           let failureCount = 0;
-                          
+
                           data.results.forEach(result => {
                               if (result.success) {
                                   successCount++;
-                                  // Update UI for each successful refresh
                                   updateFlightUI(result.leg_id, result.flight_data);
                               } else {
                                   failureCount++;
@@ -1696,7 +1661,7 @@
                                   }
                               }
                           });
-                          
+
                           if (resultsDiv && !modalClosed) {
                               let resultsHTML = '<div class="mt-2"><strong>Results:</strong><ul class="list-unstyled mt-2">';
                               data.results.forEach(result => {
@@ -1720,8 +1685,7 @@
                               }
                               resultsDiv.innerHTML = resultsHTML;
                           }
-                          
-                          // Show toast notification
+
                           let toastMessage = `Flight refresh completed: ${successCount} successful`;
                           if (failureCount > 0) {
                               toastMessage += `, ${failureCount} failed`;
@@ -1730,21 +1694,6 @@
                               toastMessage += `, ${rateLimitedCount} rate limited`;
                           }
                           showToast(toastMessage, successCount > 0 && failureCount === 0 ? 'success' : 'warning');
-                          
-                          // Close modal after 3 seconds if still open
-                          if (!modalClosed) {
-                              setTimeout(() => {
-                                  if (bsModal) bsModal.hide();
-                                  progressModal.remove();
-                              }, 3000);
-                          }
-                          
-                          // Re-enable button and remove badge
-                          btn.disabled = false;
-                          btn.innerHTML = originalHTML;
-                          const badge = document.getElementById('refreshBadge');
-                          if (badge) badge.remove();
-                          btn.classList.remove('position-relative');
                       } else {
                           if (progressBar) {
                               progressBar.classList.remove('progress-bar-animated');
@@ -1756,62 +1705,108 @@
                                   Error: ${data.error || 'Unknown error'}
                               </div>`;
                           }
-                          
-                          // Show error toast
                           showToast(`Flight refresh failed: ${data.error || 'Unknown error'}`, 'error');
-                          
-                          // Close modal after 3 seconds if still open
-                          if (!modalClosed) {
-                              setTimeout(() => {
-                                  if (bsModal) bsModal.hide();
-                                  progressModal.remove();
-                              }, 3000);
-                          }
-                          
-                          // Re-enable button and remove badge
-                          btn.disabled = false;
-                          btn.innerHTML = originalHTML;
-                          const badge = document.getElementById('refreshBadge');
-                          if (badge) badge.remove();
-                          btn.classList.remove('position-relative');
                       }
-                  })
-                  .catch(error => {
-                      // Clear progress interval
-                      clearInterval(progressInterval);
-                      
-                      console.error('Error:', error);
-                      const progressBar = document.getElementById('refreshProgressBar');
-                      const statusDiv = document.getElementById('refreshStatus');
-                      
-                      if (progressBar) {
-                          progressBar.classList.remove('progress-bar-animated');
-                          progressBar.classList.add('bg-danger');
-                      }
-                      if (statusDiv && !modalClosed) {
-                          statusDiv.innerHTML = `<div class="alert alert-danger mb-0">
-                              <i class="bi bi-x-circle me-2"></i>
-                              Error: ${error.message}
-                          </div>`;
-                      }
-                      
-                      // Show error toast
-                      showToast(`Flight refresh error: ${error.message}`, 'error');
-                      
-                      // Close modal after 3 seconds if still open
+
                       if (!modalClosed) {
                           setTimeout(() => {
                               if (bsModal) bsModal.hide();
                               progressModal.remove();
                           }, 3000);
                       }
-                      
-                      // Re-enable button and remove badge
+
                       btn.disabled = false;
                       btn.innerHTML = originalHTML;
                       const badge = document.getElementById('refreshBadge');
                       if (badge) badge.remove();
                       btn.classList.remove('position-relative');
+                  };
+
+                  const updateProgressUI = (data) => {
+                      const total = data.total || 0;
+                      const processed = data.processed || 0;
+                      if (progressBar && total > 0) {
+                          const percent = Math.min(99, Math.floor((processed / total) * 100));
+                          progressBar.style.width = percent + '%';
+                          progressBar.textContent = percent + '%';
+                      }
+                      if (statusDiv && !modalClosed) {
+                          if (data.status === 'queued') {
+                              statusDiv.textContent = 'Queued for refresh...';
+                          } else if (data.status === 'running') {
+                              statusDiv.textContent = `Processing arrival flights... (${processed}/${total})`;
+                          }
+                      }
+                  };
+
+                  const pollStatus = (taskId) => {
+                      pollInterval = setInterval(() => {
+                          fetch(`/dispatching/refresh-all-flights-status/${taskId}/`)
+                              .then(response => response.json())
+                              .then(data => {
+                                  if (!data.success) {
+                                      finalizeRefreshUI({
+                                          success: false,
+                                          error: data.error || 'Unknown error',
+                                          results: []
+                                      });
+                                      return;
+                                  }
+                                  updateProgressUI(data);
+                                  if (data.status === 'completed') {
+                                      finalizeRefreshUI({
+                                          success: true,
+                                          message: data.message,
+                                          results: data.results || []
+                                      });
+                                  } else if (data.status === 'failed') {
+                                      finalizeRefreshUI({
+                                          success: false,
+                                          error: data.error || 'Unknown error',
+                                          results: data.results || []
+                                      });
+                                  }
+                              })
+                              .catch(error => {
+                                  finalizeRefreshUI({
+                                      success: false,
+                                      error: error.message,
+                                      results: []
+                                  });
+                              });
+                      }, 2000);
+                  };
+
+                  fetch('/dispatching/refresh-all-flights/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({
+                          date: selectedDate
+                      })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                      if (!data.success) {
+                          finalizeRefreshUI({
+                              success: false,
+                              error: data.error || 'Unknown error',
+                              results: []
+                          });
+                          return;
+                      }
+                      updateProgressUI({ status: 'queued', total: data.total, processed: 0 });
+                      pollStatus(data.task_id);
+                  })
+                  .catch(error => {
+                      console.error('Error:', error);
+                      finalizeRefreshUI({
+                          success: false,
+                          error: error.message,
+                          results: []
+                      });
                   });
               });
           }
