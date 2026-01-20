@@ -896,23 +896,13 @@
                     <div class="col-12">
                       <div class="alert alert-info mb-3">
                         <i class="bi bi-info-circle me-2"></i>
-                        <strong>Include your gratuity</strong> - If you would like to include gratuity, you can add it here instead of handling it in cash. It is always up to you and it goes directly to your chauffeurs.
+                        <strong>Include your gratuity</strong> - A 20% gratuity is recommended for professional chauffeured service. You may include it here for convenience, or provide gratuity in cash. All gratuities go 100% to your chauffeur.
                       </div>
                     </div>
 
                     <div class="col-12">
                       <label class="form-label fw-semibold">Would you like to include gratuity?</label>
                       <div class="row g-2">
-                        <div class="col-6 col-md-3">
-                          <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="gratuity_option"
-                                   id="gratuity_18"
-                                   value="18">
-                            <label class="form-check-label fw-semibold" for="gratuity_18">18%</label>
-                          </div>
-                        </div>
                         <div class="col-6 col-md-3">
                           <div class="form-check">
                             <input class="form-check-input"
@@ -928,12 +918,50 @@
                             <input class="form-check-input"
                                    type="radio"
                                    name="gratuity_option"
+                                   id="gratuity_25"
+                                   value="25">
+                            <label class="form-check-label fw-semibold" for="gratuity_25">25%</label>
+                          </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                          <div class="form-check">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="gratuity_option"
+                                   id="gratuity_custom"
+                                   value="custom">
+                            <label class="form-check-label fw-semibold" for="gratuity_custom">Custom</label>
+                          </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                          <div class="form-check">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="gratuity_option"
                                    id="gratuity_none"
                                    value="0"
                                    checked>
                             <label class="form-check-label fw-semibold" for="gratuity_none">Cash</label>
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    <div class="col-12" id="custom_gratuity_wrap" style="display: none;">
+                      <label class="form-label fw-semibold" for="custom_gratuity_value">Custom gratuity</label>
+                      <div class="input-group">
+                        <input type="number"
+                               class="form-control"
+                               id="custom_gratuity_value"
+                               name="custom_gratuity_value"
+                               min="21"
+                               max="100"
+                               step="0.01"
+                               placeholder="e.g. 25">
+                        <span class="input-group-text">%</span>
+                      </div>
+                      <div class="form-text text-danger d-none" id="custom_gratuity_error">
+                        Online gratuity is available starting at 20%. If you prefer a different amount, gratuity may be provided directly to your chauffeur in cash.
                       </div>
                     </div>
 
@@ -1061,13 +1089,32 @@
                 const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
                 const newTotalDisplay = document.getElementById('new_total_display');
                 const gratuityPercentageField = document.getElementById('id_gratuity_percentage');
+                const customGratuityWrap = document.getElementById('custom_gratuity_wrap');
+                const customGratuityValue = document.getElementById('custom_gratuity_value');
+                const customGratuityError = document.getElementById('custom_gratuity_error');
 
                 function calculateGratuity() {
                     const selectedOption = document.querySelector('input[name="gratuity_option"]:checked');
                     let percentage = 0;
 
+                    customGratuityWrap.style.display = 'none';
+                    customGratuityError.classList.add('d-none');
+
                     if (selectedOption) {
-                        percentage = parseFloat(selectedOption.value) || 0;
+                        if (selectedOption.value === 'custom') {
+                            customGratuityWrap.style.display = 'block';
+                            const customValue = parseFloat(customGratuityValue.value);
+                            if (Number.isFinite(customValue) && customValue >= 21) {
+                                percentage = customValue;
+                            } else {
+                                percentage = 0;
+                                if (customGratuityValue.value !== '') {
+                                    customGratuityError.classList.remove('d-none');
+                                }
+                            }
+                        } else {
+                            percentage = parseFloat(selectedOption.value) || 0;
+                        }
                     }
 
                     if (percentage > 0) {
@@ -1090,6 +1137,12 @@
                         calculateGratuity();
                     });
                 });
+
+                if (customGratuityValue) {
+                    customGratuityValue.addEventListener('input', function() {
+                        calculateGratuity();
+                    });
+                }
 
                 // Initial calculation
                 calculateGratuity();

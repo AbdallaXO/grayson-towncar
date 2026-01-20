@@ -627,15 +627,23 @@
                   <!-- Payment Status -->
                   <td>
                     <div class="d-flex align-items-center">
-                      <i class="bi bi-cash-coin me-2 {% if leg.reservation.payments.last %}text-success{% else %}text-danger{% endif %}"></i>
-                      <div>
-                        <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
-                        {% if leg.reservation.payments.last %}
-                          <span class="badge bg-success">{{ leg.reservation.payments.last }}</span>
-                        {% else %}
-                          <span class="badge bg-warning text-dark">No Payment</span>
-                        {% endif %}
-                      </div>
+                      {% with payment_info=leg.reservation.detailed_payment_status %}
+                        <i class="bi bi-cash-coin me-2 {% if payment_info.status == 'paid' %}text-success{% elif payment_info.status == 'card_saved' %}text-info{% elif payment_info.status == 'pending' %}text-warning{% else %}text-danger{% endif %}"></i>
+                        <div>
+                          <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
+                          {% if payment_info.status == 'paid' %}
+                            <span class="badge bg-success">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'card_saved' %}
+                            <span class="badge bg-info">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'failed' %}
+                            <span class="badge bg-danger">{{ payment_info.display }}</span>
+                          {% else %}
+                            <span class="badge bg-secondary">{{ payment_info.display }}</span>
+                          {% endif %}
+                        </div>
+                      {% endwith %}
                     </div>
                   </td>
 
@@ -845,15 +853,23 @@
                       <!-- Payment Status -->
                       <div class="col-12">
                         <div class="d-flex">
-                          <i class="bi bi-cash-coin {% if leg.reservation.payments.last %}text-success{% else %}text-danger{% endif %} me-2"></i>
-                          <div class="small">
-                            <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
-                            {% if leg.reservation.payments.last %}
-                              <span class="badge bg-success">{{ leg.reservation.payments.last }}</span>
-                            {% else %}
-                              <span class="badge bg-warning text-dark">No Payment</span>
-                            {% endif %}
-                          </div>
+                          {% with payment_info=leg.reservation.detailed_payment_status %}
+                            <i class="bi bi-cash-coin {% if payment_info.status == 'paid' %}text-success{% elif payment_info.status == 'card_saved' %}text-info{% elif payment_info.status == 'pending' %}text-warning{% else %}text-danger{% endif %} me-2"></i>
+                            <div class="small">
+                              <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
+                              {% if payment_info.status == 'paid' %}
+                                <span class="badge bg-success">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'card_saved' %}
+                                <span class="badge bg-info">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'pending' %}
+                                <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'failed' %}
+                                <span class="badge bg-danger">{{ payment_info.display }}</span>
+                              {% else %}
+                                <span class="badge bg-secondary">{{ payment_info.display }}</span>
+                              {% endif %}
+                            </div>
+                          {% endwith %}
                         </div>
                       </div>
 

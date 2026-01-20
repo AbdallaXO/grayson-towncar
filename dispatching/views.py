@@ -163,6 +163,22 @@ def index(request):
         {"driver": driver, "assignment": assignment_map.get(driver.id)}
         for driver in inhouse_drivers
     ]
+    def _inhouse_vehicle_sort_key(row):
+        assignment = row.get("assignment")
+        vehicle_number = None
+        if assignment and assignment.vehicle and assignment.vehicle.vehicle_number:
+            vehicle_number = assignment.vehicle.vehicle_number.lstrip("#").strip()
+        if vehicle_number:
+            try:
+                vehicle_number = int(vehicle_number)
+            except ValueError:
+                pass
+            return (0, vehicle_number)
+        driver = row["driver"]
+        return (1, str(driver))
+
+    inhouse_driver_rows.sort(key=_inhouse_vehicle_sort_key)
+
 
     for driver in drivers:
         display_name = str(driver)

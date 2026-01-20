@@ -151,6 +151,19 @@ class ReservationForm(forms.ModelForm):
         if self.rate:
             vehicle = self.rate.vehicle
             validate_vehicle_constraints(vehicle, cleaned_data, self.add_error)
+        gratuity_percentage = cleaned_data.get("gratuity_percentage")
+        if gratuity_percentage is not None:
+            try:
+                gratuity_value = float(gratuity_percentage)
+            except (TypeError, ValueError):
+                gratuity_value = None
+            if gratuity_value is not None:
+                if gratuity_value == 0 or gratuity_value == 20 or gratuity_value >= 21:
+                    return cleaned_data
+                self.add_error(
+                    "gratuity_percentage",
+                    "Online gratuity is available starting at 20%. If you prefer a different amount, gratuity may be provided directly to your chauffeur in cash.",
+                )
 
     def save(self, commit=True, **kwargs):
         self.instance.customer = kwargs.get("customer")
