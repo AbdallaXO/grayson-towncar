@@ -1,4 +1,6 @@
 from django.core.mail import EmailMultiAlternatives
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 from django.template.loader import render_to_string
 import logging
 from django.utils import timezone
@@ -106,6 +108,60 @@ def send_reservation_confirmation(reservation):
 
     # Send with retry in background thread
     _send_email_with_retry(_send_email, max_retries=3)
+
+
+def send_reservation_confirmation_custom_recipient(reservation, recipient_email, sender_name=None):
+    """
+    Send reservation confirmation email to a custom recipient.
+    Returns True if the send is queued successfully, False otherwise.
+    """
+    if not recipient_email:
+        logger.error("Custom confirmation email failed: missing recipient email")
+        return False
+
+    try:
+        validate_email(recipient_email)
+    except ValidationError:
+        logger.error(f"Custom confirmation email failed: invalid recipient email {recipient_email}")
+        return False
+
+    try:
+        legs = reservation.legs.all()
+        has_return_trip = any(leg.get_trip_type() == 'return' for leg in legs)
+
+        context = {
+            "reservation": reservation,
+            "legs": legs,
+            "date": timezone.now().date(),
+            "has_return_trip": has_return_trip,
+            "sender_name": sender_name,
+            "recipient_email": recipient_email,
+        }
+
+        subject = "Grayson Towncar Reservation Confirmation"
+        from_email = "reservations@graysontowncar.com"
+        to = [recipient_email]
+        html_content = render_to_string("users/confirmation_email.html", context)
+
+        def _send_email():
+            try:
+                msg = EmailMultiAlternatives(subject, "", from_email, to)
+                msg.attach_alternative(html_content, "text/html")
+                msg.send()
+                logger.info(
+                    f"Custom confirmation email sent for reservation {reservation.uuid} to {recipient_email}"
+                )
+            except Exception as e:
+                logger.exception(
+                    f"Error sending custom confirmation email for reservation {reservation.uuid}: {e}"
+                )
+                raise
+
+        _send_email_with_retry(_send_email, max_retries=3)
+        return True
+    except Exception as e:
+        logger.exception(f"Failed to queue custom confirmation email: {e}")
+        return False
 
 
 def send_refund_request_notification(reservation):
