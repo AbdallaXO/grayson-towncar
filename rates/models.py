@@ -38,6 +38,10 @@ class Vehicle(models.Model):
 
 class Location(models.Model):
     name = models.CharField(max_length=70)
+    aliases = models.TextField(
+        blank=True,
+        help_text="Comma-separated alternate names (e.g., MCO, Orlando Airport, Disney)",
+    )
 
     def __str__(self):
         return self.name
@@ -56,6 +60,13 @@ class Route(models.Model):
     )
     slug = models.SlugField(max_length=200, blank=True, null=True)
     description = models.TextField(blank=True)
+    inhouse_base_pay = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Default base pay for inhouse drivers on this route",
+    )
 
     class Meta:
         unique_together = (

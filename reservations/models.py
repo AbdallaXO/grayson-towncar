@@ -8,7 +8,7 @@ from .constants import (
 import uuid
 from decimal import Decimal
 from django.utils import timezone
-from rates.models import Vehicle, Rate
+from rates.models import Vehicle, Rate, Route, Location
 from datetime import timedelta
 
 
@@ -536,6 +536,14 @@ class Leg(models.Model):
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
     )
+    route = models.ForeignKey(
+        "rates.Route",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="legs",
+        help_text="Matched route for this leg (auto-filled when possible)",
+    )
     flight_information = models.OneToOneField(
         "Flight", on_delete=models.CASCADE, null=True, blank=True
     )
@@ -652,10 +660,92 @@ class Leg(models.Model):
 
         return (revenue - driver_payment).quantize(Decimal("0.01"))
 
+    def _match_location(self, text, locations):
+        if not text:
+            return None
+        text_lower = text.lower()
+        best_match = None
+        best_length = 0
+
+        for location in locations:
+            candidates = []
+            if location.name:
+                candidates.append(location.name)
+            if location.aliases:
+                candidates.extend(
+                    alias.strip()
+                    for alias in location.aliases.split(",")
+                    if alias.strip()
+                )
+
+            for candidate in candidates:
+                candidate_lower = candidate.lower()
+                if candidate_lower in text_lower:
+                    candidate_length = len(candidate_lower)
+                    if candidate_length > best_length:
+                        best_length = candidate_length
+                        best_match = location
+
+        return best_match
+
+    def _assign_route_from_locations(self):
+        if self.route or not self.pickup_location or not self.dropoff_location:
+            return
+        locations = list(Location.objects.all())
+        origin = self._match_location(self.pickup_location, locations)
+        destination = self._match_location(self.dropoff_location, locations)
+        if origin and destination:
+            route = Route.objects.filter(origin=origin, destination=destination).first()
+            if route:
+                self.route = route
+
     def save(self, *args, **kwargs):
+        # Attempt to match a route from pickup/dropoff when not set
+        self._assign_route_from_locations()
+
         # Calculate and store revenue share if not set
         if self.revenue_share is None:
             self.revenue_share = self.calculate_revenue_share()
+
+        # Auto-fill driver pay for inhouse drivers when not set
+        if (
+            self.driver_pay_amount is None
+            and self.driver
+            and self.driver.driver_type == "inhouse"
+        ):
+            base_pay = None
+            route = self.route
+            if route:
+                base_pay = route.inhouse_base_pay
+
+            if base_pay is not None:
+                gratuity_share = Decimal("0.00")
+                reservation = self.reservation
+                if reservation:
+                    gratuity_amount = reservation.gratuity_amount
+                    if (
+                        gratuity_amount is None
+                        and reservation.gratuity_percentage
+                        and reservation.base_price
+                    ):
+                        gratuity_amount = (
+                            reservation.base_price
+                            * reservation.gratuity_percentage
+                            / Decimal("100")
+                        )
+                    if gratuity_amount:
+                        leg_count = reservation.legs.count()
+                        if self.pk is None:
+                            leg_count += 1
+                        if leg_count <= 0:
+                            leg_count = 1
+                        gratuity_share = (gratuity_amount / Decimal(leg_count)).quantize(
+                            Decimal("0.01")
+                        )
+
+                self.driver_pay_amount = (base_pay + gratuity_share).quantize(
+                    Decimal("0.01")
+                )
 
         # Calculate and store profit estimate if driver payment is set
         if self.driver_pay_amount is not None:
