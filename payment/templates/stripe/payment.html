@@ -41,7 +41,7 @@
 
         <!-- Reservation Summary -->
         <div class="p-3 border-bottom bg-light">
-          <div class="row row-cols-3 text-center g-0">
+          <div class="row row-cols-4 text-center g-0">
 
             <!-- Reservation ID -->
             <div class="col">
@@ -79,6 +79,15 @@
                             height: 1.6em">
                 <small class="text-muted">Trip Type</small>
                 <p class="mb-0 fw-bold">{{ reservation.trip_type|cut:"_"|title }}</p>
+              </div>
+            </div>
+
+            <!-- Vehicle -->
+            <div class="col">
+              <div class="d-flex flex-column align-items-center">
+                <i class="bi bi-car-front-fill text-secondary mb-2" style="font-size: 1.6rem;"></i>
+                <small class="text-muted">Vehicle</small>
+                <p class="mb-0 fw-bold">{{ reservation.rate.vehicle }}</p>
               </div>
             </div>
 

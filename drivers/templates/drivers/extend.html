@@ -31,9 +31,23 @@
     .phone-link {
       color: #0d6efd;
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      white-space: nowrap;
     }
     .phone-link:hover {
       text-decoration: underline;
+    }
+    .driver-phone {
+      white-space: nowrap;
+    }
+    .schedule-text {
+      font-size: 0.95rem;
+      color: #212529;
+      font-weight: 500;
+      white-space: pre-line;
+      line-height: 1.6;
     }
     .schedule-item {
       font-size: 0.9rem;
@@ -54,6 +68,15 @@
     }
     .table td {
       vertical-align: middle;
+    }
+    .driver-table {
+      width: 100%;
+      table-layout: auto;
+    }
+    .phone-cell {
+      min-width: 180px;
+      width: 180px;
+      white-space: nowrap;
     }
   </style>
 {% endblock extra_head %}
@@ -123,7 +146,7 @@
     <div class="card">
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover mb-0">
+          <table class="table table-hover mb-0 driver-table">
             <thead class="table-light">
               <tr>
                 <th>Name</th>
@@ -159,9 +182,9 @@
                       {% endif %}
                     </span>
                   </td>
-                  <td>
+                  <td class="phone-cell">
                     {% if driver.phone_number %}
-                      <a href="tel:{{ driver.phone_number }}" class="phone-link">
+                      <a href="tel:{{ driver.phone_number }}" class="phone-link driver-phone">
                         <i class="bi bi-telephone me-1"></i>{{ driver.phone_number }}
                       </a>
                     {% else %}
@@ -178,7 +201,7 @@
                   </td>
                   <td>
                     {% if driver.get_schedule_display %}
-                      <small class="text-muted" style="white-space: pre-line; line-height: 1.6;">{{ driver.get_schedule_display }}</small>
+                      <span class="schedule-text">{{ driver.get_schedule_display }}</span>
                     {% else %}
                       <span class="text-muted">-</span>
                     {% endif %}

@@ -986,16 +986,24 @@
                       })
                       .then(data => {
                           if (data.success) {
-                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                              setTimeout(() => {
-                                  statusElement.innerHTML = '';
-                              }, 3000);
-                          } else {
+                              if (statusElement) {
+                                  statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                                  setTimeout(() => {
+                                      statusElement.innerHTML = '';
+                                  }, 3000);
+                              }
+                          } else if (statusElement) {
                               statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                          } else {
+                              alert('Update failed: ' + (data.error || 'Unknown error'));
                           }
                       })
                       .catch(error => {
-                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                          if (statusElement) {
+                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                          } else {
+                              alert('Error: ' + error.message);
+                          }
                       });
               });
           });

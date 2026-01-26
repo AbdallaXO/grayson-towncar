@@ -692,8 +692,11 @@ def update_leg_assignment(request):
                 {"success": False, "error": "Leg not found"}, status=404
             )
         
-        # Prevent driver assignment on refunded reservations
-        if field == "driver" and leg.reservation.refund_status == 'completed':
+        # Prevent driver assignment only for fully refunded reservations
+        if field == "driver" and leg.reservation.refund_status == 'completed' and (
+            leg.reservation.refund_amount is not None
+            and leg.reservation.refund_amount >= leg.reservation.total_price
+        ):
             logger.warning(f"Attempted to assign driver to refunded reservation {leg.reservation.id}")
             return JsonResponse({
                 "success": False,
@@ -749,6 +752,7 @@ def update_leg_assignment(request):
                     "on-location",
                     "picked-up",
                     "completed",
+                    "cancelled",
                 ]
                 if value in valid_statuses:
                     leg.status = value
@@ -3409,11 +3413,31 @@ def process_driver_payment(request):
         data = json.loads(request.body)
         driver_id = data.get("driver_id")
         leg_ids = data.get("leg_ids", [])  # Optional: specific legs to process
+        send_email = bool(data.get("send_email"))
         
         if not driver_id:
             return JsonResponse({"success": False, "error": "Missing driver ID"}, status=400)
         
         driver = get_object_or_404(Driver, id=driver_id)
+
+        # Validate email ahead of payment processing if requested
+        recipient_email = None
+        if send_email:
+            if not driver.profile or not driver.profile.email:
+                return JsonResponse({
+                    "success": False,
+                    "error": "Driver does not have an email on file"
+                }, status=400)
+            recipient_email = driver.profile.email
+            try:
+                from django.core.validators import validate_email
+                from django.core.exceptions import ValidationError
+                validate_email(recipient_email)
+            except ValidationError:
+                return JsonResponse({
+                    "success": False,
+                    "error": "Driver email on file is invalid"
+                }, status=400)
         
         # Get unpaid legs for this driver that are completed
         unpaid_legs = Leg.objects.filter(
@@ -3487,12 +3511,31 @@ def process_driver_payment(request):
         
         logger.info(f"Processed payment {payment.id} for driver {driver} with {unpaid_legs.count()} legs. Total: ${payment_total}")
         
+        email_sent = False
+        email_error = None
+        if send_email and recipient_email:
+            try:
+                from users.emails import send_driver_payment_statement
+                email_sent = send_driver_payment_statement(
+                    driver=driver,
+                    payment=payment,
+                    legs=list(unpaid_legs),
+                    recipient_email=recipient_email,
+                )
+                if not email_sent:
+                    email_error = "Unable to send statement email"
+            except Exception as e:
+                logger.error(f"Error sending driver payment statement: {str(e)}", exc_info=True)
+                email_error = "Error sending statement email"
+
         return JsonResponse({
             "success": True,
             "message": f"Payment processed successfully for {unpaid_legs.count()} leg(s). Total: ${payment_total:.2f}",
             "payment_id": payment.id,
             "legs_processed": unpaid_legs.count(),
             "total_amount": float(payment_total),
+            "email_sent": email_sent,
+            "email_error": email_error,
         })
         
     except json.JSONDecodeError:

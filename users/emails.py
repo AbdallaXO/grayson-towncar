@@ -266,6 +266,71 @@ def send_internal_confirmation(reservation):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
+def send_driver_payment_statement(driver, payment, legs, recipient_email):
+    """
+    Send a driver payment statement email.
+    Returns True if queued successfully, False otherwise.
+    """
+    if not recipient_email:
+        logger.error("Driver payment statement failed: missing recipient email")
+        return False
+
+    try:
+        validate_email(recipient_email)
+    except ValidationError:
+        logger.error(f"Driver payment statement failed: invalid recipient email {recipient_email}")
+        return False
+
+    try:
+        pay_period_start = None
+        pay_period_end = None
+        if legs:
+            leg_dates = [leg.pickup_date for leg in legs if leg.pickup_date]
+            if leg_dates:
+                pay_period_start = min(leg_dates)
+                pay_period_end = max(leg_dates)
+
+        context = {
+            "driver": driver,
+            "payment": payment,
+            "legs": legs,
+            "date": timezone.now().date(),
+            "pay_period_start": pay_period_start,
+            "pay_period_end": pay_period_end,
+        }
+
+        if pay_period_start and pay_period_end:
+            subject = (
+                f"Grayson Towncar - Payment Statement "
+                f"{pay_period_start.strftime('%b %d, %Y')} - {pay_period_end.strftime('%b %d, %Y')}"
+            )
+        else:
+            subject = f"Grayson Towncar - Payment Statement {timezone.now().strftime('%b %d, %Y')}"
+        from_email = "reservations@graysontowncar.com"
+        to = [recipient_email]
+        html_content = render_to_string("users/driver_payment_statement.html", context)
+
+        def _send_email():
+            try:
+                msg = EmailMultiAlternatives(subject, "", from_email, to)
+                msg.attach_alternative(html_content, "text/html")
+                msg.send()
+                logger.info(
+                    f"Driver payment statement sent to {recipient_email} for payment {payment.id}"
+                )
+            except Exception as e:
+                logger.exception(
+                    f"Error sending driver payment statement for payment {payment.id}: {e}"
+                )
+                raise
+
+        _send_email_with_retry(_send_email, max_retries=3)
+        return True
+    except Exception as e:
+        logger.exception(f"Failed to queue driver payment statement email: {e}")
+        return False
+
+
 def thankyou_email(instance):
     """
     Sends a thank you email to the customer after they submit a contact form.

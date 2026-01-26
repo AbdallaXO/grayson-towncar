@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Driver Payment Statement</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        color: #111111;
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .header {
+        padding: 16px 0;
+        border-bottom: 1px solid #dddddd;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      .summary {
+        margin: 16px 0;
+      }
+      .summary p {
+        margin: 6px 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      th, td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #e6e6e6;
+        font-size: 14px;
+      }
+      th {
+        background-color: #f5f5f5;
+      }
+      .total {
+        font-weight: bold;
+      }
+      .footer {
+        margin-top: 24px;
+        font-size: 12px;
+        color: #666666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Chauffeur Payment Statement</h1>
+      </div>
+
+      <div class="summary">
+        <p><strong>Driver:</strong> {% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %}</p>
+        <p><strong>Payment Processed Date:</strong> {{ payment.payment_date|date:"F d, Y" }}</p>
+        {% if pay_period_start and pay_period_end %}
+          <p><strong>Billing Cycle:</strong> {{ pay_period_start|date:"F d, Y" }} - {{ pay_period_end|date:"F d, Y" }}</p>
+        {% endif %}
+        <p><strong>Payment Method:</strong> {{ payment.payment_method|title }}</p>
+        <p><strong>Reference:</strong> {{ payment.reference_number|default:"N/A" }}</p>
+        {% if payment.payment_method|lower == "direct deposit" %}
+          <p><strong>Direct Deposit Note:</strong> Deposits are processed on Sunday and typically arrive by Tuesday (about 2 business days).</p>
+        {% endif %}
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Pickup Time</th>
+            <th>Pickup Location</th>
+            <th>Dropoff Location</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for leg in legs %}
+            <tr>
+              <td>{{ leg.pickup_date|date:"m/d/Y" }}</td>
+              <td>{{ leg.pickup_time|time:"g:i A" }}</td>
+              <td>{{ leg.pickup_location }}</td>
+              <td>{{ leg.dropoff_location }}</td>
+              <td>${{ leg.driver_pay_amount|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5">No legs found for this payment.</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td colspan="4" class="total">Total</td>
+            <td class="total">${{ payment.amount|floatformat:2 }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="footer">
+        <p>Questions? Reply to this email or contact the office.</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -644,6 +644,21 @@
             <p><strong>Total Amount:</strong> <span id="previewTotalAmount" class="fw-bold text-success"></span></p>
             <p><strong>Payment Method:</strong> <span id="previewPaymentMethod"></span></p>
           </div>
+          <div class="mt-3">
+            {% if selected_driver and selected_driver.profile and selected_driver.profile.email %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="sendStatementCheckbox">
+                <label class="form-check-label" for="sendStatementCheckbox">
+                  Email statement to driver ({{ selected_driver.profile.email }})
+                </label>
+              </div>
+            {% else %}
+              <div class="alert alert-warning py-2 mb-0 small">
+                <i class="bi bi-envelope-exclamation me-1"></i>
+                No driver email on file. Add an email to enable statement delivery.
+              </div>
+            {% endif %}
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -780,6 +795,7 @@
           const processPaymentBtn = document.getElementById('processPaymentBtn');
           const processPaymentModal = new bootstrap.Modal(document.getElementById('processPaymentModal'));
           const confirmProcessPaymentBtn = document.getElementById('confirmProcessPayment');
+          const sendStatementCheckbox = document.getElementById('sendStatementCheckbox');
           
           if (processPaymentBtn) {
               processPaymentBtn.addEventListener('click', function() {
@@ -828,15 +844,22 @@
                           'Content-Type': 'application/json',
                           'X-CSRFToken': csrfToken.value
                       },
-                      body: JSON.stringify({
-                          driver_id: driverId
+                  body: JSON.stringify({
+                          driver_id: driverId,
+                          send_email: sendStatementCheckbox ? sendStatementCheckbox.checked : false
                       })
                   })
                   .then(response => response.json())
                   .then(data => {
                       if (data.success) {
                           // Show success message
-                          alert('Payment processed successfully!\n\n' + data.message);
+                          let message = 'Payment processed successfully!\n\n' + data.message;
+                          if (data.email_sent) {
+                              message += '\n\nStatement emailed to driver.';
+                          } else if (data.email_error) {
+                              message += '\n\nEmail not sent: ' + data.email_error;
+                          }
+                          alert(message);
                           
                           // Close modal
                           processPaymentModal.hide();
