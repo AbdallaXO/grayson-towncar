@@ -6,6 +6,16 @@ urlpatterns = [
     path("", views.index, name="drivers_dashboard"),
     path("extend/", views.extend, name="drivers_extend"),
     path(
+        "statement/<int:driver_id>/",
+        views.driver_statement_list,
+        name="driver_statement_list",
+    ),
+    path(
+        "statement/<int:driver_id>/<int:payment_id>/",
+        views.driver_statement_detail,
+        name="driver_statement_detail",
+    ),
+    path(
         "update_leg_status/<int:leg_id>/",
         views.update_leg_status,
         name="update_leg_status",

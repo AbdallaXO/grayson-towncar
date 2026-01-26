@@ -1,0 +1,86 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0">Driver Statements</h1>
+      <a href="{% url 'drivers_extend' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Driver Directory
+      </a>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+          <div>
+            <div class="text-muted">Driver</div>
+            <div class="fw-bold">
+              {% if driver.profile.first_name %}
+                {{ driver.profile.first_name }} {{ driver.profile.last_name }}
+              {% else %}
+                {{ driver.profile.username }}
+              {% endif %}
+            </div>
+          </div>
+          <div>
+            <div class="text-muted">Email</div>
+            <div class="fw-bold">{{ driver.profile.email|default:"-" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Payment Date</th>
+                <th>Pay Period</th>
+                <th>Legs</th>
+                <th>Total</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in payment_rows %}
+                <tr>
+                  <td>{{ row.payment.payment_date|date:"M d, Y" }}</td>
+                  <td>
+                    {% if row.pay_period_start and row.pay_period_end %}
+                      {{ row.pay_period_start|date:"M d, Y" }} - {{ row.pay_period_end|date:"M d, Y" }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                  <td>{{ row.legs_count }}</td>
+                  <td>${{ row.payment.amount|floatformat:2 }}</td>
+                  <td>
+                    <a href="{% url 'driver_statement_detail' driver.id row.payment.id %}"
+                       class="btn btn-sm btn-outline-primary">
+                      View Statement
+                    </a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="text-center py-4 text-muted">
+                    No payment statements found.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

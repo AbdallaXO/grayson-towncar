@@ -10,6 +10,7 @@ from decimal import Decimal
 from django.utils import timezone
 from rates.models import Vehicle, Rate, Route, Location
 from datetime import timedelta
+from datetime import time
 
 
 class Customer(models.Model):
@@ -746,6 +747,15 @@ class Leg(models.Model):
                 self.driver_pay_amount = (base_pay + gratuity_share).quantize(
                     Decimal("0.01")
                 )
+                if self.pickup_time:
+                    is_night_pickup = (
+                        self.pickup_time >= time(22, 1)
+                        or self.pickup_time <= time(5, 59)
+                    )
+                    if is_night_pickup:
+                        self.driver_pay_amount = (
+                            self.driver_pay_amount + Decimal("10.00")
+                        ).quantize(Decimal("0.01"))
 
         # Calculate and store profit estimate if driver payment is set
         if self.driver_pay_amount is not None:

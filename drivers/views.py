@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404, render, redirect
-from .models import Driver
+from .models import Driver, DriverPayment, LegPayment
 from datetime import datetime, timedelta
 from reservations.models import Leg
 from django.contrib.auth.decorators import login_required
@@ -297,6 +297,101 @@ def extend(request):
     }
     
     return render(request, "drivers/extend.html", context)
+
+
+@login_required(login_url="login")
+def driver_statement_list(request, driver_id):
+    """
+    Staff view of a driver's payment statements.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    driver = get_object_or_404(Driver, id=driver_id)
+    payments = (
+        DriverPayment.objects.filter(driver=driver)
+        .prefetch_related("leg_payments__leg")
+        .order_by("-payment_date")
+    )
+
+    payment_rows = []
+    for payment in payments:
+        legs = [lp.leg for lp in payment.leg_payments.all() if lp.leg]
+        leg_dates = [leg.pickup_date for leg in legs if leg.pickup_date]
+        pay_period_start = min(leg_dates) if leg_dates else None
+        pay_period_end = max(leg_dates) if leg_dates else None
+        payment_rows.append(
+            {
+                "payment": payment,
+                "legs_count": len(legs),
+                "pay_period_start": pay_period_start,
+                "pay_period_end": pay_period_end,
+            }
+        )
+
+    context = {
+        "driver": driver,
+        "payment_rows": payment_rows,
+    }
+
+    return render(request, "drivers/driver_statement_list.html", context)
+
+
+@login_required(login_url="login")
+def driver_statement_detail(request, driver_id, payment_id):
+    """
+    Staff view of a single driver payment statement.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    driver = get_object_or_404(Driver, id=driver_id)
+    payment = get_object_or_404(DriverPayment, id=payment_id, driver=driver)
+    leg_payments = (
+        LegPayment.objects.filter(payment=payment)
+        .select_related("leg")
+        .order_by("leg__pickup_date", "leg__pickup_time")
+    )
+    legs = [lp.leg for lp in leg_payments if lp.leg]
+    leg_dates = [leg.pickup_date for leg in legs if leg.pickup_date]
+    pay_period_start = min(leg_dates) if leg_dates else None
+    pay_period_end = max(leg_dates) if leg_dates else None
+
+    if request.method == "POST":
+        recipient_email = request.POST.get("recipient_email", "").strip()
+        if not recipient_email:
+            messages.error(request, "Please enter an email address.")
+        else:
+            from users.emails import send_driver_payment_statement
+
+            email_sent = send_driver_payment_statement(
+                driver=driver,
+                payment=payment,
+                legs=legs,
+                recipient_email=recipient_email,
+            )
+            if email_sent:
+                messages.success(
+                    request, f"Statement emailed to {recipient_email}."
+                )
+            else:
+                messages.error(request, "Unable to send statement email.")
+
+        return redirect(
+            "driver_statement_detail",
+            driver_id=driver.id,
+            payment_id=payment.id,
+        )
+
+    context = {
+        "driver": driver,
+        "payment": payment,
+        "leg_payments": leg_payments,
+        "pay_period_start": pay_period_start,
+        "pay_period_end": pay_period_end,
+    }
+
+    return render(request, "drivers/driver_statement_detail.html", context)
 
 
 @login_required
