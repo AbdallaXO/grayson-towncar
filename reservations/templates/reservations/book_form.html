@@ -371,6 +371,18 @@
                         </div>
                         <div class="form-text mt-1">
                           <i class="bi bi-bag-check me-1"></i> 20-min Publix stop for essentials
+                          <button type="button"
+                                  class="btn btn-link p-0 ms-2 text-decoration-none"
+                                  data-bs-toggle="modal"
+                                  data-bs-target="#publixStopModal"
+                                  style="font-size: 0.875rem">
+                            <i class="bi bi-info-circle me-1"></i>View details
+                          </button>
+                        </div>
+                        <div class="alert alert-warning alert-sm mt-2 mb-0 py-2 px-2"
+                             style="font-size: 0.875rem">
+                          <i class="bi bi-exclamation-triangle me-1"></i>
+                          <strong>Important:</strong> To ensure smooth scheduling, grocery stops must be selected at the time of booking. Same-day or last-minute grocery stop requests cannot be accommodated.
                         </div>
                         {% if reservation_form.store_stop.errors %}
                           <div class="invalid-feedback d-block">
@@ -525,106 +537,268 @@
                           {{ cruise1_form.cruise_line }}
                           <datalist id="cruise_lines">
                             {% for cruise_line in cruise_lines %}<option value="{{ cruise_line }}">{% endfor %}
-                          </datalist>
-                          {% if cruise1_form.cruise_line.errors %}
+                            </datalist>
+                            {% if cruise1_form.cruise_line.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in cruise1_form.cruise_line.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="col-md-6 form-row mb-0">
+                            <label for="{{ cruise1_form.ship_name.id_for_label }}" class="form-label">Ship Name</label>
+                            {{ cruise1_form.ship_name }}
+                            {% if cruise1_form.ship_name.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in cruise1_form.ship_name.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    {% endif %}
+
+                    <!-- Pickup Info -->
+                    <div>
+                      <h3 class="section-heading fs-5 mb-3">
+                        <i class="bi bi-pin-map text-secondary me-2"></i> Pickup Information
+                      </h3>
+                      <div class="row g-3">
+                        <div class="col-md-6 form-row">
+                          <label for="{{ leg1_form.pickup_date.id_for_label }}"
+                                 class="form-label required">Pickup Date</label>
+                          {{ leg1_form.pickup_date }}
+                          <div class="form-text">
+                            <i class="bi bi-calendar me-1"></i> When will you be traveling?
+                          </div>
+                          {% if leg1_form.pickup_date.errors %}
                             <div class="invalid-feedback d-block">
-                              {% for error in cruise1_form.cruise_line.errors %}{{ error }}{% endfor %}
+                              {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
                             </div>
                           {% endif %}
                         </div>
 
-                        <div class="col-md-6 form-row mb-0">
-                          <label for="{{ cruise1_form.ship_name.id_for_label }}"
-                                 class="form-label">Ship Name</label>
-                          {{ cruise1_form.ship_name }}
-                          {% if cruise1_form.ship_name.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in cruise1_form.ship_name.errors %}{{ error }}{% endfor %}
+                        <div class="col-md-6 form-row">
+                          <label for="{{ leg1_form.pickup_time.id_for_label }}"
+                                 class="form-label required d-flex align-items-center">
+                            <span>Pickup Time</span>
+                            <i class="bi bi-question-circle ms-2 info-tooltip"
+                               data-bs-toggle="tooltip"
+                               title="For flight arrivals, use your flight's landing time. For departures, schedule at least 2.5 hours before your flight"></i>
+                          </label>
+                          {{ leg1_form.pickup_time }}
+                          <div class="form-text">
+                            <i class="bi bi-clock-history me-1"></i> We'll adjust for any flight delays
+                          </div>
+                          {% if leg1_form.pickup_time.errors %}
+                            <div class="alert alert-warning alert-dismissible fade show mt-2"
+                                 role="alert"
+                                 id="pickup-time-error-leg1">
+                              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                              <strong>Time Not Available:</strong>
+                              {% for error in leg1_form.pickup_time.errors %}<div class="mt-1">{{ error }}</div>{% endfor %}
+                              <button type="button"
+                                      class="btn-close"
+                                      data-bs-dismiss="alert"
+                                      aria-label="Close"></button>
                             </div>
                           {% endif %}
                         </div>
-                      </div>
-                    </div>
-                  {% endif %}
 
-                  <!-- Pickup Info -->
-                  <div>
-                    <h3 class="section-heading fs-5 mb-3">
-                      <i class="bi bi-pin-map text-secondary me-2"></i> Pickup Information
-                    </h3>
-                    <div class="row g-3">
-                      <div class="col-md-6 form-row">
-                        <label for="{{ leg1_form.pickup_date.id_for_label }}"
-                               class="form-label required">Pickup Date</label>
-                        {{ leg1_form.pickup_date }}
-                        <div class="form-text">
-                          <i class="bi bi-calendar me-1"></i> When will you be traveling?
-                        </div>
-                        {% if leg1_form.pickup_date.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
+                        <div class="col-md-6 form-row">
+                          <label for="{{ leg1_form.pickup_location.id_for_label }}"
+                                 class="form-label required">Pickup Location</label>
+                          {{ leg1_form.pickup_location }}
+                          <div class="form-text">
+                            <i class="bi bi-geo-alt me-1"></i> Airport, hotel name, or address
                           </div>
-                        {% endif %}
-                      </div>
+                          {% if leg1_form.pickup_location.errors %}
+                            <div class="invalid-feedback d-block">
+                              {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
 
-                      <div class="col-md-6 form-row">
-                        <label for="{{ leg1_form.pickup_time.id_for_label }}"
-                               class="form-label required d-flex align-items-center">
-                          <span>Pickup Time</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="For flight arrivals, use your flight's landing time. For departures, schedule at least 2.5 hours before your flight"></i>
-                        </label>
-                        {{ leg1_form.pickup_time }}
-                        <div class="form-text">
-                          <i class="bi bi-clock-history me-1"></i> We'll adjust for any flight delays
-                        </div>
-                        {% if leg1_form.pickup_time.errors %}
-                          <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert" id="pickup-time-error-leg1">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Time Not Available:</strong>
-                            {% for error in leg1_form.pickup_time.errors %}
-                              <div class="mt-1">{{ error }}</div>
-                            {% endfor %}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        <div class="col-md-6 form-row">
+                          <label for="{{ leg1_form.dropoff_location.id_for_label }}"
+                                 class="form-label required">Drop-off Location</label>
+                          {{ leg1_form.dropoff_location }}
+                          <div class="form-text">
+                            <i class="bi bi-geo-alt me-1"></i> Hotel name or full address
                           </div>
-                        {% endif %}
-                      </div>
-
-                      <div class="col-md-6 form-row">
-                        <label for="{{ leg1_form.pickup_location.id_for_label }}"
-                               class="form-label required">Pickup Location</label>
-                        {{ leg1_form.pickup_location }}
-                        <div class="form-text">
-                          <i class="bi bi-geo-alt me-1"></i> Airport, hotel name, or address
+                          {% if leg1_form.dropoff_location.errors %}
+                            <div class="invalid-feedback d-block">
+                              {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
                         </div>
-                        {% if leg1_form.pickup_location.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-
-                      <div class="col-md-6 form-row">
-                        <label for="{{ leg1_form.dropoff_location.id_for_label }}"
-                               class="form-label required">Drop-off Location</label>
-                        {{ leg1_form.dropoff_location }}
-                        <div class="form-text">
-                          <i class="bi bi-geo-alt me-1"></i> Hotel name or full address
-                        </div>
-                        {% if leg1_form.dropoff_location.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
                       </div>
                     </div>
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <!-- Return Details (Conditional) -->
-              {% if leg2_form %}
+                <!-- Return Details (Conditional) -->
+                {% if leg2_form %}
+                  <section class="form-card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white">
+                      <div class="d-flex align-items-center">
+                        <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                              style="width: 40px;
+                                     height: 40px;
+                                     line-height: 1;
+                                     padding: 0">
+                          <img src="{% static 'images/return-trip.webp' %}"
+                               alt="Passenger Icon"
+                               style="width: 30px;
+                                      height: 30px;
+                                      object-fit: contain">
+                        </span>
+                        <h2 class="fs-5 mb-0 fw-bold">Return Ride Details</h2>
+                      </div>
+                    </div>
+                    <div class="card-body">
+                      <div class="mb-4">
+                        <h3 class="section-heading fs-5 mb-3">
+                          <i class="bi bi-airplane text-secondary me-2"></i> Return Flight Information
+                        </h3>
+                        <div class="alert alert-info d-flex align-items-center mb-4 border-0 bg-info bg-opacity-10">
+                          <i class="bi bi-info-circle-fill fs-5 me-3"></i>
+                          <div>
+                            <strong>Please Note:</strong> Flight information helps us plan your return. Skip if not applicable.
+                          </div>
+                        </div>
+
+                        <div class="row g-3">
+                          <div class="col-md-6 form-row mb-0">
+                            <label for="{{ flight2_form.airline.id_for_label }}" class="form-label">Airline</label>
+                            {{ flight2_form.airline }}
+                            {% if flight2_form.airline.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="col-md-6 form-row mb-0">
+                            <label for="{{ flight2_form.flight_number.id_for_label }}"
+                                   class="form-label">Flight Number</label>
+                            {{ flight2_form.flight_number }}
+                            {% if flight2_form.flight_number.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Return Cruise Info Section (Only show for Port Canaveral routes) -->
+                      {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
+                        <div class="mb-4">
+                          <div class="row g-3">
+                            <div class="col-md-6 form-row mb-0">
+                              <label for="{{ cruise2_form.cruise_line.id_for_label }}" class="form-label">Cruise Line</label>
+                              {{ cruise2_form.cruise_line }}
+                              {% if cruise2_form.cruise_line.errors %}
+                                <div class="invalid-feedback d-block">
+                                  {% for error in cruise2_form.cruise_line.errors %}{{ error }}{% endfor %}
+                                </div>
+                              {% endif %}
+                            </div>
+
+                            <div class="col-md-6 form-row mb-0">
+                              <label for="{{ cruise2_form.ship_name.id_for_label }}" class="form-label">Ship Name</label>
+                              {{ cruise2_form.ship_name }}
+                              {% if cruise2_form.ship_name.errors %}
+                                <div class="invalid-feedback d-block">
+                                  {% for error in cruise2_form.ship_name.errors %}{{ error }}{% endfor %}
+                                </div>
+                              {% endif %}
+                            </div>
+                          </div>
+                        </div>
+                      {% endif %}
+
+                      <div>
+                        <h3 class="section-heading fs-5 mb-3">
+                          <i class="bi bi-pin-map text-secondary me-2"></i> Return Pickup Information
+                        </h3>
+                        <div class="row g-3">
+                          <div class="col-md-6 form-row">
+                            <label for="{{ leg2_form.pickup_date.id_for_label }}"
+                                   class="form-label required">Pickup Date</label>
+                            {{ leg2_form.pickup_date }}
+                            <div class="form-text">
+                              <i class="bi bi-calendar me-1"></i> When are you returning?
+                            </div>
+                            {% if leg2_form.pickup_date.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="col-md-6 form-row">
+                            <label for="{{ leg2_form.pickup_time.id_for_label }}"
+                                   class="form-label required d-flex align-items-center">
+                              <span>Pickup Time</span>
+                              <i class="bi bi-question-circle ms-2 info-tooltip"
+                                 data-bs-toggle="tooltip"
+                                 title="For airport departures, schedule at least 2.5 hours before your flight time"></i>
+                            </label>
+                            {{ leg2_form.pickup_time }}
+                            <div class="form-text">
+                              <i class="bi bi-clock-history me-1"></i> Allow enough time for airport check-in
+                            </div>
+                            {% if leg2_form.pickup_time.errors %}
+                              <div class="alert alert-warning alert-dismissible fade show mt-2"
+                                   role="alert"
+                                   id="pickup-time-error-leg2">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Time Not Available:</strong>
+                                {% for error in leg2_form.pickup_time.errors %}<div class="mt-1">{{ error }}</div>{% endfor %}
+                                <button type="button"
+                                        class="btn-close"
+                                        data-bs-dismiss="alert"
+                                        aria-label="Close"></button>
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="col-md-6 form-row">
+                            <label for="{{ leg2_form.pickup_location.id_for_label }}"
+                                   class="form-label required">Pickup Location</label>
+                            {{ leg2_form.pickup_location }}
+                            <div class="form-text">
+                              <i class="bi bi-geo-alt me-1"></i> Hotel name or full address
+                            </div>
+                            {% if leg2_form.pickup_location.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <div class="col-md-6 form-row">
+                            <label for="{{ leg2_form.dropoff_location.id_for_label }}"
+                                   class="form-label required">Drop-off Location</label>
+                            {{ leg2_form.dropoff_location }}
+                            <div class="form-text">
+                              <i class="bi bi-geo-alt me-1"></i> Airport terminal or full address
+                            </div>
+                            {% if leg2_form.dropoff_location.errors %}
+                              <div class="invalid-feedback d-block">
+                                {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                {% endif %}
+
+                <!-- Special Requests -->
                 <section class="form-card shadow-sm border-0 mb-4">
                   <div class="card-header bg-white">
                     <div class="d-flex align-items-center">
@@ -633,830 +807,791 @@
                                    height: 40px;
                                    line-height: 1;
                                    padding: 0">
-                        <img src="{% static 'images/return-trip.webp' %}"
-                             alt="Passenger Icon"
-                             style="width: 30px;
-                                    height: 30px;
+                        <img src="{% static 'images/request.webp' %}"
+                             alt="Find Icon"
+                             style="width: 20px;
+                                    height: 20px;
                                     object-fit: contain">
                       </span>
-                      <h2 class="fs-5 mb-0 fw-bold">Return Ride Details</h2>
+                      <h2 class="fs-5 mb-0 fw-bold">Notes for Your Trip</h2>
                     </div>
                   </div>
                   <div class="card-body">
-                    <div class="mb-4">
-                      <h3 class="section-heading fs-5 mb-3">
-                        <i class="bi bi-airplane text-secondary me-2"></i> Return Flight Information
-                      </h3>
-                      <div class="alert alert-info d-flex align-items-center mb-4 border-0 bg-info bg-opacity-10">
-                        <i class="bi bi-info-circle-fill fs-5 me-3"></i>
-                        <div>
-                          <strong>Please Note:</strong> Flight information helps us plan your return. Skip if not applicable.
-                        </div>
-                      </div>
-
-                      <div class="row g-3">
-                        <div class="col-md-6 form-row mb-0">
-                          <label for="{{ flight2_form.airline.id_for_label }}" class="form-label">Airline</label>
-                          {{ flight2_form.airline }}
-                          {% if flight2_form.airline.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-
-                        <div class="col-md-6 form-row mb-0">
-                          <label for="{{ flight2_form.flight_number.id_for_label }}"
-                                 class="form-label">Flight Number</label>
-                          {{ flight2_form.flight_number }}
-                          {% if flight2_form.flight_number.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Return Cruise Info Section (Only show for Port Canaveral routes) -->
-                    {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
-                      <div class="mb-4">
-                        <div class="row g-3">
-                          <div class="col-md-6 form-row mb-0">
-                            <label for="{{ cruise2_form.cruise_line.id_for_label }}" class="form-label">Cruise Line</label>
-                            {{ cruise2_form.cruise_line }}
-                            {% if cruise2_form.cruise_line.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in cruise2_form.cruise_line.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-
-                          <div class="col-md-6 form-row mb-0">
-                            <label for="{{ cruise2_form.ship_name.id_for_label }}"
-                                   class="form-label">Ship Name</label>
-                            {{ cruise2_form.ship_name }}
-                            {% if cruise2_form.ship_name.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in cruise2_form.ship_name.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                        </div>
+                    <label for="{{ reservation_form.special_requests.id_for_label }}"
+                           class="form-label">Anything we should know?</label>
+                    {{ reservation_form.special_requests }}
+                    {% if reservation_form.special_requests.errors %}
+                      <div class="invalid-feedback d-block">
+                        {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
                       </div>
                     {% endif %}
-
-                    <div>
-                      <h3 class="section-heading fs-5 mb-3">
-                        <i class="bi bi-pin-map text-secondary me-2"></i> Return Pickup Information
-                      </h3>
-                      <div class="row g-3">
-                        <div class="col-md-6 form-row">
-                          <label for="{{ leg2_form.pickup_date.id_for_label }}"
-                                 class="form-label required">Pickup Date</label>
-                          {{ leg2_form.pickup_date }}
-                          <div class="form-text">
-                            <i class="bi bi-calendar me-1"></i> When are you returning?
-                          </div>
-                          {% if leg2_form.pickup_date.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-
-                        <div class="col-md-6 form-row">
-                          <label for="{{ leg2_form.pickup_time.id_for_label }}"
-                                 class="form-label required d-flex align-items-center">
-                            <span>Pickup Time</span>
-                            <i class="bi bi-question-circle ms-2 info-tooltip"
-                               data-bs-toggle="tooltip"
-                               title="For airport departures, schedule at least 2.5 hours before your flight time"></i>
-                          </label>
-                          {{ leg2_form.pickup_time }}
-                          <div class="form-text">
-                            <i class="bi bi-clock-history me-1"></i> Allow enough time for airport check-in
-                          </div>
-                          {% if leg2_form.pickup_time.errors %}
-                            <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert" id="pickup-time-error-leg2">
-                              <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                              <strong>Time Not Available:</strong>
-                              {% for error in leg2_form.pickup_time.errors %}
-                                <div class="mt-1">{{ error }}</div>
-                              {% endfor %}
-                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                          {% endif %}
-                        </div>
-
-                        <div class="col-md-6 form-row">
-                          <label for="{{ leg2_form.pickup_location.id_for_label }}"
-                                 class="form-label required">Pickup Location</label>
-                          {{ leg2_form.pickup_location }}
-                          <div class="form-text">
-                            <i class="bi bi-geo-alt me-1"></i> Hotel name or full address
-                          </div>
-                          {% if leg2_form.pickup_location.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-
-                        <div class="col-md-6 form-row">
-                          <label for="{{ leg2_form.dropoff_location.id_for_label }}"
-                                 class="form-label required">Drop-off Location</label>
-                          {{ leg2_form.dropoff_location }}
-                          <div class="form-text">
-                            <i class="bi bi-geo-alt me-1"></i> Airport terminal or full address
-                          </div>
-                          {% if leg2_form.dropoff_location.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                      </div>
+                    <div class="form-text mt-2">
+                      <i class="bi bi-info-circle me-1"></i> This field is optional
                     </div>
                   </div>
                 </section>
-              {% endif %}
 
-              <!-- Special Requests -->
-              <section class="form-card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
-                  <div class="d-flex align-items-center">
-                    <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                          style="width: 40px;
-                                 height: 40px;
-                                 line-height: 1;
-                                 padding: 0">
-                      <img src="{% static 'images/request.webp' %}"
-                           alt="Find Icon"
-                           style="width: 20px;
-                                  height: 20px;
-                                  object-fit: contain">
-                    </span>
-                    <h2 class="fs-5 mb-0 fw-bold">Notes for Your Trip</h2>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <label for="{{ reservation_form.special_requests.id_for_label }}"
-                         class="form-label">Anything we should know?</label>
-                  {{ reservation_form.special_requests }}
-                  {% if reservation_form.special_requests.errors %}
-                    <div class="invalid-feedback d-block">
-                      {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
+                <!-- Non-field errors -->
+                {% if form.non_field_errors %}
+                  <section class="form-card border-danger shadow-sm mb-4">
+                    <div class="card-header bg-danger text-white">
+                      <h2 class="fs-5 mb-0">
+                        <i class="bi bi-exclamation-circle me-2"></i>Form Errors
+                      </h2>
                     </div>
-                  {% endif %}
-                  <div class="form-text mt-2">
-                    <i class="bi bi-info-circle me-1"></i> This field is optional
-                  </div>
-                </div>
-              </section>
+                    <div class="card-body">
+                      {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
+                    </div>
+                  </section>
+                {% endif %}
 
-              <!-- Non-field errors -->
-              {% if form.non_field_errors %}
-                <section class="form-card border-danger shadow-sm mb-4">
-                  <div class="card-header bg-danger text-white">
-                    <h2 class="fs-5 mb-0">
-                      <i class="bi bi-exclamation-circle me-2"></i>Form Errors
-                    </h2>
+                <!-- Price & Summary -->
+                <section class="form-card shadow-sm border-0 mb-4">
+                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                      <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-25 rounded-circle me-3"
+                           style="width: 48px;
+                                  height: 48px">
+                        <img src="{% static 'images/receipt.webp' %}"
+                             alt="Receipt"
+                             style="width: 24px;
+                                    height: 24px">
+                      </div>
+                      <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
+                    </div>
+                    <div class="fw-bold fs-3 text-success mb-0">${{ price }}</div>
                   </div>
+
                   <div class="card-body">
-                    {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
+                    <div class="row justify-content-center g-3">
+
+                      <!-- Gratuity Note -->
+                      <div class="col-md-6">
+                        <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
+                          <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
+                               style="min-width: 40px;
+                                      height: 40px">
+                            <img src="{% static 'images/gratuity.webp' %}"
+                                 alt="Gratuity"
+                                 style="width: 25px;
+                                        height: 25px">
+                          </div>
+                          <div>
+                            Gratuity is <strong>not</strong> included. You can tip by card or cash — add preferences in the Notes section.
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- After-Hours Fee Note -->
+                      <div class="col-md-6">
+                        <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
+                          <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
+                               style="min-width: 40px;
+                                      height: 40px">
+                            <img src="{% static 'images/afterhours.webp' %}"
+                                 alt="Gratuity"
+                                 style="width: 20px;
+                                        height: 20px">
+                          </div>
+                          <div>
+                            Pickups from 10PM to 6AM include a <strong>$20 late-night fee</strong> — paid directly to the driver.
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
                   </div>
                 </section>
-              {% endif %}
 
-              <!-- Price & Summary -->
-              <section class="form-card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                  <div class="d-flex align-items-center">
-                    <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-25 rounded-circle me-3"
-                         style="width: 48px;
-                                height: 48px">
-                      <img src="{% static 'images/receipt.webp' %}"
-                           alt="Receipt"
-                           style="width: 24px;
-                                  height: 24px">
+                <!-- Gratuity Section -->
+                <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+                  <div class="card-header bg-white px-3 px-md-4 py-3">
+                    <div class="d-flex align-items-center">
+                      <span class="bg-success bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                            style="width: 40px;
+                                   height: 40px;
+                                   line-height: 1;
+                                   padding: 0">
+                        <i class="bi bi-heart-fill text-success" style="font-size: 20px;"></i>
+                      </span>
+                      <h2 class="fs-5 mb-0 fw-bold">Gratuity (Optional)</h2>
                     </div>
-                    <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
                   </div>
-                  <div class="fw-bold fs-3 text-success mb-0">${{ price }}</div>
-                </div>
-
-                <div class="card-body">
-                  <div class="row justify-content-center g-3">
-
-                    <!-- Gratuity Note -->
-                    <div class="col-md-6">
-                      <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
-                        <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
-                             style="min-width: 40px;
-                                    height: 40px">
-                          <img src="{% static 'images/gratuity.webp' %}"
-                               alt="Gratuity"
-                               style="width: 25px;
-                                      height: 25px">
-                        </div>
-                        <div>
-                          Gratuity is <strong>not</strong> included. You can tip by card or cash — add preferences in the Notes section.
+                  <div class="card-body px-3 px-md-4">
+                    <div class="row g-3">
+                      <div class="col-12">
+                        <div class="alert alert-info mb-3">
+                          <i class="bi bi-info-circle me-2"></i>
+                          <strong>Include your gratuity</strong> - A 20% gratuity is recommended for professional chauffeured service. You may include it here for convenience, or provide gratuity in cash. All gratuities go 100% to your chauffeur.
                         </div>
                       </div>
-                    </div>
 
-                    <!-- After-Hours Fee Note -->
-                    <div class="col-md-6">
-                      <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
-                        <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
-                             style="min-width: 40px;
-                                    height: 40px">
-                          <img src="{% static 'images/afterhours.webp' %}"
-                               alt="Gratuity"
-                               style="width: 20px;
-                                      height: 20px">
-                        </div>
-                        <div>
-                          Pickups from 10PM to 6AM include a <strong>$20 late-night fee</strong> — paid directly to the driver.
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-              </section>
-
-              <!-- Gratuity Section -->
-              <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
-                <div class="card-header bg-white px-3 px-md-4 py-3">
-                  <div class="d-flex align-items-center">
-                    <span class="bg-success bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                          style="width: 40px;
-                                 height: 40px;
-                                 line-height: 1;
-                                 padding: 0">
-                      <i class="bi bi-heart-fill text-success" style="font-size: 20px;"></i>
-                    </span>
-                    <h2 class="fs-5 mb-0 fw-bold">Gratuity (Optional)</h2>
-                  </div>
-                </div>
-                <div class="card-body px-3 px-md-4">
-                  <div class="row g-3">
-                    <div class="col-12">
-                      <div class="alert alert-info mb-3">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <strong>Include your gratuity</strong> - A 20% gratuity is recommended for professional chauffeured service. You may include it here for convenience, or provide gratuity in cash. All gratuities go 100% to your chauffeur.
-                      </div>
-                    </div>
-
-                    <div class="col-12">
-                      <label class="form-label fw-semibold">Would you like to include gratuity?</label>
-                      <div class="row g-2">
-                        <div class="col-6 col-md-3">
-                          <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="gratuity_option"
-                                   id="gratuity_20"
-                                   value="20">
-                            <label class="form-check-label fw-semibold" for="gratuity_20">20%</label>
+                      <div class="col-12">
+                        <label class="form-label fw-semibold">Would you like to include gratuity?</label>
+                        <div class="row g-2">
+                          <div class="col-6 col-md-3">
+                            <div class="form-check">
+                              <input class="form-check-input"
+                                     type="radio"
+                                     name="gratuity_option"
+                                     id="gratuity_20"
+                                     value="20">
+                              <label class="form-check-label fw-semibold" for="gratuity_20">20%</label>
+                            </div>
                           </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                          <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="gratuity_option"
-                                   id="gratuity_25"
-                                   value="25">
-                            <label class="form-check-label fw-semibold" for="gratuity_25">25%</label>
+                          <div class="col-6 col-md-3">
+                            <div class="form-check">
+                              <input class="form-check-input"
+                                     type="radio"
+                                     name="gratuity_option"
+                                     id="gratuity_25"
+                                     value="25">
+                              <label class="form-check-label fw-semibold" for="gratuity_25">25%</label>
+                            </div>
                           </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                          <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="gratuity_option"
-                                   id="gratuity_custom"
-                                   value="custom">
-                            <label class="form-check-label fw-semibold" for="gratuity_custom">Custom</label>
+                          <div class="col-6 col-md-3">
+                            <div class="form-check">
+                              <input class="form-check-input"
+                                     type="radio"
+                                     name="gratuity_option"
+                                     id="gratuity_custom"
+                                     value="custom">
+                              <label class="form-check-label fw-semibold" for="gratuity_custom">Custom</label>
+                            </div>
                           </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                          <div class="form-check">
-                            <input class="form-check-input"
-                                   type="radio"
-                                   name="gratuity_option"
-                                   id="gratuity_none"
-                                   value="0"
-                                   checked>
-                            <label class="form-check-label fw-semibold" for="gratuity_none">Cash</label>
+                          <div class="col-6 col-md-3">
+                            <div class="form-check">
+                              <input class="form-check-input"
+                                     type="radio"
+                                     name="gratuity_option"
+                                     id="gratuity_none"
+                                     value="0"
+                                     checked>
+                              <label class="form-check-label fw-semibold" for="gratuity_none">Cash</label>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div class="col-12" id="custom_gratuity_wrap" style="display: none;">
-                      <label class="form-label fw-semibold" for="custom_gratuity_value">Custom gratuity</label>
-                      <div class="input-group">
-                        <input type="number"
-                               class="form-control"
-                               id="custom_gratuity_value"
-                               name="custom_gratuity_value"
-                               min="21"
-                               max="100"
-                               step="0.01"
-                               placeholder="e.g. 25">
-                        <span class="input-group-text">%</span>
-                      </div>
-                      <div class="form-text text-danger d-none" id="custom_gratuity_error">
-                        Online gratuity is available starting at 20%. If you prefer a different amount, gratuity may be provided directly to your chauffeur in cash.
-                      </div>
-                    </div>
-
-                    <!-- Gratuity amount display -->
-                    <div class="col-12" id="gratuity_display" style="display: none;">
-                      <div class="alert alert-success">
-                        <div class="d-flex justify-content-between align-items-center">
-                          <span><i class="bi bi-currency-dollar me-1"></i><strong>Gratuity Amount:</strong></span>
-                          <span class="fw-bold" id="gratuity_amount_display">$0.00</span>
+                      <div class="col-12" id="custom_gratuity_wrap" style="display: none;">
+                        <label class="form-label fw-semibold" for="custom_gratuity_value">Custom gratuity</label>
+                        <div class="input-group">
+                          <input type="number"
+                                 class="form-control"
+                                 id="custom_gratuity_value"
+                                 name="custom_gratuity_value"
+                                 min="21"
+                                 max="100"
+                                 step="0.01"
+                                 placeholder="e.g. 25">
+                          <span class="input-group-text">%</span>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mt-2">
-                          <span><strong>New Total:</strong></span>
-                          <span class="fw-bold text-success" id="new_total_display">$0.00</span>
+                        <div class="form-text text-danger d-none" id="custom_gratuity_error">
+                          Online gratuity is available starting at 20%. If you prefer a different amount, gratuity may be provided directly to your chauffeur in cash.
                         </div>
                       </div>
+
+                      <!-- Gratuity amount display -->
+                      <div class="col-12" id="gratuity_display" style="display: none;">
+                        <div class="alert alert-success">
+                          <div class="d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-currency-dollar me-1"></i><strong>Gratuity Amount:</strong></span>
+                            <span class="fw-bold" id="gratuity_amount_display">$0.00</span>
+                          </div>
+                          <div class="d-flex justify-content-between align-items-center mt-2">
+                            <span><strong>New Total:</strong></span>
+                            <span class="fw-bold text-success" id="new_total_display">$0.00</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Django form field (hidden) -->
+                      <div style="display: none;">{{ reservation_form.gratuity_percentage }}</div>
+
+
                     </div>
-
-                    <!-- Django form field (hidden) -->
-                    <div style="display: none;">{{ reservation_form.gratuity_percentage }}</div>
-
-
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <!-- Submit Button -->
-              <div class="mb-5">
-                <div class="text-center">
-                  <button type="submit" class="button_reservation">
-                    Complete Reservation
-                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                      <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm4.28 10.28a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06l1.72 1.72H8.25a.75.75 0 000 1.5h5.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z" clip-rule="evenodd">
-                      </path>
-                    </svg>
-                  </button>
-                </div>
-                <p class="text-center text-muted small mt-3">
-                  By submitting, you agree to our <a href="{% url 'tos' %}"
+                <!-- Submit Button -->
+                <div class="mb-5">
+                  <div class="text-center">
+                    <button type="submit" class="button_reservation">
+                      Complete Reservation
+                      <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm4.28 10.28a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06l1.72 1.72H8.25a.75.75 0 000 1.5h5.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z" clip-rule="evenodd">
+                        </path>
+                      </svg>
+                    </button>
+                  </div>
+                  <p class="text-center text-muted small mt-3">
+                    By submitting, you agree to our <a href="{% url 'tos' %}"
     target="_blank"
     rel="noopener noreferrer"
     class="text-decoration-none">Terms of Service</a>
-                </p>
-              </div>
-            </form>
+                  </p>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
 
-      {% block footer_scripts %}
-        <script src="{% static 'js/form-ui-enhancer.js' %}"></script>
-        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete" async defer>
-        </script>
-        <script src="{% static 'js/maps_autocomplete.js' %}"></script>
-        <script src="{% static 'js/validate-vehicle-limits.js' %}"></script>
-        <script src="{% static 'js/validate-trip-times.js' %}"></script>
+        {% block footer_scripts %}
+          <script src="{% static 'js/form-ui-enhancer.js' %}"></script>
+          <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete" async defer>
+          </script>
+          <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+          <script src="{% static 'js/validate-vehicle-limits.js' %}"></script>
+          <script src="{% static 'js/validate-trip-times.js' %}"></script>
 
-        <!-- Autofill customer information from URL parameters -->
-        <script>
-            function autofillForm() {
-                const urlParams = new URLSearchParams(window.location.search);
+          <!-- Autofill customer information from URL parameters -->
+          <script>
+              function autofillForm() {
+                  const urlParams = new URLSearchParams(window.location.search);
 
-                // Get customer information from URL parameters
-                const firstName = urlParams.get('first_name');
-                const lastName = urlParams.get('last_name');
-                const email = urlParams.get('email');
-                const phone = urlParams.get('phone');
+                  // Get customer information from URL parameters
+                  const firstName = urlParams.get('first_name');
+                  const lastName = urlParams.get('last_name');
+                  const email = urlParams.get('email');
+                  const phone = urlParams.get('phone');
 
-                // Autofill the form fields if the data exists
-                if (firstName) {
-                    const firstNameField = document.querySelector('input[name="first_name"]');
-                    if (firstNameField) firstNameField.value = firstName;
-                }
-
-                if (lastName) {
-                    const lastNameField = document.querySelector('input[name="last_name"]');
-                    if (lastNameField) lastNameField.value = lastName;
-                }
-
-                if (email) {
-                    const emailField = document.querySelector('input[name="email"]');
-                    if (emailField) emailField.value = email;
-                }
-
-                if (phone) {
-                    const phoneField = document.querySelector('input[name="phone_number"]');
-                    if (phoneField) phoneField.value = phone;
-                }
-            }
-
-            // Autofill when DOM is ready
-            document.addEventListener('DOMContentLoaded', autofillForm);
-        </script>
-
-        <!-- UTM Parameter Capture Script -->
-        <script>
-            // Helper function to get cookie value
-            function getCookie(name) {
-                const value = `; ${document.cookie}`;
-                const parts = value.split(`; ${name}=`);
-                if (parts.length === 2) return parts.pop().split(';').shift();
-                return null;
-            }
-
-            document.addEventListener('DOMContentLoaded', function() {
-                const form = document.getElementById('reservation_form');
-
-                form.addEventListener('submit', function(e) {
-                    // Capture UTM parameters from cookies
-                    const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-
-                    utmParams.forEach(function(param) {
-                        const value = getCookie(param);
-                        const field = document.getElementById(param + '_field');
-                        if (value && field) {
-                            field.value = value;
-                            console.log('Populated UTM field from cookie:', param, '=', value);
-                        }
-                    });
-                });
-
-                // Gratuity calculation functionality
-                const basePrice = {{price |default:0}};
-                const gratuityOptions = document.querySelectorAll('input[name="gratuity_option"]');
-                const gratuityDisplay = document.getElementById('gratuity_display');
-                const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
-                const newTotalDisplay = document.getElementById('new_total_display');
-                const gratuityPercentageField = document.getElementById('id_gratuity_percentage');
-                const customGratuityWrap = document.getElementById('custom_gratuity_wrap');
-                const customGratuityValue = document.getElementById('custom_gratuity_value');
-                const customGratuityError = document.getElementById('custom_gratuity_error');
-
-                function calculateGratuity() {
-                    const selectedOption = document.querySelector('input[name="gratuity_option"]:checked');
-                    let percentage = 0;
-
-                    customGratuityWrap.style.display = 'none';
-                    customGratuityError.classList.add('d-none');
-
-                    if (selectedOption) {
-                        if (selectedOption.value === 'custom') {
-                            customGratuityWrap.style.display = 'block';
-                            const customValue = parseFloat(customGratuityValue.value);
-                            if (Number.isFinite(customValue) && customValue >= 21) {
-                                percentage = customValue;
-                            } else {
-                                percentage = 0;
-                                if (customGratuityValue.value !== '') {
-                                    customGratuityError.classList.remove('d-none');
-                                }
-                            }
-                        } else {
-                            percentage = parseFloat(selectedOption.value) || 0;
-                        }
-                    }
-
-                    if (percentage > 0) {
-                        const gratuityAmount = (basePrice * percentage) / 100;
-                        const newTotal = basePrice + gratuityAmount;
-
-                        gratuityAmountDisplay.textContent = '$' + gratuityAmount.toFixed(2);
-                        newTotalDisplay.textContent = '$' + newTotal.toFixed(2);
-                        gratuityDisplay.style.display = 'block';
-                        gratuityPercentageField.value = percentage;
-                    } else {
-                        gratuityDisplay.style.display = 'none';
-                        gratuityPercentageField.value = 0;
-                    }
-                }
-
-                // Handle gratuity option changes
-                gratuityOptions.forEach(option => {
-                    option.addEventListener('change', function() {
-                        calculateGratuity();
-                    });
-                });
-
-                if (customGratuityValue) {
-                    customGratuityValue.addEventListener('input', function() {
-                        calculateGratuity();
-                    });
-                }
-
-                // Initial calculation
-                calculateGratuity();
-            });
-        </script>
-        <!-- End UTM Parameter Capture Script -->
-
-      {% endblock %}
-
-      <!-- Mobile Form Enhancements -->
-      <style>
-          /* Mobile Form Improvements */
-          @media (max-width: 768px) {
-              .form-container {
-                  padding-left: 0.5rem;
-                  padding-right: 0.5rem;
-              }
-
-              .form-card {
-                  margin-bottom: 1rem;
-              }
-
-              .card-body {
-                  padding: 1rem;
-              }
-
-              .form-label {
-                  font-size: 0.9rem;
-                  margin-bottom: 0.5rem;
-              }
-
-              .form-control,
-              .form-select {
-                  font-size: 16px;
-                  /* Prevents zoom on iOS */
-                  padding: 0.75rem;
-                  border-radius: 0.5rem;
-              }
-
-              .btn {
-                  font-size: 1rem;
-                  padding: 0.75rem 1.5rem;
-              }
-
-              .badge {
-                  font-size: 0.75rem;
-                  padding: 0.5rem 0.75rem;
-              }
-
-              .travel-tips .d-flex {
-                  flex-direction: column;
-                  text-align: center;
-              }
-
-              .travel-tips .me-3 {
-                  margin-right: 0 !important;
-                  margin-bottom: 0.75rem;
-              }
-
-              .route-visual .route-box {
-                  padding: 1rem;
-              }
-
-              .info-tooltip {
-                  font-size: 0.8rem;
-              }
-          }
-
-          /* Touch-friendly improvements */
-          .form-check-input {
-              width: 1.25rem;
-              height: 1.25rem;
-          }
-
-          .form-check-label {
-              font-size: 0.9rem;
-              padding-left: 0.5rem;
-          }
-
-          /* Better focus states for mobile */
-          .form-control:focus,
-          .form-select:focus {
-              border-color: #0d6efd;
-              box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-          }
-
-          /* Sticky progress bar mobile adjustments */
-          @media (max-width: 768px) {
-              .sticky-top {
-                  position: relative !important;
-                  margin-bottom: 1rem;
-              }
-          }
-          
-          /* Error alert styling */
-          #pickup-time-error-leg1,
-          #pickup-time-error-leg2 {
-              border-left: 4px solid #ffc107;
-              animation: slideIn 0.3s ease-out;
-          }
-          
-          @keyframes slideIn {
-              from {
-                  opacity: 0;
-                  transform: translateY(-10px);
-              }
-              to {
-                  opacity: 1;
-                  transform: translateY(0);
-              }
-          }
-          
-          /* Highlight time field when there's an error */
-          .form-control.is-invalid {
-              border-color: #ffc107;
-              box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
-          }
-      </style>
-      
-      <script>
-          // Real-time time availability checking
-          function checkTimeAvailability(legPrefix) {
-              const dateInput = document.querySelector(`input[name="${legPrefix}-pickup_date"]`);
-              const timeInput = document.querySelector(`input[name="${legPrefix}-pickup_time"]`);
-              const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
-              
-              if (!dateInput || !timeInput) return;
-              
-              const pickupDate = dateInput.value;
-              const pickupTime = timeInput.value;
-              
-              // Only check if both date and time are filled
-              if (!pickupDate || !pickupTime) {
-                  // Clear error if date or time is cleared
-                  if (errorContainer) {
-                      errorContainer.remove();
+                  // Autofill the form fields if the data exists
+                  if (firstName) {
+                      const firstNameField = document.querySelector('input[name="first_name"]');
+                      if (firstNameField) firstNameField.value = firstName;
                   }
-                  if (timeInput) {
-                      timeInput.classList.remove('is-invalid');
-                      timeInput.style.borderColor = '';
-                      timeInput.style.borderWidth = '';
+
+                  if (lastName) {
+                      const lastNameField = document.querySelector('input[name="last_name"]');
+                      if (lastNameField) lastNameField.value = lastName;
                   }
-                  return;
+
+                  if (email) {
+                      const emailField = document.querySelector('input[name="email"]');
+                      if (emailField) emailField.value = email;
+                  }
+
+                  if (phone) {
+                      const phoneField = document.querySelector('input[name="phone_number"]');
+                      if (phoneField) phoneField.value = phone;
+                  }
               }
-              
-              // Show loading state
-              if (timeInput) {
-                  timeInput.style.borderColor = '#6c757d';
+
+              // Autofill when DOM is ready
+              document.addEventListener('DOMContentLoaded', autofillForm);
+          </script>
+
+          <!-- UTM Parameter Capture Script -->
+          <script>
+              // Helper function to get cookie value
+              function getCookie(name) {
+                  const value = `; ${document.cookie}`;
+                  const parts = value.split(`; ${name}=`);
+                  if (parts.length === 2) return parts.pop().split(';').shift();
+                  return null;
               }
-              
-              // Check availability via AJAX
-              const url = `{% url 'check_time_availability' %}?pickup_date=${pickupDate}&pickup_time=${pickupTime}`;
-              
-              fetch(url)
-                  .then(response => response.json())
-                  .then(data => {
-                      if (!data.available) {
-                          // Time is blocked - show error
-                          showTimeError(legPrefix, data.message, timeInput);
-                      } else {
-                          // Time is available - clear any existing error
-                          clearTimeError(legPrefix, timeInput);
-                      }
-                  })
-                  .catch(error => {
-                      console.error('Error checking time availability:', error);
-                      // On error, don't block the form - let server-side validation handle it
+
+              document.addEventListener('DOMContentLoaded', function() {
+                  const form = document.getElementById('reservation_form');
+
+                  form.addEventListener('submit', function(e) {
+                      // Capture UTM parameters from cookies
+                      const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+
+                      utmParams.forEach(function(param) {
+                          const value = getCookie(param);
+                          const field = document.getElementById(param + '_field');
+                          if (value && field) {
+                              field.value = value;
+                              console.log('Populated UTM field from cookie:', param, '=', value);
+                          }
+                      });
                   });
-          }
-          
-          function showTimeError(legPrefix, message, timeInput) {
-              const errorContainerId = `pickup-time-error-${legPrefix}`;
-              let errorContainer = document.getElementById(errorContainerId);
-              
-              // Remove existing error if present
-              if (errorContainer) {
-                  errorContainer.remove();
-              }
-              
-              // Create new error alert
-              errorContainer = document.createElement('div');
-              errorContainer.id = errorContainerId;
-              errorContainer.className = 'alert alert-warning alert-dismissible fade show mt-2';
-              errorContainer.setAttribute('role', 'alert');
-              errorContainer.innerHTML = `
+
+                  // Gratuity calculation functionality
+                  const basePrice = {
+                      {
+                          price |
+                              default: 0
+                      }
+                  };
+                  const gratuityOptions = document.querySelectorAll('input[name="gratuity_option"]');
+                  const gratuityDisplay = document.getElementById('gratuity_display');
+                  const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
+                  const newTotalDisplay = document.getElementById('new_total_display');
+                  const gratuityPercentageField = document.getElementById('id_gratuity_percentage');
+                  const customGratuityWrap = document.getElementById('custom_gratuity_wrap');
+                  const customGratuityValue = document.getElementById('custom_gratuity_value');
+                  const customGratuityError = document.getElementById('custom_gratuity_error');
+
+                  function calculateGratuity() {
+                      const selectedOption = document.querySelector('input[name="gratuity_option"]:checked');
+                      let percentage = 0;
+
+                      customGratuityWrap.style.display = 'none';
+                      customGratuityError.classList.add('d-none');
+
+                      if (selectedOption) {
+                          if (selectedOption.value === 'custom') {
+                              customGratuityWrap.style.display = 'block';
+                              const customValue = parseFloat(customGratuityValue.value);
+                              if (Number.isFinite(customValue) && customValue >= 21) {
+                                  percentage = customValue;
+                              } else {
+                                  percentage = 0;
+                                  if (customGratuityValue.value !== '') {
+                                      customGratuityError.classList.remove('d-none');
+                                  }
+                              }
+                          } else {
+                              percentage = parseFloat(selectedOption.value) || 0;
+                          }
+                      }
+
+                      if (percentage > 0) {
+                          const gratuityAmount = (basePrice * percentage) / 100;
+                          const newTotal = basePrice + gratuityAmount;
+
+                          gratuityAmountDisplay.textContent = '$' + gratuityAmount.toFixed(2);
+                          newTotalDisplay.textContent = '$' + newTotal.toFixed(2);
+                          gratuityDisplay.style.display = 'block';
+                          gratuityPercentageField.value = percentage;
+                      } else {
+                          gratuityDisplay.style.display = 'none';
+                          gratuityPercentageField.value = 0;
+                      }
+                  }
+
+                  // Handle gratuity option changes
+                  gratuityOptions.forEach(option => {
+                      option.addEventListener('change', function() {
+                          calculateGratuity();
+                      });
+                  });
+
+                  if (customGratuityValue) {
+                      customGratuityValue.addEventListener('input', function() {
+                          calculateGratuity();
+                      });
+                  }
+
+                  // Initial calculation
+                  calculateGratuity();
+              });
+          </script>
+          <!-- End UTM Parameter Capture Script -->
+
+        {% endblock %}
+
+        <!-- Mobile Form Enhancements -->
+        <style>
+            /* Mobile Form Improvements */
+            @media (max-width: 768px) {
+                .form-container {
+                    padding-left: 0.5rem;
+                    padding-right: 0.5rem;
+                }
+
+                .form-card {
+                    margin-bottom: 1rem;
+                }
+
+                .card-body {
+                    padding: 1rem;
+                }
+
+                .form-label {
+                    font-size: 0.9rem;
+                    margin-bottom: 0.5rem;
+                }
+
+                .form-control,
+                .form-select {
+                    font-size: 16px;
+                    /* Prevents zoom on iOS */
+                    padding: 0.75rem;
+                    border-radius: 0.5rem;
+                }
+
+                .btn {
+                    font-size: 1rem;
+                    padding: 0.75rem 1.5rem;
+                }
+
+                .badge {
+                    font-size: 0.75rem;
+                    padding: 0.5rem 0.75rem;
+                }
+
+                .travel-tips .d-flex {
+                    flex-direction: column;
+                    text-align: center;
+                }
+
+                .travel-tips .me-3 {
+                    margin-right: 0 !important;
+                    margin-bottom: 0.75rem;
+                }
+
+                .route-visual .route-box {
+                    padding: 1rem;
+                }
+
+                .info-tooltip {
+                    font-size: 0.8rem;
+                }
+            }
+
+            /* Touch-friendly improvements */
+            .form-check-input {
+                width: 1.25rem;
+                height: 1.25rem;
+            }
+
+            .form-check-label {
+                font-size: 0.9rem;
+                padding-left: 0.5rem;
+            }
+
+            /* Better focus states for mobile */
+            .form-control:focus,
+            .form-select:focus {
+                border-color: #0d6efd;
+                box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+            }
+
+            /* Sticky progress bar mobile adjustments */
+            @media (max-width: 768px) {
+                .sticky-top {
+                    position: relative !important;
+                    margin-bottom: 1rem;
+                }
+            }
+
+            /* Error alert styling */
+            #pickup-time-error-leg1,
+            #pickup-time-error-leg2 {
+                border-left: 4px solid #ffc107;
+                animation: slideIn 0.3s ease-out;
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-10px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            /* Highlight time field when there's an error */
+            .form-control.is-invalid {
+                border-color: #ffc107;
+                box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+            }
+        </style>
+
+        <script>
+            // Real-time time availability checking
+            function checkTimeAvailability(legPrefix) {
+                const dateInput = document.querySelector(`input[name="${legPrefix}-pickup_date"]`);
+                const timeInput = document.querySelector(`input[name="${legPrefix}-pickup_time"]`);
+                const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
+
+                if (!dateInput || !timeInput) return;
+
+                const pickupDate = dateInput.value;
+                const pickupTime = timeInput.value;
+
+                // Only check if both date and time are filled
+                if (!pickupDate || !pickupTime) {
+                    // Clear error if date or time is cleared
+                    if (errorContainer) {
+                        errorContainer.remove();
+                    }
+                    if (timeInput) {
+                        timeInput.classList.remove('is-invalid');
+                        timeInput.style.borderColor = '';
+                        timeInput.style.borderWidth = '';
+                    }
+                    return;
+                }
+
+                // Show loading state
+                if (timeInput) {
+                    timeInput.style.borderColor = '#6c757d';
+                }
+
+                // Check availability via AJAX
+                const url = `{% url 'check_time_availability' %}?pickup_date=${pickupDate}&pickup_time=${pickupTime}`;
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.available) {
+                            // Time is blocked - show error
+                            showTimeError(legPrefix, data.message, timeInput);
+                        } else {
+                            // Time is available - clear any existing error
+                            clearTimeError(legPrefix, timeInput);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking time availability:', error);
+                        // On error, don't block the form - let server-side validation handle it
+                    });
+            }
+
+            function showTimeError(legPrefix, message, timeInput) {
+                const errorContainerId = `pickup-time-error-${legPrefix}`;
+                let errorContainer = document.getElementById(errorContainerId);
+
+                // Remove existing error if present
+                if (errorContainer) {
+                    errorContainer.remove();
+                }
+
+                // Create new error alert
+                errorContainer = document.createElement('div');
+                errorContainer.id = errorContainerId;
+                errorContainer.className = 'alert alert-warning alert-dismissible fade show mt-2';
+                errorContainer.setAttribute('role', 'alert');
+                errorContainer.innerHTML = `
                   <i class="bi bi-exclamation-triangle-fill me-2"></i>
                   <strong>Time Not Available:</strong>
                   <div class="mt-1">${message}</div>
                   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
               `;
-              
-              // Insert error after the time input's parent form-row
-              const formRow = timeInput.closest('.form-row');
-              if (formRow) {
-                  formRow.appendChild(errorContainer);
-                  
-                  // Smooth scroll to error
-                  setTimeout(() => {
-                      errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }, 100);
-              }
-              
-              // Highlight the time input
-              timeInput.classList.add('is-invalid');
-              timeInput.style.borderColor = '#ffc107';
-              timeInput.style.borderWidth = '2px';
-          }
-          
-          function clearTimeError(legPrefix, timeInput) {
-              const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
-              if (errorContainer) {
-                  errorContainer.remove();
-              }
-              
-              if (timeInput) {
-                  timeInput.classList.remove('is-invalid');
-                  timeInput.style.borderColor = '';
-                  timeInput.style.borderWidth = '';
-              }
-          }
-          
-          // Initialize on page load
-          document.addEventListener('DOMContentLoaded', function() {
-              // Set up real-time validation for leg1
-              const leg1DateInput = document.querySelector('input[name="leg1-pickup_date"]');
-              const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
-              
-              if (leg1DateInput && leg1TimeInput) {
-                  leg1DateInput.addEventListener('change', () => checkTimeAvailability('leg1'));
-                  leg1TimeInput.addEventListener('change', () => checkTimeAvailability('leg1'));
-                  leg1TimeInput.addEventListener('input', () => checkTimeAvailability('leg1'));
-                  
-                  // Check on load if both are already filled
-                  if (leg1DateInput.value && leg1TimeInput.value) {
-                      checkTimeAvailability('leg1');
-                  }
-              }
-              
-              // Set up real-time validation for leg2 (return trip)
-              const leg2DateInput = document.querySelector('input[name="leg2-pickup_date"]');
-              const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
-              
-              if (leg2DateInput && leg2TimeInput) {
-                  leg2DateInput.addEventListener('change', () => checkTimeAvailability('leg2'));
-                  leg2TimeInput.addEventListener('change', () => checkTimeAvailability('leg2'));
-                  leg2TimeInput.addEventListener('input', () => checkTimeAvailability('leg2'));
-                  
-                  // Check on load if both are already filled
-                  if (leg2DateInput.value && leg2TimeInput.value) {
-                      checkTimeAvailability('leg2');
-                  }
-              }
-              
-              // Handle server-side errors (from form submission)
-              const leg1Error = document.getElementById('pickup-time-error-leg1');
-              const leg2Error = document.getElementById('pickup-time-error-leg2');
-              
-              if (leg1Error) {
-                  const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
-                  if (leg1TimeInput) {
-                      leg1TimeInput.classList.add('is-invalid');
-                      leg1TimeInput.style.borderColor = '#ffc107';
-                      leg1TimeInput.style.borderWidth = '2px';
-                  }
-                  setTimeout(() => {
-                      leg1Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }, 300);
-              }
-              
-              if (leg2Error) {
-                  const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
-                  if (leg2TimeInput) {
-                      leg2TimeInput.classList.add('is-invalid');
-                      leg2TimeInput.style.borderColor = '#ffc107';
-                      leg2TimeInput.style.borderWidth = '2px';
-                  }
-                  setTimeout(() => {
-                      leg2Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }, 300);
-              }
-              
-              // Prevent form submission if there's a time error
-              const form = document.querySelector('form.needs-validation');
-              if (form) {
-                  form.addEventListener('submit', function(e) {
-                      const leg1Error = document.getElementById('pickup-time-error-leg1');
-                      const leg2Error = document.getElementById('pickup-time-error-leg2');
-                      
-                      if (leg1Error || leg2Error) {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          
-                          // Scroll to first error
-                          if (leg1Error) {
-                              leg1Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          } else if (leg2Error) {
-                              leg2Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          }
-                          
-                          return false;
-                      }
-                  });
-              }
-          });
-      </script>
 
-    {% endblock content %}
+                // Insert error after the time input's parent form-row
+                const formRow = timeInput.closest('.form-row');
+                if (formRow) {
+                    formRow.appendChild(errorContainer);
+
+                    // Smooth scroll to error
+                    setTimeout(() => {
+                        errorContainer.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }, 100);
+                }
+
+                // Highlight the time input
+                timeInput.classList.add('is-invalid');
+                timeInput.style.borderColor = '#ffc107';
+                timeInput.style.borderWidth = '2px';
+            }
+
+            function clearTimeError(legPrefix, timeInput) {
+                const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
+                if (errorContainer) {
+                    errorContainer.remove();
+                }
+
+                if (timeInput) {
+                    timeInput.classList.remove('is-invalid');
+                    timeInput.style.borderColor = '';
+                    timeInput.style.borderWidth = '';
+                }
+            }
+
+            // Initialize on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                // Set up real-time validation for leg1
+                const leg1DateInput = document.querySelector('input[name="leg1-pickup_date"]');
+                const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
+
+                if (leg1DateInput && leg1TimeInput) {
+                    leg1DateInput.addEventListener('change', () => checkTimeAvailability('leg1'));
+                    leg1TimeInput.addEventListener('change', () => checkTimeAvailability('leg1'));
+                    leg1TimeInput.addEventListener('input', () => checkTimeAvailability('leg1'));
+
+                    // Check on load if both are already filled
+                    if (leg1DateInput.value && leg1TimeInput.value) {
+                        checkTimeAvailability('leg1');
+                    }
+                }
+
+                // Set up real-time validation for leg2 (return trip)
+                const leg2DateInput = document.querySelector('input[name="leg2-pickup_date"]');
+                const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
+
+                if (leg2DateInput && leg2TimeInput) {
+                    leg2DateInput.addEventListener('change', () => checkTimeAvailability('leg2'));
+                    leg2TimeInput.addEventListener('change', () => checkTimeAvailability('leg2'));
+                    leg2TimeInput.addEventListener('input', () => checkTimeAvailability('leg2'));
+
+                    // Check on load if both are already filled
+                    if (leg2DateInput.value && leg2TimeInput.value) {
+                        checkTimeAvailability('leg2');
+                    }
+                }
+
+                // Handle server-side errors (from form submission)
+                const leg1Error = document.getElementById('pickup-time-error-leg1');
+                const leg2Error = document.getElementById('pickup-time-error-leg2');
+
+                if (leg1Error) {
+                    const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
+                    if (leg1TimeInput) {
+                        leg1TimeInput.classList.add('is-invalid');
+                        leg1TimeInput.style.borderColor = '#ffc107';
+                        leg1TimeInput.style.borderWidth = '2px';
+                    }
+                    setTimeout(() => {
+                        leg1Error.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }, 300);
+                }
+
+                if (leg2Error) {
+                    const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
+                    if (leg2TimeInput) {
+                        leg2TimeInput.classList.add('is-invalid');
+                        leg2TimeInput.style.borderColor = '#ffc107';
+                        leg2TimeInput.style.borderWidth = '2px';
+                    }
+                    setTimeout(() => {
+                        leg2Error.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }, 300);
+                }
+
+                // Prevent form submission if there's a time error
+                const form = document.querySelector('form.needs-validation');
+                if (form) {
+                    form.addEventListener('submit', function(e) {
+                        const leg1Error = document.getElementById('pickup-time-error-leg1');
+                        const leg2Error = document.getElementById('pickup-time-error-leg2');
+
+                        if (leg1Error || leg2Error) {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            // Scroll to first error
+                            if (leg1Error) {
+                                leg1Error.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'center'
+                                });
+                            } else if (leg2Error) {
+                                leg2Error.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'center'
+                                });
+                            }
+
+                            return false;
+                        }
+                    });
+                }
+
+                // Publix Stop Modal - Show when checkbox is checked
+                const storeStopCheckbox = document.querySelector('input[name="store_stop"]');
+                const publixModal = new bootstrap.Modal(document.getElementById('publixStopModal'));
+
+                if (storeStopCheckbox) {
+                    storeStopCheckbox.addEventListener('change', function() {
+                        if (this.checked) {
+                            // Show modal when checkbox is checked
+                            publixModal.show();
+                        }
+                    });
+                }
+            });
+        </script>
+
+        <!-- Publix Stop Details Modal -->
+        <div class="modal fade"
+             id="publixStopModal"
+             tabindex="-1"
+             aria-labelledby="publixStopModalLabel"
+             aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header bg-warning bg-opacity-10">
+                <h5 class="modal-title" id="publixStopModalLabel">
+                  <i class="bi bi-bag-check me-2"></i>Publix Stop Details
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <h6 class="fw-semibold mb-2">
+                    <i class="bi bi-geo-alt-fill text-primary me-2"></i>Location
+                  </h6>
+                  <p class="mb-1">
+                    <strong>Publix Super Market at Lake Cay Commons</strong>
+                    <br>
+                    9930 Universal Blvd, Orlando, FL 32819
+                  </p>
+                </div>
+
+                <div class="mb-3">
+                  <h6 class="fw-semibold mb-2">
+                    <i class="bi bi-cart-check text-success me-2"></i>Pre-Order Online
+                  </h6>
+                  <p class="mb-2">For your convenience, you can pre-order online and select curbside pickup.</p>
+                  <a href="https://www.publix.com/locations/1191-lake-cay-commons"
+                     target="_blank"
+                     class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Pre-Order at Publix
+                  </a>
+                </div>
+
+                <div class="alert alert-info mb-2">
+                  <h6 class="fw-semibold mb-2">
+                    <i class="bi bi-clock-history me-2"></i>Stop Duration
+                  </h6>
+                  <ul class="mb-0 ps-3">
+                    <li>
+                      <strong>20-minute stop available upon request</strong> at no charge <strong>(arrivals only)</strong>
+                    </li>
+                    <li>
+                      Anytime over 20 minutes is an <strong>additional charge</strong>
+                    </li>
+                    <li class="text-danger">
+                      <strong>May not be available</strong> if your flight is <strong>delayed</strong>
+                    </li>
+                    <li>
+                      <strong>Must be requested when making the reservation or in advance so we can plan accordingly</strong> - Please check the box above to request this stop
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="alert alert-warning mb-0">
+                  <h6 class="fw-semibold mb-2">
+                    <i class="bi bi-info-circle me-2"></i>Important Information
+                  </h6>
+                  <ul class="mb-0 ps-3">
+                    <li>
+                      We <strong>only stop at Publix</strong> for grocery stops
+                    </li>
+                    <li>
+                      Walmart or Target would be an <strong>additional charge</strong>
+                    </li>
+                    <li>
+                      This stop <strong>cannot be substituted</strong> for other locations (fast food, other stores, etc.)
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Got it</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {% endblock content %}
