@@ -1109,12 +1109,7 @@
                   });
 
                   // Gratuity calculation functionality
-                  const basePrice = {
-                      {
-                          price |
-                              default: 0
-                      }
-                  };
+                  const basePrice = parseFloat({{ price|default:0 }}) || 0;
                   const gratuityOptions = document.querySelectorAll('input[name="gratuity_option"]');
                   const gratuityDisplay = document.getElementById('gratuity_display');
                   const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
