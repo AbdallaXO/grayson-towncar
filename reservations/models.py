@@ -1267,6 +1267,107 @@ class Quote(models.Model):
         super().save(*args, **kwargs)
 
 
+class BlockedTimeSlot(models.Model):
+    """
+    Blocks specific time windows from online reservations.
+    Used to prevent overbooking when the company is fully booked or unavailable.
+    """
+    date = models.DateField(
+        help_text="Date when the time slot is blocked"
+    )
+    start_time = models.TimeField(
+        help_text="Start time of the blocked window (e.g., 12:00 AM)"
+    )
+    end_time = models.TimeField(
+        help_text="End time of the blocked window (e.g., 8:00 AM)"
+    )
+    reason = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional reason for blocking (e.g., 'Fully booked', 'Maintenance')"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Additional notes about this blocked time slot"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Uncheck to temporarily disable this block without deleting it"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_blocked_time_slots",
+        help_text="User who created this blocked time slot"
+    )
+
+    class Meta:
+        ordering = ["date", "start_time"]
+        indexes = [
+            models.Index(fields=["date", "is_active"]),
+        ]
+        verbose_name = "Blocked Time Slot"
+        verbose_name_plural = "Blocked Time Slots"
+
+    def __str__(self):
+        date_str = self.date.strftime("%Y-%m-%d")
+        time_str = f"{self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"
+        reason_str = f" ({self.reason})" if self.reason else ""
+        status = "Active" if self.is_active else "Inactive"
+        return f"{date_str} {time_str}{reason_str} [{status}]"
+
+    def is_time_blocked(self, check_date, check_time):
+        """
+        Check if a specific date and time falls within this blocked slot.
+        
+        Args:
+            check_date: Date to check
+            check_time: Time to check
+            
+        Returns:
+            bool: True if the time is blocked, False otherwise
+        """
+        if not self.is_active:
+            return False
+            
+        if check_date != self.date:
+            return False
+        
+        # Handle time ranges that span midnight (e.g., 10 PM to 2 AM)
+        if self.start_time <= self.end_time:
+            # Normal case: start_time < end_time (e.g., 12:00 AM to 8:00 AM)
+            return self.start_time <= check_time < self.end_time
+        else:
+            # Spans midnight: start_time > end_time (e.g., 10:00 PM to 2:00 AM)
+            return check_time >= self.start_time or check_time < self.end_time
+
+    @classmethod
+    def is_time_slot_available(cls, check_date, check_time):
+        """
+        Check if a time slot is available (not blocked).
+        
+        Args:
+            check_date: Date to check
+            check_time: Time to check
+            
+        Returns:
+            tuple: (is_available: bool, blocked_slot: BlockedTimeSlot or None)
+        """
+        blocked_slots = cls.objects.filter(
+            date=check_date,
+            is_active=True
+        )
+        
+        for slot in blocked_slots:
+            if slot.is_time_blocked(check_date, check_time):
+                return False, slot
+        
+        return True, None
+
+
 class AuditLog(models.Model):
     """
     Comprehensive audit log for tracking all changes to important models.

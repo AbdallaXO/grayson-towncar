@@ -543,3 +543,69 @@ class QuoteFormHandlerView(View):
 
 # Convenience function-based view wrapper
 quote_form_handler = QuoteFormHandlerView.as_view()
+
+
+def check_time_availability(request):
+    """
+    AJAX endpoint to check if a time slot is available (not blocked).
+    Returns JSON with availability status and error message if blocked.
+    """
+    if request.method != "GET":
+        return JsonResponse({"error": "Only GET requests are allowed"}, status=405)
+    
+    pickup_date = request.GET.get("pickup_date")
+    pickup_time = request.GET.get("pickup_time")
+    
+    if not pickup_date or not pickup_time:
+        return JsonResponse({"error": "pickup_date and pickup_time are required"}, status=400)
+    
+    try:
+        from datetime import datetime
+        from .models import BlockedTimeSlot
+        
+        # Parse the date and time
+        date_obj = datetime.strptime(pickup_date, "%Y-%m-%d").date()
+        time_obj = datetime.strptime(pickup_time, "%H:%M").time()
+        
+        # Check availability
+        is_available, blocked_slot = BlockedTimeSlot.is_time_slot_available(date_obj, time_obj)
+        
+        if is_available:
+            return JsonResponse({
+                "available": True,
+                "message": None
+            })
+        else:
+            # Create user-friendly error message
+            if blocked_slot.reason:
+                error_msg = (
+                    f"We are fully booked for {date_obj.strftime('%B %d, %Y')} "
+                    f"from {blocked_slot.start_time.strftime('%I:%M %p')} to "
+                    f"{blocked_slot.end_time.strftime('%I:%M %p')}. "
+                    f"{blocked_slot.reason}. "
+                    f"Please contact the office at 407-212-7190 or try a different time."
+                )
+            else:
+                error_msg = (
+                    f"We are fully booked for {date_obj.strftime('%B %d, %Y')} "
+                    f"from {blocked_slot.start_time.strftime('%I:%M %p')} to "
+                    f"{blocked_slot.end_time.strftime('%I:%M %p')}. "
+                    f"Please contact the office at 407-212-7190 or try a different time."
+                )
+            
+            return JsonResponse({
+                "available": False,
+                "message": error_msg,
+                "blocked_slot": {
+                    "date": blocked_slot.date.strftime("%Y-%m-%d"),
+                    "start_time": blocked_slot.start_time.strftime("%H:%M"),
+                    "end_time": blocked_slot.end_time.strftime("%H:%M"),
+                    "reason": blocked_slot.reason or ""
+                }
+            })
+            
+    except ValueError as e:
+        return JsonResponse({"error": f"Invalid date or time format: {str(e)}"}, status=400)
+    except Exception as e:
+        logger.error(f"Error checking time availability: {str(e)}")
+        return JsonResponse({"error": "An error occurred checking availability"}, status=500)

@@ -224,6 +224,39 @@ class LegForm(forms.ModelForm):
             raise forms.ValidationError("Please Enter a Valid Pickup Date")
         return date
 
+    def clean(self):
+        cleaned_data = super().clean()
+        pickup_date = cleaned_data.get("pickup_date")
+        pickup_time = cleaned_data.get("pickup_time")
+        
+        # Check if the time slot is blocked
+        if pickup_date and pickup_time:
+            from .models import BlockedTimeSlot
+            is_available, blocked_slot = BlockedTimeSlot.is_time_slot_available(
+                pickup_date, pickup_time
+            )
+            
+            if not is_available:
+                # Create user-friendly error message
+                if blocked_slot.reason:
+                    error_msg = (
+                        f"We are fully booked for {pickup_date.strftime('%B %d, %Y')} "
+                        f"from {blocked_slot.start_time.strftime('%I:%M %p')} to "
+                        f"{blocked_slot.end_time.strftime('%I:%M %p')}. "
+                        f"{blocked_slot.reason}. "
+                        f"Please contact the office at 407-212-7190 or try a different time."
+                    )
+                else:
+                    error_msg = (
+                        f"We are fully booked for {pickup_date.strftime('%B %d, %Y')} "
+                        f"from {blocked_slot.start_time.strftime('%I:%M %p')} to "
+                        f"{blocked_slot.end_time.strftime('%I:%M %p')}. "
+                        f"Please contact the office at 407-212-7190 or try a different time."
+                    )
+                self.add_error("pickup_time", error_msg)
+        
+        return cleaned_data
+
 
 class FlightForm(forms.ModelForm):
     """Form for flight information"""

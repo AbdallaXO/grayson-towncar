@@ -580,8 +580,13 @@
                           <i class="bi bi-clock-history me-1"></i> We'll adjust for any flight delays
                         </div>
                         {% if leg1_form.pickup_time.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in leg1_form.pickup_time.errors %}{{ error }}{% endfor %}
+                          <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert" id="pickup-time-error-leg1">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Time Not Available:</strong>
+                            {% for error in leg1_form.pickup_time.errors %}
+                              <div class="mt-1">{{ error }}</div>
+                            {% endfor %}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                           </div>
                         {% endif %}
                       </div>
@@ -733,8 +738,13 @@
                             <i class="bi bi-clock-history me-1"></i> Allow enough time for airport check-in
                           </div>
                           {% if leg2_form.pickup_time.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg2_form.pickup_time.errors %}{{ error }}{% endfor %}
+                            <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert" id="pickup-time-error-leg2">
+                              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                              <strong>Time Not Available:</strong>
+                              {% for error in leg2_form.pickup_time.errors %}
+                                <div class="mt-1">{{ error }}</div>
+                              {% endfor %}
+                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                           {% endif %}
                         </div>
@@ -1236,6 +1246,217 @@
                   margin-bottom: 1rem;
               }
           }
+          
+          /* Error alert styling */
+          #pickup-time-error-leg1,
+          #pickup-time-error-leg2 {
+              border-left: 4px solid #ffc107;
+              animation: slideIn 0.3s ease-out;
+          }
+          
+          @keyframes slideIn {
+              from {
+                  opacity: 0;
+                  transform: translateY(-10px);
+              }
+              to {
+                  opacity: 1;
+                  transform: translateY(0);
+              }
+          }
+          
+          /* Highlight time field when there's an error */
+          .form-control.is-invalid {
+              border-color: #ffc107;
+              box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+          }
       </style>
+      
+      <script>
+          // Real-time time availability checking
+          function checkTimeAvailability(legPrefix) {
+              const dateInput = document.querySelector(`input[name="${legPrefix}-pickup_date"]`);
+              const timeInput = document.querySelector(`input[name="${legPrefix}-pickup_time"]`);
+              const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
+              
+              if (!dateInput || !timeInput) return;
+              
+              const pickupDate = dateInput.value;
+              const pickupTime = timeInput.value;
+              
+              // Only check if both date and time are filled
+              if (!pickupDate || !pickupTime) {
+                  // Clear error if date or time is cleared
+                  if (errorContainer) {
+                      errorContainer.remove();
+                  }
+                  if (timeInput) {
+                      timeInput.classList.remove('is-invalid');
+                      timeInput.style.borderColor = '';
+                      timeInput.style.borderWidth = '';
+                  }
+                  return;
+              }
+              
+              // Show loading state
+              if (timeInput) {
+                  timeInput.style.borderColor = '#6c757d';
+              }
+              
+              // Check availability via AJAX
+              const url = `{% url 'check_time_availability' %}?pickup_date=${pickupDate}&pickup_time=${pickupTime}`;
+              
+              fetch(url)
+                  .then(response => response.json())
+                  .then(data => {
+                      if (!data.available) {
+                          // Time is blocked - show error
+                          showTimeError(legPrefix, data.message, timeInput);
+                      } else {
+                          // Time is available - clear any existing error
+                          clearTimeError(legPrefix, timeInput);
+                      }
+                  })
+                  .catch(error => {
+                      console.error('Error checking time availability:', error);
+                      // On error, don't block the form - let server-side validation handle it
+                  });
+          }
+          
+          function showTimeError(legPrefix, message, timeInput) {
+              const errorContainerId = `pickup-time-error-${legPrefix}`;
+              let errorContainer = document.getElementById(errorContainerId);
+              
+              // Remove existing error if present
+              if (errorContainer) {
+                  errorContainer.remove();
+              }
+              
+              // Create new error alert
+              errorContainer = document.createElement('div');
+              errorContainer.id = errorContainerId;
+              errorContainer.className = 'alert alert-warning alert-dismissible fade show mt-2';
+              errorContainer.setAttribute('role', 'alert');
+              errorContainer.innerHTML = `
+                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                  <strong>Time Not Available:</strong>
+                  <div class="mt-1">${message}</div>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              `;
+              
+              // Insert error after the time input's parent form-row
+              const formRow = timeInput.closest('.form-row');
+              if (formRow) {
+                  formRow.appendChild(errorContainer);
+                  
+                  // Smooth scroll to error
+                  setTimeout(() => {
+                      errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 100);
+              }
+              
+              // Highlight the time input
+              timeInput.classList.add('is-invalid');
+              timeInput.style.borderColor = '#ffc107';
+              timeInput.style.borderWidth = '2px';
+          }
+          
+          function clearTimeError(legPrefix, timeInput) {
+              const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
+              if (errorContainer) {
+                  errorContainer.remove();
+              }
+              
+              if (timeInput) {
+                  timeInput.classList.remove('is-invalid');
+                  timeInput.style.borderColor = '';
+                  timeInput.style.borderWidth = '';
+              }
+          }
+          
+          // Initialize on page load
+          document.addEventListener('DOMContentLoaded', function() {
+              // Set up real-time validation for leg1
+              const leg1DateInput = document.querySelector('input[name="leg1-pickup_date"]');
+              const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
+              
+              if (leg1DateInput && leg1TimeInput) {
+                  leg1DateInput.addEventListener('change', () => checkTimeAvailability('leg1'));
+                  leg1TimeInput.addEventListener('change', () => checkTimeAvailability('leg1'));
+                  leg1TimeInput.addEventListener('input', () => checkTimeAvailability('leg1'));
+                  
+                  // Check on load if both are already filled
+                  if (leg1DateInput.value && leg1TimeInput.value) {
+                      checkTimeAvailability('leg1');
+                  }
+              }
+              
+              // Set up real-time validation for leg2 (return trip)
+              const leg2DateInput = document.querySelector('input[name="leg2-pickup_date"]');
+              const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
+              
+              if (leg2DateInput && leg2TimeInput) {
+                  leg2DateInput.addEventListener('change', () => checkTimeAvailability('leg2'));
+                  leg2TimeInput.addEventListener('change', () => checkTimeAvailability('leg2'));
+                  leg2TimeInput.addEventListener('input', () => checkTimeAvailability('leg2'));
+                  
+                  // Check on load if both are already filled
+                  if (leg2DateInput.value && leg2TimeInput.value) {
+                      checkTimeAvailability('leg2');
+                  }
+              }
+              
+              // Handle server-side errors (from form submission)
+              const leg1Error = document.getElementById('pickup-time-error-leg1');
+              const leg2Error = document.getElementById('pickup-time-error-leg2');
+              
+              if (leg1Error) {
+                  const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
+                  if (leg1TimeInput) {
+                      leg1TimeInput.classList.add('is-invalid');
+                      leg1TimeInput.style.borderColor = '#ffc107';
+                      leg1TimeInput.style.borderWidth = '2px';
+                  }
+                  setTimeout(() => {
+                      leg1Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 300);
+              }
+              
+              if (leg2Error) {
+                  const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
+                  if (leg2TimeInput) {
+                      leg2TimeInput.classList.add('is-invalid');
+                      leg2TimeInput.style.borderColor = '#ffc107';
+                      leg2TimeInput.style.borderWidth = '2px';
+                  }
+                  setTimeout(() => {
+                      leg2Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 300);
+              }
+              
+              // Prevent form submission if there's a time error
+              const form = document.querySelector('form.needs-validation');
+              if (form) {
+                  form.addEventListener('submit', function(e) {
+                      const leg1Error = document.getElementById('pickup-time-error-leg1');
+                      const leg2Error = document.getElementById('pickup-time-error-leg2');
+                      
+                      if (leg1Error || leg2Error) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          
+                          // Scroll to first error
+                          if (leg1Error) {
+                              leg1Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          } else if (leg2Error) {
+                              leg2Error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }
+                          
+                          return false;
+                      }
+                  });
+              }
+          });
+      </script>
 
     {% endblock content %}

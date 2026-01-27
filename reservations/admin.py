@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog
+from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 
@@ -2716,3 +2716,67 @@ class AuditLogAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Allow deletion only for superusers (for data cleanup)"""
         return request.user.is_superuser
+
+
+@admin.register(BlockedTimeSlot)
+class BlockedTimeSlotAdmin(admin.ModelAdmin):
+    list_display = [
+        "date",
+        "time_range_display",
+        "reason",
+        "is_active",
+        "created_at",
+        "created_by",
+    ]
+    list_filter = ["is_active", "date", "created_at"]
+    search_fields = ["reason", "notes"]
+    date_hierarchy = "date"
+    ordering = ["-date", "start_time"]
+    
+    fieldsets = (
+        (
+            "Time Block Details",
+            {
+                "fields": (
+                    "date",
+                    "start_time",
+                    "end_time",
+                    "is_active",
+                ),
+                "description": (
+                    "<p style='margin: 10px 0; padding: 10px; background-color: #f8f9fa; border-left: 4px solid #007bff; border-radius: 4px;'>"
+                    "<strong>Time Format:</strong> Use 24-hour format (HH:MM). Examples:<br>"
+                    "• 12:00 AM (Midnight) = <strong>00:00</strong><br>"
+                    "• 6:00 AM = <strong>06:00</strong><br>"
+                    "• 12:00 PM (Noon) = <strong>12:00</strong><br>"
+                    "• 6:00 PM = <strong>18:00</strong><br>"
+                    "• 11:59 PM = <strong>23:59</strong>"
+                    "</p>"
+                ),
+            },
+        ),
+        (
+            "Additional Information",
+            {
+                "fields": (
+                    "reason",
+                    "notes",
+                    "created_by",
+                )
+            },
+        ),
+    )
+    
+    readonly_fields = ["created_at", "created_by"]
+    
+    def time_range_display(self, obj):
+        start = obj.start_time.strftime("%I:%M %p")
+        end = obj.end_time.strftime("%I:%M %p")
+        return f"{start} - {end}"
+    
+    time_range_display.short_description = "Time Range"
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # Only set created_by on creation
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
