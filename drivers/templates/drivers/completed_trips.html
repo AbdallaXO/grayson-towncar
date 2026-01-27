@@ -336,7 +336,12 @@
 
                 <div class="mobile-section">
                   <div class="mb-1">
-                    <strong>Payment Status:</strong> {{ leg.payment_status |title }} - ${{ leg.driver_pay_amount }}
+                    <strong>Payment Status:</strong> {{ leg.payment_status |title }} - 
+                    {% if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None %}
+                      Base: ${{ leg.driver_base_pay|default:"0.00"|floatformat:2 }}, Gratuity: ${{ leg.driver_gratuity|default:"0.00"|floatformat:2 }}, Additional: ${{ leg.driver_additional|default:"0.00"|floatformat:2 }} (Total: ${{ leg.total_driver_pay|floatformat:2 }})
+                    {% else %}
+                      ${{ leg.total_driver_pay|floatformat:2 }}
+                    {% endif %}
                   </div>
                   <div class="mb-1">
                     <strong>Vehicle:</strong> {{ leg.reservation.vehicle }}

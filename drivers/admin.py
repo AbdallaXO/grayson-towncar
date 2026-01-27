@@ -182,7 +182,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
         standalone_paid_legs = paid_legs.exclude(id__in=leg_ids_in_payments)
         standalone_amount = sum(
-            leg.driver_pay_amount or 0 for leg in standalone_paid_legs
+            leg.total_driver_pay for leg in standalone_paid_legs
         )
 
         # Total amount is the sum of both
@@ -239,7 +239,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         total_legs = legs.count()
         completed_legs = legs.filter(status="completed").count()
         total_revenue = sum(leg.revenue_share or 0 for leg in legs)
-        total_driver_pay = sum(leg.driver_pay_amount or 0 for leg in legs)
+        total_driver_pay = sum(leg.total_driver_pay for leg in legs)
         total_profit = sum(leg.profit_estimate or 0 for leg in legs)
         avg_profit_per_leg = total_profit / total_legs if total_legs > 0 else 0
 
@@ -319,8 +319,8 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             html += f'<td><a href="{reverse("admin:reservations_leg_change", args=[leg.id])}">{leg.pickup_date}</a></td>'
             html += f"<td>{leg.pickup_location} to {leg.dropoff_location}</td>"
 
-            # Get driver pay amount
-            amount = leg.driver_pay_amount or 0
+            # Get driver pay amount (use new property that handles base_pay + gratuity)
+            amount = leg.total_driver_pay
             profit = leg.profit_estimate or 0
 
             # Format amount with color based on value
@@ -387,7 +387,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                         reservation_legs[leg.reservation].append(leg)
 
                 # Calculate total
-                payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
+                payment_total = sum(leg.total_driver_pay for leg in unpaid_legs)
 
                 # Create simplified notes for driver communication
                 notes = []
@@ -398,7 +398,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                 notes.append("-" * 50)
 
                 for reservation, legs in reservation_legs.items():
-                    leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
+                    leg_total = sum(leg.total_driver_pay for leg in legs)
 
                     # Reservation header
                     notes.append(
@@ -410,7 +410,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                         notes.append(
                             f"  • {leg.pickup_date.strftime('%m/%d/%Y')} | "
                             f"{leg.pickup_location} → {leg.dropoff_location} | "
-                            f"Payment: ${leg.driver_pay_amount or 0:.2f}"
+                            f"Payment: ${leg.total_driver_pay:.2f}"
                         )
 
                     # Subtotal for this reservation
@@ -482,7 +482,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
             if unpaid_legs:
                 # Calculate total
-                payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
+                payment_total = sum(leg.total_driver_pay for leg in unpaid_legs)
 
                 # Count legs
                 leg_count = unpaid_legs.count()
@@ -578,7 +578,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                         reservation_legs[leg.reservation].append(leg)
 
                 # Calculate total
-                payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
+                payment_total = sum(leg.total_driver_pay for leg in unpaid_legs)
 
                 # Create simplified notes for driver communication
                 notes = []
@@ -589,7 +589,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                 notes.append("-" * 50)
 
                 for reservation, legs in reservation_legs.items():
-                    leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
+                    leg_total = sum(leg.total_driver_pay for leg in legs)
 
                     # Reservation header
                     notes.append(
@@ -601,7 +601,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                         notes.append(
                             f"  • {leg.pickup_date.strftime('%m/%d/%Y')} | "
                             f"{leg.pickup_location} → {leg.dropoff_location} | "
-                            f"Payment: ${leg.driver_pay_amount or 0:.2f}"
+                            f"Payment: ${leg.total_driver_pay:.2f}"
                         )
 
                     # Subtotal for this reservation
@@ -666,6 +666,9 @@ class DriverPaymentAdmin(admin.ModelAdmin):
     list_display = [
         "id",
         "driver_link",
+        "base_pay_display",
+        "gratuity_display",
+        "additional_display",
         "amount_display",
         "payment_date",
         "payment_method",
@@ -686,6 +689,27 @@ class DriverPaymentAdmin(admin.ModelAdmin):
 
     driver_link.short_description = "Driver"
 
+    def base_pay_display(self, obj):
+        if obj.base_pay is not None:
+            return format_html('<span style="color: blue;">${0}</span>', obj.base_pay)
+        return format_html('<span style="color: gray;">-</span>')
+    
+    base_pay_display.short_description = "Base Pay"
+
+    def gratuity_display(self, obj):
+        if obj.gratuity is not None:
+            return format_html('<span style="color: orange;">${0}</span>', obj.gratuity)
+        return format_html('<span style="color: gray;">-</span>')
+    
+    gratuity_display.short_description = "Gratuity"
+
+    def additional_display(self, obj):
+        if obj.additional is not None:
+            return format_html('<span style="color: purple;">${0}</span>', obj.additional)
+        return format_html('<span style="color: gray;">-</span>')
+    
+    additional_display.short_description = "Additional"
+
     def amount_display(self, obj):
         # Format with color based on value
         if obj.amount >= 0:
@@ -693,7 +717,7 @@ class DriverPaymentAdmin(admin.ModelAdmin):
         else:
             return format_html('<span style="color: red;">${0}</span>', abs(obj.amount))
 
-    amount_display.short_description = "Amount"
+    amount_display.short_description = "Total"
 
     def leg_count(self, obj):
         count = obj.leg_payments.count()
@@ -709,6 +733,9 @@ class DriverPaymentAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     "driver",
+                    "base_pay",
+                    "gratuity",
+                    "additional",
                     "amount",
                     "payment_date",
                     "payment_method",
@@ -761,7 +788,7 @@ class DriverPaymentAdmin(admin.ModelAdmin):
 
 @admin.register(LegPayment)
 class LegPaymentAdmin(admin.ModelAdmin):
-    list_display = ["id", "payment", "leg_display", "amount_display", "profit_display"]
+    list_display = ["id", "payment", "leg_display", "base_pay_display", "gratuity_display", "additional_display", "amount_display", "profit_display"]
     search_fields = [
         "payment__driver__profile__first_name",
         "payment__driver__profile__last_name",
@@ -778,13 +805,34 @@ class LegPaymentAdmin(admin.ModelAdmin):
 
     leg_display.short_description = "Leg"
 
+    def base_pay_display(self, obj):
+        if obj.base_pay is not None:
+            return format_html('<span style="color: blue;">${0}</span>', obj.base_pay)
+        return format_html('<span style="color: gray;">-</span>')
+    
+    base_pay_display.short_description = "Base Pay"
+
+    def gratuity_display(self, obj):
+        if obj.gratuity is not None:
+            return format_html('<span style="color: orange;">${0}</span>', obj.gratuity)
+        return format_html('<span style="color: gray;">-</span>')
+    
+    gratuity_display.short_description = "Gratuity"
+
+    def additional_display(self, obj):
+        if obj.additional is not None:
+            return format_html('<span style="color: purple;">${0}</span>', obj.additional)
+        return format_html('<span style="color: gray;">-</span>')
+    
+    additional_display.short_description = "Additional"
+
     def amount_display(self, obj):
         if obj.amount >= 0:
             return format_html('<span style="color: green;">${0}</span>', obj.amount)
         else:
             return format_html('<span style="color: red;">${0}</span>', abs(obj.amount))
 
-    amount_display.short_description = "Amount"
+    amount_display.short_description = "Total"
 
     def profit_display(self, obj):
         profit = obj.leg.profit_estimate or 0

@@ -65,7 +65,10 @@
                 <th>Pickup Time</th>
                 <th>Pickup Location</th>
                 <th>Dropoff Location</th>
-                <th>Amount</th>
+                <th>Base Pay</th>
+                <th>Gratuity</th>
+                <th>Additional</th>
+                <th>Total</th>
               </tr>
             </thead>
             <tbody>
@@ -75,17 +78,23 @@
                   <td>{{ lp.leg.pickup_time|time:"g:i A" }}</td>
                   <td>{{ lp.leg.pickup_location }}</td>
                   <td>{{ lp.leg.dropoff_location }}</td>
+                  <td>${{ lp.base_pay|default:"0.00"|floatformat:2 }}</td>
+                  <td>${{ lp.gratuity|default:"0.00"|floatformat:2 }}</td>
+                  <td>${{ lp.additional|default:"0.00"|floatformat:2 }}</td>
                   <td>${{ lp.amount|floatformat:2 }}</td>
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="5" class="text-center py-4 text-muted">
+                  <td colspan="8" class="text-center py-4 text-muted">
                     No legs found for this payment.
                   </td>
                 </tr>
               {% endfor %}
               <tr class="table-light">
                 <td colspan="4" class="fw-bold text-end">Total</td>
+                <td class="fw-bold">${{ payment.base_pay|default:"0.00"|floatformat:2 }}</td>
+                <td class="fw-bold">${{ payment.gratuity|default:"0.00"|floatformat:2 }}</td>
+                <td class="fw-bold">${{ payment.additional|default:"0.00"|floatformat:2 }}</td>
                 <td class="fw-bold">${{ payment.amount|floatformat:2 }}</td>
               </tr>
             </tbody>

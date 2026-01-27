@@ -39,7 +39,7 @@
       }
 
       .driver-pay-input {
-          width: 100px;
+          width: 100%;
           text-align: center;
       }
 
@@ -127,6 +127,12 @@
                 </div>
                 <div class="col-md-2">
                   <div class="d-flex flex-column">
+                    <div class="text-secondary">Completed Legs:</div>
+                    <div class="fw-bold fs-4 text-success">{{ completed_leg_count }}</div>
+                  </div>
+                </div>
+                <div class="col-md-2">
+                  <div class="d-flex flex-column">
                     <div class="text-secondary">Total Driver Pay:</div>
                     <div class="fw-bold fs-4 text-dark">${{ total_pay|floatformat:2 }}</div>
                   </div>
@@ -143,7 +149,7 @@
                     <div class="fw-bold">{{ selected_driver.payment_method|title }}</div>
                   </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                   <div class="d-flex flex-column align-items-center justify-content-center h-100">
                     {% if total_pay_completed > 0 %}
                       <button type="button" 
@@ -192,7 +198,8 @@
                     <th style="width: 12%;">Notes</th>
                     <th style="width: 8%;">Status</th>
                     <th style="width: 10%;">Driver Notes</th>
-                    <th style="width: 10%;">Driver Pay</th>
+                    <th style="width: 14%;">Driver Pay</th>
+                    <th style="width: 8%;">Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -372,27 +379,67 @@
                         </div>
                       </td>
 
-                      <!-- Driver Pay Amount -->
+                      <!-- Driver Pay (Base Pay, Gratuity, Additional stacked) -->
                       <td class="text-center">
-                        <div class="d-flex align-items-center justify-content-center">
-                          <input type="number"
-                                 class="form-control form-control-sm driver-pay-input"
-                                 value="{% if leg.driver_pay_amount %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
-                                 data-leg-id="{{ leg.id }}"
-                                 step="0.01"
-                                 min="0"
-                                 max="9999.99"
-                                 placeholder="0.00">
-                          <div class="ms-1">
+                        <div class="d-flex flex-column gap-1 align-items-center">
+                          <div class="w-100">
+                            <label class="small text-muted mb-0 d-block text-start" style="font-size: 0.7rem;">Base:</label>
+                            <input type="number"
+                                   class="form-control form-control-sm driver-pay-input"
+                                   value="{% if leg.driver_base_pay %}{{ leg.driver_base_pay|floatformat:2 }}{% endif %}"
+                                   data-leg-id="{{ leg.id }}"
+                                   data-field="base_pay"
+                                   step="0.01"
+                                   min="0"
+                                   max="9999.99"
+                                   placeholder="0.00"
+                                   style="font-size: 0.85rem;">
+                          </div>
+                          <div class="w-100">
+                            <label class="small text-muted mb-0 d-block text-start" style="font-size: 0.7rem;">Gratuity:</label>
+                            <input type="number"
+                                   class="form-control form-control-sm driver-pay-input"
+                                   value="{% if leg.driver_gratuity %}{{ leg.driver_gratuity|floatformat:2 }}{% endif %}"
+                                   data-leg-id="{{ leg.id }}"
+                                   data-field="gratuity"
+                                   step="0.01"
+                                   min="0"
+                                   max="9999.99"
+                                   placeholder="0.00"
+                                   style="font-size: 0.85rem;">
+                          </div>
+                          <div class="w-100">
+                            <label class="small text-muted mb-0 d-block text-start" style="font-size: 0.7rem;">Additional:</label>
+                            <input type="number"
+                                   class="form-control form-control-sm driver-pay-input"
+                                   value="{% if leg.driver_additional %}{{ leg.driver_additional|floatformat:2 }}{% endif %}"
+                                   data-leg-id="{{ leg.id }}"
+                                   data-field="additional"
+                                   step="0.01"
+                                   min="0"
+                                   max="9999.99"
+                                   placeholder="0.00"
+                                   style="font-size: 0.85rem;">
+                          </div>
+                        </div>
+                      </td>
+                      
+                      <!-- Total and Save Button -->
+                      <td class="text-center">
+                        <div class="d-flex flex-column align-items-center">
+                          <div class="fw-bold mb-1" id="total-{{ leg.id }}" style="font-size: 0.9rem;">
+                            ${{ leg.total_driver_pay|floatformat:2 }}
+                          </div>
+                          <div class="d-flex align-items-center">
                             <button type="button"
                                     class="btn btn-sm btn-outline-success save-pay-btn"
                                     data-leg-id="{{ leg.id }}"
-                                    style="display: none">
-                              <i class="bi bi-check"></i>
+                                    style="display: none; font-size: 0.75rem; padding: 0.2rem 0.4rem;">
+                              <i class="bi bi-check"></i> Save
                             </button>
                           </div>
+                          <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
                         </div>
-                        <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
                       </td>
                     </tr>
                   {% endfor %}
@@ -573,28 +620,64 @@
                             </div>
                           </div>
 
-                          <!-- Driver Pay -->
+                          <!-- Driver Pay (Base Pay, Gratuity, Additional stacked) -->
                           <div class="col-12">
-                            <div class="d-flex justify-content-between align-items-center">
-                              <span class="fw-bold">Driver Pay:</span>
-                              <div class="d-flex align-items-center">
-                                <input type="number"
-                                       class="form-control form-control-sm driver-pay-input"
-                                       value="{% if leg.driver_pay_amount %}{{ leg.driver_pay_amount|floatformat:2 }}{% endif %}"
-                                       data-leg-id="{{ leg.id }}"
-                                       step="0.01"
-                                       min="0"
-                                       max="9999.99"
-                                       placeholder="0.00">
-                                <button type="button"
-                                        class="btn btn-sm btn-outline-success save-pay-btn ms-1"
-                                        data-leg-id="{{ leg.id }}"
-                                        style="display: none">
-                                  <i class="bi bi-check"></i>
-                                </button>
+                            <div class="border rounded p-2 bg-light">
+                              <div class="fw-bold mb-2">Driver Pay:</div>
+                              <div class="d-flex flex-column gap-2">
+                                <div>
+                                  <label class="small text-muted mb-1 d-block">Base Pay:</label>
+                                  <input type="number"
+                                         class="form-control form-control-sm"
+                                         value="{% if leg.driver_base_pay %}{{ leg.driver_base_pay|floatformat:2 }}{% endif %}"
+                                         data-leg-id="{{ leg.id }}"
+                                         data-field="base_pay"
+                                         step="0.01"
+                                         min="0"
+                                         max="9999.99"
+                                         placeholder="0.00">
+                                </div>
+                                <div>
+                                  <label class="small text-muted mb-1 d-block">Gratuity:</label>
+                                  <input type="number"
+                                         class="form-control form-control-sm"
+                                         value="{% if leg.driver_gratuity %}{{ leg.driver_gratuity|floatformat:2 }}{% endif %}"
+                                         data-leg-id="{{ leg.id }}"
+                                         data-field="gratuity"
+                                         step="0.01"
+                                         min="0"
+                                         max="9999.99"
+                                         placeholder="0.00">
+                                </div>
+                                <div>
+                                  <label class="small text-muted mb-1 d-block">Additional:</label>
+                                  <input type="number"
+                                         class="form-control form-control-sm"
+                                         value="{% if leg.driver_additional %}{{ leg.driver_additional|floatformat:2 }}{% endif %}"
+                                         data-leg-id="{{ leg.id }}"
+                                         data-field="additional"
+                                         step="0.01"
+                                         min="0"
+                                         max="9999.99"
+                                         placeholder="0.00">
+                                </div>
+                                <div class="border-top pt-2 mt-1">
+                                  <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold small">Total:</span>
+                                    <span class="fw-bold" id="total-{{ leg.id }}">${{ leg.total_driver_pay|floatformat:2 }}</span>
+                                  </div>
+                                  <div class="d-flex justify-content-end mt-2">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-success save-pay-btn"
+                                            data-leg-id="{{ leg.id }}"
+                                            style="display: none">
+                                      <i class="bi bi-check"></i> Save
+                                    </button>
+                                  </div>
+                                  <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
+                                </div>
                               </div>
                             </div>
-                            <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
                           </div>
                         </div>
                       </div>
@@ -682,6 +765,41 @@
               return;
           }
 
+          // Function to calculate and update total for a leg
+          function updateTotal(legId) {
+              const baseInput = document.querySelector(`input[data-leg-id="${legId}"][data-field="base_pay"]`);
+              const gratuityInput = document.querySelector(`input[data-leg-id="${legId}"][data-field="gratuity"]`);
+              const additionalInput = document.querySelector(`input[data-leg-id="${legId}"][data-field="additional"]`);
+              const totalDiv = document.getElementById(`total-${legId}`);
+              
+              if (totalDiv) {
+                  const base = parseFloat(baseInput?.value || 0);
+                  const gratuity = parseFloat(gratuityInput?.value || 0);
+                  const additional = parseFloat(additionalInput?.value || 0);
+                  const total = base + gratuity + additional;
+                  totalDiv.textContent = '$' + total.toFixed(2);
+              }
+          }
+
+          // Function to check if any field has changed for a leg
+          function checkForChanges(legId) {
+              const inputs = document.querySelectorAll(`input[data-leg-id="${legId}"]`);
+              const saveBtn = document.querySelector(`.save-pay-btn[data-leg-id="${legId}"]`);
+              
+              if (!saveBtn) return;
+              
+              let hasChanges = false;
+              inputs.forEach(input => {
+                  const originalValue = input.dataset.originalValue || '';
+                  const currentValue = input.value.trim();
+                  if (currentValue !== originalValue && (currentValue !== '' || originalValue !== '')) {
+                      hasChanges = true;
+                  }
+              });
+              
+              saveBtn.style.display = hasChanges ? 'inline-block' : 'none';
+          }
+
           // Handle input changes
           driverPayInputs.forEach(input => {
               const legId = input.dataset.legId;
@@ -689,106 +807,137 @@
               const statusDiv = document.getElementById(`status-${legId}`);
 
               // Store original value for comparison
-              let originalValue = input.value;
-
-              // Add a unique identifier to track this input
-              input.setAttribute('data-leg-id', legId);
+              const originalValue = input.value;
+              input.dataset.originalValue = originalValue;
 
               input.addEventListener('input', function() {
-                  const currentValue = input.value.trim();
-                  // Show save button when value changes from original
-                  // Only show save button if there's a meaningful change
-                  if (currentValue !== originalValue && (currentValue !== '' || originalValue !== '')) {
-                      saveBtn.style.display = 'inline-block';
-                  } else {
-                      saveBtn.style.display = 'none';
-                  }
+                  // Update total when any field changes
+                  updateTotal(legId);
+                  // Check if save button should be shown
+                  checkForChanges(legId);
               });
 
-              // Handle save button click
-              saveBtn.addEventListener('click', function() {
-                  // Prevent multiple simultaneous saves for the same leg
-                  if (input.disabled || saveBtn.disabled) {
-                      return;
-                  }
-
-                  const inputValue = input.value.trim();
-
-                  // Allow empty values (will be treated as 0)
-                  let newAmount = 0;
-                  if (inputValue !== '') {
-                      newAmount = parseFloat(inputValue);
-                      if (isNaN(newAmount) || newAmount < 0) {
-                          alert('Please enter a valid amount');
+              // Handle save button click (only attach once per leg)
+              if (!saveBtn.dataset.listenerAttached) {
+                  saveBtn.dataset.listenerAttached = 'true';
+                  saveBtn.addEventListener('click', function() {
+                      // Prevent multiple simultaneous saves for the same leg
+                      if (saveBtn.disabled) {
                           return;
                       }
-                  }
 
-                  // Disable input and button during save
-                  input.disabled = true;
-                  saveBtn.disabled = true;
-                  saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+                      const legId = this.dataset.legId;
+                      const baseInput = document.querySelector(`input[data-leg-id="${legId}"][data-field="base_pay"]`);
+                      const gratuityInput = document.querySelector(`input[data-leg-id="${legId}"][data-field="gratuity"]`);
+                      const additionalInput = document.querySelector(`input[data-leg-id="${legId}"][data-field="additional"]`);
+                      const statusDiv = document.getElementById(`status-${legId}`);
+                      const allInputs = [baseInput, gratuityInput, additionalInput].filter(i => i);
 
-                  // Clear any existing status messages
-                  statusDiv.innerHTML = '';
+                      // Get values from all inputs
+                      const basePay = parseFloat(baseInput?.value || 0) || 0;
+                      const gratuity = parseFloat(gratuityInput?.value || 0) || 0;
+                      const additional = parseFloat(additionalInput?.value || 0) || 0;
 
-                  // Send AJAX request
-                  fetch('{% url "update_driver_pay_amount" %}', {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken.value
-                          },
-                          body: JSON.stringify({
-                              leg_id: legId,
-                              driver_pay_amount: newAmount
+                      // Validate values
+                      if (basePay < 0 || gratuity < 0 || additional < 0) {
+                          alert('Amounts cannot be negative');
+                          return;
+                      }
+                      if (basePay > 9999.99 || gratuity > 9999.99 || additional > 9999.99) {
+                          alert('Amounts cannot exceed $9999.99');
+                          return;
+                      }
+
+                      // Disable inputs and button during save
+                      allInputs.forEach(inp => inp.disabled = true);
+                      saveBtn.disabled = true;
+                      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+                      // Clear any existing status messages
+                      if (statusDiv) statusDiv.innerHTML = '';
+
+                      // Send AJAX request
+                      fetch('{% url "update_driver_pay_amount" %}', {
+                              method: 'POST',
+                              headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-CSRFToken': csrfToken.value
+                              },
+                              body: JSON.stringify({
+                                  leg_id: legId,
+                                  driver_base_pay: basePay,
+                                  driver_gratuity: gratuity,
+                                  driver_additional: additional
+                              })
                           })
-                      })
-                      .then(response => {
-                          if (!response.ok) {
-                              throw new Error(`HTTP error! status: ${response.status}`);
-                          }
-                          return response.json();
-                      })
-                      .then(data => {
-                          if (data.success) {
-                              statusDiv.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                              saveBtn.style.display = 'none';
-                              // Update the input value to match what was saved
-                              input.value = data.new_amount.toFixed(2);
-                              // Update original value for future comparisons
-                              originalValue = data.new_amount.toFixed(2);
-                          } else {
-                              statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + (data.error || 'Unknown error') + '</div>';
-                          }
-                      })
-                      .catch(error => {
-                          console.error('Error:', error);
-                          statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error updating amount: ' + error.message + '</div>';
-                      })
-                      .finally(() => {
-                          // Re-enable input and button
-                          input.disabled = false;
-                          saveBtn.disabled = false;
-                          saveBtn.innerHTML = '<i class="bi bi-check"></i>';
+                          .then(response => {
+                              if (!response.ok) {
+                                  throw new Error(`HTTP error! status: ${response.status}`);
+                              }
+                              return response.json();
+                          })
+                          .then(data => {
+                              if (data.success) {
+                                  if (statusDiv) {
+                                      statusDiv.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                                  }
+                                  saveBtn.style.display = 'none';
+                                  
+                                  // Update input values and original values
+                                  if (baseInput) {
+                                      baseInput.value = data.driver_base_pay.toFixed(2);
+                                      baseInput.dataset.originalValue = data.driver_base_pay.toFixed(2);
+                                  }
+                                  if (gratuityInput) {
+                                      gratuityInput.value = data.driver_gratuity.toFixed(2);
+                                      gratuityInput.dataset.originalValue = data.driver_gratuity.toFixed(2);
+                                  }
+                                  if (additionalInput) {
+                                      additionalInput.value = data.driver_additional.toFixed(2);
+                                      additionalInput.dataset.originalValue = data.driver_additional.toFixed(2);
+                                  }
+                                  
+                                  // Update total
+                                  updateTotal(legId);
+                              } else {
+                                  if (statusDiv) {
+                                      statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + (data.error || 'Unknown error') + '</div>';
+                                  }
+                              }
+                          })
+                          .catch(error => {
+                              console.error('Error:', error);
+                              if (statusDiv) {
+                                  statusDiv.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error updating: ' + error.message + '</div>';
+                              }
+                          })
+                          .finally(() => {
+                              // Re-enable inputs and button
+                              allInputs.forEach(inp => inp.disabled = false);
+                              saveBtn.disabled = false;
+                              saveBtn.innerHTML = '<i class="bi bi-check"></i> Save';
 
-                          // Hide status message after 5 seconds
-                          setTimeout(() => {
-                              statusDiv.innerHTML = '';
-                          }, 5000);
-                      });
-              });
+                              // Hide status message after 5 seconds
+                              if (statusDiv) {
+                                  setTimeout(() => {
+                                      statusDiv.innerHTML = '';
+                                  }, 5000);
+                              }
+                          });
+                  });
+              }
 
               // Handle Enter key press
               input.addEventListener('keypress', function(e) {
                   if (e.key === 'Enter') {
                       e.preventDefault();
-                      saveBtn.click();
+                      const legId = this.dataset.legId;
+                      const saveBtn = document.querySelector(`.save-pay-btn[data-leg-id="${legId}"]`);
+                      if (saveBtn && saveBtn.style.display !== 'none') {
+                          saveBtn.click();
+                      }
                   }
               });
-
-              // Remove auto-save on blur to prevent accidental saves
-              // Users should explicitly click save or press Enter
           });
 
           // Process Payment functionality
@@ -801,16 +950,16 @@
               processPaymentBtn.addEventListener('click', function() {
                   const driverId = this.dataset.driverId;
                   
-                  // Get driver info from the page
+                  // Get driver info from the page - use completed legs data
                   const driverName = '{% if selected_driver and selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% elif selected_driver %}Driver #{{ selected_driver.id }}{% else %}Unknown Driver{% endif %}';
-                  const legCount = {{ leg_count }};
-                  const totalPay = {{ total_pay }};
+                  const completedLegCount = {{ completed_leg_count }};
+                  const totalPayCompleted = {{ total_pay_completed }};
                   const paymentMethod = '{% if selected_driver %}{{ selected_driver.payment_method|title|default:"Direct Deposit" }}{% else %}Direct Deposit{% endif %}';
                   
-                  // Update preview
+                  // Update preview with completed legs data
                   document.getElementById('previewDriverName').textContent = driverName;
-                  document.getElementById('previewLegCount').textContent = legCount;
-                  document.getElementById('previewTotalAmount').textContent = '$' + totalPay.toFixed(2);
+                  document.getElementById('previewLegCount').textContent = completedLegCount;
+                  document.getElementById('previewTotalAmount').textContent = '$' + totalPayCompleted.toFixed(2);
                   document.getElementById('previewPaymentMethod').textContent = paymentMethod;
                   
                   // Store driver ID for confirmation

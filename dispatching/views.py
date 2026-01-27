@@ -3283,6 +3283,7 @@ def driver_payment_management(request):
     legs = []
     total_pay = 0
     total_pay_completed = 0
+    completed_leg_count = 0
 
     # Get only drivers who have unpaid legs for dropdown
     drivers = Driver.objects.select_related("profile").filter(
@@ -3311,14 +3312,12 @@ def driver_payment_management(request):
                     .order_by("pickup_date", "pickup_time")
                 )
             
-            # Calculate total pay amounts
-            total_pay = sum(leg.driver_pay_amount or 0 for leg in legs)
+            # Calculate total pay amounts (use new fields if available)
+            total_pay = sum(leg.total_driver_pay for leg in legs)
             # Calculate total pay for completed legs only
-            total_pay_completed = sum(
-                leg.driver_pay_amount or 0 
-                for leg in legs 
-                if leg.status == 'completed'
-            )
+            completed_legs = [leg for leg in legs if leg.status == 'completed']
+            total_pay_completed = sum(leg.total_driver_pay for leg in completed_legs)
+            completed_leg_count = len(completed_legs)
             
         except (ValueError, Driver.DoesNotExist):
             messages.error(request, "Invalid driver selected")
@@ -3332,6 +3331,7 @@ def driver_payment_management(request):
         "total_pay": total_pay,
         "total_pay_completed": total_pay_completed,
         "leg_count": len(legs),
+        "completed_leg_count": completed_leg_count,
     }
 
     return render(request, "dispatching/driver_payment_management.html", context)
@@ -3349,49 +3349,88 @@ def update_driver_pay_amount(request):
     try:
         data = json.loads(request.body)
         leg_id = data.get("leg_id")
+        
+        # Support both old format (driver_pay_amount) and new format (separate fields)
         driver_pay_amount = data.get("driver_pay_amount")
+        driver_base_pay = data.get("driver_base_pay")
+        driver_gratuity = data.get("driver_gratuity")
+        driver_additional = data.get("driver_additional")
 
         if not leg_id:
             return JsonResponse({"success": False, "error": "Missing leg ID"}, status=400)
         
-        # Handle empty or null values as 0
-        if driver_pay_amount is None or driver_pay_amount == "":
-            driver_pay_amount = 0
-
         # Get the leg
         leg = get_object_or_404(Leg, id=leg_id)
         
-        # Validate the amount
         try:
             from decimal import Decimal
-            amount_decimal = Decimal(str(driver_pay_amount))
             
-            # Check for reasonable limits
-            if amount_decimal < 0:
-                return JsonResponse({"success": False, "error": "Amount cannot be negative"}, status=400)
-            if amount_decimal > Decimal('9999.99'):
-                return JsonResponse({"success": False, "error": "Amount too large (max $9999.99)"}, status=400)
+            # If new format is provided, use it; otherwise fall back to old format
+            if driver_base_pay is not None or driver_gratuity is not None or driver_additional is not None:
+                # New format: separate fields
+                base_pay = Decimal(str(driver_base_pay or 0))
+                gratuity = Decimal(str(driver_gratuity or 0))
+                additional = Decimal(str(driver_additional or 0))
+                
+                # Validate amounts
+                if base_pay < 0 or gratuity < 0 or additional < 0:
+                    return JsonResponse({"success": False, "error": "Amounts cannot be negative"}, status=400)
+                if base_pay > Decimal('9999.99') or gratuity > Decimal('9999.99') or additional > Decimal('9999.99'):
+                    return JsonResponse({"success": False, "error": "Amounts cannot exceed $9999.99"}, status=400)
+                
+                # Update the leg with new fields
+                leg.driver_base_pay = base_pay.quantize(Decimal("0.01"))
+                leg.driver_gratuity = gratuity.quantize(Decimal("0.01"))
+                leg.driver_additional = additional.quantize(Decimal("0.01"))
+                
+                # Update total for backward compatibility
+                leg.driver_pay_amount = (base_pay + gratuity + additional).quantize(Decimal("0.01"))
+                
+                leg.save(update_fields=['driver_base_pay', 'driver_gratuity', 'driver_additional', 'driver_pay_amount'])
+                
+                logger.info(f"Updated driver pay for leg {leg_id}: Base=${base_pay}, Gratuity=${gratuity}, Additional=${additional}, Total=${leg.driver_pay_amount}")
+                
+                return JsonResponse({
+                    "success": True,
+                    "message": "Driver pay updated successfully",
+                    "driver_base_pay": float(leg.driver_base_pay),
+                    "driver_gratuity": float(leg.driver_gratuity),
+                    "driver_additional": float(leg.driver_additional),
+                    "total": float(leg.driver_pay_amount),
+                })
+            else:
+                # Old format: single driver_pay_amount field
+                if driver_pay_amount is None or driver_pay_amount == "":
+                    driver_pay_amount = 0
+                
+                amount_decimal = Decimal(str(driver_pay_amount))
+                
+                # Check for reasonable limits
+                if amount_decimal < 0:
+                    return JsonResponse({"success": False, "error": "Amount cannot be negative"}, status=400)
+                if amount_decimal > Decimal('9999.99'):
+                    return JsonResponse({"success": False, "error": "Amount too large (max $9999.99)"}, status=400)
+                
+                # Update the driver pay amount (legacy field)
+                leg.driver_pay_amount = amount_decimal
+                leg.save(update_fields=['driver_pay_amount'])
+                
+                logger.info(f"Updated driver pay amount for leg {leg_id} to {amount_decimal}")
+                
+                return JsonResponse({
+                    "success": True,
+                    "message": "Driver pay amount updated successfully",
+                    "new_amount": float(leg.driver_pay_amount),
+                })
                 
         except (ValueError, TypeError) as e:
-            return JsonResponse({"success": False, "error": "Invalid amount format"}, status=400)
-        
-        # Update the driver pay amount
-        leg.driver_pay_amount = amount_decimal
-        leg.save(update_fields=['driver_pay_amount'])
+            return JsonResponse({"success": False, "error": f"Invalid amount format: {str(e)}"}, status=400)
         
         # Update reservation profit calculations if needed
         try:
             leg.reservation.update_profit_calculations()
         except Exception as e:
             logger.warning(f"Could not update reservation profit calculations: {e}")
-
-        logger.info(f"Updated driver pay amount for leg {leg_id} to {amount_decimal}")
-        
-        return JsonResponse({
-            "success": True,
-            "message": "Driver pay amount updated successfully",
-            "new_amount": float(leg.driver_pay_amount),
-        })
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)

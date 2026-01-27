@@ -290,10 +290,21 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email):
                 pay_period_start = min(leg_dates)
                 pay_period_end = max(leg_dates)
 
+        # Get leg payments for breakdown display with related data
+        from drivers.models import LegPayment
+        leg_payments = LegPayment.objects.filter(
+            payment=payment
+        ).select_related(
+            "leg",
+            "leg__reservation",
+            "leg__reservation__customer"
+        ).order_by("leg__pickup_date", "leg__pickup_time")
+
         context = {
             "driver": driver,
             "payment": payment,
             "legs": legs,
+            "leg_payments": leg_payments,
             "date": timezone.now().date(),
             "pay_period_start": pay_period_start,
             "pay_period_end": pay_period_end,
@@ -306,7 +317,7 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email):
             )
         else:
             subject = f"Grayson Towncar - Payment Statement {timezone.now().strftime('%b %d, %Y')}"
-        from_email = "reservations@graysontowncar.com"
+        from_email = "finance@graysontowncar.com"
         to = [recipient_email]
         html_content = render_to_string("users/driver_payment_statement.html", context)
 

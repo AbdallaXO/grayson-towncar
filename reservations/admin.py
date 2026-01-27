@@ -1264,6 +1264,9 @@ class LegAdmin(ImportExportModelAdmin):
         "pickup_location",
         "dropoff_location",
         "driver",
+        "driver_base_pay",
+        "driver_gratuity",
+        "driver_additional",
         "driver_pay_amount",
         "revenue_share_display",
         "profit_display",
@@ -1286,7 +1289,7 @@ class LegAdmin(ImportExportModelAdmin):
         "driver__username",
     )
     ordering = ("pickup_date", "pickup_time")
-    list_editable = ("driver", "driver_pay_amount", "payment_status")
+    list_editable = ("driver", "driver_base_pay", "driver_gratuity", "driver_additional", "driver_pay_amount", "payment_status")
     list_per_page = 50
     autocomplete_fields = ("reservation",)
 
@@ -1424,7 +1427,7 @@ class LegAdmin(ImportExportModelAdmin):
             if total_legs > 0:
                 revenue = obj.reservation.total_price / total_legs
 
-        driver_pay = obj.driver_pay_amount or 0
+        driver_pay = obj.total_driver_pay
         profit = revenue - driver_pay
 
         # Color code based on profit amount

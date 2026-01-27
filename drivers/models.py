@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from reservations.models import Leg
+from decimal import Decimal
 
 
 class Driver(models.Model):
@@ -30,7 +31,13 @@ class Driver(models.Model):
 
     def get_total_unpaid_amount(self):
         """Calculate total unpaid amount for this driver"""
-        return sum(leg.driver_pay_amount or 0 for leg in self.get_unpaid_legs())
+        total = Decimal("0.00")
+        for leg in self.get_unpaid_legs():
+            if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None:
+                total += (leg.driver_base_pay or Decimal("0.00")) + (leg.driver_gratuity or Decimal("0.00")) + (leg.driver_additional or Decimal("0.00"))
+            else:
+                total += leg.driver_pay_amount or Decimal("0.00")
+        return total
 
     def get_leg_history(self, start_date=None, end_date=None):
         """
@@ -134,7 +141,28 @@ class DriverPayment(models.Model):
     driver = models.ForeignKey(
         "Driver", on_delete=models.PROTECT, related_name="payments"
     )
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Total payment (base_pay + gratuity + additional)")
+    base_pay = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total base pay amount (excluding gratuity)",
+    )
+    gratuity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total gratuity amount",
+    )
+    additional = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Total additional pay amount (e.g., wait time, early morning bonus, etc.)",
+    )
     payment_date = models.DateTimeField(auto_now_add=True)
     payment_method = models.CharField(max_length=50, default="direct deposit")
     reference_number = models.CharField(max_length=100, blank=True)
@@ -172,18 +200,42 @@ class DriverPayment(models.Model):
         logger = logging.getLogger(__name__)
 
         with transaction.atomic():
-            # Calculate the total amount
-            total_amount = sum(leg.driver_pay_amount or 0 for leg in legs)
+            # Calculate totals - prefer new fields, fallback to legacy field
+            total_base_pay = Decimal("0.00")
+            total_gratuity = Decimal("0.00")
+            total_additional = Decimal("0.00")
+            total_amount = Decimal("0.00")
+            
+            for leg in legs:
+                # Use new fields if available, otherwise fallback to driver_pay_amount
+                if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None:
+                    leg_base = leg.driver_base_pay or Decimal("0.00")
+                    leg_gratuity = leg.driver_gratuity or Decimal("0.00")
+                    leg_additional = leg.driver_additional or Decimal("0.00")
+                    total_base_pay += leg_base
+                    total_gratuity += leg_gratuity
+                    total_additional += leg_additional
+                    total_amount += leg_base + leg_gratuity + leg_additional
+                else:
+                    # Fallback to legacy field
+                    leg_amount = leg.driver_pay_amount or Decimal("0.00")
+                    total_amount += leg_amount
+                    # If we only have the total, we can't split it, so leave base_pay/gratuity/additional as None
+                    # They will be calculated from leg_payments later if needed
 
             # Log payment creation
             logger.info(
-                f"Creating payment for driver {driver} with {len(legs)} legs. Total: ${total_amount}"
+                f"Creating payment for driver {driver} with {len(legs)} legs. "
+                f"Total: ${total_amount}, Base: ${total_base_pay}, Gratuity: ${total_gratuity}, Additional: ${total_additional}"
             )
 
             # Create the payment
             payment = cls.objects.create(
                 driver=driver,
                 amount=total_amount,
+                base_pay=total_base_pay if total_base_pay > 0 else None,
+                gratuity=total_gratuity if total_gratuity > 0 else None,
+                additional=total_additional if total_additional > 0 else None,
                 payment_method=payment_method,
                 reference_number=reference_number,
                 notes=notes,
@@ -195,14 +247,33 @@ class DriverPayment(models.Model):
             # Create the leg payment records
             for leg in legs:
                 try:
+                    # Get base pay, gratuity, and additional from leg
+                    if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None:
+                        leg_base = leg.driver_base_pay or Decimal("0.00")
+                        leg_gratuity = leg.driver_gratuity or Decimal("0.00")
+                        leg_additional = leg.driver_additional or Decimal("0.00")
+                        leg_amount = leg_base + leg_gratuity + leg_additional
+                    else:
+                        # Fallback to legacy field
+                        leg_amount = leg.driver_pay_amount or Decimal("0.00")
+                        leg_base = None
+                        leg_gratuity = None
+                        leg_additional = None
+
                     # Log leg details before creating the payment
                     logger.info(
-                        f"Processing leg ID: {leg.id}, Amount: {leg.driver_pay_amount}"
+                        f"Processing leg ID: {leg.id}, Amount: ${leg_amount}, "
+                        f"Base: ${leg_base}, Gratuity: ${leg_gratuity}, Additional: ${leg_additional}"
                     )
 
                     # Create the leg payment record explicitly
                     leg_payment = LegPayment(
-                        payment=payment, leg=leg, amount=leg.driver_pay_amount or 0
+                        payment=payment,
+                        leg=leg,
+                        amount=leg_amount,
+                        base_pay=leg_base,
+                        gratuity=leg_gratuity,
+                        additional=leg_additional,
                     )
                     leg_payment.save()
 
@@ -254,7 +325,28 @@ class LegPayment(models.Model):
     leg = models.ForeignKey(
         Leg, on_delete=models.PROTECT, related_name="payment_records"
     )
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Total payment (base_pay + gratuity + additional)")
+    base_pay = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Base pay amount for this leg (excluding gratuity)",
+    )
+    gratuity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Gratuity amount for this leg",
+    )
+    additional = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Additional pay amount for this leg (e.g., wait time, early morning bonus, etc.)",
+    )
 
     class Meta:
         unique_together = ("payment", "leg")

@@ -578,7 +578,28 @@ class Leg(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Amount to pay the driver (set by admin)",
+        help_text="Amount to pay the driver (set by admin) - DEPRECATED: Use driver_base_pay + driver_gratuity",
+    )
+    driver_base_pay = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Base pay amount for the driver (excluding gratuity)",
+    )
+    driver_gratuity = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Gratuity amount for the driver",
+    )
+    driver_additional = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Additional pay amount (e.g., wait time, early morning bonus, etc.)",
     )
     revenue_share = models.DecimalField(
         max_digits=10,
@@ -652,12 +673,25 @@ class Leg(models.Model):
         # Round to 2 decimal places
         return revenue_share.quantize(Decimal("0.01"))
 
+    @property
+    def total_driver_pay(self):
+        """
+        Calculate total driver pay from base_pay + gratuity + additional, or fallback to driver_pay_amount
+        """
+        if self.driver_base_pay is not None or self.driver_gratuity is not None or self.driver_additional is not None:
+            base = self.driver_base_pay or Decimal("0.00")
+            gratuity = self.driver_gratuity or Decimal("0.00")
+            additional = self.driver_additional or Decimal("0.00")
+            return (base + gratuity + additional).quantize(Decimal("0.01"))
+        # Fallback to legacy field
+        return self.driver_pay_amount or Decimal("0.00")
+
     def calculate_profit(self):
         """
         Calculate profit (leg's revenue share minus driver payment)
         """
         revenue = self.revenue_share or self.calculate_revenue_share()
-        driver_payment = self.driver_pay_amount or Decimal("0.00")
+        driver_payment = self.total_driver_pay
 
         return (revenue - driver_payment).quantize(Decimal("0.01"))
 
@@ -710,7 +744,10 @@ class Leg(models.Model):
 
         # Auto-fill driver pay for inhouse drivers when not set
         if (
-            self.driver_pay_amount is None
+            self.driver_base_pay is None
+            and self.driver_gratuity is None
+            and self.driver_additional is None
+            and self.driver_pay_amount is None
             and self.driver
             and self.driver.driver_type == "inhouse"
         ):
@@ -744,21 +781,29 @@ class Leg(models.Model):
                             Decimal("0.01")
                         )
 
-                self.driver_pay_amount = (base_pay + gratuity_share).quantize(
-                    Decimal("0.01")
-                )
+                # Set base pay and gratuity separately
+                self.driver_base_pay = base_pay.quantize(Decimal("0.01"))
+                self.driver_gratuity = gratuity_share.quantize(Decimal("0.01"))
+                
+                # Handle night pickup bonus (adds to base pay)
                 if self.pickup_time:
                     is_night_pickup = (
                         self.pickup_time >= time(22, 1)
                         or self.pickup_time <= time(5, 59)
                     )
                     if is_night_pickup:
-                        self.driver_pay_amount = (
-                            self.driver_pay_amount + Decimal("10.00")
+                        self.driver_base_pay = (
+                            self.driver_base_pay + Decimal("10.00")
                         ).quantize(Decimal("0.01"))
+                
+                # Maintain backward compatibility with driver_pay_amount
+                additional = self.driver_additional or Decimal("0.00")
+                self.driver_pay_amount = (self.driver_base_pay + self.driver_gratuity + additional).quantize(
+                    Decimal("0.01")
+                )
 
         # Calculate and store profit estimate if driver payment is set
-        if self.driver_pay_amount is not None:
+        if self.driver_base_pay is not None or self.driver_gratuity is not None or self.driver_additional is not None or self.driver_pay_amount is not None:
             self.profit_estimate = self.calculate_profit()
 
         super().save(*args, **kwargs)
