@@ -340,6 +340,17 @@
                           <option value="completed"
                                   {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
                         </select>
+                        {% if leg.status == "picked-up" %}
+                          <div class="mt-2">
+                            <div class="small text-muted mb-2">
+                              <i class="bi bi-info-circle me-1"></i>Request a review before completing the trip
+                            </div>
+                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                               class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                              <i class="bi bi-chat-heart-fill me-1"></i>Request Review
+                            </a>
+                          </div>
+                        {% endif %}
                       </td>
                     </tr>
                   {% endfor %}
@@ -516,6 +527,17 @@
                     <option value="completed"
                             {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
                   </select>
+                  {% if leg.status == "picked-up" %}
+                    <div class="mt-2">
+                      <div class="small text-muted mb-2">
+                        <i class="bi bi-info-circle me-1"></i>Request a review before completing the trip
+                      </div>
+                      <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                         class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                        <i class="bi bi-chat-heart-fill me-1"></i>Request Review
+                      </a>
+                    </div>
+                  {% endif %}
                 </div>
               </div>
             </div>

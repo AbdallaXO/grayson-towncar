@@ -196,6 +196,19 @@ def index(request):
     else:
         total_revenue = None
 
+    def _vehicle_sort_key(vehicle):
+        vehicle_number = (vehicle.vehicle_number or "").lstrip("#").strip()
+        if vehicle_number:
+            try:
+                return (0, int(vehicle_number))
+            except ValueError:
+                return (1, vehicle_number)
+        return (2, "")
+
+    inhouse_vehicles = sorted(
+        FleetVehicle.objects.all(), key=_vehicle_sort_key
+    )
+
     context = {
         "legs": legs,
         "selected_date": selected_date,
@@ -206,7 +219,7 @@ def index(request):
         "can_view_revenue": can_view_revenue(request.user),
         "drivers": drivers,
         "inhouse_driver_rows": inhouse_driver_rows,
-        "inhouse_vehicles": FleetVehicle.objects.order_by("vehicle_number"),
+        "inhouse_vehicles": inhouse_vehicles,
     }
 
     return render(request, "dispatching/legs_filter.html", context)
