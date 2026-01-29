@@ -1888,7 +1888,8 @@
                       const selectedText = select && select.selectedOptions.length
                           ? select.selectedOptions[0].textContent.trim()
                           : '';
-                      if (!selectedText) return;
+                      const selectedValue = select ? select.value : '';
+                      if (!selectedValue || selectedText.toLowerCase() === 'select vehicle') return;
 
                       const vehicleNumber = selectedText.split('-')[0].trim().replace('#', '');
                       const driverName = row.getAttribute('data-driver-first-name')
