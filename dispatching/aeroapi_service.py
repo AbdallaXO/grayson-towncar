@@ -441,22 +441,38 @@ class AeroAPIService:
             scheduled_arrival = scheduled_runway_arrival
             estimated_arrival = estimated_runway_arrival
             
-            # Get terminal, gate, baggage - for arrivals use destination, for departures use origin
-            terminal = ''
-            gate = ''
-            baggage_claim = ''
+            def _value_or_tbd(source, key):
+                if isinstance(source, dict) and key in source:
+                    raw = source.get(key)
+                    if raw is None or raw == '':
+                        return "TBD"
+                    return raw
+                return None
+
+            # Get terminal, gate, baggage - prefer top-level fields when present
+            terminal = None
+            gate = None
+            baggage_claim = _value_or_tbd(data, 'baggage_claim')
             
             if trip_type == 'return' or is_departure_from_mco:
-                # For departures, get gate/terminal from origin (MCO)
-                if isinstance(origin_data, dict):
-                    terminal = origin_data.get('terminal', '')
-                    gate = origin_data.get('gate', '')
+                # For departures, use origin gate/terminal
+                terminal = _value_or_tbd(data, 'terminal_origin')
+                gate = _value_or_tbd(data, 'gate_origin')
+                if (terminal is None) and isinstance(origin_data, dict):
+                    terminal = origin_data.get('terminal') or None
+                if (gate is None) and isinstance(origin_data, dict):
+                    gate = origin_data.get('gate') or None
             else:
-                # For arrivals, get gate/terminal from destination (MCO)
-                if isinstance(destination_data, dict):
-                    terminal = destination_data.get('terminal', '')
-                    gate = destination_data.get('gate', '')
-                    baggage_claim = destination_data.get('baggage', '')
+                # For arrivals, use destination gate/terminal
+                terminal = _value_or_tbd(data, 'terminal_destination')
+                gate = _value_or_tbd(data, 'gate_destination')
+                if (terminal is None) and isinstance(destination_data, dict):
+                    terminal = destination_data.get('terminal') or None
+                if (gate is None) and isinstance(destination_data, dict):
+                    gate = destination_data.get('gate') or None
+
+            if baggage_claim is None and isinstance(destination_data, dict):
+                baggage_claim = destination_data.get('baggage') or None
             
             # Get flight status - AeroAPI uses various status fields
             status = data.get('status', '') or ''

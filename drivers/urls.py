@@ -37,4 +37,9 @@ urlpatterns = [
         views.update_driver_notes_ajax,
         name="update_driver_notes_ajax",
     ),
+    path(
+        "refresh-flight-data/",
+        views.refresh_flight_data,
+        name="driver_refresh_flight_data",
+    ),
 ]
