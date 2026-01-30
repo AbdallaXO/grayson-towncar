@@ -142,7 +142,9 @@
                           <div class="mt-1">
                             <strong>Flight:</strong> {{ leg.flight_information|default:"N/A" }}
                             {% if leg.flight_information.terminal %}
-                              - Terminal {{ leg.flight_information.terminal }}
+                              <span class="badge bg-dark text-white ms-2">
+                                Terminal - {{ leg.flight_information.terminal }}
+                              </span>
                             {% endif %}
                           </div>
                           <div class="flight-tracker mt-2" data-leg-id="{{ leg.id }}">
@@ -180,7 +182,9 @@
                               </div>
                               <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
                                 {% if leg.flight_information.baggage_claim %}
-                                  <span class="flight-baggage flight-secondary">Baggage {{ leg.flight_information.baggage_claim }}</span>
+                                  <span class="badge bg-warning text-dark flight-secondary">
+                                    <i class="bi bi-suitcase me-1" style="font-size: 0.8rem;"></i>{{ leg.flight_information.baggage_claim }}
+                                  </span>
                                 {% endif %}
                                 {% if leg.flight_information.last_updated %}
                                   <span class="text-muted flight-updated flight-secondary">
@@ -400,7 +404,9 @@
                       <div class="mb-1">
                         <strong>Flight: {{ leg.flight_information |default:"N/A" }}  ✈️</strong>
                         {% if leg.flight_information.terminal %}
-                          - Terminal {{ leg.flight_information.terminal }}
+                          <span class="badge bg-dark text-white ms-2">
+                            Terminal - {{ leg.flight_information.terminal }}
+                          </span>
                         {% endif %}
                       </div>
                       <div class="flight-tracker mt-2" data-leg-id="{{ leg.id }}">
@@ -438,7 +444,9 @@
                         </div>
                           <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
                             {% if leg.flight_information.baggage_claim %}
-                              <span class="flight-baggage flight-secondary">Baggage {{ leg.flight_information.baggage_claim }}</span>
+                              <span class="badge bg-warning text-dark flight-secondary">
+                                <i class="bi bi-suitcase me-1" style="font-size: 0.8rem;"></i>{{ leg.flight_information.baggage_claim }}
+                              </span>
                             {% endif %}
                             {% if leg.flight_information.last_updated %}
                               <span class="text-muted flight-updated flight-secondary">
