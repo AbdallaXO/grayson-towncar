@@ -115,6 +115,12 @@ class AeroAPIService:
                 
                 candidates = []
                 
+                desired_direction = None
+                if trip_type == "arrival":
+                    desired_direction = "arrival"
+                elif trip_type == "return":
+                    desired_direction = "departure"
+
                 for flight in flights:
                     origin = flight.get('origin', {})
                     destination = flight.get('destination', {})
@@ -132,6 +138,12 @@ class AeroAPIService:
                     # Determine if this is an arrival or departure
                     is_arrival = dest_code == 'MCO'
                     is_departure = origin_code == 'MCO'
+
+                    # Respect trip type: arrival legs only consider arrivals, return legs only consider departures
+                    if desired_direction == "arrival" and not is_arrival:
+                        continue
+                    if desired_direction == "departure" and not is_departure:
+                        continue
                     
                     # If we have a target date, check if this flight matches
                     if target_date:
@@ -230,6 +242,14 @@ class AeroAPIService:
                         origin_code = origin.get('code_iata', '') if isinstance(origin, dict) else ''
                         dest_code = destination.get('code_iata', '') if isinstance(destination, dict) else ''
                         
+                        is_arrival = dest_code == 'MCO'
+                        is_departure = origin_code == 'MCO'
+
+                        if desired_direction == "arrival" and not is_arrival:
+                            continue
+                        if desired_direction == "departure" and not is_departure:
+                            continue
+
                         if origin_code == 'MCO' or dest_code == 'MCO':
                             mco_fallback = flight
                             break
@@ -238,6 +258,11 @@ class AeroAPIService:
                         flight_data = mco_fallback
                         logger.warning(f"No MCO flight found for date {target_date}, using first MCO flight: {flight_data.get('ident_iata', 'Unknown')}")
                     else:
+                        if desired_direction:
+                            return {
+                                'error': f'No MCO {desired_direction} flight found for date {target_date}',
+                                'status': 'not_found'
+                            }
                         # Last resort: use first flight
                         flight_data = flights[0]
                         logger.warning(f"No MCO flight found, using first flight: {flight_data.get('ident_iata', 'Unknown')}")

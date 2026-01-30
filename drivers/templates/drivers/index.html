@@ -725,6 +725,13 @@
                 ) {
                     badge.classList.add('bg-danger');
                 } else if (
+                    status.includes('arrived')
+                    || status.includes('arrival')
+                    || status.includes('landed')
+                    || status.includes('completed')
+                ) {
+                    badge.classList.add('bg-success');
+                } else if (
                     status.includes('en route')
                     || status.includes('airborne')
                     || status.includes('in air')
@@ -744,12 +751,6 @@
                     || status.includes('active')
                 ) {
                     badge.classList.add('bg-primary');
-                } else if (
-                    status.includes('arrived')
-                    || status.includes('landed')
-                    || status.includes('completed')
-                ) {
-                    badge.classList.add('bg-info');
                 } else {
                     badge.classList.add('bg-secondary');
                 }

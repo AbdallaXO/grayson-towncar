@@ -404,19 +404,6 @@
                         
                         <!-- Key Flight Details (Always Visible) -->
                         <div class="mb-2">
-                          {% if leg.flight_information.gate or leg.flight_information.terminal %}
-                            <div class="mb-2 d-flex flex-wrap gap-1">
-                              {% if leg.flight_information.terminal %}
-                                <span class="badge bg-secondary" style="font-size: 0.75rem;">Terminal {{ leg.flight_information.terminal }}</span>
-                              {% endif %}
-                              {% if leg.flight_information.gate %}
-                                <span class="badge bg-primary" style="font-size: 0.75rem;">Gate {{ leg.flight_information.gate }}</span>
-                              {% endif %}
-                              {% if leg.flight_information.baggage_claim %}
-                                <span class="badge bg-warning text-dark" style="font-size: 0.75rem;"><i class="bi bi-bag me-1"></i>{{ leg.flight_information.baggage_claim }}</span>
-                              {% endif %}
-                            </div>
-                          {% endif %}
                           
                           {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
                             <div class="d-flex flex-column gap-1">
