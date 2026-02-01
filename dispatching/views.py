@@ -2197,10 +2197,12 @@ def _refresh_single_flight(leg):
 
 def _run_bulk_flight_refresh(task_id, leg_ids):
     import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     task_key = _flight_refresh_cache_key(task_id)
     timeout_seconds = 60 * 60
     started_at = timezone.now().isoformat()
+    BATCH_SIZE = 5  # AeroAPI Standard: up to 5 queries/sec
 
     try:
         legs = list(
@@ -2246,21 +2248,21 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
             timeout=timeout_seconds,
         )
 
-        for index, leg in enumerate(legs):
-            result = _refresh_single_flight(leg)
-            results.append(result)
-
-            if result.get("success"):
-                success_count += 1
-            else:
-                failure_count += 1
-
+        # Process in batches of 5 (5/sec limit) so 45 flights ≈ 9 batches ≈ ~10 sec
+        for offset in range(0, total_legs, BATCH_SIZE):
+            batch = legs[offset : offset + BATCH_SIZE]
+            with ThreadPoolExecutor(max_workers=BATCH_SIZE) as executor:
+                batch_results = list(executor.map(_refresh_single_flight, batch))
+            results.extend(batch_results)
+            success_count += sum(1 for r in batch_results if r.get("success"))
+            failure_count += sum(1 for r in batch_results if not r.get("success"))
+            processed = min(offset + BATCH_SIZE, total_legs)
             cache.set(
                 task_key,
                 {
                     "status": "running",
                     "total": total_legs,
-                    "processed": index + 1,
+                    "processed": processed,
                     "success_count": success_count,
                     "failure_count": failure_count,
                     "results": results,
@@ -2268,10 +2270,6 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 },
                 timeout=timeout_seconds,
             )
-
-            # AeroAPI Standard: up to 5 queries/sec — throttle to stay under
-            if index < total_legs - 1:
-                time.sleep(0.21)
 
         message = (
             f"Refreshed {success_count} flight(s) successfully"
