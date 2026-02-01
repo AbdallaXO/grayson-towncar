@@ -652,6 +652,11 @@ class Leg(models.Model):
         blank=True,
         help_text="Timestamp when leg status was last changed",
     )
+    confirmation_sms_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When next-day confirmation SMS was sent (Twilio)",
+    )
 
     def calculate_revenue_share(self):
         """

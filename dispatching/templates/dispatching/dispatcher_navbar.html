@@ -28,6 +28,10 @@
              href="{% url 'legs_list' %}"><i class="bi bi-signpost-split me-1"></i>All Legs</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'confirmations' %}active fw-bold{% endif %}"
+             href="{% url 'confirmations' %}"><i class="bi bi-chat-text me-1"></i>Confirmations</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'drivers_extend' %}active fw-bold{% endif %}"
              href="{% url 'drivers_extend' %}"><i class="bi bi-people-fill me-1"></i>Drivers</a>
         </li>

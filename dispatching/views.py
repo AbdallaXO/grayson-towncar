@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.contrib import messages
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.cache import cache
@@ -2092,6 +2092,124 @@ def match_all_leg_times_to_flight(request):
     except Exception as e:
         logger.error(f"Error matching all leg times: {e}")
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def confirmations_view(request):
+    """
+    Next-day confirmation SMS: preview legs for a date, export CSV, or send texts via Twilio.
+    Intended to run after validating flights (Refresh Arrival Flights / Match All Flight Times).
+    """
+    from django.utils.dateparse import parse_date
+    from .confirmation_sms import (
+        get_legs_for_confirmation,
+        leg_to_row,
+        get_confirmation_message,
+        export_confirmations_csv,
+        send_confirmations_for_date,
+        send_confirmation_via_twilio,
+        twilio_configured,
+    )
+
+    tomorrow = timezone.localdate() + timedelta(days=1)
+    selected_date = tomorrow
+    if request.GET.get("date"):
+        parsed = parse_date(request.GET["date"])
+        if parsed:
+            selected_date = parsed
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        post_date = request.POST.get("date")
+        target = parse_date(post_date) if post_date else selected_date
+        if not target:
+            messages.error(request, "Invalid date.")
+            return redirect("confirmations")
+
+        if action == "export_csv":
+            csv_bytes = export_confirmations_csv(target)
+            if not csv_bytes:
+                messages.warning(request, f"No legs found for {target}.")
+                return redirect("confirmations")
+            response = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
+            response["Content-Disposition"] = (
+                f'attachment; filename="confirmations_{target}.csv"'
+            )
+            return response
+
+        if action == "send_single":
+            # Send confirmation for one leg only (e.g. updated time or guest didn't get text)
+            leg_id = request.POST.get("leg_id")
+            if not leg_id or not twilio_configured():
+                if not twilio_configured():
+                    messages.error(request, "Twilio is not configured.")
+                else:
+                    messages.error(request, "Invalid leg.")
+                return redirect(reverse("confirmations") + f"?date={target}")
+            try:
+                leg = Leg.objects.select_related(
+                    "reservation", "reservation__customer", "flight_information", "cruise_information"
+                ).get(id=int(leg_id), pickup_date=target)
+            except (ValueError, Leg.DoesNotExist):
+                messages.error(request, "Leg not found.")
+                return redirect(reverse("confirmations") + f"?date={target}")
+            row = leg_to_row(leg)
+            message = get_confirmation_message(leg, row)
+            ok, err = send_confirmation_via_twilio(leg, row, message)
+            if ok:
+                leg.confirmation_sms_sent_at = timezone.now()
+                leg.save(update_fields=["confirmation_sms_sent_at"])
+                messages.success(request, f"Confirmation sent to {row.get('guest_name', 'guest')} for leg #{leg_id}.")
+            else:
+                messages.error(request, f"Failed to send: {err}")
+            return redirect(reverse("confirmations") + f"?date={target}")
+
+        if action == "send_sms":
+            if not twilio_configured():
+                messages.error(
+                    request,
+                    "Twilio is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in .env",
+                )
+                return redirect("confirmations")
+            result = send_confirmations_for_date(target, skip_already_sent=True)
+            sent, failed, skipped = result["sent"], result["failed"], result["skipped"]
+            if result["errors"]:
+                for leg_id, err in result["errors"][:5]:
+                    messages.warning(request, f"Leg {leg_id}: {err}")
+                if len(result["errors"]) > 5:
+                    messages.warning(request, f"... and {len(result['errors']) - 5} more errors.")
+            if sent:
+                messages.success(request, f"Sent {sent} confirmation text(s) for {target}.")
+            if failed:
+                messages.error(request, f"Failed to send {failed} message(s).")
+            if skipped:
+                messages.info(request, f"Skipped {skipped} leg(s) (already sent).")
+            if sent == 0 and failed == 0 and skipped == 0:
+                messages.info(request, f"No legs to send for {target}.")
+            return redirect(reverse("confirmations") + f"?date={target}")
+
+    legs = get_legs_for_confirmation(selected_date)
+    rows = []
+    for leg in legs:
+        row = leg_to_row(leg)
+        row["message_preview"] = get_confirmation_message(leg, row)
+        row["leg"] = leg
+        row["already_sent"] = bool(getattr(leg, "confirmation_sms_sent_at", None))
+        rows.append(row)
+
+    legs_filter_url = reverse("dashboard") + f"?date={selected_date.isoformat()}"
+
+    return render(
+        request,
+        "dispatching/confirmations.html",
+        {
+            "selected_date": selected_date,
+            "rows": rows,
+            "twilio_configured": twilio_configured(),
+            "legs_filter_url": legs_filter_url,
+        },
+    )
 
 
 def _flight_refresh_cache_key(task_id):

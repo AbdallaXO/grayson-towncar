@@ -192,6 +192,11 @@ NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
 AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 
+# Twilio (next-day confirmation SMS)
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
+
 # GoHighLevel Settings
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
 GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")

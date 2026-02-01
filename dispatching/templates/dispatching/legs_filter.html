@@ -333,6 +333,11 @@
               title="Set pickup time to scheduled flight arrival for all arrival legs on this date">
               <i class="bi bi-clock-history me-1"></i>Match All Flight Times
             </button>
+            <a href="{% url 'confirmations' %}?date={{ selected_date|date:'Y-m-d' }}"
+               class="btn btn-sm btn-info text-white"
+               title="Export CSV or send confirmation texts for {{ selected_date|date:'l, F j, Y' }} (no saving page or scripts needed)">
+              <i class="bi bi-chat-text me-1"></i>Send confirmations for this date
+            </a>
           <div class="badge bg-dark">{{ selected_date|date:'l, F j, Y' }}</div>
           </div>
         </div>

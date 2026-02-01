@@ -43,3 +43,4 @@ celery
 redis
 django-celery-beat
 django-celery-results
+twilio

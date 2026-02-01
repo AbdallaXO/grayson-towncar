@@ -25,6 +25,7 @@ urlpatterns = [
     path("match-leg-time-to-flight/", views.match_leg_time_to_flight, name="match_leg_time_to_flight"),
     path("match-all-leg-times-to-flight/", views.match_all_leg_times_to_flight, name="match_all_leg_times_to_flight"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
+    path("confirmations/", views.confirmations_view, name="confirmations"),
     path(
         "refresh-all-flights-status/<str:task_id>/",
         views.refresh_all_flights_status,
