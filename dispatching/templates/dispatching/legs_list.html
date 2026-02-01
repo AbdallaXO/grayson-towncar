@@ -167,6 +167,8 @@
                               {% if trip_type_filter == 'arrival' %}selected{% endif %}>Arrivals</option>
                       <option value="return"
                               {% if trip_type_filter == 'return' %}selected{% endif %}>Returns</option>
+                      <option value="cruise"
+                              {% if trip_type_filter == 'cruise' %}selected{% endif %}>Cruise Transfer</option>
                       <option value="other" {% if trip_type_filter == 'other' %}selected{% endif %}>Other Transfers</option>
                     </select>
                   </div>
@@ -249,7 +251,7 @@
         <div class="card border-0 shadow-sm">
           <div class="card-body py-2">
             <div class="row text-center">
-              <div class="col-3">
+              <div class="{% if can_view_revenue %}col-2{% else %}col-3{% endif %}">
                 <div class="d-flex align-items-center justify-content-center">
                   <i class="bi bi-airplane-engines text-primary me-2"></i>
                   <div>
@@ -258,7 +260,7 @@
                   </div>
                 </div>
               </div>
-              <div class="col-3">
+              <div class="{% if can_view_revenue %}col-2{% else %}col-3{% endif %}">
                 <div class="d-flex align-items-center justify-content-center">
                   <i class="bi bi-airplane text-success me-2"></i>
                   <div>
@@ -267,17 +269,26 @@
                   </div>
                 </div>
               </div>
-              <div class="col-3">
+              <div class="{% if can_view_revenue %}col-2{% else %}col-3{% endif %}">
                 <div class="d-flex align-items-center justify-content-center">
-                  <i class="bi bi-arrow-left-right text-info me-2"></i>
+                  <i class="bi bi-ship text-info me-2"></i>
                   <div>
-                    <div class="fw-bold text-info fs-5">{{ current_page_stats.other }}</div>
+                    <div class="fw-bold text-info fs-5">{{ current_page_stats.cruise|default:0 }}</div>
+                    <div class="small text-muted">Cruise</div>
+                  </div>
+                </div>
+              </div>
+              <div class="{% if can_view_revenue %}col-2{% else %}col-3{% endif %}">
+                <div class="d-flex align-items-center justify-content-center">
+                  <i class="bi bi-arrow-left-right text-secondary me-2"></i>
+                  <div>
+                    <div class="fw-bold text-secondary fs-5">{{ current_page_stats.other }}</div>
                     <div class="small text-muted">Other</div>
                   </div>
                 </div>
               </div>
               {% if can_view_revenue %}
-              <div class="col-3">
+              <div class="col-4">
                 <div class="d-flex align-items-center justify-content-center">
                   <div>
                     <div class="fw-bold text-dark fs-5">${{ current_page_stats.total_revenue|floatformat:0 }}</div>
@@ -577,14 +588,16 @@
                     <div>
                       <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
                     </div>
-                    {% if leg.reservation.store_stop %}
-                      <span class="badge bg-success text-white">
-                        <i class="bi bi-shop me-1"></i> Publix Stop
-                      </span>
-                    {% else %}
-                      <span class="badge bg-danger text-white">
-                        <i class="bi bi-shop me-1"></i>No Store
-                      </span>
+                    {% if leg.get_trip_type != "return" %}
+                      {% if leg.reservation.store_stop %}
+                        <span class="badge bg-success text-white">
+                          <i class="bi bi-shop me-1"></i> Publix Stop
+                        </span>
+                      {% else %}
+                        <span class="badge bg-danger text-white">
+                          <i class="bi bi-shop me-1"></i>No Store
+                        </span>
+                      {% endif %}
                     {% endif %}
                   </div>
                 </td>
@@ -797,9 +810,11 @@
                           <div>
                             <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
                           </div>
-                          <span class="badge bg-dark text-dark">
-                            <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
-                          </span>
+                          {% if leg.get_trip_type != "return" %}
+                            <span class="badge bg-dark text-dark">
+                              <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
+                            </span>
+                          {% endif %}
                         </div>
                       </div>
                     </div>

@@ -184,11 +184,11 @@ def calculate_trip_type_statistics(legs):
     Returns:
         Dictionary with trip type counts
     """
-    trip_type_stats = {"arrival": 0, "return": 0, "other": 0}
+    trip_type_stats = {"arrival": 0, "return": 0, "cruise": 0, "other": 0}
     
     for leg in legs:
         trip_type = leg.get_trip_type()
-        trip_type_stats[trip_type] += 1
+        trip_type_stats[trip_type] = trip_type_stats.get(trip_type, 0) + 1
     
     return trip_type_stats
 

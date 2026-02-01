@@ -332,7 +332,7 @@
                                 <span class="text-muted fst-italic">None</span>
                               {% endif %}
                             </div>
-                            {% if leg.reservation.store_stop %}
+                            {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
                               <div class="mt-1">
                                 <span class="badge bg-success text-white">
                                   <i class="bi bi-shop me-1"></i>Publix Stop
@@ -574,7 +574,7 @@
                                 <div>
                                   <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}
                                 </div>
-                                {% if leg.reservation.store_stop %}
+                                {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
                                   <span class="badge bg-success text-white">
                                     <i class="bi bi-shop me-1"></i>Publix Stop
                                   </span>

@@ -418,19 +418,25 @@
           </div>
           <div class="card-body">
             <div class="row text-center">
-              <div class="col-4">
+              <div class="col-3">
                 <div class="border-end">
                   <h4 class="text-success">{{ trip_type_stats.arrival }}</h4>
                   <small class="text-muted">Arrivals</small>
                 </div>
               </div>
-              <div class="col-4">
+              <div class="col-3">
                 <div class="border-end">
                   <h4 class="text-warning">{{ trip_type_stats.return }}</h4>
                   <small class="text-muted">Returns</small>
                 </div>
               </div>
-              <div class="col-4">
+              <div class="col-3">
+                <div class="border-end">
+                  <h4 class="text-info">{{ trip_type_stats.cruise|default:0 }}</h4>
+                  <small class="text-muted">Cruise Transfer</small>
+                </div>
+              </div>
+              <div class="col-3">
                 <h4 class="text-secondary">{{ trip_type_stats.other }}</h4>
                 <small class="text-muted">Other</small>
               </div>

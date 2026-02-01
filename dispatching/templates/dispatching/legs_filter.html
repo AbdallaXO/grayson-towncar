@@ -187,6 +187,10 @@
              class="badge {% if trip_type_filter == 'return' %}bg-success text-white{% else %}bg-light border border-success text-success{% endif %} text-decoration-none">
             🛬 Returns
           </a>
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}&trip_type=cruise"
+             class="badge {% if trip_type_filter == 'cruise' %}bg-info text-white{% else %}bg-light border border-info text-info{% endif %} text-decoration-none">
+            🚢 Cruise Transfer
+          </a>
           <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}"
              class="badge {% if not trip_type_filter %}bg-dark text-white{% else %}bg-secondary text-white{% endif %} text-decoration-none">
             All Trips
@@ -699,7 +703,7 @@
                             <span class="text-muted fst-italic">None</span>
                           {% endif %}
                         </div>
-                        {% if leg.reservation.store_stop %}
+                        {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
                           <div class="mt-1">
                             <span class="badge bg-success text-white">
                               <i class="bi bi-shop me-1"></i>Publix Stop
@@ -921,7 +925,7 @@
                             <div>
                               <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"None" }}
                             </div>
-                            {% if leg.reservation.store_stop %}
+                            {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
                               <span class="badge bg-success text-white">
                                 <i class="bi bi-shop me-1"></i>Publix Stop
                               </span>

@@ -815,20 +815,27 @@ class Leg(models.Model):
 
     def get_trip_type(self):
         """
-        Determine if this leg is an arrival or return based on pickup/dropoff locations.
-        Returns: 'arrival', 'return', or 'other'
+        Determine trip type from pickup/dropoff locations.
+        Returns: 'arrival', 'return', 'cruise', or 'other'
         """
+        # Cruise/port locations — any leg involving these is "Cruise Transfer" (not return/arrival).
+        # Port Canaveral → airport is Cruise Transfer, not return.
+        cruise_port_keywords = [
+            "port canaveral", "canaveral", "cruise port", "cruise terminal",
+            "cruise termina", "cruise ship", "port canaveral terminal",
+        ]
+
         # Keywords that indicate airport locations (MCO, SFB/Sanford, airport, terminal/gate)
         airport_keywords = ["mco", "sfb", "sanford", "airport", "terminal", "gate", "international"]
 
-        # Cruise/port locations that have "terminal" but are not airports — exclude first
-        cruise_port_keywords = [
-            "port canaveral", "canaveral", "cruise port", "cruise terminal",
-            "cruise ship", "port canaveral terminal",
-        ]
-
         pickup_lower = (self.pickup_location or "").lower()
         dropoff_lower = (self.dropoff_location or "").lower()
+
+        # Any leg involving Port Canaveral / cruise terminal is "Cruise Transfer"
+        if any(cruise in pickup_lower for cruise in cruise_port_keywords):
+            return "cruise"
+        if any(cruise in dropoff_lower for cruise in cruise_port_keywords):
+            return "cruise"
 
         def is_airport(location_lower):
             if not location_lower:
@@ -928,6 +935,14 @@ class Leg(models.Model):
                 "icon": "bi-airplane",
                 "color": "success",
                 "description": "Destination to Airport",
+            }
+        elif trip_type == "cruise":
+            return {
+                "type": "cruise",
+                "label": "Cruise Transfer",
+                "icon": "bi-ship",
+                "color": "info",
+                "description": "Cruise port transfer",
             }
         else:
             return {

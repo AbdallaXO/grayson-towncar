@@ -584,15 +584,16 @@ def legs_list(request):
     vehicle_stats = calculate_vehicle_statistics(page_obj)
     
     # Calculate trip type statistics
-    trip_type_stats = {"arrival": 0, "return": 0, "other": 0}
+    trip_type_stats = {"arrival": 0, "return": 0, "cruise": 0, "other": 0}
     for leg in page_obj:
         trip_type = leg.get_trip_type()
-        trip_type_stats[trip_type] += 1
+        trip_type_stats[trip_type] = trip_type_stats.get(trip_type, 0) + 1
 
     # Calculate current page statistics in a single pass
     current_page_stats = {
         "arrival": 0,
         "return": 0,
+        "cruise": 0,
         "other": 0,
     }
     

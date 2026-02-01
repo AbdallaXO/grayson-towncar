@@ -41,6 +41,18 @@
         .border-orange {
             border-color: #fd7e14 !important;
         }
+
+        /* Review reminder: shiny when picked-up to remind driver */
+        .review-reminder-picked-up {
+            background: linear-gradient(135deg, #e8f4ff 0%, #fff8e8 50%, #e8f4ff 100%);
+            border: 2px solid #0d6efd;
+            box-shadow: 0 0 12px rgba(13, 110, 253, 0.35);
+            animation: review-pulse 2s ease-in-out infinite;
+        }
+        @keyframes review-pulse {
+            0%, 100% { box-shadow: 0 0 12px rgba(13, 110, 253, 0.35); }
+            50% { box-shadow: 0 0 20px rgba(13, 110, 253, 0.5); }
+        }
     </style>
   </head>
 
@@ -122,8 +134,8 @@
                           <strong>D/O:</strong> {{ leg.dropoff_location }}
                         </div>
 
-                        <!-- Store Stop Information - Only show on first leg -->
-                        {% if leg.is_first_leg %}
+                        <!-- Store Stop - show for arrivals/other (never for return/airport drop-off) -->
+                        {% if leg.get_trip_type != "return" %}
                           <div class="mt-2">
                             {% if leg.reservation.store_stop %}
                               <span class="badge bg-success text-white">
@@ -222,29 +234,9 @@
                         <div class="mb-1">
                           <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
                         </div>
-                        
-                        {% if leg.status != "picked-up" %}
-                          <div class="mt-2">
-                            <div class="card border-0 bg-light">
-                              <div class="card-body p-3 text-center">
-                                <div class="mb-2">
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                </div>
-                                <div class="small text-muted mb-2 p-2 border rounded bg-light">
-                                  <i class="bi bi-info-circle me-1"></i>Please click button to request a review after your trip
-                                </div>
-                                <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
-                                   class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                                  <i class="bi bi-chat-heart-fill me-1"></i>Request Review
-                                </a>
-                              </div>
-                            </div>
-                          </div>
-                        {% endif %}
+                        <div class="mb-1">
+                          <strong>Luggage:</strong> {{ leg.reservation.luggage_count }}
+                        </div>
 
                         <!-- Progression Buttons - Show based on current status -->
                         {% if leg.status == "in-progress" %}
@@ -272,31 +264,49 @@
                             <i class="bi bi-person-check"></i> Picked Up
                           </button>
                         {% elif leg.status == "picked-up" %}
-                          <div class="mt-2">
-                            <div class="card border-0 bg-light">
-                              <div class="card-body p-3 text-center">
-                                <div class="mb-2">
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                  <i class="bi bi-star-fill text-warning fs-4"></i>
-                                </div>
-                                <div class="small text-muted mb-2 p-2 border rounded bg-light">
-                                  <i class="bi bi-info-circle me-1"></i>Please click button to request a review after your trip
-                                </div>
-                                <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
+                          <hr class="my-2">
+                          <div class="mt-2 rounded p-2 review-reminder-picked-up">
+                            <div class="mb-2 text-center">
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                            </div>
+                            <div class="small fw-bold text-primary mb-2">
+                              <i class="bi bi-info-circle me-1"></i>Reminder: Request a review before completing the trip. Please click the button below to send the review request.
+                            </div>
+                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
                                    class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
                                   <i class="bi bi-chat-heart-fill me-1"></i>Request Review
-                                </a>
-                              </div>
-                            </div>
+                            </a>
                           </div>
                           <button class="btn btn-success btn-sm progression-btn mt-2" 
                                   data-leg-id="{{ leg.id }}"
                                   data-next-status="completed">
                             <i class="bi bi-flag-checkered"></i> Complete Trip
                           </button>
+                        {% endif %}
+
+                        <hr class="my-2">
+                        <!-- Review request: below button & passenger/luggage; only when not picked-up -->
+                        {% if leg.status != "picked-up" %}
+                          <div class="mt-2 rounded p-2 border bg-light">
+                            <div class="mb-2 text-center">
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                              <i class="bi bi-star-fill text-warning fs-4"></i>
+                            </div>
+                            <div class="small text-muted mb-2">
+                              <i class="bi bi-info-circle me-1"></i>Request a review after your trip. Please click the button below to send the review request.
+                            </div>
+                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
+                                   class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                              <i class="bi bi-chat-heart-fill me-1"></i>Request Review
+                            </a>
+                          </div>
                         {% endif %}
                       </td>
                       <td class="align-middle">
@@ -486,8 +496,8 @@
                       <strong>Drop-Off Location: {{ leg.dropoff_location }}</strong>
                     </div>
 
-                    <!-- Store Stop Information - Only show on first leg -->
-                    {% if leg.is_first_leg %}
+                    <!-- Store Stop - show for arrivals/other (never for return/airport drop-off) -->
+                    {% if leg.get_trip_type != "return" %}
                       <div class="mt-2">
                         {% if leg.reservation.store_stop %}
                           <span class="badge bg-success text-white">
@@ -504,29 +514,6 @@
                   </div>
 
                   <div class="mb-3 pb-3 border-bottom">
-                    {% if leg.status != "picked-up" %}
-                      <div class="mb-2">
-                        <div class="card border-0 bg-light">
-                          <div class="card-body p-3 text-center">
-                            <div class="mb-2">
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                            </div>
-                            <div class="small text-muted mb-2 p-2 border rounded bg-light">
-                              <i class="bi bi-info-circle me-1"></i>Please click button to kindly request a review after your trip
-                            </div>
-                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
-                               class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                              <i class="bi bi-chat-heart-fill me-1"></i>Review Request
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    {% endif %}
-
                     <div class="mb-1">
                       <strong>Vehicle: {{ leg.reservation.vehicle.get_vehicle_type_display }}</strong>
                     </div>
@@ -539,7 +526,7 @@
                     <div class="mb-1">
                       <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
                     </div>
-                    
+
                     <!-- Progression Buttons - Show based on current status -->
                     {% if leg.status == "in-progress" %}
                       <button class="btn btn-success btn-sm progression-btn mt-2 w-100" 
@@ -566,31 +553,49 @@
                         <i class="bi bi-person-check"></i> Picked Up
                       </button>
                     {% elif leg.status == "picked-up" %}
-                      <div class="mt-2">
-                        <div class="card border-0 bg-light">
-                          <div class="card-body p-3 text-center">
-                            <div class="mb-2">
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                            </div>
-                            <div class="small text-muted mb-2 p-2 border rounded bg-light">
-                              <i class="bi bi-info-circle me-1"></i>Please click button to kindly request a review after your trip
-                            </div>
-                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
-                               class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                              <i class="bi bi-chat-heart-fill me-1"></i>Review Request
-                            </a>
-                          </div>
+                      <hr class="my-2">
+                      <div class="mt-2 rounded p-2 review-reminder-picked-up">
+                        <div class="mb-2 text-center">
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
                         </div>
+                        <div class="small fw-bold text-primary mb-2">
+                          <i class="bi bi-info-circle me-1"></i>Reminder: Request a review before completing the trip. Please click the button below to send the review request.
+                        </div>
+                        <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                           class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                          <i class="bi bi-chat-heart-fill me-1"></i>Review Request
+                        </a>
                       </div>
                       <button class="btn btn-success btn-sm progression-btn mt-2 w-100" 
                               data-leg-id="{{ leg.id }}"
                               data-next-status="completed">
                         <i class="bi bi-flag-checkered"></i> Complete Trip
                       </button>
+                    {% endif %}
+
+                    <hr class="my-2">
+                    <!-- Review request: below button & passenger/luggage; only when not picked-up -->
+                    {% if leg.status != "picked-up" %}
+                      <div class="mt-2 rounded p-2 border bg-light">
+                        <div class="mb-2 text-center">
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                        </div>
+                        <div class="small text-muted mb-2">
+                          <i class="bi bi-info-circle me-1"></i>Request a review after your trip. Please click the button below to send the review request.
+                        </div>
+                        <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                           class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
+                          <i class="bi bi-chat-heart-fill me-1"></i>Review Request
+                        </a>
+                      </div>
                     {% endif %}
                   </div>
 
