@@ -818,24 +818,28 @@ class Leg(models.Model):
         Determine if this leg is an arrival or return based on pickup/dropoff locations.
         Returns: 'arrival', 'return', or 'other'
         """
-        import re
+        # Keywords that indicate airport locations (MCO, SFB/Sanford, airport, terminal/gate)
+        airport_keywords = ["mco", "sfb", "sanford", "airport", "terminal", "gate", "international"]
 
-        # Keywords that indicate airport locations
-        airport_keywords = ["mco", "airport", "terminal", "gate", "international"]
+        # Cruise/port locations that have "terminal" but are not airports — exclude first
+        cruise_port_keywords = [
+            "port canaveral", "canaveral", "cruise port", "cruise terminal",
+            "cruise ship", "port canaveral terminal",
+        ]
 
-        # Convert to lowercase for case-insensitive matching
-        pickup_lower = self.pickup_location.lower()
-        dropoff_lower = self.dropoff_location.lower()
+        pickup_lower = (self.pickup_location or "").lower()
+        dropoff_lower = (self.dropoff_location or "").lower()
 
-        # Check if pickup location contains airport keywords
-        pickup_is_airport = any(keyword in pickup_lower for keyword in airport_keywords)
+        def is_airport(location_lower):
+            if not location_lower:
+                return False
+            if any(cruise in location_lower for cruise in cruise_port_keywords):
+                return False
+            return any(kw in location_lower for kw in airport_keywords)
 
-        # Check if dropoff location contains airport keywords
-        dropoff_is_airport = any(
-            keyword in dropoff_lower for keyword in airport_keywords
-        )
+        pickup_is_airport = is_airport(pickup_lower)
+        dropoff_is_airport = is_airport(dropoff_lower)
 
-        # Determine trip type
         if pickup_is_airport and not dropoff_is_airport:
             return "arrival"  # From airport to destination
         elif dropoff_is_airport and not pickup_is_airport:
@@ -939,6 +943,7 @@ class Leg(models.Model):
         indexes = [
             models.Index(fields=["reservation"]),
             models.Index(fields=["flight_information"]),
+            models.Index(fields=["pickup_date", "pickup_time"]),
         ]
 
 

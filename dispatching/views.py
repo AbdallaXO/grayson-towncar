@@ -2029,6 +2029,70 @@ def match_leg_time_to_flight(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+@login_required
+@require_POST
+def match_all_leg_times_to_flight(request):
+    """
+    Set pickup date/time to flight scheduled arrival for all arrival legs on a date.
+    Only updates legs that have flight info and a scheduled gate/runway arrival.
+    Light on DB: one query for legs, one save per leg updated.
+    """
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+    try:
+        data = json.loads(request.body)
+        date_str = data.get("date")
+        if not date_str:
+            return JsonResponse(
+                {"success": False, "error": "Missing date (YYYY-MM-DD)"}, status=400
+            )
+        try:
+            from datetime import datetime as dt
+            target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return JsonResponse(
+                {"success": False, "error": "Invalid date format (use YYYY-MM-DD)"},
+                status=400,
+            )
+        legs = list(
+            Leg.objects.filter(
+                pickup_date=target_date,
+                flight_information__isnull=False,
+            ).select_related("flight_information")
+        )
+        arrival_legs = [leg for leg in legs if leg.get_trip_type() == "arrival"]
+        updated = 0
+        for leg in arrival_legs:
+            flight = leg.flight_information
+            flight_dt = (
+                flight.scheduled_gate_arrival_local
+                or flight.scheduled_arrival_local
+            )
+            if not flight_dt:
+                continue
+            if timezone.is_aware(flight_dt):
+                flight_dt = timezone.make_naive(
+                    flight_dt, timezone.get_current_timezone()
+                )
+            leg.pickup_date = flight_dt.date()
+            leg.pickup_time = flight_dt.time()
+            leg.save()
+            updated += 1
+        return JsonResponse({
+            "success": True,
+            "message": f"Updated {updated} arrival leg(s) to match scheduled flight time.",
+            "updated_count": updated,
+            "total_arrival_legs": len(arrival_legs),
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error matching all leg times: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
 def _flight_refresh_cache_key(task_id):
     return f"flight_refresh:{task_id}"
 

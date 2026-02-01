@@ -322,6 +322,13 @@
               title="Refresh all arrival flight data for {{ selected_date|date:'l, F j, Y' }} (Returns are not refreshed)">
               <i class="bi bi-arrow-clockwise me-1"></i>Refresh Arrival Flights
             </button>
+            <button 
+              id="matchAllFlightTimesBtn"
+              class="btn btn-sm btn-success"
+              data-date="{{ selected_date|date:'Y-m-d' }}"
+              title="Set pickup time to scheduled flight arrival for all arrival legs on this date">
+              <i class="bi bi-clock-history me-1"></i>Match All Flight Times
+            </button>
           <div class="badge bg-dark">{{ selected_date|date:'l, F j, Y' }}</div>
           </div>
         </div>
@@ -1884,6 +1891,46 @@
                           error: error.message,
                           results: []
                       });
+                  });
+              });
+          }
+
+          // Match all flight times (set pickup to scheduled arrival for all arrival legs on date)
+          const matchAllFlightTimesBtn = document.getElementById('matchAllFlightTimesBtn');
+          if (matchAllFlightTimesBtn) {
+              matchAllFlightTimesBtn.addEventListener('click', function() {
+                  const btn = this;
+                  const date = btn.dataset.date;
+                  if (!date) {
+                      alert('No date selected.');
+                      return;
+                  }
+                  const originalHTML = btn.innerHTML;
+                  btn.disabled = true;
+                  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+                  fetch("{% url 'match_all_leg_times_to_flight' %}", {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({ date: date })
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                      if (data.success) {
+                          alert(data.message || `Updated ${data.updated_count} leg(s).`);
+                          window.location.reload();
+                      } else {
+                          btn.disabled = false;
+                          btn.innerHTML = originalHTML;
+                          alert(data.error || 'Could not update leg times.');
+                      }
+                  })
+                  .catch(err => {
+                      btn.disabled = false;
+                      btn.innerHTML = originalHTML;
+                      alert('Error: ' + err.message);
                   });
               });
           }

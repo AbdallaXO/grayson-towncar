@@ -12,6 +12,9 @@ from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
+# Orlando-area airports we serve (MCO = Orlando Intl, SFB = Orlando Sanford / Allegiant etc.)
+ORLANDO_AIRPORT_CODES = ("MCO", "SFB")
+
 
 class AeroAPIService:
     """
@@ -95,7 +98,7 @@ class AeroAPIService:
             logger.info(f"AeroAPI Response Data keys: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
             logger.info(f"AeroAPI Response Data (first 1000 chars): {str(data)[:1000]}")
             
-            # AeroAPI returns flights in a 'flights' array, get the first flight that involves MCO
+            # AeroAPI returns flights in a 'flights' array; get first flight involving MCO or SFB (Orlando-area)
             if isinstance(data, dict) and 'flights' in data:
                 flights = data.get('flights', [])
                 if not flights:
@@ -104,7 +107,7 @@ class AeroAPIService:
                         'status': 'not_found'
                     }
                 
-                # Filter to find flights involving MCO (Orlando International Airport) and matching date if provided
+                # Filter to find flights involving Orlando-area airports (MCO, SFB) and matching date if provided
                 target_date = None
                 if flight_date:
                     try:
@@ -128,16 +131,16 @@ class AeroAPIService:
                     if not isinstance(origin, dict) or not isinstance(destination, dict):
                         continue
                     
-                    # Must be arriving at MCO OR departing from MCO
+                    # Must be arriving at or departing from an Orlando-area airport (MCO or SFB)
                     origin_code = origin.get('code_iata', '')
                     dest_code = destination.get('code_iata', '')
                     
-                    if dest_code != 'MCO' and origin_code != 'MCO':
+                    if dest_code not in ORLANDO_AIRPORT_CODES and origin_code not in ORLANDO_AIRPORT_CODES:
                         continue
                     
-                    # Determine if this is an arrival or departure
-                    is_arrival = dest_code == 'MCO'
-                    is_departure = origin_code == 'MCO'
+                    # Determine if this is an arrival or departure (at/from MCO or SFB)
+                    is_arrival = dest_code in ORLANDO_AIRPORT_CODES
+                    is_departure = origin_code in ORLANDO_AIRPORT_CODES
 
                     # Respect trip type: arrival legs only consider arrivals, return legs only consider departures
                     if desired_direction == "arrival" and not is_arrival:
@@ -201,9 +204,9 @@ class AeroAPIService:
                             if scheduled_dt.date() == target_date:
                                 flight_type = "arriving" if is_arrival else "departing"
                                 candidates.append((scheduled_dt, flight))
-                                logger.info(f"Found MCO flight candidate for {target_date}: {flight.get('ident_iata', 'Unknown')} {flight_type} {scheduled_dt}")
+                                logger.info(f"Found Orlando-area flight candidate for {target_date}: {flight.get('ident_iata', 'Unknown')} {flight_type} {scheduled_dt}")
                     else:
-                        # No date filter, just collect MCO flights
+                        # No date filter, just collect Orlando-area flights
                         candidates.append((None, flight))
                 
                 # Pick the best match
@@ -234,50 +237,50 @@ class AeroAPIService:
                     flight_data = candidates[0][1]
                     logger.info(f"Selected flight: {flight_data.get('ident_iata', 'Unknown')}")
                 else:
-                    # If no MCO flight found for the date, use first MCO flight as fallback
-                    mco_fallback = None
+                    # If no Orlando-area flight found for the date, use first matching flight as fallback
+                    orlando_fallback = None
                     for flight in flights:
                         origin = flight.get('origin', {})
                         destination = flight.get('destination', {})
                         origin_code = origin.get('code_iata', '') if isinstance(origin, dict) else ''
                         dest_code = destination.get('code_iata', '') if isinstance(destination, dict) else ''
                         
-                        is_arrival = dest_code == 'MCO'
-                        is_departure = origin_code == 'MCO'
+                        is_arrival = dest_code in ORLANDO_AIRPORT_CODES
+                        is_departure = origin_code in ORLANDO_AIRPORT_CODES
 
                         if desired_direction == "arrival" and not is_arrival:
                             continue
                         if desired_direction == "departure" and not is_departure:
                             continue
 
-                        if origin_code == 'MCO' or dest_code == 'MCO':
-                            mco_fallback = flight
+                        if origin_code in ORLANDO_AIRPORT_CODES or dest_code in ORLANDO_AIRPORT_CODES:
+                            orlando_fallback = flight
                             break
                     
-                    if mco_fallback:
-                        flight_data = mco_fallback
-                        logger.warning(f"No MCO flight found for date {target_date}, using first MCO flight: {flight_data.get('ident_iata', 'Unknown')}")
+                    if orlando_fallback:
+                        flight_data = orlando_fallback
+                        logger.warning(f"No Orlando-area flight found for date {target_date}, using first match: {flight_data.get('ident_iata', 'Unknown')}")
                     else:
                         if desired_direction:
                             return {
-                                'error': f'No MCO {desired_direction} flight found for date {target_date}',
+                                'error': f'No Orlando-area (MCO/SFB) {desired_direction} flight found for date {target_date}',
                                 'status': 'not_found'
                             }
                         # Last resort: use first flight
                         flight_data = flights[0]
-                        logger.warning(f"No MCO flight found, using first flight: {flight_data.get('ident_iata', 'Unknown')}")
+                        logger.warning(f"No Orlando-area flight found, using first flight: {flight_data.get('ident_iata', 'Unknown')}")
             elif isinstance(data, dict):
                 # Single flight object (shouldn't happen but handle it)
-                # Verify it's an MCO flight
+                # Verify it's an Orlando-area flight (MCO or SFB)
                 origin = data.get('origin', {})
                 destination = data.get('destination', {})
                 origin_code = origin.get('code_iata', '') if isinstance(origin, dict) else ''
                 dest_code = destination.get('code_iata', '') if isinstance(destination, dict) else ''
                 
-                if origin_code != 'MCO' and dest_code != 'MCO':
+                if origin_code not in ORLANDO_AIRPORT_CODES and dest_code not in ORLANDO_AIRPORT_CODES:
                     return {
-                        'error': f'Flight does not involve MCO (Origin: {origin_code}, Destination: {dest_code})',
-                        'status': 'not_mco'
+                        'error': f'Flight does not involve Orlando-area airport (Origin: {origin_code}, Destination: {dest_code})',
+                        'status': 'not_orlando'
                     }
                 
                 flight_data = data
@@ -289,24 +292,24 @@ class AeroAPIService:
                         'status': 'not_found'
                     }
                 
-                # Filter to find MCO flight
-                mco_flight = None
+                # Filter to find Orlando-area flight (MCO or SFB)
+                orlando_flight = None
                 for flight in data:
                     origin = flight.get('origin', {})
                     destination = flight.get('destination', {})
                     origin_code = origin.get('code_iata', '') if isinstance(origin, dict) else ''
                     dest_code = destination.get('code_iata', '') if isinstance(destination, dict) else ''
                     
-                    if origin_code == 'MCO' or dest_code == 'MCO':
-                        mco_flight = flight
-                        logger.info(f"Found MCO flight: {flight.get('ident_iata', 'Unknown')} ({origin_code} -> {dest_code})")
+                    if origin_code in ORLANDO_AIRPORT_CODES or dest_code in ORLANDO_AIRPORT_CODES:
+                        orlando_flight = flight
+                        logger.info(f"Found Orlando-area flight: {flight.get('ident_iata', 'Unknown')} ({origin_code} -> {dest_code})")
                         break
                 
-                if not mco_flight:
-                    mco_flight = data[0]
-                    logger.warning(f"No MCO flight found, using first flight: {mco_flight.get('ident_iata', 'Unknown')}")
+                if not orlando_flight:
+                    orlando_flight = data[0]
+                    logger.warning(f"No Orlando-area flight found, using first flight: {orlando_flight.get('ident_iata', 'Unknown')}")
                 
-                flight_data = mco_flight
+                flight_data = orlando_flight
             else:
                 return {
                     'error': 'Unexpected response format',
@@ -402,11 +405,11 @@ class AeroAPIService:
                 
                 return parsed_dt
             
-            # Determine if this is an arrival at MCO or departure from MCO
+            # Determine if this is an arrival at or departure from Orlando-area (MCO or SFB)
             origin_code = origin_data.get('code_iata', '') if isinstance(origin_data, dict) else ''
             dest_code = destination_data.get('code_iata', '') if isinstance(destination_data, dict) else ''
-            is_arrival_at_mco = dest_code == 'MCO'
-            is_departure_from_mco = origin_code == 'MCO'
+            is_arrival_at_orlando = dest_code in ORLANDO_AIRPORT_CODES
+            is_departure_from_orlando = origin_code in ORLANDO_AIRPORT_CODES
             
             # Parse times based on trip type and flight direction
             scheduled_runway_arrival = None
@@ -422,10 +425,10 @@ class AeroAPIService:
             estimated_dest_gate_arrival = None
             actual_dest_gate_arrival = None
             
-            # For arrival trips (arriving at MCO): use scheduled_on/estimated_on (arrival at MCO)
-            # For return trips (departing from MCO): use scheduled_off/estimated_off (departure from MCO)
-            if trip_type == 'arrival' or (trip_type != 'return' and is_arrival_at_mco):
-                # Arrival at MCO - use arrival times
+            # For arrival trips (arriving at MCO/SFB): use scheduled_on/estimated_on
+            # For return trips (departing from MCO/SFB): use scheduled_off/estimated_off
+            if trip_type == 'arrival' or (trip_type != 'return' and is_arrival_at_orlando):
+                # Arrival at Orlando-area - use arrival times
                 scheduled_runway_arrival = parse_and_convert_to_eastern(data.get('scheduled_on'))
                 estimated_runway_arrival = parse_and_convert_to_eastern(data.get('estimated_on'))
                 actual_runway_arrival = parse_and_convert_to_eastern(data.get('actual_on'))
@@ -433,8 +436,8 @@ class AeroAPIService:
                 scheduled_gate_arrival = parse_and_convert_to_eastern(data.get('scheduled_in'))
                 estimated_gate_arrival = parse_and_convert_to_eastern(data.get('estimated_in'))
                 actual_gate_arrival = parse_and_convert_to_eastern(data.get('actual_in'))
-            elif trip_type == 'return' or is_departure_from_mco:
-                # Departure from MCO - use departure times (scheduled_off/estimated_off)
+            elif trip_type == 'return' or is_departure_from_orlando:
+                # Departure from Orlando-area - use departure times (scheduled_off/estimated_off)
                 scheduled_runway_arrival = parse_and_convert_to_eastern(data.get('scheduled_off'))
                 estimated_runway_arrival = parse_and_convert_to_eastern(data.get('estimated_off'))
                 actual_runway_arrival = parse_and_convert_to_eastern(data.get('actual_off'))
@@ -479,7 +482,7 @@ class AeroAPIService:
             gate = None
             baggage_claim = _value_or_tbd(data, 'baggage_claim')
             
-            if trip_type == 'return' or is_departure_from_mco:
+            if trip_type == 'return' or is_departure_from_orlando:
                 # For departures, use origin gate/terminal
                 terminal = _value_or_tbd(data, 'terminal_origin')
                 gate = _value_or_tbd(data, 'gate_origin')
@@ -548,7 +551,7 @@ class AeroAPIService:
                 'destination': self._format_airport(destination_data),
                 'flight_status': status,  # This is the actual flight status (Scheduled, En Route, etc.)
                 
-                # MCO times (arrival at MCO or departure from MCO, depending on trip type)
+                # Orlando-area times (arrival at or departure from MCO/SFB, depending on trip type)
                 'scheduled_runway_arrival_local': scheduled_runway_arrival,
                 'estimated_runway_arrival_local': estimated_runway_arrival,
                 'actual_runway_arrival_local': actual_runway_arrival,
@@ -573,7 +576,7 @@ class AeroAPIService:
             }
             
             # Add destination arrival times for return trips (when plane lands at destination airport)
-            if trip_type == 'return' or is_departure_from_mco:
+            if trip_type == 'return' or is_departure_from_orlando:
                 result['scheduled_dest_arrival_local'] = scheduled_dest_arrival
                 result['estimated_dest_arrival_local'] = estimated_dest_arrival
                 result['actual_dest_arrival_local'] = actual_dest_arrival
