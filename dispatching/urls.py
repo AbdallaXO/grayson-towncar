@@ -22,6 +22,7 @@ urlpatterns = [
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
     path("refresh-flight-data/", views.refresh_flight_data, name="refresh_flight_data"),
+    path("match-leg-time-to-flight/", views.match_leg_time_to_flight, name="match_leg_time_to_flight"),
     path("refresh-all-flights/", views.refresh_all_flights, name="refresh_all_flights"),
     path(
         "refresh-all-flights-status/<str:task_id>/",

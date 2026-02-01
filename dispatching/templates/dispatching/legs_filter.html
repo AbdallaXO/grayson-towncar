@@ -457,6 +457,14 @@
                             title="Refresh flight data from AeroAPI">
                             <i class="bi bi-arrow-clockwise"></i>
                           </button>
+                          {% if leg.get_trip_type == 'arrival' and leg.flight_information %}
+                          <button 
+                            class="btn btn-sm btn-outline-success match-flight-time-btn" 
+                            data-leg-id="{{ leg.id }}"
+                            title="Set leg pickup time to flight arrival time">
+                            <i class="bi bi-clock-history"></i> Match flight time
+                          </button>
+                          {% endif %}
                         </div>
                         
                         <div class="collapse" id="flightDetails{{ leg.id }}">
@@ -1441,6 +1449,41 @@
                   });
               });
           });
+
+          // Match leg time to flight (arrival legs only)
+          document.querySelectorAll('.match-flight-time-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const el = this;
+                  const originalHTML = el.innerHTML;
+                  el.disabled = true;
+                  el.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+                  fetch("{% url 'match_leg_time_to_flight' %}", {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({ leg_id: legId })
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                      if (data.success) {
+                          el.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+                          window.location.reload();
+                      } else {
+                          el.disabled = false;
+                          el.innerHTML = originalHTML;
+                          alert(data.error || 'Could not update leg time');
+                      }
+                  })
+                  .catch(err => {
+                      el.disabled = false;
+                      el.innerHTML = originalHTML;
+                      alert('Error: ' + err.message);
+                  });
+              });
+          });
           
           // Expand All / Collapse All functionality
           const expandAllBtn = document.getElementById('expandAllFlightsBtn');
@@ -1606,7 +1649,7 @@
                               <div class="modal-body">
                                   <div class="alert alert-info mb-3">
                                       <i class="bi bi-info-circle me-2"></i>
-                                      <strong>Note:</strong> Only arrival flights are being refreshed (return flights are skipped). API rate limit is 10 requests/minute. This may take a while for many flights (~6 seconds per flight).
+                                      <strong>Note:</strong> Only arrival flights are being refreshed (return flights are skipped). API allows up to 5 requests/second; bulk refresh is throttled accordingly.
                                       <br><small>You can close this window and continue working. You'll be notified when the refresh completes.</small>
                                   </div>
                                   <div class="progress mb-3" style="height: 25px;">
@@ -1713,7 +1756,7 @@
                               if (rateLimitedCount > 0) {
                                   resultsHTML += `<div class="alert alert-warning mt-2 mb-0">
                                       <i class="bi bi-exclamation-triangle me-2"></i>
-                                      <strong>Rate Limit Notice:</strong> ${rateLimitedCount} flight(s) hit the API rate limit (10 requests/minute). 
+                                      <strong>Rate Limit Notice:</strong> ${rateLimitedCount} flight(s) hit the API rate limit (5/sec). 
                                       Please wait before refreshing again.
                                   </div>`;
                               }

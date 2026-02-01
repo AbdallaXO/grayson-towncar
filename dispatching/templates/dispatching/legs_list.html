@@ -394,6 +394,14 @@
                           title="Refresh flight data from AeroAPI">
                           <i class="bi bi-arrow-clockwise"></i>
                         </button>
+                        {% if leg.get_trip_type == 'arrival' and leg.flight_information %}
+                        <button 
+                          class="btn btn-sm btn-outline-success match-flight-time-btn" 
+                          data-leg-id="{{ leg.id }}"
+                          title="Set leg pickup time to flight arrival time">
+                          <i class="bi bi-clock-history"></i> Match flight time
+                        </button>
+                        {% endif %}
                       </div>
                       
                       <div class="collapse" id="flightDetails{{ leg.id }}">
@@ -1061,6 +1069,40 @@
                           btn.classList.remove('btn-danger');
                           btn.classList.add('btn-outline-primary');
                       }, 3000);
+                  });
+              });
+          });
+
+          // --- Match leg time to flight (arrival legs only) ---
+          document.querySelectorAll('.match-flight-time-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const el = this;
+                  const originalHtml = el.innerHTML;
+                  el.disabled = true;
+                  el.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                                   document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+                  fetch("{% url 'match_leg_time_to_flight' %}", {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                      body: JSON.stringify({ leg_id: legId })
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                      if (data.success) {
+                          el.innerHTML = '<i class="bi bi-check-circle text-success"></i> Updated';
+                          window.location.reload();
+                      } else {
+                          el.disabled = false;
+                          el.innerHTML = originalHtml;
+                          alert(data.error || 'Could not update leg time');
+                      }
+                  })
+                  .catch(err => {
+                      el.disabled = false;
+                      el.innerHTML = originalHtml;
+                      alert('Error: ' + err.message);
                   });
               });
           });

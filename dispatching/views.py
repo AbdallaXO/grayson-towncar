@@ -1969,6 +1969,66 @@ def refresh_flight_data(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+@login_required
+@require_POST
+def match_leg_time_to_flight(request):
+    """
+    Set a leg's pickup date/time to match the flight's scheduled arrival (arrival legs only).
+    Uses scheduled gate arrival, then scheduled runway arrival—not actual/estimated landing.
+    """
+    if not request.user.is_staff:
+        return JsonResponse(
+            {"success": False, "error": "Permission denied"}, status=403
+        )
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+        if not leg_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing leg ID"}, status=400
+            )
+        leg = get_object_or_404(Leg, id=leg_id)
+        if not leg.flight_information:
+            return JsonResponse(
+                {"success": False, "error": "Leg has no flight information"},
+                status=400,
+            )
+        if leg.get_trip_type() != "arrival":
+            return JsonResponse(
+                {"success": False, "error": "Only arrival legs can be matched to flight time"},
+                status=400,
+            )
+        flight = leg.flight_information
+        # Use scheduled arrival only (gate then runway), not actual/estimated landing
+        flight_dt = (
+            flight.scheduled_gate_arrival_local
+            or flight.scheduled_arrival_local
+        )
+        if not flight_dt:
+            return JsonResponse(
+                {"success": False, "error": "Flight has no scheduled arrival time (refresh flight data first)"},
+                status=400,
+            )
+        if timezone.is_aware(flight_dt):
+            flight_dt = timezone.make_naive(
+                flight_dt, timezone.get_current_timezone()
+            )
+        leg.pickup_date = flight_dt.date()
+        leg.pickup_time = flight_dt.time()
+        leg.save()
+        return JsonResponse({
+            "success": True,
+            "message": "Leg pickup time updated to match flight arrival",
+            "pickup_date": leg.pickup_date.isoformat(),
+            "pickup_time": leg.pickup_time.strftime("%H:%M"),
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error matching leg time to flight: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
 def _flight_refresh_cache_key(task_id):
     return f"flight_refresh:{task_id}"
 
@@ -2209,8 +2269,9 @@ def _run_bulk_flight_refresh(task_id, leg_ids):
                 timeout=timeout_seconds,
             )
 
+            # AeroAPI Standard: up to 5 queries/sec — throttle to stay under
             if index < total_legs - 1:
-                time.sleep(6)
+                time.sleep(0.21)
 
         message = (
             f"Refreshed {success_count} flight(s) successfully"

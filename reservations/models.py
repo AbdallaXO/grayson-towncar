@@ -845,17 +845,16 @@ class Leg(models.Model):
 
     def has_flight_time_mismatch(self, threshold_minutes=30):
         """
-        For arrival legs with flight info: True if the flight's landing/arrival
-        time differs from the leg's pickup time by at least threshold_minutes
-        in either direction (flight delayed = lands after leg time, or flight
-        early = lands before leg time).
+        For arrival legs with flight info: True if the flight's scheduled gate
+        arrival time differs from the leg's pickup time by at least
+        threshold_minutes. Uses scheduled arrival only (not estimated/actual)
+        so delayed flights don't incorrectly flag a leg that matches schedule.
         """
         if self.get_trip_type() != "arrival" or not self.flight_information:
             return False
         flight = self.flight_information
         flight_dt = (
-            flight.actual_arrival_local
-            or flight.estimated_arrival_local
+            flight.scheduled_gate_arrival_local
             or flight.scheduled_arrival_local
         )
         if not flight_dt:
@@ -868,17 +867,16 @@ class Leg(models.Model):
 
     def get_flight_time_mismatch_display(self, threshold_minutes=30):
         """
-        For arrival legs with flight info: if flight time differs from leg
-        pickup by at least threshold_minutes, return a dict with direction
-        ('early'|'late'), minutes (int), and label (e.g. "Coming 45 min early").
-        Otherwise return None.
+        For arrival legs with flight info: if scheduled gate arrival differs
+        from leg pickup by at least threshold_minutes, return a dict with
+        direction ('early'|'late'), minutes (int), and label. Uses scheduled
+        arrival only so delays don't incorrectly flag legs that match schedule.
         """
         if self.get_trip_type() != "arrival" or not self.flight_information:
             return None
         flight = self.flight_information
         flight_dt = (
-            flight.actual_arrival_local
-            or flight.estimated_arrival_local
+            flight.scheduled_gate_arrival_local
             or flight.scheduled_arrival_local
         )
         if not flight_dt:
