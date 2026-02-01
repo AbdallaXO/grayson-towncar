@@ -436,10 +436,16 @@ def refresh_flight_data(request):
     """
     try:
         data = json.loads(request.body)
-        leg_id = data.get("leg_id")
-        if not leg_id:
+        raw_leg_id = data.get("leg_id")
+        if raw_leg_id is None or raw_leg_id == "":
             return JsonResponse(
                 {"success": False, "error": "Missing leg ID"}, status=400
+            )
+        try:
+            leg_id = int(raw_leg_id)
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {"success": False, "error": "Invalid leg ID"}, status=400
             )
 
         driver = get_object_or_404(Driver, profile=request.user)
@@ -448,6 +454,12 @@ def refresh_flight_data(request):
         if not leg.flight_information:
             return JsonResponse(
                 {"success": False, "error": "Leg does not have flight information"},
+                status=400,
+            )
+
+        if leg.get_trip_type() != "arrival":
+            return JsonResponse(
+                {"success": False, "error": "Flight tracking is only available for arrival legs"},
                 status=400,
             )
 

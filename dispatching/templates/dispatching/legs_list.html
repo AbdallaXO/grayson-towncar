@@ -310,7 +310,8 @@
           </thead>
           <tbody>
             {% for leg in legs %}
-              <tr class="align-middle">
+              {% with mismatch=leg.get_flight_time_mismatch_display %}
+              <tr class="align-middle {% if mismatch %}table-danger{% endif %}" {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
                 <!-- Customer dark -->
                 <td>
                   <div class="d-flex align-items-center mb-1">
@@ -349,6 +350,13 @@
 
                 <!-- Trip Details -->
                 <td>
+                  {% if mismatch %}
+                    <div class="mb-1">
+                      <span class="badge bg-danger" title="{{ mismatch.label }}">
+                        <i class="bi bi-exclamation-triangle me-1"></i>{{ mismatch.label }}
+                      </span>
+                    </div>
+                  {% endif %}
                   {% if leg.flight_information %}
                     <div class="mb-2">
                       <div class="text-primary mb-1">
@@ -608,6 +616,7 @@
                   </form>
                 </td>
               </tr>
+              {% endwith %}
             {% endfor %}
           </tbody>
         </table>
@@ -618,10 +627,14 @@
         <div class="row g-2">
           {% for leg in legs %}
             <div class="col-12">
-              <div class="card shadow-sm">
-                <div class="card-header bg-light p-2">
+              {% with mismatch=leg.get_flight_time_mismatch_display %}
+              <div class="card shadow-sm {% if mismatch %}border-danger{% endif %}">
+                <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% else %}bg-light p-2{% endif %}">
                   <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
+                    {% if mismatch %}
+                      <span class="badge bg-danger" title="{{ mismatch.label }}">{{ mismatch.label }}</span>
+                    {% endif %}
                     <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                        class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
                   </div>
@@ -820,6 +833,7 @@
                   </div>
                 </div>
               </div>
+              {% endwith %}
             </div>
           {% endfor %}
         </div>
@@ -1025,15 +1039,11 @@
                   })
                   .then(data => {
                       if (data.success) {
-                          // Show success message
                           btn.innerHTML = '<i class="bi bi-check-circle text-success"></i> Refreshed';
                           btn.classList.remove('btn-outline-primary');
                           btn.classList.add('btn-success');
-                          
-                          // Reload page after 1 second to show updated data
-                          setTimeout(() => {
-                              window.location.reload();
-                          }, 1000);
+                          // Reload immediately so updated flight details are visible
+                          window.location.reload();
                       } else {
                           throw new Error(data.error || 'Unknown error');
                       }

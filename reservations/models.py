@@ -9,8 +9,7 @@ import uuid
 from decimal import Decimal
 from django.utils import timezone
 from rates.models import Vehicle, Rate, Route, Location
-from datetime import timedelta
-from datetime import time
+from datetime import datetime, timedelta, time
 
 
 class Customer(models.Model):
@@ -843,6 +842,69 @@ class Leg(models.Model):
             return "return"  # From destination to airport
         else:
             return "other"  # Neither pickup nor dropoff is airport, or both are
+
+    def has_flight_time_mismatch(self, threshold_minutes=30):
+        """
+        For arrival legs with flight info: True if the flight's landing/arrival
+        time differs from the leg's pickup time by at least threshold_minutes
+        in either direction (flight delayed = lands after leg time, or flight
+        early = lands before leg time).
+        """
+        if self.get_trip_type() != "arrival" or not self.flight_information:
+            return False
+        flight = self.flight_information
+        flight_dt = (
+            flight.actual_arrival_local
+            or flight.estimated_arrival_local
+            or flight.scheduled_arrival_local
+        )
+        if not flight_dt:
+            return False
+        leg_dt = datetime.combine(self.pickup_date, self.pickup_time)
+        if timezone.is_aware(flight_dt):
+            flight_dt = timezone.make_naive(flight_dt, timezone.get_current_timezone())
+        delta = abs(flight_dt - leg_dt)
+        return delta >= timedelta(minutes=threshold_minutes)
+
+    def get_flight_time_mismatch_display(self, threshold_minutes=30):
+        """
+        For arrival legs with flight info: if flight time differs from leg
+        pickup by at least threshold_minutes, return a dict with direction
+        ('early'|'late'), minutes (int), and label (e.g. "Coming 45 min early").
+        Otherwise return None.
+        """
+        if self.get_trip_type() != "arrival" or not self.flight_information:
+            return None
+        flight = self.flight_information
+        flight_dt = (
+            flight.actual_arrival_local
+            or flight.estimated_arrival_local
+            or flight.scheduled_arrival_local
+        )
+        if not flight_dt:
+            return None
+        leg_dt = datetime.combine(self.pickup_date, self.pickup_time)
+        if timezone.is_aware(flight_dt):
+            flight_dt = timezone.make_naive(flight_dt, timezone.get_current_timezone())
+        delta = flight_dt - leg_dt
+        total_seconds = int(delta.total_seconds())
+        total_minutes = abs(total_seconds) // 60
+        if total_minutes < threshold_minutes:
+            return None
+        if total_seconds >= 0:
+            direction = "late"
+        else:
+            direction = "early"
+        if total_minutes >= 60:
+            hours, mins = divmod(total_minutes, 60)
+            if mins:
+                time_str = f"{hours} hr {mins} min"
+            else:
+                time_str = f"{hours} hr"
+        else:
+            time_str = f"{total_minutes} min"
+        label = f"Coming {time_str} {'late' if direction == 'late' else 'early'}"
+        return {"direction": direction, "minutes": total_minutes, "label": label}
 
     def get_trip_type_display(self):
         """

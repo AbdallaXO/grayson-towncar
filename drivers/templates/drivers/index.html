@@ -237,7 +237,7 @@
                         <div>
                           <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                         </div>
-                        {% if leg.flight_information and leg.get_trip_type == "arrival" %}
+                        {% if leg.flight_information %}
                           <hr class="my-2">
                           <div class="mt-1">
                             <span class="fw-bold">Flight:</span> {{ leg.flight_information }}
@@ -247,6 +247,7 @@
                               </span>
                             {% endif %}
                           </div>
+                          {% if leg.get_trip_type == "arrival" %}
                           <div class="flight-tracker mt-2" data-leg-id="{{ leg.id }}">
                             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                               <button type="button"
@@ -294,6 +295,7 @@
                               </div>
                             </div>
                           </div>
+                          {% endif %}
                         {% endif %}
                         {% if leg.cruise_information %}
                           <div class="mt-1">
@@ -467,7 +469,7 @@
                 </div>
 
                 <div class="mobile-section">
-                        {% if leg.flight_information and leg.get_trip_type == "arrival" %}
+                        {% if leg.flight_information %}
                           <hr class="my-2">
                     <div class="mt-1">
                       <strong>Flight:</strong> {{ leg.flight_information }}
@@ -477,6 +479,7 @@
                         </span>
                       {% endif %}
                     </div>
+                    {% if leg.get_trip_type == "arrival" %}
                     <div class="flight-tracker mt-2" data-leg-id="{{ leg.id }}">
                       <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                         <button type="button"
@@ -524,6 +527,7 @@
                         </div>
                       </div>
                     </div>
+                    {% endif %}
                   {% endif %}
                   {% if leg.cruise_information %}
                     <div class="mt-1">
@@ -929,12 +933,18 @@
                         },
                         body: JSON.stringify({ leg_id: legId })
                     })
-                    .then(response => response.json())
-                    .then(data => {
+                    .then(response => response.json().then(data => ({ response, data })))
+                    .then(({ response, data }) => {
                         if (data.success && data.flight_data) {
                             updateFlightUI(legId, data.flight_data);
                             setTimeout(() => window.location.reload(), 300);
+                        } else if (!response.ok && data.error) {
+                            alert(data.error);
                         }
+                    })
+                    .catch(err => {
+                        console.error('Refresh flight error:', err);
+                        alert('Could not refresh flight. Please try again.');
                     })
                     .finally(() => {
                         button.disabled = false;

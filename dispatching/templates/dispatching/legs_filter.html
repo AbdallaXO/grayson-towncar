@@ -343,7 +343,8 @@
             </thead>
             <tbody>
               {% for leg in legs %}
-                <tr class="align-middle">
+                {% with mismatch=leg.get_flight_time_mismatch_display %}
+                <tr class="align-middle {% if mismatch %}table-danger{% endif %}" {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
                   <!-- Customer -->
                   <td>
                     <div class="d-flex flex-column">
@@ -383,6 +384,13 @@
 
                   <!-- Pickup Info -->
                   <td>
+                    {% if mismatch %}
+                      <div class="mb-1">
+                        <span class="badge bg-danger" title="{{ mismatch.label }}">
+                          <i class="bi bi-exclamation-triangle me-1"></i>{{ mismatch.label }}
+                        </span>
+                      </div>
+                    {% endif %}
                     {% if leg.flight_information %}
                       <div class="mb-2">
                       <div class="text-primary mb-1">
@@ -728,6 +736,7 @@
                     </form>
                   </td>
                 </tr>
+                {% endwith %}
               {% empty %}
                 <tr>
                   <td colspan="7" class="text-center py-4">
@@ -749,12 +758,16 @@
         <div class="d-lg-none">
           <div class="row g-3 p-2">
             {% for leg in legs %}
+              {% with mismatch=leg.get_flight_time_mismatch_display %}
               <div class="col-12">
-                <div class="card shadow-sm">
-                  <div class="card-header bg-light p-2">
+                <div class="card shadow-sm {% if mismatch %}border-danger{% endif %}">
+                  <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% else %}bg-light p-2{% endif %}">
                     <div class="d-flex justify-content-between align-items-center">
                       <h6 class="mb-0 fw-bold">
                         {{ leg.reservation.customer.get_full_name }}
+                        {% if mismatch %}
+                          <span class="badge bg-danger ms-1" title="{{ mismatch.label }}">{{ mismatch.label }}</span>
+                        {% endif %}
                       </h6>
                       <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                          class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
@@ -946,6 +959,7 @@
                   </div>
                 </div>
               </div>
+              {% endwith %}
             {% empty %}
               <div class="col-12">
                 <div class="alert alert-light border shadow-sm" role="alert">
@@ -1410,14 +1424,9 @@
                   .then(response => response.json())
                   .then(data => {
                       if (data.success) {
-                          // Update UI without reloading
-                          updateFlightUI(legId, data.flight_data);
-                          // Show success indicator
                           this.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
-                          setTimeout(() => {
-                              this.disabled = false;
-                              this.innerHTML = originalHTML;
-                          }, 2000);
+                          // Reload so updated flight details and mismatch badges are visible
+                          window.location.reload();
                       } else {
                           alert('Error refreshing flight data: ' + (data.error || 'Unknown error'));
                           this.disabled = false;
