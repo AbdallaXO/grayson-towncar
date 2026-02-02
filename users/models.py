@@ -111,6 +111,13 @@ class TravelAgent(models.Model):
     agent_name = models.CharField(
         max_length=100, help_text="Your full name", null=True, blank=True
     )
+    include_in_confirmation_sms = models.BooleanField(
+        default=False,
+        help_text=(
+            "If checked, confirmation texts to the guest will mention that the "
+            "trip was booked through this agent/agency"
+        ),
+    )
     agency_name = models.CharField(max_length=100, null=True, blank=True)
     phone = models.CharField(max_length=20)
     commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=10.00)

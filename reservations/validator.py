@@ -47,3 +47,16 @@ def validate_vehicle_constraints(vehicle, cleaned_data, add_error):
             "need_carseats",
             f"{vehicle} can accommodate a total of up to {vehicle.carseats_capacity} car seats and boosters combined.",
         )
+
+    # Mini Van: allow only 1 car seat total (ff or rf) + up to 1 booster.
+    if vehicle.vehicle_type == "mini_van":
+        if ff_carseats + rf_carseats > 1:
+            add_error(
+                "need_carseats",
+                "Mini Van allows only 1 car seat total (either rear-facing or forward-facing).",
+            )
+        if boosters > 1:
+            add_error(
+                "booster_seats",
+                "Mini Van allows only 1 booster seat.",
+            )

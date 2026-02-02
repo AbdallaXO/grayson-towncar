@@ -333,6 +333,11 @@
               title="Set pickup time to scheduled flight arrival for all arrival legs on this date">
               <i class="bi bi-clock-history me-1"></i>Match All Flight Times
             </button>
+            <a href="{% url 'legs_dashboard_export_csv' %}?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+               class="btn btn-sm btn-outline-dark"
+               title="Export legs for {{ selected_date|date:'l, F j, Y' }} to CSV">
+              <i class="bi bi-download me-1"></i>Export CSV
+            </a>
             <a href="{% url 'confirmations' %}?date={{ selected_date|date:'Y-m-d' }}"
                class="btn btn-sm btn-info text-white"
                title="Export CSV or send confirmation texts for {{ selected_date|date:'l, F j, Y' }} (no saving page or scripts needed)">

@@ -5,6 +5,11 @@ from users.emails import send_reservation_confirmation_ajax
 urlpatterns = [
     path("", views.index, name="dashboard"),
     path(
+        "legs-dashboard-export/",
+        views.export_legs_dashboard_csv,
+        name="legs_dashboard_export_csv",
+    ),
+    path(
         "reservations-list/",
         views.ReservationListView.as_view(),
         name="reservations_list",

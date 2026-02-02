@@ -19,6 +19,9 @@ import json
 import threading
 import uuid
 from datetime import datetime, timedelta
+import csv
+import io
+from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.views.generic import ListView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -31,6 +34,7 @@ from django.db.models import OuterRef, Subquery
 from reservations.models import Reservation, Leg, Customer, Flight
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
+from .confirmation_sms import leg_to_row
 from drivers.models import (
     Driver,
     DriverPayment,
@@ -225,6 +229,106 @@ def index(request):
     return render(request, "dispatching/legs_filter.html", context)
 
 
+@login_required(login_url="login")
+def export_legs_dashboard_csv(request):
+    """
+    Export the legs dashboard view to CSV for a selected date, with filters.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    selected_date = request.GET.get("date")
+    driver_filter = request.GET.get("driver")
+    trip_type_filter = request.GET.get("trip_type")
+
+    try:
+        selected_date = (
+            datetime.strptime(selected_date, "%Y-%m-%d").date()
+            if selected_date
+            else timezone.localdate()
+        )
+    except ValueError:
+        selected_date = timezone.localdate()
+
+    legs_query = (
+        Leg.objects.filter(pickup_date=selected_date)
+        .exclude(reservation__refund_status="completed")
+    )
+
+    if driver_filter:
+        if driver_filter == "unassigned":
+            legs_query = legs_query.filter(driver__isnull=True)
+        else:
+            legs_query = legs_query.filter(driver_id=driver_filter)
+
+    legs = list(
+        legs_query.select_related(
+            "reservation",
+            "reservation__customer",
+            "reservation__vehicle",
+            "reservation__travel_agent",
+            "reservation__travel_agent__user",
+            "driver",
+            "driver__profile",
+            "flight_information",
+            "cruise_information",
+        ).order_by("pickup_time")
+    )
+
+    if trip_type_filter:
+        legs = [leg for leg in legs if leg.get_trip_type() == trip_type_filter]
+
+    if not legs:
+        messages.warning(
+            request,
+            f"No legs found for {selected_date}.",
+        )
+        query = urlencode(
+            {
+                "date": selected_date.strftime("%Y-%m-%d"),
+                **({"driver": driver_filter} if driver_filter else {}),
+                **({"trip_type": trip_type_filter} if trip_type_filter else {}),
+            }
+        )
+        return redirect(f"{reverse('dashboard')}?{query}")
+
+    fieldnames = [
+        "leg_id",
+        "reservation_id",
+        "guest_name",
+        "pickup_date",
+        "pickup_time",
+        "pickup_location",
+        "dropoff_location",
+        "trip_type",
+        "vehicle_type",
+        "passenger_count",
+        "car_seats",
+        "assigned_driver",
+        "status",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for leg in legs:
+        row = leg_to_row(leg)
+        row.update(
+            {
+                "reservation_id": leg.reservation.id if leg.reservation else "",
+                "assigned_driver": str(leg.driver) if leg.driver else "Unassigned",
+                "status": leg.status or "",
+            }
+        )
+        writer.writerow(row)
+
+    csv_bytes = output.getvalue().encode("utf-8")
+    response = HttpResponse(csv_bytes, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="legs_dashboard_{selected_date}.csv"'
+    )
+    return response
+
+
 class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Reservation
     template_name = "dispatching/all_reservations.html"
@@ -234,14 +338,20 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     def test_func(self):
         return self.request.user.is_staff
 
-    def get_queryset(self):
-        queryset = (
-            Reservation.objects.select_related("customer", "vehicle", "rate", "travel_agent", "travel_agent__user")
-            .prefetch_related("legs", "payments")
-            .order_by("-created_at")
-        )
+    def _get_filtered_queryset(self, include_related=True):
+        if include_related:
+            queryset = Reservation.objects.select_related(
+                "customer",
+                "vehicle",
+                "rate",
+                "travel_agent",
+                "travel_agent__user",
+            ).prefetch_related("legs", "payments")
+        else:
+            queryset = Reservation.objects.select_related("customer")
 
-        # Apply filters
+        queryset = queryset.order_by("-created_at")
+
         search_query = self.request.GET.get("search_q")
         if search_query:
             queryset = queryset.filter(
@@ -265,29 +375,21 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         status_filter = self.request.GET.get("status")
         if status_filter:
             if status_filter == "need_payment":
-                # Filter for reservations with no payments
                 queryset = queryset.filter(payments__isnull=True)
             else:
                 queryset = queryset.filter(status=status_filter)
 
-        # Exclude refunded reservations from default view (they're cancelled and archived)
-        # BUT if filtering by 'cancelled' or 'pending', show all including refunded ones
-        if status_filter not in ['cancelled', 'pending']:
-            queryset = queryset.exclude(refund_status='completed')
-
-        # Add is_first_leg property to each leg - optimized to avoid N+1
-        for reservation in queryset:
-            legs_list = list(reservation.legs.all())
-            if legs_list:
-                first_leg = min(legs_list, key=lambda x: x.pickup_time)
-                for leg in legs_list:
-                    leg.is_first_leg = leg.id == first_leg.id
+        if status_filter not in ["cancelled", "pending"]:
+            queryset = queryset.exclude(refund_status="completed")
 
         return queryset
 
+    def get_queryset(self):
+        return self._get_filtered_queryset(include_related=True)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        queryset = self.get_queryset()
+        queryset = self._get_filtered_queryset(include_related=False)
 
         # Annotate counts in a single query
         stats = queryset.aggregate(

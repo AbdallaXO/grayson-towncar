@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!limitsEl) return;
 
     const limits = {
+        vehicleType: limitsEl.dataset.vehicleType || "",
         passengers: parseInt(limitsEl.dataset.maxPassengers),
         luggage: parseInt(limitsEl.dataset.maxLuggage),
         ff: parseInt(limitsEl.dataset.maxFf),
@@ -75,6 +76,31 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function validateMiniVanCombo() {
+        if (limits.vehicleType !== "mini_van") return;
+
+        const ff = parseInt(inputs.ff?.value || 0);
+        const rf = parseInt(inputs.rf?.value || 0);
+        const booster = parseInt(inputs.booster?.value || 0);
+
+        if (ff + rf > 1) {
+            const msg = "Mini Van allows only 1 car seat total (either rear-facing or forward-facing).";
+            [inputs.ff, inputs.rf].forEach((input, i) => {
+                const keys = ["ff", "rf"];
+                input.classList.add("is-invalid");
+                const errorEl = createOrGetErrorElement(input, keys[i]);
+                errorEl.textContent = msg;
+            });
+        } else {
+            ["ff", "rf"].forEach(key => clearError(inputs[key], key));
+        }
+
+        if (booster > 1) {
+            const msg = "Mini Van allows only 1 booster seat.";
+            showError(inputs.booster, "booster", msg);
+        }
+    }
+
     // Attach input listeners
     if (inputs.passenger) {
         inputs.passenger.addEventListener("input", () =>
@@ -94,6 +120,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 inputs[key].addEventListener("input", () => {
                     validateSingleField(inputs[key], key, limits[key], label);
                     validateTotalCarseats();
+                    validateMiniVanCombo();
                 });
             }
         }

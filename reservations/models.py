@@ -239,6 +239,9 @@ class Reservation(models.Model):
             models.Index(fields=["rate"]),
             models.Index(fields=["uuid"]),
             models.Index(fields=["travel_agent"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["refund_status"]),
         ]
 
     def save(self, *args, **kwargs):
