@@ -588,13 +588,17 @@ def agent_profile(request):
             travel_agent.agent_name = request.POST.get("agent_name", "")
             travel_agent.agency_name = request.POST.get("agency_name", "")
             travel_agent.phone = request.POST.get("phone", "")
+            travel_agent.payment_method = request.POST.get("payment_method", "")
             travel_agent.payment_info = request.POST.get("payment_info", "")
             travel_agent.save()
 
             messages.success(request, "Profile updated successfully!")
             return redirect("agent_profile")
 
-        context = {"travel_agent": travel_agent}
+        context = {
+            "travel_agent": travel_agent,
+            "payment_method_choices": TravelAgent.PAYMENT_METHOD_CHOICES,
+        }
         return render(request, "users/agent_profile.html", context)
 
     except TravelAgent.DoesNotExist:

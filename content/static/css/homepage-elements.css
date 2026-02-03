@@ -131,30 +131,34 @@
   }
 }
 
+/* =====================================================
+   PREMIUM BUTTON STYLES - Gold/Champagne Theme
+   ===================================================== */
+
 /* Trip Type Button Styling */
 .btn-check:checked + .btn-outline-dark,
 #quote-btn:not(:disabled) {
-  background-color: #0a1428 !important;
-  border-color: #0a1428 !important;
-  color: white !important;
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  border-color: #C9A227 !important;
+  color: #0d1117 !important;
 }
 
 .btn-outline-dark {
   background-color: transparent;
-  border-color: #0a1428;
-  color: #0a1428;
+  border-color: #0d1117;
+  color: #0d1117;
 }
 
 .btn-outline-dark:hover:not(:disabled) {
-  background-color: #152238;
-  border-color: #152238;
-  color: white;
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
+  border-color: #C9A227;
+  color: #0d1117;
 }
 
 #quote-btn {
   background-color: transparent;
-  border-color: #0a1428;
-  color: #0a1428;
+  border-color: #0d1117;
+  color: #0d1117;
   transition: all 0.3s ease;
 }
 
@@ -164,31 +168,216 @@
 }
 
 #quote-btn:not(:disabled) {
-  background-color: #0a1428 !important;
-  border-color: #0a1428 !important;
-  color: white !important;
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  border-color: #C9A227 !important;
+  color: #0d1117 !important;
+  font-weight: 600;
 }
 
 #quote-btn:not(:disabled):hover {
-  background-color: #152238 !important;
-  border-color: #152238 !important;
-  color: white !important;
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  border-color: #D4AF37 !important;
+  color: #0d1117 !important;
   transform: translateY(-3px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0.5rem 1rem rgba(201, 162, 39, 0.3);
 }
 
-/* Reserve Now Button Styling */
-.btn.bg-button-dark {
-  background-color: #0a1428;
-  color: white !important;
+/* Reserve Now / Book Now / Primary Button Styling */
+.btn.bg-button-dark,
+.btn-premium-primary {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  font-weight: 600;
+  border: none !important;
   transition: all 0.3s ease;
 }
 
-.btn.bg-button-dark:hover {
-  background-color: #152238;
-  color: white !important;
+.btn.bg-button-dark:hover,
+.btn-premium-primary:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
   transform: translateY(-3px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0.5rem 1rem rgba(201, 162, 39, 0.3);
+}
+
+/* Gold Button Variant */
+.btn-premium-gold,
+.btn-gold {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  font-weight: 600;
+  border: none !important;
+  padding: 0.875rem 2rem;
+  border-radius: 50px;
+  transition: all 0.3s ease;
+}
+
+.btn-premium-gold:hover,
+.btn-gold:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.35);
+}
+
+/* Outline Button on Dark Backgrounds */
+.btn-premium-outline {
+  background: transparent !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  padding: 0.875rem 2rem;
+  border-radius: 50px;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  transition: all 0.3s ease;
+}
+
+.btn-premium-outline:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: #C9A227 !important;
+  color: #C9A227 !important;
+}
+
+/* Warning Button Override to Gold */
+.btn-warning {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  border: none !important;
+  font-weight: 600;
+}
+
+.btn-warning:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.3);
+}
+
+/* =====================================================
+   GLOBAL BUTTON GOLD OVERRIDES - Maximum Specificity
+   ===================================================== */
+
+/* Primary buttons - ALL should be gold */
+.btn.btn-gold,
+a.btn.btn-gold,
+button.btn.btn-gold,
+.btn-gold {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  border: none !important;
+  font-weight: 600 !important;
+}
+
+.btn.btn-gold:hover,
+a.btn.btn-gold:hover,
+button.btn.btn-gold:hover,
+.btn-gold:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.35) !important;
+}
+
+/* Premium Primary Button - Gold Gradient */
+.btn-premium-primary,
+.btn.btn-premium-primary,
+a.btn-premium-primary,
+a.btn.btn-premium-primary,
+button.btn-premium-primary {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  border: none !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 50px !important;
+  text-decoration: none !important;
+  display: inline-block;
+}
+
+.btn-premium-primary:hover,
+.btn.btn-premium-primary:hover,
+a.btn-premium-primary:hover,
+a.btn.btn-premium-primary:hover,
+button.btn-premium-primary:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.35) !important;
+}
+
+/* Premium Gold Button - Same as Primary */
+.btn-premium-gold,
+.btn.btn-premium-gold,
+a.btn-premium-gold,
+a.btn.btn-premium-gold,
+button.btn-premium-gold {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  border: none !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 50px !important;
+  text-decoration: none !important;
+  display: inline-block;
+}
+
+.btn-premium-gold:hover,
+.btn.btn-premium-gold:hover,
+a.btn-premium-gold:hover,
+a.btn.btn-premium-gold:hover,
+button.btn-premium-gold:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.35) !important;
+}
+
+/* Premium Outline Button - Dark background with gold hover */
+.btn-premium-outline,
+.btn.btn-premium-outline,
+a.btn-premium-outline,
+a.btn.btn-premium-outline,
+button.btn-premium-outline {
+  background: transparent !important;
+  color: #ffffff !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  font-weight: 600 !important;
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 50px !important;
+  text-decoration: none !important;
+  display: inline-block;
+}
+
+.btn-premium-outline:hover,
+.btn.btn-premium-outline:hover,
+a.btn-premium-outline:hover,
+a.btn.btn-premium-outline:hover,
+button.btn-premium-outline:hover {
+  background: rgba(201, 162, 39, 0.15) !important;
+  color: #C9A227 !important;
+  border-color: #C9A227 !important;
+}
+
+/* Override btn-dark to use gold on landing page */
+main .btn-dark,
+main .btn.btn-dark,
+main a.btn-dark,
+section .btn-dark,
+section .btn.btn-dark {
+  background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%) !important;
+  color: #0d1117 !important;
+  border: none !important;
+  font-weight: 600 !important;
+}
+
+main .btn-dark:hover,
+main .btn.btn-dark:hover,
+main a.btn-dark:hover,
+section .btn-dark:hover,
+section .btn.btn-dark:hover {
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%) !important;
+  color: #0d1117 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(201, 162, 39, 0.35) !important;
 }
 
 /* Badge Enhancement */

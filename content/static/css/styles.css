@@ -1,3 +1,18 @@
+/* =====================================================
+   GRAYSON TOWNCAR - BASE STYLES
+   Premium Transportation Color Palette & Utilities
+   ===================================================== */
+
+/* CSS Variables for Premium Colors */
+:root {
+    --gtc-gold: #C9A227;
+    --gtc-gold-light: #D4AF37;
+    --gtc-champagne: #E8D5B7;
+    --gtc-dark: #0d1117;
+    --gtc-dark-navy: #0A1428;
+    --gtc-cream: #F8F6F0;
+}
+
 /* Add the feature class styling here */
 .feature {
     display: inline-flex;
@@ -28,33 +43,62 @@
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
-.bg-hero-dark, .bg-navbar-dark, .bg-footer-dark, .bg-button-dark {
-    background-color: #0A1428 !important;
+/* Dark backgrounds - Updated for premium look */
+.bg-hero-dark, .bg-navbar-dark, .bg-footer-dark {
+    background-color: var(--gtc-dark) !important;
 }
 
+.bg-button-dark {
+    background-color: var(--gtc-dark-navy) !important;
+}
+
+/* Gold & Champagne Colors */
 .bg-custom-light-gold {
-    background-color: #F0E6D2 !important;
-} 
+    background-color: var(--gtc-cream) !important;
+}
 
 .custom-button-bg {
-    background-color: #dbba72 !important;
+    background: linear-gradient(135deg, var(--gtc-gold) 0%, var(--gtc-gold-light) 100%) !important;
+    color: var(--gtc-dark) !important;
 }
 
 .custom-button-bg:hover {
-    background-color: #c9a851 !important;
+    background: linear-gradient(135deg, var(--gtc-gold-light) 0%, var(--gtc-gold) 100%) !important;
 }
 
 .custom-bg-gold1 {
-    background-color: #F0E6D2 !important;
+    background-color: var(--gtc-cream) !important;
 }
 
+.text-gold {
+    color: var(--gtc-gold) !important;
+}
+
+/* Gradient backgrounds */
 .about-gradient {
     background: linear-gradient(to top, #486581, #D6E6F2) !important;
 }
+
 .about-gradient3 {
     background: linear-gradient(to left, #9b9b9bcd, #ffffffd6) !important;
 }
 
 .home-gradient, .fleet-gradient, .about-gradient2 {
-    background: linear-gradient(to bottom, #F0E6D2,#D6E6F2) !important;
+    background: linear-gradient(to bottom, var(--gtc-cream), #D6E6F2) !important;
+}
+
+/* Premium Gold Button */
+.btn-gold {
+    background: linear-gradient(135deg, var(--gtc-gold) 0%, var(--gtc-gold-light) 100%);
+    color: var(--gtc-dark);
+    font-weight: 600;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-gold:hover {
+    background: linear-gradient(135deg, var(--gtc-gold-light) 0%, var(--gtc-gold) 100%);
+    color: var(--gtc-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(201, 162, 39, 0.3);
 }

@@ -1,37 +1,214 @@
 {% load static %}
-<section class="bg-warning bg-opacity-10 py-5">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-lg-6 pe-lg-5">
-                    <div class="mb-4">
-                        <h2 class="display-6 fw-normal mb-3 text-start">Ready to Book With Us?</h2>
-                        <p class="text-muted lead mb-4">
-                            Elevate your travel experience with Grayson Towncar. Seamless transportation tailored to your comfort and convenience.
-                        </p>
-                        <div class="d-flex align-items-center mb-4">
-                            <div class="bg-warning bg-opacity-50 rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 60px; height: 60px;">
-                                <i class="bi bi-telephone-fill text-dark fs-4" style="line-height: 1;"></i>
-                            </div>
-                            <div>
-                                <small class="text-muted d-block">24/7 Reservations</small>
-                                <h4 class="fw-bold mb-0">+1 (407) 212-7190</h4>
-                            </div>
+<section class="premium-cta-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 pe-lg-5">
+                <div class="mb-4 mb-lg-0">
+                    <span class="cta-label">Start Your Journey</span>
+                    <h2 class="cta-title">Ready to Experience Premium Transportation?</h2>
+                    <p class="cta-description">
+                        Elevate your travel experience with Grayson Towncar. Seamless, luxury transportation tailored to your comfort and convenience.
+                    </p>
+                    <div class="cta-phone-box">
+                        <div class="cta-phone-icon">
+                            <i class="bi bi-telephone-fill"></i>
                         </div>
-                         <div class="d-flex gap-2">
-                            <a href="{% url 'rates' %}" class="btn btn-warning flex-grow-1 rounded-pill">
-                                <i class="bi bi-car-front me-2"></i>Book Your Ride
-                            </a>
-                            <a href="{% url 'contact' %}" class="btn btn-outline-secondary flex-grow-1 rounded-pill">
-                                <i class="bi bi-chat-dots me-2"></i>Contact Support
-                            </a>
+                        <div>
+                            <small class="cta-phone-label">24/7 Reservations</small>
+                            <a href="tel:+14072127190" class="cta-phone-number">+1 (407) 212-7190</a>
                         </div>
                     </div>
-                </div>
-                <div class="col-lg-6 d-none d-lg-block">
-                    <div class="text-center">
-                        <img src="{% static 'images/why-grayson.webp' %}" alt="Transportation Service" class="img-fluid rounded-4 shadow-lg">
+                    <div class="d-flex flex-wrap gap-3 mt-4">
+                        <a href="{% url 'rates' %}" class="btn btn-cta-primary">
+                            <i class="bi bi-car-front me-2"></i>Book Your Ride
+                        </a>
+                        <a href="{% url 'contact' %}" class="btn btn-cta-outline">
+                            <i class="bi bi-chat-dots me-2"></i>Contact Support
+                        </a>
                     </div>
                 </div>
             </div>
+            <div class="col-lg-6 d-none d-lg-block">
+                <div class="cta-image-wrapper">
+                    <img src="{% static 'images/why-grayson.webp' %}" alt="Premium Transportation Service" class="img-fluid">
+                </div>
+            </div>
         </div>
-    </section>
+    </div>
+</section>
+
+<style>
+    .premium-cta-section {
+        background: linear-gradient(135deg, #0d1117 0%, #0A1428 100%);
+        padding: 5rem 0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .premium-cta-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(ellipse at 20% 50%, rgba(201, 162, 39, 0.1) 0%, transparent 50%);
+        pointer-events: none;
+    }
+
+    .cta-label {
+        display: inline-block;
+        font-size: 0.7rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #C9A227;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .cta-title {
+        font-family: 'Playfair Display', Georgia, serif;
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        font-weight: 600;
+        color: #ffffff;
+        margin-bottom: 1rem;
+        line-height: 1.2;
+    }
+
+    .cta-description {
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 1.5rem;
+        line-height: 1.7;
+    }
+
+    .cta-phone-box {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(201, 162, 39, 0.2);
+        border-radius: 1rem;
+        width: fit-content;
+    }
+
+    .cta-phone-icon {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #0d1117;
+        font-size: 1.25rem;
+    }
+
+    .cta-phone-label {
+        display: block;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .cta-phone-number {
+        display: block;
+        font-family: 'Playfair Display', Georgia, serif;
+        font-size: 1.35rem;
+        font-weight: 600;
+        color: #ffffff;
+        text-decoration: none;
+        transition: color 0.3s ease;
+    }
+
+    .cta-phone-number:hover {
+        color: #C9A227;
+    }
+
+    .btn-cta-primary {
+        background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
+        color: #0d1117;
+        font-weight: 600;
+        padding: 0.875rem 1.75rem;
+        border-radius: 50px;
+        border: none;
+        transition: all 0.3s ease;
+    }
+
+    .btn-cta-primary:hover {
+        background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%);
+        color: #0d1117;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(201, 162, 39, 0.3);
+    }
+
+    .btn-cta-outline {
+        background: transparent;
+        color: #ffffff;
+        font-weight: 600;
+        padding: 0.875rem 1.75rem;
+        border-radius: 50px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.3s ease;
+    }
+
+    .btn-cta-outline:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: #C9A227;
+        color: #C9A227;
+    }
+
+    .cta-image-wrapper {
+        position: relative;
+        border-radius: 1rem;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .cta-image-wrapper::before {
+        content: '';
+        position: absolute;
+        top: -3px;
+        left: -3px;
+        right: -3px;
+        bottom: -3px;
+        background: linear-gradient(135deg, #C9A227, transparent, #C9A227);
+        border-radius: 1.25rem;
+        z-index: -1;
+    }
+
+    .cta-image-wrapper img {
+        border-radius: 1rem;
+    }
+
+    @media (max-width: 991.98px) {
+        .premium-cta-section {
+            text-align: center;
+            padding: 4rem 0;
+        }
+
+        .cta-phone-box {
+            margin: 0 auto;
+        }
+
+        .d-flex.gap-3 {
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .cta-phone-box {
+            flex-direction: column;
+            text-align: center;
+            width: 100%;
+        }
+
+        .btn-cta-primary,
+        .btn-cta-outline {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>

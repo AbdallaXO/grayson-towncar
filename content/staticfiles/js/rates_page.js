@@ -31,11 +31,10 @@ document.addEventListener('DOMContentLoaded', function () {
           ${Array.from(DOM_ELEMENTS.rateSections)
         .map((card, index) => {
           const vehicleType = card.dataset.vehicleType || card.querySelector('h2').textContent.replace(' Rates', '');
-          const activeClass = index === 0 ? 'active' : '';
           return `
-              <button class="vehicle-tab ${activeClass}" 
-                      role="tab" 
-                      aria-selected="${index === 0 ? 'true' : 'false'}"
+              <button class="vehicle-tab"
+                      role="tab"
+                      aria-selected="false"
                       aria-controls="${vehicleType.toLowerCase().replace(' ', '-')}-content"
                       data-vehicle="${vehicleType.toLowerCase().replace(' ', '-')}"
                       data-vehicle-display="${vehicleType}">
@@ -107,13 +106,23 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
 
-    // Get the first vehicle type and ensure it's displayed
-    const firstTab = tabs[0];
-    const firstVehicleDisplay = firstTab?.dataset.vehicleDisplay || 'Town Car';
+    // Find SUV tab or fall back to first tab
+    const suvTab = Array.from(tabs).find(tab =>
+      tab.dataset.vehicleDisplay?.toLowerCase().includes('suv')
+    ) || tabs[0];
+    const defaultVehicleDisplay = suvTab?.dataset.vehicleDisplay || 'SUV';
 
-    // Initial setup - show first vehicle by default
-    showVehicleRates(firstVehicleDisplay);
-    updateVehiclePreview(firstVehicleDisplay);
+    // Set SUV as active by default
+    tabs.forEach((t) => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    });
+    suvTab.classList.add('active');
+    suvTab.setAttribute('aria-selected', 'true');
+
+    // Initial setup - show SUV vehicle by default
+    showVehicleRates(defaultVehicleDisplay);
+    updateVehiclePreview(defaultVehicleDisplay);
   }
 
   function showVehicleRates(vehicleType) {

@@ -1,11 +1,11 @@
 {% load static %}
-<nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top">
-  <div class="container px-5 bg-navbar-dark">
+<nav class="navbar navbar-expand-lg premium-navbar sticky-top">
+  <div class="container px-4">
     <a class="navbar-brand" href="{% url 'home' %}">
       <img src="{% static 'images/logo.png' %}"
-           alt="Company Logo"
-           height="150"
-           width="150" />
+           alt="Grayson Town Car"
+           height="120"
+           width="120" />
     </a>
     <button class="navbar-toggler"
             type="button"
@@ -17,16 +17,16 @@
       <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarSupportedContent">
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+      <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
         {% if request.user.is_superuser %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white"
+            <a class="nav-link dropdown-toggle"
                href="#"
                id="adminDropdown"
                role="button"
                data-bs-toggle="dropdown"
                aria-expanded="false">Admin View</a>
-            <ul class="dropdown-menu bg-light" aria-labelledby="adminDropdown">
+            <ul class="dropdown-menu" aria-labelledby="adminDropdown">
               <li>
                 <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
               </li>
@@ -54,13 +54,13 @@
           </li>
         {% elif request.user.is_staff %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white"
+            <a class="nav-link dropdown-toggle"
                href="#"
                id="dispatchingDropdown"
                role="button"
                data-bs-toggle="dropdown"
                aria-expanded="false">Dispatching</a>
-            <ul class="dropdown-menu bg-light" aria-labelledby="dispatchingDropdown">
+            <ul class="dropdown-menu" aria-labelledby="dispatchingDropdown">
               <li>
                 <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
               </li>
@@ -87,13 +87,13 @@
         {% endif %}
         {% if request.user.is_authenticated and request.user.managed_agency.exists %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white"
+            <a class="nav-link dropdown-toggle"
                href="#"
                id="agencyDropdown"
                role="button"
                data-bs-toggle="dropdown"
                aria-expanded="false">Travel Agency</a>
-            <ul class="dropdown-menu bg-light" aria-labelledby="agencyDropdown">
+            <ul class="dropdown-menu" aria-labelledby="agencyDropdown">
               <li>
                 <a class="dropdown-item" href="{% url 'agency_dashboard' %}">Agency Dashboard</a>
               </li>
@@ -112,13 +112,13 @@
         {% endif %}
         {% if request.user.is_authenticated and request.user.travelagent %}
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-white"
+            <a class="nav-link dropdown-toggle"
                href="#"
                id="agentDropdown"
                role="button"
                data-bs-toggle="dropdown"
                aria-expanded="false">Travel Agent</a>
-            <ul class="dropdown-menu bg-light" aria-labelledby="agentDropdown">
+            <ul class="dropdown-menu" aria-labelledby="agentDropdown">
               <li>
                 <a class="dropdown-item" href="{% url 'agent_dashboard' %}">Agent Dashboard</a>
               </li>
@@ -135,25 +135,25 @@
           </li>
         {% endif %}
         <li class="nav-item">
-          <a class="nav-link text-white" href="{% url 'home' %}">Home</a>
+          <a class="nav-link" href="{% url 'home' %}">Home</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white" href="{% url 'rates' %}">Rates</a>
+          <a class="nav-link" href="{% url 'rates' %}">Rates</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white" href="{% url 'contact' %}">Contact</a>
+          <a class="nav-link" href="{% url 'contact' %}">Contact</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white" href="{% url 'blog-list' %}">Blog</a>
+          <a class="nav-link" href="{% url 'blog-list' %}">Blog</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white"
+          <a class="nav-link dropdown-toggle"
              href="#"
              id="servicesDropdown"
              role="button"
              data-bs-toggle="dropdown"
              aria-expanded="false">Services</a>
-          <ul class="dropdown-menu bg-light" aria-labelledby="servicesDropdown">
+          <ul class="dropdown-menu" aria-labelledby="servicesDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'services' %}">All Services</a>
             </li>
@@ -178,13 +178,13 @@
           </ul>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white"
+          <a class="nav-link dropdown-toggle"
              href="#"
              id="companyDropdown"
              role="button"
              data-bs-toggle="dropdown"
-             aria-expanded="false">Our Company</a>
-          <ul class="dropdown-menu bg-light" aria-labelledby="companyDropdown">
+             aria-expanded="false">About</a>
+          <ul class="dropdown-menu" aria-labelledby="companyDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'about-us' %}">About Us</a>
             </li>
@@ -197,13 +197,13 @@
           </ul>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white"
+          <a class="nav-link dropdown-toggle"
              href="#"
              id="portalDropdown"
              role="button"
              data-bs-toggle="dropdown"
              aria-expanded="false">Portal</a>
-          <ul class="dropdown-menu bg-light" aria-labelledby="portalDropdown">
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="portalDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'register_agent' %}">Travel Agent Registration</a>
             </li>
@@ -217,41 +217,187 @@
   </div>
 </nav>
 <style>
-    /* Increase the size of navbar items */
-    .navbar-nav .nav-link {
-        font-size: 1.2rem;
-        /* Increase font size */
-        padding: 0.8rem 1rem;
-        /* Increase padding */
+    /* Premium Navbar Styling */
+    .navbar.premium-navbar {
+        background: rgba(13, 17, 23, 0.97) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(201, 162, 39, 0.15);
+        padding: 0.25rem 0;
+        transition: all 0.3s ease;
     }
 
-    /* Adjust the size of the navbar dropdown */
-    .navbar-nav .nav-item.dropdown .dropdown-toggle {
-        font-size: 1.2rem;
-        /* Larger font for dropdown items */
-        padding: 0.8rem 1rem;
-        /* Larger padding for dropdown items */
+    .navbar.premium-navbar .navbar-brand img {
+        height: 100px;
+        width: auto;
+        transition: all 0.3s ease;
     }
 
-    /* Increase the size of dropdown items */
-    .dropdown-menu .dropdown-item {
-        font-size: 1.1rem;
-        /* Larger font for dropdown items */
-        padding: 0.75rem 1rem;
-        /* Increase padding for dropdown items */
+    .navbar.premium-navbar .nav-link {
+        color: rgba(255, 255, 255, 0.85) !important;
+        font-weight: 500;
+        font-size: 0.9rem;
+        padding: 0.6rem 0.9rem !important;
+        transition: all 0.3s ease;
+        position: relative;
     }
 
-    /* Adjust navbar toggler (hamburger icon) size */
-    .navbar-toggler {
-        padding: 1rem;
-        /* Increase size of the hamburger icon */
+    .navbar.premium-navbar .nav-link:hover {
+        color: #C9A227 !important;
+    }
+
+    /* Underline effect - only for non-dropdown links */
+    .navbar.premium-navbar .nav-item:not(.dropdown) .nav-link::after {
+        content: '';
+        position: absolute;
+        bottom: 0.4rem;
+        left: 50%;
+        width: 0;
+        height: 2px;
+        background: linear-gradient(90deg, #C9A227, #E8D5B7);
+        transition: all 0.3s ease;
+        transform: translateX(-50%);
+    }
+
+    .navbar.premium-navbar .nav-item:not(.dropdown) .nav-link:hover::after {
+        width: calc(100% - 1.8rem);
+    }
+
+    /* Dropdown arrow for items with submenus */
+    .navbar.premium-navbar .dropdown-toggle::after {
+        display: inline-block !important;
+        margin-left: 0.4rem;
+        vertical-align: middle;
+        content: "" !important;
+        border-top: 0.35em solid #C9A227;
+        border-right: 0.35em solid transparent;
+        border-bottom: 0;
+        border-left: 0.35em solid transparent;
+        transition: transform 0.3s ease;
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
+        background: none !important;
+    }
+
+    .navbar.premium-navbar .dropdown.show .dropdown-toggle::after,
+    .navbar.premium-navbar .dropdown:hover .dropdown-toggle::after {
+        transform: rotate(180deg);
+    }
+
+    .navbar.premium-navbar .dropdown-menu {
+        background: #0d1117;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.75rem;
+        padding: 0.5rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        margin-top: 0;
+        top: 100%;
+    }
+
+    /* Bridge to prevent dropdown from closing when moving mouse */
+    .navbar.premium-navbar .dropdown-menu::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background: transparent;
+    }
+
+    .navbar.premium-navbar .dropdown-item {
+        color: rgba(255, 255, 255, 0.85);
+        border-radius: 0.5rem;
+        padding: 0.625rem 1rem;
+        font-size: 0.9rem;
+        transition: all 0.25s ease;
+    }
+
+    .navbar.premium-navbar .dropdown-item:hover,
+    .navbar.premium-navbar .dropdown-item:focus {
+        background: rgba(201, 162, 39, 0.15);
+        color: #C9A227;
+    }
+
+    /* Navbar toggler */
+    .navbar.premium-navbar .navbar-toggler {
+        border: 1px solid rgba(201, 162, 39, 0.3);
+        padding: 0.5rem 0.75rem;
+    }
+
+    .navbar.premium-navbar .navbar-toggler-icon {
         filter: brightness(0) invert(1);
     }
 
-    /* Adjust the navbar brand (logo) size */
-    .navbar-brand img {
-        height: 150px;
-        /* Adjust logo size */
-        width: auto;
+    /* Responsive adjustments */
+    @media (max-width: 991.98px) {
+        .navbar.premium-navbar {
+            padding: 0.5rem 0;
+        }
+
+        .navbar.premium-navbar .navbar-brand img {
+            height: 80px;
+        }
+
+        .navbar.premium-navbar .navbar-collapse {
+            background: #0d1117;
+            margin: 1rem -1rem -0.5rem;
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar.premium-navbar .nav-link {
+            padding: 0.75rem 1rem !important;
+        }
+
+        /* Hide underline on mobile, but keep dropdown arrows */
+        .navbar.premium-navbar .nav-item:not(.dropdown) .nav-link::after {
+            display: none;
+        }
+
+        /* Ensure dropdown arrows show on mobile */
+        .navbar.premium-navbar .dropdown-toggle::after {
+            display: inline-block !important;
+            border-top: 0.35em solid #C9A227;
+            border-right: 0.35em solid transparent;
+            border-bottom: 0;
+            border-left: 0.35em solid transparent;
+        }
+
+        .navbar.premium-navbar .dropdown-menu {
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            margin-top: 0;
+            padding-left: 1rem;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .navbar.premium-navbar .dropdown:hover .dropdown-menu,
+        .navbar.premium-navbar .dropdown:focus-within .dropdown-menu {
+            display: block;
+            animation: fadeIn 0.2s ease;
+        }
+
+        /* Keep dropdown open while transitioning between link and menu */
+        .navbar.premium-navbar .dropdown {
+            position: relative;
+        }
+
+        .navbar.premium-navbar .dropdown-menu {
+            padding-top: 0.75rem;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     }
 </style>

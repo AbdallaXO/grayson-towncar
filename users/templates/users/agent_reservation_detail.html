@@ -1,388 +1,843 @@
 {% extends 'main.html' %}
-{% block title %}Travel Agent Reservation Details | Grayson Towncar{% endblock %}
+{% block title %}Reservation Details | Grayson Towncar{% endblock %}
 {% block content %}
-  <div class="container py-5">
+  <div class="reservation-detail-page">
     <!-- Header -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <h1 class="h2 mb-1">Reservation Detail</h1>
+    <header class="detail-header">
+      <div class="container">
+        <div class="header-content">
+          <div class="header-left">
+            <a href="{% url 'agent_dashboard' %}" class="back-link">
+              <i class="bi bi-arrow-left"></i>
+            </a>
+            <div class="header-text">
+              <span class="header-label">Reservation</span>
+              <h1 class="header-title">{{ reservation.customer.get_full_name }}</h1>
+            </div>
           </div>
-          <a href="{% url 'agent_dashboard' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to Dashboard</a>
+          <div class="header-right">
+            <span class="status-badge status-{{ reservation.status }}">{{ reservation.get_status_display }}</span>
+          </div>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Status and Commission -->
-    <div class="row mb-4">
-      <div class="col-md-2">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <h6 class="text-muted mb-2">Status</h6>
-            <span class="fw-bold fs-6">{{ reservation.get_status_display }}</span>
+    <div class="detail-content">
+      <div class="container">
+        <!-- Quick Stats Row -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">Trip Type</span>
+            <span class="stat-value">{{ reservation.get_trip_type_display }}</span>
           </div>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <h6 class="text-muted mb-2">Trip Type</h6>
-            <p class="mb-0 fw-bold">{{ reservation.get_trip_type_display }}</p>
+          <div class="stat-card">
+            <span class="stat-label">Total Price</span>
+            <span class="stat-value stat-highlight">${{ reservation.total_price|floatformat:2 }}</span>
           </div>
-        </div>
-      </div>
-      <div class="col-md-2">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <h6 class="text-muted mb-2">Total Price</h6>
-            <h4 class="mb-0">${{ reservation.total_price|floatformat:2 }}</h4>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <h6 class="text-muted mb-2">Payment Status</h6>
-            <span class="badge {% if reservation.payment_status == 'paid' %}bg-success{% elif reservation.payment_status == 'pending' %}bg-warning{% elif reservation.get_payment_status == 'card_saved' %}bg-dark{% else %}bg-danger{% endif %} mb-2">
-              {{ reservation.payment_status|title }}
+          <div class="stat-card">
+            <span class="stat-label">Payment Status</span>
+            <span class="stat-value">
+              <span class="payment-badge payment-{{ reservation.payment_status }}">{{ reservation.payment_status|title }}</span>
             </span>
             {% if reservation.payment_status == 'unpaid' %}
-              <div class="mt-2">
-                <a href="{% url 'create_checkout_session' reservation_id=reservation.uuid %}"
-                   class="btn btn-primary btn-sm"
-                   target="_blank">
-                  <i class="fas fa-credit-card me-1"></i>Pay or Save a Card on File
-                </a>
-              </div>
+              <a href="{% url 'create_checkout_session' reservation_id=reservation.uuid %}" class="pay-link" target="_blank">
+                <i class="fas fa-credit-card"></i> Pay Now
+              </a>
             {% endif %}
           </div>
-        </div>
-      </div>
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center">
-            <h6 class="text-muted mb-2">Your Commission (10%)</h6>
-            <h4 class="mb-0  fw-semibold {% if reservation.commission_paid %}                text-success                {% else %}  {% endif %}">
-              ${{ reservation.commission_amount|floatformat:2 }}
-            </h4>
-            <small class="fw-semibold {% if reservation.commission_paid %}                text-success                {% else %}  {% endif %}">
-              {% if reservation.commission_paid %}
-                Paid
-              {% else %}
-                Unpaid
-              {% endif %}
-            </small>
+          <div class="stat-card stat-commission">
+            <span class="stat-label">Your Commission (10%)</span>
+            <span class="stat-value {% if reservation.commission_paid %}stat-success{% endif %}">${{ reservation.commission_amount|floatformat:2 }}</span>
+            <span class="commission-badge {% if reservation.commission_paid %}paid{% else %}unpaid{% endif %}">
+              {% if reservation.commission_paid %}Paid{% else %}Unpaid{% endif %}
+            </span>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div class="row">
-      <!-- Customer Information -->
-      <div class="col-md-6 mb-4">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body">
-            <h5 class="card-title mb-3">Customer Information</h5>
-            <div class="mb-3">
-              <label class="text-muted small">Full Name</label>
-              <p class="mb-0">{{ reservation.customer.get_full_name }}</p>
-            </div>
-            <div class="mb-3">
-              <label class="text-muted small">Email</label>
-              <p class="mb-0">{{ reservation.customer.email }}</p>
-            </div>
-            <div class="mb-3">
-              <label class="text-muted small">Phone</label>
-              <p class="mb-0">{{ reservation.customer.phone_number }}</p>
-            </div>
-            <div class="mb-3">
-              <label class="text-muted small">Zipcode</label>
-              <br />
-              {{ reservation.customer.zipcode }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Trip Details -->
-      <div class="col-md-6 mb-4">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body">
-            <h5 class="card-title mb-3">Trip Details</h5>
-            <div class="mb-3">
-              <label class="text-muted small">Vehicle</label>
-              <p class="mb-0">{{ reservation.vehicle }}</p>
-            </div>
-            <div class="mb-3">
-              <label class="text-muted small">Passengers</label>
-              <p class="mb-0">{{ reservation.passenger_count }}</p>
-            </div>
-            <div class="mb-3">
-              <label class="text-muted small">Luggage</label>
-              <p class="mb-0">{{ reservation.luggage_count }}</p>
-            </div>
-            {% if reservation.need_carseats %}
-              <div class="mb-3">
-                <label class="text-muted small">Child Seats</label>
-                <p class="mb-0">{{ reservation.display_carseats|default:"0" }}</p>
+        <div class="detail-grid">
+          <!-- Left Column -->
+          <div class="detail-column">
+            <!-- Customer Information -->
+            <section class="detail-card">
+              <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-user"></i>Customer Information</h2>
               </div>
-            {% else %}
-              <div class="mb-3">
-                <label class="text-muted small">Child Seats</label>
-                <p class="mb-0">0</p>
-              </div>
-            {% endif %}
-
-            <div class="mb-3">
-              <label class="text-muted small">Store Stop</label>
-              <p class="mb-0">
-                {% if reservation.store_stop %}
-                  Publix Stop @9930 Universal Blvd
-                {% else %}
-                  No
-                {% endif %}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Leg Details -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body">
-        <h5 class="card-title mb-3">Trip Legs</h5>
-        {% for leg in reservation.legs.all %}
-          <div class="{% if not forloop.last %}mb-4 pb-4 border-bottom{% endif %}">
-            <h6 class="mb-3">Leg {{ forloop.counter }}</h6>
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="text-muted small">Pickup Date & Time</label>
-                  <p class="mb-0">{{ leg.pickup_date|date:'F d, Y' }} at {{ leg.pickup_time|time:'g:i A' }}</p>
-                </div>
-                <div class="mb-3">
-                  <label class="text-muted small">Pickup Location</label>
-                  <p class="mb-0">{{ leg.pickup_location }}</p>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label class="text-muted small">Dropoff Location</label>
-                  <p class="mb-0">{{ leg.dropoff_location }}</p>
-                </div>
-                {% if leg.flight_information %}
-                  <div class="mb-3">
-                    <label class="text-muted small">Flight Information</label>
-                    <p class="mb-0">{{ leg.flight_information }}</p>
+              <div class="card-body">
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">Full Name</span>
+                    <span class="info-value">{{ reservation.customer.get_full_name }}</span>
                   </div>
-                {% endif %}
+                  <div class="info-item">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">{{ reservation.customer.email }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Phone</span>
+                    <span class="info-value">{{ reservation.customer.phone_number }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Zipcode</span>
+                    <span class="info-value">{{ reservation.customer.zipcode }}</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-    </div>
-    <!-- Special Requests and Notes -->
-    {% if reservation.special_requests %}
-      <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-          {% if reservation.special_requests %}
-            <h5 class="card-title mb-3">Comments/Requests</h5>
-            <p class="mb-3">{{ reservation.special_requests }}</p>
-          {% endif %}
-        </div>
-      </div>
-    {% endif %}
-    <!-- Email Confirmation Section -->
-    <div class="card border-0 shadow-sm mb-4">
-      <div class="card-body">
-        <h5 class="card-title mb-3">Send Confirmation Email</h5>
-        <div class="row">
-          <div class="col-md-8">
-            <form id="emailForm" class="d-flex gap-2">
-              {% csrf_token %}
-              <div class="flex-grow-1">
-                <input type="email"
-                       id="recipientEmail"
-                       name="recipient_email"
-                       class="form-control"
-                       placeholder="Enter recipient email address"
-                       value="{{ reservation.customer.email }}"
-                       required>
-              </div>
-              <button type="submit" class="btn btn-primary" id="sendEmailBtn">
-                <i class="fas fa-envelope me-2"></i>Send Confirmation
-              </button>
-            </form>
-            <div id="emailStatus" class="mt-2"></div>
-          </div>
-          <div class="col-md-4">
-            <small class="text-muted">
-              <i class="fas fa-info-circle me-1"></i>
-              Send a confirmation email to any email address. The email will include all reservation details.
-              <br>
-              <br>
-              <strong>Common uses:</strong>
-              <ul class="mt-1 mb-0">
-                <li>Send to client's directly instead of forwarding to them</li>
-                <li>re-send to self again</li>
-              </ul>
-            </small>
-          </div>
-        </div>
-      </div>
-    </div>
+            </section>
 
-    <!-- Commission Details -->
-    <div class="card border-0 shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title mb-3">Commission Details</h5>
-        <div class="row">
-          <div class="col-md-6">
-            <table class="table table-sm">
-              <tr>
-                <td>Base Price:</td>
-                <td class="text-end">${{ reservation.base_price|floatformat:2 }}</td>
-              </tr>
-              <tr>
-                <td>Additional Charges:</td>
-                <td class="text-end">${{ reservation.additional_charges|floatformat:2 }}</td>
-              </tr>
-              <tr class="fw-bold">
-                <td>Total Price:</td>
-                <td class="text-end">${{ reservation.total_price|floatformat:2 }}</td>
-              </tr>
-              <tr class="fw-bold">
-                <td>Commission (10%):</td>
-                <td class="text-end">${{ reservation.commission_amount|floatformat:2 }}</td>
-              </tr>
-            </table>
+            <!-- Trip Details -->
+            <section class="detail-card">
+              <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-car"></i>Trip Details</h2>
+              </div>
+              <div class="card-body">
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">Vehicle</span>
+                    <span class="info-value">{{ reservation.vehicle }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Passengers</span>
+                    <span class="info-value">{{ reservation.passenger_count }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Luggage</span>
+                    <span class="info-value">{{ reservation.luggage_count }}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Child Seats</span>
+                    <span class="info-value">{% if reservation.need_carseats %}{{ reservation.display_carseats|default:"0" }}{% else %}0{% endif %}</span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">Store Stop</span>
+                    <span class="info-value">{% if reservation.store_stop %}Publix Stop{% else %}No{% endif %}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
-          <div class="col-md-6">
-            <div class="mb-3">
-              <label class="text-muted small">Commission Status</label>
-              <p class="mb-0">
-                <span class="">
+
+          <!-- Right Column -->
+          <div class="detail-column">
+            <!-- Trip Legs -->
+            <section class="detail-card">
+              <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-route"></i>Trip Legs</h2>
+              </div>
+              <div class="card-body">
+                {% for leg in reservation.legs.all %}
+                  <div class="leg-item {% if not forloop.last %}leg-border{% endif %}">
+                    <div class="leg-header">
+                      <span class="leg-number">Leg {{ forloop.counter }}</span>
+                      <span class="leg-date">{{ leg.pickup_date|date:'M d, Y' }} at {{ leg.pickup_time|time:'g:i A' }}</span>
+                    </div>
+                    <div class="leg-route">
+                      <div class="route-point">
+                        <span class="route-icon pickup"><i class="fas fa-circle"></i></span>
+                        <div class="route-text">
+                          <span class="route-label">Pickup</span>
+                          <span class="route-location">{{ leg.pickup_location }}</span>
+                        </div>
+                      </div>
+                      <div class="route-line"></div>
+                      <div class="route-point">
+                        <span class="route-icon dropoff"><i class="fas fa-map-marker-alt"></i></span>
+                        <div class="route-text">
+                          <span class="route-label">Dropoff</span>
+                          <span class="route-location">{{ leg.dropoff_location }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {% if leg.flight_information %}
+                      <div class="flight-info">
+                        <i class="fas fa-plane"></i>
+                        <span>{{ leg.flight_information }}</span>
+                      </div>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            </section>
+
+            <!-- Commission Details -->
+            <section class="detail-card">
+              <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-dollar-sign"></i>Commission Details</h2>
+              </div>
+              <div class="card-body">
+                <div class="commission-breakdown">
+                  <div class="breakdown-row">
+                    <span>Base Price</span>
+                    <span>${{ reservation.base_price|floatformat:2 }}</span>
+                  </div>
+                  <div class="breakdown-row">
+                    <span>Additional Charges</span>
+                    <span>${{ reservation.additional_charges|floatformat:2 }}</span>
+                  </div>
+                  <div class="breakdown-row breakdown-total">
+                    <span>Total Price</span>
+                    <span>${{ reservation.total_price|floatformat:2 }}</span>
+                  </div>
+                  <div class="breakdown-row breakdown-commission">
+                    <span>Your Commission (10%)</span>
+                    <span class="{% if reservation.commission_paid %}text-success{% endif %}">${{ reservation.commission_amount|floatformat:2 }}</span>
+                  </div>
+                </div>
+                <div class="commission-meta">
+                  <div class="meta-item">
+                    <span class="meta-label">Status</span>
+                    <span class="meta-value {% if reservation.commission_paid %}text-success{% endif %}">
+                      {% if reservation.commission_paid %}Paid{% else %}Unpaid{% endif %}
+                    </span>
+                  </div>
                   {% if reservation.commission_paid %}
-                    Paid
-                  {% else %}
-                    Unpaid
+                    <div class="meta-item">
+                      <span class="meta-label">Paid On</span>
+                      <span class="meta-value">{{ reservation.commission_paid_at|date:'M d, Y' }}</span>
+                    </div>
                   {% endif %}
-                </span>
+                  <div class="meta-item">
+                    <span class="meta-label">Created</span>
+                    <span class="meta-value">{{ reservation.created_at|date:'M d, Y' }}</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- Special Requests -->
+        {% if reservation.special_requests %}
+          <section class="detail-card full-width">
+            <div class="card-header">
+              <h2 class="card-title"><i class="fas fa-comment-alt"></i>Comments/Requests</h2>
+            </div>
+            <div class="card-body">
+              <p class="requests-text">{{ reservation.special_requests }}</p>
+            </div>
+          </section>
+        {% endif %}
+
+        <!-- Email Confirmation -->
+        <section class="detail-card full-width">
+          <div class="card-header">
+            <h2 class="card-title"><i class="fas fa-envelope"></i>Send Confirmation Email</h2>
+          </div>
+          <div class="card-body">
+            <div class="email-section">
+              <form id="emailForm" class="email-form">
+                {% csrf_token %}
+                <div class="email-input-group">
+                  <input type="email" id="recipientEmail" name="recipient_email" placeholder="Enter recipient email" value="{{ reservation.customer.email }}" required>
+                  <button type="submit" class="btn-send" id="sendEmailBtn">
+                    <i class="fas fa-paper-plane"></i> Send
+                  </button>
+                </div>
+              </form>
+              <div id="emailStatus"></div>
+              <p class="email-hint">
+                <i class="fas fa-info-circle"></i>
+                Send confirmation to client directly or resend to yourself.
               </p>
             </div>
-            {% if reservation.commission_paid %}
-              <div class="mb-3">
-                <label class="text-muted small">Paid On</label>
-                <p class="mb-0">{{ reservation.commission_paid_at|date:'F d, Y g:i A' }}</p>
-              </div>
-            {% endif %}
-            <div>
-              <label class="text-muted small">Reservation Created</label>
-              <p class="mb-0">{{ reservation.created_at|date:'F d, Y g:i A' }}</p>
-            </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   </div>
 
   <style>
-      .badge {
-          font-weight: 500;
-          padding: 0.5em 0.75em;
+    :root {
+      --gold: #C9A227;
+      --dark: #1a1a2e;
+      --text: #2d3748;
+      --text-muted: #718096;
+      --border: #e2e8f0;
+      --bg: #f7fafc;
+      --white: #ffffff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #3b82f6;
+    }
+
+    .reservation-detail-page {
+      background: var(--bg);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .detail-header {
+      background: var(--dark);
+      padding: 1.5rem 0;
+      border-bottom: 2px solid var(--gold);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .back-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      color: var(--white);
+      text-decoration: none;
+      font-size: 1.1rem;
+      transition: all 0.2s ease;
+    }
+
+    .back-link:hover {
+      color: var(--gold);
+    }
+
+    .header-label {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 0.25rem;
+    }
+
+    .header-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--white);
+      margin: 0;
+    }
+
+    .status-badge {
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 4px;
+    }
+
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-confirmed { background: #dbeafe; color: #1e40af; }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+
+    /* Content */
+    .detail-content {
+      padding: 1.5rem 0 3rem;
+    }
+
+    /* Stats Row */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .stat-commission {
+      border-left: 3px solid var(--gold);
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .stat-highlight {
+      color: var(--dark);
+    }
+
+    .stat-success {
+      color: var(--success);
+    }
+
+    .payment-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .payment-paid { background: #d1fae5; color: #065f46; }
+    .payment-pending { background: #fef3c7; color: #92400e; }
+    .payment-unpaid { background: #fee2e2; color: #991b1b; }
+    .payment-card_saved { background: var(--dark); color: var(--white); }
+
+    .pay-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--gold);
+      text-decoration: none;
+    }
+
+    .pay-link:hover {
+      text-decoration: underline;
+    }
+
+    .commission-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      margin-top: 0.25rem;
+    }
+
+    .commission-badge.paid { color: var(--success); }
+    .commission-badge.unpaid { color: var(--text-muted); }
+
+    /* Detail Grid */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .detail-column {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Detail Card */
+    .detail-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .detail-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-title i {
+      color: var(--gold);
+    }
+
+    .card-body {
+      padding: 1.25rem;
+    }
+
+    /* Info Grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .info-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-muted);
+    }
+
+    .info-value {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    /* Leg Item */
+    .leg-item {
+      padding-bottom: 1.25rem;
+    }
+
+    .leg-border {
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.25rem;
+    }
+
+    .leg-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .leg-number {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text);
+      background: var(--bg);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .leg-date {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .leg-route {
+      position: relative;
+      padding-left: 1.5rem;
+    }
+
+    .route-point {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .route-point:last-child {
+      margin-bottom: 0;
+    }
+
+    .route-icon {
+      position: absolute;
+      left: 0;
+      width: 1rem;
+      text-align: center;
+      font-size: 0.6rem;
+    }
+
+    .route-icon.pickup { color: var(--success); }
+    .route-icon.dropoff { color: var(--danger); }
+
+    .route-line {
+      position: absolute;
+      left: 0.35rem;
+      top: 1.25rem;
+      width: 2px;
+      height: calc(100% - 2.5rem);
+      background: var(--border);
+    }
+
+    .route-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .route-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-muted);
+    }
+
+    .route-location {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .flight-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .flight-info i {
+      color: var(--info);
+    }
+
+    /* Commission Breakdown */
+    .commission-breakdown {
+      margin-bottom: 1.25rem;
+    }
+
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.625rem 0;
+      font-size: 0.875rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .breakdown-row:last-child {
+      border-bottom: none;
+    }
+
+    .breakdown-total {
+      font-weight: 700;
+      padding-top: 0.875rem;
+      border-top: 2px solid var(--border);
+    }
+
+    .breakdown-commission {
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .text-success {
+      color: var(--success) !important;
+    }
+
+    .commission-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .meta-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      color: var(--text-muted);
+    }
+
+    .meta-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* Requests */
+    .requests-text {
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* Email Section */
+    .email-section {
+      max-width: 500px;
+    }
+
+    .email-form {
+      margin-bottom: 0.75rem;
+    }
+
+    .email-input-group {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .email-input-group input {
+      flex: 1;
+      padding: 0.625rem 0.875rem;
+      font-size: 0.875rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: border-color 0.2s ease;
+    }
+
+    .email-input-group input:focus {
+      outline: none;
+      border-color: var(--gold);
+    }
+
+    .btn-send {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--dark);
+      background: var(--gold);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-send:hover {
+      background: #b8931f;
+    }
+
+    .email-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0.75rem 0 0;
+    }
+
+    .email-hint i {
+      margin-right: 0.25rem;
+    }
+
+    #emailStatus .alert {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 991.98px) {
+      .stats-row {
+        grid-template-columns: repeat(2, 1fr);
       }
 
-      .badge.bg-pending {
-          background-color: #ffc107;
-          color: #000;
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 767.98px) {
+      .stats-row {
+        grid-template-columns: 1fr;
       }
 
-      .badge.bg-confirmed {
-          background-color: #0dcaf0;
-          color: #000;
+      .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
       }
 
-      .badge.bg-completed {
-          background-color: #198754;
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Print */
+    @media print {
+      .detail-header {
+        background: #fff;
+        border-bottom: 2px solid #000;
       }
 
-      .badge.bg-cancelled {
-          background-color: #dc3545;
+      .header-title, .header-label {
+        color: #000;
       }
 
-      .badge.bg-warning {
-          background-color: #ffc107;
-          color: #000;
+      .back-link, .btn-send, .email-section {
+        display: none !important;
       }
+
+      .reservation-detail-page {
+        background: #fff;
+      }
+
+      .detail-card, .stat-card {
+        border: 1px solid #ccc;
+      }
+    }
   </style>
 
   <script>
-      document.addEventListener('DOMContentLoaded', function() {
-          const emailForm = document.getElementById('emailForm');
-          const sendEmailBtn = document.getElementById('sendEmailBtn');
-          const emailStatus = document.getElementById('emailStatus');
-          const recipientEmail = document.getElementById('recipientEmail');
+    document.addEventListener('DOMContentLoaded', function() {
+      const emailForm = document.getElementById('emailForm');
+      const sendEmailBtn = document.getElementById('sendEmailBtn');
+      const emailStatus = document.getElementById('emailStatus');
+      const recipientEmail = document.getElementById('recipientEmail');
 
-          emailForm.addEventListener('submit', function(e) {
-              e.preventDefault();
+      emailForm.addEventListener('submit', function(e) {
+        e.preventDefault();
 
-              // Validate email
-              if (!recipientEmail.value.trim()) {
-                  showStatus('Please enter a valid email address.', 'error');
-                  return;
-              }
+        if (!recipientEmail.value.trim()) {
+          showStatus('Please enter a valid email address.', 'error');
+          return;
+        }
 
-              // Show loading state
-              sendEmailBtn.disabled = true;
-              sendEmailBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
-              showStatus('Sending email...', 'info');
+        sendEmailBtn.disabled = true;
+        sendEmailBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+        showStatus('Sending email...', 'info');
 
-              // Prepare form data
-              const formData = new FormData();
-              formData.append('recipient_email', recipientEmail.value.trim());
-              formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        const formData = new FormData();
+        formData.append('recipient_email', recipientEmail.value.trim());
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
-              // Send request
-              fetch('{% url "send_custom_confirmation_email" reservation.uuid %}', {
-                      method: 'POST',
-                      body: formData
-                  })
-                  .then(response => response.json())
-                  .then(data => {
-                      if (data.success) {
-                          showStatus(data.message || 'Email sent successfully!', 'success');
-                          // Clear the email field after successful send
-                          recipientEmail.value = '';
-                      } else {
-                          showStatus(data.error || 'Failed to send email. Please try again.', 'error');
-                      }
-                  })
-                  .catch(error => {
-                      console.error('Error:', error);
-                      showStatus('An error occurred while sending the email. Please try again.', 'error');
-                  })
-                  .finally(() => {
-                      // Reset button state
-                      sendEmailBtn.disabled = false;
-                      sendEmailBtn.innerHTML = '<i class="fas fa-envelope me-2"></i>Send Confirmation';
-                  });
-          });
-
-          function showStatus(message, type) {
-              const alertClass = type === 'success' ? 'alert-success' :
-                  type === 'error' ? 'alert-danger' : 'alert-info';
-
-              emailStatus.innerHTML = `
-                <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                    ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            `;
+        fetch('{% url "send_custom_confirmation_email" reservation.uuid %}', {
+          method: 'POST',
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            showStatus(data.message || 'Email sent successfully!', 'success');
+            recipientEmail.value = '';
+          } else {
+            showStatus(data.error || 'Failed to send email.', 'error');
           }
+        })
+        .catch(error => {
+          showStatus('An error occurred. Please try again.', 'error');
+        })
+        .finally(() => {
+          sendEmailBtn.disabled = false;
+          sendEmailBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        });
       });
+
+      function showStatus(message, type) {
+        const alertClass = type === 'success' ? 'alert-success' : type === 'error' ? 'alert-danger' : 'alert-info';
+        emailStatus.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
+      }
+    });
   </script>
 {% endblock %}
 

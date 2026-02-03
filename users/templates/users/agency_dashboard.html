@@ -1,450 +1,905 @@
 {% extends 'main.html' %}
-{% load static %}
-
-{% block title %}
-  Agency Dashboard - {{ agency.name }}
-{% endblock %}
-
+{% block title %}Agency Dashboard | Grayson Towncar{% endblock %}
 {% block content %}
-  <div class="container-fluid mt-4">
+  <div class="agency-dashboard">
     <!-- Header Section -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="card border-0 shadow-sm">
-          <div class="card-body p-4">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
-              <div>
-                <h1 class="h2 mb-2">{{ agency.name }}</h1>
-                <p class="text-muted mb-0">
-                  <i class="fas fa-building me-2"></i>Agency Dashboard
-                </p>
-              </div>
-              <div class="d-flex flex-column flex-sm-row gap-2">
-                <a href="{% url 'agency_profile' %}" class="btn btn-outline-dark"><i class="fas fa-user-cog me-2"></i>Edit Profile</a>
-                <a href="{% url 'agency_commission_history' agency.id %}" class="btn btn-outline-dark"><i class="fas fa-dollar-sign me-2"></i>Commission History</a>
-                <a href="{% url 'agency_agents_list' agency.id %}" class="btn btn-outline-dark"><i class="fas fa-users me-2"></i>View All Agents</a>
-              </div>
+    <header class="dashboard-header">
+      <div class="container-fluid px-4">
+        <div class="row align-items-center">
+          <div class="col-lg-6">
+            <div class="header-content">
+              <div class="agency-badge">Agency Portal</div>
+              <h1 class="agency-title">{{ agency.name }}</h1>
+              <p class="agency-subtitle">{{ agents.count }} Agent{% if agents.count != 1 %}s{% endif %} | Manage your team</p>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="header-actions">
+              <a href="{% url 'agency_agents_list' agency.id %}" class="btn-action btn-action-primary">
+                <i class="bi bi-people me-2"></i>All Agents
+              </a>
+              <a href="{% url 'agency_profile' %}" class="btn-action btn-action-secondary">
+                <i class="bi bi-gear me-2"></i>Settings
+              </a>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Navigation Tabs -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <ul class="nav nav-tabs flex-nowrap" style="overflow-x: auto;">
-          <li class="nav-item">
-            <a class="nav-link active" href="{% url 'agency_dashboard' %}" aria-current="page"><i class="fas fa-tachometer-alt me-2"></i><span class="d-none d-sm-inline">Dashboard</span></a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'agency_commission_history' agency.id %}"><i class="fas fa-dollar-sign me-2"></i><span class="d-none d-sm-inline">Commission History</span></a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'agency_profile' %}"><i class="fas fa-user-cog me-2"></i><span class="d-none d-sm-inline">Profile</span></a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'agency_guide' %}"><i class="fas fa-book me-2"></i><span class="d-none d-sm-inline">Guide</span></a>
-          </li>
-        </ul>
-      </div>
-    </div>
+    <div class="dashboard-content">
+      <div class="container-fluid px-4">
+        <!-- Navigation -->
+        <nav class="dashboard-nav">
+          <a href="{% url 'agency_dashboard' %}" class="nav-item active">
+            <i class="bi bi-house me-2"></i>Dashboard
+          </a>
+          <a href="{% url 'agency_commission_history' agency.id %}" class="nav-item">
+            <i class="bi bi-clock-history me-2"></i>Commission History
+          </a>
+          <a href="{% url 'agency_profile' %}" class="nav-item">
+            <i class="bi bi-person-gear me-2"></i>Profile
+          </a>
+          <a href="{% url 'agency_guide' %}" class="nav-item">
+            <i class="bi bi-book me-2"></i>Guide
+          </a>
+        </nav>
 
-    <!-- Summary Cards -->
-    <div class="row mb-4 g-3">
-      <div class="col-6 col-lg-3">
-        <div class="card shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="d-flex align-items-center justify-content-center mb-2">
-              <i class="fas fa-users text-dark me-2 fs-4"></i>
-              <h6 class="card-title mb-0 d-none d-sm-block">Agents</h6>
-            </div>
-            <h3 class="card-text mb-0">{{ agents.count }}</h3>
-            <small class="text-muted d-block d-sm-none">Agents</small>
-          </div>
-        </div>
-      </div>
-      <div class="col-6 col-lg-3">
-        <div class="card shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="d-flex align-items-center justify-content-center mb-2">
-              <i class="fas fa-clock text-success me-2 fs-4"></i>
-              <h6 class="card-title mb-0 d-none d-sm-block">Awaiting Payment</h6>
-            </div>
-            <h3 class="card-text text-success mb-0">${{ total_unpaid|floatformat:2 }}</h3>
-            <small class="text-muted d-block d-sm-none">Commissions Awaiting Payment</small>
-          </div>
-        </div>
-      </div>
-      <div class="col-6 col-lg-3">
-        <div class="card shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="d-flex align-items-center justify-content-center mb-2">
-              <i class="fas fa-hourglass-half text-dark me-2 fs-4"></i>
-              <h6 class="card-title mb-0 d-none d-sm-block">Pending</h6>
-            </div>
-            <h3 class="card-text text-dark mb-0">${{ total_pending|floatformat:2 }}</h3>
-            <small class="text-muted d-block d-sm-none">Pending Commissions</small>
-          </div>
-        </div>
-      </div>
-      <div class="col-6 col-lg-3">
-        <div class="card shadow-sm h-100">
-          <div class="card-body text-center">
-            <div class="d-flex align-items-center justify-content-center mb-2">
-              <i class="fas fa-check-circle text-purple me-2 fs-4"></i>
-              <h6 class="card-title mb-0 d-none d-sm-block">Total Paid</h6>
-            </div>
-            <h3 class="card-text text-purple mb-0">${{ total_paid }}</h3>
-            <small class="text-muted d-block d-sm-none">Total Paid</small>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Agents Table -->
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="card shadow-sm">
-          <div class="card-header">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
-              <h5 class="mb-0">Agents Overview</h5>
-              <div class="input-group" style="max-width: 300px; width: 100%;">
-                <input type="text" id="agentSearch" class="form-control" placeholder="Search agents..." />
-                <span class="input-group-text"><i class="fas fa-search"></i></span>
-              </div>
-            </div>
-          </div>
-          <div class="card-body p-0">
-            <!-- Mobile Cards View -->
-            <div class="d-block d-lg-none" id="mobileAgentsView">
-              {% for agent_stat in agents_with_stats %}
-                <div class="border-bottom p-3 agent-card">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                      <h6 class="mb-1 fw-bold">{{ agent_stat.agent.agent_name }}</h6>
-                      <small class="text-muted">{{ agent_stat.agent.user.email }}</small>
-                    </div>
-                    <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="btn btn-sm btn-outline-dark">View</a>
-                  </div>
-                  <div class="row g-2 mt-2">
-                    <div class="col-4">
-                      <small class="text-muted d-block">Awaiting Payment</small>
-                      <span class="text-success fw-bold">${{ agent_stat.unpaid }}</span>
-                    </div>
-                    <div class="col-4">
-                      <small class="text-muted d-block">Pending</small>
-                      <span class="text-dark fw-bold">${{ agent_stat.pending }}</span>
-                    </div>
-                    <div class="col-4">
-                      <small class="text-muted d-block">Earned</small>
-                      <span class="text-purple fw-bold">${{ agent_stat.paid }}</span>
-                    </div>
-                  </div>
-                  <div class="mt-2">
-                    <small class="text-muted">Reservations:</small>
-                    <span class="fw-bold">{{ agent_stat.reservation_count }}</span>
-                    {% if agent_stat.agent.phone %}
-                      <span class="ms-3">
-                        <small class="text-muted">Phone:</small>
-                        <span>{{ agent_stat.agent.phone }}</span>
-                      </span>
-                    {% endif %}
-                  </div>
+        <!-- Financial Overview -->
+        <section class="metrics-section">
+          <div class="row g-4">
+            <div class="col-lg-3 col-md-6">
+              <div class="metric-card">
+                <div class="metric-header">
+                  <span class="metric-label">Total Agents</span>
                 </div>
-              {% empty %}
-                <div class="text-center py-4">No agents found for this agency.</div>
-              {% endfor %}
+                <div class="metric-value">{{ agents.count }}</div>
+                <div class="metric-footer">
+                  <i class="bi bi-people me-1"></i>Active agents
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="metric-card metric-success">
+                <div class="metric-header">
+                  <span class="metric-label">Total Paid</span>
+                </div>
+                <div class="metric-value">${{ total_paid|floatformat:2 }}</div>
+                <div class="metric-footer">
+                  <i class="bi bi-check-circle me-1"></i>Received
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="metric-card metric-pending">
+                <div class="metric-header">
+                  <span class="metric-label">Pending</span>
+                </div>
+                <div class="metric-value">${{ total_pending|floatformat:2 }}</div>
+                <div class="metric-footer">
+                  <i class="bi bi-hourglass-split me-1"></i>Awaiting completion
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <div class="metric-card metric-awaiting">
+                <div class="metric-header">
+                  <span class="metric-label">Next Payout</span>
+                </div>
+                <div class="metric-value">${{ total_unpaid|floatformat:2 }}</div>
+                <div class="metric-footer">
+                  <i class="bi bi-wallet2 me-1"></i>Ready for payout
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Agents Table -->
+        <section class="agents-section">
+          <div class="dashboard-card">
+            <div class="card-header card-header-with-actions">
+              <h3 class="card-title">Agents Overview</h3>
+              <div class="card-actions">
+                <div class="search-input-wrapper">
+                  <i class="bi bi-search"></i>
+                  <input type="text" id="agentSearch" placeholder="Search agents..." />
+                </div>
+              </div>
             </div>
 
-            <!-- Desktop Table View -->
-            <div class="table-responsive d-none d-lg-block">
-              <table class="table table-hover mb-0" id="agentsTable">
-                <thead>
-                  <tr>
-                    <th>Agent</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Awaiting Payment</th>
-                    <th>Pending</th>
-                    <th>Total Earned</th>
-                    <th>Reservations</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div class="card-body p-0">
+              {% if agents_with_stats %}
+                <!-- Desktop Table View -->
+                <div class="table-responsive d-none d-lg-block">
+                  <table class="data-table" id="agentsTable">
+                    <thead>
+                      <tr>
+                        <th>Agent</th>
+                        <th>Contact</th>
+                        <th>Awaiting</th>
+                        <th>Pending</th>
+                        <th>Earned</th>
+                        <th>Reservations</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for agent_stat in agents_with_stats %}
+                        <tr class="agent-row">
+                          <td>
+                            <div class="cell-agent">
+                              <span class="agent-name">{{ agent_stat.agent.agent_name }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="cell-contact">
+                              <span class="contact-email">{{ agent_stat.agent.user.email }}</span>
+                              <span class="contact-phone">{{ agent_stat.agent.phone|default:"—" }}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span class="amount-warning">${{ agent_stat.unpaid|floatformat:2 }}</span>
+                          </td>
+                          <td>
+                            <span class="amount-info">${{ agent_stat.pending|floatformat:2 }}</span>
+                          </td>
+                          <td>
+                            <span class="amount-success">${{ agent_stat.paid|floatformat:2 }}</span>
+                          </td>
+                          <td>
+                            <span class="count-badge">{{ agent_stat.reservation_count }}</span>
+                          </td>
+                          <td>
+                            <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="btn-view">View</a>
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Mobile Card View -->
+                <div class="mobile-cards d-lg-none" id="mobileAgentsView">
                   {% for agent_stat in agents_with_stats %}
-                    <tr class="agent-row">
-                      <td>{{ agent_stat.agent.agent_name }}</td>
-                      <td>{{ agent_stat.agent.user.email }}</td>
-                      <td>{{ agent_stat.agent.phone }}</td>
-                      <td class="text-success">${{ agent_stat.unpaid }}</td>
-                      <td class="text-dark">${{ agent_stat.pending }}</td>
-                      <td class="text-purple">${{ agent_stat.paid }}</td>
-                      <td>{{ agent_stat.reservation_count }}</td>
-                      <td>
-                        <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="btn btn-sm btn-outline-dark">View Details</a>
-                      </td>
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="8" class="text-center py-4">No agents found for this agency.</td>
-                    </tr>
+                    <a href="{% url 'agent_detail' agent_stat.agent.id %}" class="mobile-card agent-card">
+                      <div class="mobile-card-header">
+                        <span class="mobile-customer">{{ agent_stat.agent.agent_name }}</span>
+                        <span class="count-badge">{{ agent_stat.reservation_count }} trips</span>
+                      </div>
+                      <div class="mobile-card-body">
+                        <div class="mobile-row">
+                          <span class="mobile-label">Email</span>
+                          <span class="mobile-value">{{ agent_stat.agent.user.email }}</span>
+                        </div>
+                        <div class="mobile-row">
+                          <span class="mobile-label">Phone</span>
+                          <span class="mobile-value">{{ agent_stat.agent.phone|default:"—" }}</span>
+                        </div>
+                      </div>
+                      <div class="mobile-card-footer">
+                        <div class="mobile-stats">
+                          <div class="mobile-stat">
+                            <span class="mobile-stat-label">Awaiting</span>
+                            <span class="mobile-stat-value amount-warning">${{ agent_stat.unpaid|floatformat:2 }}</span>
+                          </div>
+                          <div class="mobile-stat">
+                            <span class="mobile-stat-label">Pending</span>
+                            <span class="mobile-stat-value amount-info">${{ agent_stat.pending|floatformat:2 }}</span>
+                          </div>
+                          <div class="mobile-stat">
+                            <span class="mobile-stat-label">Earned</span>
+                            <span class="mobile-stat-value amount-success">${{ agent_stat.paid|floatformat:2 }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </a>
                   {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent Reservations and Payouts -->
-    <div class="row">
-      <div class="col-12 col-xl-6 mb-4">
-        <div class="card shadow-sm">
-          <div class="card-header">
-            <h5 class="mb-0">Recent Reservations</h5>
-          </div>
-          <div class="card-body p-0">
-            <!-- Mobile Cards View -->
-            <div class="d-block d-md-none">
-              {% for reservation in recent_reservations %}
-                <div class="border-bottom p-3">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                      <h6 class="mb-1">{{ reservation.customer.get_full_name }}</h6>
-                      <small class="text-muted">{{ reservation.created_at|date:'M d, Y' }}</small>
-                    </div>
-                    <span class="badge {% if reservation.status == 'completed' %}
-                        
-                        
-                        
-                        
-                        
-                        
-                         bg-success
-
-
-
-
-
-
-                      {% elif reservation.status == 'confirmed' %}
-                        
-                        
-                        
-                        
-                        
-                        
-                         bg-dark
-
-
-
-
-
-
-                      {% else %}
-                        
-                        
-                        
-                        
-                        
-                        
-                         bg-secondary
-
-
-
-
-
-
-                      {% endif %}">
-                      {{ reservation.status|title }}
-                    </span>
-                  </div>
-                  <div class="d-flex justify-content-between">
-                    <span><small class="text-muted">Agent:</small> {{ reservation.travel_agent.agent_name }}</span>
-                    <span class="fw-bold">${{ reservation.total_price }}</span>
-                  </div>
                 </div>
-              {% empty %}
-                <div class="text-center py-4">No recent reservations found.</div>
-              {% endfor %}
-            </div>
-
-            <!-- Desktop Table View -->
-            <div class="table-responsive d-none d-md-block">
-              <table class="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Customer</th>
-                    <th>Agent</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for reservation in recent_reservations %}
-                    <tr>
-                      <td>{{ reservation.created_at|date:'M d, Y' }}</td>
-                      <td>{{ reservation.customer.get_full_name }}</td>
-                      <td>{{ reservation.travel_agent.agent_name }}</td>
-                      <td>${{ reservation.total_price }}</td>
-                      <td>
-                        <span class="badge {% if reservation.status == 'completed' %}
-                            
-                            
-                            
-                            
-                            
-                            
-                             bg-success
-
-
-
-
-
-
-                          {% elif reservation.status == 'confirmed' %}
-                            
-                            
-                            
-                            
-                            
-                            
-                             bg-dark
-
-
-
-
-
-
-                          {% else %}
-                            
-                            
-                            
-                            
-                            
-                            
-                             bg-secondary
-
-
-
-
-
-
-                          {% endif %}">
-                          {{ reservation.status|title }}
-                        </span>
-                      </td>
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="5" class="text-center py-4">No recent reservations found.</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-xl-6 mb-4">
-        <div class="card shadow-sm">
-          <div class="card-header">
-            <h5 class="mb-0">Recent Commission Payouts</h5>
-          </div>
-          <div class="card-body p-0">
-            <!-- Mobile Cards View -->
-            <div class="d-block d-md-none">
-              {% for payout in recent_payouts %}
-                <div class="border-bottom p-3">
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                      <h6 class="mb-1">{{ payout.agent.agent_name }}</h6>
-                      <small class="text-muted">{{ payout.paid_at|date:'M d, Y' }}</small>
-                    </div>
-                    <span class="fw-bold">${{ payout.total_amount }}</span>
-                  </div>
-                  <div>
-                    <small class="text-muted">Period:</small> {{ payout.payout_period_start|date:'M d' }} - {{ payout.payout_period_end|date:'M d, Y' }}
-                  </div>
+              {% else %}
+                <div class="empty-table">
+                  <i class="bi bi-people"></i>
+                  <p>No agents found for this agency</p>
                 </div>
-              {% empty %}
-                <div class="text-center py-4">No recent payouts found.</div>
-              {% endfor %}
-            </div>
-
-            <!-- Desktop Table View -->
-            <div class="table-responsive d-none d-md-block">
-              <table class="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Agent</th>
-                    <th>Period</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for payout in recent_payouts %}
-                    <tr>
-                      <td>{{ payout.paid_at|date:'M d, Y' }}</td>
-                      <td>{{ payout.agent.agent_name }}</td>
-                      <td>{{ payout.payout_period_start|date:'M d' }} - {{ payout.payout_period_end|date:'M d, Y' }}</td>
-                      <td>${{ payout.total_amount }}</td>
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="4" class="text-center py-4">No recent payouts found.</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+              {% endif %}
             </div>
           </div>
-        </div>
+        </section>
+
+        <!-- Bottom Section: Recent Activity -->
+        <section class="bottom-section">
+          <div class="row g-4">
+            <!-- Recent Reservations -->
+            <div class="col-lg-6">
+              <div class="dashboard-card h-100">
+                <div class="card-header">
+                  <h3 class="card-title">Recent Reservations</h3>
+                </div>
+                <div class="card-body p-0">
+                  {% if recent_reservations %}
+                    <div class="activity-list">
+                      {% for reservation in recent_reservations %}
+                        <div class="activity-row">
+                          <div class="activity-left">
+                            <span class="activity-name">{{ reservation.customer.get_full_name }}</span>
+                            <span class="activity-date">{{ reservation.created_at|date:'M d, Y' }} &middot; {{ reservation.travel_agent.agent_name }}</span>
+                          </div>
+                          <div class="activity-right">
+                            <span class="status-label status-{{ reservation.status }}">{{ reservation.status|title }}</span>
+                            <span class="activity-amount">${{ reservation.total_price|floatformat:2 }}</span>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="empty-card">
+                      <p>No recent reservations</p>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Payouts -->
+            <div class="col-lg-6">
+              <div class="dashboard-card h-100">
+                <div class="card-header card-header-with-actions">
+                  <h3 class="card-title">Recent Payouts</h3>
+                  <a href="{% url 'agency_commission_history' agency.id %}" class="btn-link">View All</a>
+                </div>
+                <div class="card-body p-0">
+                  {% if recent_payouts %}
+                    <div class="activity-list">
+                      {% for payout in recent_payouts %}
+                        <div class="activity-row">
+                          <div class="activity-left">
+                            <span class="activity-name">{{ payout.agent.agent_name }}</span>
+                            <span class="activity-date">{{ payout.paid_at|date:'M d, Y' }}</span>
+                          </div>
+                          <div class="activity-right">
+                            <span class="activity-amount amount-success">${{ payout.total_amount|floatformat:2 }}</span>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <div class="empty-card">
+                      <p>No recent payouts</p>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
-{% endblock %}
-{% block footer %}
 
+  <style>
+    :root {
+      --color-gold: #C9A227;
+      --color-gold-hover: #b8931f;
+      --color-dark: #1a1a2e;
+      --color-text: #2d3748;
+      --color-text-muted: #718096;
+      --color-border: #e2e8f0;
+      --color-bg: #f7fafc;
+      --color-white: #ffffff;
+      --color-success: #10b981;
+      --color-warning: #f59e0b;
+      --color-danger: #ef4444;
+      --color-info: #3b82f6;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .agency-dashboard {
+      background: var(--color-bg);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .dashboard-header {
+      background: var(--color-dark);
+      padding: 2rem 0;
+      border-bottom: 2px solid var(--color-gold);
+    }
+
+    .header-content {
+      color: var(--color-white);
+    }
+
+    .agency-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-bottom: 0.5rem;
+    }
+
+    .agency-title {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+      letter-spacing: -0.5px;
+    }
+
+    .agency-subtitle {
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.6);
+      margin: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      transition: all 0.2s ease;
+    }
+
+    .btn-action-primary {
+      background: var(--color-gold);
+      color: var(--color-dark);
+    }
+
+    .btn-action-primary:hover {
+      background: var(--color-gold-hover);
+      color: var(--color-dark);
+    }
+
+    .btn-action-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--color-white);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-action-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--color-white);
+    }
+
+    /* Content */
+    .dashboard-content {
+      padding: 1.5rem 0 3rem;
+    }
+
+    /* Navigation */
+    .dashboard-nav {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--color-border);
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .nav-item {
+      padding: 0.875rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-decoration: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .nav-item:hover {
+      color: var(--color-text);
+    }
+
+    .nav-item.active {
+      color: var(--color-dark);
+      border-bottom-color: var(--color-gold);
+    }
+
+    /* Metrics Section */
+    .metrics-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .metric-card {
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      height: 100%;
+    }
+
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-text-muted);
+    }
+
+    .metric-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+
+    .metric-footer {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .metric-success .metric-value { color: var(--color-success); }
+    .metric-pending .metric-value { color: var(--color-info); }
+    .metric-awaiting .metric-value { color: var(--color-warning); }
+
+    .metric-success { border-left: 3px solid var(--color-success); }
+    .metric-pending { border-left: 3px solid var(--color-info); }
+    .metric-awaiting { border-left: 3px solid var(--color-warning); }
+
+    /* Dashboard Card */
+    .dashboard-card {
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-white);
+    }
+
+    .card-header-with-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--color-text);
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .card-body {
+      padding: 1.25rem;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    /* Search */
+    .search-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-input-wrapper i {
+      position: absolute;
+      left: 0.75rem;
+      color: var(--color-text-muted);
+      font-size: 0.8rem;
+    }
+
+    .search-input-wrapper input {
+      padding: 0.5rem 0.75rem 0.5rem 2rem;
+      font-size: 0.875rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      width: 200px;
+      transition: all 0.2s ease;
+    }
+
+    .search-input-wrapper input:focus {
+      outline: none;
+      border-color: var(--color-gold);
+    }
+
+    /* Data Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table thead th {
+      padding: 0.875rem 1.25rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--color-text-muted);
+      text-align: left;
+      background: var(--color-bg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .data-table tbody tr {
+      border-bottom: 1px solid var(--color-border);
+      transition: background 0.15s ease;
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(201, 162, 39, 0.03);
+    }
+
+    .data-table tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    .data-table td {
+      padding: 1rem 1.25rem;
+      font-size: 0.875rem;
+      vertical-align: middle;
+    }
+
+    .cell-agent, .cell-contact {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .agent-name {
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .contact-email {
+      font-size: 0.8rem;
+      color: var(--color-text);
+    }
+
+    .contact-phone {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+    }
+
+    .amount-success { color: var(--color-success); font-weight: 600; }
+    .amount-warning { color: var(--color-warning); font-weight: 600; }
+    .amount-info { color: var(--color-info); font-weight: 600; }
+
+    .count-badge {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-view {
+      display: inline-block;
+      padding: 0.375rem 0.875rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--color-text);
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-view:hover {
+      border-color: var(--color-gold);
+      color: var(--color-gold);
+    }
+
+    .btn-link {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--color-gold);
+      text-decoration: none;
+    }
+
+    .btn-link:hover {
+      text-decoration: underline;
+    }
+
+    /* Status Labels */
+    .status-label {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.65rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-confirmed { background: #dbeafe; color: #1e40af; }
+    .status-completed { background: #d1fae5; color: #065f46; }
+    .status-cancelled { background: #fee2e2; color: #991b1b; }
+
+    /* Mobile Cards */
+    .mobile-cards {
+      padding: 0.5rem;
+    }
+
+    .mobile-card {
+      display: block;
+      background: var(--color-white);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 0.75rem;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      overflow: hidden;
+    }
+
+    .mobile-card:hover {
+      border-color: var(--color-gold);
+      box-shadow: var(--shadow-md);
+    }
+
+    .mobile-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.875rem 1rem;
+      background: var(--color-bg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .mobile-customer {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+
+    .mobile-card-body {
+      padding: 0.75rem 1rem;
+    }
+
+    .mobile-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.375rem 0;
+    }
+
+    .mobile-row:not(:last-child) {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .mobile-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .mobile-value {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--color-text);
+      text-align: right;
+    }
+
+    .mobile-card-footer {
+      padding: 0.75rem 1rem;
+      background: var(--color-bg);
+      border-top: 1px solid var(--color-border);
+    }
+
+    .mobile-stats {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .mobile-stat {
+      text-align: center;
+    }
+
+    .mobile-stat-label {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+
+    .mobile-stat-value {
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    /* Activity List */
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .activity-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.875rem 1.25rem;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .activity-row:last-child {
+      border-bottom: none;
+    }
+
+    .activity-left {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+    }
+
+    .activity-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .activity-date {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+    }
+
+    .activity-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.25rem;
+    }
+
+    .activity-amount {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+
+    /* Empty States */
+    .empty-table, .empty-card {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      color: var(--color-text-muted);
+    }
+
+    .empty-table i {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      display: block;
+      opacity: 0.3;
+    }
+
+    /* Sections */
+    .agents-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .bottom-section {
+      margin-top: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 991.98px) {
+      .header-actions {
+        justify-content: flex-start;
+        margin-top: 1rem;
+      }
+    }
+
+    @media (max-width: 767.98px) {
+      .dashboard-header {
+        padding: 1.5rem 0;
+      }
+
+      .agency-title {
+        font-size: 1.5rem;
+      }
+
+      .search-input-wrapper input {
+        width: 100%;
+      }
+
+      .metric-card {
+        padding: 1rem;
+      }
+
+      .metric-value {
+        font-size: 1.5rem;
+      }
+    }
+
+    /* Print */
+    @media print {
+      .dashboard-header {
+        background: #fff;
+        color: #000;
+        border-bottom: 2px solid #000;
+      }
+
+      .agency-title, .agency-subtitle, .agency-badge {
+        color: #000;
+      }
+
+      .header-actions, .dashboard-nav, .card-actions, .btn-view {
+        display: none !important;
+      }
+
+      .agency-dashboard {
+        background: #fff;
+      }
+
+      .dashboard-card, .metric-card {
+        box-shadow: none;
+        border: 1px solid #ccc;
+      }
+    }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Search functionality
+      document.getElementById('agentSearch').addEventListener('keyup', function() {
+        const value = this.value.toLowerCase();
+
+        // Search desktop table
+        const table = document.getElementById('agentsTable');
+        if (table) {
+          const rows = table.getElementsByTagName('tr');
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(value) ? '' : 'none';
+          }
+        }
+
+        // Search mobile cards
+        const mobileView = document.getElementById('mobileAgentsView');
+        if (mobileView) {
+          const cards = mobileView.getElementsByClassName('agent-card');
+          for (let card of cards) {
+            const text = card.textContent.toLowerCase();
+            card.style.display = text.includes(value) ? '' : 'none';
+          }
+        }
+      });
+    });
+  </script>
+{% endblock %}
+
+{% block footer %}
 {% endblock %}
 {% block newsletter %}
-
-{% endblock %}
-
-{% block extra_js %}
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      // Search functionality for desktop table
-      document.getElementById('agentSearch').addEventListener('keyup', function () {
-        const value = this.value.toLowerCase()
-    
-        // Search desktop table
-        const table = document.getElementById('agentsTable')
-        if (table) {
-          const rows = table.getElementsByTagName('tr')
-          for (let i = 1; i < rows.length; i++) {
-            const row = rows[i]
-            const text = row.textContent.toLowerCase()
-            row.style.display = text.includes(value) ? '' : 'none'
-          }
-        }
-    
-        // Search mobile cards
-        const mobileView = document.getElementById('mobileAgentsView')
-        if (mobileView) {
-          const cards = mobileView.getElementsByClassName('agent-card')
-          for (let card of cards) {
-            const text = card.textContent.toLowerCase()
-            card.style.display = text.includes(value) ? '' : 'none'
-          }
-        }
-      })
-    })
-  </script>
 {% endblock %}

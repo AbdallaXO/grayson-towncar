@@ -184,7 +184,6 @@
 
 .contact-box:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
 .contact-box-decoration {
@@ -193,7 +192,6 @@
   right: 0;
   width: 200px;
   height: 200px;
-  background: radial-gradient(circle at top right, rgba(108, 117, 125, 0.15), transparent 70%);
   z-index: 0;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -203,6 +201,8 @@
   opacity: 0.8;
 }
 
+/* Contact box gold theme - see premium styles at bottom */
+
 /* Rate Tables */
 .rate-card {
   border-radius: 0.75rem;
@@ -210,26 +210,15 @@
   transition: transform 0.2s ease;
 }
 
-.rate-card:hover {
-  transform: translateY(-2px);
-}
+/* Rate card hover - see premium styles at bottom */
 
-.header-accent {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, rgba(108, 117, 125, 0.7), transparent);
-}
+/* Header accent - see premium styles at bottom */
 
 .rate-row {
   transition: background-color 0.3s ease;
 }
 
-.rate-row:hover {
-  background-color: rgba(240, 242, 245, 0.7) !important;
-}
+/* Rate row hover - see premium styles at bottom */
 
 .pricing-text {
   transition: color 0.3s ease;
@@ -266,31 +255,9 @@
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.inclusion-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
-}
+/* Inclusion item hover - see premium styles at bottom */
 
-/* Price Styling */
-.one-way-price,
-.round-trip-price {
-  font-weight: bold;
-  color: #1e282d;
-  background-color: transparent;
-  border: none;
-  padding: 0;
-  text-align: center;
-}
-
-.one-way-price {
-  margin-right: 10px;
-}
-
-.one-way-price:hover,
-.round-trip-price:hover {
-  color: #1e282dc2 !important;
-  background-color: transparent !important;
-}
+/* Price Styling - see premium styles at bottom */
 
 /* Table Styling */
 .table-responsive {
@@ -322,24 +289,7 @@
   justify-content: center;
 }
 
-/* Reserve Button */
-.btn2 {
-  background-color: transparent !important;
-  color: #0A1428 ;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid #6c757d;
-  white-space: nowrap;
-  text-decoration: none;
-  transition: all 0.3s ease;
-}
-
-.btn2:hover {
-  background-color: #0A1428  !important;
-  color: #c4a104;
-  border-color: #6c757d;
-  text-decoration: none;
-}
+/* Reserve Button - see premium styles at bottom */
 
 /* Vehicle Tabs */
 .vehicle-tabs-container {
@@ -392,16 +342,7 @@
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-/* Vehicle Preview */
-.vehicle-preview {
-  background: white;
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
-}
+/* Vehicle Preview - see premium styles at bottom */
 
 .preview-content {
   display: flex;
@@ -451,9 +392,7 @@
   transition: all 0.3s ease;
 }
 
-.spec-item:hover {
-  background-color: rgba(240, 242, 245, 0.7);
-}
+/* Spec item hover - see premium styles at bottom */
 
 .spec-item img {
   width: 1.2em;
@@ -743,4 +682,94 @@
 
 .bg-rates-dark {
   background-color: #091428 !important;
+}
+
+/* Reserve Button */
+.btn2 {
+  background-color: transparent !important;
+  color: #0A1428;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #6c757d;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.btn2:hover {
+  background-color: #0A1428 !important;
+  color: #c4a104;
+  border-color: #6c757d;
+  text-decoration: none;
+}
+
+/* Header Accent */
+.header-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(108, 117, 125, 0.7), transparent);
+}
+
+/* Rate Row Hover */
+.rate-row:hover {
+  background-color: rgba(240, 242, 245, 0.7) !important;
+}
+
+/* Price Styling */
+.one-way-price,
+.round-trip-price {
+  font-weight: bold;
+  color: #1e282d;
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  text-align: center;
+}
+
+.one-way-price {
+  margin-right: 10px;
+}
+
+.one-way-price:hover,
+.round-trip-price:hover {
+  color: #1e282dc2 !important;
+  background-color: transparent !important;
+}
+
+/* Vehicle Preview */
+.vehicle-preview {
+  background: white;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.spec-item:hover {
+  background-color: rgba(240, 242, 245, 0.7);
+}
+
+/* Inclusion Cards */
+.inclusion-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Contact Box */
+.contact-box:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.contact-box-decoration {
+  background: radial-gradient(circle at top right, rgba(108, 117, 125, 0.15), transparent 70%);
+}
+
+/* Rate Card */
+.rate-card:hover {
+  transform: translateY(-2px);
 }

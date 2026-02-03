@@ -1,112 +1,304 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
       rel="stylesheet" />
 {% load static %}
-<footer class="bg-dark bg-footer-dark text-light py-5">
+<footer class="premium-footer">
   <div class="container">
-    <div class="row g-4">
+    <!-- Main Footer Content -->
+    <div class="row g-5 py-5">
       <!-- Company Info -->
       <div class="col-lg-4 col-md-6">
-        <h2 class="mb-4">About Grayson Towncar</h2>
-        <p class="mb-4">
-          Grayson Towncar provides premium Orlando transportation services specializing in Disney World, Universal Studios, and Port Canaveral transfers. Our reliable luxury fleet ensures your family vacation starts with stress-free travel between MCO Airport, cruise terminals, and Orlando's world-class theme parks.
+        <div class="footer-brand mb-4">
+          <img src="{% static 'images/logo.png' %}" alt="Grayson Town Car" height="100" width="100" />
+        </div>
+        <p class="footer-description">
+          Premium Orlando transportation services specializing in Disney World, Universal Studios, and Port Canaveral transfers. Experience stress-free luxury travel from MCO Airport to Orlando's world-class destinations.
         </p>
-        <div class="social-links">
+        <div class="social-links mt-4">
           <a href="https://www.facebook.com/profile.php?id=61574468855996"
              target="_blank"
-             class="social-icon bg-primary"
-             aria-label="Visit our Facebook page">
+             class="social-icon"
+             aria-label="Facebook">
             <i class="fab fa-facebook-f"></i>
           </a>
           <a href="https://x.com/GraysonTowncar"
              target="_blank"
-             class="social-icon bg-info"
-             aria-label="Visit our X (Twitter) page">
+             class="social-icon"
+             aria-label="X (Twitter)">
             <i class="fab fa-twitter"></i>
           </a>
           <a href="https://www.instagram.com/graysontowncar"
              target="_blank"
-             class="social-icon bg-danger"
-             aria-label="Visit our Instagram page">
+             class="social-icon"
+             aria-label="Instagram">
             <i class="fab fa-instagram"></i>
           </a>
         </div>
       </div>
+
       <!-- Quick Links -->
       <div class="col-lg-2 col-md-6">
-        <h2 class="mb-4">Quick Links</h2>
-        <ul class="list-unstyled">
-          <li class="mb-2">
-            <a href="{% url 'home' %}" class="footer-link">Home</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'services' %}" class="footer-link">Services</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'rates' %}" class="footer-link">Rates</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'contact' %}" class="footer-link">Contact</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'blog-list' %}" class="footer-link">Blog</a>
-          </li>
+        <h3 class="footer-heading">Quick Links</h3>
+        <ul class="footer-links">
+          <li><a href="{% url 'home' %}">Home</a></li>
+          <li><a href="{% url 'rates' %}">Rates & Booking</a></li>
+          <li><a href="{% url 'services' %}">Our Services</a></li>
+          <li><a href="{% url 'about-us' %}">About Us</a></li>
+          <li><a href="{% url 'contact' %}">Contact</a></li>
+          <li><a href="{% url 'faqs' %}">FAQs</a></li>
         </ul>
       </div>
+
       <!-- Services -->
-      <div class="col-lg-2 col-md-6">
-        <h2 class="mb-4">Services</h2>
-        <ul class="list-unstyled">
-          <li class="mb-2">
-            <a href="{% url 'orlando_airport_transportation' %}" class="footer-link">Orlando Airport Transportation</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'disney_world_transportation' %}" class="footer-link">Walt Disney World Transportation</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'universal_orlando_transportation' %}"
-               class="footer-link">Universal Orlando Transportation</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'port_canaveral_transportation' %}" class="footer-link">Port Canaveral Cruise Transportation</a>
-          </li>
-          <li class="mb-2">
-            <a href="{% url 'corporate_transportation' %}" class="footer-link">Corporate Transportation</a>
-          </li>
+      <div class="col-lg-3 col-md-6">
+        <h3 class="footer-heading">Services</h3>
+        <ul class="footer-links">
+          <li><a href="{% url 'orlando_airport_transportation' %}">Orlando Airport Transportation</a></li>
+          <li><a href="{% url 'disney_world_transportation' %}">Disney World Transportation</a></li>
+          <li><a href="{% url 'universal_orlando_transportation' %}">Universal Orlando Transportation</a></li>
+          <li><a href="{% url 'port_canaveral_transportation' %}">Port Canaveral Transfers</a></li>
+          <li><a href="{% url 'corporate_transportation' %}">Corporate Transportation</a></li>
         </ul>
       </div>
+
       <!-- Contact Info -->
-      <div class="col-lg-4 col-md-6">
-        <h2 class="mb-4">Contact Us</h2>
-        <ul class="list-unstyled">
-          <li class="mb-3">
-            <a href="{% url 'contact' %}" class="footer-link">
-              <i class="bi bi-calculator me-2"></i> Request a Quote
-            </a>
+      <div class="col-lg-3 col-md-6">
+        <h3 class="footer-heading">Contact Us</h3>
+        <ul class="footer-contact">
+          <li>
+            <i class="fas fa-phone"></i>
+            <a href="tel:+14072127190">+1 (407) 212-7190</a>
           </li>
-          <li class="mb-3">
-            <i class="fas fa-map-marker-alt me-2"></i> Orlando, FL
+          <li>
+            <i class="fas fa-envelope"></i>
+            <a href="mailto:reservations@graysontowncar.com">reservations@graysontowncar.com</a>
           </li>
-          <li class="mb-3">
-            <i class="fas fa-phone me-2"></i>
-            <a href="tel:+14072127190" class="footer-link">+1 (407) 212-7190</a>
+          <li>
+            <i class="fas fa-map-marker-alt"></i>
+            <span>Orlando, Florida</span>
           </li>
-          <li class="mb-3">
-            <i class="fas fa-envelope me-2"></i>
-            <a href="mailto:reservations@graysontowncar.com" class="footer-link">reservations@graysontowncar.com</a>
+          <li>
+            <i class="fas fa-clock"></i>
+            <span>24/7 Service Available</span>
           </li>
         </ul>
+        <a href="{% url 'rates' %}" class="btn-footer-cta mt-3">
+          Get a Quote <i class="bi bi-arrow-right ms-2"></i>
+        </a>
       </div>
     </div>
-    <!-- Copyright -->
-    <div class="row mt-5">
-      <div class="col-12">
-        <hr class="mb-4" />
-        <div class="text-center">
-          <p class="mb-0">© 2025 Grayson Towncar. All rights reserved.</p>
+
+    <!-- Bottom Bar -->
+    <div class="footer-bottom">
+      <div class="row align-items-center">
+        <div class="col-md-6 text-center text-md-start">
+          <p class="mb-0">&copy; 2025 Grayson Towncar. All rights reserved.</p>
+        </div>
+        <div class="col-md-6 text-center text-md-end mt-3 mt-md-0">
+          <a href="{% url 'blog-list' %}" class="footer-bottom-link">Blog</a>
+          <a href="{% url 'partner' %}" class="footer-bottom-link">Partners</a>
+          <a href="{% url 'agent_login' %}" class="footer-bottom-link">Agent Portal</a>
         </div>
       </div>
     </div>
   </div>
 </footer>
 
-<link rel="stylesheet" href="{% static 'css/footer-styles.css' %}">
+<style>
+  /* Premium Footer Styling */
+  .premium-footer {
+    background: linear-gradient(180deg, #0d1117 0%, #0A1428 100%);
+    color: rgba(255, 255, 255, 0.8);
+    position: relative;
+  }
+
+  .premium-footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(201, 162, 39, 0.5), transparent);
+  }
+
+  .footer-brand img {
+    filter: brightness(1.1);
+  }
+
+  .footer-description {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.65);
+  }
+
+  .footer-heading {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 1.5rem;
+    position: relative;
+    padding-bottom: 0.75rem;
+  }
+
+  .footer-heading::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 2px;
+    background: linear-gradient(90deg, #C9A227, #E8D5B7);
+  }
+
+  .footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .footer-links li {
+    margin-bottom: 0.75rem;
+  }
+
+  .footer-links a {
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    display: inline-block;
+  }
+
+  .footer-links a:hover {
+    color: #C9A227;
+    transform: translateX(5px);
+  }
+
+  .footer-contact {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .footer-contact li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .footer-contact li i {
+    color: #C9A227;
+    width: 16px;
+    text-align: center;
+    margin-top: 0.2rem;
+  }
+
+  .footer-contact a,
+  .footer-contact span {
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    transition: color 0.3s ease;
+  }
+
+  .footer-contact a:hover {
+    color: #C9A227;
+  }
+
+  .social-links {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .social-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+
+  .social-icon:hover {
+    background: #C9A227;
+    border-color: #C9A227;
+    color: #0d1117;
+    transform: translateY(-3px);
+  }
+
+  .btn-footer-cta {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, #C9A227 0%, #D4AF37 100%);
+    color: #0d1117;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 50px;
+    text-decoration: none;
+    transition: all 0.3s ease;
+  }
+
+  .btn-footer-cta:hover {
+    background: linear-gradient(135deg, #D4AF37 0%, #C9A227 100%);
+    color: #0d1117;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(201, 162, 39, 0.3);
+  }
+
+  .footer-bottom {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.5rem 0;
+  }
+
+  .footer-bottom p {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+  }
+
+  .footer-bottom-link {
+    color: rgba(255, 255, 255, 0.5);
+    text-decoration: none;
+    font-size: 0.85rem;
+    margin-left: 1.5rem;
+    transition: color 0.3s ease;
+  }
+
+  .footer-bottom-link:first-child {
+    margin-left: 0;
+  }
+
+  .footer-bottom-link:hover {
+    color: #C9A227;
+  }
+
+  @media (max-width: 767.98px) {
+    .premium-footer {
+      text-align: center;
+    }
+
+    .footer-heading::after {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .footer-contact li {
+      justify-content: center;
+    }
+
+    .social-links {
+      justify-content: center;
+    }
+
+    .footer-bottom-link {
+      display: block;
+      margin: 0.5rem 0;
+    }
+  }
+</style>
