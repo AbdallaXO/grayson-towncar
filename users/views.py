@@ -1138,6 +1138,85 @@ def agency_commission_payout_detail(request, payout_id):
     return render(request, "users/agency_commission_detail.html", context)
 
 
+@login_required
+def send_agent_commission_statement_email(request, pk):
+    """Send commission statement email for an agent payout."""
+    payout = get_object_or_404(CommissionPayout, pk=pk)
+    agent = payout.agent
+
+    # Check permissions - must be the agent, agency head, or staff
+    has_permission = (
+        request.user == agent.user
+        or (agent.agency and agent.agency.heads.filter(id=request.user.id).exists())
+        or request.user.is_staff
+    )
+
+    if not has_permission:
+        messages.error(request, "Permission denied.")
+        return redirect("home")
+
+    if request.method == "POST":
+        recipient_email = request.POST.get("recipient_email", "").strip()
+        if not recipient_email:
+            messages.error(request, "Please enter an email address.")
+        else:
+            from users.emails import send_agent_commission_statement
+
+            email_sent = send_agent_commission_statement(
+                agent=agent,
+                payout=payout,
+                recipient_email=recipient_email,
+            )
+            if email_sent:
+                messages.success(request, f"Statement emailed to {recipient_email}.")
+            else:
+                messages.error(request, "Failed to send statement email. Please try again.")
+
+        return redirect("commission_payout_detail", pk=pk)
+
+    # For GET requests, redirect back
+    return redirect("commission_payout_detail", pk=pk)
+
+
+@login_required
+def send_agency_commission_statement_email(request, payout_id):
+    """Send commission statement email for an agency payout."""
+    payout = get_object_or_404(AgencyCommissionPayout, id=payout_id)
+    agency = payout.agency
+
+    # Check permissions - must be an agency head or staff
+    has_permission = (
+        agency.heads.filter(id=request.user.id).exists()
+        or request.user.is_staff
+    )
+
+    if not has_permission:
+        messages.error(request, "Permission denied.")
+        return redirect("home")
+
+    if request.method == "POST":
+        recipient_email = request.POST.get("recipient_email", "").strip()
+        if not recipient_email:
+            messages.error(request, "Please enter an email address.")
+        else:
+            from users.emails import send_agency_commission_statement
+
+            email_sent = send_agency_commission_statement(
+                agency=agency,
+                payout=payout,
+                recipient_email=recipient_email,
+            )
+            if email_sent:
+                messages.success(request, f"Statement emailed to {recipient_email}.")
+            else:
+                messages.error(request, "Failed to send statement email. Please try again.")
+
+        return redirect("agency_commission_payout_detail", payout_id=payout_id)
+
+    # For GET requests, redirect back
+    return redirect("agency_commission_payout_detail", payout_id=payout_id)
+
+
 class AdminRequiredMixin(UserPassesTestMixin):
     """Mixin to ensure only superusers can access the view."""
 

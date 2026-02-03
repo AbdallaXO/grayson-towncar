@@ -16,7 +16,42 @@
         </p>
       </div>
       <div class="col-md-4 text-md-end">
-        <a href="{% url 'agent_commission_history' %}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-2"></i>Back to History</a>
+        <button type="button" class="btn btn-dark me-2" data-bs-toggle="modal" data-bs-target="#sendStatementModal">
+          <i class="bi bi-envelope me-2"></i>Email Statement
+        </button>
+        <a href="{% url 'agent_commission_history' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Back to History</a>
+      </div>
+    </div>
+
+    <!-- Send Statement Modal -->
+    <div class="modal fade" id="sendStatementModal" tabindex="-1" aria-labelledby="sendStatementModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="sendStatementModalLabel">Email Commission Statement</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form method="post" action="{% url 'send_agent_commission_statement' payout.pk %}">
+            {% csrf_token %}
+            <div class="modal-body">
+              <p class="text-muted mb-3">Send a detailed commission statement to the specified email address.</p>
+              <div class="mb-3">
+                <label for="recipient_email" class="form-label">Recipient Email</label>
+                <input type="email"
+                       class="form-control"
+                       id="recipient_email"
+                       name="recipient_email"
+                       value="{{ payout.agent.user.email }}"
+                       required>
+                <div class="form-text">The statement will be sent to this email address.</div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-dark"><i class="bi bi-send me-2"></i>Send Statement</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 

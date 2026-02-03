@@ -317,7 +317,7 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email):
             )
         else:
             subject = f"Grayson Towncar - Payment Statement {timezone.now().strftime('%b %d, %Y')}"
-        from_email = "finance@graysontowncar.com"
+        from_email = "reservations@graysontowncar.com"
         to = [recipient_email]
         html_content = render_to_string("users/driver_payment_statement.html", context)
 
@@ -360,3 +360,125 @@ def thankyou_email(instance):
 
     except Exception as e:
         logger.error(f"Error sending thank you email: {e}")
+
+
+def send_agent_commission_statement(agent, payout, recipient_email):
+    """
+    Send a commission statement email to a travel agent.
+    Returns True if queued successfully, False otherwise.
+    """
+    if not recipient_email:
+        logger.error("Agent commission statement failed: missing recipient email")
+        return False
+
+    try:
+        validate_email(recipient_email)
+    except ValidationError:
+        logger.error(f"Agent commission statement failed: invalid recipient email {recipient_email}")
+        return False
+
+    try:
+        # Get reservations for this payout
+        reservations = payout.reservations.all().order_by("created_at")
+
+        # Calculate total base price
+        total_base_price = sum(r.base_price or 0 for r in reservations)
+
+        context = {
+            "agent": agent,
+            "payout": payout,
+            "reservations": reservations,
+            "total_base_price": total_base_price,
+            "date": timezone.now().date(),
+        }
+
+        subject = (
+            f"Grayson Towncar - Commission Statement "
+            f"{payout.payout_period_start.strftime('%b %d, %Y')} - {payout.payout_period_end.strftime('%b %d, %Y')}"
+        )
+        from_email = "reservations@graysontowncar.com"
+        to = [recipient_email]
+        html_content = render_to_string("users/agent_commission_statement.html", context)
+
+        def _send_email():
+            try:
+                msg = EmailMultiAlternatives(subject, "", from_email, to)
+                msg.attach_alternative(html_content, "text/html")
+                msg.send()
+                logger.info(
+                    f"Agent commission statement sent to {recipient_email} for payout {payout.id}"
+                )
+            except Exception as e:
+                logger.exception(
+                    f"Error sending agent commission statement for payout {payout.id}: {e}"
+                )
+                raise
+
+        _send_email_with_retry(_send_email, max_retries=3)
+        return True
+    except Exception as e:
+        logger.exception(f"Failed to queue agent commission statement email: {e}")
+        return False
+
+
+def send_agency_commission_statement(agency, payout, recipient_email):
+    """
+    Send a commission statement email to a travel agency.
+    Returns True if queued successfully, False otherwise.
+    """
+    if not recipient_email:
+        logger.error("Agency commission statement failed: missing recipient email")
+        return False
+
+    try:
+        validate_email(recipient_email)
+    except ValidationError:
+        logger.error(f"Agency commission statement failed: invalid recipient email {recipient_email}")
+        return False
+
+    try:
+        # Get agent payouts for this agency payout
+        agent_payouts = payout.agent_payouts.all().select_related("agent", "agent__user")
+
+        # Calculate totals
+        total_agents = agent_payouts.count()
+        total_reservations = sum(ap.reservations.count() for ap in agent_payouts)
+        average_commission = payout.total_amount / total_agents if total_agents > 0 else 0
+
+        context = {
+            "agency": agency,
+            "payout": payout,
+            "agent_payouts": agent_payouts,
+            "total_agents": total_agents,
+            "total_reservations": total_reservations,
+            "average_commission": average_commission,
+            "date": timezone.now().date(),
+        }
+
+        subject = (
+            f"Grayson Towncar - Agency Commission Statement "
+            f"{payout.payout_period_start.strftime('%b %d, %Y')} - {payout.payout_period_end.strftime('%b %d, %Y')}"
+        )
+        from_email = "reservations@graysontowncar.com"
+        to = [recipient_email]
+        html_content = render_to_string("users/agency_commission_statement.html", context)
+
+        def _send_email():
+            try:
+                msg = EmailMultiAlternatives(subject, "", from_email, to)
+                msg.attach_alternative(html_content, "text/html")
+                msg.send()
+                logger.info(
+                    f"Agency commission statement sent to {recipient_email} for payout {payout.id}"
+                )
+            except Exception as e:
+                logger.exception(
+                    f"Error sending agency commission statement for payout {payout.id}: {e}"
+                )
+                raise
+
+        _send_email_with_retry(_send_email, max_retries=3)
+        return True
+    except Exception as e:
+        logger.exception(f"Failed to queue agency commission statement email: {e}")
+        return False

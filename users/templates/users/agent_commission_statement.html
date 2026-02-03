@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Commission Statement</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            color: #111111;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .header {
+            padding: 16px 0;
+            border-bottom: 2px solid #C9A227;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+            color: #1a1a2e;
+        }
+
+        .header .subtitle {
+            margin: 4px 0 0 0;
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .summary {
+            margin: 20px 0;
+            padding: 16px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .summary p {
+            margin: 8px 0;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e6e6e6;
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-label {
+            color: #666666;
+            font-size: 14px;
+        }
+
+        .summary-value {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .total-box {
+            background-color: #1a1a2e;
+            color: #ffffff;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .total-label {
+            font-size: 14px;
+            color: #C9A227;
+            margin-bottom: 4px;
+        }
+
+        .total-amount {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 10px 8px;
+            border-bottom: 1px solid #e6e6e6;
+            font-size: 13px;
+        }
+
+        th {
+            background-color: #1a1a2e;
+            color: #ffffff;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .total-row {
+            font-weight: bold;
+            background-color: #f8f9fa;
+        }
+
+        .total-row td {
+            border-top: 2px solid #1a1a2e;
+        }
+
+        .footer {
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #e6e6e6;
+            font-size: 12px;
+            color: #666666;
+        }
+
+        .footer p {
+            margin: 4px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-paid {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1a1a1a;
+                color: #e0e0e0;
+            }
+
+            .container {
+                background-color: #1a1a1a;
+            }
+
+            .summary {
+                background-color: #2a2a2a;
+            }
+
+            th {
+                background-color: #2a2a2a;
+                color: #e0e0e0;
+            }
+
+            td {
+                border-bottom-color: #333333;
+            }
+
+            .total-row {
+                background-color: #2a2a2a;
+            }
+
+            .total-row td {
+                border-top-color: #e0e0e0;
+            }
+        }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Commission Statement</h1>
+        <p class="subtitle">Grayson Towncar - Travel Agent Commission Payment</p>
+      </div>
+
+      <div class="summary">
+        <div class="summary-row">
+          <span class="summary-label">Agent Name</span>
+          <span class="summary-value">{{ agent.agent_name|default:agent.user.get_full_name }}</span>
+        </div>
+        {% if agent.agency_name %}
+        <div class="summary-row">
+          <span class="summary-label">Agency</span>
+          <span class="summary-value">{{ agent.agency_name }}</span>
+        </div>
+        {% endif %}
+        <div class="summary-row">
+          <span class="summary-label">Payment Date</span>
+          <span class="summary-value">{{ payout.paid_at|date:"F d, Y" }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Billing Period</span>
+          <span class="summary-value">{{ payout.payout_period_start|date:"M d, Y" }} - {{ payout.payout_period_end|date:"M d, Y" }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Payment Method</span>
+          <span class="summary-value">{{ agent.get_payment_method_display|default:"Not specified" }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Commission Rate</span>
+          <span class="summary-value">{{ agent.commission_rate }}%</span>
+        </div>
+      </div>
+
+      <div class="total-box">
+        <div class="total-label">Total Commission Paid</div>
+        <div class="total-amount">${{ payout.total_amount|floatformat:2 }}</div>
+      </div>
+
+      <h3 style="margin: 24px 0 8px 0; font-size: 16px; color: #1a1a2e;">Reservation Details</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Trip Type</th>
+            <th class="text-right">Base Price</th>
+            <th class="text-right">Commission</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for reservation in reservations %}
+            <tr>
+              <td>{{ reservation.created_at|date:"m/d/Y" }}</td>
+              <td>{{ reservation.customer.get_full_name|default:"N/A" }}</td>
+              <td>{{ reservation.get_trip_type_display }}</td>
+              <td class="text-right">${{ reservation.base_price|floatformat:2 }}</td>
+              <td class="text-right">${{ reservation.commission_amount|floatformat:2 }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="text-center">No reservations found for this payout.</td>
+            </tr>
+          {% endfor %}
+          <tr class="total-row">
+            <td colspan="3"><strong>Total ({{ reservations|length }} reservation{{ reservations|length|pluralize }})</strong></td>
+            <td class="text-right"><strong>${{ total_base_price|floatformat:2 }}</strong></td>
+            <td class="text-right"><strong>${{ payout.total_amount|floatformat:2 }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      {% if payout.notes %}
+      <div style="margin-top: 20px; padding: 12px; background-color: #fff3cd; border-radius: 6px; font-size: 13px;">
+        <strong>Notes:</strong> {{ payout.notes }}
+      </div>
+      {% endif %}
+
+      <div class="footer">
+        <p>Thank you for your partnership with Grayson Towncar!</p>
+        <p>Questions? Reply to this email or contact us at reservations@graysontowncar.com</p>
+        <p style="margin-top: 12px; font-size: 11px; color: #999999;">
+          This statement was generated on {{ date|date:"F d, Y" }} and reflects your commission payment for the billing period shown above.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

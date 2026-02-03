@@ -61,6 +61,16 @@ urlpatterns = [
         views.agency_commission_payout_detail,
         name="agency_commission_payout_detail",
     ),
+    path(
+        "commission-payout/<int:pk>/send-statement/",
+        views.send_agent_commission_statement_email,
+        name="send_agent_commission_statement",
+    ),
+    path(
+        "agency_commission_payout/<int:payout_id>/send-statement/",
+        views.send_agency_commission_statement_email,
+        name="send_agency_commission_statement",
+    ),
     # New agency management URLs
     path(
         "agency/profile/",

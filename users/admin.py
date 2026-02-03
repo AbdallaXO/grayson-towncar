@@ -671,7 +671,7 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
     reservation_details.short_description = "Reservation Details"
 
-    actions = ["recalculate_amounts", "cancel_payouts"]
+    actions = ["recalculate_amounts", "cancel_payouts", "send_commission_statement"]
 
     def recalculate_amounts(self, request, queryset):
         """Recalculate payout amounts based on included reservations."""
@@ -717,6 +717,47 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             )
 
     cancel_payouts.short_description = "Cancel selected payouts"
+
+    def send_commission_statement(self, request, queryset):
+        """Send commission statement emails for selected payouts."""
+        from users.emails import send_agent_commission_statement
+
+        sent_count = 0
+        failed_count = 0
+
+        for payout in queryset:
+            agent = payout.agent
+            recipient_email = agent.user.email
+
+            if recipient_email:
+                success = send_agent_commission_statement(
+                    agent=agent,
+                    payout=payout,
+                    recipient_email=recipient_email,
+                )
+                if success:
+                    sent_count += 1
+                else:
+                    failed_count += 1
+            else:
+                failed_count += 1
+                messages.warning(
+                    request,
+                    f"No email address for agent {agent.agent_name}",
+                )
+
+        if sent_count:
+            messages.success(
+                request,
+                f"Successfully sent {sent_count} commission statement(s).",
+            )
+        if failed_count:
+            messages.error(
+                request,
+                f"Failed to send {failed_count} statement(s). Check email configuration.",
+            )
+
+    send_commission_statement.short_description = "Send commission statement email"
 
 
 # =============================================

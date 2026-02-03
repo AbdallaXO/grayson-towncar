@@ -288,9 +288,50 @@
               </div>
             </div>
           </div>
-          <div class="modal-footer">
+          <div class="modal-footer justify-content-between">
+            <form method="post" action="{% url 'send_agent_commission_statement' payout.pk %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="recipient_email" value="{{ payout.agent.user.email }}">
+              <button type="button" class="btn-email-statement" data-bs-toggle="modal" data-bs-target="#emailModal{{ payout.id }}">
+                <i class="bi bi-envelope me-2"></i>Email Statement
+              </button>
+            </form>
             <button type="button" class="btn-modal-close" data-bs-dismiss="modal">Close</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Statement Modal -->
+    <div class="modal fade" id="emailModal{{ payout.id }}" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header" style="background: var(--dark);">
+            <div class="modal-title-wrapper">
+              <span class="modal-label">Send Statement</span>
+              <h5 class="modal-title">Email Commission Statement</h5>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form method="post" action="{% url 'send_agent_commission_statement' payout.pk %}">
+            {% csrf_token %}
+            <div class="modal-body">
+              <p class="text-muted mb-3">Send a detailed commission statement to the specified email address.</p>
+              <div class="mb-3">
+                <label for="recipient_email_{{ payout.id }}" class="form-label">Recipient Email</label>
+                <input type="email"
+                       class="form-control"
+                       id="recipient_email_{{ payout.id }}"
+                       name="recipient_email"
+                       value="{{ payout.agent.user.email }}"
+                       required>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn-modal-close" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn-send-statement"><i class="bi bi-send me-2"></i>Send</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -848,6 +889,48 @@
 
     .btn-modal-close:hover {
       background: var(--border);
+    }
+
+    .btn-email-statement {
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--white);
+      background: var(--dark);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-email-statement:hover {
+      background: var(--gold);
+      color: var(--dark);
+    }
+
+    .btn-send-statement {
+      padding: 0.5rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--white);
+      background: var(--dark);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-send-statement:hover {
+      background: var(--gold);
+      color: var(--dark);
+    }
+
+    .justify-content-between {
+      justify-content: space-between !important;
+    }
+
+    .d-inline {
+      display: inline !important;
     }
 
     /* Responsive */
