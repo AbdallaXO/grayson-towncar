@@ -199,10 +199,27 @@ def index(request):
         driver.dashboard_display_name = display_name
 
     # Calculate total revenue from legs on this day (only for admins)
+    # Use per-leg revenue share (reservation price / number of legs) for accuracy
     if can_view_revenue(request.user):
-        total_revenue = sum(leg.reservation.total_price for leg in legs)
+        total_revenue = sum(
+            leg.revenue_share or leg.calculate_revenue_share()
+            for leg in legs
+        )
     else:
         total_revenue = None
+
+    # Calculate driver coverage (in-house vs affiliate)
+    driver_coverage = {"inhouse": 0, "affiliate": 0, "unassigned": 0}
+    for leg in legs:
+        if leg.driver:
+            driver_coverage[leg.driver.driver_type] += 1
+        else:
+            driver_coverage["unassigned"] += 1
+    total_legs_count = len(legs)
+    driver_coverage["total"] = total_legs_count
+    driver_coverage["inhouse_pct"] = round(driver_coverage["inhouse"] / total_legs_count * 100) if total_legs_count > 0 else 0
+    driver_coverage["affiliate_pct"] = round(driver_coverage["affiliate"] / total_legs_count * 100) if total_legs_count > 0 else 0
+    driver_coverage["unassigned_pct"] = round(driver_coverage["unassigned"] / total_legs_count * 100) if total_legs_count > 0 else 0
 
     def _vehicle_sort_key(vehicle):
         vehicle_number = (vehicle.vehicle_number or "").lstrip("#").strip()
@@ -224,6 +241,7 @@ def index(request):
         "trip_type_filter": trip_type_filter,
         "total_legs": len(legs),
         "total_revenue": total_revenue,
+        "driver_coverage": driver_coverage,
         "can_view_revenue": can_view_revenue(request.user),
         "drivers": drivers,
         "inhouse_driver_rows": inhouse_driver_rows,

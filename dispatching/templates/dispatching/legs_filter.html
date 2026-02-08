@@ -174,6 +174,42 @@
       </div>
     </div>
 
+    <!-- Driver Coverage Bar -->
+    {% if driver_coverage.total > 0 %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body py-2 px-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="small text-muted fw-semibold text-uppercase" style="letter-spacing: 0.5px;">Driver Coverage</span>
+            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+              <i class="bi bi-building me-1"></i>In-House: {{ driver_coverage.inhouse }} <span class="text-muted">({{ driver_coverage.inhouse_pct }}%)</span>
+            </span>
+            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1" style="color: #997a00 !important;">
+              <i class="bi bi-people me-1"></i>Affiliate: {{ driver_coverage.affiliate }} <span style="color: #997a00; opacity: 0.7;">({{ driver_coverage.affiliate_pct }}%)</span>
+            </span>
+            {% if driver_coverage.unassigned > 0 %}
+            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+              <i class="bi bi-person-x me-1"></i>Unassigned: {{ driver_coverage.unassigned }} <span class="text-muted">({{ driver_coverage.unassigned_pct }}%)</span>
+            </span>
+            {% endif %}
+          </div>
+        </div>
+        <!-- Progress bar -->
+        <div class="progress mt-2" style="height: 6px;">
+          {% if driver_coverage.inhouse_pct > 0 %}
+          <div class="progress-bar bg-success" role="progressbar" style="width: {{ driver_coverage.inhouse_pct }}%"></div>
+          {% endif %}
+          {% if driver_coverage.affiliate_pct > 0 %}
+          <div class="progress-bar bg-warning" role="progressbar" style="width: {{ driver_coverage.affiliate_pct }}%"></div>
+          {% endif %}
+          {% if driver_coverage.unassigned_pct > 0 %}
+          <div class="progress-bar bg-danger" role="progressbar" style="width: {{ driver_coverage.unassigned_pct }}%"></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Quick Filter Pills -->
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body py-2">
