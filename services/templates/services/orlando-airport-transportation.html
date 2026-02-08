@@ -7,10 +7,26 @@
   <link rel="canonical"
         href="https://www.graysontowncar.com/services/orlando-airport-transportation/" />
   <style>
+      /* Luxury Design System */
+      :root {
+          --lux-black: #0a0a0a;
+          --lux-charcoal: #1a1a1a;
+          --lux-dark-gray: #2d2d2d;
+          --lux-medium-gray: #6b6b6b;
+          --lux-light-gray: #a0a0a0;
+          --lux-off-white: #f8f7f5;
+          --lux-white: #ffffff;
+          --lux-gold: #b8956c;
+          --lux-gold-light: #d4b896;
+          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
       /* Force text visibility in quote form - but allow validation states */
       .quote-form-container label,
       .quote-form-container .form-label {
           color: #212529 !important;
+          font-weight: 400;
+          letter-spacing: 0.02em;
       }
 
       .quote-form-container h5,
@@ -20,7 +36,7 @@
       }
 
       .quote-form-container .text-muted {
-          color: #6c757d !important;
+          color: var(--lux-medium-gray) !important;
       }
 
       .quote-form-container .text-dark {
@@ -28,11 +44,12 @@
       }
 
       .quote-form-container .bg-light {
-          background-color: #f8f9fa !important;
+          background-color: var(--lux-off-white) !important;
       }
 
       .quote-form-container .card {
-          background-color: #f8f9fa !important;
+          background-color: var(--lux-off-white) !important;
+          border-radius: 0 !important;
       }
 
       /* Vehicle preview specific styling */
@@ -49,11 +66,11 @@
       }
 
       .quote-form-container .vehicle-placeholder {
-          color: #6c757d !important;
+          color: var(--lux-medium-gray) !important;
       }
 
       .quote-form-container .vehicle-placeholder * {
-          color: #6c757d !important;
+          color: var(--lux-medium-gray) !important;
       }
 
       /* Allow validation states to work */
@@ -82,6 +99,8 @@
       .quote-form-container .form-select {
           background-color: #fff !important;
           color: #212529 !important;
+          border-radius: 0 !important;
+          border: 1px solid #e0e0e0 !important;
       }
 
       /* Ensure select options are visible */
@@ -90,58 +109,306 @@
           background-color: #fff !important;
       }
 
-      /* Modern Testimonials Hover Effects */
-      .hover-lift {
-          transition: all 0.3s ease;
-          cursor: pointer;
+      /* Luxury Hero Styling */
+      .lux-hero {
+          position: relative;
+          min-height: 90vh;
+          display: flex;
+          align-items: center;
       }
 
-      .hover-lift:hover {
-          transform: translateY(-8px);
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+      .lux-hero::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(10,10,10,0.85) 0%, rgba(26,26,26,0.75) 100%);
+          z-index: 1;
       }
 
-      /* Authentic Google Reviews styling */
+      .lux-hero > .container {
+          position: relative;
+          z-index: 2;
+      }
+
+      .lux-eyebrow {
+          font-size: 0.75rem;
+          font-weight: 400;
+          letter-spacing: 0.35em;
+          text-transform: uppercase;
+          color: var(--lux-gold);
+          margin-bottom: 1.5rem;
+      }
+
+      .lux-title {
+          font-size: clamp(2.5rem, 5vw, 3.5rem);
+          font-weight: 200;
+          letter-spacing: -0.02em;
+          line-height: 1.1;
+          color: var(--lux-white);
+      }
+
+      .lux-title-accent {
+          color: var(--lux-gold-light);
+          font-weight: 300;
+      }
+
+      .lux-lead {
+          font-size: 1.1rem;
+          font-weight: 300;
+          line-height: 1.7;
+          color: rgba(255,255,255,0.8);
+      }
+
+      .lux-highlight {
+          color: var(--lux-gold);
+          font-weight: 400;
+      }
+
+      /* Luxury Card Styling */
+      .lux-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+          transition: var(--transition);
+      }
+
+      .lux-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+      }
+
+      /* Luxury Section Styling */
+      .lux-section {
+          padding: 6rem 0;
+      }
+
+      .lux-section-dark {
+          background: var(--lux-charcoal);
+          color: var(--lux-white);
+      }
+
+      .lux-section-light {
+          background: var(--lux-off-white);
+      }
+
+      .lux-section-title {
+          font-size: clamp(2rem, 4vw, 2.75rem);
+          font-weight: 200;
+          letter-spacing: -0.02em;
+          margin-bottom: 1rem;
+      }
+
+      .lux-section-subtitle {
+          font-size: 1rem;
+          font-weight: 300;
+          color: var(--lux-medium-gray);
+          max-width: 600px;
+          margin: 0 auto;
+      }
+
+      /* Luxury Feature Icons */
+      .lux-icon-box {
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 1px solid var(--lux-gold);
+          color: var(--lux-gold);
+          transition: var(--transition);
+      }
+
+      .lux-card:hover .lux-icon-box {
+          background: var(--lux-gold);
+          color: var(--lux-white);
+      }
+
+      /* Luxury Buttons */
+      .lux-btn {
+          padding: 1rem 2.5rem;
+          font-size: 0.8rem;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          border-radius: 0;
+          border: none;
+          transition: var(--transition);
+      }
+
+      .lux-btn-primary {
+          background: var(--lux-gold);
+          color: var(--lux-white);
+      }
+
+      .lux-btn-primary:hover {
+          background: var(--lux-gold-light);
+          color: var(--lux-charcoal);
+          transform: translateY(-2px);
+      }
+
+      .lux-btn-outline {
+          background: transparent;
+          border: 1px solid var(--lux-white);
+          color: var(--lux-white);
+      }
+
+      .lux-btn-outline:hover {
+          background: var(--lux-white);
+          color: var(--lux-charcoal);
+      }
+
+      .lux-btn-dark {
+          background: var(--lux-charcoal);
+          color: var(--lux-white);
+      }
+
+      .lux-btn-dark:hover {
+          background: var(--lux-black);
+          color: var(--lux-white);
+          transform: translateY(-2px);
+      }
+
+      /* Testimonial Cards */
+      .testimonial-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          border-left: 3px solid var(--lux-gold);
+          transition: var(--transition);
+      }
+
+      .testimonial-card:hover {
+          transform: translateY(-6px);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+      }
+
+      .testimonial-featured {
+          border-left-width: 4px;
+          background: linear-gradient(135deg, var(--lux-white) 0%, var(--lux-off-white) 100%);
+      }
+
+      /* Google Reviews styling */
       .bi-star-fill {
           color: #fbbc04 !important;
       }
 
-      /* Card entrance animation */
-      .card {
-          animation: slideInUp 0.6s ease-out;
+      /* Stats Section */
+      .lux-stat {
+          text-align: center;
+          padding: 2rem;
       }
 
-      @keyframes slideInUp {
+      .lux-stat-number {
+          font-size: 2.5rem;
+          font-weight: 200;
+          color: var(--lux-charcoal);
+          letter-spacing: -0.02em;
+      }
+
+      .lux-stat-label {
+          font-size: 0.75rem;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: var(--lux-medium-gray);
+      }
+
+      /* Pricing Cards */
+      .pricing-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          position: relative;
+          overflow: hidden;
+          transition: var(--transition);
+      }
+
+      .pricing-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: var(--lux-gold);
+          transform: scaleX(0);
+          transition: var(--transition);
+      }
+
+      .pricing-card:hover::before {
+          transform: scaleX(1);
+      }
+
+      .pricing-card:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+      }
+
+      .pricing-title {
+          font-size: 0.75rem;
+          font-weight: 500;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: var(--lux-gold);
+      }
+
+      .pricing-amount {
+          font-size: 3rem;
+          font-weight: 200;
+          color: var(--lux-charcoal);
+          letter-spacing: -0.02em;
+      }
+
+      /* Destination Cards */
+      .destination-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          transition: var(--transition);
+      }
+
+      .destination-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+      }
+
+      .destination-icon {
+          color: var(--lux-gold);
+          font-size: 2rem;
+      }
+
+      /* Quote Form Box */
+      .quote-form-box {
+          background: var(--lux-white);
+          border-radius: 0;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      }
+
+      /* Card entrance animation */
+      .lux-card, .testimonial-card, .pricing-card, .destination-card {
+          animation: fadeInUp 0.6s ease-out;
+      }
+
+      @keyframes fadeInUp {
           from {
               opacity: 0;
               transform: translateY(30px);
           }
-
           to {
               opacity: 1;
               transform: translateY(0);
           }
       }
 
-      /* Google logo styling */
-      .card img[src*='google-logo'] {
-          filter: brightness(0.9);
-      }
-
-      /* Review text styling */
-      .card-text {
-          line-height: 1.6;
-          font-size: 0.95rem;
-      }
-
-      /* Review date styling */
-      .text-muted {
-          font-size: 0.85rem;
-      }
-
       /* Fix trip type button styling */
       .trip-type-selector .btn {
           color: #212529 !important;
+          border-radius: 0 !important;
       }
 
       .trip-type-selector .btn:hover {
@@ -150,8 +417,27 @@
 
       .trip-type-selector .btn-check:checked+.btn {
           color: #fff !important;
-          background-color: #212529 !important;
-          border-color: #212529 !important;
+          background-color: var(--lux-charcoal) !important;
+          border-color: var(--lux-charcoal) !important;
+      }
+
+      /* Divider */
+      .lux-divider {
+          width: 60px;
+          height: 1px;
+          background: var(--lux-gold);
+          margin: 1.5rem auto;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 991px) {
+          .lux-hero {
+              min-height: auto;
+              padding: 4rem 0;
+          }
+          .lux-section {
+              padding: 4rem 0;
+          }
       }
   </style>
 {% endblock %}
@@ -168,51 +454,52 @@
   {% structured_data %}
 
   <!-- Hero Section with Quote Form -->
-  <section class="hero bg-dark text-white py-5"
-           style="min-height: 80vh;
-                  background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('{% static 'images/grayson-mco.png' %}') center/cover">
-    <div class="container">
-      <div class="row align-items-center" style="min-height: 75vh;">
+  <section class="lux-hero"
+           style="background: url('{% static 'images/grayson-mco.png' %}') center/cover fixed">
+    <div class="container py-5">
+      <div class="row align-items-center">
         <!-- Left Column: Content -->
-        <div class="col-lg-6 mb-4 mb-lg-0">
+        <div class="col-lg-6 mb-5 mb-lg-0">
           <div class="text-lg-start text-center">
-            <h1 class="display-3 fw-bold mb-4">
+            <p class="lux-eyebrow">Private Chauffeur Service</p>
+            <h1 class="lux-title mb-4">
               Orlando Airport Transfers
               <br />
-              <span class="text-warning">Disney, Port Canaveral & Beyond</span>
+              <span class="lux-title-accent">Disney, Port Canaveral & Beyond</span>
             </h1>
-            <p class="lead mb-4 fs-4">
-              We meet you INSIDE baggage claim with a sign, get you to your resort in 25-30 minutes, and include FREE car seats. Shuttles or Uber won't do any of that.
+            <div class="lux-divider" style="margin-left: 0; margin-right: auto;"></div>
+            <p class="lux-lead mb-4">
+              We meet you <span class="lux-highlight">inside baggage claim</span> with a sign, get you to your resort in 25-30 minutes, and include <span class="lux-highlight">complimentary car seats</span>. Shuttles or Uber won't do any of that.
             </p>
 
-            <p class="fs-5 text-warning fw-semibold mb-4">
+            <p class="lux-lead mb-5" style="color: var(--lux-gold-light);">
               Don't wait 2+ hours in the shuttle line with tired kids. Get there fast.
             </p>
 
             <!-- Key Benefits -->
-            <div class="row g-3 mb-4">
+            <div class="row g-4 mb-4">
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-person-check-fill text-warning fs-3 me-2"></i>
-                  <span class="fs-6">Meet & Greet Service</span>
+                  <i class="bi bi-person-check-fill fs-4 me-3" style="color: var(--lux-gold);"></i>
+                  <span style="font-weight: 300; letter-spacing: 0.02em;">Meet & Greet Service</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-airplane text-warning fs-3 me-2"></i>
-                  <span class="fs-6">Flight Tracking</span>
+                  <i class="bi bi-airplane fs-4 me-3" style="color: var(--lux-gold);"></i>
+                  <span style="font-weight: 300; letter-spacing: 0.02em;">Flight Tracking</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-shield-check text-warning fs-3 me-2"></i>
-                  <span class="fs-6">FREE Car Seats</span>
+                  <i class="bi bi-shield-check fs-4 me-3" style="color: var(--lux-gold);"></i>
+                  <span style="font-weight: 300; letter-spacing: 0.02em;">FREE Car Seats</span>
                 </div>
               </div>
               <div class="col-6">
                 <div class="d-flex align-items-center">
-                  <i class="bi bi-cart-check text-warning fs-3 me-2"></i>
-                  <span class="fs-6">Grocery Stop Available</span>
+                  <i class="bi bi-cart-check fs-4 me-3" style="color: var(--lux-gold);"></i>
+                  <span style="font-weight: 300; letter-spacing: 0.02em;">Grocery Stop Available</span>
                 </div>
               </div>
             </div>
@@ -220,48 +507,48 @@
         </div>
 
         <div class="col-lg-6">
-          <div class="bg-white rounded-4 shadow-lg p-4">{% quote_form form_id='mco-quote-form' %}</div>
+          <div class="quote-form-box p-4 p-lg-5">{% quote_form form_id='mco-quote-form' %}</div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Modern Testimonials Section -->
-  <section class="py-5 bg-gradient-to-bottom"
-           style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)">
+  <section class="lux-section lux-section-light">
     <div class="container">
       <div class="row justify-content-center mb-5">
         <div class="col-lg-8 text-center">
-          <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-3">GOOGLE REVIEWS</span>
-          <h2 class="display-5 fw-bold mb-3">What Our Customers Say</h2>
-          <p class="lead text-muted">Real reviews from verified Google customers</p>
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Verified Reviews</p>
+          <h2 class="lux-section-title">What Our Customers Say</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">Real reviews from verified Google customers</p>
 
           <!-- Google Rating Display -->
-          <div class="d-flex align-items-center justify-content-center mt-4 mb-3">
+          <div class="d-flex align-items-center justify-content-center mt-5 mb-3">
             <img src="{% static 'images/google-logo.webp' %}"
                  alt="Google Reviews"
                  width="80"
                  height="26"
                  class="me-3" />
             <div class="d-flex align-items-center">
-              <div class="text-warning me-2">
+              <div class="me-2">
                 <i class="bi bi-star-fill fs-4"></i>
                 <i class="bi bi-star-fill fs-4"></i>
                 <i class="bi bi-star-fill fs-4"></i>
                 <i class="bi bi-star-fill fs-4"></i>
                 <i class="bi bi-star-fill fs-4"></i>
               </div>
-              <span class="display-6 fw-bold text-dark ms-2">5.0</span>
+              <span class="ms-2" style="font-size: 2.5rem; font-weight: 200; color: var(--lux-charcoal);">5.0</span>
             </div>
           </div>
-          <p class="text-muted mb-0">Based on verified Google reviews</p>
+          <p style="color: var(--lux-medium-gray); font-size: 0.9rem;">Based on verified Google reviews</p>
         </div>
       </div>
 
       <div class="row g-4">
         <!-- Featured Testimonial -->
         <div class="col-12 mb-4">
-          <div class="card border-0 shadow-lg bg-white">
+          <div class="testimonial-card testimonial-featured shadow-sm">
             <div class="card-body p-5">
               <div class="d-flex align-items-center mb-4">
                 <img src="{% static 'images/google-logo.webp' %}"
@@ -270,29 +557,28 @@
                      height="26"
                      class="me-3" />
                 <div class="d-flex align-items-center">
-                  <div class="text-warning me-2">
+                  <div class="me-2">
                     <i class="bi bi-star-fill"></i>
                     <i class="bi bi-star-fill"></i>
                     <i class="bi bi-star-fill"></i>
                     <i class="bi bi-star-fill"></i>
                     <i class="bi bi-star-fill"></i>
                   </div>
-                  <span class="fw-semibold text-dark">5.0</span>
+                  <span style="font-weight: 400; color: var(--lux-charcoal);">5.0</span>
                 </div>
               </div>
-              <h4 class="fw-bold mb-3 text-dark">"Excellent Experience - Punctual & Professional!"</h4>
-              <p class="lead mb-4 fs-5 text-dark">
+              <h4 style="font-weight: 300; letter-spacing: -0.01em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">"Excellent Experience - Punctual & Professional!"</h4>
+              <p style="font-size: 1.1rem; font-weight: 300; line-height: 1.8; color: var(--lux-dark-gray); margin-bottom: 2rem;">
                 "I recently booked transportation with Grayson for travel between MCO and Disney, and the experience was excellent. They were punctual, professional, and kept in great communication throughout the process."
               </p>
               <div class="d-flex align-items-center">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 50px;
-                            height: 50px">
-                  <span class="text-dark fw-bold">FS</span>
+                <div class="d-flex align-items-center justify-content-center me-3"
+                     style="width: 50px; height: 50px; background: var(--lux-off-white);">
+                  <span style="font-weight: 500; color: var(--lux-charcoal);">FS</span>
                 </div>
                 <div>
-                  <div class="fw-semibold text-dark">Frank S.</div>
-                  <small class="text-muted">MCO to Disney Transfer • 5 weeks ago</small>
+                  <div style="font-weight: 500; color: var(--lux-charcoal);">Frank S.</div>
+                  <small style="color: var(--lux-medium-gray);">MCO to Disney Transfer • 5 weeks ago</small>
                 </div>
               </div>
             </div>
@@ -301,7 +587,7 @@
 
         <!-- Testimonial Cards -->
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm hover-lift bg-white">
+          <div class="testimonial-card h-100 shadow-sm">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
                 <img src="{% static 'images/google-logo.webp' %}"
@@ -310,7 +596,7 @@
                      height="20"
                      class="me-2" />
                 <div class="d-flex align-items-center">
-                  <div class="text-warning me-1">
+                  <div class="me-1">
                     <i class="bi bi-star-fill small"></i>
                     <i class="bi bi-star-fill small"></i>
                     <i class="bi bi-star-fill small"></i>
@@ -320,29 +606,28 @@
                 </div>
               </div>
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 40px;
-                            height: 40px">
-                  <span class="text-dark fw-bold small">EH</span>
+                <div class="d-flex align-items-center justify-content-center me-3"
+                     style="width: 40px; height: 40px; background: var(--lux-off-white);">
+                  <span style="font-weight: 500; font-size: 0.85rem; color: var(--lux-charcoal);">EH</span>
                 </div>
                 <div>
-                  <div class="fw-semibold text-dark">Emily Harp</div>
-                  <small class="text-muted">2 weeks ago</small>
+                  <div style="font-weight: 500; color: var(--lux-charcoal);">Emily Harp</div>
+                  <small style="color: var(--lux-medium-gray);">2 weeks ago</small>
                 </div>
               </div>
-              <p class="card-text text-dark">
+              <p style="font-weight: 300; line-height: 1.7; color: var(--lux-dark-gray); font-size: 0.95rem;">
                 "Our drivers Oualid and Ray were wonderful! Polite and professional! They provided text reminders before pick up and were constantly in communication with us. Always on time and the car was very clean and smooth! We went right from baggage claim to the car in about 2 minutes. I would 100% recommend this service from the Orlando airport to Disney. It was one less stress to worry about and knowing my family was safe was the best! Another plus was them having a car seat for us! :)"
               </p>
               <div class="d-flex align-items-center">
-                <i class="bi bi-castle text-warning me-2"></i>
-                <small class="text-muted">Disney Family Trip</small>
+                <i class="bi bi-castle me-2" style="color: var(--lux-gold);"></i>
+                <small style="color: var(--lux-medium-gray); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem;">Disney Family Trip</small>
               </div>
             </div>
           </div>
         </div>
 
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm hover-lift bg-white">
+          <div class="testimonial-card h-100 shadow-sm">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
                 <img src="{% static 'images/google-logo.webp' %}"
@@ -351,7 +636,7 @@
                      height="20"
                      class="me-2" />
                 <div class="d-flex align-items-center">
-                  <div class="text-warning me-1">
+                  <div class="me-1">
                     <i class="bi bi-star-fill small"></i>
                     <i class="bi bi-star-fill small"></i>
                     <i class="bi bi-star-fill small"></i>
@@ -361,29 +646,28 @@
                 </div>
               </div>
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 40px;
-                            height: 40px">
-                  <span class="text-dark fw-bold small">CP</span>
+                <div class="d-flex align-items-center justify-content-center me-3"
+                     style="width: 40px; height: 40px; background: var(--lux-off-white);">
+                  <span style="font-weight: 500; font-size: 0.85rem; color: var(--lux-charcoal);">CP</span>
                 </div>
                 <div>
-                  <div class="fw-semibold text-dark">Corey Page</div>
-                  <small class="text-muted">Travel Agent • 4 weeks ago</small>
+                  <div style="font-weight: 500; color: var(--lux-charcoal);">Corey Page</div>
+                  <small style="color: var(--lux-medium-gray);">Travel Agent • 4 weeks ago</small>
                 </div>
               </div>
-              <p class="card-text text-dark">
+              <p style="font-weight: 300; line-height: 1.7; color: var(--lux-dark-gray); font-size: 0.95rem;">
                 "We had the opportunity to have Graysons transfer us from MCO to our Disney resort. They did not disappoint! Our driver was patiently waiting for us even though our flight was delayed on the tarmac AND while it took forever to get our checked bags. He walked our luggage to the car for us and had bottles of water waiting. It felt so nice to have a stress free, private ride. If you're looking for a great black car transfer service, these are your guys!"
               </p>
               <div class="d-flex align-items-center">
-                <i class="bi bi-shield-check text-warning me-2"></i>
-                <small class="text-muted">Travel Agent Recommendation</small>
+                <i class="bi bi-shield-check me-2" style="color: var(--lux-gold);"></i>
+                <small style="color: var(--lux-medium-gray); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem;">Travel Agent Recommendation</small>
               </div>
             </div>
           </div>
         </div>
 
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm hover-lift bg-white">
+          <div class="testimonial-card h-100 shadow-sm">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
                 <img src="{% static 'images/google-logo.webp' %}"
@@ -392,7 +676,7 @@
                      height="20"
                      class="me-2" />
                 <div class="d-flex align-items-center">
-                  <div class="text-warning me-1">
+                  <div class="me-1">
                     <i class="bi bi-star-fill small"></i>
                     <i class="bi bi-star-fill small"></i>
                     <i class="bi bi-star-fill small"></i>
@@ -402,22 +686,21 @@
                 </div>
               </div>
               <div class="d-flex align-items-center mb-3">
-                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-3"
-                     style="width: 40px;
-                            height: 40px">
-                  <span class="text-dark fw-bold small">JH</span>
+                <div class="d-flex align-items-center justify-content-center me-3"
+                     style="width: 40px; height: 40px; background: var(--lux-off-white);">
+                  <span style="font-weight: 500; font-size: 0.85rem; color: var(--lux-charcoal);">JH</span>
                 </div>
                 <div>
-                  <div class="fw-semibold text-dark">Judy Hoops</div>
-                  <small class="text-muted">First Time Disney • 4 weeks ago</small>
+                  <div style="font-weight: 500; color: var(--lux-charcoal);">Judy Hoops</div>
+                  <small style="color: var(--lux-medium-gray);">First Time Disney • 4 weeks ago</small>
                 </div>
               </div>
-              <p class="card-text text-dark">
+              <p style="font-weight: 300; line-height: 1.7; color: var(--lux-dark-gray); font-size: 0.95rem;">
                 "This was our first Disney trip and Grayson Towncar made it so smooth from the start. Our driver was on time, very professional, and super friendly. The car was clean and comfortable. We will definitely use them again!"
               </p>
               <div class="d-flex align-items-center">
-                <i class="bi bi-castle text-warning me-2"></i>
-                <small class="text-muted">First Time Disney Family</small>
+                <i class="bi bi-castle me-2" style="color: var(--lux-gold);"></i>
+                <small style="color: var(--lux-medium-gray); text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.7rem;">First Time Disney Family</small>
               </div>
             </div>
           </div>
@@ -427,30 +710,30 @@
       <!-- Google Reviews Stats -->
       <div class="row mt-5 pt-4">
         <div class="col-12">
-          <div class="bg-white rounded-4 shadow-sm p-4">
+          <div class="lux-card shadow-sm p-4" style="background: var(--lux-white);">
             <div class="row g-4 text-center">
               <div class="col-6 col-md-3">
-                <div class="d-flex flex-column align-items-center">
-                  <div class="display-6 fw-bold text-dark mb-1">5.0</div>
-                  <div class="text-muted small">Average Rating</div>
+                <div class="lux-stat">
+                  <div class="lux-stat-number">5.0</div>
+                  <div class="lux-stat-label">Average Rating</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="d-flex flex-column align-items-center">
-                  <div class="display-6 fw-bold text-dark mb-1">900+</div>
-                  <div class="text-muted small">Happy Families</div>
+                <div class="lux-stat">
+                  <div class="lux-stat-number">25,000+</div>
+                  <div class="lux-stat-label">Happy Families</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="d-flex flex-column align-items-center">
-                  <div class="display-6 fw-bold text-dark mb-1">98+</div>
-                  <div class="text-muted small">5-Star Reviews</div>
+                <div class="lux-stat">
+                  <div class="lux-stat-number">850+</div>
+                  <div class="lux-stat-label">5-Star Reviews</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="d-flex flex-column align-items-center">
-                  <div class="display-6 fw-bold text-dark mb-1">24/7</div>
-                  <div class="text-muted small">Service Available</div>
+                <div class="lux-stat">
+                  <div class="lux-stat-number">24/7</div>
+                  <div class="lux-stat-label">Service Available</div>
                 </div>
               </div>
             </div>
@@ -461,12 +744,14 @@
   </section>
 
   <!-- Why Choose Us Section -->
-  <section class="py-5 bg-light">
+  <section class="lux-section" style="background: var(--lux-white);">
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center mb-5">
-          <h2 class="display-5 fw-bold mb-3">Why Choose Our MCO Airport Service?</h2>
-          <p class="lead text-muted">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
+          <h2 class="lux-section-title">Why Choose Our MCO Airport Service?</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
             Professional, reliable, and family-friendly transportation from Orlando International Airport
           </p>
         </div>
@@ -474,57 +759,49 @@
 
       <div class="row g-4">
         <div class="col-md-6 col-lg-3">
-          <div class="card h-100 border-0 shadow-sm text-center">
+          <div class="lux-card h-100 text-center shadow-sm">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                   style="width: 60px;
-                          height: 60px">
-                <i class="bi bi-airplane text-dark fs-3"></i>
+              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
+                <i class="bi bi-airplane fs-4"></i>
               </div>
-              <h5 class="card-title">Flight Tracking</h5>
-              <p class="card-text small">We monitor your flight and adjust pickup time automatically for delays</p>
+              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Flight Tracking</h5>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">We monitor your flight and adjust pickup time automatically for delays</p>
             </div>
           </div>
         </div>
 
         <div class="col-md-6 col-lg-3">
-          <div class="card h-100 border-0 shadow-sm text-center">
+          <div class="lux-card h-100 text-center shadow-sm">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                   style="width: 60px;
-                          height: 60px">
-                <i class="bi bi-person-check text-dark fs-3"></i>
+              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
+                <i class="bi bi-person-check fs-4"></i>
               </div>
-              <h5 class="card-title">Meet & Greet</h5>
-              <p class="card-text small">Your driver meets you at baggage claim with a personalized sign</p>
+              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Meet & Greet</h5>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">Your driver meets you at baggage claim with a personalized sign</p>
             </div>
           </div>
         </div>
 
         <div class="col-md-6 col-lg-3">
-          <div class="card h-100 border-0 shadow-sm text-center">
+          <div class="lux-card h-100 text-center shadow-sm">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                   style="width: 60px;
-                          height: 60px">
-                <i class="bi bi-shield-check text-dark fs-3"></i>
+              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
+                <i class="bi bi-shield-check fs-4"></i>
               </div>
-              <h5 class="card-title">Free Car Seats</h5>
-              <p class="card-text small">Complimentary car seats and boosters for children of all ages</p>
+              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Free Car Seats</h5>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">Complimentary car seats and boosters for children of all ages</p>
             </div>
           </div>
         </div>
 
         <div class="col-md-6 col-lg-3">
-          <div class="card h-100 border-0 shadow-sm text-center">
+          <div class="lux-card h-100 text-center shadow-sm">
             <div class="card-body p-4">
-              <div class="bg-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
-                   style="width: 60px;
-                          height: 60px">
-                <i class="bi bi-clock text-dark fs-3"></i>
+              <div class="lux-icon-box d-inline-flex align-items-center justify-content-center mb-4">
+                <i class="bi bi-clock fs-4"></i>
               </div>
-              <h5 class="card-title">24/7 Service</h5>
-              <p class="card-text small">Available around the clock for early morning and late night flights</p>
+              <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">24/7 Service</h5>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6;">Available around the clock for early morning and late night flights</p>
             </div>
           </div>
         </div>
@@ -533,12 +810,14 @@
   </section>
 
   <!-- Popular Destinations -->
-  <section class="py-5">
+  <section class="lux-section lux-section-light">
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center mb-5">
-          <h2 class="display-5 fw-bold mb-3">Popular Destinations from MCO</h2>
-          <p class="lead text-muted">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
+          <h2 class="lux-section-title">Popular Destinations from MCO</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
             We serve all of Orlando and beyond - from theme parks to cruise ports and everywhere in between
           </p>
         </div>
@@ -546,24 +825,24 @@
 
       <div class="row g-4">
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="destination-card h-100 shadow-sm">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
-                <i class="bi bi-castle text-warning fs-2 me-3"></i>
-                <h5 class="card-title mb-0">Disney World Resorts</h5>
+                <i class="bi bi-castle destination-icon me-3"></i>
+                <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 0;">Disney World Resorts</h5>
               </div>
-              <p class="card-text">
+              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7;">
                 All Disney properties including Value, Moderate, and Deluxe resorts. Perfect for families with children.
               </p>
-              <ul class="list-unstyled small text-muted">
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Magic Kingdom Area Hotels
+              <ul class="list-unstyled" style="font-size: 0.9rem;">
+                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Magic Kingdom Area Hotels
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Epcot Area Resorts
+                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Epcot Area Resorts
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Disney Springs Hotels
+                <li style="color: var(--lux-medium-gray);">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Disney Springs Hotels
                 </li>
               </ul>
             </div>
@@ -571,24 +850,24 @@
         </div>
 
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="destination-card h-100 shadow-sm">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
-                <i class="bi bi-geo-alt text-warning fs-2 me-3"></i>
-                <h5 class="card-title mb-0">Port Canaveral</h5>
+                <i class="bi bi-geo-alt destination-icon me-3"></i>
+                <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 0;">Port Canaveral</h5>
               </div>
-              <p class="card-text">
+              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7;">
                 Reliable transportation to and from all cruise terminals. Perfect for pre and post-cruise stays.
               </p>
-              <ul class="list-unstyled small text-muted">
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Carnival Cruise Line
+              <ul class="list-unstyled" style="font-size: 0.9rem;">
+                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Carnival Cruise Line
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Disney Cruise Line
+                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Disney Cruise Line
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Royal Caribbean
+                <li style="color: var(--lux-medium-gray);">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Royal Caribbean
                 </li>
               </ul>
             </div>
@@ -596,24 +875,24 @@
         </div>
 
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow-sm">
+          <div class="destination-card h-100 shadow-sm">
             <div class="card-body p-4">
               <div class="d-flex align-items-center mb-3">
-                <i class="bi bi-film text-warning fs-2 me-3"></i>
-                <h5 class="card-title mb-0">Universal Studios</h5>
+                <i class="bi bi-film destination-icon me-3"></i>
+                <h5 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 0;">Universal Studios</h5>
               </div>
-              <p class="card-text">
+              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7;">
                 Universal Orlando hotels and nearby accommodations. Close to Universal Studios and Islands of Adventure.
               </p>
-              <ul class="list-unstyled small text-muted">
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Universal Hotels
+              <ul class="list-unstyled" style="font-size: 0.9rem;">
+                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Universal Hotels
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>International Drive
+                <li style="color: var(--lux-medium-gray); margin-bottom: 0.5rem;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>International Drive
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>Convention Center Area
+                <li style="color: var(--lux-medium-gray);">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Convention Center Area
                 </li>
               </ul>
             </div>
@@ -622,11 +901,11 @@
       </div>
 
       <!-- Additional destinations note -->
-      <div class="row mt-4">
+      <div class="row mt-5">
         <div class="col-12 text-center">
-          <div class="bg-light rounded-3 p-4">
-            <h5 class="text-dark mb-2">We Go Everywhere!</h5>
-            <p class="text-muted mb-0">
+          <div class="lux-card p-5 shadow-sm" style="background: var(--lux-white); border-left: 3px solid var(--lux-gold);">
+            <h5 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">We Go Everywhere</h5>
+            <p style="font-weight: 300; color: var(--lux-medium-gray); margin-bottom: 0; max-width: 700px; margin-left: auto; margin-right: auto;">
               From theme parks to business districts, residential areas to shopping centers - if it's in Orlando or Central Florida, we can get you there safely and comfortably.
             </p>
           </div>
@@ -636,64 +915,39 @@
   </section>
 
   <!-- Pricing Section -->
-  <section class="py-5 bg-light">
+  <section class="lux-section" style="background: var(--lux-white);">
     <div class="container">
       <div class="row justify-content-center">
         <div class="col-lg-8 text-center mb-5">
-          <h2 class="display-5 fw-bold mb-3">Transparent Pricing</h2>
-          <p class="lead text-muted">All-inclusive rates with no hidden fees</p>
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Pricing</p>
+          <h2 class="lux-section-title">Transparent Pricing</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">All-inclusive rates with no hidden fees</p>
         </div>
       </div>
 
       <div class="row g-4 justify-content-center">
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow">
-            <div class="card-body p-4 text-center">
-              <h5 class="card-title text-warning">MCO to Disney World</h5>
-              <div class="display-6 fw-bold mb-3">Starting at $105</div>
-              <p class="text-muted mb-4">One-way transfer</p>
-              <ul class="list-unstyled">
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Meet & Greet Service
+          <div class="pricing-card h-100 shadow-sm">
+            <div class="card-body p-5 text-center">
+              <p class="pricing-title">MCO to Disney World</p>
+              <div class="pricing-amount mb-2">$105</div>
+              <p style="color: var(--lux-medium-gray); font-size: 0.85rem; margin-bottom: 2rem;">Starting price • One-way transfer</p>
+              <ul class="list-unstyled text-start" style="font-size: 0.9rem;">
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Meet & Greet Service
                 </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Flight Tracking
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Flight Tracking
                 </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Free Car Seats
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Free Car Seats
                 </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Luggage Assistance
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Luggage Assistance
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>No Hidden Fees
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow border-warning">
-            <div class="card-body p-4 text-center">
-              <h5 class="card-title text-warning">MCO to Universal</h5>
-              <div class="display-6 fw-bold mb-3">Starting at $105</div>
-              <p class="text-muted mb-4">One-way transfer</p>
-              <ul class="list-unstyled">
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Meet & Greet Service
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Flight Tracking
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Free Car Seats
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Luggage Assistance
-                </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>No Hidden Fees
+                <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>No Hidden Fees
                 </li>
               </ul>
             </div>
@@ -701,26 +955,53 @@
         </div>
 
         <div class="col-md-6 col-lg-4">
-          <div class="card h-100 border-0 shadow">
-            <div class="card-body p-4 text-center">
-              <h5 class="card-title text-warning">MCO to Port Canaveral</h5>
-              <div class="display-6 fw-bold mb-3">Starting at $160</div>
-              <p class="text-muted mb-4">One-way transfer</p>
-              <ul class="list-unstyled">
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Meet & Greet Service
+          <div class="pricing-card h-100 shadow-sm" style="border-top: 3px solid var(--lux-gold);">
+            <div class="card-body p-5 text-center">
+              <p class="pricing-title">MCO to Universal</p>
+              <div class="pricing-amount mb-2">$105</div>
+              <p style="color: var(--lux-medium-gray); font-size: 0.85rem; margin-bottom: 2rem;">Starting price • One-way transfer</p>
+              <ul class="list-unstyled text-start" style="font-size: 0.9rem;">
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Meet & Greet Service
                 </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Flight Tracking
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Flight Tracking
                 </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Free Car Seats
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Free Car Seats
                 </li>
-                <li class="mb-2">
-                  <i class="bi bi-check text-success me-2"></i>Luggage Assistance
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Luggage Assistance
                 </li>
-                <li>
-                  <i class="bi bi-check text-success me-2"></i>No Hidden Fees
+                <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>No Hidden Fees
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6 col-lg-4">
+          <div class="pricing-card h-100 shadow-sm">
+            <div class="card-body p-5 text-center">
+              <p class="pricing-title">MCO to Port Canaveral</p>
+              <div class="pricing-amount mb-2">$160</div>
+              <p style="color: var(--lux-medium-gray); font-size: 0.85rem; margin-bottom: 2rem;">Starting price • One-way transfer</p>
+              <ul class="list-unstyled text-start" style="font-size: 0.9rem;">
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Meet & Greet Service
+                </li>
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Flight Tracking
+                </li>
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Free Car Seats
+                </li>
+                <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Luggage Assistance
+                </li>
+                <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                  <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>No Hidden Fees
                 </li>
               </ul>
             </div>
@@ -729,24 +1010,23 @@
       </div>
 
       <div class="text-center mt-5">
-        <a href="{% url 'rates' %}"
-           class="btn btn-dark btn-lg px-5 py-3 rounded-pill"><i class="bi bi-calculator me-2"></i>View All Rates</a>
+        <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark"><i class="bi bi-calculator me-2"></i>View All Rates</a>
       </div>
     </div>
   </section>
 
   <!-- CTA Section -->
-  <section class="py-5 bg-dark text-white">
+  <section class="lux-section lux-section-dark" style="padding: 5rem 0;">
     <div class="container">
       <div class="row justify-content-center text-center">
         <div class="col-lg-8">
-          <h2 class="display-5 fw-bold mb-4">Ready to Book Your MCO Transfer?</h2>
-          <p class="lead mb-4">Get your instant quote above or call us for immediate assistance</p>
+          <p class="lux-eyebrow">Reserve Your Transfer</p>
+          <h2 style="font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 200; letter-spacing: -0.02em; margin-bottom: 1.5rem;">Ready to Book Your MCO Transfer?</h2>
+          <div class="lux-divider" style="background: var(--lux-gold);"></div>
+          <p style="font-weight: 300; font-size: 1.1rem; color: rgba(255,255,255,0.7); margin-bottom: 2.5rem;">Get your instant quote above or call us for immediate assistance</p>
           <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center">
-            <a href="tel:407-212-7190"
-               class="btn btn-warning btn-lg px-5 py-3 rounded-pill"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
-            <a href="{% url 'rates' %}"
-               class="btn btn-outline-light btn-lg px-5 py-3 rounded-pill"><i class="bi bi-calculator me-2"></i>View All Rates</a>
+            <a href="tel:407-212-7190" class="lux-btn lux-btn-primary"><i class="bi bi-telephone-fill me-2"></i>Call Now: 407-212-7190</a>
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-outline"><i class="bi bi-calculator me-2"></i>View All Rates</a>
           </div>
         </div>
       </div>

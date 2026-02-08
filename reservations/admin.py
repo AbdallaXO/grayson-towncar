@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot
+from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 
@@ -2780,3 +2780,12 @@ class BlockedTimeSlotAdmin(admin.ModelAdmin):
         if not change:  # Only set created_by on creation
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(LegStatus)
+class LegStatusAdmin(admin.ModelAdmin):
+    list_display = ['leg', 'status', 'timestamp', 'updated_by']
+    list_filter = ['status', 'timestamp']
+    search_fields = ['leg__id', 'leg__reservation__customer__first_name', 'leg__reservation__customer__last_name']
+    readonly_fields = ['timestamp']
+    ordering = ['-timestamp']

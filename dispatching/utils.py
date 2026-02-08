@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from payment.models import Payment
 from drivers.models import Driver
-from reservations.models import Leg
+from reservations.models import Leg, LegStatus
 
 
 def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None, 
@@ -50,6 +50,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         ).prefetch_related(
             "reservation__legs",
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+            Prefetch("status_history", queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')),
         )
     
     # Exclude refunded reservations - they should be hidden from normal operations

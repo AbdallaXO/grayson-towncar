@@ -14,6 +14,9 @@
         content="Experience premium Orlando transportation with our specialized services for Disney World, Universal Studios, and Port Canaveral. Enjoy luxury vehicles, professional drivers, and family-friendly amenities including complimentary car seats.">
 {% endblock %}
 {% block extra_css %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/services_styles.css' %}" />
 {% endblock %}
 {% block content %}
@@ -21,45 +24,57 @@
     {% structured_data additional_data=structured_data %}
   {% endblock schema %}
   <script src="{% static 'js/area-selector.js' %}" defer></script>
-  <section class="position-relative overflow-hidden vh-100 d-flex align-items-center"
-           id="hero">
-    <!-- Optimized background image - move to actual img tag for better LCP -->
+  <section class="position-relative overflow-hidden vh-100 d-flex align-items-center" id="hero">
+    <!-- Background Image -->
     <div class="position-absolute top-0 start-0 w-100 h-100">
       <img src="{% static 'images/grayson-difference.webp' %}"
            width="1920"
            height="1080"
-           alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night, with colorful lights reflecting across the water, symbolizing the magical transportation experience to Disney destinations."
-           class="w-100 h-100 object-fit-cover"
-           style="position: absolute;
-                  z-index: 0"
+           alt="Orlando skyline featuring Disney's iconic Cinderella Castle illuminated at night"
+           class="w-100 h-100 object-fit-cover hero-image"
            fetchpriority="high">
-      <div class="position-absolute top-0 start-0 w-100 h-100"
-           style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.4));
-                  z-index: 1"></div>
+      <div class="hero-overlay"></div>
     </div>
     <div class="container position-relative z-1 py-5">
       <div class="row justify-content-center">
-        <div class="col-lg-8 text-center text-white">
-          <h1 class="display-5 fw-bold mb-4 text-shadow">Premium Orlando Transportation Services <br> Disney, Universal & Cruises</h1>
-          <p class="lead mb-5 fs-4">
-            Family-first transportation to Disney, Universal, cruises & more — with car seats, space, and a personal touch.
+        <div class="col-lg-10 col-xl-9 text-center text-white">
+          <p class="hero-eyebrow fade-in-up" style="animation-delay: 0.1s;">Private Chauffeur Service</p>
+          <h1 class="hero-title fade-in-up" style="animation-delay: 0.2s;">
+            Premium Orlando Transportation
+          </h1>
+          <div class="hero-destinations fade-in-up" style="animation-delay: 0.3s;">
+            <span>Disney</span>
+            <span class="separator">·</span>
+            <span>Universal</span>
+            <span class="separator">·</span>
+            <span>Port Canaveral</span>
+          </div>
+          <p class="hero-description fade-in-up" style="animation-delay: 0.4s;">
+            Arrive in comfort with complimentary car seats, spacious vehicles,<br class="d-none d-lg-inline"> and personalized service tailored to your journey.
           </p>
-          <div class="d-flex flex-wrap justify-content-center gap-3">
-            <a href="{% url 'rates' %}"
-               class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Book Your Ride</a>
+          <div class="fade-in-up" style="animation-delay: 0.5s;">
+            <a href="{% url 'rates' %}" class="btn-hero">
+              <span>Reserve Your Ride</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" class="ms-2">
+                <path d="M1 8h14m0 0L8 1m7 7-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>
           </div>
         </div>
       </div>
     </div>
+    <div class="scroll-indicator fade-in-up" style="animation-delay: 0.8s;">
+      <div class="scroll-line"></div>
+    </div>
   </section>
-  <!-- Simplified Service Areas Section -->
+  <!-- Service Areas Section -->
   <section class="py-6" id="explore">
     <div class="container">
       <div class="row align-items-center">
         <div class="col-lg-5 mb-5 mb-lg-0">
-          <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">Service Areas</span>
-          <h2 class="display-5 fw-normal mb-4">Where We Take You</h2>
-          <p class="lead mb-4">Explore our comprehensive coverage across Orlando's top destinations</p>
+          <p class="section-eyebrow">Service Areas</p>
+          <h2 class="section-title mb-4">Where We Take You</h2>
+          <p class="section-description mb-5">Comprehensive coverage across Orlando's premier destinations, from world-renowned theme parks to the cruise terminal.</p>
 
           <!-- Interactive Area Selection -->
           <div class="destination-selector mb-4">
@@ -117,8 +132,8 @@
             </div>
           </div>
 
-          <p class="small text-muted fst-italic">
-            Not listed? We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-warning">Contact Us</a>
+          <p class="small text-muted mt-4">
+            <strong>Not listed?</strong> We offer customized routes to any Orlando location. <a href="{% url 'contact' %}" class="text-warning">Contact Us</a>
           </p>
         </div>
 
@@ -362,12 +377,9 @@
   <section class="py-6 fleet-gradient" id="fleet">
     <div class="container">
       <div class="text-center mb-5">
-        <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">Transportation</span>
-        <h2 class="display-5 fw-normal">An Insight About Our Fleet</h2>
-        <p class="lead mb-1">Premium vehicles for your Orlando transportation needs</p>
-        {% comment %} <p class="small text-muted">
-          Need something special? <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
-        </p> {% endcomment %}
+        <p class="section-eyebrow">Our Fleet</p>
+        <h2 class="section-title mb-4">Premium Vehicles</h2>
+        <p class="section-description mx-auto" style="max-width: 580px;">Meticulously maintained luxury vehicles equipped with the finest amenities for your comfort and safety throughout your journey.</p>
       </div>
 
       <!-- Fleet Tabs Navigation -->
@@ -427,13 +439,28 @@
               type="button"
               role="tab">
         <img src="{% static 'images/van-icon.webp' %}"
-             alt="Minivan"
+             alt="Group Van"
              class="me-2"
              style="width: 1.5em;
                     height: 1.5em">
-      </i>Van
+      </i>Group Van
     </button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link custom-tab"
+            id="sprinter-tab"
+            data-bs-toggle="pill"
+            data-bs-target="#sprinter"
+            type="button"
+            role="tab">
+      <img src="{% static 'images/van-icon.webp' %}"
+           alt="Sprinter Van"
+           class="me-2"
+           style="width: 1.5em;
+                  height: 1.5em">
+    </i>Sprinter
+  </button>
+</li>
 </ul>
 
 <!-- Fleet Tabs Content -->
@@ -734,10 +761,10 @@
         </div>
       </div>
       <div class="col-lg-7">
-        <h3 class="mb-4">Spacious Group Van</h3>
+        <h3 class="mb-4">Full-Size Group Van</h3>
         <p class="rounded shadow mb-4 p-3">
-          Our full-size vans are the ultimate solution for larger groups wanting to travel together.
-          Perfect for <strong>corporate events, large families, or tour groups</strong> exploring Orlando's attractions.
+          Our spacious 10-passenger vans are the ideal solution for large families and groups traveling together.
+          Perfect for <strong>multi-generational families, large groups, or friends</strong> exploring Orlando's attractions.
         </p>
 
         <div class="row row-cols-1 row-cols-md-2 g-4">
@@ -789,17 +816,106 @@
     </div>
   </div>
 
+  <!-- Sprinter Van Tab -->
+  <div class="tab-pane fade" id="sprinter" role="tabpanel">
+    <div class="row">
+      <div class="col-lg-5 mb-4">
+        <div class="d-flex flex-column h-100 align-items-center">
+          <div class="rounded shadow-sm p-2 mb-4">
+            <img src="https://media.graysontowncar.com/vehicles/sprinter.webp"
+                 alt="Mercedes Sprinter Van"
+                 class="img-fluid rounded">
+          </div>
+          <div class="card h-100 border-0 bg-light mt-auto">
+            <div class="card-body">
+              <h5 class="card-title">
+                <strong>Need a specific accommodation?</strong>
+              </h5>
+              <p class="card-text">
+                <a href="#contact" class="text-secondary">Contact us</a> for custom arrangements
+              </p>
+              <div class="mt-2">
+                <a href="https://www.instagram.com/graysontowncar"
+                   target="_blank"
+                   class="me-3 text-dark fs-5"><i class="bi bi-instagram"></i></a>
+                <a href="https://www.facebook.com/profile.php?id=61574468855996"
+                   target="_blank"
+                   class="me-3 text-dark fs-5"><i class="bi bi-facebook"></i></a>
+                <a href="https://x.com/GraysonTowncar"
+                   target="_blank"
+                   class="me-3 text-dark fs-5"><i class="bi bi-twitter-x"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <h3 class="mb-4">Sprinter Van</h3>
+        <p class="rounded shadow mb-4 p-3">
+          Experience premium group transportation in our luxurious Sprinter Van.
+          Perfect for <strong>executive teams, VIP groups, and families</strong> who demand both space and sophistication.
+        </p>
+
+        <div class="row row-cols-1 row-cols-md-2 g-4">
+          <!-- Sprinter Van Details -->
+          <div class="col">
+            <div class="border-0 shadow p-3">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <i class="bi bi-people me-2"></i>Capacity
+                </h5>
+                <p class="card-text">Premium seating for up to 10-14 passengers with executive-class comfort and legroom.</p>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="border-0 shadow p-3">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <i class="bi bi-briefcase me-2"></i>Luggage Space
+                </h5>
+                <p class="card-text">
+                  Generous cargo capacity for up to 12-14 suitcases plus carry-on items with flexible configuration.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="border-0 shadow p-3">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <i class="bi bi-snow me-2"></i>Amenities
+                </h5>
+                <p class="card-text">Premium climate control, leather seating, ambient lighting, USB charging ports, and refreshments.</p>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="border-0 shadow p-3">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <i class="bi bi-stars me-2"></i>Experience
+                </h5>
+                <p class="card-text">Executive-class interior, smooth ride quality, and professional chauffeur service for VIP treatment.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 </div>
 </section>
 
 <!-- Additional Services Section -->
-<section class="py-5" id="additional-services">
+<section class="py-6" id="additional-services">
   <div class="container">
-    <div class="text-center mb-4">
-      <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-5">Options</span>
-      <h2 class="display-5 fw-normal">Additional Transportation Services</h2>
-      <p class="lead mb-0">Beyond airport transfers, we offer comprehensive solutions</p>
+    <div class="text-center mb-5">
+      <p class="section-eyebrow">Beyond Airports</p>
+      <h2 class="section-title mb-4">Additional Services</h2>
+      <p class="section-description mx-auto" style="max-width: 580px;">Comprehensive transportation solutions for every need, from hotel transfers to custom routes tailored to your itinerary.</p>
     </div>
 
     <div class="services-container">
@@ -859,20 +975,15 @@
 {% include "services/comparison.html" %}
 
 <!-- Family Features Section -->
-<section class="py-6 bg-secondary bg-opacity-10 position-relative"
-         id="family-features">
-  <div class="position-absolute top-0 start-0 w-100 h-100"
-       style="z-index: 0;
-              opacity: 0.15">
-    <img src="{% static 'images/photo2.webp' %}"
-         alt="Background"
-         class="w-100 h-100 object-fit-cover">
+<section class="py-6 position-relative" id="family-features">
+  <div class="position-absolute top-0 start-0 w-100 h-100" style="z-index: 0;">
+    <img src="{% static 'images/photo2.webp' %}" alt="Background" class="w-100 h-100 object-fit-cover">
   </div>
   <div class="container position-relative" style="z-index: 1;">
     <div class="text-center mb-5">
-      <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-5">Family Travel</span>
-      <h2 class="display-5 fw-normal">Family-Friendly Features</h2>
-      <p class="lead">Making family travel comfortable, safe, and stress-free</p>
+      <p class="section-eyebrow">Family Travel</p>
+      <h2 class="section-title mb-4">Family-Friendly Features</h2>
+      <p class="section-description mx-auto" style="max-width: 580px;">Everything you need for comfortable, safe, and stress-free family travel throughout your Orlando vacation.</p>
     </div>
 
     <div class="d-flex justify-content-center">
@@ -939,49 +1050,37 @@
   </div>
 </section>
 
-<!-- Enhanced Travel Agent Partnership Section -->
-<section class="py-4" id="travel-agents">
+<!-- Travel Agent Partnership Section -->
+<section class="py-6" id="travel-agents">
   <div class="container">
     <div class="row justify-content-center">
-      <div class="col-lg-10 col-md-12">
-        <!-- Reduced width for smaller overall box -->
-        <div class="card border-0 shadow-lg">
-          <div class="card-body p-4">
-            <!-- Reduced padding -->
-            <div class="row">
-              <div class="col-12">
-                <span class="badge bg-black text-white px-3 py-2 rounded-pill mb-3">For Travel Professionals</span>
-                <h2 class="display-5 fw-normal mb-3">Travel Agent Partnerships</h2>
-                <!-- Reduced margin -->
-                <p class="lead mb-3">
-                  <!-- Reduced margin -->
-                  Partner with us to offer your clients luxurious Orlando transportation while unlocking these exclusive benefits:
+      <div class="col-lg-10 col-md-11">
+        <div class="card">
+          <div class="card-body p-4 p-md-5">
+            <div class="row align-items-center">
+              <div class="col-lg-7 mb-4 mb-lg-0">
+                <p class="section-eyebrow text-start">Partner Program</p>
+                <h2 class="section-title text-start mb-4">Travel Agent Partnerships</h2>
+                <p class="section-description text-start mb-4">
+                  Partner with us to offer your clients premium Orlando transportation while earning competitive commissions on every booking.
                 </p>
-
-                <!-- Benefits list -->
-                <div class="mb-3">
-                  <!-- Reduced margin -->
-                  <p class="mb-2">
-                    <i class="bi bi-shield-check text-secondary me-2"></i> <span class="fw-medium">Trusted Client Care</span>
-                  </p>
-                  <p class="mb-2">
-                    <i class="bi bi-cash-coin text-secondary me-2"></i> <span class="fw-medium">High-Earning Commissions</span>
-                  </p>
-                  <p class="mb-2">
-                    <i class="bi bi-tag text-secondary me-2"></i> <span class="fw-medium">Exclusive Travel Discounts</span>
-                  </p>
-                  <p class="mb-2">
-                    <i class="bi bi-star text-secondary me-2"></i> <span class="fw-medium">Spotlight on You</span>
-                  </p>
-                  <p class="mb-2">
-                    <i class="bi bi-headset text-secondary me-2"></i> <span class="fw-medium">Always-On Support</span>
-                  </p>
+                <div class="d-flex flex-wrap gap-4 mb-4">
+                  <span class="d-flex align-items-center">
+                    <i class="bi bi-check2 me-2"></i> 10% Commission
+                  </span>
+                  <span class="d-flex align-items-center">
+                    <i class="bi bi-check2 me-2"></i> Partner Dashboard
+                  </span>
+                  <span class="d-flex align-items-center">
+                    <i class="bi bi-check2 me-2"></i> Priority Support
+                  </span>
                 </div>
-
-                <!-- Added text-center class to center the button -->
-                <div class="text-center">
-                  <a href="{% url 'partner' %}"
-                     class="btn btn-custom rounded-pill btn-secondary btn-m">Discover Grayson Partnership Benefits</a>
+                <a href="{% url 'partner' %}" class="btn btn-custom">Learn More</a>
+              </div>
+              <div class="col-lg-5 text-center">
+                <div style="padding: 2.5rem;">
+                  <p style="font-size: 3.5rem; font-weight: 200; color: #1a1a1a; margin-bottom: 0.25rem; letter-spacing: -0.03em;">10%</p>
+                  <p style="font-size: 0.8125rem; color: #777; margin: 0; text-transform: uppercase; letter-spacing: 0.1em;">Commission</p>
                 </div>
               </div>
             </div>
@@ -993,17 +1092,16 @@
 </section>
 
 
-<!-- FAQ Link Section - Compact Version -->
-<section class="py-4 bg-dark text-white text-center" id="faq-link">
+<!-- FAQ Link Section -->
+<section class="text-white text-center" id="faq-link">
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-6">
-        <!-- Reduced from col-lg-8 -->
-        <h3 class="mb-3">Frequently Asked Questions</h3>
-        <!-- Changed from display-5 to h3 -->
-        <p class="mb-3">Get answers to common transportation questions</p>
-        <!-- Shortened text, reduced margin -->
-        <a href="{% url 'faqs' %}" class="btn btn-light px-4 py-2 rounded-pill">View All FAQs</a> <!-- Smaller button -->
+        <h3 class="mb-4">Have Questions?</h3>
+        <p class="mb-5">Find answers to common transportation questions and learn more about our premium service.</p>
+        <a href="{% url 'faqs' %}" class="btn btn-light">
+          <span>View FAQs</span>
+        </a>
       </div>
     </div>
   </div>

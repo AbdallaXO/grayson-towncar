@@ -56,53 +56,281 @@
 {% endblock %}
 {% block extra_css %}
   <style>
-      /* Custom styling for improved layout */
-      .hero-section {
-          height: 70vh;
+      /* Luxury Design System */
+      :root {
+          --lux-black: #0a0a0a;
+          --lux-charcoal: #1a1a1a;
+          --lux-dark-gray: #2d2d2d;
+          --lux-medium-gray: #6b6b6b;
+          --lux-light-gray: #a0a0a0;
+          --lux-off-white: #f8f7f5;
+          --lux-white: #ffffff;
+          --lux-gold: #b8956c;
+          --lux-gold-light: #d4b896;
+          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* Hero Section */
+      .lux-hero {
+          height: 80vh;
           min-height: 600px;
+          position: relative;
+          display: flex;
+          align-items: center;
       }
 
-      .text-shadow {
-          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+      .lux-hero::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(10,10,10,0.8) 0%, rgba(26,26,26,0.7) 100%);
+          z-index: 1;
       }
 
-      .card-img-top {
+      .lux-eyebrow {
+          font-size: 0.75rem;
+          font-weight: 400;
+          letter-spacing: 0.35em;
+          text-transform: uppercase;
+          color: var(--lux-gold);
+          margin-bottom: 1.5rem;
+      }
+
+      .lux-title {
+          font-size: clamp(2.5rem, 5vw, 4rem);
+          font-weight: 200;
+          letter-spacing: -0.02em;
+          line-height: 1.1;
+      }
+
+      .lux-divider {
+          width: 60px;
+          height: 1px;
+          background: var(--lux-gold);
+          margin: 1.5rem auto;
+      }
+
+      .lux-section {
+          padding: 6rem 0;
+      }
+
+      .lux-section-title {
+          font-size: clamp(2rem, 4vw, 2.75rem);
+          font-weight: 200;
+          letter-spacing: -0.02em;
+          color: var(--lux-charcoal);
+          margin-bottom: 1rem;
+      }
+
+      .lux-section-subtitle {
+          font-size: 1rem;
+          font-weight: 300;
+          color: var(--lux-medium-gray);
+          max-width: 600px;
+          margin: 0 auto;
+      }
+
+      /* Luxury Cards */
+      .lux-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+          transition: var(--transition);
+          overflow: hidden;
+      }
+
+      .lux-card:hover {
+          transform: translateY(-6px);
+          box-shadow: 0 15px 45px rgba(0,0,0,0.12);
+      }
+
+      .lux-card-img {
           height: 350px;
           object-fit: cover;
       }
 
-      .py-6 {
-          padding-top: 4rem;
-          padding-bottom: 4rem;
+      /* Luxury Icon Box */
+      .lux-icon-box {
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 1px solid var(--lux-gold);
+          color: var(--lux-gold);
+          transition: var(--transition);
       }
 
-      .mb-6 {
-          margin-bottom: 4rem;
+      .lux-card:hover .lux-icon-box {
+          background: var(--lux-gold);
+          color: var(--lux-white);
       }
 
-      .disney-feature-card {
-          transition: transform 0.3s ease;
+      /* Luxury Buttons */
+      .lux-btn {
+          padding: 1rem 2.5rem;
+          font-size: 0.8rem;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          border-radius: 0;
+          border: none;
+          transition: var(--transition);
+          display: inline-block;
+          text-decoration: none;
       }
 
-      .disney-feature-card:hover {
-          transform: translateY(-10px);
+      .lux-btn-primary {
+          background: var(--lux-gold);
+          color: var(--lux-white);
       }
 
-      .breadcrumb-section {
-          background-color: #f8f9fa;
+      .lux-btn-primary:hover {
+          background: var(--lux-gold-light);
+          color: var(--lux-charcoal);
+          transform: translateY(-2px);
       }
 
-      .disney-info-box {
-          background-color: #f8f9fa;
-          border-left: 5px solid #0d6efd;
-          padding: 20px;
-          margin-bottom: 30px;
+      .lux-btn-dark {
+          background: var(--lux-charcoal);
+          color: var(--lux-white);
+      }
+
+      .lux-btn-dark:hover {
+          background: var(--lux-black);
+          color: var(--lux-white);
+          transform: translateY(-2px);
+      }
+
+      .lux-btn-outline {
+          background: transparent;
+          border: 1px solid var(--lux-white);
+          color: var(--lux-white);
+      }
+
+      .lux-btn-outline:hover {
+          background: var(--lux-white);
+          color: var(--lux-charcoal);
+      }
+
+      /* Info Box */
+      .lux-info-box {
+          background: var(--lux-off-white);
+          border-left: 3px solid var(--lux-gold);
+          padding: 2rem;
+          margin-bottom: 2rem;
+      }
+
+      /* Breadcrumb */
+      .lux-breadcrumb {
+          background: var(--lux-off-white);
+          padding: 1rem 0;
+      }
+
+      .lux-breadcrumb .breadcrumb {
+          margin: 0;
+      }
+
+      .lux-breadcrumb .breadcrumb-item a {
+          color: var(--lux-medium-gray);
+          text-decoration: none;
+          font-size: 0.85rem;
+          letter-spacing: 0.05em;
+      }
+
+      .lux-breadcrumb .breadcrumb-item.active {
+          color: var(--lux-charcoal);
+          font-size: 0.85rem;
+      }
+
+      /* Route Cards */
+      .route-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          transition: var(--transition);
+          position: relative;
+          overflow: hidden;
+      }
+
+      .route-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: var(--lux-gold);
+          transform: scaleX(0);
+          transition: var(--transition);
+      }
+
+      .route-card:hover::before {
+          transform: scaleX(1);
+      }
+
+      .route-card:hover {
+          transform: translateY(-8px);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+      }
+
+      /* Feature Cards */
+      .feature-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          transition: var(--transition);
+      }
+
+      .feature-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+      }
+
+      /* Info Card */
+      .lux-info-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          border-left: 3px solid var(--lux-gold);
+      }
+
+      /* Animations */
+      @keyframes fadeInUp {
+          from {
+              opacity: 0;
+              transform: translateY(30px);
+          }
+          to {
+              opacity: 1;
+              transform: translateY(0);
+          }
+      }
+
+      .lux-card, .route-card, .feature-card {
+          animation: fadeInUp 0.6s ease-out;
+      }
+
+      /* Responsive */
+      @media (max-width: 991px) {
+          .lux-hero {
+              height: auto;
+              min-height: 500px;
+              padding: 4rem 0;
+          }
+          .lux-section {
+              padding: 4rem 0;
+          }
       }
 
       @media (max-width: 768px) {
-          .hero-section {
-              height: 60vh;
-              min-height: 450px;
+          .lux-card-img {
+              height: 250px;
           }
       }
   </style>
@@ -113,31 +341,27 @@
   {% endblock %}
 
   <!-- Hero Section -->
-  <section class="position-relative overflow-hidden hero-section d-flex align-items-center"
-           id="hero">
+  <section class="lux-hero position-relative overflow-hidden" id="hero">
     <div class="position-absolute top-0 start-0 w-100 h-100">
       <img src="{% static 'images/services-bg.webp' %}"
            width="1920"
            height="1080"
            alt="Disney World Magic Kingdom with Cinderella Castle"
            class="w-100 h-100 object-fit-cover"
-           style="position: absolute;
-                  z-index: 0"
+           style="position: absolute; z-index: 0"
            fetchpriority="high" />
-      <div class="position-absolute top-0 start-0 w-100 h-100"
-           style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.5));
-                  z-index: 1"></div>
     </div>
-    <div class="container position-relative z-1 py-5">
+    <div class="container position-relative py-5" style="z-index: 2;">
       <div class="row justify-content-center">
         <div class="col-lg-10 text-center text-white">
-          <h1 class="display-2 fw-bold mb-4 text-shadow">Disney World Transportation</h1>
-          <p class="lead mb-5 fs-3">
+          <p class="lux-eyebrow">Private Chauffeur Service</p>
+          <h1 class="lux-title mb-4">Disney World Transportation</h1>
+          <div class="lux-divider"></div>
+          <p style="font-size: 1.2rem; font-weight: 300; max-width: 700px; margin: 0 auto 2.5rem; opacity: 0.85; line-height: 1.8;">
             Premium transfers from Orlando International Airport (MCO) and Sanford International Airport (SFB) to all Disney World resorts
           </p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
-            <a href="{% url 'rates' %}"
-               class="btn btn-dark btn-lg px-5 py-3 rounded-pill text-white">Book Your Disney Transfer</a>
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Disney Transfer</a>
           </div>
         </div>
       </div>
@@ -145,7 +369,7 @@
   </section>
 
   <!-- Breadcrumb -->
-  <section class="breadcrumb-section py-3">
+  <section class="lux-breadcrumb">
     <div class="container">
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
@@ -162,22 +386,25 @@
   </section>
 
   <!-- Main Content Section -->
-  <section class="py-6">
+  <section class="lux-section" style="background: var(--lux-white);">
     <div class="container">
       <!-- Disney World Information Section -->
-      <div class="row mb-6">
-        <div class="col-lg-10 mx-auto">
-          <h2 class="display-4 fw-normal mb-4">Premium Disney World Resort Transportation</h2>
-          <p class="lead mb-4 fs-5">
+      <div class="row mb-5">
+        <div class="col-lg-10 mx-auto text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
+          <h2 class="lux-section-title">Premium Disney World Resort Transportation</h2>
+          <div class="lux-divider"></div>
+          <p style="font-size: 1.1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 700px; margin: 0 auto 3rem; line-height: 1.8;">
             Start your Disney vacation with reliable transportation service, specializing in transfers between Orlando airports and all Disney World resorts.
           </p>
-
-          <div class="disney-info-box">
-            <h3 class="h3 mb-3">About Disney World Transportation</h3>
-            <p class="fw-semibold">
+        </div>
+        <div class="col-lg-10 mx-auto">
+          <div class="lux-info-box">
+            <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">About Disney World Transportation</h3>
+            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 1rem;">
               Located in the heart of Orlando, Walt Disney World Resort is the world's most visited vacation resort. Our transportation service provides seamless transfers between Orlando International Airport (MCO), Sanford International Airport (SFB), and all Disney World resorts, ensuring you arrive relaxed and ready for your magical vacation.
             </p>
-            <p class="mb-0 fw-semibold">
+            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
               Whether you're staying at a Value, Moderate, or Deluxe Disney resort, our professional drivers will get you there in comfort and style.
             </p>
           </div>
@@ -185,53 +412,41 @@
       </div>
 
       <!-- Disney Resorts Section -->
-      <div class="row mb-6">
+      <div class="row mb-5 pb-5">
+        <div class="col-12 text-center mb-5">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Destinations</p>
+          <h3 class="lux-section-title">Disney World Resorts</h3>
+          <div class="lux-divider"></div>
+        </div>
         <div class="col-12">
-          <h3 class="display-3 mb-4 text-center fw-normal">Disney World Resorts</h3>
           <div class="row g-4">
             <div class="col-lg-6">
-              <div class="card border-0 shadow-lg h-100 disney-feature-card">
+              <div class="lux-card h-100 shadow-sm">
                 <img src="{% static 'images/grand-floridian.webp' %}"
                      width="100%"
                      height="400"
-                     class="card-img-top"
+                     class="lux-card-img"
                      alt="Disney Deluxe Resort" />
-                <div class="card-body p-4">
-                  <h4 class="h2 mb-3">Deluxe Resorts</h4>
-                  <p class="fs-5 mb-3">
+                <div class="card-body p-5">
+                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Deluxe Resorts</h4>
+                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">
                     Experience the ultimate in luxury and convenience at Disney's Deluxe resorts, featuring premium amenities and prime locations.
                   </p>
-                  <ul class="list-unstyled mb-0 fs-5">
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                  <ul class="list-unstyled mb-0">
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Grand Floridian Resort & Spa
                     </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Contemporary Resort
                     </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Polynesian Village Resort
                     </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Animal Kingdom Lodge
                     </li>
                   </ul>
@@ -239,48 +454,32 @@
               </div>
             </div>
             <div class="col-lg-6">
-              <div class="card border-0 shadow-lg h-100 disney-feature-card">
+              <div class="lux-card h-100 shadow-sm">
                 <img src="{% static 'images/coronado-springs.webp' %}"
                      width="100%"
                      height="400"
-                     class="card-img-top"
+                     class="lux-card-img"
                      alt="Disney Moderate Resort" />
-                <div class="card-body p-4">
-                  <h4 class="h2 mb-3">Moderate & Value Resorts</h4>
-                  <p class="fs-5 mb-3">
+                <div class="card-body p-5">
+                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Moderate & Value Resorts</h4>
+                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">
                     Enjoy comfortable accommodations and great value at Disney's Moderate and Value resorts, perfect for families.
                   </p>
-                  <ul class="list-unstyled mb-0 fs-5">
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                  <ul class="list-unstyled mb-0">
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Caribbean Beach Resort
                     </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Coronado Springs Resort
                     </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Pop Century Resort
                     </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}"
-                           width="20"
-                           height="20"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Art of Animation Resort
                     </li>
                   </ul>
@@ -292,168 +491,118 @@
       </div>
 
       <!-- Why Choose Us Section -->
-      <div class="row mb-6">
-        <div class="col-12 text-center mb-4">
-          <h3 class="display-5">Why Choose Our Disney World Transportation</h3>
-          <p class="lead">Reliable, comfortable, and stress-free transfers for your Disney vacation</p>
+      <div class="row mb-5 pb-5" style="background: var(--lux-off-white); margin-left: -12px; margin-right: -12px; padding: 4rem 2rem;">
+        <div class="col-12 text-center mb-5">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Why Choose Us</p>
+          <h3 class="lux-section-title">Why Choose Our Disney World Transportation</h3>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">Reliable, comfortable, and stress-free transfers for your Disney vacation</p>
         </div>
         <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="24"
-                     height="24"
-                     fill="currentColor"
-                     class="bi bi-clock text-dark me-3"
-                     viewBox="0 0 16 16">
-                  <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z" />
-                  <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z" />
-                </svg>
-                <h4 class="h5 mb-0">Punctual Service</h4>
+          <div class="feature-card h-100 shadow-sm">
+            <div class="card-body p-4 text-center">
+              <div class="lux-icon-box mx-auto mb-4">
+                <i class="bi bi-clock fs-4"></i>
               </div>
-              <p class="mb-0">Always on time for your Disney vacation, with flight tracking for airport pickups.</p>
+              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Punctual Service</h4>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Always on time for your Disney vacation, with flight tracking for airport pickups.</p>
             </div>
           </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="24"
-                     height="24"
-                     fill="currentColor"
-                     class="bi bi-car-front text-dark me-3"
-                     viewBox="0 0 16 16">
-                  <path d="M4 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm10 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM6 8a1 1 0 0 0 0 2h4a1 1 0 1 0 0-2H6ZM4.862 4.276 3.906 6.19a.51.51 0 0 0 .497.731c.91-.073.995-.42 1.076-.737C5.737 5.27 6.484 4 8 4s2.263 1.27 2.521 2.184c.081.317.166.664 1.076.737a.5.5 0 0 0 .497-.731l-.956-1.913A.5.5 0 0 0 10.691 4H5.309a.5.5 0 0 0-.447.276Z" />
-                  <path d="M2.52 3.515A2.5 2.5 0 0 1 4.82 2h6.362c1 0 1.904.596 2.298 1.515l.792 1.848c.075.175.21.319.38.404.5.25.855.715.965 1.262l.335 1.679c.033.161.049.325.049.49v.413c0 .814-.39 1.543-1 1.997V13.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1.338c-1.292.048-2.745.088-4 .088s-2.708-.04-4-.088V13.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-1.892c-.61-.454-1-1.183-1-1.997v-.413a2.5 2.5 0 0 1 .049-.49l.335-1.68c.11-.546.465-1.012.964-1.261a.807.807 0 0 0 .381-.404l.792-1.848ZM4.82 3a1.5 1.5 0 0 0-1.379.91l-.792 1.847a1.8 1.8 0 0 1-.853.904.807.807 0 0 0-.43.564L1.03 8.904a1.5 1.5 0 0 0-.03.294v.413c0 .796.62 1.448 1.408 1.484 1.555.07 3.786.155 5.592.155 1.806 0 4.037-.084 5.592-.155A1.479 1.479 0 0 0 15 9.611v-.413c0-.099-.01-.197-.03-.294l-.335-1.68a.807.807 0 0 0-.43-.563 1.807 1.807 0 0 1-.853-.904l-.792-1.848A1.5 1.5 0 0 0 11.18 3H4.82Z" />
-                </svg>
-                <h4 class="h5 mb-0">Luxury Vehicles</h4>
+          <div class="feature-card h-100 shadow-sm">
+            <div class="card-body p-4 text-center">
+              <div class="lux-icon-box mx-auto mb-4">
+                <i class="bi bi-car-front fs-4"></i>
               </div>
-              <p class="mb-0">Modern, clean vehicles with ample space for luggage and family members.</p>
+              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Luxury Vehicles</h4>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Modern, clean vehicles with ample space for luggage and family members.</p>
             </div>
           </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="24"
-                     height="24"
-                     fill="currentColor"
-                     class="bi bi-person-check text-dark me-3"
-                     viewBox="0 0 16 16">
-                  <path d="M12.5 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm1.679-4.493-1.335 2.226a.75.75 0 0 1-1.174.144l-.774-.773a.5.5 0 0 1 .708-.708l.547.548 1.17-1.951a.5.5 0 1 1 .858.514ZM11 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM8 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-                  <path d="M8.256 14a4.474 4.474 0 0 1-.229-1.004H3c.001-.246.154-.986.832-1.664C4.484 10.68 5.711 10 8 10c.26 0 .507.009.74.025.226-.341.496-.65.804-.918C9.077 9.038 8.564 9 8 9c-5 0-6 3-6 4s1 1 1 1h5.256Z" />
-                </svg>
-                <h4 class="h5 mb-0">Professional Drivers</h4>
+          <div class="feature-card h-100 shadow-sm">
+            <div class="card-body p-4 text-center">
+              <div class="lux-icon-box mx-auto mb-4">
+                <i class="bi bi-person-check fs-4"></i>
               </div>
-              <p class="mb-0">Experienced with Disney World resorts and Orlando area for seamless transfers.</p>
+              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Professional Drivers</h4>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">Experienced with Disney World resorts and Orlando area for seamless transfers.</p>
             </div>
           </div>
         </div>
         <div class="col-lg-3 col-md-6 mb-4">
-          <div class="card h-100 border-0 shadow-sm">
-            <div class="card-body p-4">
-              <div class="d-flex align-items-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="24"
-                     height="24"
-                     fill="currentColor"
-                     class="bi bi-shield-check text-dark me-3"
-                     viewBox="0 0 16 16">
-                  <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z" />
-                  <path d="M10.854 5.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647a.5.5 0 0 1 .708 0z" />
-                </svg>
-                <h4 class="h5 mb-0">Reliable Service</h4>
+          <div class="feature-card h-100 shadow-sm">
+            <div class="card-body p-4 text-center">
+              <div class="lux-icon-box mx-auto mb-4">
+                <i class="bi bi-shield-check fs-4"></i>
               </div>
-              <p class="mb-0">24/7 support, flight tracking, and guaranteed on-time arrival for your Disney vacation.</p>
+              <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Reliable Service</h4>
+              <p style="font-weight: 300; font-size: 0.9rem; color: var(--lux-medium-gray); line-height: 1.6; margin-bottom: 0;">24/7 support, flight tracking, and guaranteed on-time arrival for your Disney vacation.</p>
             </div>
           </div>
         </div>
-        <div class="text-center mt-4">
-          <a href="{% url 'rates' %}"
-             class="btn btn-dark btn-md px-5 py-3 rounded-pill mb-3">Get a Quote for Disney Transfer</a>
+        <div class="col-12 text-center mt-4">
+          <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">Get a Quote for Disney Transfer</a>
         </div>
       </div>
 
       <!-- Popular Routes Section -->
-      <div class="row mb-5">
-        <div class="col-12 text-center mb-4">
-          <h3 class="display-5 mb-4">Popular Transportation Routes to Disney World</h3>
-          <p class="lead mb-5">Reliable shuttle service from all major Orlando locations to your Disney resort</p>
+      <div class="row mb-5 pt-5">
+        <div class="col-12 text-center mb-5">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Routes</p>
+          <h3 class="lux-section-title">Popular Transportation Routes to Disney World</h3>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">Reliable service from all major Orlando locations to your Disney resort</p>
         </div>
         <div class="row g-4">
           <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
+            <div class="route-card h-100 shadow-sm">
               <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="48"
-                     height="48"
-                     fill="currentColor"
-                     class="bi bi-airplane text-dark mb-3"
-                     viewBox="0 0 16 16">
-                  <path d="M6.428 1.151C6.708.591 7.213 0 8 0s1.292.592 1.572 1.151C9.861 1.73 10 2.431 10 3v3.691l5.17 2.585a1.5 1.5 0 0 1 .83 1.342V12a.5.5 0 0 1-.582.493l-5.507-.918-.375 2.253 1.318.219a.5.5 0 0 1 .488.591l-.362 2.172a.5.5 0 0 1-.489.394H7.82a.5.5 0 0 1-.447-.276l-1.147-2.295A.5.5 0 0 1 6.466 13h-1.88a.5.5 0 0 1-.24-.939l1.09-.59-.636-1.272H2.559a.5.5 0 0 1-.447-.724L4.25 5.5A.5.5 0 0 0 3.5 5a.5.5 0 0 1-.5-.5v-.616a.5.5 0 0 1 .213-.408L6 1.402A.5.5 0 0 1 6.5 1.25M3.562 4.342L3 5.768h2.08l.73-1.456-.968.258a.5.5 0 0 1-.36-.062l-.913-.64a.5.5 0 0 1-.273-.453v-.17l.4-.143a.5.5 0 0 0 .145-.118l.102-.134.102-.134L4 2.279a.5.5 0 0 0-.177-.106L3.33 2.04a.5.5 0 0 1-.247-.257l-.12-.302Z" />
-                </svg>
-                <h4 class="h3 mb-3">Orlando Airport (MCO)</h4>
-                <p class="fs-5">
+                <div class="lux-icon-box mx-auto mb-4">
+                  <i class="bi bi-airplane fs-4"></i>
+                </div>
+                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Orlando Airport (MCO)</h4>
+                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
                   Direct luxury transportation service from Orlando International Airport to all Disney World resorts. We track your flight for on-time pickup.
                 </p>
               </div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
+            <div class="route-card h-100 shadow-sm">
               <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="48"
-                     height="48"
-                     fill="currentColor"
-                     class="bi bi-airplane-fill text-dark mb-3"
-                     viewBox="0 0 16 16">
-                  <path d="M6.428 1.151C6.708.591 7.213 0 8 0s1.292.592 1.572 1.151C9.861 1.73 10 2.431 10 3v3.691l5.17 2.585a1.5 1.5 0 0 1 .83 1.342V12a.5.5 0 0 1-.582.493l-5.507-.918-.375 2.253 1.318.219a.5.5 0 0 1 .488.591l-.362 2.172a.5.5 0 0 1-.489.394H7.82a.5.5 0 0 1-.447-.276l-1.147-2.295A.5.5 0 0 1 6.466 13h-1.88a.5.5 0 0 1-.24-.939l1.09-.59-.636-1.272H2.559a.5.5 0 0 1-.447-.724L4.25 5.5A.5.5 0 0 0 3.5 5a.5.5 0 0 1-.5-.5v-.616a.5.5 0 0 1 .213-.408L6 1.402A.5.5 0 0 1 6.5 1.25M3.562 4.342L3 5.768h2.08l.73-1.456-.968.258a.5.5 0 0 1-.36-.062l-.913-.64a.5.5 0 0 1-.273-.453v-.17l.4-.143a.5.5 0 0 0 .145-.118l.102-.134.102-.134L4 2.279a.5.5 0 0 0-.177-.106L3.33 2.04a.5.5 0 0 1-.247-.257l-.12-.302Z" />
-                </svg>
-                <h4 class="h3 mb-3">Sanford Airport (SFB)</h4>
-                <p class="fs-5">
+                <div class="lux-icon-box mx-auto mb-4">
+                  <i class="bi bi-airplane-fill fs-4"></i>
+                </div>
+                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Sanford Airport (SFB)</h4>
+                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
                   Convenient luxury transfers from Sanford International Airport to all Disney World resorts. Perfect for international travelers.
                 </p>
               </div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
+            <div class="route-card h-100 shadow-sm">
               <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="48"
-                     height="48"
-                     fill="currentColor"
-                     class="bi bi-building text-dark mb-3"
-                     viewBox="0 0 16 16">
-                  <path d="M4 2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm3 0a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm3.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1ZM4 5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1ZM7.5 5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm2.5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1ZM4.5 8a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Zm2.5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm3.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Z" />
-                  <path d="M2 1a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V1Zm11 0H3v14h3v-2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V15h3V1Z" />
-                </svg>
-                <h4 class="h3 mb-3">Universal Studios</h4>
-                <p class="fs-5">
+                <div class="lux-icon-box mx-auto mb-4">
+                  <i class="bi bi-building fs-4"></i>
+                </div>
+                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">Universal Studios</h4>
+                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
                   Reliable transportation service from Universal Orlando Resort and nearby hotels to all Disney World resorts for a seamless vacation experience.
                 </p>
               </div>
             </div>
           </div>
           <div class="col-md-6 col-lg-3">
-            <div class="card h-100 border-0 shadow-lg">
+            <div class="route-card h-100 shadow-sm">
               <div class="card-body text-center p-4">
-                <svg xmlns="http://www.w3.org/2000/svg"
-                     width="48"
-                     height="48"
-                     fill="currentColor"
-                     class="bi bi-map text-dark mb-3"
-                     viewBox="0 0 16 16">
-                  <path fill-rule="evenodd" d="M15.817.113A.5.5 0 0 1 16 .5v14a.5.5 0 0 1-.402.49l-5 1a.502.502 0 0 1-.196 0L5.5 15.01l-4.902.98A.5.5 0 0 1 0 15.5v-14a.5.5 0 0 1 .402-.49l5-1a.5.5 0 0 1 .196 0L10.5.99l4.902-.98a.5.5 0 0 1 .415.103zM10 1.91l-4-.8v12.98l4 .8V1.91zm1 12.98 4-.8V1.11l-4 .8v12.98zm-6-.8V1.11l-4 .8v12.98l4-.8z" />
-                </svg>
-                <h4 class="h3 mb-3">International Drive</h4>
-                <p class="fs-5">
+                <div class="lux-icon-box mx-auto mb-4">
+                  <i class="bi bi-map fs-4"></i>
+                </div>
+                <h4 style="font-weight: 400; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1rem;">International Drive</h4>
+                <p style="font-weight: 300; color: var(--lux-medium-gray); line-height: 1.7;">
                   Easy access transportation from I-Drive hotels to all Disney World resorts. Enjoy Orlando attractions before your Disney vacation.
                 </p>
               </div>
@@ -463,85 +612,60 @@
       </div>
 
       <!-- Disney World Information - Additional SEO content -->
-      <div class="row mb-6">
+      <div class="row mb-5">
         <div class="col-lg-10 mx-auto">
-          <div class="card border-0 shadow-lg">
+          <div class="lux-info-card shadow-sm">
             <div class="card-body p-5">
-              <h3 class="h2 mb-4">Disney World: The Most Magical Place on Earth</h3>
-              <p class="fs-5 mb-4">
+              <h3 style="font-weight: 200; letter-spacing: -0.01em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.75rem;">Disney World: The Most Magical Place on Earth</h3>
+              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 2rem;">
                 Located in the heart of Orlando, Walt Disney World Resort is the world's most visited vacation resort, featuring four theme parks, two water parks, and over 25 resort hotels. Our transportation service specializes in comfortable, reliable transfers to all Disney World destinations.
               </p>
 
               <div class="row mb-4">
                 <div class="col-md-6">
-                  <h4 class="h4 mb-3">Disney World Theme Parks</h4>
-                  <ul class="list-unstyled fs-5">
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-dark me-2"
-                           alt="Check" />
+                  <h4 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Disney World Theme Parks</h4>
+                  <ul class="list-unstyled">
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Magic Kingdom - Home to Cinderella Castle
                     </li>
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Epcot - World Showcase and Future World
                     </li>
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Hollywood Studios
                     </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Animal Kingdom
                     </li>
                   </ul>
                 </div>
                 <div class="col-md-6">
-                  <h4 class="h4 mb-3">Disney World Water Parks</h4>
-                  <ul class="list-unstyled fs-5">
-                    <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-dark me-2"
-                           alt="Check" />
+                  <h4 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Disney World Water Parks</h4>
+                  <ul class="list-unstyled">
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Typhoon Lagoon
                     </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}"
-                           width="16"
-                           height="16"
-                           class="text-dark me-2"
-                           alt="Check" />
+                    <li style="color: var(--lux-dark-gray); font-weight: 300;">
+                      <i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>
                       Disney's Blizzard Beach
                     </li>
                   </ul>
                 </div>
               </div>
 
-              <p class="fs-5 mb-0">
+              <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">
                 Whether you're visiting the Magic Kingdom, exploring Epcot's World Showcase, experiencing the thrills of Hollywood Studios, or discovering the wonders of Animal Kingdom, our transportation service ensures you arrive at your Disney destination relaxed and ready for adventure.
               </p>
             </div>
           </div>
         </div>
-        <div class="text-center mt-4">
-          <a href="{% url 'rates' %}"
-             class="btn btn-dark btn-md px-5 py-3 rounded-pill">Get a Quote for Disney World</a>
+        <div class="col-12 text-center mt-5">
+          <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Get a Quote for Disney World</a>
         </div>
       </div>
     </div>

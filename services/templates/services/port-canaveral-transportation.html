@@ -52,41 +52,119 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
 {% endblock %}
 {% block extra_css %}
   <style>
-      /* Custom styling for improved layout */
-      .hero-section {
-          height: 70vh;
+      /* Luxury Design System */
+      :root {
+          --lux-black: #0a0a0a;
+          --lux-charcoal: #1a1a1a;
+          --lux-dark-gray: #2d2d2d;
+          --lux-medium-gray: #6b6b6b;
+          --lux-light-gray: #a0a0a0;
+          --lux-off-white: #f8f7f5;
+          --lux-white: #ffffff;
+          --lux-gold: #b8956c;
+          --lux-gold-light: #d4b896;
+          --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .lux-hero {
+          height: 80vh;
           min-height: 600px;
+          position: relative;
+          display: flex;
+          align-items: center;
       }
 
-      .text-shadow {
-          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+      .lux-hero::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(135deg, rgba(10,10,10,0.8) 0%, rgba(26,26,26,0.7) 100%);
+          z-index: 1;
       }
 
-      .card-img-top {
-          height: 350px;
-          object-fit: cover;
+      .lux-eyebrow { font-size: 0.75rem; font-weight: 400; letter-spacing: 0.35em; text-transform: uppercase; color: var(--lux-gold); margin-bottom: 1.5rem; }
+      .lux-title { font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 200; letter-spacing: -0.02em; line-height: 1.1; }
+      .lux-divider { width: 60px; height: 1px; background: var(--lux-gold); margin: 1.5rem auto; }
+      .lux-section { padding: 6rem 0; }
+      .lux-section-title { font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 200; letter-spacing: -0.02em; color: var(--lux-charcoal); margin-bottom: 1rem; }
+      .lux-section-subtitle { font-size: 1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 600px; margin: 0 auto; }
+
+      .lux-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+          transition: var(--transition);
+          overflow: hidden;
       }
 
-      .py-6 {
-          padding-top: 4rem;
-          padding-bottom: 4rem;
+      .lux-card:hover { transform: translateY(-6px); box-shadow: 0 15px 45px rgba(0,0,0,0.12); }
+      .lux-card-img { height: 350px; object-fit: cover; }
+
+      .lux-icon-box {
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: transparent;
+          border: 1px solid var(--lux-gold);
+          color: var(--lux-gold);
+          transition: var(--transition);
       }
 
-      .mb-6 {
-          margin-bottom: 4rem;
+      .feature-card:hover .lux-icon-box, .route-card:hover .lux-icon-box { background: var(--lux-gold); color: var(--lux-white); }
+
+      .lux-btn {
+          padding: 1rem 2.5rem;
+          font-size: 0.8rem;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          border-radius: 0;
+          border: none;
+          transition: var(--transition);
+          display: inline-block;
+          text-decoration: none;
       }
 
-      .cruise-feature-card {
-          transition: transform 0.3s ease;
+      .lux-btn-primary { background: var(--lux-gold); color: var(--lux-white); }
+      .lux-btn-primary:hover { background: var(--lux-gold-light); color: var(--lux-charcoal); transform: translateY(-2px); }
+      .lux-btn-dark { background: var(--lux-charcoal); color: var(--lux-white); }
+      .lux-btn-dark:hover { background: var(--lux-black); color: var(--lux-white); transform: translateY(-2px); }
+
+      .lux-info-box { background: var(--lux-off-white); border-left: 3px solid var(--lux-gold); padding: 2rem; margin-bottom: 2rem; }
+      .lux-breadcrumb { background: var(--lux-off-white); padding: 1rem 0; }
+      .lux-breadcrumb .breadcrumb { margin: 0; }
+      .lux-breadcrumb .breadcrumb-item a { color: var(--lux-medium-gray); text-decoration: none; font-size: 0.85rem; letter-spacing: 0.05em; }
+      .lux-breadcrumb .breadcrumb-item.active { color: var(--lux-charcoal); font-size: 0.85rem; }
+
+      .route-card {
+          background: var(--lux-white);
+          border: none;
+          border-radius: 0;
+          transition: var(--transition);
+          position: relative;
+          overflow: hidden;
       }
 
-      .cruise-feature-card:hover {
-          transform: translateY(-10px);
-      }
+      .route-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--lux-gold); transform: scaleX(0); transition: var(--transition); }
+      .route-card:hover::before { transform: scaleX(1); }
+      .route-card:hover { transform: translateY(-8px); box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
 
-      .breadcrumb-section {
-          background-color: #f8f9fa;
-      }
+      .feature-card { background: var(--lux-white); border: none; border-radius: 0; transition: var(--transition); }
+      .feature-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
+
+      .lux-info-card { background: var(--lux-white); border: none; border-radius: 0; border-left: 3px solid var(--lux-gold); }
+
+      @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+      .lux-card, .route-card, .feature-card { animation: fadeInUp 0.6s ease-out; }
+
+      @media (max-width: 991px) { .lux-hero { height: auto; min-height: 500px; padding: 4rem 0; } .lux-section { padding: 4rem 0; } }
+      @media (max-width: 768px) { .lux-card-img { height: 250px; } }
   </style>
 {% endblock %}
 {% block content %}
@@ -94,116 +172,94 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
     {% structured_data additional_data=structured_data %}
   {% endblock %}
 
-  <!-- Hero Section - Made larger and more impactful -->
-  <section class="position-relative overflow-hidden hero-section d-flex align-items-center" id="hero">
+  <!-- Hero Section -->
+  <section class="lux-hero position-relative overflow-hidden" id="hero">
     <div class="position-absolute top-0 start-0 w-100 h-100">
-      <img src="{% static 'images/port-hero.webp' %}" width="1920" height="1080" alt="Port Canaveral cruise terminal with Disney Wish and Royal Caribbean ships" class="w-100 h-100 object-fit-cover" style="position: absolute;
-                  z-index: 0" fetchpriority="high" />
-      <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.5));
-                  z-index: 1"></div>
+      <img src="{% static 'images/port-hero.webp' %}" width="1920" height="1080" alt="Port Canaveral cruise terminal with Disney Wish and Royal Caribbean ships" class="w-100 h-100 object-fit-cover" style="position: absolute; z-index: 0" fetchpriority="high" />
     </div>
-    <div class="container position-relative z-1 py-5">
+    <div class="container position-relative py-5" style="z-index: 2;">
       <div class="row justify-content-center">
         <div class="col-lg-10 text-center text-white">
-          <h1 class="display-2 fw-bold mb-4 text-shadow">Port Canaveral Transportation</h1>
-          <p class="lead mb-5 fs-3">Premium cruise transfers between Orlando Airport (MCO) and Disney Cruise Line & Royal Caribbean terminals</p>
+          <p class="lux-eyebrow">Cruise Transfer Service</p>
+          <h1 class="lux-title mb-4">Port Canaveral Transportation</h1>
+          <div class="lux-divider"></div>
+          <p style="font-size: 1.2rem; font-weight: 300; max-width: 700px; margin: 0 auto 2.5rem; opacity: 0.85; line-height: 1.8;">Premium cruise transfers between Orlando Airport (MCO) and Disney Cruise Line & Royal Caribbean terminals</p>
           <div class="d-flex flex-wrap justify-content-center gap-3">
-            <a href="{% url 'rates' %}" class="btn btn-dark btn-md px-5 py-3 rounded-pill">Book Your Cruise Transfer</a>
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Cruise Transfer</a>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Breadcrumb added for better navigation and SEO -->
-  <section class="breadcrumb-section py-3">
+  <!-- Breadcrumb -->
+  <section class="lux-breadcrumb">
     <div class="container">
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
-          <li class="breadcrumb-item">
-            <a href="/">Home</a>
-          </li>
-          <li class="breadcrumb-item">
-            <a href="{% url 'services' %}">Services</a>
-          </li>
+          <li class="breadcrumb-item"><a href="/">Home</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
           <li class="breadcrumb-item active" aria-current="page">Port Canaveral Transportation</li>
         </ol>
       </nav>
     </div>
   </section>
 
-  <!-- Main Content Section - Less constrained width -->
-  <section class="py-6">
+  <!-- Main Content Section -->
+  <section class="lux-section" style="background: var(--lux-white);">
     <div class="container">
       <!-- Port Canaveral Information Section -->
-      <div class="row mb-6">
+      <div class="row mb-5">
+        <div class="col-lg-10 mx-auto text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Premium Service</p>
+          <h2 class="lux-section-title">Premium Port Canaveral Cruise Terminal Transportation</h2>
+          <div class="lux-divider"></div>
+          <p style="font-size: 1.1rem; font-weight: 300; color: var(--lux-medium-gray); max-width: 700px; margin: 0 auto 3rem; line-height: 1.8;">Start your cruise vacation with reliable Port Canaveral transportation service, specializing in transfers between Orlando and Disney Cruise Line and Royal Caribbean cruise ships.</p>
+        </div>
         <div class="col-lg-10 mx-auto">
-          <h2 class="display-4 fw-normal mb-4">Premium Port Canaveral Cruise Terminal Transportation</h2>
-          <p class="lead mb-4 fs-5">Start your cruise vacation with reliable Port Canaveral transportation service, specializing in transfers between Orlando and Disney Cruise Line and Royal Caribbean cruise ships.</p>
-
-          <div class="port-info-box">
-            <h3 class="h3 mb-3">About Port Canaveral</h3>
-            <p class="fw-semibold">Located just 45 miles east of Orlando, Port Canaveral is one of Florida's busiest cruise ports and a gateway to the Caribbean. As the second-busiest cruise port in the world, Port Canaveral welcomes millions of passengers each year aboard Disney Cruise Line, Royal Caribbean, Carnival, Norwegian, and MSC cruise ships.</p>
-            <p class="mb-0 fw-semibold">Our transportation service provides seamless transfers between Orlando International Airport (MCO), Disney World resorts, and all terminals at Port Canaveral, ensuring you arrive relaxed and on time for your cruise departure.</p>
+          <div class="lux-info-box">
+            <h3 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem;">About Port Canaveral</h3>
+            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 1rem;">Located just 45 miles east of Orlando, Port Canaveral is one of Florida's busiest cruise ports and a gateway to the Caribbean. As the second-busiest cruise port in the world, Port Canaveral welcomes millions of passengers each year aboard Disney Cruise Line, Royal Caribbean, Carnival, Norwegian, and MSC cruise ships.</p>
+            <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.8; margin-bottom: 0;">Our transportation service provides seamless transfers between Orlando International Airport (MCO), Disney World resorts, and all terminals at Port Canaveral, ensuring you arrive relaxed and on time for your cruise departure.</p>
           </div>
         </div>
       </div>
 
-      <!-- Disney Cruise Line Section - Wider and larger -->
-      <div class="row mb-6">
+      <!-- Disney Cruise Line Section -->
+      <div class="row mb-5 pb-5">
+        <div class="col-12 text-center mb-5">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Cruise Lines</p>
+          <h3 class="lux-section-title">Disney Cruise Line</h3>
+          <div class="lux-divider"></div>
+        </div>
         <div class="col-12">
-          <h3 class="display-3 mb-4 text-center fw-normal">Disney Cruise Line</h3>
           <div class="row g-4">
             <div class="col-lg-6">
-              <div class="card border-0 shadow-lg h-100 cruise-feature-card">
-                <img src="{% static 'images/disney_wish.webp' %}" width="100%" height="400" class="card-img-top" alt="Disney Wish cruise ship docked at Port Canaveral" />
-                <div class="card-body p-4">
-                  <h4 class="h2 mb-3">Disney Wish</h4>
-                  <p class="fs-5 mb-3">The newest addition to the Disney fleet at Port Canaveral, featuring innovative entertainment and immersive Disney, Marvel, and Star Wars experiences.</p>
-                  <ul class="list-unstyled mb-0 fs-5">
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      AquaMouse water attraction - Disney's first attraction at sea
-                    </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      Immersive Marvel and Star Wars themed dining and play areas
-                    </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      Premium dining experiences including Arendelle: A Frozen Dining Adventure
-                    </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      Sailing from Port Canaveral to Bahamas and Caribbean destinations
-                    </li>
+              <div class="lux-card h-100 shadow-sm">
+                <img src="{% static 'images/disney_wish.webp' %}" width="100%" height="400" class="lux-card-img" alt="Disney Wish cruise ship docked at Port Canaveral" />
+                <div class="card-body p-5">
+                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Disney Wish</h4>
+                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">The newest addition to the Disney fleet at Port Canaveral, featuring innovative entertainment and immersive Disney, Marvel, and Star Wars experiences.</p>
+                  <ul class="list-unstyled mb-0">
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>AquaMouse water attraction - Disney's first attraction at sea</li>
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Immersive Marvel and Star Wars themed dining and play areas</li>
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Premium dining experiences including Arendelle: A Frozen Dining Adventure</li>
+                    <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Sailing from Port Canaveral to Bahamas and Caribbean destinations</li>
                   </ul>
                 </div>
               </div>
             </div>
             <div class="col-lg-6">
-              <div class="card border-0 shadow-lg h-100 cruise-feature-card">
-                <img src="{% static 'images/disney_fantasy.webp' %}" width="100%" height="400" class="card-img-top" alt="Disney Fantasy cruise ship at Port Canaveral terminal" />
-                <div class="card-body p-4">
-                  <h4 class="h2 mb-3">Disney Fantasy</h4>
-                  <p class="fs-5 mb-3">A classic Disney cruise experience with beloved characters and family-friendly activities, departing regularly from Port Canaveral.</p>
-                  <ul class="list-unstyled mb-0 fs-5">
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      AquaDuck water coaster spanning the upper decks
-                    </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      Broadway-style shows including Disney's Aladdin and Frozen
-                    </li>
-                    <li class="mb-3">
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      Adults-only areas including the Quiet Cove Pool and Satellite Falls
-                    </li>
-                    <li>
-                      <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                      7-night Caribbean itineraries from Port Canaveral
-                    </li>
+              <div class="lux-card h-100 shadow-sm">
+                <img src="{% static 'images/disney_fantasy.webp' %}" width="100%" height="400" class="lux-card-img" alt="Disney Fantasy cruise ship at Port Canaveral terminal" />
+                <div class="card-body p-5">
+                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Disney Fantasy</h4>
+                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">A classic Disney cruise experience with beloved characters and family-friendly activities, departing regularly from Port Canaveral.</p>
+                  <ul class="list-unstyled mb-0">
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>AquaDuck water coaster spanning the upper decks</li>
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Broadway-style shows including Disney's Aladdin and Frozen</li>
+                    <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Adults-only areas including the Quiet Cove Pool and Satellite Falls</li>
+                    <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>7-night Caribbean itineraries from Port Canaveral</li>
                   </ul>
                 </div>
               </div>
@@ -211,64 +267,44 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
           </div>
         </div>
       </div>
-      <div class="text-center mt-4">
-        <a href="{% url 'rates' %}" class="btn btn-dark btn-md px-5 py-3 rounded-pill mb-5">Get a Quote for Disney Cruise Line</a>
+      <div class="text-center mt-4 mb-5">
+        <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">Get a Quote for Disney Cruise Line</a>
       </div>
 
-      <!-- Royal Caribbean Section - Wider and more prominent -->
-      <div class="row mb-6 mt-3">
+      <!-- Royal Caribbean Section -->
+      <div class="row mb-5 mt-5 pt-5">
+        <div class="col-12 text-center mb-5">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Cruise Lines</p>
+          <h3 class="lux-section-title">Royal Caribbean at Port Canaveral</h3>
+          <div class="lux-divider"></div>
+        </div>
         <div class="col-12">
-          <h3 class="display-4 mb-4 text-center">Royal Caribbean at Port Canaveral</h3>
-          <div class="card border-0 shadow-lg">
+          <div class="lux-card shadow-sm">
             <div class="row g-0">
               <div class="col-lg-5">
                 <img src="{% static 'images/royal_carribean.webp' %}" width="100%" height="100%" class="h-100 object-fit-cover" alt="Royal Caribbean cruise ship at Port Canaveral terminal" />
               </div>
               <div class="col-lg-7">
                 <div class="card-body p-5">
-                  <h4 class="h2 mb-3">Experience Royal Caribbean from Orlando</h4>
-                  <p class="fs-5 mb-4">Experience the thrill of Royal Caribbean's innovative ships with world-class amenities and entertainment, with easy access from Orlando via our premium transportation service.</p>
+                  <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Experience Royal Caribbean from Orlando</h4>
+                  <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 2rem;">Experience the thrill of Royal Caribbean's innovative ships with world-class amenities and entertainment, with easy access from Orlando via our premium transportation service.</p>
                   <div class="row">
                     <div class="col-md-6">
-                      <h5 class="h4 mb-3">Featured Ships at Port Canaveral</h5>
-                      <ul class="list-unstyled mb-4 fs-5">
-                        <li class="mb-3">
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Wonder of the Seas - World's largest cruise ship
-                        </li>
-                        <li class="mb-3">
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Harmony of the Seas - Features Perfect Storm waterslides
-                        </li>
-                        <li class="mb-3">
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Symphony of the Seas - Ultimate family adventure
-                        </li>
-                        <li>
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Allure of the Seas - Featuring the AquaTheater
-                        </li>
+                      <h5 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Featured Ships at Port Canaveral</h5>
+                      <ul class="list-unstyled mb-4">
+                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Wonder of the Seas - World's largest cruise ship</li>
+                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Harmony of the Seas - Features Perfect Storm waterslides</li>
+                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Symphony of the Seas - Ultimate family adventure</li>
+                        <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Allure of the Seas - Featuring the AquaTheater</li>
                       </ul>
                     </div>
                     <div class="col-md-6">
-                      <h5 class="h4 mb-3">Popular Features</h5>
-                      <ul class="list-unstyled mb-0 fs-5">
-                        <li class="mb-3">
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          FlowRider surf simulator for all ages
-                        </li>
-                        <li class="mb-3">
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Rock climbing walls with ocean views
-                        </li>
-                        <li class="mb-3">
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Ice skating shows and performance venues
-                        </li>
-                        <li>
-                          <img src="{% static 'images/check.webp' %}" width="20" height="20" class="text-dark me-2" alt="Check" />
-                          Central Park - first living park at sea
-                        </li>
+                      <h5 style="font-weight: 400; color: var(--lux-charcoal); margin-bottom: 1rem; font-size: 1.1rem;">Popular Features</h5>
+                      <ul class="list-unstyled mb-0">
+                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>FlowRider surf simulator for all ages</li>
+                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Rock climbing walls with ocean views</li>
+                        <li style="color: var(--lux-dark-gray); margin-bottom: 0.75rem; font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Ice skating shows and performance venues</li>
+                        <li style="color: var(--lux-dark-gray); font-weight: 300;"><i class="bi bi-check me-2" style="color: var(--lux-gold);"></i>Central Park - first living park at sea</li>
                       </ul>
                     </div>
                   </div>

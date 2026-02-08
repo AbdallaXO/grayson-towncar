@@ -864,18 +864,28 @@ class Leg(models.Model):
 
     def has_flight_time_mismatch(self, threshold_minutes=30):
         """
-        For arrival legs with flight info: True if the flight's scheduled gate
-        arrival time differs from the leg's pickup time by at least
-        threshold_minutes. Uses scheduled arrival only (not estimated/actual)
-        so delayed flights don't incorrectly flag a leg that matches schedule.
+        For arrival legs with flight info: True if the flight's best available
+        arrival time differs from the leg's pickup time by at least threshold_minutes.
+
+        Uses best available time (actual/estimated if available, otherwise scheduled)
+        so delayed flights don't incorrectly flag legs that have been updated to
+        match the new arrival time.
         """
         if self.get_trip_type() != "arrival" or not self.flight_information:
             return False
         flight = self.flight_information
+
+        # Use best available arrival time - same priority as flight refresh
+        # Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
         flight_dt = (
-            flight.scheduled_gate_arrival_local
+            flight.actual_gate_arrival_local
+            or flight.estimated_gate_arrival_local
+            or flight.actual_arrival_local
+            or flight.estimated_arrival_local
+            or flight.scheduled_gate_arrival_local
             or flight.scheduled_arrival_local
         )
+
         if not flight_dt:
             return False
         leg_dt = datetime.combine(self.pickup_date, self.pickup_time)
@@ -886,18 +896,29 @@ class Leg(models.Model):
 
     def get_flight_time_mismatch_display(self, threshold_minutes=30):
         """
-        For arrival legs with flight info: if scheduled gate arrival differs
-        from leg pickup by at least threshold_minutes, return a dict with
-        direction ('early'|'late'), minutes (int), and label. Uses scheduled
-        arrival only so delays don't incorrectly flag legs that match schedule.
+        For arrival legs with flight info: if best available flight arrival time
+        differs from leg pickup by at least threshold_minutes, return a dict with
+        direction ('early'|'late'), minutes (int), and label.
+
+        Uses best available time (actual/estimated if available, otherwise scheduled)
+        so that delayed flights don't incorrectly flag legs that have been updated
+        to match the new arrival time.
         """
         if self.get_trip_type() != "arrival" or not self.flight_information:
             return None
         flight = self.flight_information
+
+        # Use best available arrival time - same priority as flight refresh
+        # Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
         flight_dt = (
-            flight.scheduled_gate_arrival_local
+            flight.actual_gate_arrival_local
+            or flight.estimated_gate_arrival_local
+            or flight.actual_arrival_local
+            or flight.estimated_arrival_local
+            or flight.scheduled_gate_arrival_local
             or flight.scheduled_arrival_local
         )
+
         if not flight_dt:
             return None
         leg_dt = datetime.combine(self.pickup_date, self.pickup_time)
@@ -1559,3 +1580,62 @@ class AuditLog(models.Model):
     def __str__(self):
         user_str = self.username or (self.user.username if self.user else "System")
         return f"{self.action} {self.model_name}#{self.object_id} by {user_str} at {self.timestamp}"
+
+
+class LegStatus(models.Model):
+    """
+    Tracks status changes for legs with timestamps.
+    Provides a history of when drivers accept jobs, arrive on location, pick up passengers, etc.
+    """
+
+    STATUS_CHOICES = [
+        ('assigned', 'Job Assigned'),
+        ('in-progress', 'In Progress'),
+        ('confirmed', 'Confirmed'),
+        ('on-the-way', 'On the Way'),
+        ('on-location', 'On Location'),
+        ('picked-up', 'Picked Up'),
+        ('completed', 'Completed'),
+    ]
+
+    leg = models.ForeignKey(
+        'Leg',
+        on_delete=models.CASCADE,
+        related_name='status_history',
+        help_text="The leg this status update belongs to"
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_CHOICES,
+        help_text="The status at this point in time"
+    )
+    timestamp = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="When this status was set"
+    )
+    updated_by = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="leg_status_updates",
+        help_text="User who updated the status (admin, driver, or system)"
+    )
+    notes = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Optional notes about this status change"
+    )
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['leg', '-timestamp']),
+            models.Index(fields=['-timestamp']),
+        ]
+        verbose_name = "Leg Status Update"
+        verbose_name_plural = "Leg Status Updates"
+
+    def __str__(self):
+        return f"Leg #{self.leg.id} - {self.get_status_display()} at {self.timestamp}"

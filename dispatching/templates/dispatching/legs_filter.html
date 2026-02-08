@@ -657,6 +657,7 @@
                     <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
                     <div class="border-top my-1"></div>
                     <div>{{ leg.reservation.passenger_count }} Passengers</div>
+                    <div>{{ leg.reservation.luggage_count }} Suitcases</div>
                     <div class="text-secondary">
                       {% if leg.reservation.display_carseats %}
                         {{ leg.reservation.display_carseats }}
@@ -756,6 +757,32 @@
                                 {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
                       </select>
                       <div class="update-status mt-1"></div>
+                      {% with last_update=leg.status_history.first %}
+                        {% if last_update %}
+                          <div class="mt-2 pt-2 border-top">
+                            <div class="small">
+                              <i class="bi bi-clock-history me-1"></i>
+                              <span class="fw-semibold">{{ last_update.get_status_display }}</span>
+                              <span class="text-muted"> at {{ last_update.timestamp|easy_time }}</span>
+                            </div>
+                            <div class="small text-muted">
+                              Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
+                            </div>
+                            <div class="small text-muted fst-italic">
+                              {{ last_update.timestamp|time_ago }}
+                            </div>
+                            {% if leg.status_history.all|length > 1 %}
+                              <button type="button"
+                                      class="btn btn-sm btn-link p-0 mt-1 text-decoration-none view-history-btn"
+                                      data-leg-id="{{ leg.id }}"
+                                      data-bs-toggle="modal"
+                                      data-bs-target="#statusHistoryModal">
+                                <i class="bi bi-clock-history me-1"></i>View Full History
+                              </button>
+                            {% endif %}
+                          </div>
+                        {% endif %}
+                      {% endwith %}
                       <div class="mt-2">
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                            class="btn btn-sm btn-outline-primary w-100">
@@ -890,6 +917,7 @@
                           <div class="small">
                             <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
                             <div>{{ leg.reservation.passenger_count }} Passengers</div>
+                            <div>{{ leg.reservation.luggage_count }} Suitcases</div>
                             {% if leg.reservation.display_carseats %}
                               <div>
                                 <i class="bi bi-car-front me-1"></i>{{ leg.reservation.display_carseats }}
@@ -977,6 +1005,32 @@
                           </select>
                           <div class="update-status mt-1"></div>
                         </form>
+                        {% with last_update=leg.status_history.first %}
+                          {% if last_update %}
+                            <div class="mt-2 pt-2 border-top">
+                              <div class="small">
+                                <i class="bi bi-clock-history me-1"></i>
+                                <span class="fw-semibold">{{ last_update.get_status_display }}</span>
+                                <span class="text-muted"> at {{ last_update.timestamp|easy_time }}</span>
+                              </div>
+                              <div class="small text-muted">
+                                Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
+                              </div>
+                              <div class="small text-muted fst-italic">
+                                {{ last_update.timestamp|time_ago }}
+                              </div>
+                              {% if leg.status_history.all|length > 1 %}
+                                <button type="button"
+                                        class="btn btn-sm btn-link p-0 mt-1 text-decoration-none view-history-btn"
+                                        data-leg-id="{{ leg.id }}"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#statusHistoryModal">
+                                  <i class="bi bi-clock-history me-1"></i>View Full History
+                                </button>
+                              {% endif %}
+                            </div>
+                          {% endif %}
+                        {% endwith %}
                         <div class="d-grid mt-2">
                           <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                              class="btn btn-sm btn-outline-primary">
@@ -2084,7 +2138,97 @@
               });
           });
       });
+
+      // Status History Modal functionality
+      document.querySelectorAll('.view-history-btn').forEach(button => {
+          button.addEventListener('click', function() {
+              const legId = this.dataset.legId;
+              const historyData = document.getElementById(`leg-history-${legId}`);
+
+              if (historyData) {
+                  const modalBody = document.getElementById('statusHistoryModalBody');
+                  modalBody.innerHTML = historyData.innerHTML;
+              }
+          });
+      });
   </script>
+
+  <!-- Hidden status history data for each leg -->
+  {% for leg in legs %}
+    <div id="leg-history-{{ leg.id }}" style="display: none;">
+      {% with history=leg.status_history.all %}
+        {% if history %}
+          <div class="mb-3">
+            <div class="row">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Leg ID:</strong> #{{ leg.id }}</p>
+                <p class="mb-1"><strong>Route:</strong> {{ leg.pickup_location }} → {{ leg.dropoff_location }}</p>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Date:</strong> {{ leg.pickup_date|date:"M d, Y" }}</p>
+                <p class="mb-1"><strong>Time:</strong> {{ leg.pickup_time|time:"g:i A" }}</p>
+              </div>
+            </div>
+          </div>
+          <hr>
+          <div class="timeline">
+            {% for status_update in history reversed %}
+              <div class="timeline-item {% if forloop.last %}latest{% endif %}">
+                <div class="timeline-marker">
+                  <i class="bi bi-circle-fill"></i>
+                </div>
+                <div class="timeline-content">
+                  <div class="mb-2">
+                    <h6 class="mb-1 fw-semibold">{{ status_update.get_status_display }}</h6>
+                    <p class="mb-0 text-muted small">
+                      <i class="bi bi-calendar3 me-1"></i>{{ status_update.timestamp|easy_datetime }}
+                      <span class="ms-2 fst-italic text-secondary">({{ status_update.timestamp|time_ago }})</span>
+                    </p>
+                  </div>
+                  <div class="text-muted small">
+                    <i class="bi bi-person me-1"></i>
+                    Updated by: {{ status_update.updated_by.get_full_name|default:status_update.updated_by.username|default:"System" }}
+                  </div>
+                  {% if status_update.notes %}
+                    <div class="mt-2 p-2 bg-light rounded border-start border-3 border-warning">
+                      <i class="bi bi-sticky me-1"></i>
+                      <small class="text-dark">{{ status_update.notes }}</small>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-4">
+            <i class="bi bi-clock-history fs-1 text-muted mb-3"></i>
+            <p class="text-muted">No status history available for this leg.</p>
+          </div>
+        {% endif %}
+      {% endwith %}
+    </div>
+  {% endfor %}
+
+  <!-- Status History Modal -->
+  <div class="modal fade" id="statusHistoryModal" tabindex="-1" aria-labelledby="statusHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header border-bottom">
+          <h5 class="modal-title" id="statusHistoryModalLabel">
+            <i class="bi bi-clock-history me-2"></i>Status History
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="statusHistoryModalBody">
+          <!-- Content will be populated by JavaScript -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <style>
       .spin {
           animation: spin 1s linear infinite;
@@ -2092,6 +2236,84 @@
       @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+      }
+
+      /* Status History Timeline Styles */
+      .timeline {
+          position: relative;
+          padding-left: 2rem;
+      }
+
+      .timeline::before {
+          content: '';
+          position: absolute;
+          left: 0.5rem;
+          top: 0;
+          bottom: 0;
+          width: 2px;
+          background: linear-gradient(to bottom, #b8956c, #e0e0e0);
+      }
+
+      .timeline-item {
+          position: relative;
+          padding-bottom: 2rem;
+          margin-bottom: 0;
+      }
+
+      .timeline-item:last-child {
+          padding-bottom: 0;
+      }
+
+      .timeline-marker {
+          position: absolute;
+          left: -1.65rem;
+          top: 0.25rem;
+          width: 1.25rem;
+          height: 1.25rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: white;
+          border-radius: 50%;
+      }
+
+      .timeline-marker i {
+          font-size: 0.75rem;
+          color: #6c757d;
+      }
+
+      .timeline-item.latest .timeline-marker i {
+          font-size: 1rem;
+          color: #b8956c;
+      }
+
+      .timeline-content {
+          background: #f8f9fa;
+          border-left: 3px solid #e0e0e0;
+          padding: 1rem 1.25rem;
+          border-radius: 0.25rem;
+          transition: all 0.3s ease;
+      }
+
+      .timeline-item.latest .timeline-content {
+          border-left-color: #b8956c;
+          background: #fff9f0;
+      }
+
+      .timeline-content:hover {
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          transform: translateX(4px);
+      }
+
+      .view-history-btn {
+          font-size: 0.8rem;
+          color: #0d6efd;
+          transition: all 0.2s ease;
+      }
+
+      .view-history-btn:hover {
+          color: #0a58ca;
+          transform: translateX(2px);
       }
       
       /* Responsive flight information */

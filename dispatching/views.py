@@ -461,16 +461,28 @@ def reservation_details(request, id):
         return redirect("home")
 
     # Get the reservation with all related data
+    from reservations.models import LegStatus
+
     reservation = get_object_or_404(
         Reservation.objects.prefetch_related(
-            "legs__flight_information", 
-            "legs__driver",
-            "legs__driver_assigned_by",
-            "legs__status_changed_by",
+            Prefetch(
+                "legs",
+                queryset=Leg.objects.select_related(
+                    "flight_information",
+                    "driver",
+                    "driver_assigned_by",
+                    "status_changed_by"
+                ).prefetch_related(
+                    Prefetch(
+                        "status_history",
+                        queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
+                    )
+                )
+            ),
             Prefetch("payments", queryset=Payment.objects.order_by('-created_at'))
         ).select_related(
-            "customer", 
-            "vehicle", 
+            "customer",
+            "vehicle",
             "rate",
             "created_by",
             "modified_by"
@@ -877,7 +889,17 @@ def update_leg_assignment(request):
                     leg.status_changed_at = timezone.now()
                     leg.save()
                     logger.info(f"Updated leg {leg_id} status to {value} by {request.user.username}")
-                    
+
+                    # Create a LegStatus entry to track this status change
+                    from reservations.models import LegStatus
+                    LegStatus.objects.create(
+                        leg=leg,
+                        status=value,
+                        updated_by=request.user,
+                        timestamp=timezone.now()
+                    )
+                    logger.info(f"Created LegStatus entry for leg {leg_id} with status {value}")
+
                     # Check if reservation should be auto-completed
                     if value == "completed":
                         reservation_updated = leg.reservation.check_and_update_completion_status()
@@ -2076,8 +2098,8 @@ def refresh_flight_data(request):
 @require_POST
 def match_leg_time_to_flight(request):
     """
-    Set a leg's pickup date/time to match the flight's scheduled arrival (arrival legs only).
-    Uses scheduled gate arrival, then scheduled runway arrival—not actual/estimated landing.
+    Set a leg's pickup date/time to match the flight's best available arrival time.
+    Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
     """
     if not request.user.is_staff:
         return JsonResponse(
@@ -2102,9 +2124,13 @@ def match_leg_time_to_flight(request):
                 status=400,
             )
         flight = leg.flight_information
-        # Use scheduled arrival only (gate then runway), not actual/estimated landing
+        # Use best available arrival time (prioritize actual/estimated over scheduled)
         flight_dt = (
-            flight.scheduled_gate_arrival_local
+            flight.actual_gate_arrival_local
+            or flight.estimated_gate_arrival_local
+            or flight.actual_arrival_local
+            or flight.estimated_arrival_local
+            or flight.scheduled_gate_arrival_local
             or flight.scheduled_arrival_local
         )
         if not flight_dt:
@@ -2136,8 +2162,8 @@ def match_leg_time_to_flight(request):
 @require_POST
 def match_all_leg_times_to_flight(request):
     """
-    Set pickup date/time to flight scheduled arrival for all arrival legs on a date.
-    Only updates legs that have flight info and a scheduled gate/runway arrival.
+    Set pickup date/time to flight's best available arrival time for all arrival legs on a date.
+    Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
     Light on DB: one query for legs, one save per leg updated.
     """
     if not request.user.is_staff:
@@ -2169,8 +2195,13 @@ def match_all_leg_times_to_flight(request):
         updated = 0
         for leg in arrival_legs:
             flight = leg.flight_information
+            # Use best available arrival time (prioritize actual/estimated over scheduled)
             flight_dt = (
-                flight.scheduled_gate_arrival_local
+                flight.actual_gate_arrival_local
+                or flight.estimated_gate_arrival_local
+                or flight.actual_arrival_local
+                or flight.estimated_arrival_local
+                or flight.scheduled_gate_arrival_local
                 or flight.scheduled_arrival_local
             )
             if not flight_dt:
@@ -2185,7 +2216,7 @@ def match_all_leg_times_to_flight(request):
             updated += 1
         return JsonResponse({
             "success": True,
-            "message": f"Updated {updated} arrival leg(s) to match scheduled flight time.",
+            "message": f"Updated {updated} arrival leg(s) to match flight arrival time.",
             "updated_count": updated,
             "total_arrival_legs": len(arrival_legs),
         })
@@ -2374,28 +2405,16 @@ def _refresh_single_flight(leg):
         if flight_status:
             flight.status = flight_status
 
-        # Handle datetime fields
-        scheduled_arrival = flight_data.get("scheduled_arrival_local")
-        if scheduled_arrival is not None:
-            flight.scheduled_arrival_local = scheduled_arrival
+        # Handle datetime fields - always update to clear old data from previous flights
+        flight.scheduled_arrival_local = flight_data.get("scheduled_arrival_local")
+        flight.estimated_arrival_local = flight_data.get("estimated_arrival_local")
+        flight.scheduled_gate_arrival_local = flight_data.get("scheduled_gate_arrival_local")
+        flight.estimated_gate_arrival_local = flight_data.get("estimated_gate_arrival_local")
 
-        estimated_arrival = flight_data.get("estimated_arrival_local")
-        if estimated_arrival is not None:
-            flight.estimated_arrival_local = estimated_arrival
-
-        scheduled_gate_arrival = flight_data.get("scheduled_gate_arrival_local")
-        if scheduled_gate_arrival is not None:
-            flight.scheduled_gate_arrival_local = scheduled_gate_arrival
-
-        estimated_gate_arrival = flight_data.get("estimated_gate_arrival_local")
-        if estimated_gate_arrival is not None:
-            flight.estimated_gate_arrival_local = estimated_gate_arrival
-
-        # Handle actual arrival times (prioritize actual over estimated)
-        # BUT: Clear old actual times if flight is scheduled for the future
+        # Handle actual arrival times - always update to clear old data
         now = timezone.now()
-        actual_arrival = flight_data.get("actual_runway_arrival_local")
-        actual_gate_arrival = flight_data.get("actual_gate_arrival_local")
+        scheduled_arrival = flight.scheduled_arrival_local
+        scheduled_gate_arrival = flight.scheduled_gate_arrival_local
 
         is_future_flight = False
         if scheduled_arrival and scheduled_arrival > now:
@@ -2404,26 +2423,81 @@ def _refresh_single_flight(leg):
             is_future_flight = True
 
         if is_future_flight:
+            # Clear actual times for future flights (prevents old data from showing)
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
             logger.info(
                 f"Cleared stale actual arrival times for future flight (leg {leg.id})"
             )
         else:
-            if actual_arrival is not None:
-                flight.actual_arrival_local = actual_arrival
-            if actual_gate_arrival is not None:
-                flight.actual_gate_arrival_local = actual_gate_arrival
+            # For past/current flights, always update (even if None to clear old data)
+            flight.actual_arrival_local = flight_data.get("actual_runway_arrival_local")
+            flight.actual_gate_arrival_local = flight_data.get("actual_gate_arrival_local")
 
-        if flight_data.get("terminal"):
-            flight.terminal = flight_data.get("terminal")
-        if flight_data.get("gate"):
-            flight.gate = flight_data.get("gate")
-        if flight_data.get("baggage_claim"):
-            flight.baggage_claim = flight_data.get("baggage_claim")
+        # Update terminal, gate, and baggage claim - always update to clear old data
+        flight.terminal = flight_data.get("terminal") or ""
+        flight.gate = flight_data.get("gate") or ""
+        flight.baggage_claim = flight_data.get("baggage_claim") or ""
 
         flight.last_updated = flight_data.get("last_updated", timezone.now())
         flight.save()
+
+        # Update pickup time for ALL legs that use this flight
+        # Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
+        best_arrival_time = None
+
+        logger.info(f"Flight {flight.id} - Determining best arrival time:")
+        logger.info(f"  actual_gate_arrival_local: {flight.actual_gate_arrival_local}")
+        logger.info(f"  estimated_gate_arrival_local: {flight.estimated_gate_arrival_local}")
+        logger.info(f"  actual_arrival_local: {flight.actual_arrival_local}")
+        logger.info(f"  estimated_arrival_local: {flight.estimated_arrival_local}")
+
+        if flight.actual_gate_arrival_local:
+            best_arrival_time = flight.actual_gate_arrival_local
+            logger.info(f"  Using actual_gate_arrival_local: {best_arrival_time}")
+        elif flight.estimated_gate_arrival_local:
+            best_arrival_time = flight.estimated_gate_arrival_local
+            logger.info(f"  Using estimated_gate_arrival_local: {best_arrival_time}")
+        elif flight.actual_arrival_local:
+            best_arrival_time = flight.actual_arrival_local
+            logger.info(f"  Using actual_arrival_local: {best_arrival_time}")
+        elif flight.estimated_arrival_local:
+            best_arrival_time = flight.estimated_arrival_local
+            logger.info(f"  Using estimated_arrival_local: {best_arrival_time}")
+        elif flight.scheduled_gate_arrival_local:
+            best_arrival_time = flight.scheduled_gate_arrival_local
+            logger.info(f"  Using scheduled_gate_arrival_local: {best_arrival_time}")
+        elif flight.scheduled_arrival_local:
+            best_arrival_time = flight.scheduled_arrival_local
+            logger.info(f"  Using scheduled_arrival_local: {best_arrival_time}")
+
+        # Update ALL legs that use this flight (not just the one passed to this function)
+        if best_arrival_time:
+            local_arrival = timezone.localtime(best_arrival_time)
+            new_pickup_time = local_arrival.time()
+            logger.info(f"  New pickup time would be: {new_pickup_time}")
+
+            # Find all legs using this flight
+            all_legs_with_flight = Leg.objects.filter(flight_information=flight)
+            legs_updated = 0
+
+            for leg_to_update in all_legs_with_flight:
+                if leg_to_update.pickup_time != new_pickup_time:
+                    old_time = leg_to_update.pickup_time
+                    leg_to_update.pickup_time = new_pickup_time
+                    leg_to_update.save()
+                    legs_updated += 1
+                    logger.info(
+                        f"✅ Updated leg {leg_to_update.id} pickup time from {old_time} to {new_pickup_time} "
+                        f"based on flight arrival update"
+                    )
+
+            if legs_updated > 0:
+                logger.info(f"Updated {legs_updated} leg(s) with new pickup time")
+            else:
+                logger.info(f"All legs already have correct pickup time, no updates needed")
+        else:
+            logger.warning(f"  No arrival time available for flight {flight.id} to update leg pickup times")
 
         return {
             "leg_id": leg.id,

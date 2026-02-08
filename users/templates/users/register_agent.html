@@ -1,49 +1,86 @@
 {% extends 'main.html' %}
 {% load static %}
-{% block title %}Travel Agent Partnership Form | Grayson Towncar{% endblock %}
+{% block title %}Travel Agent Partnership | Grayson Towncar{% endblock %}
 {% block content %}
-  <div class="container py-5">
-    <div class="row justify-content-center">
-      <div class="col-lg-8">
-        <div class="text-center mb-5">
-          <h1 class="fw-normal display-4 mb-4">Travel Agent Registration</h1>
-
-          <div class="lead fw-normal text-muted mb-4">
-            <p class="mb-4 fw-semibold">
-              Thanks for your interest in Grayson Towncar. We're excited to partner with travel agents like you.
-            </p>
-
-            <p class="mb-4">
-              We focus on providing safe, reliable, and family-friendly transportation that creates a welcoming atmosphere for your clients from arrival to departure. We understand how important your clients are to your business and reputation, and we take pride in serving your families with exceptional care.
-            </p>
-
-            <p class="mb-4">
-              We offer a competitive <strong>10% commission</strong> on all client bookings (excluding gratuity, additional charges like late pickups which go directly to drivers, and any personal trips made by the agent).
-            </p>
-
-            <div class="bg-light p-4 rounded mb-4">
-              <h5 class="mb-3">Your Partner Dashboard</h5>
-              <p class="mb-3">When you register, you'll get access to a dedicated dashboard where you can:</p>
-              <ul class="text-start mb-3 ps-4">
-                <li>View all your reservations</li>
-                <li>Track your commission history</li>
-                <li>See detailed booking information</li>
-              </ul>
-              <p class="mb-0">
-                <strong>Making reservations is easy:</strong> Simply log in to your account and submit reservations like a regular user. All bookings will automatically be associated with your travel agent account, and you'll be able to track everything from your dashboard.
-              </p>
-            </div>
-
-            <p class="mb-0">Questions? We're here to help!</p>
-            <p>
-              <strong>(407) 212-7190</strong> | <strong>contact@graysontowncar.com</strong> | <strong>@graysontowncar</strong>
+  <div class="agent-registration-page">
+    <!-- Hero Section -->
+    <section class="agent-hero">
+      <div class="container">
+        <div class="row justify-content-center">
+          <div class="col-lg-8 text-center">
+            <p class="agent-hero-eyebrow">Partner Program</p>
+            <h1 class="agent-hero-title">Elevate Your Client Experience</h1>
+            <p class="agent-hero-subtitle">
+              Join our network of distinguished travel professionals and offer your clients the premium transportation they deserve.
             </p>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="card border-0 shadow-sm">
-          <div class="card-body p-4">
-            <h3 class="fw-normal mb-4">Create Your Account</h3>
+    <!-- Main Content -->
+    <div class="container agent-content-section">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-9">
+
+          <!-- Value Proposition -->
+          <div class="agent-value-grid">
+            <div class="agent-value-card">
+              <div class="agent-value-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M4 10.781c.148 1.667 1.513 2.85 3.591 3.003V15h1.043v-1.216c2.27-.179 3.678-1.438 3.678-3.3 0-1.59-.947-2.51-2.956-3.028l-.722-.187V3.467c1.122.11 1.879.714 2.07 1.616h1.47c-.166-1.6-1.54-2.748-3.54-2.875V1H7.591v1.233c-1.939.23-3.27 1.472-3.27 3.156 0 1.454.966 2.483 2.661 2.917l.61.162v4.031c-1.149-.17-1.94-.8-2.131-1.718H4zm3.391-3.836c-1.043-.263-1.6-.825-1.6-1.616 0-.944.704-1.641 1.8-1.828v3.495l-.2-.05zm1.591 1.872c1.287.323 1.852.859 1.852 1.769 0 1.097-.826 1.828-2.2 1.939V8.73l.348.086z"/>
+                </svg>
+              </div>
+              <h3 class="agent-value-title">10% Commission</h3>
+              <p class="agent-value-text">Earn competitive commission on every client booking you refer to us.</p>
+            </div>
+            <div class="agent-value-card">
+              <div class="agent-value-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                  <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+                </svg>
+              </div>
+              <h3 class="agent-value-title">Partner Dashboard</h3>
+              <p class="agent-value-text">Track reservations, monitor commissions, and manage bookings with ease.</p>
+            </div>
+            <div class="agent-value-card">
+              <div class="agent-value-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7Zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216ZM4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/>
+                </svg>
+              </div>
+              <h3 class="agent-value-title">White-Glove Service</h3>
+              <p class="agent-value-text">Your clients receive the same exceptional care you've built your reputation on.</p>
+            </div>
+          </div>
+
+          <!-- About Section -->
+          <div class="agent-about-section">
+            <div class="agent-about-content">
+              <h2 class="agent-section-title">Why Partner With Us</h2>
+              <p>
+                We focus on providing safe, reliable, and family-friendly transportation that creates a welcoming atmosphere for your clients from arrival to departure. We understand how important your clients are to your business and reputation, and we take pride in serving your families with exceptional care.
+              </p>
+              <p>
+                <strong>Commission Details:</strong> Earn 10% on all client bookings, excluding gratuity, additional charges like late pickups (which go directly to drivers), and any personal trips made by the agent.
+              </p>
+              <div class="agent-contact-bar">
+                <span><strong>(407) 212-7190</strong></span>
+                <span class="agent-contact-divider"></span>
+                <span><strong>contact@graysontowncar.com</strong></span>
+                <span class="agent-contact-divider"></span>
+                <span><strong>@graysontowncar</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registration Form -->
+          <div class="agent-form-card">
+            <div class="agent-form-header">
+              <h2 class="agent-form-title">Create Your Partner Account</h2>
+              <p class="agent-form-subtitle">Complete the form below to join our network of preferred travel partners.</p>
+            </div>
 
             {% if messages %}
               {% for message in messages %}
@@ -61,88 +98,94 @@
             <form method="post" novalidate id="agentRegistrationForm">
               {% csrf_token %}
 
-              <div class="mb-4">
-                <h5 class="mb-3">Account Information</h5>
-                <div class="row g-3">
+              <!-- Account Information -->
+              <div class="agent-form-section">
+                <div class="agent-form-section-header">
+                  <span class="agent-form-section-number">01</span>
+                  <h3 class="agent-form-section-title">Account Information</h3>
+                </div>
+                <div class="row g-4">
                   <div class="col-md-6">
-                    <label for="username" class="form-label">
-                      Username <span class="text-danger">*</span>
+                    <label for="username" class="agent-form-label">
+                      Username <span class="agent-required">*</span>
                     </label>
                     <input type="text"
-                           class="form-control"
+                           class="agent-form-input"
                            id="username"
                            name="username"
                            value="{{ form_data.username|default:'' }}"
                            required />
                   </div>
                   <div class="col-md-6">
-                    <label for="email" class="form-label">
-                      Email <span class="text-danger">*</span>
+                    <label for="email" class="agent-form-label">
+                      Email Address <span class="agent-required">*</span>
                     </label>
                     <input type="email"
-                           class="form-control"
+                           class="agent-form-input"
                            id="email"
                            name="email"
                            value="{{ form_data.email|default:'' }}"
                            required />
                   </div>
                   <div class="col-md-6">
-                    <label for="password1" class="form-label">
-                      Password <span class="text-danger">*</span>
+                    <label for="password1" class="agent-form-label">
+                      Password <span class="agent-required">*</span>
                     </label>
                     <input type="password"
-                           class="form-control"
+                           class="agent-form-input"
                            id="password1"
                            name="password1"
                            required />
                   </div>
                   <div class="col-md-6">
-                    <label for="password2" class="form-label">
-                      Confirm Password <span class="text-danger">*</span>
+                    <label for="password2" class="agent-form-label">
+                      Confirm Password <span class="agent-required">*</span>
                     </label>
                     <input type="password"
-                           class="form-control"
+                           class="agent-form-input"
                            id="password2"
                            name="password2"
                            required />
-                    <div id="passwordHelp" class="form-text text-danger small mt-1"></div>
+                    <div id="passwordHelp" class="agent-form-error"></div>
                   </div>
                 </div>
               </div>
 
-              <hr class="my-4" />
-
-              <div class="mb-4">
-                <h5 class="mb-3">Professional Information</h5>
-                <div class="row g-3">
+              <!-- Professional Information -->
+              <div class="agent-form-section">
+                <div class="agent-form-section-header">
+                  <span class="agent-form-section-number">02</span>
+                  <h3 class="agent-form-section-title">Professional Information</h3>
+                </div>
+                <div class="row g-4">
                   <div class="col-md-6">
-                    <label for="agent_name" class="form-label">
-                      Your Full Name <span class="text-danger">*</span>
+                    <label for="agent_name" class="agent-form-label">
+                      Your Full Name <span class="agent-required">*</span>
                     </label>
                     <input type="text"
-                           class="form-control"
+                           class="agent-form-input"
                            id="agent_name"
                            name="agent_name"
                            value="{{ form_data.agent_name|default:'' }}"
                            required />
                   </div>
                   <div class="col-md-6">
-                    <label for="agency_name" class="form-label">
-                      Agency Name <span class="text-danger">*</span>
+                    <label for="agency_name" class="agent-form-label">
+                      Agency Name <span class="agent-required">*</span>
                     </label>
                     <input type="text"
-                           class="form-control"
+                           class="agent-form-input"
                            id="agency_name"
                            name="agency_name"
                            value="{{ form_data.agency_name|default:'' }}"
                            required />
                   </div>
                   <div class="col-12">
-                    <label for="phone" class="form-label">
-                      Phone Number <span class="text-danger">*</span>
+                    <label for="phone" class="agent-form-label">
+                      Phone Number <span class="agent-required">*</span>
                     </label>
                     <input type="tel"
-                           class="form-control"
+                           class="agent-form-input"
                            id="phone"
                            name="phone"
                            value="{{ form_data.phone|default:'' }}"
@@ -152,19 +195,21 @@
                 </div>
               </div>
 
-              <hr class="my-4" />
-
-              <div class="mb-4">
-                <h5 class="mb-3">Commission Payment Details</h5>
-                <p class="form-text mb-3 text-muted">
-                  If your agency is already registered with us for payments, please select "Agency" as the payment method. You can then either leave the "Payment Details" field blank (we'll use your agency's existing information) or enter your agency's name for verification.
+              <!-- Commission Payment Details -->
+              <div class="agent-form-section">
+                <div class="agent-form-section-header">
+                  <span class="agent-form-section-number">03</span>
+                  <h3 class="agent-form-section-title">Commission Payment Details</h3>
+                </div>
+                <p class="agent-form-note">
+                  If your agency is already registered with us for payments, select "Agency" as the payment method. You can leave "Payment Details" blank or enter your agency's name for verification.
                 </p>
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label for="payment_method" class="form-label">
-                      Payment Method <span class="text-danger">*</span>
+                <div class="row g-4">
+                  <div class="col-md-5">
+                    <label for="payment_method" class="agent-form-label">
+                      Payment Method <span class="agent-required">*</span>
                     </label>
-                    <select class="form-select"
+                    <select class="agent-form-select"
                             id="payment_method"
                             name="payment_method"
                             required>
@@ -187,74 +232,439 @@
                               {% if form_data.payment_method == "other" %}selected{% endif %}>Other</option>
                     </select>
                   </div>
-                  <div class="col-md-8">
-                    <label for="payment_info" class="form-label" id="payment_info_label">
-                      Payment Details <span class="text-danger" id="payment_info_asterisk">*</span>
+                  <div class="col-md-7">
+                    <label for="payment_info" class="agent-form-label" id="payment_info_label">
+                      Payment Details <span class="agent-required" id="payment_info_asterisk">*</span>
                     </label>
-                    <textarea class="form-control"
+                    <textarea class="agent-form-textarea"
                               id="payment_info"
                               name="payment_info"
                               rows="3"
                               placeholder="Enter your payment details..."
                               required>{{ form_data.payment_info|default:'' }}</textarea>
-                    <div class="form-text" id="payment-help-text">
+                    <div class="agent-form-hint" id="payment-help-text">
                       Example: PayPal email, Venmo @username, Zelle phone number, Bank account details, etc.
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="d-grid gap-2 mt-4">
-                <button type="submit" class="btn btn-dark btn-lg py-3">Complete Registration</button>
-              </div>
-
-              <div class="text-muted mt-3 text-center">
-                By submitting this form, you'll be joining our network of preferred travel partners.
+              <!-- Submit Button -->
+              <div class="agent-form-submit">
+                <button type="submit" class="agent-submit-btn">
+                  Complete Registration
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/>
+                  </svg>
+                </button>
+                <p class="agent-form-disclaimer">
+                  By submitting, you agree to join our network of preferred travel partners.
+                </p>
               </div>
             </form>
           </div>
+
+          <p class="agent-required-note">
+            Fields marked with <span class="agent-required">*</span> are required
+          </p>
         </div>
-        <p class="text-center text-muted small mt-4">
-          All fields marked with <span class="text-danger">*</span> are required.
-        </p>
       </div>
     </div>
   </div>
 
   <style>
-      .form-control:focus,
-      .form-select:focus {
-          border-color: #0d6efd;
-          box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-      }
+    /* Agent Registration Page Styles */
+    .agent-registration-page {
+      background-color: #fafafa;
+    }
 
-      .btn-primary {
-          /* Note: Your button is btn-dark, this style might not be used unless you change button class */
-          background-color: #0d6efd;
-          border-color: #0d6efd;
-      }
+    /* Hero Section */
+    .agent-hero {
+      background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+      padding: 5rem 0 4rem;
+      margin-bottom: 0;
+    }
 
-      .btn-primary:hover {
-          background-color: #0b5ed7;
-          border-color: #0a58ca;
-      }
+    .agent-hero-eyebrow {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #a8a8a8;
+      margin-bottom: 1rem;
+    }
 
-      hr {
-          opacity: 0.1;
-      }
+    .agent-hero-title {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 300;
+      color: #ffffff;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
 
-      .form-label {
-          font-weight: 500;
-          color: #374151;
-      }
+    .agent-hero-subtitle {
+      font-size: 1.125rem;
+      font-weight: 400;
+      color: #b8b8b8;
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
 
-      .card {
-          border-radius: 0.5rem;
-      }
+    /* Content Section */
+    .agent-content-section {
+      padding: 4rem 0 5rem;
+    }
 
-      .bg-light {
-          background-color: #f8f9fa !important;
+    /* Value Cards Grid */
+    .agent-value-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+      margin-top: -3rem;
+    }
+
+    @media (max-width: 768px) {
+      .agent-value-grid {
+        grid-template-columns: 1fr;
+        margin-top: -2rem;
       }
+    }
+
+    .agent-value-card {
+      background: #ffffff;
+      padding: 2rem;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+      text-align: center;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .agent-value-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    .agent-value-icon {
+      width: 56px;
+      height: 56px;
+      background: #f5f5f5;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.25rem;
+      color: #1a1a1a;
+    }
+
+    .agent-value-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.625rem;
+      letter-spacing: -0.01em;
+    }
+
+    .agent-value-text {
+      font-size: 0.875rem;
+      color: #666666;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* About Section */
+    .agent-about-section {
+      background: #ffffff;
+      border-radius: 4px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .agent-section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+
+    .agent-about-content p {
+      font-size: 0.9375rem;
+      color: #444444;
+      line-height: 1.75;
+      margin-bottom: 1rem;
+    }
+
+    .agent-about-content p:last-of-type {
+      margin-bottom: 1.5rem;
+    }
+
+    .agent-contact-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid #eeeeee;
+      font-size: 0.875rem;
+      color: #1a1a1a;
+    }
+
+    .agent-contact-divider {
+      width: 4px;
+      height: 4px;
+      background: #cccccc;
+      border-radius: 50%;
+      display: none;
+    }
+
+    @media (min-width: 768px) {
+      .agent-contact-divider {
+        display: block;
+      }
+    }
+
+    /* Form Card */
+    .agent-form-card {
+      background: #ffffff;
+      border-radius: 4px;
+      padding: 3rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+
+    @media (max-width: 768px) {
+      .agent-form-card {
+        padding: 2rem 1.5rem;
+      }
+    }
+
+    .agent-form-header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid #eeeeee;
+    }
+
+    .agent-form-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .agent-form-subtitle {
+      font-size: 0.9375rem;
+      color: #666666;
+      margin: 0;
+    }
+
+    /* Form Sections */
+    .agent-form-section {
+      margin-bottom: 2.5rem;
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid #eeeeee;
+    }
+
+    .agent-form-section:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .agent-form-section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .agent-form-section-number {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #999999;
+      letter-spacing: 0.05em;
+    }
+
+    .agent-form-section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .agent-form-note {
+      font-size: 0.875rem;
+      color: #666666;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: #f8f8f8;
+      border-radius: 4px;
+      border-left: 3px solid #1a1a1a;
+    }
+
+    /* Form Labels */
+    .agent-form-label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #333333;
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .agent-required {
+      color: #1a1a1a;
+      font-weight: 400;
+    }
+
+    /* Form Inputs */
+    .agent-form-input,
+    .agent-form-select,
+    .agent-form-textarea {
+      width: 100%;
+      padding: 0.875rem 1rem;
+      font-size: 0.9375rem;
+      font-family: inherit;
+      color: #1a1a1a;
+      background-color: #ffffff;
+      border: 1px solid #dddddd;
+      border-radius: 4px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .agent-form-input:hover,
+    .agent-form-select:hover,
+    .agent-form-textarea:hover {
+      border-color: #bbbbbb;
+    }
+
+    .agent-form-input:focus,
+    .agent-form-select:focus,
+    .agent-form-textarea:focus {
+      outline: none;
+      border-color: #1a1a1a;
+      box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.08);
+    }
+
+    .agent-form-input::placeholder,
+    .agent-form-textarea::placeholder {
+      color: #999999;
+    }
+
+    .agent-form-select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23666666' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1rem center;
+      padding-right: 2.5rem;
+    }
+
+    .agent-form-textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .agent-form-hint {
+      font-size: 0.8125rem;
+      color: #888888;
+      margin-top: 0.5rem;
+      line-height: 1.5;
+    }
+
+    .agent-form-error {
+      font-size: 0.8125rem;
+      color: #dc3545;
+      margin-top: 0.375rem;
+      min-height: 1.25rem;
+    }
+
+    /* Submit Section */
+    .agent-form-submit {
+      text-align: center;
+      margin-top: 2.5rem;
+      padding-top: 2.5rem;
+      border-top: 1px solid #eeeeee;
+    }
+
+    .agent-submit-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 1rem 2.5rem;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: #ffffff;
+      background: #1a1a1a;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+      letter-spacing: 0.02em;
+    }
+
+    .agent-submit-btn:hover {
+      background: #333333;
+      transform: translateY(-1px);
+    }
+
+    .agent-submit-btn:active {
+      transform: translateY(0);
+    }
+
+    .agent-submit-btn svg {
+      transition: transform 0.2s ease;
+    }
+
+    .agent-submit-btn:hover svg {
+      transform: translateX(4px);
+    }
+
+    .agent-form-disclaimer {
+      font-size: 0.8125rem;
+      color: #888888;
+      margin-top: 1rem;
+      margin-bottom: 0;
+    }
+
+    /* Required Note */
+    .agent-required-note {
+      text-align: center;
+      font-size: 0.8125rem;
+      color: #888888;
+      margin-top: 1.5rem;
+    }
+
+    /* Alert Overrides */
+    .agent-form-card .alert {
+      border-radius: 4px;
+      border: none;
+      font-size: 0.9375rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Validation States */
+    .agent-form-input.is-valid,
+    .agent-form-select.is-valid,
+    .agent-form-textarea.is-valid {
+      border-color: #28a745;
+    }
+
+    .agent-form-input.is-invalid,
+    .agent-form-select.is-invalid,
+    .agent-form-textarea.is-invalid {
+      border-color: #dc3545;
+    }
   </style>
 
   <script>

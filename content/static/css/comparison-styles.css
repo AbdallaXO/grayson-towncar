@@ -1,103 +1,69 @@
+/* ================================================
+   COMPARISON SECTION - Luxury Styling
+   ================================================ */
+
 :root {
-    --primary-color: #091428;
-    --primary-light: rgba(9, 20, 40, 0.05);
-    --accent-color: #c8aa6e;
-    --accent-light: #c8aa6e40;
-    --text-dark: #333;
-    --text-muted: #6c757d;
-    --success: #2e7d32;
-    --error: #c62828;
-    --border-radius: 12px;
-    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    --transition: all 0.3s ease;
+    --cmp-black: #0a0a0a;
+    --cmp-charcoal: #1a1a1a;
+    --cmp-gray-600: #555555;
+    --cmp-gray-500: #777777;
+    --cmp-gray-400: #999999;
+    --cmp-gray-200: #e0e0e0;
+    --cmp-gray-100: #f0f0f0;
+    --cmp-cream: #f8f7f5;
+    --cmp-white: #ffffff;
+    --cmp-gold: #b8956c;
+    --cmp-success: #3d7a5a;
+    --cmp-error: #a04040;
+    --cmp-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.badge-premium {
-    background-color: var(--accent-color);
-    color: var(--primary-color);
-    font-weight: 500;
-    letter-spacing: 0.03em;
-    padding: 0.5rem 1rem;
-    border-radius: 30px;
-    display: inline-block;
-    margin-bottom: 1.5rem;
-    font-size: 0.9rem;
+#value-comparison {
+    background: var(--cmp-white) !important;
+    padding: 7rem 0;
 }
 
-.section-title {
-    color: var(--primary-color);
-    margin-bottom: 2rem;
-    font-weight: 600;
-    font-size: 2.2rem;
-}
-
-.section-subtitle {
-    color: var(--text-dark);
-    font-size: 1.2rem;
-    margin-bottom: 3rem;
-    max-width: 700px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.comparison-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 3rem;
-}
-
+/* Table Styles */
 .comparison-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    background: #fff;
-    border-radius: var(--border-radius);
+    background: var(--cmp-white);
+    border: 1px solid var(--cmp-gray-200);
     overflow: hidden;
-    box-shadow: var(--card-shadow);
+}
+
+.comparison-table thead {
+    background-color: var(--cmp-charcoal);
 }
 
 .comparison-table th {
-    background-color: var(--primary-color);
-    color: #fff;
+    background-color: var(--cmp-charcoal);
+    color: var(--cmp-white);
     font-weight: 500;
     text-align: left;
-    padding: 1.2rem 1.5rem;
-    font-size: 1rem;
+    padding: 1.25rem 1.5rem;
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+    border: none;
 }
 
-.comparison-table th:first-child {
-    border-top-left-radius: var(--border-radius);
-}
-
-.comparison-table th:last-child {
-    border-top-right-radius: var(--border-radius);
-}
-
-.comparison-table th.featured {
-    background-color: var(--accent-color);
-    color: var(--primary-color);
-    position: relative;
-}
-
-.comparison-table th.featured::before {
-    content: "Recommended";
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--primary-color);
-    color: #fff;
-    font-size: 0.7rem;
-    padding: 0.2rem 0.8rem;
-    border-radius: 30px;
-    white-space: nowrap;
+.comparison-table th.text-center {
+    text-align: center;
 }
 
 .comparison-table td {
-    padding: 1.2rem 1.5rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    color: var(--text-dark);
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--cmp-gray-200);
+    color: var(--cmp-gray-600);
     vertical-align: middle;
+    font-size: 0.9375rem;
+    background: var(--cmp-white);
+}
+
+.comparison-table td strong {
+    color: var(--cmp-charcoal);
+    font-weight: 600;
 }
 
 .comparison-table tr:last-child td {
@@ -105,187 +71,206 @@
 }
 
 .comparison-table tr:nth-child(even) td {
-    background-color: var(--primary-light);
+    background-color: var(--cmp-cream);
 }
 
-.comparison-table td.feature-name {
-    font-weight: 500;
+/* Pricing cells */
+.comparison-table .text-center p {
+    margin-bottom: 0.25rem;
 }
 
-.comparison-table .pricing-cell {
-    padding: 1.5rem;
-    text-align: center;
+.comparison-table .text-primary strong {
+    color: var(--cmp-charcoal);
 }
 
-.comparison-table .price {
-    font-size: 1.3rem;
+.comparison-table .text-danger strong {
+    color: var(--cmp-error);
+}
+
+.comparison-table .text-muted {
+    color: var(--cmp-gray-500) !important;
+    font-size: 0.8125rem;
+}
+
+/* Check/X icons */
+.comparison-table .bi-check-circle-fill {
+    color: var(--cmp-success) !important;
+}
+
+.comparison-table .bi-x-circle-fill {
+    color: var(--cmp-error) !important;
+}
+
+/* Recommended Badge */
+.comparison-table th .badge {
+    font-size: 0.5625rem;
     font-weight: 600;
-    margin-bottom: 0.3rem;
-    color: var(--primary-color);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.375rem 0.75rem;
+    background-color: var(--cmp-gold) !important;
+    color: var(--cmp-charcoal) !important;
+    border-radius: 0;
 }
 
-.comparison-table .price-note {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    display: block;
-}
-
-.price-highlight {
-    background-color: var(--accent-light);
-    border-radius: 4px;
-    padding: 0.5rem 0.8rem;
-    margin-top: 0.5rem;
-    display: inline-block;
-    font-weight: 500;
-}
-
-.available-icon {
-    color: var(--success);
-    font-size: 1.4rem;
-}
-
-.unavailable-icon {
-    color: var(--error);
-    font-size: 1.4rem;
-}
-
-/* Mobile accordion styles */
-.mobile-comparison {
-    display: none;
-    margin-bottom: 2rem;
-}
-
-.accordion-card {
-    border-radius: var(--border-radius);
+/* Mobile Accordion Styles */
+.accordion-item {
+    border: 1px solid var(--cmp-gray-200);
+    border-radius: 0 !important;
     overflow: hidden;
-    box-shadow: var(--card-shadow);
-    margin-bottom: 1.5rem;
-    border: none;
+    background: var(--cmp-white);
+    box-shadow: none;
+}
+
+.accordion-item + .accordion-item,
+.accordion-item.mt-3 {
+    margin-top: 0.75rem !important;
 }
 
 .accordion-header {
-    background-color: #fff;
+    background-color: var(--cmp-white);
     border: none;
 }
 
 .accordion-button {
-    padding: 1.2rem 1.5rem;
+    padding: 1.25rem 1.5rem;
     font-weight: 600;
-    font-size: 1.1rem;
-    color: var(--primary-color);
-    background-color: #fff;
+    font-size: 1rem;
+    color: var(--cmp-charcoal);
+    background-color: var(--cmp-white);
     border: none;
-    box-shadow: none;
+    border-radius: 0 !important;
+    box-shadow: none !important;
 }
 
 .accordion-button:not(.collapsed) {
-    background-color: var(--accent-light);
-    color: var(--primary-color);
+    background-color: var(--cmp-cream);
+    color: var(--cmp-charcoal);
+    box-shadow: none;
 }
 
 .accordion-button:focus {
     box-shadow: none;
+    border: none;
+}
+
+.accordion-button::after {
+    background-size: 0.875rem;
 }
 
 .accordion-body {
     padding: 1.5rem;
+    background: var(--cmp-white);
 }
 
-.feature-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.8rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+/* Mobile pricing header */
+.accordion-body > div[style*="background-color"] {
+    background-color: var(--cmp-cream) !important;
+    border-radius: 0 !important;
 }
 
-.feature-item:last-child {
-    border-bottom: none;
-}
-
-.pricing-header {
-    background-color: var(--primary-light);
-    border-radius: 8px;
-    padding: 1.2rem;
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-
-.recommended-badge {
-    display: inline-block;
-    background-color: var(--primary-color);
-    color: #fff;
-    font-size: 0.7rem;
-    padding: 0.2rem 0.8rem;
-    border-radius: 30px;
-    margin-bottom: 0.5rem;
-}
-
-/* CTA section */
-.cta-section {
-    text-align: center;
-    margin-top: 3rem;
-}
-
-.btn-primary {
-    background-color: var(--primary-color);
-    border: none;
-    color: #fff;
-    padding: 0.8rem 2rem;
+.accordion-body h4 {
+    font-size: 1.125rem;
     font-weight: 500;
-    border-radius: 30px;
-    transition: var(--transition);
+    color: var(--cmp-charcoal);
 }
 
-.btn-primary:hover {
-    background-color: var(--accent-color);
-    color: var(--primary-color);
+/* Mobile feature list */
+.feature-list .d-flex {
+    font-size: 0.9375rem;
+    color: var(--cmp-gray-600);
+}
+
+.feature-list .border-bottom {
+    border-color: var(--cmp-gray-200) !important;
+}
+
+.feature-list .bi-check-circle-fill {
+    color: var(--cmp-success) !important;
+}
+
+.feature-list .bi-x-circle-fill {
+    color: var(--cmp-error) !important;
+}
+
+/* Recommended badge in accordion */
+.accordion-button .badge {
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.375rem 0.75rem;
+    background-color: var(--cmp-gold) !important;
+    color: var(--cmp-charcoal) !important;
+    border-radius: 0;
+}
+
+/* CTA Button */
+#value-comparison .btn {
+    background: var(--cmp-charcoal);
+    color: var(--cmp-white);
+    font-weight: 500;
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 1rem 2.5rem;
+    border-radius: 0;
+    border: none;
+    transition: var(--cmp-transition);
+}
+
+#value-comparison .btn:hover {
+    background: var(--cmp-black);
     transform: translateY(-2px);
 }
 
-.tip-card {
-    background-color: var(--primary-light);
-    border-radius: var(--border-radius);
-    padding: 1.5rem;
-    margin-top: 3rem;
-    border-left: 4px solid var(--accent-color);
+/* Travel Insight Card */
+#value-comparison .card {
+    border-radius: 0 !important;
+    border: 1px solid var(--cmp-gray-200);
+    box-shadow: none;
 }
 
-.tip-title {
+#value-comparison .card-body {
+    border-left: 2px solid var(--cmp-charcoal) !important;
+}
+
+#value-comparison .card h5 {
+    font-size: 0.9375rem;
     font-weight: 600;
-    color: var(--primary-color);
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
+    color: var(--cmp-charcoal);
 }
 
-.tip-title i {
-    margin-right: 0.5rem;
+#value-comparison .card p {
+    color: var(--cmp-gray-600);
+    font-size: 0.9375rem;
+    line-height: 1.7;
 }
 
-/* Responsive styles */
+/* Responsive */
 @media (max-width: 992px) {
-
     .comparison-table th,
     .comparison-table td {
-        padding: 1rem;
+        padding: 1rem 1.25rem;
+        font-size: 0.875rem;
+    }
+
+    #value-comparison {
+        padding: 5rem 0;
     }
 }
 
 @media (max-width: 768px) {
-    .desktop-comparison {
-        display: none;
+    #value-comparison {
+        padding: 4rem 0;
     }
 
-    .mobile-comparison {
-        display: block;
+    .accordion-button {
+        padding: 1rem 1.25rem;
+        font-size: 0.9375rem;
     }
 
-    .section-title {
-        font-size: 1.8rem;
-    }
-
-    .section-subtitle {
-        font-size: 1rem;
+    .accordion-body {
+        padding: 1.25rem;
     }
 }
