@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from .models import Driver, DriverPayment, LegPayment
 from datetime import datetime, timedelta
-from reservations.models import Leg
+from reservations.models import Leg, LegStatus
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
@@ -133,6 +133,14 @@ def update_leg_status(request, leg_id):
         leg.status = new_status
         leg.save(update_fields=["status"])
 
+        # Create LegStatus history entry (driver made this update)
+        LegStatus.objects.create(
+            leg=leg,
+            status=new_status,
+            updated_by=request.user,  # Driver's user account
+            timestamp=timezone.now()
+        )
+
         # Check if reservation should be auto-completed
         if new_status == "completed":
             reservation_updated = leg.reservation.check_and_update_completion_status()
@@ -172,6 +180,14 @@ def accept_job(request, leg_id):
         # Update status to confirmed
         leg.status = "confirmed"
         leg.save(update_fields=["status"])
+
+        # Create LegStatus history entry (driver accepted this job)
+        LegStatus.objects.create(
+            leg=leg,
+            status="confirmed",
+            updated_by=request.user,  # Driver's user account
+            timestamp=timezone.now()
+        )
 
         return JsonResponse(
             {
