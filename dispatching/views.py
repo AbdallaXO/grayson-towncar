@@ -31,7 +31,7 @@ from django.db.models import OuterRef, Subquery
 
 # App imports
 
-from reservations.models import Reservation, Leg, Customer, Flight
+from reservations.models import Reservation, Leg, Customer, Flight, LegStatus
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
@@ -136,6 +136,10 @@ def index(request):
         .prefetch_related(
             "reservation__legs",
             Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+            Prefetch(
+                "status_history",
+                queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
+            ),
         )
         .order_by("pickup_time")
     )
