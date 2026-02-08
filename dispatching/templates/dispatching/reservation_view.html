@@ -774,7 +774,13 @@
                     <div>
                       <strong>Last Updated:</strong>
                       <span class="fw-semibold">{{ last_update.timestamp|date:"n/j/Y g:i:s A" }}</span>
-                      <span class="text-muted">by {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}</span>
+                      <span class="text-muted">by
+                        {% if last_update.updated_by %}
+                          {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username }}
+                        {% else %}
+                          System
+                        {% endif %}
+                      </span>
                     </div>
                   {% elif leg.driver_assigned_by and leg.driver_assigned_at %}
                     <div>
@@ -796,7 +802,13 @@
                   {% endif %}
                   <div class="mt-1">
                     <strong>Created:</strong>
-                    <span class="text-muted">Reservation by {{ reservation.created_by.get_full_name|default:reservation.created_by.username|default:"System" }}</span>
+                    <span class="text-muted">Reservation by
+                      {% if reservation.created_by %}
+                        {{ reservation.created_by.get_full_name|default:reservation.created_by.username }}
+                      {% else %}
+                        System
+                      {% endif %}
+                    </span>
                     {% if reservation.created_at %}
                       <span class="text-muted">on {{ reservation.created_at|date:"n/j/Y" }}</span>
                     {% endif %}
