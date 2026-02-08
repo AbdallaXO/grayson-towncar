@@ -8,6 +8,7 @@ from .constants import (
 import uuid
 from decimal import Decimal
 from django.utils import timezone
+from django.utils.functional import cached_property
 from rates.models import Vehicle, Rate, Route, Location
 from datetime import datetime, timedelta, time
 
@@ -335,17 +336,19 @@ class Reservation(models.Model):
         self.profit_estimate = self.calculate_profit()
         self.save(update_fields=["total_driver_payments", "profit_estimate"])
 
-    @property
+    @cached_property
     def all_payments(self):
         """
         Get all payments for this reservation
+        Cached to avoid N+1 queries when accessed multiple times
         """
-        return self.payments.all()
+        return list(self.payments.all())
 
-    @property
+    @cached_property
     def total_paid(self):
         """
         Calculate total amount paid (sum of all successful payments, excluding refunded amounts)
+        Cached to avoid N+1 queries when accessed multiple times in templates
         """
         from django.db.models import Sum
         # Calculate total paid (excluding refunded payments)
@@ -356,28 +359,29 @@ class Reservation(models.Model):
         )["total"] or Decimal('0.00')
         return (paid_sum - partial_refunded_sum).quantize(Decimal("0.01"))
 
-    @property
+    @cached_property
     def amount_owed(self):
         """
         Calculate remaining amount owed (total price - total paid)
+        Cached to avoid N+1 queries when accessed multiple times in templates
         """
         return (self.total_price - self.total_paid).quantize(Decimal("0.01"))
 
-    @property
+    @cached_property
     def payment_status(self):
         """
         Get the payment status for this reservation
-        Uses prefetched payments to avoid N+1 queries
+        Cached to avoid N+1 queries when accessed multiple times
         """
         # Use prefetched payments if available, otherwise fall back to query
         if hasattr(self, '_prefetched_objects_cache') and 'payments' in self._prefetched_objects_cache:
             payments = self._prefetched_objects_cache['payments']
         else:
             payments = self.payments.all()
-            
+
         if not payments:
             return "unpaid"
-        
+
         # Check if any payment is marked as paid
         for payment in payments:
             if payment.status == "paid":
@@ -386,14 +390,14 @@ class Reservation(models.Model):
                 return "card_saved"
             elif payment.status == "pending":
                 return "pending"
-        
+
         return "failed"
 
-    @property
+    @cached_property
     def detailed_payment_status(self):
         """
         Get detailed payment status including payment type and status
-        Uses prefetched payments to avoid N+1 queries
+        Cached to avoid N+1 queries when accessed multiple times
         Always returns the LATEST payment (most recent by created_at)
         """
         # Use prefetched payments if available, otherwise fall back to query
@@ -403,7 +407,7 @@ class Reservation(models.Model):
             # This ensures we get the truly latest payment even if timestamps are identical
             # Use id as secondary sort since higher id = more recent payment
             payments.sort(key=lambda p: (
-                p.created_at if p.created_at else timezone.make_aware(timezone.datetime.min), 
+                p.created_at if p.created_at else timezone.make_aware(timezone.datetime.min),
                 p.id if p.id else 0
             ), reverse=True)
         else:
