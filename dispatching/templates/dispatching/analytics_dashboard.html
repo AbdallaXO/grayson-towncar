@@ -1,0 +1,699 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --gold: #C9A227;
+        --gold-light: #D4AF37;
+        --dark: #0d1117;
+        --dark-secondary: #161b22;
+        --cream: #F8F6F0;
+    }
+
+    /* ── Header (dark background) ── */
+    .analytics-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
+        padding: 2.5rem 0 2rem;
+        margin-top: -1rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0 0 1rem 1rem;
+    }
+
+    .analytics-header h1,
+    .analytics-header .lead,
+    .analytics-header .header-date {
+        color: #fff;
+    }
+
+    .analytics-header .lead {
+        opacity: 0.75;
+    }
+
+    .analytics-header .header-date {
+        opacity: 0.5;
+        font-size: 0.85rem;
+    }
+
+    /* ── Filter pills (inside dark header) ── */
+    .filter-pills {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .filter-pill {
+        padding: 0.45rem 1.1rem;
+        border-radius: 2rem;
+        border: 1.5px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.85);
+        text-decoration: none;
+        transition: all 0.2s ease;
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    .filter-pill:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+        background: rgba(255,255,255,0.12);
+    }
+
+    .filter-pill.active {
+        border-color: var(--gold);
+        background: var(--gold);
+        color: #fff;
+    }
+
+    /* ── Stat cards ── */
+    .stat-card {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        height: 100%;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+    }
+
+    .stat-value {
+        font-size: 2.25rem;
+        font-weight: 700;
+        color: var(--dark);
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+
+    .stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
+    }
+
+    /* ── Chart containers ── */
+    .chart-container {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid var(--gold);
+    }
+
+    /* ── Progress bars ── */
+    .progress-custom {
+        height: 8px;
+        border-radius: 10px;
+        background: #e9ecef;
+    }
+
+    .progress-bar-gold {
+        background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%);
+    }
+
+    /* ── Tables ── */
+    .table-modern {
+        background: #fff;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .table-modern th {
+        background: var(--dark);
+        color: #fff;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 0.5px;
+        padding: 0.85rem 1rem;
+        border: none;
+    }
+
+    .table-modern td {
+        padding: 0.85rem 1rem;
+        vertical-align: middle;
+        color: #212529;
+    }
+
+    .table-modern tbody tr {
+        border-bottom: 1px solid #eee;
+        transition: background-color 0.15s ease;
+    }
+
+    .table-modern tbody tr:hover {
+        background-color: var(--cream);
+    }
+
+    /* ── Trip type badges ── */
+    .badge-trip-type {
+        padding: 0.35rem 0.7rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .badge-arrival { background: #e3f2fd; color: #1565c0; }
+    .badge-return { background: #e8f5e9; color: #2e7d32; }
+    .badge-cruise { background: #fff3e0; color: #e65100; }
+    .badge-other { background: #f3e5f5; color: #6a1b9a; }
+
+    /* ── Hourly demand chart ── */
+    .hourly-chart {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        height: 200px;
+        gap: 3px;
+        padding: 0 2px;
+    }
+
+    .hour-bar {
+        flex: 1;
+        background: linear-gradient(to top, var(--gold), var(--gold-light));
+        border-radius: 3px 3px 0 0;
+        position: relative;
+        cursor: pointer;
+        transition: opacity 0.2s ease;
+        min-height: 2px;
+    }
+
+    .hour-bar:hover {
+        opacity: 0.8;
+    }
+
+    .hour-bar .tooltip-text {
+        visibility: hidden;
+        background-color: var(--dark);
+        color: #fff;
+        text-align: center;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.25rem;
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 0.75rem;
+        margin-bottom: 0.5rem;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    .hour-bar:hover .tooltip-text {
+        visibility: visible;
+    }
+
+    /* ── Peak hour cards ── */
+    .peak-card {
+        text-align: center;
+        padding: 1rem;
+        border: 1px solid #eee;
+        border-radius: 0.5rem;
+        transition: border-color 0.2s ease;
+    }
+
+    .peak-card:hover {
+        border-color: var(--gold);
+    }
+
+    .peak-card .peak-hour {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--dark);
+    }
+
+    .peak-card .peak-legs {
+        font-weight: 600;
+        color: var(--gold);
+    }
+
+    /* ── Alert info styling ── */
+    .alert-info {
+        background: #f0f7ff;
+        border: 1px solid #b8d4f0;
+        color: #1a4a7a;
+        border-radius: 0.5rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+        .analytics-header {
+            padding: 1.5rem 0 1rem;
+        }
+
+        .analytics-header h1 {
+            font-size: 1.75rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+        }
+
+        .hourly-chart {
+            height: 140px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="analytics-header text-center">
+        <div class="container">
+            <h1 class="fw-bold mb-2" style="font-size: 2rem;">Analytics Dashboard</h1>
+            <p class="lead mb-3">Operational insights and performance metrics</p>
+            <div class="filter-pills justify-content-center">
+                <a href="?days=7" class="filter-pill {% if days_back == 7 %}active{% endif %}">Last 7 Days</a>
+                <a href="?days=30" class="filter-pill {% if days_back == 30 %}active{% endif %}">Last 30 Days</a>
+                <a href="?days=90" class="filter-pill {% if days_back == 90 %}active{% endif %}">Last 90 Days</a>
+                <a href="?days=365" class="filter-pill {% if days_back == 365 %}active{% endif %}">Last Year</a>
+            </div>
+            <small class="header-date">{{ start_date|date:"M d, Y" }} — {{ end_date|date:"M d, Y" }}</small>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <!-- Key Metrics Row -->
+        <div class="row mb-4">
+            <!-- Total Legs -->
+            <div class="col-md-3 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #e3f2fd;">
+                        <i class="bi bi-calendar-check text-primary"></i>
+                    </div>
+                    <div class="stat-value">{{ total_legs|default:"0" }}</div>
+                    <div class="stat-label">Total Legs</div>
+                </div>
+            </div>
+
+            <!-- Total Revenue -->
+            <div class="col-md-3 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #e8f5e9;">
+                        <i class="bi bi-currency-dollar text-success"></i>
+                    </div>
+                    <div class="stat-value">${{ total_revenue|floatformat:0 }}</div>
+                    <div class="stat-label">Total Revenue</div>
+                </div>
+            </div>
+
+            <!-- In-House Coverage -->
+            <div class="col-md-3 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #fff3e0;">
+                        <i class="bi bi-people text-warning"></i>
+                    </div>
+                    <div class="stat-value">{{ inhouse_percentage }}%</div>
+                    <div class="stat-label">In-House Coverage</div>
+                    <div class="progress progress-custom mt-2">
+                        <div class="progress-bar progress-bar-gold" role="progressbar"
+                             style="width: {{ inhouse_percentage }}%"></div>
+                    </div>
+                    <small class="text-muted mt-1 d-block">
+                        {{ inhouse_count }} in-house, {{ affiliate_count }} affiliate
+                    </small>
+                </div>
+            </div>
+
+            <!-- Avg Daily Volume -->
+            <div class="col-md-3 mb-3">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: #f3e5f5;">
+                        <i class="bi bi-bar-chart" style="color: #6a1b9a;"></i>
+                    </div>
+                    <div class="stat-value">{{ avg_daily_volume }}</div>
+                    <div class="stat-label">Avg Daily Volume</div>
+                    <small class="text-muted">{{ total_legs }} legs / {{ days_back }} days</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row mb-4">
+            <!-- Hourly Demand Pattern -->
+            <div class="col-lg-8 mb-3">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="bi bi-clock-history me-2 text-warning"></i>Hourly Demand Pattern
+                    </div>
+                    <div class="hourly-chart">
+                        {% for hour in hourly_demand.items %}
+                        {% widthratio hour.1.total max_hourly_demand 100 as bar_height %}
+                        <div class="hour-bar" style="height: {{ bar_height|default:5 }}%">
+                            <div class="tooltip-text">
+                                {{ hour.0|stringformat:"02d" }}:00<br>
+                                {{ hour.1.total }} legs<br>
+                                <small>
+                                    A:{{ hour.1.arrival }} R:{{ hour.1.return }}
+                                    C:{{ hour.1.cruise }} O:{{ hour.1.other }}
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 small text-muted">
+                        <span>00:00</span>
+                        <span>06:00</span>
+                        <span>12:00</span>
+                        <span>18:00</span>
+                        <span>23:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trip Type Distribution -->
+            <div class="col-lg-4 mb-3">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="bi bi-pie-chart me-2 text-primary"></i>Trip Type Distribution
+                    </div>
+                    {% for trip_type, count in trip_type_counts.items %}
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge badge-trip-type badge-{{ trip_type }}">
+                                {% if trip_type == 'arrival' %}✈️ Arrival
+                                {% elif trip_type == 'return' %}🏠 Return
+                                {% elif trip_type == 'cruise' %}🚢 Cruise
+                                {% else %}🚗 Other{% endif %}
+                            </span>
+                            <span class="fw-bold">{{ count }} ({% widthratio count total_legs 100 %}%)</span>
+                        </div>
+                        <div class="progress progress-custom">
+                            <div class="progress-bar {% if trip_type == 'arrival' %}bg-primary{% elif trip_type == 'return' %}bg-success{% elif trip_type == 'cruise' %}bg-warning{% else %}bg-secondary{% endif %}"
+                                 style="width: {% widthratio count total_legs 100 %}%"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tables Row -->
+        <div class="row mb-4">
+            <!-- Top Routes -->
+            <div class="col-lg-6 mb-3">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="bi bi-signpost-2 me-2 text-info"></i>Top Routes by Volume
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-modern table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Route</th>
+                                    <th class="text-end">Trips</th>
+                                    <th class="text-end">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for route, data in top_routes %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ route }}</strong>
+                                        <span class="badge badge-trip-type badge-{{ data.trip_type }} ms-2">
+                                            {% if data.trip_type == 'arrival' %}✈️{% elif data.trip_type == 'return' %}🏠{% elif data.trip_type == 'cruise' %}🚢{% else %}🚗{% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="text-end"><strong>{{ data.count }}</strong></td>
+                                    <td class="text-end">${{ data.revenue|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">No route data available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Drivers -->
+            <div class="col-lg-6 mb-3">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="bi bi-person-badge me-2 text-success"></i>Top Drivers by Legs
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-modern table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Driver</th>
+                                    <th class="text-end">Legs</th>
+                                    <th class="text-end">Avg/Day</th>
+                                    <th class="text-end">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for driver in top_drivers %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ driver.name }}</strong>
+                                        {% if driver.driver_type == 'inhouse' %}
+                                        <span class="badge bg-success badge-sm ms-1">In-House</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary badge-sm ms-1">Affiliate</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end"><strong>{{ driver.legs }}</strong></td>
+                                    <td class="text-end">{{ driver.avg_legs_per_day|floatformat:1 }}</td>
+                                    <td class="text-end">${{ driver.revenue|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">No driver data available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Peak Hours -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="bi bi-trophy me-2 text-warning"></i>Top 5 Busiest Hours
+                    </div>
+                    <div class="row">
+                        {% for hour, data in peak_hours %}
+                        <div class="col-md-2 col-sm-4 col-6 mb-3">
+                            <div class="peak-card">
+                                <div class="peak-hour mb-1">{{ hour }}:00</div>
+                                <div class="peak-legs mb-1">{{ data.total }} legs</div>
+                                <small class="text-muted">
+                                    A:{{ data.arrival }} R:{{ data.return }}<br>
+                                    C:{{ data.cruise }} O:{{ data.other }}
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Trends (Last 7 Days) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="bi bi-graph-up me-2 text-info"></i>Last 7 Days Trend
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-modern table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th class="text-end">Total Legs</th>
+                                    <th class="text-end">In-House</th>
+                                    <th class="text-end">Affiliate</th>
+                                    <th class="text-end">Revenue</th>
+                                    <th>Coverage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for date, data in daily_trends.items %}
+                                <tr>
+                                    <td><strong>{{ date|date:"D, M d" }}</strong></td>
+                                    <td class="text-end"><strong>{{ data.total }}</strong></td>
+                                    <td class="text-end">{{ data.inhouse }}</td>
+                                    <td class="text-end">{{ data.affiliate }}</td>
+                                    <td class="text-end">${{ data.revenue|floatformat:2 }}</td>
+                                    <td>
+                                        {% widthratio data.inhouse data.total 100 as coverage %}
+                                        <div class="progress progress-custom" style="width: 100px;">
+                                            <div class="progress-bar progress-bar-gold" style="width: {{ coverage }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ coverage }}%</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Timing Quick Reference -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="chart-container">
+                    <div class="chart-title d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-stopwatch me-2 text-warning"></i>Route Timing Quick Reference
+                        </span>
+                        <a href="{% url 'route_timing_reference' %}" class="btn btn-sm btn-outline-secondary" style="font-size: 0.8rem;">
+                            View Full Details <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+
+                    {% if top_route_timing %}
+                    <div class="table-responsive">
+                        <table class="table table-modern table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Route</th>
+                                    <th>Type</th>
+                                    <th class="text-center">Samples</th>
+                                    <th class="text-end">Dwell (P75)</th>
+                                    <th class="text-end">Drive (P75)</th>
+                                    <th class="text-end">Total (P75)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rt in top_route_timing %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ rt.pickup_location_category }}</strong>
+                                        <span class="text-muted mx-1">&rarr;</span>
+                                        <strong>{{ rt.dropoff_location_category }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-trip-type badge-{{ rt.trip_type }}">
+                                            {% if rt.trip_type == 'arrival' %}Arrival
+                                            {% elif rt.trip_type == 'return' %}Return
+                                            {% elif rt.trip_type == 'cruise' %}Cruise
+                                            {% else %}Other{% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="fw-bold">{{ rt.sample_count }}</span>
+                                        {% if rt.confidence == 'high' %}
+                                            <span class="badge bg-success ms-1" style="font-size: 0.65rem;">High</span>
+                                        {% elif rt.confidence == 'medium' %}
+                                            <span class="badge ms-1" style="font-size: 0.65rem; background: var(--gold);">Med</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary ms-1" style="font-size: 0.65rem;">Low</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if rt.p75_airport_dwell_time %}
+                                            {{ rt.p75_airport_dwell_time }} min
+                                        {% elif rt.avg_airport_dwell_time %}
+                                            <span class="text-muted">~{{ rt.avg_airport_dwell_time }} min</span>
+                                        {% else %}
+                                            <span class="text-muted">&mdash;</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if rt.p75_drive_time %}
+                                            {{ rt.p75_drive_time }} min
+                                        {% elif rt.avg_drive_time %}
+                                            <span class="text-muted">~{{ rt.avg_drive_time }} min</span>
+                                        {% else %}
+                                            <span class="text-muted">&mdash;</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if rt.p75_total_time %}
+                                            <strong>{{ rt.p75_total_time }} min</strong>
+                                        {% elif rt.median_total_time %}
+                                            <span class="text-muted">~{{ rt.median_total_time }} min</span>
+                                        {% else %}
+                                            <span class="text-muted">&mdash;</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2 text-end">
+                        <small class="text-muted">
+                            Showing top {{ top_route_timing|length }} routes by sample count.
+                            P75 = 75% of trips finish within this time.
+                        </small>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-clock-history" style="font-size: 2.5rem; color: #ccc;"></i>
+                        <p class="text-muted mt-2 mb-1">No route timing data yet</p>
+                        <small class="text-muted">
+                            Route timing metrics accumulate as legs are completed with status tracking enabled.
+                            <br>Run <code>python manage.py update_route_metrics</code> to process existing data.
+                        </small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Note about timing metrics -->
+        {% if timing_metrics|length == 0 and not top_route_timing %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Note on Timing Metrics:</strong> Route timing data (dwell time, drive time) requires LegStatus timestamps.
+                    As you continue to use the status tracking system, timing metrics will automatically populate and improve.
+                    You can also manually seed common route timings via the management command.
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block footer %}
+{% endblock %}
+
+{% block newsletter %}
+{% endblock %}

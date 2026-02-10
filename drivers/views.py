@@ -286,29 +286,29 @@ def extend(request):
     # Order by driver type (inhouse first), then by name
     drivers = drivers.order_by("-driver_type", "profile__first_name", "profile__last_name")
     
-    # Get upcoming legs for each driver for display
+    # Evaluate queryset once as a list to avoid repeated DB hits
+    drivers_list = list(drivers)
     available_count = 0
     inhouse_count = 0
-    
-    for driver in drivers:
-        driver.upcoming_legs = driver.get_upcoming_legs(days=7)
-        driver.is_available_today = driver.is_available_today()
+
+    for driver in drivers_list:
+        # vehicle_display is pure Python — no DB query
         driver.vehicle_display = driver.get_vehicle_display()
-        
-        # Count stats
+
+        # Count stats using the already-annotated upcoming_count
         if driver.upcoming_count == 0:
             available_count += 1
         if driver.driver_type == "inhouse":
             inhouse_count += 1
-    
+
     context = {
-        "drivers": drivers,
+        "drivers": drivers_list,
         "driver_type_filter": driver_type_filter,
         "search_query": search_query,
         "availability_filter": availability_filter,
         "today": today,
         "next_week": next_week,
-        "total_drivers": drivers.count(),
+        "total_drivers": len(drivers_list),
         "available_count": available_count,
         "inhouse_count": inhouse_count,
     }

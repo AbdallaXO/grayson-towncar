@@ -78,7 +78,7 @@
               <div class="row">
                 <div class="col-12">
                   {% for vehicle in vehicles %}
-                    <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in" data-vehicle-image="{{ vehicle.image.url }}" data-capacity="{{ vehicle.capacity }}" data-luggage="{{ vehicle.luggage_capacity }}" data-carseats="{{ vehicle.carseats_display }}" data-vehicle-type="{{ vehicle.get_vehicle_type_display }}">
+                    <article class="card shadow-sm border-0 mb-5 overflow-hidden rate-card fade-in" data-vehicle-image="{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}" data-capacity="{{ vehicle.capacity }}" data-luggage="{{ vehicle.luggage_capacity }}" data-carseats="{{ vehicle.carseats_display }}" data-vehicle-type="{{ vehicle.get_vehicle_type_display }}">
                       <header id="{{ vehicle.get_vehicle_type_display|slugify }}-heading" class="card-header bg-rates-dark text-white text-center py-3 position-relative">
                         <div class="header-accent"></div>
                         <h2 class="h4 fw-bold mb-0">{{ vehicle.get_vehicle_type_display }} Transportation Rates</h2>

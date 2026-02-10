@@ -1643,3 +1643,366 @@ class LegStatus(models.Model):
 
     def __str__(self):
         return f"Leg #{self.leg.id} - {self.get_status_display()} at {self.timestamp}"
+
+
+class ScheduleSnapshot(models.Model):
+    """A saved snapshot of driver assignments for a specific date."""
+    TRIGGER_CHOICES = [
+        ('manual', 'Manual Save'),
+        ('before_reset', 'Auto-save Before Reset'),
+        ('before_auto_assign', 'Auto-save Before Auto-Assign'),
+    ]
+
+    schedule_date = models.DateField(help_text="The date whose schedule was saved")
+    created_at = models.DateTimeField(default=timezone.now)
+    created_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="schedule_snapshots",
+    )
+    trigger = models.CharField(max_length=30, choices=TRIGGER_CHOICES, default='manual')
+    label = models.CharField(max_length=100, blank=True, default='')
+    notes = models.TextField(blank=True, default='', help_text="Optional notes about why this snapshot was saved")
+    assigned_count = models.IntegerField(default=0, help_text="Number of legs with drivers at snapshot time")
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['schedule_date', '-created_at'])]
+
+    def __str__(self):
+        return f"Snapshot for {self.schedule_date} ({self.get_trigger_display()}) - {self.assigned_count} legs"
+
+
+class ScheduleSnapshotEntry(models.Model):
+    """One leg's driver assignment within a snapshot."""
+    snapshot = models.ForeignKey(
+        ScheduleSnapshot, on_delete=models.CASCADE, related_name='entries',
+    )
+    leg = models.ForeignKey('Leg', on_delete=models.CASCADE, related_name='snapshot_entries')
+    driver = models.ForeignKey(
+        'drivers.Driver', on_delete=models.SET_NULL, null=True,
+    )
+    driver_assigned_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    driver_assigned_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['snapshot', 'leg'])]
+
+    def __str__(self):
+        return f"Snapshot entry: Leg #{self.leg_id} → Driver {self.driver_id}"
+
+
+class RouteTimingMetric(models.Model):
+    """
+    Stores calculated average timing metrics for specific route patterns.
+    Updated periodically (daily/weekly) via management command.
+    Used for scheduling optimization and capacity planning.
+    """
+
+    TRIP_TYPE_CHOICES = [
+        ('arrival', 'Arrival (Airport → Destination)'),
+        ('return', 'Return (Destination → Airport)'),
+        ('cruise', 'Cruise Transfer'),
+        ('other', 'Other'),
+    ]
+
+    TIME_OF_DAY_CHOICES = [
+        ('early_morning', 'Early Morning (4-7 AM)'),
+        ('morning_rush', 'Morning Rush (7-10 AM)'),
+        ('midday', 'Midday (10 AM - 2 PM)'),
+        ('afternoon', 'Afternoon (2-6 PM)'),
+        ('evening', 'Evening (6-10 PM)'),
+        ('night', 'Night (10 PM - 4 AM)'),
+    ]
+
+    DAY_TYPE_CHOICES = [
+        ('weekday', 'Weekday'),
+        ('weekend', 'Weekend'),
+        ('holiday', 'Holiday'),
+    ]
+
+    # Route identification
+    trip_type = models.CharField(
+        max_length=20,
+        choices=TRIP_TYPE_CHOICES,
+        help_text="Type of trip (arrival, return, cruise, other)"
+    )
+    pickup_location_category = models.CharField(
+        max_length=100,
+        help_text="Categorized pickup location (e.g., 'MCO', 'Disney Resort', 'Universal Resort')"
+    )
+    dropoff_location_category = models.CharField(
+        max_length=100,
+        help_text="Categorized dropoff location"
+    )
+
+    # Time-based segmentation
+    time_of_day_category = models.CharField(
+        max_length=20,
+        choices=TIME_OF_DAY_CHOICES,
+        help_text="Time of day category for this metric"
+    )
+    day_type = models.CharField(
+        max_length=20,
+        choices=DAY_TYPE_CHOICES,
+        help_text="Day type (weekday, weekend, holiday)"
+    )
+
+    # Calculated metrics (in minutes)
+    avg_airport_dwell_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Average time from gate arrival to picked up (arrivals only)"
+    )
+    median_airport_dwell_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Median dwell time for more accurate estimates"
+    )
+    p90_airport_dwell_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="90th percentile for conservative scheduling"
+    )
+    p75_airport_dwell_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="75th percentile dwell time for balanced scheduling"
+    )
+
+    avg_drive_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Average time from picked up to completed"
+    )
+    median_drive_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Median drive time"
+    )
+    p90_drive_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="90th percentile drive time"
+    )
+    p75_drive_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="75th percentile drive time for balanced scheduling"
+    )
+
+    avg_total_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Average total time from gate arrival/scheduled pickup to completed"
+    )
+    median_total_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Median total time"
+    )
+    p75_total_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="75th percentile total time"
+    )
+    p90_total_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="90th percentile total time"
+    )
+
+    # Sample size for confidence
+    sample_count = models.IntegerField(
+        default=0,
+        help_text="Number of historical legs used to calculate this metric"
+    )
+    last_calculated = models.DateTimeField(
+        auto_now=True,
+        help_text="When this metric was last recalculated"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['trip_type', 'pickup_location_category', 'dropoff_location_category']),
+            models.Index(fields=['time_of_day_category']),
+            models.Index(fields=['-last_calculated']),
+        ]
+        unique_together = [
+            ['trip_type', 'pickup_location_category', 'dropoff_location_category',
+             'time_of_day_category', 'day_type']
+        ]
+        verbose_name = "Route Timing Metric"
+        verbose_name_plural = "Route Timing Metrics"
+
+    def __str__(self):
+        return f"{self.get_trip_type_display()}: {self.pickup_location_category} → {self.dropoff_location_category} ({self.get_time_of_day_category_display()}, {self.get_day_type_display()})"
+
+
+class DriverDailyCapacity(models.Model):
+    """
+    Tracks historical driver performance to understand realistic daily capacity.
+    Helps with scheduling optimization and driver utilization analysis.
+    """
+
+    driver = models.ForeignKey(
+        'drivers.Driver',
+        on_delete=models.CASCADE,
+        related_name='daily_capacity_records',
+        help_text="The driver this capacity record belongs to"
+    )
+    date = models.DateField(
+        db_index=True,
+        help_text="Date of this capacity record"
+    )
+
+    # Actual performance
+    total_legs = models.IntegerField(
+        default=0,
+        help_text="Total number of legs completed this day"
+    )
+    total_revenue = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Total revenue generated this day"
+    )
+    total_active_hours = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Hours from first pickup to last dropoff"
+    )
+
+    # Efficiency metrics
+    avg_turnaround_time = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Average minutes between jobs"
+    )
+    longest_gap_minutes = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Longest idle period between jobs"
+    )
+
+    # Trip composition
+    arrival_count = models.IntegerField(
+        default=0,
+        help_text="Number of arrival legs (airport → destination)"
+    )
+    return_count = models.IntegerField(
+        default=0,
+        help_text="Number of return legs (destination → airport)"
+    )
+    cruise_count = models.IntegerField(
+        default=0,
+        help_text="Number of cruise transfer legs"
+    )
+    other_count = models.IntegerField(
+        default=0,
+        help_text="Number of other legs"
+    )
+
+    calculated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this record was last calculated"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['driver', '-date']),
+            models.Index(fields=['-date']),
+            models.Index(fields=['-calculated_at']),
+        ]
+        unique_together = ['driver', 'date']
+        ordering = ['-date']
+        verbose_name = "Driver Daily Capacity"
+        verbose_name_plural = "Driver Daily Capacities"
+
+    def __str__(self):
+        return f"{self.driver} - {self.date} ({self.total_legs} legs)"
+
+
+class DemandPattern(models.Model):
+    """
+    Aggregated demand patterns for capacity planning.
+    Tracks hourly demand by trip type to predict busy periods and optimize staffing.
+    """
+
+    date = models.DateField(
+        db_index=True,
+        help_text="Date for this demand pattern"
+    )
+    hour = models.IntegerField(
+        help_text="Hour of day (0-23)"
+    )
+    day_of_week = models.IntegerField(
+        help_text="Day of week (0=Monday, 6=Sunday)"
+    )
+
+    # Volume by trip type
+    arrival_legs = models.IntegerField(
+        default=0,
+        help_text="Number of arrival legs in this hour"
+    )
+    return_legs = models.IntegerField(
+        default=0,
+        help_text="Number of return legs in this hour"
+    )
+    cruise_legs = models.IntegerField(
+        default=0,
+        help_text="Number of cruise transfer legs in this hour"
+    )
+    other_legs = models.IntegerField(
+        default=0,
+        help_text="Number of other legs in this hour"
+    )
+
+    # Total metrics
+    total_legs = models.IntegerField(
+        default=0,
+        help_text="Total legs in this hour"
+    )
+    total_drivers_needed = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Estimated drivers needed based on timing constraints"
+    )
+    inhouse_drivers_used = models.IntegerField(
+        default=0,
+        help_text="Number of in-house drivers used"
+    )
+    affiliate_drivers_used = models.IntegerField(
+        default=0,
+        help_text="Number of affiliate drivers used"
+    )
+
+    # Revenue
+    total_revenue = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Total revenue for this hour"
+    )
+
+    calculated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this demand pattern was last calculated"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-date', 'hour']),
+            models.Index(fields=['day_of_week', 'hour']),
+            models.Index(fields=['-calculated_at']),
+        ]
+        unique_together = ['date', 'hour']
+        ordering = ['-date', 'hour']
+        verbose_name = "Demand Pattern"
+        verbose_name_plural = "Demand Patterns"
+
+    def __str__(self):
+        return f"{self.date} {self.hour}:00 - {self.total_legs} legs ({self.total_drivers_needed or '?'} drivers needed)"

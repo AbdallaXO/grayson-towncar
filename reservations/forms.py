@@ -299,6 +299,15 @@ class ReservationAdminForm(forms.ModelForm):
         model = Reservation
         fields = "__all__"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from rates.models import Rate
+        # Rate.__str__ accesses vehicle, route, route.origin, route.destination
+        # Without select_related this causes 4 queries PER rate option (224+ total)
+        self.fields['rate'].queryset = Rate.objects.select_related(
+            'vehicle', 'route', 'route__origin', 'route__destination'
+        )
+
 
 class LeadForm(forms.ModelForm):
     class Meta:

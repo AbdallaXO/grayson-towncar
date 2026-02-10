@@ -71,7 +71,7 @@
                     <option value="">Select Vehicle</option>
                     {% for vehicle in vehicles %}
                       <option value="{{ vehicle.id }}"
-                              data-image="{{ vehicle.image.url }}"
+                              data-image="{% if vehicle.image %}{{ vehicle.image.url }}{% endif %}"
                               data-passengers="{{ vehicle.capacity }}"
                               data-luggage="{{ vehicle.luggage_capacity }}"
                               data-carseats="{{ vehicle.carseats_capacity }}">

@@ -6,7 +6,7 @@ from django.contrib import admin
 from django import forms
 from django.utils.html import format_html
 from django.utils import timezone
-from django.db.models import Min, Count, Q, Max
+from django.db.models import Min, Count, Q, Max, Subquery, OuterRef
 from django.urls import reverse
 from django.contrib.admin import SimpleListFilter
 from django.contrib.admin.actions import delete_selected
@@ -16,7 +16,7 @@ from django.shortcuts import render
 from rates.models import Vehicle
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
-from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus
+from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
 
@@ -1307,8 +1307,16 @@ class LegAdmin(ImportExportModelAdmin):
             "reservation__customer",
             "reservation__vehicle",
             "driver",
+            "driver__profile",
             "flight_information",
             "cruise_information",
+        ).annotate(
+            _reservation_leg_count=Subquery(
+                Leg.objects.filter(reservation=OuterRef('reservation'))
+                .values('reservation')
+                .annotate(cnt=Count('id'))
+                .values('cnt')[:1]
+            ),
         )
 
     @admin.display(description="Pickup Date")
@@ -1405,8 +1413,7 @@ class LegAdmin(ImportExportModelAdmin):
     @admin.display(description="Revenue")
     def revenue_share_display(self, obj):
         if not obj.revenue_share and obj.reservation:
-            # Calculate on the fly if not stored
-            total_legs = obj.reservation.legs.count()
+            total_legs = getattr(obj, '_reservation_leg_count', None) or 1
             if total_legs > 0:
                 revenue_share = obj.reservation.total_price / total_legs
             else:
@@ -1422,15 +1429,13 @@ class LegAdmin(ImportExportModelAdmin):
         if hasattr(obj, "revenue_share") and obj.revenue_share:
             revenue = obj.revenue_share
         elif obj.reservation:
-            # Calculate on the fly if not stored
-            total_legs = obj.reservation.legs.count()
+            total_legs = getattr(obj, '_reservation_leg_count', None) or 1
             if total_legs > 0:
                 revenue = obj.reservation.total_price / total_legs
 
         driver_pay = obj.total_driver_pay
         profit = revenue - driver_pay
 
-        # Color code based on profit amount
         if profit > 0:
             color = "green"
         else:
@@ -2789,3 +2794,47 @@ class LegStatusAdmin(admin.ModelAdmin):
     search_fields = ['leg__id', 'leg__reservation__customer__first_name', 'leg__reservation__customer__last_name']
     readonly_fields = ['timestamp']
     ordering = ['-timestamp']
+
+
+class ScheduleSnapshotEntryInline(admin.TabularInline):
+    model = ScheduleSnapshotEntry
+    extra = 0
+    readonly_fields = ['leg', 'driver', 'driver_assigned_by', 'driver_assigned_at']
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ScheduleSnapshot)
+class ScheduleSnapshotAdmin(admin.ModelAdmin):
+    list_display = ['schedule_date', 'trigger_display', 'assigned_count', 'notes_preview', 'created_by', 'created_at']
+    list_filter = ['trigger', 'schedule_date']
+    search_fields = ['label', 'notes', 'created_by__first_name', 'created_by__last_name']
+    readonly_fields = ['created_at']
+    ordering = ['-created_at']
+    date_hierarchy = 'schedule_date'
+    inlines = [ScheduleSnapshotEntryInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('created_by')
+
+    @admin.display(description="Trigger")
+    def trigger_display(self, obj):
+        colors = {
+            'manual': '#0d6efd',
+            'before_reset': '#dc3545',
+            'before_auto_assign': '#ffc107',
+        }
+        color = colors.get(obj.trigger, '#6c757d')
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color, obj.get_trigger_display()
+        )
+
+    @admin.display(description="Notes")
+    def notes_preview(self, obj):
+        if obj.notes:
+            preview = obj.notes[:60] + "..." if len(obj.notes) > 60 else obj.notes
+            return preview
+        return "-"

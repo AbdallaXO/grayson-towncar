@@ -1,8 +1,8 @@
 {% load static %}
 {% if request.user.is_staff or request.user.is_superuser %}
 <nav class="navbar navbar-expand-lg bg-navbar-dark sticky-top" style="z-index: 1030;">
-  <div class="container px-4 bg-navbar-dark">
-    <a class="navbar-brand" href="{% url 'dashboard' %}"><span class="fs-3 fw-bold text-white"></i>Dispatching</span></a>
+  <div class="container bg-navbar-dark">
+    <a class="navbar-brand" href="{% url 'dashboard' %}"><span class="fw-bold text-white" style="font-size: 1.2rem;">Dispatching</span></a>
     <button class="navbar-toggler"
             type="button"
             data-bs-toggle="collapse"
@@ -16,55 +16,80 @@
     <div class="collapse navbar-collapse" id="dispatchNavbar">
       <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'dashboard' %}active fw-bold{% endif %}"
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
              href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'reservations_list' %}active fw-bold{% endif %}"
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'reservations_list' %}active{% endif %}"
              href="{% url 'reservations_list' %}"><i class="bi bi-calendar2-check me-1"></i>Reservations</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'legs_list' %}active fw-bold{% endif %}"
-             href="{% url 'legs_list' %}"><i class="bi bi-signpost-split me-1"></i>All Legs</a>
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'legs_list' %}active{% endif %}"
+             href="{% url 'legs_list' %}"><i class="bi bi-signpost-split me-1"></i>Legs</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'confirmations' %}active fw-bold{% endif %}"
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'confirmations' %}active{% endif %}"
              href="{% url 'confirmations' %}"><i class="bi bi-chat-text me-1"></i>Confirmations</a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'drivers_extend' %}active fw-bold{% endif %}"
-             href="{% url 'drivers_extend' %}"><i class="bi bi-people-fill me-1"></i>Drivers</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'driver_payment_management' %}active fw-bold{% endif %}"
-             href="{% url 'driver_payment_management' %}"><i class="bi bi-currency-dollar me-1"></i>Driver Pay</a>
+        <!-- Drivers dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'drivers_extend' or request.resolver_match.url_name == 'driver_payment_management' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-people-fill me-1"></i>Drivers</a>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'drivers_extend' %}active{% endif %}"
+                 href="{% url 'drivers_extend' %}"><i class="bi bi-people-fill me-2"></i>All Drivers</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'driver_payment_management' %}active{% endif %}"
+                 href="{% url 'driver_payment_management' %}"><i class="bi bi-currency-dollar me-2"></i>Driver Pay</a>
+            </li>
+          </ul>
         </li>
         {% if request.user.is_superuser %}
-        <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'statistics_page' %}active fw-bold{% endif %}"
-             href="{% url 'statistics_page' %}"><i class="bi bi-graph-up me-1"></i>Statistics</a>
+        <!-- Analytics dropdown -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'statistics_page' or request.resolver_match.url_name == 'analytics_dashboard' or request.resolver_match.url_name == 'route_timing_reference' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
+          <ul class="dropdown-menu dropdown-menu-dark">
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'statistics_page' %}active{% endif %}"
+                 href="{% url 'statistics_page' %}"><i class="bi bi-graph-up me-2"></i>Statistics</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'analytics_dashboard' %}active{% endif %}"
+                 href="{% url 'analytics_dashboard' %}"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'route_timing_reference' %}active{% endif %}"
+                 href="{% url 'route_timing_reference' %}"><i class="bi bi-stopwatch me-2"></i>Route Timing</a>
+            </li>
+          </ul>
         </li>
         <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active fw-bold{% endif %}"
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'capacity_planner' %}active{% endif %}"
+             href="{% url 'capacity_planner' %}"><i class="bi bi-calendar3-week me-1"></i>Planner</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active{% endif %}"
              href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds</a>
         </li>
         {% endif %}
+        <!-- User dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-white"
-             href="#"
-             id="userDropdown"
-             role="button"
-             data-bs-toggle="dropdown"
-             aria-expanded="false"><i class="bi bi-person-circle me-1"></i>{{ request.user|title }}</a>
-          <ul class="dropdown-menu bg-light" aria-labelledby="userDropdown">
+             href="#" id="userDropdown" role="button"
+             data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle me-1"></i>{{ request.user|title }}</a>
+          <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="userDropdown">
             <li>
               <a class="dropdown-item" href="{% url 'admin:index' %}" target="_blank"><i class="bi bi-gear me-2"></i>Admin</a>
             </li>
+            <li><hr class="dropdown-divider" /></li>
             <li>
-              <hr class="dropdown-divider" />
-            </li>
-            <li>
-              <a class="dropdown-item" href="{% url 'home' %}"><i class="bi bi-box-arrow-right me-2"></i>Main Website</a>
+              <a class="dropdown-item" href="{% url 'home' %}"><i class="bi bi-house me-2"></i>Main Website</a>
             </li>
             <li>
               <a class="dropdown-item" href="{% url 'logout' %}"><i class="bi bi-box-arrow-right me-2"></i>Logout</a>
@@ -77,46 +102,77 @@
 </nav>
 
 <style>
-    /* Define the dark background for the navbar */
     .bg-navbar-dark {
-        background-color: #212529;
+        background-color: #1a1d21;
     }
 
-    /* Increase the size of navbar items */
     .navbar-nav .nav-link {
-        font-size: 1.1rem;
-        padding: 0.7rem 1rem;
+        font-size: 0.88rem;
+        font-weight: 500;
+        padding: 0.65rem 0.7rem;
+        white-space: nowrap;
+        transition: color 0.2s ease;
+        letter-spacing: 0.01em;
+    }
+    .navbar-nav .nav-link:hover {
+        color: #C9A227 !important;
     }
 
-    /* Style for active nav item */
     .navbar-nav .nav-link.active {
-        border-bottom: 2px solid #0d6efd;
+        color: #C9A227 !important;
+        font-weight: 600;
     }
 
-    /* Adjust the size of dropdown items */
-    .dropdown-menu .dropdown-item {
-        font-size: 1rem;
-        padding: 0.6rem 1rem;
+    .dropdown-menu-dark {
+        background-color: #1a1d21;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 0.5rem;
+        padding: 0.4rem 0;
+        margin-top: 0.35rem;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .dropdown-menu-dark .dropdown-item {
+        color: rgba(255,255,255,0.8);
+        font-size: 0.84rem;
+        padding: 0.5rem 1rem;
+        transition: all 0.15s ease;
+    }
+    .dropdown-menu-dark .dropdown-item:hover {
+        background-color: rgba(201,162,39,0.12);
+        color: #C9A227;
+    }
+    .dropdown-menu-dark .dropdown-item.active {
+        background-color: rgba(201,162,39,0.15);
+        color: #C9A227;
+        font-weight: 600;
+    }
+    .dropdown-menu-dark .dropdown-divider {
+        border-top-color: rgba(255,255,255,0.08);
     }
 
-    /* Add some spacing to the navbar */
     .navbar {
         margin-bottom: 1rem;
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+
+    @media (min-width: 992px) and (max-width: 1199px) {
+        .navbar-nav .nav-link {
+            font-size: 0.82rem;
+            padding: 0.55rem 0.5rem;
+        }
     }
 </style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize all dropdowns
         var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
         var dropdownList = dropdownElementList.map(function(dropdownToggleEl) {
             return new bootstrap.Dropdown(dropdownToggleEl);
         });
 
-        // Initialize navbar collapse
         var navbarToggler = document.querySelector('.navbar-toggler');
         var navbarCollapse = document.querySelector('.navbar-collapse');
-
         if (navbarToggler && navbarCollapse) {
             navbarToggler.addEventListener('click', function() {
                 navbarCollapse.classList.toggle('show');

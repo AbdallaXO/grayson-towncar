@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from django.db.models import Sum, F, Q
+from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
+from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
 from .models import Driver, DriverPayment, LegPayment, FleetVehicle
 from reservations.models import Leg
@@ -72,6 +73,40 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "profit_summary",
     ]
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('profile').annotate(
+            _unpaid_legs_count=Count(
+                'legs', filter=Q(legs__payment_status='unpaid')
+            ),
+            _total_legs_count=Count('legs'),
+            _unpaid_amount=Sum(
+                Case(
+                    When(
+                        legs__payment_status='unpaid',
+                        legs__driver_base_pay__isnull=False,
+                        then=Coalesce(F('legs__driver_base_pay'), Value(Decimal('0.00')))
+                             + Coalesce(F('legs__driver_gratuity'), Value(Decimal('0.00')))
+                             + Coalesce(F('legs__driver_additional'), Value(Decimal('0.00')))
+                    ),
+                    When(
+                        legs__payment_status='unpaid',
+                        then=Coalesce(F('legs__driver_pay_amount'), Value(Decimal('0.00')))
+                    ),
+                    default=Value(Decimal('0.00')),
+                    output_field=DecimalField(max_digits=10, decimal_places=2),
+                )
+            ),
+            _total_paid=Coalesce(Sum('payments__amount'), Value(Decimal('0.00'))),
+            _total_profit=Sum(
+                Case(
+                    When(legs__profit_estimate__isnull=False, then=F('legs__profit_estimate')),
+                    default=Value(Decimal('0.00')),
+                    output_field=DecimalField(max_digits=10, decimal_places=2),
+                )
+            ),
+        )
+
     def driver_name(self, obj):
         return (
             f"{obj.profile.first_name} {obj.profile.last_name}"
@@ -85,17 +120,17 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         return obj.profile.email
 
     email.short_description = "Email"
-    
+
     def driver_type_display(self, obj):
         if obj.driver_type == "inhouse":
             return format_html('<span style="color: #0d6efd; font-weight: bold;">Inhouse</span>')
         else:
             return format_html('<span style="color: #ffc107; font-weight: bold;">Affiliate</span>')
-    
+
     driver_type_display.short_description = "Type"
 
     def unpaid_legs_count(self, obj):
-        count = obj.get_unpaid_legs().count()
+        count = obj._unpaid_legs_count
         if count > 0:
             url = (
                 reverse("admin:reservations_leg_changelist")
@@ -109,7 +144,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     unpaid_legs_count.short_description = "Unpaid Legs"
 
     def unpaid_amount(self, obj):
-        amount = obj.get_total_unpaid_amount()
+        amount = obj._unpaid_amount or Decimal('0.00')
         if amount > 0:
             return format_html('<span style="color: green;">${0}</span>', amount)
         elif amount < 0:
@@ -169,26 +204,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     unpaid_amount_display.short_description = "Unpaid Amount"
 
     def total_paid(self, obj):
-        # Sum from DriverPayment records
-        payment_amount = obj.payments.aggregate(total=Sum("amount"))["total"] or 0
-
-        # Sum from individual legs marked as paid but not in payment records
-        paid_legs = Leg.objects.filter(driver=obj, payment_status="paid")
-
-        # Exclude legs that are already in payment records to avoid double counting
-        leg_ids_in_payments = LegPayment.objects.filter(
-            payment__driver=obj
-        ).values_list("leg_id", flat=True)
-
-        standalone_paid_legs = paid_legs.exclude(id__in=leg_ids_in_payments)
-        standalone_amount = sum(
-            leg.total_driver_pay for leg in standalone_paid_legs
-        )
-
-        # Total amount is the sum of both
-        total_amount = payment_amount + standalone_amount
-
-        # Color based on amount - using string formatting correctly
+        total_amount = obj._total_paid
         if total_amount > 0:
             return format_html('<span style="color: green;">${0}</span>', total_amount)
         elif total_amount < 0:
@@ -201,7 +217,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     total_paid.short_description = "Total Paid"
 
     def total_legs(self, obj):
-        count = obj.legs.count()
+        count = obj._total_legs_count
         url = (
             reverse("admin:reservations_leg_changelist")
             + f"?driver__id__exact={obj.id}"
@@ -212,13 +228,9 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
     def profit_performance(self, obj):
         """Display driver's profit performance based on their assigned legs"""
-        legs = obj.legs.all()
-        if not legs:
+        total_profit = obj._total_profit or Decimal('0.00')
+        if obj._total_legs_count == 0:
             return "N/A"
-
-        total_profit = sum(leg.profit_estimate or 0 for leg in legs)
-        completed_legs = legs.filter(status="completed")
-        completed_profit = sum(leg.profit_estimate or 0 for leg in completed_legs)
 
         if total_profit >= 0:
             return format_html('<span style="color: green;">${0}</span>', total_profit)
@@ -683,6 +695,14 @@ class DriverPaymentAdmin(admin.ModelAdmin):
     ]
     date_hierarchy = "payment_date"
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related(
+            'driver', 'driver__profile'
+        ).annotate(
+            _leg_count=Count('leg_payments'),
+        )
+
     def driver_link(self, obj):
         url = reverse("admin:drivers_driver_change", args=[obj.driver.id])
         return format_html('<a href="{}">{}</a>', url, obj.driver)
@@ -720,8 +740,7 @@ class DriverPaymentAdmin(admin.ModelAdmin):
     amount_display.short_description = "Total"
 
     def leg_count(self, obj):
-        count = obj.leg_payments.count()
-        return count
+        return obj._leg_count
 
     leg_count.short_description = "Legs Paid"
 

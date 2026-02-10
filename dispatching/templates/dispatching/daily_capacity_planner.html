@@ -1,0 +1,1398 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load flight_filters %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --gold: #C9A227;
+        --gold-light: #D4AF37;
+        --dark: #0d1117;
+        --dark-secondary: #161b22;
+        --cream: #F8F6F0;
+    }
+
+    /* ── Header ── */
+    .planner-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
+        padding: 2rem 0 1.5rem;
+        margin-top: -1rem;
+        margin-bottom: 2rem;
+    }
+
+    .planner-header h1 { color: #fff; font-size: 1.75rem; }
+    .planner-header .lead { color: rgba(255,255,255,0.7); font-size: 1rem; }
+
+    .date-nav a,
+    .date-nav .btn { font-size: 0.85rem; }
+
+    /* Stat cards inside dark header */
+    .stat-card-dark {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        text-align: center;
+    }
+    .stat-card-dark .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1;
+    }
+    .stat-card-dark .stat-label {
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 0.25rem;
+    }
+
+    /* ── Chart containers ── */
+    .chart-container {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--dark);
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid var(--gold);
+    }
+
+    /* ── Driver timeline ── */
+    .driver-timeline-row {
+        display: flex;
+        align-items: center;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .driver-timeline-row:last-child { border-bottom: none; }
+
+    .driver-name-col {
+        min-width: 130px;
+        max-width: 130px;
+        padding-right: 0.75rem;
+    }
+    .driver-name-col strong {
+        font-size: 0.85rem;
+        color: var(--dark);
+        display: block;
+    }
+    .driver-name-col small {
+        font-size: 0.7rem;
+    }
+
+    .timeline-bar {
+        flex: 1;
+        height: 36px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        position: relative;
+        overflow: visible;
+    }
+
+    .timeline-slot {
+        position: absolute;
+        top: 2px;
+        height: 32px;
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        padding: 0 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: #fff;
+        overflow: hidden;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: opacity 0.15s;
+        z-index: 2;
+    }
+    .timeline-slot:hover { opacity: 0.85; }
+    .timeline-slot.arrival { background: #1565c0; }
+    .timeline-slot.return { background: #2e7d32; }
+    .timeline-slot.cruise { background: #e65100; }
+    .timeline-slot.other { background: #6a1b9a; }
+
+    .timeline-hour-markers {
+        display: flex;
+        padding-left: 130px;
+    }
+    .timeline-hour-markers span {
+        flex: 1;
+        font-size: 0.65rem;
+        color: #999;
+        text-align: left;
+        padding-left: 2px;
+    }
+
+    /* ── Suggestion cards ── */
+    .suggestion-card {
+        border: 1px solid #e9ecef;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        transition: border-color 0.2s;
+    }
+    .suggestion-card:hover { border-color: var(--gold); }
+
+    .suggested-driver {
+        background: #f0faf0;
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .no-fit {
+        background: #fff5f5;
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* ── Badges ── */
+    .badge-arrival { background: #e3f2fd; color: #1565c0; }
+    .badge-return { background: #e8f5e9; color: #2e7d32; }
+    .badge-cruise { background: #fff3e0; color: #e65100; }
+    .badge-other { background: #f3e5f5; color: #6a1b9a; }
+    .badge-trip {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-weight: 600;
+        font-size: 0.7rem;
+    }
+
+    /* ── Batch cards ── */
+    .batch-card {
+        border: 1px solid #e0f0ff;
+        background: #f8fbff;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+    }
+
+    /* ── Tables ── */
+    .table-modern th {
+        background: var(--dark);
+        color: #fff;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        padding: 0.7rem 0.75rem;
+        border: none;
+    }
+    .table-modern td {
+        padding: 0.65rem 0.75rem;
+        vertical-align: middle;
+        color: #212529;
+        font-size: 0.85rem;
+    }
+    .table-modern tbody tr {
+        border-bottom: 1px solid #eee;
+    }
+    .table-modern tbody tr:hover {
+        background-color: var(--cream);
+    }
+
+    /* ── Hour group in schedule ── */
+    .hour-label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--dark);
+        padding: 0.5rem 0;
+        border-left: 3px solid var(--gold);
+        padding-left: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* ── Schedule Builder Modal ── */
+    #scheduleBuilderModal .modal-content {
+        border: none;
+        border-radius: 0.75rem;
+        overflow: hidden;
+    }
+    #scheduleBuilderModal .modal-header {
+        background: var(--dark);
+        color: #fff;
+        border: none;
+        padding: 1.25rem 1.5rem;
+    }
+    #scheduleBuilderModal .modal-header .btn-close {
+        filter: invert(1);
+    }
+    #scheduleBuilderModal .modal-body {
+        padding: 1.5rem;
+    }
+    .sb-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #6c757d;
+        margin-bottom: 0.4rem;
+    }
+    .sb-leg-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid #e9ecef;
+        border-radius: 0.375rem;
+        margin-bottom: 0.4rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-size: 0.85rem;
+    }
+    .sb-leg-item:hover { border-color: var(--gold); background: #fffdf5; }
+    .sb-leg-item.pinned { border-color: var(--gold); background: #fffbea; }
+    .sb-leg-item .pin-icon { color: #ccc; transition: color 0.15s; }
+    .sb-leg-item.pinned .pin-icon { color: var(--gold); }
+
+    .sb-result-slot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.375rem;
+        margin-bottom: 0.35rem;
+        font-size: 0.85rem;
+    }
+    .sb-result-slot.existing { background: #f0f0f0; color: #888; }
+    .sb-result-slot.new-job { background: #e8f5e9; border-left: 3px solid #2e7d32; }
+    .sb-result-slot.pinned-job { background: #fffbea; border-left: 3px solid var(--gold); }
+
+    .sb-jobs-list {
+        max-height: 300px;
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+        .planner-header h1 { font-size: 1.25rem; }
+        .driver-name-col { min-width: 90px; max-width: 90px; }
+        .timeline-slot { font-size: 0.55rem; padding: 0 3px; }
+        .timeline-hour-markers { padding-left: 90px; }
+        .stat-card-dark .stat-value { font-size: 1.25rem; }
+    }
+
+    /* ── Snapshots Panel ── */
+    .snapshots-panel {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-top: 0.75rem;
+    }
+    .snapshots-panel .panel-title {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(255,255,255,0.5);
+        margin-bottom: 0.5rem;
+    }
+    .snapshot-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        border-radius: 0.35rem;
+        background: rgba(255,255,255,0.05);
+        margin-bottom: 0.35rem;
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.85);
+        transition: background 0.15s ease;
+    }
+    .snapshot-item:hover { background: rgba(255,255,255,0.1); }
+    .snapshot-trigger-icon {
+        width: 22px; height: 22px;
+        border-radius: 50%;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 0.65rem; flex-shrink: 0;
+    }
+    .snapshot-trigger-icon.manual { background: rgba(201,162,39,0.2); color: var(--gold); }
+    .snapshot-trigger-icon.auto { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+    .snapshot-meta { flex-grow: 1; }
+    .snapshot-meta .time { font-weight: 600; }
+    .snapshot-meta .detail { font-size: 0.68rem; color: rgba(255,255,255,0.45); }
+    .snapshot-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+    .snapshot-actions .btn { font-size: 0.68rem; padding: 0.15rem 0.5rem; }
+    .snapshot-empty {
+        font-size: 0.78rem;
+        color: rgba(255,255,255,0.35);
+        text-align: center;
+        padding: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<!-- Header -->
+<div class="planner-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6 mb-2 mb-md-0">
+                <h1 class="fw-bold mb-1">Daily Capacity Planner</h1>
+                <p class="lead mb-0">{{ selected_date|date:"l, F j, Y" }}
+                    {% if is_today %}<span class="badge bg-warning text-dark ms-2" style="font-size:0.7rem;">Today</span>{% endif %}
+                    {% if is_past %}<span class="badge bg-secondary ms-2" style="font-size:0.7rem;">Past</span>{% endif %}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <div class="date-nav d-flex align-items-center justify-content-md-end gap-2">
+                    <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                    <input type="date" id="datePicker" value="{{ selected_date|date:'Y-m-d' }}"
+                           class="form-control form-control-sm" style="max-width: 160px; background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.2);">
+                    <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                    {% if not is_today %}
+                    <a href="?date={{ today|date:'Y-m-d' }}" class="btn btn-outline-warning btn-sm">Today</a>
+                    {% endif %}
+                    <button id="saveSnapshotBtn" class="btn btn-sm ms-2" style="border-color: var(--gold); color: var(--gold);" title="Save current schedule as snapshot">
+                        <i class="bi bi-camera me-1"></i>Save
+                    </button>
+                    <button id="resetScheduleBtn" class="btn btn-outline-danger btn-sm" title="Unassign all drivers for this day">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Snapshots Panel -->
+        <div class="snapshots-panel" id="snapshotsPanel" style="display: none;">
+            <div class="d-flex align-items-center justify-content-between">
+                <div class="panel-title"><i class="bi bi-clock-history me-1"></i>Schedule Snapshots</div>
+                <button class="btn btn-sm" style="font-size: 0.68rem; color: rgba(255,255,255,0.4); padding: 0;" onclick="document.getElementById('snapshotsPanel').style.display='none';">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="snapshotsList"></div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="row mt-3 g-2">
+            <div class="col-6 col-md-3">
+                <div class="stat-card-dark">
+                    <div class="stat-value">{{ total_legs }}</div>
+                    <div class="stat-label">Total Jobs</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card-dark">
+                    <div class="stat-value" style="color: {% if coverage.inhouse_pct >= 80 %}#4caf50{% elif coverage.inhouse_pct >= 50 %}var(--gold){% else %}#ef5350{% endif %};">{{ coverage.inhouse_pct }}%</div>
+                    <div class="stat-label">In-House Coverage</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card-dark">
+                    <div class="stat-value" style="color: {% if coverage.unassigned > 0 %}#ef5350{% else %}#4caf50{% endif %};">{{ coverage.unassigned }}</div>
+                    <div class="stat-label">Unassigned</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card-dark">
+                    <div class="stat-value">{{ coverage.affiliate }}</div>
+                    <div class="stat-label">Affiliate</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    {% if total_legs == 0 %}
+    <!-- Empty state -->
+    <div class="chart-container text-center py-5">
+        <i class="bi bi-calendar-x" style="font-size: 3rem; color: #ccc;"></i>
+        <h4 class="mt-3" style="color: var(--dark);">No jobs scheduled</h4>
+        <p class="text-muted">There are no legs for {{ selected_date|date:"F j, Y" }}.</p>
+        <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline-dark btn-sm">Check next day <i class="bi bi-chevron-right"></i></a>
+    </div>
+    {% else %}
+
+    <!-- Driver Timelines -->
+    <div class="chart-container">
+        <div class="chart-title d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-calendar3-range me-2" style="color: var(--gold);"></i>Driver Timelines
+                <small class="text-muted fw-normal ms-2">({{ inhouse_drivers|length }} in-house driver{{ inhouse_drivers|length|pluralize }})</small>
+            </div>
+            {% if unassigned_legs %}
+            <button class="btn btn-sm px-3 py-1" data-bs-toggle="modal" data-bs-target="#scheduleBuilderModal"
+                    style="background: var(--dark); color: var(--gold); font-weight: 600; font-size: 0.8rem; border: 1px solid var(--gold); border-radius: 6px; transition: all 0.2s ease;"
+                    onmouseover="this.style.background='var(--gold)';this.style.color='var(--dark)';"
+                    onmouseout="this.style.background='var(--dark)';this.style.color='var(--gold)';">
+                <i class="bi bi-tools me-1"></i>Schedule Builder
+            </button>
+            {% endif %}
+        </div>
+
+        {% if inhouse_timeline %}
+        <!-- Hour markers -->
+        <div class="timeline-hour-markers mb-1">
+            {% for hour in timeline_hours %}
+            <span>{% if hour == 0 %}12a{% elif hour < 12 %}{{ hour }}a{% elif hour == 12 %}12p{% else %}{{ hour|add:"-12" }}p{% endif %}</span>
+            {% endfor %}
+        </div>
+
+        {% for data in inhouse_timeline %}
+        <div class="driver-timeline-row">
+            <div class="driver-name-col">
+                <strong>{{ data.driver }}</strong>
+                <small class="text-muted">{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}</small>
+            </div>
+            <div class="timeline-bar">
+                {% for slot in data.schedule.slots %}
+                <div class="timeline-slot {{ slot.trip_type }}"
+                     style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
+                     title="{{ slot.pickup_time|time:'g:i A' }} | {{ slot.pickup_location|truncatechars:25 }} → {{ slot.dropoff_location|truncatechars:25 }} | {{ slot.customer_name }}">
+                    {{ slot.pickup_time|time:"g:i" }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- Legend -->
+        <div class="d-flex gap-3 mt-3 flex-wrap">
+            <small><span style="display:inline-block;width:12px;height:12px;background:#1565c0;border-radius:2px;"></span> Arrival</small>
+            <small><span style="display:inline-block;width:12px;height:12px;background:#2e7d32;border-radius:2px;"></span> Return</small>
+            <small><span style="display:inline-block;width:12px;height:12px;background:#e65100;border-radius:2px;"></span> Cruise</small>
+            <small><span style="display:inline-block;width:12px;height:12px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
+        </div>
+
+        {% else %}
+        <p class="text-muted mb-0">No in-house drivers have assigned jobs for this date.</p>
+        {% endif %}
+    </div>
+
+    <div class="row g-3">
+        <!-- Unassigned Jobs with Suggestions -->
+        <div class="col-lg-7">
+            <div class="chart-container">
+                <div class="chart-title d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="bi bi-person-plus me-2" style="color: var(--gold);"></i>Unassigned Jobs
+                        {% if unassigned_legs %}<span class="badge bg-warning text-dark ms-2">{{ unassigned_legs|length }}</span>{% endif %}
+                    </div>
+                    {% if unassigned_legs %}
+                    <button id="autoAssignBtn" class="btn btn-sm px-3 py-1" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600; font-size: 0.8rem; border: none; border-radius: 6px; transition: all 0.2s ease;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(201,162,39,0.4)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
+                        <i class="bi bi-magic me-1"></i>Auto-Assign All
+                    </button>
+                    {% endif %}
+                </div>
+
+                <!-- Auto-assign result alert -->
+                <div id="autoAssignResult" class="d-none mb-3" style="border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.85rem;"></div>
+
+                {% if unassigned_legs %}
+                {% for leg in unassigned_legs %}
+                <div class="suggestion-card mb-3">
+                    <div class="row align-items-start">
+                        <div class="col-sm-7">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <strong style="color: var(--dark);">{{ leg.pickup_time|time:"g:i A" }}</strong>
+                                <span class="badge-trip badge-{{ leg.get_trip_type }}">
+                                    {% if leg.get_trip_type == 'arrival' %}Arrival
+                                    {% elif leg.get_trip_type == 'return' %}Return
+                                    {% elif leg.get_trip_type == 'cruise' %}Cruise
+                                    {% else %}Other{% endif %}
+                                </span>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.8rem;">
+                                {{ leg.pickup_location|truncatechars:40 }}<br>
+                                <i class="bi bi-arrow-right" style="font-size:0.65rem;"></i> {{ leg.dropoff_location|truncatechars:40 }}
+                            </div>
+                            <div class="mt-1" style="font-size: 0.8rem;">
+                                {% if leg.reservation and leg.reservation.customer %}
+                                <a href="{% url 'reservation_details' leg.reservation_id %}" class="text-decoration-none">
+                                    {{ leg.reservation.customer.get_full_name }}
+                                </a>
+                                {% endif %}
+                                {% if leg.revenue_share %}
+                                <span class="text-muted">&middot; ${{ leg.revenue_share|floatformat:0 }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-sm-5 mt-2 mt-sm-0">
+                            {% with suggestion=suggestion_map|dict_lookup:leg.id %}
+                            {% if suggestion and suggestion.suggested_driver_name %}
+                            <div class="suggested-driver">
+                                <small class="text-muted">Suggested:</small>
+                                <div class="fw-bold" style="color: #2e7d32;">{{ suggestion.suggested_driver_name }}</div>
+                                <small class="text-muted">{{ suggestion.reason }}</small>
+                                {% if suggestion.feasibility.warnings %}
+                                {% for w in suggestion.feasibility.warnings %}
+                                <div><small style="color: #e65100;"><i class="bi bi-exclamation-triangle"></i> {{ w }}</small></div>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <div class="no-fit">
+                                <div style="color: #c62828;"><i class="bi bi-person-x"></i> No in-house fit</div>
+                                <small class="text-muted">Assign to affiliate</small>
+                            </div>
+                            {% endif %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="bi bi-check-circle" style="color: #2e7d32; font-size: 1.5rem;"></i>
+                    <p class="text-muted mt-2 mb-0">All jobs are assigned.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Batching Opportunities -->
+        <div class="col-lg-5">
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="bi bi-collection me-2" style="color: var(--gold);"></i>Batching Opportunities
+                    {% if batching %}<span class="badge bg-info ms-2">{{ batching|length }}</span>{% endif %}
+                </div>
+
+                {% if batching %}
+                {% for batch in batching %}
+                <div class="batch-card mb-3">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="badge bg-info">{{ batch.legs|length }} jobs</span>
+                        <strong style="font-size: 0.85rem; color: var(--dark);">{{ batch.location_category }}</strong>
+                    </div>
+                    <small class="text-muted">
+                        {{ batch.time_window_start|time:"g:i A" }} — {{ batch.time_window_end|time:"g:i A" }}
+                    </small>
+                    <div class="mt-2">
+                        {% for leg_info in batch.legs %}
+                        <div class="d-flex justify-content-between align-items-center py-1 {% if not forloop.first %}border-top{% endif %}" style="font-size: 0.8rem;">
+                            <span>{{ leg_info.pickup_time|time:"g:i A" }} &rarr; {{ leg_info.dropoff_location|truncatechars:25 }}</span>
+                            <span class="text-muted">{{ leg_info.driver_name }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted text-center py-3 mb-0">No batching opportunities for this date.</p>
+                {% endif %}
+            </div>
+
+            <!-- Coverage breakdown -->
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="bi bi-pie-chart me-2" style="color: var(--gold);"></i>Coverage Breakdown
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span style="font-size: 0.85rem;">In-House</span>
+                    <strong style="color: #2e7d32;">{{ coverage.inhouse }} jobs &middot; ${{ coverage.inhouse_revenue|floatformat:0 }}</strong>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                    <div class="progress-bar" style="width: {{ coverage.inhouse_pct }}%; background: #2e7d32;"></div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span style="font-size: 0.85rem;">Affiliate</span>
+                    <strong style="color: #666;">{{ coverage.affiliate }} jobs &middot; ${{ coverage.affiliate_revenue|floatformat:0 }}</strong>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                    <div class="progress-bar bg-secondary" style="width: {{ coverage.affiliate_pct }}%;"></div>
+                </div>
+
+                {% if coverage.unassigned > 0 %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span style="font-size: 0.85rem;">Unassigned</span>
+                    <strong style="color: #c62828;">{{ coverage.unassigned }} jobs &middot; ${{ coverage.unassigned_revenue|floatformat:0 }}</strong>
+                </div>
+                <div class="progress mb-3" style="height: 8px;">
+                    <div class="progress-bar" style="width: {{ coverage.unassigned_pct }}%; background: #c62828;"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Day Schedule -->
+    <div class="chart-container mt-3">
+        <div class="chart-title">
+            <i class="bi bi-clock-history me-2" style="color: var(--gold);"></i>Full Day Schedule
+        </div>
+
+        {% for hour, hour_legs in legs_by_hour.items %}
+        <div class="mb-3">
+            <div class="hour-label">
+                {% if hour == 0 %}12:00 AM{% elif hour < 12 %}{{ hour }}:00 AM{% elif hour == 12 %}12:00 PM{% else %}{{ hour|add:"-12" }}:00 PM{% endif %}
+                <span class="badge bg-secondary ms-2" style="font-size: 0.65rem;">{{ hour_legs|length }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-modern table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Route</th>
+                            <th>Customer</th>
+                            <th>Driver</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for leg in hour_legs %}
+                        <tr>
+                            <td><strong>{{ leg.pickup_time|time:"g:i A" }}</strong></td>
+                            <td>
+                                <span class="badge-trip badge-{{ leg.get_trip_type }}">
+                                    {% if leg.get_trip_type == 'arrival' %}Arrival
+                                    {% elif leg.get_trip_type == 'return' %}Return
+                                    {% elif leg.get_trip_type == 'cruise' %}Cruise
+                                    {% else %}Other{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <small>{{ leg.pickup_location|truncatechars:30 }} <i class="bi bi-arrow-right" style="font-size:0.6rem;"></i> {{ leg.dropoff_location|truncatechars:30 }}</small>
+                            </td>
+                            <td>
+                                {% if leg.reservation and leg.reservation.customer %}
+                                <a href="{% url 'reservation_details' leg.reservation_id %}" class="text-decoration-none" style="font-size:0.85rem;">
+                                    {{ leg.reservation.customer.get_full_name }}
+                                </a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if leg.driver %}
+                                <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-secondary{% endif %}" style="font-size:0.7rem;">
+                                    {{ leg.driver }}
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark" style="font-size:0.7rem;">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ leg.get_status_display }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endif %}
+</div>
+
+<!-- Schedule Builder Modal -->
+<div class="modal fade" id="scheduleBuilderModal" tabindex="-1" aria-labelledby="scheduleBuilderLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="scheduleBuilderLabel">
+                    <i class="bi bi-tools me-2" style="color: var(--gold);"></i>Schedule Builder
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Parameters -->
+                <div id="sbParams">
+                    <div class="row g-3 mb-3">
+                        <!-- Driver Selection -->
+                        <div class="col-md-6">
+                            <div class="sb-label">Driver</div>
+                            <select id="sbDriver" class="form-select form-select-sm">
+                                <option value="">Select a driver...</option>
+                                {% for d in inhouse_drivers %}
+                                <option value="{{ d.id }}">{{ d }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Trip Type Preference -->
+                        <div class="col-md-6">
+                            <div class="sb-label">Trip Type Preference (optional)</div>
+                            <select id="sbTripType" class="form-select form-select-sm">
+                                <option value="">No preference - fill any jobs</option>
+                                <option value="arrival">Prefer Arrivals</option>
+                                <option value="return">Prefer Returns</option>
+                                <option value="cruise">Prefer Cruise</option>
+                                <option value="other">Prefer Other</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <!-- Start Hour -->
+                        <div class="col-6">
+                            <div class="sb-label">Available From</div>
+                            <select id="sbStartHour" class="form-select form-select-sm">
+                                <option value="0">12:00 AM</option>
+                                <option value="1">1:00 AM</option>
+                                <option value="2">2:00 AM</option>
+                                <option value="3">3:00 AM</option>
+                                <option value="4" selected>4:00 AM</option>
+                                <option value="5">5:00 AM</option>
+                                <option value="6">6:00 AM</option>
+                                <option value="7">7:00 AM</option>
+                                <option value="8">8:00 AM</option>
+                                <option value="9">9:00 AM</option>
+                                <option value="10">10:00 AM</option>
+                                <option value="11">11:00 AM</option>
+                                <option value="12">12:00 PM</option>
+                                <option value="13">1:00 PM</option>
+                                <option value="14">2:00 PM</option>
+                                <option value="15">3:00 PM</option>
+                                <option value="16">4:00 PM</option>
+                                <option value="17">5:00 PM</option>
+                                <option value="18">6:00 PM</option>
+                                <option value="19">7:00 PM</option>
+                                <option value="20">8:00 PM</option>
+                                <option value="21">9:00 PM</option>
+                                <option value="22">10:00 PM</option>
+                                <option value="23">11:00 PM</option>
+                            </select>
+                        </div>
+
+                        <!-- End Hour -->
+                        <div class="col-6">
+                            <div class="sb-label">Available Until</div>
+                            <select id="sbEndHour" class="form-select form-select-sm">
+                                <option value="6">6:00 AM</option>
+                                <option value="7">7:00 AM</option>
+                                <option value="8">8:00 AM</option>
+                                <option value="9">9:00 AM</option>
+                                <option value="10">10:00 AM</option>
+                                <option value="11">11:00 AM</option>
+                                <option value="12">12:00 PM</option>
+                                <option value="13">1:00 PM</option>
+                                <option value="14">2:00 PM</option>
+                                <option value="15">3:00 PM</option>
+                                <option value="16">4:00 PM</option>
+                                <option value="17">5:00 PM</option>
+                                <option value="18">6:00 PM</option>
+                                <option value="19">7:00 PM</option>
+                                <option value="20">8:00 PM</option>
+                                <option value="21">9:00 PM</option>
+                                <option value="22" selected>10:00 PM</option>
+                                <option value="23">11:00 PM</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Pin Jobs -->
+                    <div class="mb-3">
+                        <div class="sb-label">
+                            Pin Specific Jobs <small class="fw-normal text-muted">(click to pin must-have jobs)</small>
+                        </div>
+                        <div class="sb-jobs-list" id="sbJobsList">
+                            {% for leg in unassigned_legs %}
+                            <div class="sb-leg-item" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" onclick="togglePin(this)">
+                                <i class="bi bi-pin-angle pin-icon"></i>
+                                <div class="flex-grow-1">
+                                    <strong>{{ leg.pickup_time|time:"g:i A" }}</strong>
+                                    <span class="badge-trip badge-{{ leg.get_trip_type }}" style="font-size:0.65rem; padding:0.15rem 0.35rem;">
+                                        {% if leg.get_trip_type == 'arrival' %}Arrival{% elif leg.get_trip_type == 'return' %}Return{% elif leg.get_trip_type == 'cruise' %}Cruise{% else %}Other{% endif %}
+                                    </span>
+                                    <span class="text-muted" style="font-size:0.8rem;">
+                                        {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}
+                                    </span>
+                                </div>
+                                {% if leg.revenue_share %}<span class="text-muted" style="font-size:0.8rem;">${{ leg.revenue_share|floatformat:0 }}</span>{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <button id="sbPreviewBtn" class="btn w-100 py-2" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 700; border: none; border-radius: 8px;" onclick="previewSchedule()">
+                        <i class="bi bi-eye me-2"></i>Preview Schedule
+                    </button>
+                </div>
+
+                <!-- Step 2: Results -->
+                <div id="sbResults" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="backToParams()">
+                            <i class="bi bi-arrow-left me-1"></i>Back to Parameters
+                        </button>
+                        <div id="sbSummary" style="font-size: 0.85rem;"></div>
+                    </div>
+
+                    <!-- Warnings -->
+                    <div id="sbWarnings" class="d-none mb-3" style="background: #fff8e1; border: 1px solid #ffe082; border-radius: 0.5rem; padding: 0.75rem; font-size: 0.85rem; color: #8d6e00;"></div>
+
+                    <!-- Proposed Schedule -->
+                    <div class="sb-label">Proposed Schedule for <span id="sbDriverName"></span></div>
+                    <div id="sbScheduleList" class="mb-3"></div>
+
+                    <!-- Stats -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-4 text-center">
+                            <div style="background: #f8f6f0; border-radius: 0.5rem; padding: 0.75rem;">
+                                <div id="sbStatLegs" style="font-size: 1.5rem; font-weight: 700; color: var(--dark);"></div>
+                                <small class="text-muted">Total Legs</small>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div style="background: #f8f6f0; border-radius: 0.5rem; padding: 0.75rem;">
+                                <div id="sbStatRevenue" style="font-size: 1.5rem; font-weight: 700; color: #2e7d32;"></div>
+                                <small class="text-muted">Revenue</small>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div style="background: #f8f6f0; border-radius: 0.5rem; padding: 0.75rem;">
+                                <div id="sbStatUtil" style="font-size: 1.5rem; font-weight: 700; color: var(--gold);"></div>
+                                <small class="text-muted">Utilization</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="sbApplyBtn" class="btn w-100 py-2" style="background: #2e7d32; color: #fff; font-weight: 700; border: none; border-radius: 8px;" onclick="applySchedule()">
+                        <i class="bi bi-check-lg me-2"></i>Apply Schedule — Assign <span id="sbNewCount"></span> New Legs
+                    </button>
+
+                    <!-- Applied confirmation -->
+                    <div id="sbApplied" class="d-none text-center py-3">
+                        <i class="bi bi-check-circle" style="font-size: 2rem; color: #2e7d32;"></i>
+                        <p class="mt-2 mb-0 fw-bold" style="color: #2e7d32;">Schedule applied! Refreshing...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('datePicker').addEventListener('change', function() {
+        window.location.href = '?date=' + this.value;
+    });
+
+    // Auto-Assign functionality
+    const autoBtn = document.getElementById('autoAssignBtn');
+    if (autoBtn) {
+        autoBtn.addEventListener('click', function() {
+            const btn = this;
+            const resultDiv = document.getElementById('autoAssignResult');
+            const dateVal = document.getElementById('datePicker').value;
+
+            // Confirm before proceeding
+            if (!confirm('Auto-assign all inhouse drivers to unassigned legs for ' + dateVal + '?\n\nThis will apply the suggested assignments shown below.')) {
+                return;
+            }
+
+            // Loading state
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
+
+            fetch('{% url "auto_assign_drivers" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}',
+                },
+                body: JSON.stringify({ date: dateVal }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                resultDiv.classList.remove('d-none');
+                if (data.success) {
+                    resultDiv.style.background = 'rgba(46, 125, 50, 0.1)';
+                    resultDiv.style.border = '1px solid rgba(46, 125, 50, 0.3)';
+                    resultDiv.style.color = '#2e7d32';
+
+                    let html = '<i class="bi bi-check-circle me-2"></i><strong>' + data.assigned + ' legs assigned</strong> to inhouse drivers.';
+                    if (data.remaining > 0) {
+                        html += ' <span style="color:#e65100;">' + data.remaining + ' legs still need affiliates.</span>';
+                    }
+                    if (data.assignments && data.assignments.length > 0) {
+                        html += '<div class="mt-2" style="font-size:0.8rem;">';
+                        data.assignments.forEach(function(a) {
+                            html += '<div class="py-1 border-top" style="border-color:rgba(46,125,50,0.15)!important;">';
+                            html += 'Leg #' + a.leg_id + ' &rarr; <strong>' + a.driver_name + '</strong>';
+                            html += ' <span class="text-muted">(' + a.reason + ')</span></div>';
+                        });
+                        html += '</div>';
+                    }
+                    html += '<div class="mt-2"><small>Refreshing page...</small></div>';
+                    resultDiv.innerHTML = html;
+
+                    // Reload after brief pause so user can see the result
+                    setTimeout(function() { window.location.reload(); }, 2500);
+                } else {
+                    resultDiv.style.background = 'rgba(198, 40, 40, 0.1)';
+                    resultDiv.style.border = '1px solid rgba(198, 40, 40, 0.3)';
+                    resultDiv.style.color = '#c62828';
+                    resultDiv.innerHTML = '<i class="bi bi-x-circle me-2"></i>' + (data.error || data.message || 'Unknown error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto-Assign All';
+                }
+            })
+            .catch(function(err) {
+                resultDiv.classList.remove('d-none');
+                resultDiv.style.background = 'rgba(198, 40, 40, 0.1)';
+                resultDiv.style.border = '1px solid rgba(198, 40, 40, 0.3)';
+                resultDiv.style.color = '#c62828';
+                resultDiv.innerHTML = '<i class="bi bi-x-circle me-2"></i>Network error: ' + err.message;
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto-Assign All';
+            });
+        });
+    }
+
+    // ================================================================
+    // Snapshot Functions
+    // ================================================================
+    const csrfToken = '{{ csrf_token }}';
+    const dateVal = document.getElementById('datePicker').value;
+
+    function loadSnapshots() {
+        fetch('{% url "list_schedule_snapshots" %}?date=' + dateVal)
+        .then(r => r.json())
+        .then(data => {
+            const panel = document.getElementById('snapshotsPanel');
+            const list = document.getElementById('snapshotsList');
+            if (!data.success || !data.snapshots.length) {
+                panel.style.display = 'none';
+                list.innerHTML = '';
+                return;
+            }
+            panel.style.display = 'block';
+            list.innerHTML = data.snapshots.map(s => {
+                const isManual = s.trigger === 'manual';
+                const iconClass = isManual ? 'manual' : 'auto';
+                const icon = isManual ? 'bi-camera' : 'bi-shield-check';
+                const label = s.label ? s.label : s.trigger_display;
+                const notesHtml = s.notes ? `<div class="small mt-1" style="font-style: italic; color: rgba(255,255,255,0.6);"><i class="bi bi-sticky me-1" style="color: var(--gold);"></i>${s.notes}</div>` : '';
+                return `<div class="snapshot-item" data-id="${s.id}">
+                    <span class="snapshot-trigger-icon ${iconClass}"><i class="bi ${icon}"></i></span>
+                    <div class="snapshot-meta">
+                        <span class="time">${s.created_at}</span>
+                        <span class="detail ms-2">${label} &middot; ${s.assigned_count} assigned &middot; by ${s.created_by}</span>
+                        ${notesHtml}
+                    </div>
+                    <div class="snapshot-actions">
+                        <button class="btn btn-outline-light" onclick="restoreSnapshot(${s.id}, '${s.created_at}')">
+                            <i class="bi bi-arrow-return-left me-1"></i>Restore
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="deleteSnapshot(${s.id})" title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        });
+    }
+
+    function saveSnapshot() {
+        const notes = prompt('Add a note for this snapshot (optional):', '');
+        if (notes === null) return;  // User cancelled
+
+        const btn = document.getElementById('saveSnapshotBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+        fetch('{% url "save_schedule_snapshot" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ date: dateVal, notes: notes }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-camera me-1"></i>Save';
+            if (data.success) {
+                loadSnapshots();
+            } else {
+                alert(data.error || 'No assignments to save.');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-camera me-1"></i>Save';
+            alert('Error: ' + err.message);
+        });
+    }
+
+    function restoreSnapshot(id, label) {
+        if (!confirm('Restore schedule from snapshot "' + label + '"?\n\nCurrent assignments will be saved as an auto-snapshot first.')) return;
+
+        fetch('{% url "restore_schedule_snapshot" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ snapshot_id: id }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Error: ' + err.message));
+    }
+
+    function deleteSnapshot(id) {
+        if (!confirm('Delete this snapshot? This cannot be undone.')) return;
+
+        fetch('{% url "delete_schedule_snapshot" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ snapshot_id: id }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                loadSnapshots();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Error: ' + err.message));
+    }
+
+    // Save Snapshot button
+    document.getElementById('saveSnapshotBtn').addEventListener('click', saveSnapshot);
+
+    // Load snapshots on page load
+    loadSnapshots();
+
+    // Reset Schedule functionality
+    const resetBtn = document.getElementById('resetScheduleBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            const btn = this;
+
+            if (!confirm('Reset ALL driver assignments for ' + dateVal + '?\n\nA snapshot will be auto-saved so you can restore later.')) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Resetting...';
+
+            fetch('{% url "reset_schedule" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ date: dateVal }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Reset';
+                }
+            })
+            .catch(function(err) {
+                alert('Network error: ' + err.message);
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Reset';
+            });
+        });
+    }
+
+    // ================================================================
+    // Schedule Builder
+    // ================================================================
+    let sbLastResult = null;   // store payload for apply
+    let sbExcluded = [];       // excluded leg IDs (removed by user)
+
+    function togglePin(el) {
+        el.classList.toggle('pinned');
+        const icon = el.querySelector('.pin-icon');
+        if (el.classList.contains('pinned')) {
+            icon.classList.remove('bi-pin-angle');
+            icon.classList.add('bi-pin-fill');
+        } else {
+            icon.classList.remove('bi-pin-fill');
+            icon.classList.add('bi-pin-angle');
+        }
+    }
+
+    function getPinnedLegIds() {
+        const pinned = document.querySelectorAll('.sb-leg-item.pinned');
+        return Array.from(pinned).map(el => parseInt(el.dataset.legId));
+    }
+
+    function buildPayload(apply) {
+        return {
+            driver_id: parseInt(document.getElementById('sbDriver').value),
+            date: document.getElementById('datePicker').value,
+            start_hour: parseInt(document.getElementById('sbStartHour').value),
+            end_hour: parseInt(document.getElementById('sbEndHour').value),
+            pinned_leg_ids: getPinnedLegIds(),
+            preferred_trip_type: document.getElementById('sbTripType').value,
+            excluded_leg_ids: sbExcluded,
+            apply: apply || false,
+        };
+    }
+
+    function previewSchedule() {
+        const driverId = document.getElementById('sbDriver').value;
+        if (!driverId) {
+            alert('Please select a driver.');
+            return;
+        }
+
+        const btn = document.getElementById('sbPreviewBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Building schedule...';
+
+        const payload = buildPayload(false);
+
+        fetch('{% url "smart_schedule_builder" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-eye me-2"></i>Preview Schedule';
+            if (!data.success) { alert(data.error || 'Error building schedule'); return; }
+            sbLastResult = payload;
+            showResults(data);
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-eye me-2"></i>Preview Schedule';
+            alert('Network error: ' + err.message);
+        });
+    }
+
+    // Remove a job from the preview and re-run
+    function removeJob(legId) {
+        if (!sbExcluded.includes(legId)) sbExcluded.push(legId);
+        // Re-preview with exclusion
+        const payload = buildPayload(false);
+        fetch('{% url "smart_schedule_builder" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { alert(data.error); return; }
+            sbLastResult = payload;
+            showResults(data);
+        });
+    }
+
+    // Show drive time correction modal
+    function showDriveTimeEdit(fromCat, toCat, currentMin, legId) {
+        const newMin = prompt(
+            'Correct drive time:\n' +
+            fromCat + ' \u2192 ' + toCat + '\n\n' +
+            'Current estimate: ' + currentMin + ' minutes\n\n' +
+            'Enter correct drive time in minutes:',
+            currentMin
+        );
+        if (newMin === null) return;
+        const mins = parseInt(newMin);
+        if (isNaN(mins) || mins < 1 || mins > 300) { alert('Invalid minutes'); return; }
+
+        fetch('{% url "update_drive_time" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ from_category: fromCat, to_category: toCat, minutes: mins }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Show confirmation and re-preview
+                const alertHtml = '<div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;font-size:0.85rem;color:#2e7d32;">' +
+                    '<i class="bi bi-check-circle me-1"></i>' + data.message + ' — re-building schedule...</div>';
+                document.getElementById('sbScheduleList').insertAdjacentHTML('beforebegin', alertHtml);
+                setTimeout(function() {
+                    const payload = buildPayload(false);
+                    fetch('{% url "smart_schedule_builder" %}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                        body: JSON.stringify(payload),
+                    })
+                    .then(r => r.json())
+                    .then(data2 => {
+                        if (data2.success) { sbLastResult = payload; showResults(data2); }
+                    });
+                }, 1000);
+            } else {
+                alert(data.error || 'Error updating drive time');
+            }
+        });
+    }
+
+    function showResults(data) {
+        document.getElementById('sbParams').classList.add('d-none');
+        document.getElementById('sbResults').classList.remove('d-none');
+        document.getElementById('sbApplyBtn').classList.remove('d-none');
+        document.getElementById('sbApplied').classList.add('d-none');
+
+        document.getElementById('sbDriverName').textContent = data.driver_name;
+        document.getElementById('sbStatLegs').textContent = data.total_legs;
+        document.getElementById('sbStatRevenue').textContent = '$' + Math.round(data.total_revenue);
+        document.getElementById('sbStatUtil').textContent = data.utilization_pct + '%';
+        document.getElementById('sbNewCount').textContent = data.new_count;
+        document.getElementById('sbSummary').innerHTML =
+            '<span style="color:#2e7d32;font-weight:600;">' + data.new_count + ' new</span> + ' +
+            data.existing_count + ' existing = ' + data.total_legs + ' total legs';
+
+        // Excluded count
+        if (sbExcluded.length > 0) {
+            document.getElementById('sbSummary').innerHTML +=
+                ' <span class="text-muted">(' + sbExcluded.length + ' removed)</span>';
+        }
+
+        // Warnings
+        const warningsDiv = document.getElementById('sbWarnings');
+        if (data.warnings && data.warnings.length > 0) {
+            warningsDiv.classList.remove('d-none');
+            warningsDiv.innerHTML = data.warnings.map(w =>
+                '<div><i class="bi bi-exclamation-triangle me-1"></i>' + w + '</div>'
+            ).join('');
+        } else {
+            warningsDiv.classList.add('d-none');
+        }
+
+        // Schedule list
+        const listDiv = document.getElementById('sbScheduleList');
+        const tripColors = { arrival: '#1565c0', 'return': '#2e7d32', cruise: '#e65100', other: '#6a1b9a' };
+        let html = '';
+
+        data.schedule.forEach(function(slot) {
+            let cls = slot.is_existing ? 'existing' : 'new-job';
+            if (!slot.is_existing && data.pinned_included.includes(slot.leg_id)) cls = 'pinned-job';
+            const color = tripColors[slot.trip_type] || '#666';
+            const isPinned = data.pinned_included.includes(slot.leg_id);
+            const label = slot.is_existing ? '<small class="text-muted">(already assigned)</small>' :
+                          (isPinned ? '<small style="color:var(--gold);">pinned</small>' : '<small style="color:#2e7d32;">new</small>');
+
+            html += '<div class="sb-result-slot ' + cls + '">';
+            html += '<div style="flex:1;">';
+            html += '<div class="d-flex align-items-center gap-2">';
+            html += '<strong>' + slot.pickup_time + '</strong> ';
+            html += '<span style="color:' + color + ';font-size:0.75rem;font-weight:600;">' + slot.trip_type.charAt(0).toUpperCase() + slot.trip_type.slice(1) + '</span> ';
+            html += label;
+            if (slot.cleared_time) {
+                html += '<span style="font-size:0.7rem;color:#666;margin-left:auto;"><i class="bi bi-check2-circle" style="color:#2e7d32;"></i> Cleared ~' + slot.cleared_time + '</span>';
+            }
+            html += '</div>';
+            html += '<div style="font-size:0.8rem;" class="text-muted mt-1">';
+            html += slot.pickup_location + ' &rarr; ' + slot.dropoff_location;
+            html += '</div>';
+            if (slot.customer_name) {
+                html += '<div style="font-size:0.75rem;" class="text-muted">' + slot.customer_name + '</div>';
+            }
+
+            // Timing details (only for new jobs)
+            if (slot.timing && !slot.is_existing) {
+                const t = slot.timing;
+                html += '<div style="font-size:0.75rem;margin-top:0.35rem;padding:0.35rem 0.5rem;background:rgba(0,0,0,0.03);border-radius:0.25rem;border-left:2px solid #ddd;">';
+                html += '<i class="bi bi-clock" style="font-size:0.65rem;"></i> ' + t.reasoning;
+
+                // Drive time correction buttons
+                if (t.reposition_drive_time !== null && t.reposition_from) {
+                    html += ' <button class="btn btn-link p-0 ms-1" style="font-size:0.7rem;color:var(--gold);text-decoration:none;" ';
+                    html += 'onclick="showDriveTimeEdit(\'' + t.reposition_from.replace("'", "\\'") + '\',\'' + t.reposition_to.replace("'", "\\'") + '\',' + t.reposition_drive_time + ',' + slot.leg_id + ')" ';
+                    html += 'title="Correct the ' + t.reposition_from + ' \u2192 ' + t.reposition_to + ' drive time">';
+                    html += '<i class="bi bi-pencil-square"></i> fix reposition</button>';
+                }
+                if (t.job_drive_time) {
+                    html += ' <button class="btn btn-link p-0 ms-1" style="font-size:0.7rem;color:var(--gold);text-decoration:none;" ';
+                    html += 'onclick="showDriveTimeEdit(\'' + t.pickup_category.replace("'", "\\'") + '\',\'' + t.dropoff_category.replace("'", "\\'") + '\',' + t.job_drive_time + ',' + slot.leg_id + ')" ';
+                    html += 'title="Correct the ' + t.pickup_category + ' \u2192 ' + t.dropoff_category + ' drive time">';
+                    html += '<i class="bi bi-pencil-square"></i> fix job drive</button>';
+                }
+                html += '</div>';
+            }
+
+            html += '</div>';
+
+            // Right side: revenue + remove button
+            html += '<div class="d-flex align-items-center gap-2">';
+            if (slot.revenue > 0) {
+                html += '<span style="font-weight:600;">$' + Math.round(slot.revenue) + '</span>';
+            }
+            if (!slot.is_existing) {
+                html += '<button class="btn btn-sm p-0" style="color:#c62828;font-size:0.85rem;line-height:1;" ';
+                html += 'onclick="removeJob(' + slot.leg_id + ')" title="Remove this job and re-build">';
+                html += '<i class="bi bi-x-circle"></i></button>';
+            }
+            html += '</div>';
+            html += '</div>';
+        });
+
+        if (data.new_count === 0) {
+            html += '<div class="text-center py-3 text-muted"><i class="bi bi-info-circle me-1"></i>No additional jobs fit in this window.</div>';
+            document.getElementById('sbApplyBtn').classList.add('d-none');
+        }
+
+        listDiv.innerHTML = html;
+    }
+
+    function backToParams() {
+        document.getElementById('sbParams').classList.remove('d-none');
+        document.getElementById('sbResults').classList.add('d-none');
+        sbExcluded = [];  // reset exclusions when going back
+    }
+
+    function applySchedule() {
+        if (!sbLastResult) return;
+
+        const btn = document.getElementById('sbApplyBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Applying...';
+
+        const payload = buildPayload(true);
+
+        fetch('{% url "smart_schedule_builder" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.applied) {
+                btn.classList.add('d-none');
+                document.getElementById('sbApplied').classList.remove('d-none');
+                setTimeout(function() { window.location.reload(); }, 2000);
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Apply Schedule';
+                alert(data.error || 'Error applying schedule');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Apply Schedule';
+            alert('Network error: ' + err.message);
+        });
+    }
+
+    // Reset modal state when closed
+    document.getElementById('scheduleBuilderModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('sbParams').classList.remove('d-none');
+        document.getElementById('sbResults').classList.add('d-none');
+        sbLastResult = null;
+        sbExcluded = [];
+    });
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

@@ -117,6 +117,14 @@ def easy_datetime(value):
 
 
 @register.filter
+def dict_lookup(dictionary, key):
+    """Look up a key in a dictionary. Usage: {{ mydict|dict_lookup:item.id }}"""
+    if dictionary is None:
+        return None
+    return dictionary.get(key)
+
+
+@register.filter
 def time_ago(value):
     """
     Convert a datetime to a relative time string (e.g., "5 minutes ago", "2 hours ago").

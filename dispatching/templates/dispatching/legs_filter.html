@@ -64,6 +64,11 @@
             <a href="{% url 'reservations_list' %}" class="btn btn-dark"><i class="bi bi-list-ul me-1"></i>All Reservations</a>
             <a href="{% url 'legs_list' %}" class="btn btn-warning"><i class="bi bi-list-ul me-1"></i>All Legs</a>
             <a href="{% url 'driver_payment_management' %}" class="btn btn-info"><i class="bi bi-currency-dollar me-1"></i>Driver Pay</a>
+            {% if request.user.is_superuser %}
+            <button id="saveSnapshotBtn" class="btn btn-outline-secondary" title="Save current schedule as snapshot">
+              <i class="bi bi-camera me-1"></i>Save Snapshot
+            </button>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -2187,6 +2192,45 @@
               }
           });
       });
+
+      // Save Snapshot button
+      const snapshotBtn = document.getElementById('saveSnapshotBtn');
+      if (snapshotBtn) {
+          snapshotBtn.addEventListener('click', function() {
+              const notes = prompt('Add a note for this snapshot (optional):', '');
+              if (notes === null) return;  // User cancelled
+
+              const btn = this;
+              const dateVal = document.getElementById('dateFilter').value;
+
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+              fetch('{% url "save_schedule_snapshot" %}', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': '{{ csrf_token }}',
+                  },
+                  body: JSON.stringify({ date: dateVal, notes: notes }),
+              })
+              .then(r => r.json())
+              .then(data => {
+                  btn.disabled = false;
+                  btn.innerHTML = '<i class="bi bi-camera me-1"></i>Save Snapshot';
+                  if (data.success) {
+                      alert(data.message);
+                  } else {
+                      alert(data.error || 'No assignments to save.');
+                  }
+              })
+              .catch(err => {
+                  btn.disabled = false;
+                  btn.innerHTML = '<i class="bi bi-camera me-1"></i>Save Snapshot';
+                  alert('Error: ' + err.message);
+              });
+          });
+      }
   </script>
 
   <!-- Hidden status history data for each leg -->

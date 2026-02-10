@@ -491,7 +491,9 @@ def reservation_details(request, id):
                 "legs",
                 queryset=Leg.objects.select_related(
                     "flight_information",
+                    "cruise_information",
                     "driver",
+                    "driver__profile",
                     "driver_assigned_by",
                     "status_changed_by"
                 ).prefetch_related(
@@ -506,6 +508,8 @@ def reservation_details(request, id):
             "customer",
             "vehicle",
             "rate",
+            "travel_agent",
+            "travel_agent__user",
             "created_by",
             "modified_by"
         ),
@@ -513,11 +517,11 @@ def reservation_details(request, id):
     )
 
     # Get all drivers for assignment dropdown
-    drivers = Driver.objects.all()
+    drivers = Driver.objects.select_related("profile").all()
 
-    # Calculate payment details - always use the LATEST payment (most recent)
-    payments = reservation.payments.all().order_by('-created_at')
-    latest_payment = payments.first() if payments.exists() else None
+    # Calculate payment details using prefetched data (no extra queries)
+    payments = reservation.payments.all()
+    latest_payment = payments[0] if payments else None
     payment_status = "Paid" if latest_payment and latest_payment.status == "paid" else "Unpaid"
     payment_method = (
         latest_payment.payment_type.title() if latest_payment else "N/A"
@@ -532,7 +536,7 @@ def reservation_details(request, id):
 
     context = {
         "reservation": reservation,
-        "total_legs": reservation.legs.count(),
+        "total_legs": len(reservation.legs.all()),
         "drivers": drivers,
         "payment_status": payment_status,
         "payment_method": payment_method,
@@ -927,6 +931,13 @@ def update_leg_assignment(request):
                         reservation_updated = leg.reservation.check_and_update_completion_status()
                         if reservation_updated:
                             logger.info(f"Auto-completed reservation {leg.reservation.id} - all legs completed")
+
+                        # Incrementally update route timing metrics
+                        try:
+                            from dispatching.analytics import update_single_route_timing_metric
+                            update_single_route_timing_metric(leg)
+                        except Exception as e:
+                            logger.warning(f"Failed to update route metrics for leg {leg_id}: {e}")
                 else:
                     logger.warning(f"Invalid status value: {value}")
                     return JsonResponse(
@@ -3757,6 +3768,7 @@ def driver_payment_management(request):
                         "reservation__travel_agent",
                         "reservation__travel_agent__user",
                         "flight_information",
+                        "cruise_information",
                     )
                     .prefetch_related(
                         Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
@@ -4503,3 +4515,990 @@ def process_refund(request):
     except Exception as e:
         logger.error(f"Error processing refund: {str(e)}", exc_info=True)
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required
+def analytics_dashboard(request):
+    """
+    Analytics dashboard showing key operational metrics.
+
+    This dashboard focuses on metrics that DON'T require LegStatus timestamps,
+    so it works immediately with historical data.
+
+    Shows:
+    - Demand patterns (peak hours, trip type distribution)
+    - Driver utilization (legs per day, revenue)
+    - In-house vs affiliate coverage
+    - Revenue trends
+    """
+    from datetime import datetime, timedelta
+    from django.db.models import Count, Sum, Q, Avg
+    from reservations.models import Leg, DemandPattern, DriverDailyCapacity, RouteTimingMetric
+    from drivers.models import Driver
+    from dispatching.analytics import categorize_location
+
+    # Date range selection (default: last 30 days)
+    days_back = int(request.GET.get('days', 30))
+    end_date = timezone.now().date()
+    start_date = end_date - timedelta(days=days_back)
+
+    # Get all completed legs in date range — evaluate once as a list
+    # to avoid re-executing the queryset on each Python loop
+    legs_list = list(
+        Leg.objects.filter(
+            pickup_date__gte=start_date,
+            pickup_date__lte=end_date,
+            status='completed'
+        ).select_related('driver', 'driver__profile', 'reservation')
+    )
+
+    # Overall statistics
+    total_legs = len(legs_list)
+    total_revenue = sum((leg.revenue_share or Decimal('0.00')) for leg in legs_list)
+
+    # Single pass through legs to compute all metrics at once
+    trip_type_counts = {}
+    route_data = {}
+    driver_stats = {}
+    hourly_demand = {hour: {'arrival': 0, 'return': 0, 'cruise': 0, 'other': 0, 'total': 0} for hour in range(24)}
+    inhouse_count = 0
+    affiliate_count = 0
+
+    for leg in legs_list:
+        trip_type = leg.get_trip_type()
+        revenue = leg.revenue_share or Decimal('0.00')
+
+        # Trip type breakdown
+        trip_type_counts[trip_type] = trip_type_counts.get(trip_type, 0) + 1
+
+        # Driver type breakdown
+        if leg.driver:
+            if leg.driver.driver_type == 'inhouse':
+                inhouse_count += 1
+            else:
+                affiliate_count += 1
+
+            # Driver performance
+            driver_id = leg.driver.id
+            if driver_id not in driver_stats:
+                driver_stats[driver_id] = {
+                    'name': str(leg.driver),
+                    'driver_type': leg.driver.driver_type,
+                    'legs': 0,
+                    'revenue': Decimal('0.00'),
+                    'days_worked': set()
+                }
+            driver_stats[driver_id]['legs'] += 1
+            driver_stats[driver_id]['revenue'] += revenue
+            driver_stats[driver_id]['days_worked'].add(leg.pickup_date)
+
+        # Top routes
+        pickup_cat = categorize_location(leg.pickup_location)
+        dropoff_cat = categorize_location(leg.dropoff_location)
+        route_key = f"{pickup_cat} → {dropoff_cat}"
+        if route_key not in route_data:
+            route_data[route_key] = {'count': 0, 'revenue': Decimal('0.00'), 'trip_type': trip_type}
+        route_data[route_key]['count'] += 1
+        route_data[route_key]['revenue'] += revenue
+
+        # Hourly demand
+        hour = leg.pickup_time.hour
+        hourly_demand[hour][trip_type] += 1
+        hourly_demand[hour]['total'] += 1
+
+    inhouse_percentage = (inhouse_count / total_legs * 100) if total_legs > 0 else 0
+
+    # Sort routes by volume
+    top_routes = sorted(route_data.items(), key=lambda x: x[1]['count'], reverse=True)[:10]
+
+    # Calculate average legs per day for each driver
+    for driver_id, stats in driver_stats.items():
+        days_count = len(stats['days_worked'])
+        stats['avg_legs_per_day'] = stats['legs'] / days_count if days_count > 0 else 0
+        stats['days_worked'] = days_count
+
+    # Sort drivers by total legs
+    top_drivers = sorted(driver_stats.values(), key=lambda x: x['legs'], reverse=True)[:10]
+
+    # Find peak hours
+    peak_hours = sorted(hourly_demand.items(), key=lambda x: x[1]['total'], reverse=True)[:5]
+
+    # Daily trends (last 7 days) — single annotated query instead of 7 × 4 queries
+    daily_trend_start = end_date - timedelta(days=6)
+    daily_trends_qs = (
+        Leg.objects.filter(
+            pickup_date__gte=daily_trend_start,
+            pickup_date__lte=end_date,
+            status='completed'
+        )
+        .values('pickup_date')
+        .annotate(
+            total=Count('id'),
+            revenue=Sum('revenue_share'),
+            inhouse=Count('id', filter=Q(driver__driver_type='inhouse')),
+            affiliate=Count('id', filter=Q(driver__driver_type='affiliate')),
+        )
+    )
+    daily_trends = {}
+    for entry in daily_trends_qs:
+        daily_trends[entry['pickup_date']] = {
+            'total': entry['total'],
+            'revenue': entry['revenue'] or Decimal('0.00'),
+            'inhouse': entry['inhouse'],
+            'affiliate': entry['affiliate'],
+        }
+    # Fill in dates with no data
+    for i in range(7):
+        date = end_date - timedelta(days=i)
+        if date not in daily_trends:
+            daily_trends[date] = {'total': 0, 'revenue': Decimal('0.00'), 'inhouse': 0, 'affiliate': 0}
+    daily_trends = dict(sorted(daily_trends.items(), reverse=True))
+
+    # Route timing metrics (show what we have, even if limited)
+    timing_metrics = RouteTimingMetric.objects.all()[:20]  # Top 20 routes with data
+
+    # Top route timing data for quick reference section
+    top_route_timing = list(
+        RouteTimingMetric.objects.filter(sample_count__gte=3)
+        .order_by('-sample_count')[:5]
+        .values(
+            'pickup_location_category', 'dropoff_location_category',
+            'trip_type', 'sample_count',
+            'avg_drive_time', 'median_drive_time', 'p75_drive_time',
+            'avg_airport_dwell_time', 'median_airport_dwell_time', 'p75_airport_dwell_time',
+            'median_total_time', 'p75_total_time',
+        )
+    )
+    for rt in top_route_timing:
+        sc = rt['sample_count']
+        if sc >= 20:
+            rt['confidence'] = 'high'
+            rt['confidence_label'] = 'High'
+        elif sc >= 10:
+            rt['confidence'] = 'medium'
+            rt['confidence_label'] = 'Medium'
+        else:
+            rt['confidence'] = 'low'
+            rt['confidence_label'] = 'Low'
+
+    # Calculate max hourly demand for chart scaling
+    max_hourly_demand = max([hour_data['total'] for hour_data in hourly_demand.values()]) if hourly_demand else 1
+
+    # Calculate average daily volume
+    avg_daily_volume = round(total_legs / days_back, 1) if days_back > 0 else 0
+
+    context = {
+        'days_back': days_back,
+        'start_date': start_date,
+        'end_date': end_date,
+        'total_legs': total_legs,
+        'total_revenue': total_revenue,
+        'avg_daily_volume': avg_daily_volume,
+        'trip_type_counts': trip_type_counts,
+        'inhouse_count': inhouse_count,
+        'affiliate_count': affiliate_count,
+        'inhouse_percentage': round(inhouse_percentage, 1),
+        'top_routes': top_routes,
+        'top_drivers': top_drivers,
+        'hourly_demand': hourly_demand,
+        'max_hourly_demand': max_hourly_demand,
+        'peak_hours': peak_hours,
+        'daily_trends': daily_trends,
+        'timing_metrics': timing_metrics,
+        'top_route_timing': top_route_timing,
+    }
+
+    return render(request, 'dispatching/analytics_dashboard.html', context)
+
+
+@login_required(login_url="login")
+def capacity_planner(request):
+    """
+    Daily Capacity Planner: helps dispatchers schedule drivers for a specific date.
+    Shows driver timelines, unassigned jobs with suggestions, batching opportunities.
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    from datetime import timedelta
+    from django.db.models import Prefetch
+    from reservations.models import Leg, LegStatus
+    from drivers.models import Driver
+    from dispatching.scheduler import (
+        build_driver_schedules,
+        suggest_assignments,
+        find_batching_opportunities,
+        get_coverage_stats,
+        preload_timing_cache,
+        clear_timing_cache,
+    )
+
+    # Preload route timing metrics into memory (1 query instead of ~1400)
+    preload_timing_cache()
+
+    # Date selection (default: today)
+    selected_date_str = request.GET.get("date")
+    try:
+        selected_date = (
+            datetime.strptime(selected_date_str, "%Y-%m-%d").date()
+            if selected_date_str
+            else timezone.localdate()
+        )
+    except (ValueError, TypeError):
+        selected_date = timezone.localdate()
+
+    prev_date = selected_date - timedelta(days=1)
+    next_date = selected_date + timedelta(days=1)
+    today = timezone.localdate()
+
+    # Query all legs for the selected date
+    legs = (
+        Leg.objects.filter(pickup_date=selected_date)
+        .exclude(reservation__refund_status='completed')
+        .select_related(
+            "reservation",
+            "reservation__customer",
+            "reservation__vehicle",
+            "driver",
+            "driver__profile",
+            "flight_information",
+            "cruise_information",
+        )
+        .prefetch_related(
+            Prefetch(
+                "status_history",
+                queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
+            ),
+        )
+        .order_by("pickup_time")
+    )
+    legs_list = list(legs)
+
+    # Get drivers
+    inhouse_drivers = (
+        Driver.objects.filter(driver_type="inhouse")
+        .select_related("profile")
+        .order_by("profile__first_name")
+    )
+    all_drivers = Driver.objects.select_related("profile").all()
+
+    # Build schedules from assigned legs
+    driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
+
+    inhouse_schedules = {
+        did: sched for did, sched in driver_schedules.items()
+        if sched.driver_type == 'inhouse'
+    }
+
+    # Find unassigned legs and generate suggestions
+    unassigned_legs = [leg for leg in legs_list if leg.driver is None]
+    suggestions = suggest_assignments(unassigned_legs, inhouse_schedules, selected_date)
+    suggestion_map = {s.leg_id: s for s in suggestions}
+
+    # Batching opportunities
+    batching = find_batching_opportunities(legs_list, selected_date)
+
+    # Coverage stats
+    coverage = get_coverage_stats(legs_list)
+
+    # Group legs by hour
+    legs_by_hour = {}
+    for leg in legs_list:
+        h = leg.pickup_time.hour
+        legs_by_hour.setdefault(h, []).append(leg)
+
+    # Timeline display range
+    hours_with_legs = list(legs_by_hour.keys())
+    display_start = min(hours_with_legs) if hours_with_legs else 6
+    display_end = max(hours_with_legs) + 1 if hours_with_legs else 22
+    display_start = min(display_start, 6)
+    display_end = max(display_end, 22)
+    timeline_hours = list(range(display_start, display_end + 1))
+    total_display_minutes = (display_end - display_start + 1) * 60
+
+    # Build in-house timeline data with position calculations
+    inhouse_timeline = []
+    for driver in inhouse_drivers:
+        sched = driver_schedules.get(driver.id)
+        if not sched:
+            continue
+
+        # Calculate position/width percentages for each slot
+        for slot in sched.slots:
+            slot_start_min = (slot.pickup_time.hour - display_start) * 60 + slot.pickup_time.minute
+            slot_end_min = (slot.estimated_end_time.hour - display_start) * 60 + slot.estimated_end_time.minute
+            duration = max(slot_end_min - slot_start_min, 15)
+
+            slot.position_pct = round(max(0, slot_start_min / total_display_minutes * 100), 1)
+            slot.width_pct = round(min(duration / total_display_minutes * 100, 100 - slot.position_pct), 1)
+
+        # Calculate gaps between consecutive slots
+        gaps = []
+        for i in range(len(sched.slots) - 1):
+            cur_end = sched.slots[i].estimated_end_time
+            nxt_start = datetime.combine(selected_date, sched.slots[i + 1].pickup_time)
+            gap_min = int((nxt_start - cur_end).total_seconds() / 60)
+            gaps.append({
+                'after_leg': sched.slots[i].leg_id,
+                'before_leg': sched.slots[i + 1].leg_id,
+                'gap_minutes': gap_min,
+                'is_tight': gap_min < 20,
+                'is_critical': gap_min < 10,
+            })
+
+        inhouse_timeline.append({
+            'driver': driver,
+            'schedule': sched,
+            'gaps': gaps,
+            'total_legs': sched.total_legs,
+            'total_revenue': sched.total_revenue,
+        })
+
+    context = {
+        'selected_date': selected_date,
+        'prev_date': prev_date,
+        'next_date': next_date,
+        'today': today,
+        'is_today': selected_date == today,
+        'is_past': selected_date < today,
+        'legs': legs_list,
+        'total_legs': len(legs_list),
+        'unassigned_legs': unassigned_legs,
+        'suggestion_map': suggestion_map,
+        'inhouse_timeline': inhouse_timeline,
+        'batching': batching,
+        'coverage': coverage,
+        'legs_by_hour': legs_by_hour,
+        'timeline_hours': timeline_hours,
+        'display_start': display_start,
+        'display_end': display_end,
+        'inhouse_drivers': list(inhouse_drivers),
+    }
+
+    clear_timing_cache()
+    return render(request, 'dispatching/daily_capacity_planner.html', context)
+
+
+def _create_schedule_snapshot(target_date, user, trigger):
+    """Save current driver assignments for a date. Returns the snapshot or None if nothing to save."""
+    from reservations.models import ScheduleSnapshot, ScheduleSnapshotEntry
+
+    assigned_legs = Leg.objects.filter(
+        pickup_date=target_date, driver__isnull=False
+    ).select_related('driver', 'driver_assigned_by')
+
+    if not assigned_legs.exists():
+        return None
+
+    snapshot = ScheduleSnapshot.objects.create(
+        schedule_date=target_date,
+        created_by=user,
+        trigger=trigger,
+        assigned_count=assigned_legs.count(),
+    )
+
+    entries = [
+        ScheduleSnapshotEntry(
+            snapshot=snapshot,
+            leg=leg,
+            driver=leg.driver,
+            driver_assigned_by=leg.driver_assigned_by,
+            driver_assigned_at=leg.driver_assigned_at,
+        )
+        for leg in assigned_legs
+    ]
+    ScheduleSnapshotEntry.objects.bulk_create(entries)
+    return snapshot
+
+
+@login_required
+def auto_assign_drivers(request):
+    """
+    Auto-assign inhouse drivers to unassigned legs for a given date.
+    Runs the suggestion engine and applies all assignments at once.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    if not date_str:
+        return JsonResponse({"success": False, "error": "Date required"}, status=400)
+
+    from datetime import datetime as dt
+    from dispatching.scheduler import build_driver_schedules, suggest_assignments
+
+    try:
+        target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    # Get all legs for this date
+    legs = list(
+        Leg.objects.filter(pickup_date=target_date)
+        .select_related("driver", "driver__profile", "reservation")
+    )
+
+    # Get inhouse drivers and build schedules from already-assigned legs
+    inhouse_drivers = Driver.objects.filter(driver_type="inhouse")
+    schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
+
+    # Auto-snapshot before making changes
+    _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
+
+    # Get unassigned legs only
+    unassigned = [l for l in legs if not l.driver]
+    if not unassigned:
+        return JsonResponse({"success": True, "assigned": 0, "message": "No unassigned legs"})
+
+    # Run suggestion engine
+    suggestions = suggest_assignments(unassigned, schedules, target_date)
+
+    # Apply all suggestions
+    assigned_count = 0
+    assignments = []
+    for suggestion in suggestions:
+        try:
+            leg = Leg.objects.get(id=suggestion.leg_id)
+            driver = Driver.objects.get(id=suggestion.suggested_driver_id)
+            leg.driver = driver
+            leg.driver_assigned_by = request.user
+            leg.driver_assigned_at = timezone.now()
+            leg.save()
+            assigned_count += 1
+            assignments.append({
+                "leg_id": leg.id,
+                "driver_name": suggestion.suggested_driver_name,
+                "reason": suggestion.reason,
+            })
+        except (Leg.DoesNotExist, Driver.DoesNotExist):
+            continue
+
+    remaining = len(unassigned) - assigned_count
+    return JsonResponse({
+        "success": True,
+        "assigned": assigned_count,
+        "remaining": remaining,
+        "total": len(legs),
+        "assignments": assignments,
+        "message": f"Assigned {assigned_count} legs to inhouse drivers. {remaining} still need affiliates.",
+    })
+
+
+@login_required
+def reset_schedule(request):
+    """
+    Reset all driver assignments for a given date.
+    Sets driver=None on every leg for that day.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    if not date_str:
+        return JsonResponse({"success": False, "error": "Date required"}, status=400)
+
+    from datetime import datetime as dt
+    try:
+        target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    # Auto-snapshot before resetting
+    snapshot = _create_schedule_snapshot(target_date, request.user, 'before_reset')
+
+    legs = Leg.objects.filter(pickup_date=target_date, driver__isnull=False)
+    count = legs.count()
+    legs.update(driver=None, driver_assigned_by=None, driver_assigned_at=None)
+
+    msg = f"Unassigned {count} legs for {date_str}."
+    if snapshot:
+        msg += f" Snapshot saved ({snapshot.assigned_count} assignments) — you can restore anytime."
+
+    return JsonResponse({
+        "success": True,
+        "reset_count": count,
+        "snapshot_id": snapshot.id if snapshot else None,
+        "message": msg,
+    })
+
+
+@login_required
+def save_schedule_snapshot(request):
+    """Manually save a snapshot of the current schedule for a date."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    data = json.loads(request.body)
+    date_str = data.get("date")
+    label = data.get("label", "")
+    notes = data.get("notes", "")
+
+    from datetime import datetime as dt
+    try:
+        target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
+
+    snapshot = _create_schedule_snapshot(target_date, request.user, 'manual')
+    if snapshot:
+        update_fields = []
+        if label:
+            snapshot.label = label
+            update_fields.append('label')
+        if notes:
+            snapshot.notes = notes
+            update_fields.append('notes')
+        if update_fields:
+            snapshot.save(update_fields=update_fields)
+        return JsonResponse({
+            "success": True,
+            "snapshot_id": snapshot.id,
+            "assigned_count": snapshot.assigned_count,
+            "message": f"Snapshot saved with {snapshot.assigned_count} assignments.",
+        })
+    else:
+        return JsonResponse({
+            "success": False,
+            "error": "No assigned legs to snapshot.",
+        }, status=400)
+
+
+@login_required
+def list_schedule_snapshots(request):
+    """List available snapshots for a date."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    date_str = request.GET.get("date")
+    from datetime import datetime as dt
+    try:
+        target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
+
+    from reservations.models import ScheduleSnapshot
+    snapshots = ScheduleSnapshot.objects.filter(
+        schedule_date=target_date
+    ).select_related('created_by')[:20]
+
+    result = []
+    for s in snapshots:
+        local_time = timezone.localtime(s.created_at)
+        result.append({
+            "id": s.id,
+            "created_at": local_time.strftime("%b %d, %I:%M %p").replace(" 0", " "),
+            "trigger": s.trigger,
+            "trigger_display": s.get_trigger_display(),
+            "label": s.label,
+            "notes": s.notes,
+            "assigned_count": s.assigned_count,
+            "created_by": str(s.created_by) if s.created_by else "System",
+        })
+
+    return JsonResponse({"success": True, "snapshots": result})
+
+
+@login_required
+def restore_schedule_snapshot(request):
+    """Restore a schedule from a snapshot."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    data = json.loads(request.body)
+    snapshot_id = data.get("snapshot_id")
+
+    from reservations.models import ScheduleSnapshot, ScheduleSnapshotEntry
+    try:
+        snapshot = ScheduleSnapshot.objects.get(id=snapshot_id)
+    except ScheduleSnapshot.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Snapshot not found"}, status=404)
+
+    # Auto-save current state before restoring (so restore is also undoable)
+    _create_schedule_snapshot(snapshot.schedule_date, request.user, 'before_reset')
+
+    entries = snapshot.entries.select_related('driver', 'driver_assigned_by')
+
+    # Build a map of leg_id -> assignment from the snapshot
+    assignment_map = {}
+    for entry in entries:
+        assignment_map[entry.leg_id] = entry
+
+    # Get all legs for this date
+    all_legs = Leg.objects.filter(pickup_date=snapshot.schedule_date)
+
+    restored = 0
+    cleared = 0
+    for leg in all_legs:
+        entry = assignment_map.get(leg.id)
+        if entry:
+            # Restore saved assignment
+            leg.driver = entry.driver
+            leg.driver_assigned_by = entry.driver_assigned_by
+            leg.driver_assigned_at = entry.driver_assigned_at
+            leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
+            restored += 1
+        elif leg.driver is not None:
+            # This leg was unassigned in the snapshot, clear it
+            leg.driver = None
+            leg.driver_assigned_by = None
+            leg.driver_assigned_at = None
+            leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
+            cleared += 1
+
+    return JsonResponse({
+        "success": True,
+        "restored": restored,
+        "cleared": cleared,
+        "message": f"Restored {restored} assignments from snapshot. {cleared} legs cleared.",
+    })
+
+
+@login_required
+def delete_schedule_snapshot(request):
+    """Delete a snapshot."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    data = json.loads(request.body)
+    snapshot_id = data.get("snapshot_id")
+
+    from reservations.models import ScheduleSnapshot
+    try:
+        snapshot = ScheduleSnapshot.objects.get(id=snapshot_id)
+        snapshot.delete()
+        return JsonResponse({"success": True, "message": "Snapshot deleted."})
+    except ScheduleSnapshot.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Snapshot not found"}, status=404)
+
+
+@login_required
+def smart_schedule_builder(request):
+    """
+    Build an optimal schedule for a specific driver with parameters:
+    - driver_id: which driver
+    - date: target date
+    - start_hour / end_hour: working window
+    - pinned_leg_ids: legs that MUST be included
+    - preferred_trip_type: 'arrival', 'return', 'cruise', 'other', or '' (no preference)
+    - apply: if true, actually save the assignments. If false, just preview.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from datetime import datetime as dt
+    from dispatching.scheduler import build_driver_schedules, build_smart_schedule
+    from drivers.models import Driver as DriverModel
+
+    # Parse parameters
+    driver_id = data.get("driver_id")
+    date_str = data.get("date")
+    start_hour = int(data.get("start_hour", 0))
+    end_hour = int(data.get("end_hour", 23))
+    pinned_leg_ids = data.get("pinned_leg_ids", [])
+    preferred_trip_type = data.get("preferred_trip_type", "")
+    excluded_leg_ids = data.get("excluded_leg_ids", [])
+    apply_assignments = data.get("apply", False)
+
+    if not driver_id or not date_str:
+        return JsonResponse({"success": False, "error": "driver_id and date are required"}, status=400)
+
+    try:
+        target_date = dt.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    try:
+        driver = DriverModel.objects.get(id=driver_id)
+    except DriverModel.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+
+    # Get all legs for this date
+    legs = list(
+        Leg.objects.filter(pickup_date=target_date)
+        .select_related("driver", "driver__profile", "reservation", "reservation__customer")
+    )
+
+    # Build existing schedule for this driver (already assigned legs)
+    all_drivers = DriverModel.objects.select_related("profile").all()
+    schedules = build_driver_schedules(legs, all_drivers, target_date)
+    existing_schedule = schedules.get(driver.id)
+
+    # Get unassigned legs
+    available_legs = [l for l in legs if not l.driver]
+
+    # Run the smart scheduler
+    result = build_smart_schedule(
+        driver_id=driver.id,
+        driver_name=str(driver),
+        available_legs=available_legs,
+        target_date=target_date,
+        start_hour=start_hour,
+        end_hour=end_hour,
+        pinned_leg_ids=pinned_leg_ids,
+        preferred_trip_type=preferred_trip_type or None,
+        existing_schedule=existing_schedule,
+        excluded_leg_ids=excluded_leg_ids,
+    )
+
+    # Format response
+    timing_details = result.get('slot_timing_details', {})
+    schedule_data = []
+    for slot in result['schedule']:
+        is_existing = existing_schedule and any(
+            s.leg_id == slot.leg_id for s in existing_schedule.slots
+        )
+        slot_data = {
+            'leg_id': slot.leg_id,
+            'pickup_time': slot.pickup_time.strftime('%I:%M %p').lstrip('0'),
+            'cleared_time': slot.estimated_end_time.strftime('%I:%M %p').lstrip('0'),
+            'pickup_location': slot.pickup_location[:50],
+            'dropoff_location': slot.dropoff_location[:50],
+            'trip_type': slot.trip_type,
+            'customer_name': slot.customer_name,
+            'revenue': float(slot.revenue) if slot.revenue else 0,
+            'is_existing': is_existing,
+        }
+        # Add timing details for new slots
+        if slot.leg_id in timing_details:
+            td = timing_details[slot.leg_id]
+            slot_data['timing'] = {
+                'reasoning': td.get('reasoning', ''),
+                'pickup_category': td.get('pickup_category', ''),
+                'dropoff_category': td.get('dropoff_category', ''),
+                'job_drive_time': td.get('job_drive_time'),
+                'reposition_from': td.get('reposition_from'),
+                'reposition_to': td.get('reposition_to'),
+                'reposition_drive_time': td.get('reposition_drive_time'),
+                'buffer_minutes': td.get('buffer_minutes'),
+                'est_end_time': td.get('est_end_time', ''),
+            }
+        schedule_data.append(slot_data)
+
+    response = {
+        'success': True,
+        'driver_name': str(driver),
+        'schedule': schedule_data,
+        'total_legs': result['total_legs'],
+        'existing_count': result['existing_count'],
+        'new_count': result['new_count'],
+        'total_revenue': float(result['total_revenue']),
+        'utilization_pct': result['utilization_pct'],
+        'pinned_included': result['pinned_included'],
+        'pinned_failed': result['pinned_failed'],
+        'warnings': result['warnings'],
+        'applied': False,
+    }
+
+    # If apply=true, save the new assignments
+    if apply_assignments:
+        assigned = 0
+        new_leg_ids = [
+            s.leg_id for s in result['schedule']
+            if not (existing_schedule and any(es.leg_id == s.leg_id for es in existing_schedule.slots))
+        ]
+        for lid in new_leg_ids:
+            try:
+                leg = Leg.objects.get(id=lid)
+                if not leg.driver:  # safety check
+                    leg.driver = driver
+                    leg.driver_assigned_by = request.user
+                    leg.driver_assigned_at = timezone.now()
+                    leg.save()
+                    assigned += 1
+            except Leg.DoesNotExist:
+                continue
+
+        response['applied'] = True
+        response['assigned_count'] = assigned
+        response['message'] = f"Assigned {assigned} new legs to {driver}."
+
+    return JsonResponse(response)
+
+
+@login_required
+def update_drive_time(request):
+    """
+    Update a drive time estimate between two location categories.
+    Called when a dispatcher spots an incorrect drive time in the schedule builder.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from_cat = data.get("from_category", "").strip()
+    to_cat = data.get("to_category", "").strip()
+    minutes = data.get("minutes")
+
+    if not from_cat or not to_cat or minutes is None:
+        return JsonResponse({"success": False, "error": "from_category, to_category, and minutes are required"}, status=400)
+
+    try:
+        minutes = int(minutes)
+        if minutes < 1 or minutes > 300:
+            return JsonResponse({"success": False, "error": "Minutes must be between 1 and 300"}, status=400)
+    except (ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Invalid minutes value"}, status=400)
+
+    from dispatching.scheduler import update_drive_time_estimate, DRIVE_TIME_ESTIMATES
+
+    old_time = DRIVE_TIME_ESTIMATES.get((from_cat, to_cat), 'unknown')
+    update_drive_time_estimate(from_cat, to_cat, minutes)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Updated {from_cat} \u2194 {to_cat}: {old_time} \u2192 {minutes} min",
+        "from_category": from_cat,
+        "to_category": to_cat,
+        "old_minutes": old_time if isinstance(old_time, int) else None,
+        "new_minutes": minutes,
+    })
+
+
+@login_required(login_url="login")
+def route_timing_reference(request):
+    """Route timing reference page showing computed metrics from completed legs."""
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+
+    from reservations.models import RouteTimingMetric
+    from dispatching.scheduler import DRIVE_TIME_ESTIMATES
+
+    # Filters
+    trip_type_filter = request.GET.get('trip_type', '')
+    pickup_filter = request.GET.get('pickup', '')
+    dropoff_filter = request.GET.get('dropoff', '')
+    min_samples = int(request.GET.get('min_samples', 0))
+
+    # Build queryset
+    metrics = RouteTimingMetric.objects.all().order_by(
+        '-sample_count', 'trip_type', 'pickup_location_category'
+    )
+
+    if trip_type_filter:
+        metrics = metrics.filter(trip_type=trip_type_filter)
+    if pickup_filter:
+        metrics = metrics.filter(pickup_location_category=pickup_filter)
+    if dropoff_filter:
+        metrics = metrics.filter(dropoff_location_category=dropoff_filter)
+    if min_samples:
+        metrics = metrics.filter(sample_count__gte=min_samples)
+
+    # Filter options
+    all_metrics = RouteTimingMetric.objects.all()
+    pickup_categories = sorted(all_metrics.values_list('pickup_location_category', flat=True).distinct())
+    dropoff_categories = sorted(all_metrics.values_list('dropoff_location_category', flat=True).distinct())
+    trip_types = sorted(all_metrics.values_list('trip_type', flat=True).distinct())
+
+    # Enrich with confidence + hardcoded comparison
+    metrics_list = []
+    for m in metrics:
+        if m.sample_count >= 20:
+            confidence = 'high'
+        elif m.sample_count >= 10:
+            confidence = 'medium'
+        elif m.sample_count >= 5:
+            confidence = 'low'
+        else:
+            confidence = 'none'
+
+        hardcoded = DRIVE_TIME_ESTIMATES.get(
+            (m.pickup_location_category, m.dropoff_location_category)
+        )
+
+        metrics_list.append({
+            'metric': m,
+            'confidence': confidence,
+            'hardcoded_drive_time': hardcoded,
+        })
+
+    # Summary stats
+    total_routes = all_metrics.values(
+        'pickup_location_category', 'dropoff_location_category'
+    ).distinct().count()
+    total_samples = sum(m.sample_count for m in all_metrics)
+    high_confidence = all_metrics.filter(sample_count__gte=20).count()
+
+    context = {
+        'metrics': metrics_list,
+        'pickup_categories': pickup_categories,
+        'dropoff_categories': dropoff_categories,
+        'trip_types': trip_types,
+        'trip_type_filter': trip_type_filter,
+        'pickup_filter': pickup_filter,
+        'dropoff_filter': dropoff_filter,
+        'min_samples': min_samples,
+        'total_routes': total_routes,
+        'total_samples': total_samples,
+        'high_confidence': high_confidence,
+        'drive_time_estimates': DRIVE_TIME_ESTIMATES,
+    }
+
+    return render(request, 'dispatching/route_timing_reference.html', context)
+
+
+@login_required
+def recalculate_route_metrics(request):
+    """AJAX endpoint to recalculate route timing metrics with optional date filtering."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    data = json.loads(request.body)
+    recent_days = data.get("recent_days")  # None = all data
+
+    if recent_days is not None:
+        try:
+            recent_days = int(recent_days)
+            if recent_days < 1:
+                return JsonResponse({"success": False, "error": "recent_days must be >= 1"}, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({"success": False, "error": "Invalid recent_days value"}, status=400)
+
+    try:
+        from dispatching.analytics import update_all_route_timing_metrics
+        created, updated = update_all_route_timing_metrics(recent_days=recent_days)
+        return JsonResponse({
+            "success": True,
+            "created": created,
+            "updated": updated,
+            "message": f"Recalculated metrics: {created} created, {updated} updated.",
+        })
+    except Exception as e:
+        logger.error(f"Route metrics recalculation failed: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
