@@ -684,6 +684,10 @@ def update_all_route_timing_metrics(recent_days: int = None):
     """
     Recalculate all RouteTimingMetric records from historical data.
 
+    Optimized: loads all legs once, categorizes each leg once, groups by
+    combination, then computes metrics per group. One DB round-trip instead
+    of one per combination.
+
     Args:
         recent_days: If set, only include legs with pickup_date within this many days.
                      None = all completed legs.
@@ -691,11 +695,12 @@ def update_all_route_timing_metrics(recent_days: int = None):
     Returns:
         Tuple of (created_count, updated_count)
     """
+    from collections import defaultdict
     from reservations.models import RouteTimingMetric, Leg
 
     print("Calculating route timing metrics from historical data...")
 
-    # Get completed legs, optionally filtered by recency
+    # Get completed legs, optionally filtered by recency — single DB query
     completed_legs = Leg.objects.filter(status='completed').prefetch_related(
         'status_history', 'flight_information'
     )
@@ -704,7 +709,8 @@ def update_all_route_timing_metrics(recent_days: int = None):
         completed_legs = completed_legs.filter(pickup_date__gte=cutoff)
         print(f"  Filtering to legs from last {recent_days} days (since {cutoff})")
 
-    combinations = set()
+    # Load all legs into memory ONCE, categorize each leg ONCE, group by combination
+    grouped_legs = defaultdict(list)
     for leg in completed_legs:
         trip_type = leg.get_trip_type()
         pickup_cat = categorize_location(leg.pickup_location)
@@ -712,26 +718,87 @@ def update_all_route_timing_metrics(recent_days: int = None):
         time_cat = categorize_time_of_day(leg.pickup_time)
         day_cat = categorize_day_type(leg.pickup_date)
 
-        combinations.add((trip_type, pickup_cat, dropoff_cat, time_cat, day_cat))
+        key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+        grouped_legs[key].append(leg)
 
-    print(f"Found {len(combinations)} unique route combinations to analyze")
+    print(f"Found {len(grouped_legs)} unique route combinations to analyze")
 
     metrics_created = 0
     metrics_updated = 0
     metrics_skipped = 0
 
-    for trip_type, pickup_cat, dropoff_cat, time_cat, day_cat in combinations:
-        # Calculate metrics for this combination
-        metrics_data = calculate_route_timing_metrics(
-            trip_type, pickup_cat, dropoff_cat, time_cat, day_cat
-        )
+    empty_result = {
+        'avg_airport_dwell_time': None,
+        'median_airport_dwell_time': None,
+        'p75_airport_dwell_time': None,
+        'p90_airport_dwell_time': None,
+        'avg_drive_time': None,
+        'median_drive_time': None,
+        'p75_drive_time': None,
+        'p90_drive_time': None,
+        'avg_total_time': None,
+        'median_total_time': None,
+        'p75_total_time': None,
+        'p90_total_time': None,
+        'sample_count': 0,
+    }
 
-        # Skip if no data
+    for (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat), legs_list in grouped_legs.items():
+        # Compute timing stats directly from pre-grouped legs
+        dwell_times = []
+        drive_times = []
+        total_times = []
+
+        for leg in legs_list:
+            dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
+            drive = calculate_drive_time(leg)
+
+            if dwell is not None and (dwell < 0 or dwell > MAX_DWELL_MINUTES):
+                dwell = None
+            if drive is not None and (drive < 0 or drive > MAX_DRIVE_MINUTES):
+                drive = None
+
+            if dwell is not None:
+                dwell_times.append(dwell)
+            if drive is not None:
+                drive_times.append(drive)
+
+            if trip_type == 'arrival' and dwell is not None and drive is not None:
+                total = dwell + drive
+                if total <= MAX_TOTAL_MINUTES:
+                    total_times.append(total)
+            elif drive is not None:
+                if drive <= MAX_TOTAL_MINUTES:
+                    total_times.append(drive)
+
+        metrics_data = dict(empty_result)
+        metrics_data['sample_count'] = len(legs_list)
+
+        if dwell_times:
+            metrics_data['avg_airport_dwell_time'] = int(statistics.mean(dwell_times))
+            if len(dwell_times) >= 2:
+                metrics_data['median_airport_dwell_time'] = int(statistics.median(dwell_times))
+            metrics_data['p75_airport_dwell_time'] = _safe_percentile(dwell_times, 4, 2, 4)
+            metrics_data['p90_airport_dwell_time'] = _safe_percentile(dwell_times, 10, 8, 10)
+
+        if drive_times:
+            metrics_data['avg_drive_time'] = int(statistics.mean(drive_times))
+            if len(drive_times) >= 2:
+                metrics_data['median_drive_time'] = int(statistics.median(drive_times))
+            metrics_data['p75_drive_time'] = _safe_percentile(drive_times, 4, 2, 4)
+            metrics_data['p90_drive_time'] = _safe_percentile(drive_times, 10, 8, 10)
+
+        if total_times:
+            metrics_data['avg_total_time'] = int(statistics.mean(total_times))
+            if len(total_times) >= 2:
+                metrics_data['median_total_time'] = int(statistics.median(total_times))
+            metrics_data['p75_total_time'] = _safe_percentile(total_times, 4, 2, 4)
+            metrics_data['p90_total_time'] = _safe_percentile(total_times, 10, 8, 10)
+
         if metrics_data['sample_count'] == 0:
             metrics_skipped += 1
             continue
 
-        # Create or update record
         metric, created = RouteTimingMetric.objects.update_or_create(
             trip_type=trip_type,
             pickup_location_category=pickup_cat,

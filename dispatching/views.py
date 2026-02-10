@@ -5552,7 +5552,10 @@ def route_timing_reference(request):
 
 @login_required
 def recalculate_route_metrics(request):
-    """AJAX endpoint to recalculate route timing metrics with optional date filtering."""
+    """AJAX endpoint to recalculate route timing metrics with optional date filtering.
+    Runs in a background thread so the request returns immediately without
+    blocking the web server.
+    """
     if not request.user.is_superuser:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
@@ -5569,15 +5572,24 @@ def recalculate_route_metrics(request):
         except (ValueError, TypeError):
             return JsonResponse({"success": False, "error": "Invalid recent_days value"}, status=400)
 
-    try:
-        from dispatching.analytics import update_all_route_timing_metrics
-        created, updated = update_all_route_timing_metrics(recent_days=recent_days)
-        return JsonResponse({
-            "success": True,
-            "created": created,
-            "updated": updated,
-            "message": f"Recalculated metrics: {created} created, {updated} updated.",
-        })
-    except Exception as e:
-        logger.error(f"Route metrics recalculation failed: {e}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+    import threading
+    from django.db import connection
+
+    def _run_recalculation(days):
+        try:
+            from dispatching.analytics import update_all_route_timing_metrics
+            created, updated = update_all_route_timing_metrics(recent_days=days)
+            logger.info(f"Route metrics recalculation complete: {created} created, {updated} updated")
+        except Exception as e:
+            logger.error(f"Route metrics recalculation failed: {e}", exc_info=True)
+        finally:
+            connection.close()
+
+    thread = threading.Thread(target=_run_recalculation, args=(recent_days,), daemon=True)
+    thread.start()
+
+    label = f"last {recent_days} days" if recent_days else "all time"
+    return JsonResponse({
+        "success": True,
+        "message": f"Recalculation started for {label}. This runs in the background — metrics will update shortly.",
+    })
