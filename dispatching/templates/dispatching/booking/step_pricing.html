@@ -82,7 +82,7 @@
               </div>
               <div class="form-text">{{ form.manual_base_price.help_text }}</div>
               {% if form.manual_base_price.errors %}
-                <div class="invalid-feedback">{{ form.manual_base_price.errors.0 }}</div>
+                <div class="invalid-feedback d-block">{{ form.manual_base_price.errors.0 }}</div>
               {% endif %}
             </div>
           </div>
@@ -96,28 +96,80 @@
               </div>
               <div class="form-text">{{ form.additional_charges.help_text }}</div>
               {% if form.additional_charges.errors %}
-                <div class="invalid-feedback">{{ form.additional_charges.errors.0 }}</div>
+                <div class="invalid-feedback d-block">{{ form.additional_charges.errors.0 }}</div>
               {% endif %}
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
-        <div class="row">
+    <!-- Gratuity Section -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fas fa-hand-holding-usd me-2"></i>
+          Gratuity
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row align-items-center">
           <div class="col-md-6">
-            <div class="mb-3">
-              <label class="form-label fw-bold">Total Price</label>
-              <div class="input-group">
-                <span class="input-group-text">$</span>
-                <input type="text"
-                       class="form-control form-control-lg"
-                       id="total-price"
-                       readonly>
-              </div>
-              <div class="form-text">Automatically calculated</div>
+            <label class="form-label fw-bold mb-3">Select Gratuity</label>
+            <div class="d-flex gap-2 flex-wrap" id="gratuity-options">
+              <button type="button" class="btn btn-outline-secondary gratuity-btn active" data-value="none">
+                No Gratuity
+              </button>
+              <button type="button" class="btn btn-outline-warning gratuity-btn" data-value="20">
+                <i class="fas fa-plus me-1"></i>20%
+              </button>
+              <button type="button" class="btn btn-outline-secondary gratuity-btn" data-value="custom">
+                Custom
+              </button>
             </div>
+            <!-- Hidden radio inputs for form submission -->
+            {% for radio in form.gratuity_option %}
+              <div class="d-none">{{ radio }}</div>
+            {% endfor %}
+            {% if form.gratuity_option.errors %}
+              <div class="invalid-feedback d-block">{{ form.gratuity_option.errors.0 }}</div>
+            {% endif %}
           </div>
           <div class="col-md-6">
-            <div class="alert alert-info h-100 d-flex align-items-center">
+            <div id="gratuity-amount-wrapper" style="display: none;">
+              <label for="{{ form.gratuity_amount.id_for_label }}"
+                     class="form-label fw-bold">{{ form.gratuity_amount.label }}</label>
+              <div class="input-group">
+                <span class="input-group-text">$</span>
+                {{ form.gratuity_amount }}
+              </div>
+              <div class="form-text" id="gratuity-help-text">{{ form.gratuity_amount.help_text }}</div>
+              {% if form.gratuity_amount.errors %}
+                <div class="invalid-feedback d-block">{{ form.gratuity_amount.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total Section -->
+    <div class="card mb-4 border-success">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-md-6">
+            <label class="form-label fw-bold fs-5 mb-0">Total Price</label>
+            <div class="input-group input-group-lg mt-2">
+              <span class="input-group-text">$</span>
+              <input type="text"
+                     class="form-control form-control-lg fw-bold"
+                     id="total-price"
+                     readonly>
+            </div>
+            <div class="form-text">Base + Additional Charges + Gratuity</div>
+          </div>
+          <div class="col-md-6">
+            <div class="alert alert-info h-100 d-flex align-items-center mb-0">
               <div>
                 <i class="fas fa-info-circle me-2"></i>
                 <strong>Dispatcher Privilege:</strong> You can set any price regardless of standard rates.
@@ -142,7 +194,7 @@
                  class="form-label fw-bold">{{ form.private_notes.label }}</label>
           {{ form.private_notes }}
           <div class="form-text">{{ form.private_notes.help_text }}</div>
-          {% if form.private_notes.errors %}<div class="invalid-feedback">{{ form.private_notes.errors.0 }}</div>{% endif %}
+          {% if form.private_notes.errors %}<div class="invalid-feedback d-block">{{ form.private_notes.errors.0 }}</div>{% endif %}
         </div>
       </div>
     </div>
@@ -163,22 +215,93 @@
       document.addEventListener('DOMContentLoaded', function() {
           const basePriceInput = document.getElementById('{{ form.manual_base_price.id_for_label }}');
           const additionalChargesInput = document.getElementById('{{ form.additional_charges.id_for_label }}');
+          const gratuityAmountInput = document.getElementById('{{ form.gratuity_amount.id_for_label }}');
           const totalPriceInput = document.getElementById('total-price');
+          const gratuityWrapper = document.getElementById('gratuity-amount-wrapper');
+          const gratuityHelpText = document.getElementById('gratuity-help-text');
+          const gratuityBtns = document.querySelectorAll('.gratuity-btn');
+
+          // Find the hidden radio inputs
+          const radioNone = document.querySelector('input[name="gratuity_option"][value="none"]');
+          const radio20 = document.querySelector('input[name="gratuity_option"][value="20"]');
+          const radioCustom = document.querySelector('input[name="gratuity_option"][value="custom"]');
+
+          let currentOption = '{{ form.gratuity_option.value|default:"none" }}';
 
           // Calculate total price
           function updateTotalPrice() {
               const basePrice = parseFloat(basePriceInput.value) || 0;
               const additionalCharges = parseFloat(additionalChargesInput.value) || 0;
-              const total = basePrice + additionalCharges;
+              const gratuity = parseFloat(gratuityAmountInput.value) || 0;
+              const total = basePrice + additionalCharges + gratuity;
               totalPriceInput.value = total.toFixed(2);
           }
 
-          // Event listeners
-          basePriceInput.addEventListener('input', updateTotalPrice);
-          additionalChargesInput.addEventListener('input', updateTotalPrice);
+          // Calculate 20% gratuity from base price
+          function calculate20Percent() {
+              const basePrice = parseFloat(basePriceInput.value) || 0;
+              return (basePrice * 0.20);
+          }
 
-          // Initialize
-          updateTotalPrice();
+          // Set gratuity option
+          function setGratuityOption(option) {
+              currentOption = option;
+
+              // Update button active states
+              gratuityBtns.forEach(btn => {
+                  btn.classList.remove('active');
+                  if (btn.dataset.value === option) {
+                      btn.classList.add('active');
+                  }
+              });
+
+              // Update hidden radio
+              if (option === 'none') {
+                  radioNone.checked = true;
+                  gratuityWrapper.style.display = 'none';
+                  gratuityAmountInput.value = '0';
+                  gratuityAmountInput.readOnly = false;
+              } else if (option === '20') {
+                  radio20.checked = true;
+                  gratuityWrapper.style.display = 'block';
+                  const amount = calculate20Percent();
+                  gratuityAmountInput.value = amount.toFixed(2);
+                  gratuityAmountInput.readOnly = true;
+                  gratuityHelpText.textContent = '20% of base price (auto-calculated)';
+              } else if (option === 'custom') {
+                  radioCustom.checked = true;
+                  gratuityWrapper.style.display = 'block';
+                  gratuityAmountInput.readOnly = false;
+                  // Only clear if switching from a non-custom option
+                  if (gratuityAmountInput.value === '0' || gratuityAmountInput.value === '0.00') {
+                      gratuityAmountInput.value = '';
+                  }
+                  gratuityAmountInput.focus();
+                  gratuityHelpText.textContent = 'Enter a custom gratuity amount';
+              }
+
+              updateTotalPrice();
+          }
+
+          // Button click handlers
+          gratuityBtns.forEach(btn => {
+              btn.addEventListener('click', function() {
+                  setGratuityOption(this.dataset.value);
+              });
+          });
+
+          // Event listeners for price inputs
+          basePriceInput.addEventListener('input', function() {
+              if (currentOption === '20') {
+                  gratuityAmountInput.value = calculate20Percent().toFixed(2);
+              }
+              updateTotalPrice();
+          });
+          additionalChargesInput.addEventListener('input', updateTotalPrice);
+          gratuityAmountInput.addEventListener('input', updateTotalPrice);
+
+          // Initialize state from form value (handles back-button pre-population)
+          setGratuityOption(currentOption);
 
           // Form validation
           const form = document.querySelector('form');
@@ -197,7 +320,6 @@
 
               if (!isValid) {
                   e.preventDefault();
-                  // Scroll to first invalid field
                   const firstInvalid = form.querySelector('.is-invalid');
                   if (firstInvalid) {
                       firstInvalid.scrollIntoView({
@@ -209,4 +331,32 @@
           });
       });
   </script>
+
+  <style>
+    .gratuity-btn {
+      padding: 0.5rem 1.25rem;
+      font-weight: 500;
+      border-radius: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    .gratuity-btn.active {
+      transform: scale(1.02);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .gratuity-btn[data-value="none"].active {
+      background-color: var(--bs-secondary);
+      color: #fff;
+      border-color: var(--bs-secondary);
+    }
+    .gratuity-btn[data-value="20"].active {
+      background-color: #c8a84e;
+      color: #fff;
+      border-color: #c8a84e;
+    }
+    .gratuity-btn[data-value="custom"].active {
+      background-color: var(--bs-secondary);
+      color: #fff;
+      border-color: var(--bs-secondary);
+    }
+  </style>
 {% endblock %}

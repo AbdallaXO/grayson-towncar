@@ -376,13 +376,28 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
 
         search_query = self.request.GET.get("search_q")
         if search_query:
-            queryset = queryset.filter(
-                Q(customer__first_name__icontains=search_query)
-                | Q(customer__last_name__icontains=search_query)
-                | Q(customer__email__icontains=search_query)
-                | Q(customer__phone_number__icontains=search_query)
-                | Q(id__icontains=search_query)
-            )
+            search_query = search_query.strip()
+            parts = search_query.split()
+            if len(parts) >= 2:
+                # Multi-word search: try first+last name combo AND individual word matches
+                first_part = parts[0]
+                last_part = " ".join(parts[1:])
+                queryset = queryset.filter(
+                    Q(customer__first_name__icontains=first_part, customer__last_name__icontains=last_part)
+                    | Q(customer__first_name__icontains=search_query)
+                    | Q(customer__last_name__icontains=search_query)
+                    | Q(customer__email__icontains=search_query)
+                    | Q(customer__phone_number__icontains=search_query)
+                    | Q(id__icontains=search_query)
+                )
+            else:
+                queryset = queryset.filter(
+                    Q(customer__first_name__icontains=search_query)
+                    | Q(customer__last_name__icontains=search_query)
+                    | Q(customer__email__icontains=search_query)
+                    | Q(customer__phone_number__icontains=search_query)
+                    | Q(id__icontains=search_query)
+                )
 
         time_filter = self.request.GET.get("time_filter")
         if time_filter == "week":
@@ -3042,8 +3057,22 @@ def dispatcher_booking_customer(request):
             messages.success(request, f"Customer {customer.get_full_name()} saved successfully.")
             return redirect('dispatcher_booking_reservation')
     else:
-        form = DispatcherCustomerForm()
-    
+        # Pre-populate from session if customer was already saved (back-button support)
+        initial_data = {}
+        if booking_data.get('customer_id'):
+            try:
+                existing = Customer.objects.get(id=booking_data['customer_id'])
+                initial_data = {
+                    'first_name': existing.first_name,
+                    'last_name': existing.last_name,
+                    'email': existing.email,
+                    'phone_number': existing.phone_number,
+                    'zipcode': existing.zipcode,
+                }
+            except Customer.DoesNotExist:
+                pass
+        form = DispatcherCustomerForm(initial=initial_data)
+
     context = {
         'form': form,
         'step': 2,
@@ -3051,7 +3080,7 @@ def dispatcher_booking_customer(request):
         'step_description': 'Enter customer contact details',
         'booking_data': booking_data
     }
-    
+
     return render(request, 'dispatching/booking/step_customer.html', context)
 
 
@@ -3107,8 +3136,10 @@ def dispatcher_booking_reservation(request):
                     error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
                 messages.error(request, error_msg)
     else:
-        form = DispatcherReservationForm()
-    
+        # Pre-populate from session if data exists (back-button support)
+        initial_data = booking_data.get('reservation_data', {})
+        form = DispatcherReservationForm(initial=initial_data)
+
     context = {
         'form': form,
         'customer': customer,
@@ -3211,9 +3242,16 @@ def dispatcher_booking_legs(request):
                     error_msg = "Please fix the following errors:<br>• " + "<br>• ".join(error_details[:5]) + f"<br>... and {len(error_details) - 5} more error(s). See the form fields below for details."
                 messages.error(request, error_msg)
     else:
-        # Initialize formsets with the right number of forms
-        leg_formset = DispatcherLegFormSet(prefix='legs', initial=[{} for _ in range(num_legs)])
-        flight_formset = DispatcherFlightFormSet(prefix='flights', initial=[{} for _ in range(num_legs)])
+        # Pre-populate from session if data exists (back-button support)
+        legs_initial = booking_data.get('legs_data', [{} for _ in range(num_legs)])
+        flights_initial = booking_data.get('flights_data', [{} for _ in range(num_legs)])
+        # Pad with empty dicts if fewer than num_legs
+        while len(legs_initial) < num_legs:
+            legs_initial.append({})
+        while len(flights_initial) < num_legs:
+            flights_initial.append({})
+        leg_formset = DispatcherLegFormSet(prefix='legs', initial=legs_initial)
+        flight_formset = DispatcherFlightFormSet(prefix='flights', initial=flights_initial)
     
     context = {
         'leg_formset': leg_formset,
@@ -3251,19 +3289,20 @@ def dispatcher_booking_pricing(request):
             # Validate pricing values
             base_price = form.cleaned_data['manual_base_price']
             additional_charges = form.cleaned_data.get('additional_charges', Decimal('0.00'))
+            gratuity_amount = form.cleaned_data.get('gratuity_amount') or Decimal('0.00')
             total_price = form.cleaned_data['total_price']
-            
+
             if base_price < 0:
                 messages.error(request, "Base price cannot be negative.")
             elif total_price < 0:
                 messages.error(request, "Total price cannot be negative.")
-            elif total_price != base_price + additional_charges:
-                messages.error(request, "Total price must equal base price plus additional charges.")
             else:
                 # Save pricing data to session
                 pricing_data = {
                     'manual_base_price': str(base_price),
                     'additional_charges': str(additional_charges),
+                    'gratuity_option': form.cleaned_data.get('gratuity_option', 'none'),
+                    'gratuity_amount': str(gratuity_amount),
                     'total_price': str(total_price),
                     'private_notes': form.cleaned_data.get('private_notes', ''),
                 }
@@ -3484,10 +3523,30 @@ def create_dispatcher_reservation(booking_data):
     try:
         base_price = Decimal(pricing_data.get('manual_base_price', '0'))
         additional_charges = Decimal(pricing_data.get('additional_charges', '0'))
+        gratuity_amount = Decimal(pricing_data.get('gratuity_amount', '0'))
         total_price = Decimal(pricing_data.get('total_price', '0'))
     except (ValueError, TypeError) as e:
         raise ValueError(f"Invalid pricing values: {str(e)}")
-    
+
+    # Determine gratuity percentage (only set if 20% option was selected)
+    gratuity_option = pricing_data.get('gratuity_option', 'none')
+    gratuity_percentage = Decimal('20') if gratuity_option == '20' else None
+
+    # Build special_requests — always append gratuity note to reservation
+    special_requests = reservation_data.get('special_requests', '')
+    num_legs = len(legs_data)
+    if gratuity_amount > 0:
+        gratuity_note = f"20% Gratuity Included (${gratuity_amount:.2f})"
+        if special_requests:
+            special_requests += f"\n{gratuity_note}"
+        else:
+            special_requests = gratuity_note
+
+    # Calculate per-leg gratuity for multi-leg trips (split into each leg's notes)
+    gratuity_per_leg = Decimal('0')
+    if gratuity_amount > 0 and num_legs > 1:
+        gratuity_per_leg = (gratuity_amount / num_legs).quantize(Decimal('0.01'))
+
     # Create reservation within transaction
     from django.db import transaction
     with transaction.atomic():
@@ -3499,13 +3558,15 @@ def create_dispatcher_reservation(booking_data):
             passenger_count=int(reservation_data.get('passenger_count', 1)),
             luggage_count=int(reservation_data.get('luggage_count', 1)),
             store_stop=reservation_data.get('store_stop') == 'True',
-            special_requests=reservation_data.get('special_requests', ''),
+            special_requests=special_requests,
             need_carseats=reservation_data.get('need_carseats') == 'True',
             rf_carseats=int(reservation_data.get('rf_carseats', 0)),
             ff_carseats=int(reservation_data.get('ff_carseats', 0)),
             booster_seats=int(reservation_data.get('booster_seats', 0)),
             base_price=base_price,
             additional_charges=additional_charges,
+            gratuity_amount=gratuity_amount,
+            gratuity_percentage=gratuity_percentage,
             total_price=total_price,
             private_notes=pricing_data.get('private_notes', ''),
             status='confirmed',  # Dispatcher bookings are confirmed by default
@@ -3513,7 +3574,7 @@ def create_dispatcher_reservation(booking_data):
             modified_by=current_user,  # Track who last modified
             last_modified_at=timezone.now()
         )
-        
+
         # Create legs
         if not legs_data:
             raise ValueError("Cannot create reservation: No trip legs provided")
@@ -3567,6 +3628,12 @@ def create_dispatcher_reservation(booking_data):
                     # If invalid, just set to None
                     driver_pay_amount = None
             
+            # Build private_notes — append gratuity split for multi-leg trips
+            private_notes = leg_data.get('private_notes', '')
+            if gratuity_per_leg > 0:
+                gratuity_note = f"${gratuity_per_leg:.2f} Gratuity Included"
+                private_notes = f"{private_notes}\n{gratuity_note}".strip() if private_notes else gratuity_note
+
             leg = Leg.objects.create(
                 reservation=reservation,
                 flight_information=flight,
@@ -3574,7 +3641,7 @@ def create_dispatcher_reservation(booking_data):
                 pickup_time=pickup_time,
                 pickup_location=leg_data.get('pickup_location', ''),
                 dropoff_location=leg_data.get('dropoff_location', ''),
-                private_notes=leg_data.get('private_notes', ''),
+                private_notes=private_notes,
                 driver_pay_amount=driver_pay_amount
             )
     
@@ -3613,7 +3680,19 @@ def customer_search_api(request):
     phone_query = ''.join(filter(str.isdigit, query))
     
     # Search customers by multiple fields
-    search_conditions = Q(first_name__icontains=query) | Q(last_name__icontains=query) | Q(email__icontains=query)
+    parts = query.split()
+    if len(parts) >= 2:
+        # Multi-word: try first+last name combo AND individual word matches
+        first_part = parts[0]
+        last_part = " ".join(parts[1:])
+        search_conditions = (
+            Q(first_name__icontains=first_part, last_name__icontains=last_part)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(email__icontains=query)
+        )
+    else:
+        search_conditions = Q(first_name__icontains=query) | Q(last_name__icontains=query) | Q(email__icontains=query)
     
     # Add phone number search with different formats
     if phone_query:

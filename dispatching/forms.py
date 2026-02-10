@@ -424,6 +424,31 @@ class DispatcherPricingForm(forms.Form):
         help_text="Any additional charges beyond base price"
     )
     
+    gratuity_option = forms.ChoiceField(
+        choices=[('none', 'No Gratuity'), ('20', '20%'), ('custom', 'Custom')],
+        initial='none',
+        required=False,
+        widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+        label="Gratuity",
+    )
+
+    gratuity_amount = forms.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        initial=0,
+        widget=forms.NumberInput(
+            attrs={
+                "class": "form-control form-control-lg",
+                "placeholder": "0.00",
+                "step": "0.01",
+                "min": "0",
+            }
+        ),
+        label="Gratuity Amount ($)",
+        help_text="Gratuity amount to include in the total price"
+    )
+
     private_notes = forms.CharField(
         widget=forms.Textarea(
             attrs={
@@ -441,8 +466,9 @@ class DispatcherPricingForm(forms.Form):
         cleaned_data = super().clean()
         base_price = cleaned_data.get('manual_base_price')
         additional_charges = cleaned_data.get('additional_charges', Decimal('0.00'))
+        gratuity = cleaned_data.get('gratuity_amount') or Decimal('0.00')
         if base_price is not None:
-            cleaned_data['total_price'] = base_price + additional_charges
+            cleaned_data['total_price'] = base_price + additional_charges + gratuity
         return cleaned_data
 
 

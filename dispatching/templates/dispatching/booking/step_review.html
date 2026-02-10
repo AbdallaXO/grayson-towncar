@@ -83,6 +83,16 @@
               <strong>Additional Charges:</strong> ${{ pricing_data.additional_charges }}
             </p>
           {% endif %}
+          {% if pricing_data.gratuity_amount and pricing_data.gratuity_amount != '0' %}
+            <p>
+              <strong>Gratuity:</strong> ${{ pricing_data.gratuity_amount }}
+              {% if pricing_data.gratuity_option == '20' %}
+                <span class="badge bg-warning text-dark">20%</span>
+              {% else %}
+                <span class="badge bg-secondary">Custom</span>
+              {% endif %}
+            </p>
+          {% endif %}
           <p class="fs-5">
             <strong>Total Price:</strong>
             <span class="text-success fw-bold">${{ pricing_data.total_price }}</span>
