@@ -18,13 +18,6 @@
 
 👤 **Abdalla** [@AbdallaXO](https://github.com/AbdallaXO)
 
-👤 **Rayyan** [@RVorajee](https://github.com/RVorajee)
-
-👤 **Hushm** [@HushmKun](https://github.com/HushmKun)
-
-👤 **Anna** [@annadelnegro](https://github.com/annadelnegro)
-
-
 ## Install
 
 ```sh
