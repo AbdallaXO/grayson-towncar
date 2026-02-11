@@ -5022,7 +5022,7 @@ def auto_assign_drivers(request):
     # Get all legs for this date
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
-        .select_related("driver", "driver__profile", "reservation")
+        .select_related("driver", "driver__profile", "reservation", "reservation__vehicle")
     )
 
     # Get inhouse drivers and build schedules from already-assigned legs
@@ -5323,7 +5323,7 @@ def smart_schedule_builder(request):
     # Get all legs for this date
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
-        .select_related("driver", "driver__profile", "reservation", "reservation__customer")
+        .select_related("driver", "driver__profile", "reservation", "reservation__customer", "reservation__vehicle")
     )
 
     # Build existing schedule for this driver (already assigned legs)

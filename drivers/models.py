@@ -104,6 +104,10 @@ class Driver(models.Model):
 
 class FleetVehicle(models.Model):
     vehicle_number = models.CharField(max_length=50, unique=True)
+    vehicle_type = models.ForeignKey(
+        "rates.Vehicle", on_delete=models.SET_NULL, null=True, blank=True,
+        help_text="Vehicle type/tier for scheduling (e.g. SUV, Van, MiniVan)"
+    )
     year = models.PositiveIntegerField()
     make = models.CharField(max_length=50)
     model = models.CharField(max_length=50)

@@ -865,6 +865,6 @@ class LegPaymentAdmin(admin.ModelAdmin):
 
 @admin.register(FleetVehicle)
 class FleetVehicleAdmin(admin.ModelAdmin):
-    list_display = ["vehicle_number", "year", "make", "model"]
+    list_display = ["vehicle_number", "vehicle_type", "year", "make", "model"]
     search_fields = ["vehicle_number", "make", "model"]
-    list_filter = ["year", "make"]
+    list_filter = ["vehicle_type", "year", "make"]
