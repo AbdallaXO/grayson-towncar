@@ -169,3 +169,28 @@ def time_ago(value):
         local_time = timezone.localtime(value)
         return local_time.strftime("%b %d")  # e.g., "Jan 15"
 
+
+@register.filter
+def fmt_dur(minutes):
+    """
+    Format a duration in minutes as a human-friendly string.
+    Under 60m: "42m"
+    60m+: "1h 21m"
+    Exactly on the hour: "2h"
+
+    Usage: {{ value|fmt_dur }}
+    """
+    if minutes is None:
+        return ""
+    try:
+        minutes = int(minutes)
+    except (TypeError, ValueError):
+        return ""
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    remaining = minutes % 60
+    if remaining == 0:
+        return f"{hours}h"
+    return f"{hours}h {remaining}m"
+

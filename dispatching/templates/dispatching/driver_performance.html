@@ -1,5 +1,6 @@
 {% extends 'main.html' %}
 {% load static %}
+{% load flight_filters %}
 
 {% block navbar %}{% endblock %}
 
@@ -408,20 +409,20 @@
             <div class="sb-row">
                 <span class="sb-label">Avg Dwell</span>
                 {% if driver_summary.arrival_avg_dwell %}
-                <span class="sb-value">{{ driver_summary.arrival_avg_dwell }}<span class="unit">m</span></span>
+                <span class="sb-value">{{ driver_summary.arrival_avg_dwell|fmt_dur }}</span>
                 {% else %}<span class="sb-na">&mdash;</span>{% endif %}
             </div>
             <div class="sb-row">
                 <span class="sb-label">Avg Total</span>
                 {% if driver_summary.arrival_avg_total %}
-                <span class="sb-value">{{ driver_summary.arrival_avg_total }}<span class="unit">m</span></span>
+                <span class="sb-value">{{ driver_summary.arrival_avg_total|fmt_dur }}</span>
                 {% else %}<span class="sb-na">&mdash;</span>{% endif %}
             </div>
             {% if driver_summary.arrival_count_with_stop %}
             <div class="sb-row">
                 <span class="sb-label">Avg Total w/ Stop</span>
                 {% if driver_summary.arrival_avg_total_stop %}
-                <span class="sb-value">{{ driver_summary.arrival_avg_total_stop }}<span class="unit">m</span></span>
+                <span class="sb-value">{{ driver_summary.arrival_avg_total_stop|fmt_dur }}</span>
                 {% else %}<span class="sb-na">&mdash;</span>{% endif %}
             </div>
             {% endif %}
@@ -438,13 +439,13 @@
             <div class="sb-row">
                 <span class="sb-label">Avg Drive</span>
                 {% if driver_summary.return_avg_drive %}
-                <span class="sb-value">{{ driver_summary.return_avg_drive }}<span class="unit">m</span></span>
+                <span class="sb-value">{{ driver_summary.return_avg_drive|fmt_dur }}</span>
                 {% else %}<span class="sb-na">&mdash;</span>{% endif %}
             </div>
             <div class="sb-row">
                 <span class="sb-label">Avg Total</span>
                 {% if driver_summary.return_avg_total %}
-                <span class="sb-value">{{ driver_summary.return_avg_total }}<span class="unit">m</span></span>
+                <span class="sb-value">{{ driver_summary.return_avg_total|fmt_dur }}</span>
                 {% else %}<span class="sb-na">&mdash;</span>{% endif %}
             </div>
         </div>
@@ -460,7 +461,7 @@
             <div class="sb-row">
                 <span class="sb-label">Avg Total</span>
                 {% if driver_summary.cruise_avg_total %}
-                <span class="sb-value">{{ driver_summary.cruise_avg_total }}<span class="unit">m</span></span>
+                <span class="sb-value">{{ driver_summary.cruise_avg_total|fmt_dur }}</span>
                 {% else %}<span class="sb-na">&mdash;</span>{% endif %}
             </div>
         </div>
@@ -486,8 +487,8 @@
                 <span class="trip-route">
                     {{ t.pickup_cat }}<span class="arrow">&rarr;</span>{{ t.dropoff_cat }}
                 </span>
-                {% if t.store_stop %}<span class="store-stop-badge"><i class="bi bi-shop me-1"></i>Publix Stop</span>{% endif %}
-                <a href="{% url 'reservation_details' t.reservation_id %}" target="_blank" class="trip-link" title="View Reservation">
+                {% if t.trip_type == 'arrival' and t.store_stop %}<span class="store-stop-badge"><i class="bi bi-shop me-1"></i>Publix Stop</span>{% endif %}
+                <a href="{% url 'reservation_details' t.reservation_uuid %}" target="_blank" class="trip-link" title="View Reservation">
                     <i class="bi bi-box-arrow-up-right"></i>
                 </a>
             </div>
@@ -495,12 +496,27 @@
                 <span>{{ t.customer }}</span>
                 <span class="sep">|</span>
                 <span>{{ t.vehicle }}</span>
+                {% if t.flight_label %}
+                <span class="sep">|</span>
+                <span style="font-weight:600;">{{ t.flight_label }}</span>
+                {% if t.flight_origin %}<span style="color:#aaa;font-size:0.7rem;">from {{ t.flight_origin }}</span>{% endif %}
+                {% endif %}
                 <span class="sep">|</span>
                 <span title="{{ t.pickup_location }} &rarr; {{ t.dropoff_location }}">{{ t.pickup_location|truncatechars:45 }}</span>
             </div>
 
             {# Timeline with durations between dots #}
             <div class="trip-timeline">
+                {# Gate Arrival (arrivals only) #}
+                {% if t.trip_type == 'arrival' and t.gate_arrival_at %}
+                <div class="tl-step active" style="min-width:62px;">
+                    <div class="tl-dot" style="background:#1a56db;border-color:#1a56db;"></div>
+                    <div class="tl-label">Gate</div>
+                    <div class="tl-time">{{ t.gate_arrival_at|time:"g:i A" }}</div>
+                </div>
+                <div class="tl-line active" style="opacity:0.3;background:#1a56db;"></div>
+                {% endif %}
+
                 {# Confirmed #}
                 <div class="tl-step {% if t.confirmed_at %}active{% else %}missing{% endif %}">
                     <div class="tl-dot"></div>
@@ -508,7 +524,7 @@
                     <div class="tl-time">{% if t.confirmed_at %}{{ t.confirmed_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
                 </div>
                 <div class="tl-line {% if t.confirmed_at and t.otw_at %}active{% endif %}">
-                    {% if t.conf_to_otw_min != None %}<span class="tl-dur">{{ t.conf_to_otw_min }}m</span>{% endif %}
+                    {% if t.conf_to_otw_min != None %}<span class="tl-dur">{{ t.conf_to_otw_min|fmt_dur }}</span>{% endif %}
                 </div>
 
                 {# On the Way #}
@@ -518,7 +534,7 @@
                     <div class="tl-time">{% if t.otw_at %}{{ t.otw_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
                 </div>
                 <div class="tl-line {% if t.otw_at and t.on_location_at %}active{% endif %}">
-                    {% if t.otw_to_location_min != None %}<span class="tl-dur">{{ t.otw_to_location_min }}m</span>{% endif %}
+                    {% if t.otw_to_location_min != None %}<span class="tl-dur">{{ t.otw_to_location_min|fmt_dur }}</span>{% endif %}
                 </div>
 
                 {# On Location #}
@@ -528,7 +544,7 @@
                     <div class="tl-time">{% if t.on_location_at %}{{ t.on_location_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
                 </div>
                 <div class="tl-line {% if t.on_location_at and t.picked_up_at %}active{% endif %}">
-                    {% if t.loc_to_pickup_min != None %}<span class="tl-dur">{{ t.loc_to_pickup_min }}m</span>{% endif %}
+                    {% if t.loc_to_pickup_min != None %}<span class="tl-dur">{{ t.loc_to_pickup_min|fmt_dur }}</span>{% endif %}
                 </div>
 
                 {# Picked Up #}
@@ -538,7 +554,7 @@
                     <div class="tl-time">{% if t.picked_up_at %}{{ t.picked_up_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
                 </div>
                 <div class="tl-line {% if t.picked_up_at and t.completed_at %}active{% endif %}">
-                    {% if t.pickup_to_done_min != None %}<span class="tl-dur">{{ t.pickup_to_done_min }}m</span>{% endif %}
+                    {% if t.pickup_to_done_min != None %}<span class="tl-dur">{{ t.pickup_to_done_min|fmt_dur }}</span>{% endif %}
                 </div>
 
                 {# Completed #}
@@ -553,7 +569,7 @@
             <div class="trip-metrics">
                 {% if t.dwell_min != None %}
                 <div class="metric-chip">
-                    <span class="mc-value {% if t.dwell_min > 90 %}bad{% elif t.dwell_min > 60 %}warn{% endif %}">{{ t.dwell_min }}m</span>
+                    <span class="mc-value {% if t.dwell_min > 90 %}bad{% elif t.dwell_min > 60 %}warn{% endif %}">{{ t.dwell_min|fmt_dur }}</span>
                     <span class="mc-label">Dwell</span>
                     <span class="mc-sub">Gate &rarr; Pickup</span>
                 </div>
@@ -561,7 +577,7 @@
                 {% endif %}
                 {% if t.drive_min != None %}
                 <div class="metric-chip">
-                    <span class="mc-value {% if t.drive_min > 120 %}bad{% elif t.drive_min > 75 %}warn{% endif %}">{{ t.drive_min }}m</span>
+                    <span class="mc-value {% if t.drive_min > 120 %}bad{% elif t.drive_min > 75 %}warn{% endif %}">{{ t.drive_min|fmt_dur }}</span>
                     <span class="mc-label">Drive</span>
                     <span class="mc-sub">Pickup &rarr; Dropoff</span>
                 </div>
@@ -569,7 +585,7 @@
                 {% endif %}
                 {% if t.total_min != None %}
                 <div class="metric-chip">
-                    <span class="mc-value {% if t.total_min > 180 %}bad{% elif t.total_min > 120 %}warn{% endif %}" style="color:var(--gold);">{{ t.total_min }}m</span>
+                    <span class="mc-value {% if t.total_min > 180 %}bad{% elif t.total_min > 120 %}warn{% endif %}" style="color:var(--gold);">{{ t.total_min|fmt_dur }}</span>
                     <span class="mc-label">Total</span>
                     <span class="mc-sub">Full trip time</span>
                 </div>
@@ -605,9 +621,9 @@
                 <tr onclick="window.location='?driver={{ d.driver.id }}&date_from={{ date_from }}&date_to={{ date_to }}'">
                     <td class="driver-name">{{ d.driver_name }}</td>
                     <td class="metric">{{ d.total_trips }}</td>
-                    <td class="metric">{% if d.avg_drive %}{{ d.avg_drive }}m{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                    <td class="metric">{% if d.avg_total %}{{ d.avg_total }}m{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                    <td class="metric">{% if d.med_total %}{{ d.med_total }}m{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
+                    <td class="metric">{% if d.avg_drive %}{{ d.avg_drive|fmt_dur }}{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
+                    <td class="metric">{% if d.avg_total %}{{ d.avg_total|fmt_dur }}{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
+                    <td class="metric">{% if d.med_total %}{{ d.med_total|fmt_dur }}{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
                     <td>
                         <span class="track-bar">
                             <span class="fill" style="width:{% widthratio d.valid_count d.total_trips 100 %}%;background:{% if d.valid_count == d.total_trips %}#4CAF50{% elif d.valid_count > 0 %}#FF9800{% else %}#e0e0e0{% endif %};"></span>

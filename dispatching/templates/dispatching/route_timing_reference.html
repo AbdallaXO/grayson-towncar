@@ -1,5 +1,6 @@
 {% extends 'main.html' %}
 {% load static %}
+{% load flight_filters %}
 
 {% block head_extra %}
 <style>
@@ -474,18 +475,18 @@
                                 <div class="metric-group">
                                     <div class="metric-item">
                                         <span class="metric-label">Avg</span>
-                                        <span class="metric-value">{{ row.dwell.avg }}m</span>
+                                        <span class="metric-value">{{ row.dwell.avg|fmt_dur }}</span>
                                     </div>
                                     {% if row.dwell.median %}
                                     <div class="metric-item">
                                         <span class="metric-label">Med</span>
-                                        <span class="metric-value">{{ row.dwell.median }}m</span>
+                                        <span class="metric-value">{{ row.dwell.median|fmt_dur }}</span>
                                     </div>
                                     {% endif %}
                                     {% if row.dwell.p75 %}
                                     <div class="metric-item">
                                         <span class="metric-label">P75</span>
-                                        <span class="metric-value highlight">{{ row.dwell.p75 }}m</span>
+                                        <span class="metric-value highlight">{{ row.dwell.p75|fmt_dur }}</span>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -502,18 +503,18 @@
                                 <div class="metric-group">
                                     <div class="metric-item">
                                         <span class="metric-label">Avg</span>
-                                        <span class="metric-value">{{ row.drive.avg }}m</span>
+                                        <span class="metric-value">{{ row.drive.avg|fmt_dur }}</span>
                                     </div>
                                     {% if row.drive.median %}
                                     <div class="metric-item">
                                         <span class="metric-label">Med</span>
-                                        <span class="metric-value">{{ row.drive.median }}m</span>
+                                        <span class="metric-value">{{ row.drive.median|fmt_dur }}</span>
                                     </div>
                                     {% endif %}
                                     {% if row.drive.p75 %}
                                     <div class="metric-item">
                                         <span class="metric-label">P75</span>
-                                        <span class="metric-value highlight">{{ row.drive.p75 }}m</span>
+                                        <span class="metric-value highlight">{{ row.drive.p75|fmt_dur }}</span>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -527,18 +528,18 @@
                                 <div class="metric-group">
                                     <div class="metric-item">
                                         <span class="metric-label">Avg</span>
-                                        <span class="metric-value">{{ row.total.avg }}m</span>
+                                        <span class="metric-value">{{ row.total.avg|fmt_dur }}</span>
                                     </div>
                                     {% if row.total.median %}
                                     <div class="metric-item">
                                         <span class="metric-label">Med</span>
-                                        <span class="metric-value">{{ row.total.median }}m</span>
+                                        <span class="metric-value">{{ row.total.median|fmt_dur }}</span>
                                     </div>
                                     {% endif %}
                                     {% if row.total.p75 %}
                                     <div class="metric-item">
                                         <span class="metric-label">P75</span>
-                                        <span class="metric-value highlight">{{ row.total.p75 }}m</span>
+                                        <span class="metric-value highlight">{{ row.total.p75|fmt_dur }}</span>
                                     </div>
                                     {% endif %}
                                 </div>

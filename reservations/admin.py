@@ -1,5 +1,5 @@
 # reservations/admin.py
-from datetime import timedelta
+from datetime import date, time, timedelta
 import logging
 
 from django.contrib import admin
@@ -130,6 +130,7 @@ class LegInline(admin.StackedInline):
     form = LegAdminForm
     extra = 1
     show_change_link = True
+    autocomplete_fields = ("flight_information", "cruise_information")
     fieldsets = (
         (
             "Pick-up Details",
@@ -884,6 +885,7 @@ class ReservationAdmin(DispatcherAdminMixin, ImportExportModelAdmin):
     ordering = ("-id",)
     resource_class = ReservationResource
     inlines = [LegInline]
+    autocomplete_fields = ("customer",)
     readonly_fields = (
         "created_at",
         "updated_at",
@@ -1020,7 +1022,11 @@ class ReservationAdmin(DispatcherAdminMixin, ImportExportModelAdmin):
     @admin.display(description="Pick-ups")
     def legs_display(self, obj):
         """Display all legs with their dates and times combined in a single field with clickable links"""
-        legs = obj.legs.all().order_by("pickup_date", "pickup_time")
+        # Sort in Python to use the prefetched cache instead of issuing a new query
+        legs = sorted(
+            obj.legs.all(),
+            key=lambda l: (l.pickup_date or date.min, l.pickup_time or time.min),
+        )
         if not legs:
             return "-"
 
@@ -1307,7 +1313,7 @@ class LegAdmin(ImportExportModelAdmin):
         "driver", "driver__profile",
         "flight_information", "cruise_information",
     )
-    autocomplete_fields = ("reservation",)
+    autocomplete_fields = ("reservation", "flight_information", "cruise_information")
 
     actions = [
         "assign_driver",

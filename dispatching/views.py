@@ -6022,6 +6022,27 @@ def driver_performance(request):
                 pickup_cat = categorize_location(leg.pickup_location)
                 dropoff_cat = categorize_location(leg.dropoff_location)
 
+                # Flight details for arrivals
+                flight_label = ''
+                flight_origin = ''
+                gate_arrival_at = None
+                if leg.flight_information:
+                    fi = leg.flight_information
+                    airline = fi.airline_display_name or fi.airline or ''
+                    fnum = fi.flight_number or ''
+                    flight_label = f"{airline} {fnum}".strip()
+                    # Fallback to flight_iata if no separate airline/number
+                    if not flight_label and fi.flight_iata:
+                        flight_label = fi.flight_iata
+                    flight_origin = fi.origin or ''
+                    gate_arrival_at = (
+                        fi.actual_gate_arrival_local
+                        or fi.estimated_gate_arrival_local
+                        or fi.scheduled_gate_arrival_local
+                    )
+                    if gate_arrival_at and timezone.is_aware(gate_arrival_at):
+                        gate_arrival_at = timezone.localtime(gate_arrival_at)
+
                 # Extract status timestamps from prefetched history
                 status_times = {}
                 if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
@@ -6047,7 +6068,7 @@ def driver_performance(request):
 
                 driver_trips.append({
                     'id': leg.id,
-                    'reservation_id': leg.reservation_id,
+                    'reservation_uuid': leg.reservation.uuid if leg.reservation else None,
                     'pickup_date': leg.pickup_date,
                     'pickup_time': leg.pickup_time,
                     'pickup_location': leg.pickup_location or '',
@@ -6071,6 +6092,9 @@ def driver_performance(request):
                     'loc_to_pickup_min': loc_to_pickup,
                     'pickup_to_done_min': pickup_to_done,
                     'store_stop': leg.reservation.store_stop if leg.reservation else False,
+                    'flight_label': flight_label,
+                    'flight_origin': flight_origin,
+                    'gate_arrival_at': gate_arrival_at,
                 })
 
                 if drive is not None:
