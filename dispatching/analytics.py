@@ -284,8 +284,16 @@ def calculate_airport_dwell_time(leg) -> Optional[int]:
     if not gate_arrival:
         return None
 
-    # Get picked-up timestamp from status history (may not exist for older legs)
-    picked_up_status = leg.status_history.filter(status='picked-up').first()
+    # Get picked-up timestamp from status history
+    # Use Python filtering to avoid N+1 when status_history is prefetched
+    picked_up_status = None
+    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
+        for s in leg.status_history.all():
+            if s.status == 'picked-up':
+                picked_up_status = s
+                break
+    else:
+        picked_up_status = leg.status_history.filter(status='picked-up').first()
     if not picked_up_status:
         return None  # No timestamp data available
 
@@ -324,9 +332,19 @@ def calculate_drive_time(leg) -> Optional[int]:
     """
     from reservations.models import LegStatus
 
-    # Get picked-up and completed timestamps (may not exist for older legs)
-    picked_up_status = leg.status_history.filter(status='picked-up').first()
-    completed_status = leg.status_history.filter(status='completed').first()
+    # Get picked-up and completed timestamps
+    # Use Python filtering to avoid N+1 when status_history is prefetched
+    picked_up_status = None
+    completed_status = None
+    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
+        for s in leg.status_history.all():
+            if s.status == 'picked-up' and picked_up_status is None:
+                picked_up_status = s
+            elif s.status == 'completed' and completed_status is None:
+                completed_status = s
+    else:
+        picked_up_status = leg.status_history.filter(status='picked-up').first()
+        completed_status = leg.status_history.filter(status='completed').first()
 
     if not picked_up_status or not completed_status:
         return None  # No timestamp data available

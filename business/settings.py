@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get(
 # STORAGE_PATH = CONTENT_DIR
 
 
-DEBUG = False
+DEBUG = True
 
 
 ALLOWED_HOSTS = [
@@ -185,6 +185,7 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 # NTFY Settings
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "grayson-leads")
 NTFY_DRIVER_TOPIC = os.environ.get("NTFY_DRIVER_TOPIC", "grayson-driver-noti")
+NTFY_DISPATCH_ALERT_TOPIC = os.environ.get("NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
 NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
 NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
 

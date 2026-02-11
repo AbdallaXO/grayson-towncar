@@ -545,6 +545,49 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
         logger.error(f"Error sending NTFY notification: {str(e)}")
 
 
+def send_dispatch_alert_notification(title, message, priority="urgent", tags=None):
+    """
+    Send a notification to the dispatch alerts channel (grayson-dispatch-alerts).
+    Separate from leads and driver topics — for urgent dispatcher warnings.
+    """
+    if not getattr(settings, "NTFY_ENABLED", False):
+        logger.info("NTFY notifications are disabled")
+        return
+
+    try:
+        topic = getattr(settings, "NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
+        server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
+
+        url = f"{server}/{topic}"
+
+        headers = {
+            "Content-Type": "text/plain; charset=utf-8",
+        }
+
+        if title:
+            headers["Title"] = title.encode("utf-8")
+
+        if priority != "default":
+            headers["Priority"] = priority
+
+        if tags:
+            headers["Tags"] = ",".join(tags)
+
+        response = requests.post(
+            url, data=message.encode("utf-8"), headers=headers, timeout=10
+        )
+
+        if response.status_code == 200:
+            logger.info(f"Dispatch alert sent successfully: {title}")
+        else:
+            logger.error(
+                f"Failed to send dispatch alert. Status: {response.status_code}"
+            )
+
+    except Exception as e:
+        logger.error(f"Error sending dispatch alert: {str(e)}")
+
+
 def send_lead_notification(lead):
     """
     Send a notification for a new lead with urgency based on pickup date proximity.

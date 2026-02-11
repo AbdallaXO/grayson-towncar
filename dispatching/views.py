@@ -237,7 +237,7 @@ def index(request):
     # Compute real-time dispatch flags for today's legs
     today = timezone.localdate()
     if selected_date == today:
-        now = datetime.now()
+        now = timezone.localtime().replace(tzinfo=None)
         for leg in legs:
             leg.dispatch_flags = detect_leg_flags(leg, now)
             # Set worst flag level for row highlighting
@@ -5537,7 +5537,6 @@ def route_timing_reference(request):
     if not request.user.is_superuser:
         return redirect("dashboard")
 
-    from reservations.models import RouteTimingMetric
     from dispatching.scheduler import DRIVE_TIME_ESTIMATES
     from dispatching.analytics import (
         categorize_location, categorize_time_of_day, categorize_day_type,
@@ -5556,180 +5555,143 @@ def route_timing_reference(request):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
-    # Determine if we need on-the-fly computation (driver/date filters)
-    use_live = bool(driver_filter or team_filter or date_from or date_to)
+    # Show "Live" badge when filtering beyond defaults
+    use_live = bool(driver_filter or team_filter or date_from or date_to or trip_type_filter or pickup_filter or dropoff_filter)
 
     # Get all inhouse drivers for filter dropdown
     inhouse_drivers = Driver.objects.filter(driver_type='inhouse').select_related('profile').order_by('profile__first_name')
 
-    if use_live:
-        # On-the-fly computation from raw completed legs
-        legs_qs = Leg.objects.filter(status='completed').prefetch_related(
-            'status_history', 'flight_information'
-        ).select_related('driver')
+    # Always compute from raw completed legs (all-time by default)
+    legs_qs = Leg.objects.filter(status='completed').select_related(
+        'driver', 'flight_information', 'reservation',
+    ).prefetch_related('status_history')
 
-        if driver_filter:
-            legs_qs = legs_qs.filter(driver_id=int(driver_filter))
-        if team_filter == 'inhouse':
-            legs_qs = legs_qs.filter(driver__driver_type='inhouse')
-        if date_from:
-            try:
-                legs_qs = legs_qs.filter(pickup_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                legs_qs = legs_qs.filter(pickup_date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
-            except ValueError:
-                pass
-        # Compute metrics grouped by route + time_of_day + day_type
-        buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': []})
+    if driver_filter:
+        legs_qs = legs_qs.filter(driver_id=int(driver_filter))
+    if team_filter == 'inhouse':
+        legs_qs = legs_qs.filter(driver__driver_type='inhouse')
+    if date_from:
+        try:
+            legs_qs = legs_qs.filter(pickup_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            legs_qs = legs_qs.filter(pickup_date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+        except ValueError:
+            pass
 
-        for leg in legs_qs:
-            pickup_cat = categorize_location(leg.pickup_location)
-            dropoff_cat = categorize_location(leg.dropoff_location)
-            time_cat = categorize_time_of_day(leg.pickup_time)
-            day_cat = categorize_day_type(leg.pickup_date)
-            trip_type = leg.get_trip_type()
+    # Compute metrics grouped by route + time_of_day + day_type
+    buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': []})
 
-            # trip_type is computed (arrival/return/cruise/other), not a DB field
-            if trip_type_filter and trip_type != trip_type_filter:
-                continue
-            if pickup_filter and pickup_cat != pickup_filter:
-                continue
-            if dropoff_filter and dropoff_cat != dropoff_filter:
-                continue
+    for leg in legs_qs:
+        pickup_cat = categorize_location(leg.pickup_location)
+        dropoff_cat = categorize_location(leg.dropoff_location)
+        time_cat = categorize_time_of_day(leg.pickup_time)
+        day_cat = categorize_day_type(leg.pickup_date)
+        trip_type = leg.get_trip_type()
 
-            dwell = calculate_airport_dwell_time(leg)
-            drive = calculate_drive_time(leg)
+        # Separate arrivals with store stop (Publix etc.) — they take longer
+        has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
+        if trip_type == 'arrival' and has_store_stop:
+            trip_type = 'arrival_store'
 
-            key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
-            if dwell is not None:
-                buckets[key]['dwell'].append(dwell)
-            if drive is not None:
-                buckets[key]['drive'].append(drive)
-                total = (dwell + drive) if dwell is not None else drive
-                buckets[key]['total'].append(total)
+        # trip_type is computed (arrival/return/cruise/other), not a DB field
+        if trip_type_filter and trip_type != trip_type_filter:
+            continue
+        if pickup_filter and pickup_cat != pickup_filter:
+            continue
+        if dropoff_filter and dropoff_cat != dropoff_filter:
+            continue
 
-        # Build metrics_list from buckets (with IQR outlier filtering)
-        from dispatching.analytics import iqr_filter
-        metrics_list = []
-        for key, vals in sorted(buckets.items(), key=lambda x: -len(x[1]['drive'])):
-            trip_type, pickup_cat, dropoff_cat, time_cat, day_cat = key
-            # Apply IQR filtering to clean outliers
-            vals['dwell'] = iqr_filter(vals['dwell'])
-            vals['drive'] = iqr_filter(vals['drive'])
-            vals['total'] = iqr_filter(vals['total'])
-            sample_count = len(vals['drive'])
-            if min_samples and sample_count < min_samples:
-                continue
+        dwell = calculate_airport_dwell_time(leg)
+        drive = calculate_drive_time(leg)
 
-            def _stats(lst):
-                if not lst:
-                    return {}
-                r = {'avg': round(statistics.mean(lst))}
-                if len(lst) >= 2:
-                    r['median'] = round(statistics.median(lst))
-                if len(lst) >= 4:
-                    r['p75'] = round(statistics.quantiles(lst, n=4)[2])
-                if len(lst) >= 10:
-                    r['p90'] = round(statistics.quantiles(lst, n=10)[8])
-                return r
+        key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+        if dwell is not None:
+            buckets[key]['dwell'].append(dwell)
+        if drive is not None:
+            buckets[key]['drive'].append(drive)
+            total = (dwell + drive) if dwell is not None else drive
+            buckets[key]['total'].append(total)
 
-            dwell_stats = _stats(vals['dwell'])
-            drive_stats = _stats(vals['drive'])
-            total_stats = _stats(vals['total'])
+    # Build metrics_list from buckets (with IQR outlier filtering)
+    from dispatching.analytics import iqr_filter
 
-            confidence = 'high' if sample_count >= 20 else ('medium' if sample_count >= 10 else ('low' if sample_count >= 5 else 'none'))
-            hardcoded = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat))
+    def _stats(lst):
+        if not lst:
+            return {}
+        r = {'avg': round(statistics.mean(lst))}
+        if len(lst) >= 2:
+            r['median'] = round(statistics.median(lst))
+        if len(lst) >= 4:
+            r['p75'] = round(statistics.quantiles(lst, n=4)[2])
+        if len(lst) >= 10:
+            r['p90'] = round(statistics.quantiles(lst, n=10)[8])
+        return r
 
-            # Match the time_of_day display labels
-            TIME_LABELS = {
-                'early_morning': 'Early Morning (4-7 AM)',
-                'morning_rush': 'Morning Rush (7-10 AM)',
-                'midday': 'Midday (10 AM - 2 PM)',
-                'afternoon': 'Afternoon (2-6 PM)',
-                'evening': 'Evening (6-10 PM)',
-                'night': 'Night (10 PM - 4 AM)',
-            }
-            DAY_LABELS = {'weekday': 'Weekday', 'weekend': 'Weekend', 'holiday': 'Holiday'}
+    TIME_LABELS = {
+        'early_morning': 'Early Morning (4-7 AM)',
+        'morning_rush': 'Morning Rush (7-10 AM)',
+        'midday': 'Midday (10 AM - 2 PM)',
+        'afternoon': 'Afternoon (2-6 PM)',
+        'evening': 'Evening (6-10 PM)',
+        'night': 'Night (10 PM - 4 AM)',
+    }
+    DAY_LABELS = {'weekday': 'Weekday', 'weekend': 'Weekend', 'holiday': 'Holiday'}
 
-            metrics_list.append({
-                'pickup_cat': pickup_cat,
-                'dropoff_cat': dropoff_cat,
-                'trip_type': trip_type,
-                'time_label': TIME_LABELS.get(time_cat, time_cat),
-                'day_label': DAY_LABELS.get(day_cat, day_cat),
-                'sample_count': sample_count,
-                'confidence': confidence,
-                'dwell': dwell_stats,
-                'drive': drive_stats,
-                'total': total_stats,
-                'hardcoded_drive_time': hardcoded,
-            })
+    # Sort order: weekday first, then weekend, then holiday
+    DAY_ORDER = {'weekday': 0, 'weekend': 1, 'holiday': 2}
+    # Chronological: early morning → morning rush → midday → afternoon → evening → night
+    TIME_ORDER = {
+        'early_morning': 0, 'morning_rush': 1, 'midday': 2,
+        'afternoon': 3, 'evening': 4, 'night': 5,
+    }
 
-        total_routes = len(set((m['pickup_cat'], m['dropoff_cat']) for m in metrics_list))
-        total_samples = sum(m['sample_count'] for m in metrics_list)
-        high_confidence = sum(1 for m in metrics_list if m['confidence'] == 'high')
-    else:
-        # Use pre-computed RouteTimingMetric rows
-        metrics_qs = RouteTimingMetric.objects.all().order_by(
-            '-sample_count', 'trip_type', 'pickup_location_category'
-        )
-        if trip_type_filter:
-            metrics_qs = metrics_qs.filter(trip_type=trip_type_filter)
-        if pickup_filter:
-            metrics_qs = metrics_qs.filter(pickup_location_category=pickup_filter)
-        if dropoff_filter:
-            metrics_qs = metrics_qs.filter(dropoff_location_category=dropoff_filter)
-        if min_samples:
-            metrics_qs = metrics_qs.filter(sample_count__gte=min_samples)
+    def _sort_key(item):
+        key = item[0]
+        # key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+        _, _, _, time_cat, day_cat = key
+        return (DAY_ORDER.get(day_cat, 9), TIME_ORDER.get(time_cat, 9))
 
-        metrics_list = []
-        for m in metrics_qs:
-            confidence = 'high' if m.sample_count >= 20 else ('medium' if m.sample_count >= 10 else ('low' if m.sample_count >= 5 else 'none'))
-            hardcoded = DRIVE_TIME_ESTIMATES.get((m.pickup_location_category, m.dropoff_location_category))
+    metrics_list = []
+    for key, vals in sorted(buckets.items(), key=_sort_key):
+        trip_type, pickup_cat, dropoff_cat, time_cat, day_cat = key
+        # Apply IQR filtering to clean outliers
+        vals['dwell'] = iqr_filter(vals['dwell'])
+        vals['drive'] = iqr_filter(vals['drive'])
+        vals['total'] = iqr_filter(vals['total'])
+        sample_count = len(vals['drive'])
+        if min_samples and sample_count < min_samples:
+            continue
 
-            dwell = {}
-            if m.avg_airport_dwell_time: dwell['avg'] = m.avg_airport_dwell_time
-            if m.median_airport_dwell_time: dwell['median'] = m.median_airport_dwell_time
-            if m.p75_airport_dwell_time: dwell['p75'] = m.p75_airport_dwell_time
-            if m.p90_airport_dwell_time: dwell['p90'] = m.p90_airport_dwell_time
-            drive = {}
-            if m.avg_drive_time: drive['avg'] = m.avg_drive_time
-            if m.median_drive_time: drive['median'] = m.median_drive_time
-            if m.p75_drive_time: drive['p75'] = m.p75_drive_time
-            if m.p90_drive_time: drive['p90'] = m.p90_drive_time
-            total = {}
-            if m.avg_total_time: total['avg'] = m.avg_total_time
-            if m.median_total_time: total['median'] = m.median_total_time
-            if m.p75_total_time: total['p75'] = m.p75_total_time
-            if m.p90_total_time: total['p90'] = m.p90_total_time
+        confidence = 'high' if sample_count >= 20 else ('medium' if sample_count >= 10 else ('low' if sample_count >= 5 else 'none'))
+        hardcoded = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat))
 
-            metrics_list.append({
-                'pickup_cat': m.pickup_location_category,
-                'dropoff_cat': m.dropoff_location_category,
-                'trip_type': m.trip_type,
-                'time_label': m.get_time_of_day_category_display(),
-                'day_label': m.get_day_type_display(),
-                'sample_count': m.sample_count,
-                'confidence': confidence,
-                'dwell': dwell,
-                'drive': drive,
-                'total': total,
-                'hardcoded_drive_time': hardcoded,
-            })
+        metrics_list.append({
+            'pickup_cat': pickup_cat,
+            'dropoff_cat': dropoff_cat,
+            'trip_type': trip_type,
+            'time_cat': time_cat,
+            'day_cat': day_cat,
+            'time_label': TIME_LABELS.get(time_cat, time_cat),
+            'day_label': DAY_LABELS.get(day_cat, day_cat),
+            'sample_count': sample_count,
+            'confidence': confidence,
+            'dwell': _stats(vals['dwell']),
+            'drive': _stats(vals['drive']),
+            'total': _stats(vals['total']),
+            'hardcoded_drive_time': hardcoded,
+        })
 
-        all_metrics = RouteTimingMetric.objects.all()
-        total_routes = all_metrics.values('pickup_location_category', 'dropoff_location_category').distinct().count()
-        total_samples = sum(m.sample_count for m in all_metrics)
-        high_confidence = all_metrics.filter(sample_count__gte=20).count()
+    total_routes = len(set((m['pickup_cat'], m['dropoff_cat']) for m in metrics_list))
+    total_samples = sum(m['sample_count'] for m in metrics_list)
+    high_confidence = sum(1 for m in metrics_list if m['confidence'] == 'high')
 
-    # Filter options from pre-computed metrics (always available)
-    all_metrics_qs = RouteTimingMetric.objects.all()
-    pickup_categories = sorted(all_metrics_qs.values_list('pickup_location_category', flat=True).distinct())
-    dropoff_categories = sorted(all_metrics_qs.values_list('dropoff_location_category', flat=True).distinct())
-    trip_types = sorted(all_metrics_qs.values_list('trip_type', flat=True).distinct())
+    # Build filter options from the computed metrics
+    pickup_categories = sorted(set(m['pickup_cat'] for m in metrics_list))
+    dropoff_categories = sorted(set(m['dropoff_cat'] for m in metrics_list))
+    trip_types = sorted(set(m['trip_type'] for m in metrics_list))
 
     # Group metrics by route for card display
     grouped = {}
@@ -5743,6 +5705,14 @@ def route_timing_reference(request):
                 'rows': [],
             }
         grouped[route_key]['rows'].append(m)
+
+    # Sort rows within each route group: weekday first, then chronologically
+    for g in grouped.values():
+        g['rows'].sort(key=lambda r: (
+            DAY_ORDER.get(r.get('day_cat', ''), 9),
+            TIME_ORDER.get(r.get('time_cat', ''), 9),
+        ))
+
     route_groups = sorted(grouped.values(), key=lambda g: -sum(r['sample_count'] for r in g['rows']))
 
     context = {

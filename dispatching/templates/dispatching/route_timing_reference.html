@@ -98,20 +98,20 @@
     .route-hardcoded strong { color: var(--gold); }
 
     /* Route table inside card */
-    .route-table { width: 100%; font-size: 0.9rem; margin: 0; }
+    .route-table { width: 100%; font-size: 0.95rem; margin: 0; }
     .route-table thead th {
         background: #f8f6f0;
         font-weight: 700;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         text-transform: uppercase;
         letter-spacing: 0.3px;
         color: #666;
-        padding: 0.6rem 1rem;
+        padding: 0.75rem 1rem;
         border-bottom: 2px solid #e8e5dd;
         white-space: nowrap;
     }
     .route-table td {
-        padding: 0.65rem 1rem;
+        padding: 0.75rem 1rem;
         vertical-align: middle;
         border-bottom: 1px solid #f0f0f0;
     }
@@ -121,6 +121,7 @@
     /* Badges */
     .badge-trip { padding: 0.25rem 0.6rem; border-radius: 0.3rem; font-weight: 700; font-size: 0.75rem; }
     .badge-arrival { background: #e3f2fd; color: #1565c0; }
+    .badge-arrival_store { background: #e3f2fd; color: #1565c0; border: 2px solid #ff9800; }
     .badge-return { background: #e8f5e9; color: #2e7d32; }
     .badge-cruise { background: #fff3e0; color: #e65100; }
     .badge-other { background: #f3e5f5; color: #6a1b9a; }
@@ -132,11 +133,32 @@
     .confidence-none { background: #f5f5f5; color: #999; }
 
     /* Metric values */
-    .metric-main { font-size: 1rem; font-weight: 700; color: var(--dark); }
-    .metric-sub { font-size: 0.75rem; color: #999; margin-left: 0.25rem; }
-    .metric-na { color: #ccc; font-size: 0.85rem; }
-    .time-period { font-size: 0.85rem; color: #555; }
-    .day-type { font-size: 0.75rem; color: #999; }
+    .metric-group { display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
+    .metric-item { text-align: center; min-width: 50px; }
+    .metric-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #999; display: block; margin-bottom: 1px; }
+    .metric-value { font-size: 0.95rem; font-weight: 700; color: var(--dark); }
+    .metric-value.highlight { color: var(--gold); }
+    .metric-na { color: #ccc; font-size: 0.9rem; }
+    .time-period { font-size: 0.9rem; color: #555; }
+    .day-type { font-size: 0.8rem; color: #999; }
+
+    /* Info icon tooltip trigger */
+    .info-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #e8e5dd;
+        color: #666;
+        font-size: 0.6rem;
+        font-weight: 700;
+        cursor: pointer;
+        margin-left: 0.3rem;
+        vertical-align: middle;
+    }
+    .info-icon:hover { background: var(--gold); color: #fff; }
 
     /* Info card */
     .info-card {
@@ -211,6 +233,90 @@
                 <div class="stat-card">
                     <div class="stat-value">{{ high_confidence }}</div>
                     <div class="stat-label">High Confidence (20+)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Guide: What the columns and numbers mean -->
+        <div class="chart-container">
+            <div class="collapse-trigger d-flex align-items-center" data-bs-toggle="collapse" data-bs-target="#metricsLegend">
+                <div class="chart-title flex-grow-1" style="margin: 0;">
+                    <i class="bi bi-info-circle me-2" style="color: var(--gold);"></i>How to Read This Page
+                </div>
+                <i class="bi bi-chevron-down text-muted"></i>
+            </div>
+            <div class="collapse mt-3" id="metricsLegend">
+                <!-- Column Explanations -->
+                <h6 class="fw-bold mb-2" style="color: var(--dark);">Table Columns</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 rounded" style="background: #f8f6f0;">
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Dwell Time</div>
+                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                How long from when the <strong>flight lands</strong> to when the <strong>driver picks up</strong> the passenger.
+                                This includes walking through the terminal, getting bags, and meeting the driver. Only applies to airport arrivals.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded" style="background: #f8f6f0;">
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Drive Time</div>
+                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                How long from <strong>picking up</strong> the passenger to <strong>dropping them off</strong>.
+                                The actual driving time on the road.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded" style="background: #f8f6f0;">
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Gate → Drop (Full Trip)</div>
+                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                The full trip time from when the <strong>flight arrives at the gate</strong> to when the <strong>passenger is dropped off</strong>.
+                                For arrivals this is dwell + drive combined. For returns/cruises it's the same as drive time.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Number Explanations -->
+                <h6 class="fw-bold mb-2" style="color: var(--dark);">The Numbers (Avg / Med / P75)</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="p-3 rounded" style="background: #f8f6f0;">
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Avg (Average)</div>
+                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                Add up all trip times and divide by how many trips. A few really long trips can make this number higher than what's "normal."
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded" style="background: #f8f6f0;">
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Med (Median)</div>
+                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                The middle trip. Half your trips are faster, half are slower. <strong>Best answer for "how long does this usually take?"</strong>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="p-3 rounded" style="background: #f8f6f0;">
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--gold);">P75 (75th Percentile)</div>
+                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                75 out of 100 trips finish within this time. Good for planning with buffer. <strong>This is what the auto-scheduler uses.</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Confidence -->
+                <h6 class="fw-bold mb-2" style="color: var(--dark);">Confidence</h6>
+                <div class="p-3 rounded" style="background: #f8f6f0;">
+                    <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                        How much you can trust the numbers based on how many completed trips we have for that route:
+                        &nbsp;&nbsp;<span class="badge-confidence confidence-high">High</span> 20+ trips — very reliable
+                        &nbsp;&nbsp;<span class="badge-confidence confidence-medium">Medium</span> 10-19 — decent estimate
+                        &nbsp;&nbsp;<span class="badge-confidence confidence-low">Low</span> 5-9 — rough estimate
+                        &nbsp;&nbsp;<span class="badge-confidence confidence-none">None</span> under 5 — not enough data yet
+                    </p>
                 </div>
             </div>
         </div>
@@ -323,7 +429,7 @@
                         <th>Samples</th>
                         <th>Dwell <span style="font-weight:400;text-transform:none;">(Gate&rarr;Pickup)</span></th>
                         <th>Drive <span style="font-weight:400;text-transform:none;">(Pickup&rarr;Drop)</span></th>
-                        <th>Total</th>
+                        <th>Gate &rarr; Drop <span style="font-weight:400;text-transform:none;">(Full Trip)</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -333,39 +439,90 @@
                             <div class="time-period">{{ row.time_label }}</div>
                             <div class="day-type">{{ row.day_label }}</div>
                         </td>
-                        <td><span class="badge-trip badge-{{ row.trip_type }}">{{ row.trip_type|title }}</span></td>
+                        <td>
+                            <span class="badge-trip badge-{{ row.trip_type }}">
+                                {% if row.trip_type == 'arrival_store' %}Arrival + Store{% else %}{{ row.trip_type|title }}{% endif %}
+                            </span>
+                        </td>
                         <td>
                             <strong>{{ row.sample_count }}</strong>
                             <span class="badge-confidence confidence-{{ row.confidence }}">{{ row.confidence|title }}</span>
                         </td>
+                        <!-- Dwell -->
                         <td>
-                            {% if row.trip_type == 'arrival' and row.dwell.median %}
-                                <span class="metric-main">{{ row.dwell.median }}m</span>
-                                {% if row.dwell.p75 %}<span class="metric-sub">p75: {{ row.dwell.p75 }}m</span>{% endif %}
-                            {% elif row.trip_type == 'arrival' and row.dwell.avg %}
-                                <span class="metric-main">{{ row.dwell.avg }}m</span>
-                            {% elif row.trip_type != 'arrival' %}
+                            {% if row.trip_type == 'arrival' or row.trip_type == 'arrival_store' %}
+                                {% if row.dwell.avg %}
+                                <div class="metric-group">
+                                    <div class="metric-item">
+                                        <span class="metric-label">Avg</span>
+                                        <span class="metric-value">{{ row.dwell.avg }}m</span>
+                                    </div>
+                                    {% if row.dwell.median %}
+                                    <div class="metric-item">
+                                        <span class="metric-label">Med</span>
+                                        <span class="metric-value">{{ row.dwell.median }}m</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.dwell.p75 %}
+                                    <div class="metric-item">
+                                        <span class="metric-label">P75</span>
+                                        <span class="metric-value highlight">{{ row.dwell.p75 }}m</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                <span class="metric-na">&mdash;</span>
+                                {% endif %}
+                            {% else %}
                                 <span class="metric-na">n/a</span>
+                            {% endif %}
+                        </td>
+                        <!-- Drive -->
+                        <td>
+                            {% if row.drive.avg %}
+                                <div class="metric-group">
+                                    <div class="metric-item">
+                                        <span class="metric-label">Avg</span>
+                                        <span class="metric-value">{{ row.drive.avg }}m</span>
+                                    </div>
+                                    {% if row.drive.median %}
+                                    <div class="metric-item">
+                                        <span class="metric-label">Med</span>
+                                        <span class="metric-value">{{ row.drive.median }}m</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.drive.p75 %}
+                                    <div class="metric-item">
+                                        <span class="metric-label">P75</span>
+                                        <span class="metric-value highlight">{{ row.drive.p75 }}m</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
                             {% else %}
                                 <span class="metric-na">&mdash;</span>
                             {% endif %}
                         </td>
+                        <!-- Total -->
                         <td>
-                            {% if row.drive.median %}
-                                <span class="metric-main">{{ row.drive.median }}m</span>
-                                {% if row.drive.p75 %}<span class="metric-sub">p75: {{ row.drive.p75 }}m</span>{% endif %}
-                            {% elif row.drive.avg %}
-                                <span class="metric-main">{{ row.drive.avg }}m</span>
-                            {% else %}
-                                <span class="metric-na">&mdash;</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if row.total.median %}
-                                <span class="metric-main">{{ row.total.median }}m</span>
-                                {% if row.total.p75 %}<span class="metric-sub">p75: {{ row.total.p75 }}m</span>{% endif %}
-                            {% elif row.total.avg %}
-                                <span class="metric-main">{{ row.total.avg }}m</span>
+                            {% if row.total.avg %}
+                                <div class="metric-group">
+                                    <div class="metric-item">
+                                        <span class="metric-label">Avg</span>
+                                        <span class="metric-value">{{ row.total.avg }}m</span>
+                                    </div>
+                                    {% if row.total.median %}
+                                    <div class="metric-item">
+                                        <span class="metric-label">Med</span>
+                                        <span class="metric-value">{{ row.total.median }}m</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.total.p75 %}
+                                    <div class="metric-item">
+                                        <span class="metric-label">P75</span>
+                                        <span class="metric-value highlight">{{ row.total.p75 }}m</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
                             {% else %}
                                 <span class="metric-na">&mdash;</span>
                             {% endif %}
