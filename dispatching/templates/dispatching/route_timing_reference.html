@@ -236,6 +236,22 @@
                 </div>
             </div>
         </div>
+        {% if skipped_incomplete or fallback_total_only or skipped_excluded %}
+        <div class="mb-3" style="font-size: 0.8rem; color: #6c757d;">
+            <i class="bi bi-funnel me-1"></i>
+            {% if skipped_excluded %}
+                {{ skipped_excluded }} excluded
+            {% endif %}
+            {% if skipped_incomplete %}
+                {% if skipped_excluded %}<span class="mx-1">|</span>{% endif %}
+                {{ skipped_incomplete }} skipped — incomplete status chain
+            {% endif %}
+            {% if fallback_total_only %}
+                {% if skipped_incomplete or skipped_excluded %}<span class="mx-1">|</span>{% endif %}
+                {{ fallback_total_only }} arrival{{ fallback_total_only|pluralize }} — gate→completed total only
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- Guide: What the columns and numbers mean -->
         <div class="chart-container">
@@ -447,6 +463,9 @@
                         <td>
                             <strong>{{ row.sample_count }}</strong>
                             <span class="badge-confidence confidence-{{ row.confidence }}">{{ row.confidence|title }}</span>
+                            {% if row.leg_ids %}
+                            <br><a href="#" class="view-legs-link" data-leg-ids="{{ row.leg_ids }}" style="font-size:0.7rem;color:var(--gold);">View Legs</a>
+                            {% endif %}
                         </td>
                         <!-- Dwell -->
                         <td>
@@ -581,10 +600,141 @@
     </div>
 </div>
 
+<!-- Leg Details Modal -->
+<div class="modal fade" id="legDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content" style="border-radius:0.75rem;">
+            <div class="modal-header" style="background:var(--dark);color:#fff;border-radius:0.75rem 0.75rem 0 0;">
+                <h5 class="modal-title"><i class="bi bi-list-ul me-2"></i>Legs in This Bucket</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="legDetailsLoading" class="text-center py-4">
+                    <div class="spinner-border text-muted" role="status"></div>
+                    <div class="text-muted mt-2">Loading legs...</div>
+                </div>
+                <div id="legDetailsContent" style="display:none;">
+                    <table class="table table-sm table-striped mb-0" style="font-size:0.85rem;">
+                        <thead style="background:#f8f6f0;">
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Driver</th>
+                                <th>Customer</th>
+                                <th>Pickup</th>
+                                <th>Dropoff</th>
+                                <th>Dwell</th>
+                                <th>Drive</th>
+                                <th>Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="legDetailsBody"></tbody>
+                    </table>
+                </div>
+                <div id="legDetailsError" class="text-center py-4 text-danger" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Exclude/include leg from analytics
+function toggleExcludeLeg(legId, btn) {
+    const exclude = btn.dataset.excluded !== 'true';
+    btn.disabled = true;
+    fetch("{% url 'route_timing_exclude_leg' %}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+        body: JSON.stringify({leg_id: legId, exclude: exclude}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        if (data.success) {
+            btn.dataset.excluded = String(data.excluded);
+            const row = btn.closest('tr');
+            if (data.excluded) {
+                btn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Include';
+                btn.className = 'btn btn-sm btn-outline-success';
+                row.style.opacity = '0.4';
+                row.style.textDecoration = 'line-through';
+            } else {
+                btn.innerHTML = '<i class="bi bi-x-circle"></i> Exclude';
+                btn.className = 'btn btn-sm btn-outline-danger';
+                row.style.opacity = '1';
+                row.style.textDecoration = 'none';
+            }
+        }
+    });
+}
+
+// Leg details drill-down
+document.querySelectorAll('.view-legs-link').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const ids = this.dataset.legIds;
+        const modal = new bootstrap.Modal(document.getElementById('legDetailsModal'));
+        const loading = document.getElementById('legDetailsLoading');
+        const content = document.getElementById('legDetailsContent');
+        const errorDiv = document.getElementById('legDetailsError');
+        const tbody = document.getElementById('legDetailsBody');
+
+        loading.style.display = 'block';
+        content.style.display = 'none';
+        errorDiv.style.display = 'none';
+        tbody.innerHTML = '';
+        modal.show();
+
+        fetch(`{% url 'route_timing_leg_details' %}?ids=${ids}`)
+            .then(r => r.json())
+            .then(data => {
+                loading.style.display = 'none';
+                if (data.error) {
+                    errorDiv.textContent = data.error;
+                    errorDiv.style.display = 'block';
+                    return;
+                }
+                data.legs.forEach(leg => {
+                    const dwellClass = leg.dwell_min && leg.dwell_min > 90 ? 'color:#dc3545;font-weight:700;' : '';
+                    const driveClass = leg.drive_min && leg.drive_min > 120 ? 'color:#dc3545;font-weight:700;' : '';
+                    const totalClass = leg.total_min && leg.total_min > 180 ? 'color:#dc3545;font-weight:700;' : '';
+                    const rowStyle = leg.excluded ? 'opacity:0.4;text-decoration:line-through;' : '';
+                    const btnLabel = leg.excluded
+                        ? '<i class="bi bi-arrow-counterclockwise"></i> Include'
+                        : '<i class="bi bi-x-circle"></i> Exclude';
+                    const btnClass = leg.excluded ? 'btn btn-sm btn-outline-success' : 'btn btn-sm btn-outline-danger';
+                    tbody.innerHTML += `<tr style="${rowStyle}">
+                        <td>${leg.id}</td>
+                        <td>${leg.pickup_date}</td>
+                        <td>${leg.pickup_time}</td>
+                        <td>${leg.driver}</td>
+                        <td>${leg.customer}</td>
+                        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${leg.pickup}">${leg.pickup}</td>
+                        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${leg.dropoff}">${leg.dropoff}</td>
+                        <td style="${dwellClass}">${leg.dwell_min !== null ? leg.dwell_min + 'm' : '—'}</td>
+                        <td style="${driveClass}">${leg.drive_min !== null ? leg.drive_min + 'm' : '—'}</td>
+                        <td style="${totalClass}">${leg.total_min !== null ? leg.total_min + 'm' : '—'}</td>
+                        <td class="text-nowrap">
+                            <a href="/dispatching/reservation/${leg.reservation_id}" target="_blank" style="color:var(--gold);font-size:0.75rem;" class="me-1"><i class="bi bi-box-arrow-up-right"></i></a>
+                            <button class="${btnClass}" data-excluded="${leg.excluded}" onclick="toggleExcludeLeg(${leg.id}, this)" style="font-size:0.7rem;padding:0.15rem 0.4rem;">${btnLabel}</button>
+                        </td>
+                    </tr>`;
+                });
+                content.style.display = 'block';
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                errorDiv.textContent = 'Failed to load: ' + err.message;
+                errorDiv.style.display = 'block';
+            });
+    });
+});
+
 function recalcMetrics(recentDays) {
     const btns = document.querySelectorAll('.recalc-btn');
     const spinner = document.querySelector('.recalc-spinner');

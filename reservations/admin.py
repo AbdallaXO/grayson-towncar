@@ -161,6 +161,14 @@ class LegInline(admin.StackedInline):
     classes = ("wide",)
     readonly_fields = ("status",)
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "driver":
+            from drivers.models import Driver
+            kwargs["queryset"] = Driver.objects.select_related("profile").order_by(
+                "profile__first_name", "profile__last_name"
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     def get_formset(self, request, obj=None, **kwargs):
         formset = super().get_formset(request, obj, **kwargs)
         formset.form.base_fields["driver"].widget.attrs["style"] = "width: 100%;"
@@ -892,7 +900,8 @@ class ReservationAdmin(DispatcherAdminMixin, ImportExportModelAdmin):
                 "customer", "vehicle", "travel_agent", "travel_agent__user"
             )
             .prefetch_related(
-                "legs", "legs__driver", "legs__flight_information", "legs__cruise_information", "payments"
+                "legs", "legs__driver", "legs__driver__profile",
+                "legs__flight_information", "legs__cruise_information", "payments"
             )
             .annotate(
                 earliest_leg_date=Min("legs__pickup_date"),
@@ -1286,11 +1295,18 @@ class LegAdmin(ImportExportModelAdmin):
         "dropoff_location",
         "reservation__customer__first_name",
         "reservation__customer__last_name",
-        "driver__username",
+        "driver__profile__first_name",
+        "driver__profile__last_name",
+        "driver__profile__username",
     )
     ordering = ("pickup_date", "pickup_time")
     list_editable = ("driver", "driver_base_pay", "driver_gratuity", "driver_additional", "driver_pay_amount", "payment_status")
     list_per_page = 50
+    list_select_related = (
+        "reservation", "reservation__customer", "reservation__vehicle",
+        "driver", "driver__profile",
+        "flight_information", "cruise_information",
+    )
     autocomplete_fields = ("reservation",)
 
     actions = [
@@ -1299,6 +1315,14 @@ class LegAdmin(ImportExportModelAdmin):
         "set_payment_status_paid",
         "set_payment_status_unpaid",
     ]
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "driver":
+            from drivers.models import Driver
+            kwargs["queryset"] = Driver.objects.select_related("profile").order_by(
+                "profile__first_name", "profile__last_name"
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)

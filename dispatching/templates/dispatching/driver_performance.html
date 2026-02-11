@@ -1,0 +1,634 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block navbar %}{% endblock %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --gold: #C9A227;
+        --dark: #0d1117;
+        --dark-secondary: #161b22;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
+        padding: 2rem 0 1.75rem;
+        border-radius: 0 0 1rem 1rem;
+    }
+    .page-header h1, .page-header p { color: #fff; }
+    .page-header p { opacity: 0.75; margin: 0; }
+
+    .filter-panel {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        margin-bottom: 1.25rem;
+    }
+    .filter-panel label { font-size: 0.78rem; font-weight: 600; color: #6c757d; margin-bottom: 0.15rem; }
+    .filter-panel .form-select, .filter-panel .form-control { font-size: 0.88rem; }
+
+    /* ── Summary Stats ── */
+    .summary-section {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+        flex-wrap: wrap;
+    }
+    .summary-block {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        flex: 1;
+        min-width: 180px;
+    }
+    .summary-block .sb-header {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: #999;
+        margin-bottom: 0.6rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .summary-block .sb-header .count {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--dark);
+        background: #f0f0f0;
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.25rem;
+    }
+    .summary-block .sb-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 0.2rem 0;
+    }
+    .summary-block .sb-label {
+        font-size: 0.78rem;
+        color: #777;
+        font-weight: 500;
+    }
+    .summary-block .sb-value {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--dark);
+    }
+    .summary-block .sb-value .unit { font-size: 0.72rem; font-weight: 600; color: #999; }
+    .sb-na { color: #ccc; font-weight: 600; font-size: 0.85rem; }
+
+    /* ── Trip Cards ── */
+    .trip-card {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        margin-bottom: 0.6rem;
+        transition: box-shadow 0.15s;
+    }
+    .trip-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+
+    .trip-header {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .trip-date {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: var(--dark);
+    }
+    .trip-time {
+        font-size: 0.82rem;
+        color: #555;
+        font-weight: 500;
+    }
+    .trip-type {
+        padding: 0.12rem 0.45rem;
+        border-radius: 0.25rem;
+        font-weight: 700;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    .tt-arrival { background: #e8f0fe; color: #1a56db; }
+    .tt-return { background: #e8f5e9; color: #2e7d32; }
+    .tt-cruise { background: #fff3e0; color: #e65100; }
+    .tt-other { background: #f3e5f5; color: #6a1b9a; }
+
+    .trip-route {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--dark);
+    }
+    .trip-route .arrow { color: var(--gold); margin: 0 0.15rem; }
+    .trip-meta {
+        font-size: 0.75rem;
+        color: #999;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .trip-meta .sep { color: #ddd; }
+    .store-stop-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: #e65100;
+        background: #fff3e0;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.2rem;
+    }
+    .trip-link {
+        margin-left: auto;
+        color: var(--gold);
+        font-size: 0.78rem;
+        text-decoration: none;
+    }
+    .trip-link:hover { color: #a8851e; }
+
+    /* ── Timeline ── */
+    .trip-timeline {
+        display: flex;
+        align-items: flex-start;
+        padding: 0.75rem 0 0.5rem;
+        position: relative;
+    }
+    .tl-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 56px;
+        position: relative;
+        z-index: 1;
+    }
+    .tl-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        border: 2px solid #ddd;
+        background: #fff;
+        margin-bottom: 0.3rem;
+        flex-shrink: 0;
+    }
+    .tl-step.active .tl-dot {
+        border-color: var(--gold);
+        background: var(--gold);
+    }
+    .tl-step.missing .tl-dot {
+        border-style: dashed;
+        border-color: #ddd;
+    }
+    .tl-label {
+        font-size: 0.62rem;
+        color: #aaa;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+    }
+    .tl-step.active .tl-label { color: #777; }
+    .tl-time {
+        font-size: 0.72rem;
+        color: #555;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .tl-step.missing .tl-time { color: #ddd; }
+    .tl-line {
+        flex: 1;
+        height: 2px;
+        background: #eee;
+        margin-top: 3.5px;
+        min-width: 20px;
+        position: relative;
+    }
+    .tl-line.active { background: var(--gold); opacity: 0.5; }
+    .tl-dur {
+        position: absolute;
+        top: -15px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.6rem;
+        color: var(--gold);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    /* ── Summary Metrics (bottom of card) ── */
+    .trip-metrics {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        padding-top: 0.4rem;
+        border-top: 1px solid #f0f0f0;
+        margin-top: 0.15rem;
+    }
+    .metric-chip {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .metric-chip .mc-value {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--dark);
+        line-height: 1;
+    }
+    .metric-chip .mc-value.warn { color: #e65100; }
+    .metric-chip .mc-value.bad { color: #c62828; }
+    .metric-chip .mc-label {
+        font-size: 0.6rem;
+        color: #999;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+    }
+    .metric-chip .mc-sub {
+        font-size: 0.55rem;
+        color: #bbb;
+    }
+    .metric-divider {
+        width: 1px;
+        background: #eee;
+        align-self: stretch;
+    }
+
+    /* ── Date Group ── */
+    .date-group {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.6rem 0 0.3rem;
+        margin-top: 0.5rem;
+    }
+    .date-group:first-child { margin-top: 0; }
+
+    /* ── Overview table ── */
+    .overview-table { width: 100%; font-size: 0.9rem; border-collapse: collapse; }
+    .overview-table thead th {
+        background: #f8f6f0;
+        font-weight: 700;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #666;
+        padding: 0.75rem 0.8rem;
+        border-bottom: 2px solid #e8e5dd;
+    }
+    .overview-table td {
+        padding: 0.65rem 0.8rem;
+        border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle;
+    }
+    .overview-table tbody tr { cursor: pointer; transition: background 0.1s; }
+    .overview-table tbody tr:hover { background: #fafaf8; }
+    .overview-table .driver-name { font-weight: 700; color: var(--dark); }
+    .overview-table .metric { font-weight: 600; font-size: 0.88rem; }
+    .overview-table .metric-na { color: #ccc; }
+
+    .track-bar { display: inline-block; width: 50px; height: 4px; border-radius: 3px; background: #f0f0f0; vertical-align: middle; }
+    .track-bar .fill { display: block; height: 100%; border-radius: 3px; }
+
+    .empty-state {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 3rem;
+        text-align: center;
+        color: #999;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<div class="page-header">
+    <div class="container-fluid">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <h1 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.2rem;">
+                    <i class="bi bi-speedometer me-2" style="color: var(--gold);"></i>Driver Performance
+                </h1>
+                <p>
+                    {% if selected_driver %}
+                        {{ selected_driver.profile.get_full_name }} — Completed Trip History
+                    {% else %}
+                        Inhouse driver performance overview
+                    {% endif %}
+                </p>
+            </div>
+            {% if selected_driver %}
+            <a href="?date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-sm btn-outline-light" style="font-size:0.8rem;">
+                <i class="bi bi-arrow-left me-1"></i>All Drivers
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid py-3">
+    <div class="filter-panel">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label>Driver</label>
+                <select name="driver" class="form-select" onchange="this.form.submit()">
+                    <option value="">All Drivers (Overview)</option>
+                    {% for drv in drivers %}
+                    <option value="{{ drv.id }}" {% if selected_driver_id == drv.id|stringformat:"d" %}selected{% endif %}>
+                        {{ drv.profile.get_full_name|default:drv.profile.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label>From</label>
+                <input type="date" name="date_from" class="form-control" value="{{ date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label>To</label>
+                <input type="date" name="date_to" class="form-control" value="{{ date_to }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-dark"><i class="bi bi-funnel me-1"></i>Filter</button>
+            </div>
+        </form>
+    </div>
+
+    {% if selected_driver %}
+    {# ═════════ DRIVER DETAIL ═════════ #}
+
+    {% if driver_summary.total_trips %}
+    {# ── Summary Stats by Trip Type ── #}
+    <div class="summary-section">
+        {# Overall #}
+        <div class="summary-block">
+            <div class="sb-header">
+                Overview <span class="count">{{ driver_summary.total_trips }} trips</span>
+            </div>
+            <div class="sb-row">
+                <span class="sb-label">With full tracking</span>
+                <span class="sb-value">{{ driver_summary.valid_count }}<span class="unit"> / {{ driver_summary.total_trips }}</span></span>
+            </div>
+            {% if driver_summary.arrival_count %}
+            <div class="sb-row">
+                <span class="sb-label">Arrivals</span>
+                <span class="sb-value">{{ driver_summary.arrival_count }}</span>
+            </div>
+            {% endif %}
+            {% if driver_summary.return_count %}
+            <div class="sb-row">
+                <span class="sb-label">Returns</span>
+                <span class="sb-value">{{ driver_summary.return_count }}</span>
+            </div>
+            {% endif %}
+            {% if driver_summary.cruise_count %}
+            <div class="sb-row">
+                <span class="sb-label">Cruises</span>
+                <span class="sb-value">{{ driver_summary.cruise_count }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Arrivals #}
+        {% if driver_summary.arrival_count %}
+        <div class="summary-block" style="border-top: 2px solid #1a56db;">
+            <div class="sb-header">
+                <i class="bi bi-airplane" style="color:#1a56db;"></i> Arrivals
+                <span class="count">{{ driver_summary.arrival_count }}</span>
+            </div>
+            <div class="sb-row">
+                <span class="sb-label">Avg Dwell</span>
+                {% if driver_summary.arrival_avg_dwell %}
+                <span class="sb-value">{{ driver_summary.arrival_avg_dwell }}<span class="unit">m</span></span>
+                {% else %}<span class="sb-na">&mdash;</span>{% endif %}
+            </div>
+            <div class="sb-row">
+                <span class="sb-label">Avg Total</span>
+                {% if driver_summary.arrival_avg_total %}
+                <span class="sb-value">{{ driver_summary.arrival_avg_total }}<span class="unit">m</span></span>
+                {% else %}<span class="sb-na">&mdash;</span>{% endif %}
+            </div>
+            {% if driver_summary.arrival_count_with_stop %}
+            <div class="sb-row">
+                <span class="sb-label">Avg Total w/ Stop</span>
+                {% if driver_summary.arrival_avg_total_stop %}
+                <span class="sb-value">{{ driver_summary.arrival_avg_total_stop }}<span class="unit">m</span></span>
+                {% else %}<span class="sb-na">&mdash;</span>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# Returns #}
+        {% if driver_summary.return_count %}
+        <div class="summary-block" style="border-top: 2px solid #2e7d32;">
+            <div class="sb-header">
+                <i class="bi bi-arrow-return-left" style="color:#2e7d32;"></i> Returns
+                <span class="count">{{ driver_summary.return_count }}</span>
+            </div>
+            <div class="sb-row">
+                <span class="sb-label">Avg Drive</span>
+                {% if driver_summary.return_avg_drive %}
+                <span class="sb-value">{{ driver_summary.return_avg_drive }}<span class="unit">m</span></span>
+                {% else %}<span class="sb-na">&mdash;</span>{% endif %}
+            </div>
+            <div class="sb-row">
+                <span class="sb-label">Avg Total</span>
+                {% if driver_summary.return_avg_total %}
+                <span class="sb-value">{{ driver_summary.return_avg_total }}<span class="unit">m</span></span>
+                {% else %}<span class="sb-na">&mdash;</span>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# Cruises #}
+        {% if driver_summary.cruise_count %}
+        <div class="summary-block" style="border-top: 2px solid #e65100;">
+            <div class="sb-header">
+                <i class="bi bi-water" style="color:#e65100;"></i> Cruises
+                <span class="count">{{ driver_summary.cruise_count }}</span>
+            </div>
+            <div class="sb-row">
+                <span class="sb-label">Avg Total</span>
+                {% if driver_summary.cruise_avg_total %}
+                <span class="sb-value">{{ driver_summary.cruise_avg_total }}<span class="unit">m</span></span>
+                {% else %}<span class="sb-na">&mdash;</span>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ── Trip Cards ── #}
+    {% if driver_trips %}
+        {% for t in driver_trips %}
+        {# Date group header #}
+        {% ifchanged t.pickup_date %}
+        <div class="date-group">
+            <i class="bi bi-calendar3 me-1"></i>{{ t.pickup_date|date:"l, M j, Y" }}
+        </div>
+        {% endifchanged %}
+
+        <div class="trip-card">
+            {# Header row #}
+            <div class="trip-header">
+                <span class="trip-time">{{ t.pickup_time|time:"g:i A" }}</span>
+                <span class="trip-type tt-{{ t.trip_type }}">{{ t.trip_type }}</span>
+                <span class="trip-route">
+                    {{ t.pickup_cat }}<span class="arrow">&rarr;</span>{{ t.dropoff_cat }}
+                </span>
+                {% if t.store_stop %}<span class="store-stop-badge"><i class="bi bi-shop me-1"></i>Publix Stop</span>{% endif %}
+                <a href="{% url 'reservation_details' t.reservation_id %}" target="_blank" class="trip-link" title="View Reservation">
+                    <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+            </div>
+            <div class="trip-meta">
+                <span>{{ t.customer }}</span>
+                <span class="sep">|</span>
+                <span>{{ t.vehicle }}</span>
+                <span class="sep">|</span>
+                <span title="{{ t.pickup_location }} &rarr; {{ t.dropoff_location }}">{{ t.pickup_location|truncatechars:45 }}</span>
+            </div>
+
+            {# Timeline with durations between dots #}
+            <div class="trip-timeline">
+                {# Confirmed #}
+                <div class="tl-step {% if t.confirmed_at %}active{% else %}missing{% endif %}">
+                    <div class="tl-dot"></div>
+                    <div class="tl-label">Conf</div>
+                    <div class="tl-time">{% if t.confirmed_at %}{{ t.confirmed_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
+                </div>
+                <div class="tl-line {% if t.confirmed_at and t.otw_at %}active{% endif %}">
+                    {% if t.conf_to_otw_min != None %}<span class="tl-dur">{{ t.conf_to_otw_min }}m</span>{% endif %}
+                </div>
+
+                {# On the Way #}
+                <div class="tl-step {% if t.otw_at %}active{% else %}missing{% endif %}">
+                    <div class="tl-dot"></div>
+                    <div class="tl-label">OTW</div>
+                    <div class="tl-time">{% if t.otw_at %}{{ t.otw_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
+                </div>
+                <div class="tl-line {% if t.otw_at and t.on_location_at %}active{% endif %}">
+                    {% if t.otw_to_location_min != None %}<span class="tl-dur">{{ t.otw_to_location_min }}m</span>{% endif %}
+                </div>
+
+                {# On Location #}
+                <div class="tl-step {% if t.on_location_at %}active{% else %}missing{% endif %}">
+                    <div class="tl-dot"></div>
+                    <div class="tl-label">On Loc</div>
+                    <div class="tl-time">{% if t.on_location_at %}{{ t.on_location_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
+                </div>
+                <div class="tl-line {% if t.on_location_at and t.picked_up_at %}active{% endif %}">
+                    {% if t.loc_to_pickup_min != None %}<span class="tl-dur">{{ t.loc_to_pickup_min }}m</span>{% endif %}
+                </div>
+
+                {# Picked Up #}
+                <div class="tl-step {% if t.picked_up_at %}active{% else %}missing{% endif %}">
+                    <div class="tl-dot"></div>
+                    <div class="tl-label">Pickup</div>
+                    <div class="tl-time">{% if t.picked_up_at %}{{ t.picked_up_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
+                </div>
+                <div class="tl-line {% if t.picked_up_at and t.completed_at %}active{% endif %}">
+                    {% if t.pickup_to_done_min != None %}<span class="tl-dur">{{ t.pickup_to_done_min }}m</span>{% endif %}
+                </div>
+
+                {# Completed #}
+                <div class="tl-step {% if t.completed_at %}active{% else %}missing{% endif %}">
+                    <div class="tl-dot"></div>
+                    <div class="tl-label">Done</div>
+                    <div class="tl-time">{% if t.completed_at %}{{ t.completed_at|time:"g:i A" }}{% else %}&mdash;{% endif %}</div>
+                </div>
+            </div>
+
+            {# Key metrics — clear labels #}
+            <div class="trip-metrics">
+                {% if t.dwell_min != None %}
+                <div class="metric-chip">
+                    <span class="mc-value {% if t.dwell_min > 90 %}bad{% elif t.dwell_min > 60 %}warn{% endif %}">{{ t.dwell_min }}m</span>
+                    <span class="mc-label">Dwell</span>
+                    <span class="mc-sub">Gate &rarr; Pickup</span>
+                </div>
+                <div class="metric-divider"></div>
+                {% endif %}
+                {% if t.drive_min != None %}
+                <div class="metric-chip">
+                    <span class="mc-value {% if t.drive_min > 120 %}bad{% elif t.drive_min > 75 %}warn{% endif %}">{{ t.drive_min }}m</span>
+                    <span class="mc-label">Drive</span>
+                    <span class="mc-sub">Pickup &rarr; Dropoff</span>
+                </div>
+                <div class="metric-divider"></div>
+                {% endif %}
+                {% if t.total_min != None %}
+                <div class="metric-chip">
+                    <span class="mc-value {% if t.total_min > 180 %}bad{% elif t.total_min > 120 %}warn{% endif %}" style="color:var(--gold);">{{ t.total_min }}m</span>
+                    <span class="mc-label">Total</span>
+                    <span class="mc-sub">Full trip time</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-inbox" style="font-size:2rem;"></i>
+        <div class="mt-2">No completed trips with status tracking found for this period.</div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    {# ═════════ OVERVIEW ═════════ #}
+
+    {% if all_drivers_summary %}
+    <div style="background:#fff;border-radius:0.75rem;box-shadow:0 1px 4px rgba(0,0,0,0.06);overflow:hidden;">
+        <table class="overview-table">
+            <thead>
+                <tr>
+                    <th>Driver</th>
+                    <th>Trips</th>
+                    <th>Avg Drive</th>
+                    <th>Avg Total</th>
+                    <th>Med Total</th>
+                    <th>Tracking</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in all_drivers_summary %}
+                <tr onclick="window.location='?driver={{ d.driver.id }}&date_from={{ date_from }}&date_to={{ date_to }}'">
+                    <td class="driver-name">{{ d.driver_name }}</td>
+                    <td class="metric">{{ d.total_trips }}</td>
+                    <td class="metric">{% if d.avg_drive %}{{ d.avg_drive }}m{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
+                    <td class="metric">{% if d.avg_total %}{{ d.avg_total }}m{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
+                    <td class="metric">{% if d.med_total %}{{ d.med_total }}m{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
+                    <td>
+                        <span class="track-bar">
+                            <span class="fill" style="width:{% widthratio d.valid_count d.total_trips 100 %}%;background:{% if d.valid_count == d.total_trips %}#4CAF50{% elif d.valid_count > 0 %}#FF9800{% else %}#e0e0e0{% endif %};"></span>
+                        </span>
+                        <span style="font-size:0.72rem;color:#999;margin-left:0.3rem;">{{ d.valid_count }}/{{ d.total_trips }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="bi bi-inbox" style="font-size:2rem;"></i>
+        <div class="mt-2">No completed trips with status tracking found for any driver in this period.</div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

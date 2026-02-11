@@ -665,6 +665,10 @@ class Leg(models.Model):
         blank=True,
         help_text="When next-day confirmation SMS was sent (Twilio)",
     )
+    exclude_from_analytics = models.BooleanField(
+        default=False,
+        help_text="Exclude this leg from route timing analytics (bad data)",
+    )
 
     def calculate_revenue_share(self):
         """

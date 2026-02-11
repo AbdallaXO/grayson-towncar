@@ -5058,13 +5058,18 @@ def auto_assign_drivers(request):
     # Run suggestion engine
     suggestions = suggest_assignments(unassigned, schedules, target_date)
 
-    # Apply all suggestions
+    # Apply all suggestions — use pre-loaded lookups instead of per-suggestion queries
+    legs_by_id = {l.id: l for l in legs}
+    drivers_by_id = {d.id: d for d in inhouse_drivers}
+
     assigned_count = 0
     assignments = []
     for suggestion in suggestions:
+        leg = legs_by_id.get(suggestion.leg_id)
+        driver = drivers_by_id.get(suggestion.suggested_driver_id)
+        if not leg or not driver:
+            continue
         try:
-            leg = Leg.objects.get(id=suggestion.leg_id)
-            driver = Driver.objects.get(id=suggestion.suggested_driver_id)
             leg.driver = driver
             leg.driver_assigned_by = request.user
             leg.driver_assigned_at = timezone.now()
@@ -5075,7 +5080,7 @@ def auto_assign_drivers(request):
                 "driver_name": suggestion.suggested_driver_name,
                 "reason": suggestion.reason,
             })
-        except (Leg.DoesNotExist, Driver.DoesNotExist):
+        except Exception:
             continue
 
     remaining = len(unassigned) - assigned_count
@@ -5541,6 +5546,7 @@ def route_timing_reference(request):
     from dispatching.analytics import (
         categorize_location, categorize_time_of_day, categorize_day_type,
         calculate_airport_dwell_time, calculate_drive_time,
+        has_valid_status_chain, calculate_gate_to_completed_time,
     )
     import statistics
     from collections import defaultdict
@@ -5562,6 +5568,8 @@ def route_timing_reference(request):
     inhouse_drivers = Driver.objects.filter(driver_type='inhouse').select_related('profile').order_by('profile__first_name')
 
     # Always compute from raw completed legs (all-time by default)
+    # NOTE: don't filter exclude_from_analytics here — we track excluded IDs
+    # separately so the modal can show them with an "Include" button.
     legs_qs = Leg.objects.filter(status='completed').select_related(
         'driver', 'flight_information', 'reservation',
     ).prefetch_related('status_history')
@@ -5582,9 +5590,63 @@ def route_timing_reference(request):
             pass
 
     # Compute metrics grouped by route + time_of_day + day_type
-    buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': []})
+    buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': [], 'leg_ids': []})
 
+    skipped_incomplete = 0
+    skipped_excluded = 0
+    fallback_total_only = 0
     for leg in legs_qs:
+        # Track excluded legs in bucket IDs (so modal can show "Include" button)
+        # but skip them from analytics calculations
+        if leg.exclude_from_analytics:
+            pickup_cat = categorize_location(leg.pickup_location)
+            dropoff_cat = categorize_location(leg.dropoff_location)
+            time_cat = categorize_time_of_day(leg.pickup_time)
+            day_cat = categorize_day_type(leg.pickup_date)
+            trip_type = leg.get_trip_type()
+            has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
+            if trip_type == 'arrival' and has_store_stop:
+                trip_type = 'arrival_store'
+            if trip_type_filter and trip_type != trip_type_filter:
+                continue
+            if pickup_filter and pickup_cat != pickup_filter:
+                continue
+            if dropoff_filter and dropoff_cat != dropoff_filter:
+                continue
+            key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+            buckets[key]['leg_ids'].append(leg.id)
+            skipped_excluded += 1
+            continue
+
+        valid_chain = has_valid_status_chain(leg)
+
+        if not valid_chain:
+            # Fallback: for arrivals, try gate → completed total time
+            # (no dwell/drive split, but we get a usable total)
+            gate_total = calculate_gate_to_completed_time(leg)
+            if gate_total is not None:
+                pickup_cat = categorize_location(leg.pickup_location)
+                dropoff_cat = categorize_location(leg.dropoff_location)
+                time_cat = categorize_time_of_day(leg.pickup_time)
+                day_cat = categorize_day_type(leg.pickup_date)
+                trip_type = leg.get_trip_type()
+                has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
+                if trip_type == 'arrival' and has_store_stop:
+                    trip_type = 'arrival_store'
+                if trip_type_filter and trip_type != trip_type_filter:
+                    continue
+                if pickup_filter and pickup_cat != pickup_filter:
+                    continue
+                if dropoff_filter and dropoff_cat != dropoff_filter:
+                    continue
+                key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+                buckets[key]['total'].append(gate_total)
+                buckets[key]['leg_ids'].append(leg.id)
+                fallback_total_only += 1
+            else:
+                skipped_incomplete += 1
+            continue
+
         pickup_cat = categorize_location(leg.pickup_location)
         dropoff_cat = categorize_location(leg.dropoff_location)
         time_cat = categorize_time_of_day(leg.pickup_time)
@@ -5612,6 +5674,7 @@ def route_timing_reference(request):
             buckets[key]['dwell'].append(dwell)
         if drive is not None:
             buckets[key]['drive'].append(drive)
+            buckets[key]['leg_ids'].append(leg.id)
             total = (dwell + drive) if dwell is not None else drive
             buckets[key]['total'].append(total)
 
@@ -5638,10 +5701,10 @@ def route_timing_reference(request):
         'evening': 'Evening (6-10 PM)',
         'night': 'Night (10 PM - 4 AM)',
     }
-    DAY_LABELS = {'weekday': 'Weekday', 'weekend': 'Weekend', 'holiday': 'Holiday'}
+    DAY_LABELS = {'weekday': 'Weekday', 'weekend': 'Weekend'}
 
-    # Sort order: weekday first, then weekend, then holiday
-    DAY_ORDER = {'weekday': 0, 'weekend': 1, 'holiday': 2}
+    # Sort order: weekday first, then weekend
+    DAY_ORDER = {'weekday': 0, 'weekend': 1}
     # Chronological: early morning → morning rush → midday → afternoon → evening → night
     TIME_ORDER = {
         'early_morning': 0, 'morning_rush': 1, 'midday': 2,
@@ -5682,6 +5745,7 @@ def route_timing_reference(request):
             'drive': _stats(vals['drive']),
             'total': _stats(vals['total']),
             'hardcoded_drive_time': hardcoded,
+            'leg_ids': ','.join(str(i) for i in vals['leg_ids']),
         })
 
     total_routes = len(set((m['pickup_cat'], m['dropoff_cat']) for m in metrics_list))
@@ -5734,9 +5798,87 @@ def route_timing_reference(request):
         'high_confidence': high_confidence,
         'drive_time_estimates': DRIVE_TIME_ESTIMATES,
         'use_live': use_live,
+        'skipped_incomplete': skipped_incomplete,
+        'skipped_excluded': skipped_excluded,
+        'fallback_total_only': fallback_total_only,
     }
 
     return render(request, 'dispatching/route_timing_reference.html', context)
+
+
+@login_required
+def route_timing_leg_details(request):
+    """AJAX endpoint: return leg details for a comma-separated list of leg IDs."""
+    if not request.user.is_superuser:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    from dispatching.analytics import calculate_airport_dwell_time, calculate_drive_time
+
+    leg_ids_str = request.GET.get('ids', '')
+    if not leg_ids_str:
+        return JsonResponse({"legs": []})
+
+    try:
+        leg_ids = [int(x) for x in leg_ids_str.split(',') if x.strip()]
+    except ValueError:
+        return JsonResponse({"error": "Invalid IDs"}, status=400)
+
+    legs = (
+        Leg.objects.filter(id__in=leg_ids)
+        .select_related('driver', 'driver__profile', 'flight_information', 'reservation__customer')
+        .prefetch_related('status_history')
+    )
+
+    results = []
+    for leg in legs:
+        driver_name = ""
+        if leg.driver and hasattr(leg.driver, 'profile'):
+            driver_name = leg.driver.profile.get_full_name() or leg.driver.profile.username
+
+        customer_name = ""
+        if leg.reservation and leg.reservation.customer:
+            customer_name = leg.reservation.customer.get_full_name()
+
+        dwell = calculate_airport_dwell_time(leg)
+        drive = calculate_drive_time(leg)
+
+        results.append({
+            'id': leg.id,
+            'reservation_id': leg.reservation_id,
+            'pickup_date': leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else '',
+            'pickup_time': leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else '',
+            'driver': driver_name,
+            'customer': customer_name,
+            'pickup': leg.pickup_location or '',
+            'dropoff': leg.dropoff_location or '',
+            'dwell_min': dwell,
+            'drive_min': drive,
+            'total_min': (dwell + drive) if dwell is not None and drive is not None else drive,
+            'excluded': leg.exclude_from_analytics,
+        })
+
+    return JsonResponse({"legs": results})
+
+
+@login_required
+def route_timing_exclude_leg(request):
+    """AJAX endpoint: toggle exclude_from_analytics flag on a leg."""
+    if not request.user.is_superuser:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    data = json.loads(request.body)
+    leg_id = data.get('leg_id')
+    exclude = data.get('exclude', True)
+
+    try:
+        leg = Leg.objects.get(id=leg_id)
+        leg.exclude_from_analytics = exclude
+        leg.save(update_fields=['exclude_from_analytics'])
+        return JsonResponse({"success": True, "excluded": exclude})
+    except Leg.DoesNotExist:
+        return JsonResponse({"error": "Leg not found"}, status=404)
 
 
 @login_required
@@ -5782,6 +5924,268 @@ def recalculate_route_metrics(request):
         "success": True,
         "message": f"Recalculation started for {label}. This runs in the background — metrics will update shortly.",
     })
+
+
+# ============================================================================
+# DRIVER PERFORMANCE
+# ============================================================================
+
+@login_required(login_url="login")
+def driver_performance(request):
+    """Driver performance analytics — trip history with timing breakdowns."""
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from dispatching.analytics import (
+        categorize_location, calculate_airport_dwell_time, calculate_drive_time,
+        has_valid_status_chain,
+    )
+    from drivers.models import Driver
+
+    # Filters
+    selected_driver_id = request.GET.get('driver', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    # Default to last 30 days
+    if not date_from:
+        date_from = (timezone.localdate() - timedelta(days=30)).strftime('%Y-%m-%d')
+    if not date_to:
+        date_to = timezone.localdate().strftime('%Y-%m-%d')
+
+    try:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+    except ValueError:
+        start_date = timezone.localdate() - timedelta(days=30)
+    try:
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+    except ValueError:
+        end_date = timezone.localdate()
+
+    drivers = Driver.objects.filter(driver_type='inhouse').select_related('profile').order_by('profile__first_name')
+
+    selected_driver = None
+    driver_trips = []
+    driver_summary = {}
+    all_drivers_summary = []
+
+    if selected_driver_id:
+        # ── Detail mode: show individual driver's trips ──
+        try:
+            selected_driver = Driver.objects.select_related('profile').get(id=int(selected_driver_id))
+        except (Driver.DoesNotExist, ValueError):
+            selected_driver = None
+
+        if selected_driver:
+            # Only include legs that have at least one status history entry
+            # (status tracking was added recently — older legs have no data)
+            legs = (
+                Leg.objects.filter(
+                    driver=selected_driver,
+                    pickup_date__gte=start_date,
+                    pickup_date__lte=end_date,
+                    status='completed',
+                    status_history__isnull=False,
+                )
+                .distinct()
+                .select_related(
+                    'reservation__customer', 'reservation__vehicle',
+                    'flight_information',
+                )
+                .prefetch_related('status_history')
+                .order_by('-pickup_date', '-pickup_time')
+            )
+
+            total_drive = []
+            total_dwell = []
+            total_total = []
+
+            for leg in legs:
+                dwell = calculate_airport_dwell_time(leg)
+                drive = calculate_drive_time(leg)
+                total = None
+                if dwell is not None and drive is not None:
+                    total = dwell + drive
+                elif drive is not None:
+                    total = drive
+
+                valid = has_valid_status_chain(leg)
+                trip_type = leg.get_trip_type()
+                customer_name = ''
+                if leg.reservation and leg.reservation.customer:
+                    customer_name = leg.reservation.customer.get_full_name()
+
+                vehicle_name = ''
+                if leg.reservation and leg.reservation.vehicle:
+                    vehicle_name = str(leg.reservation.vehicle)
+
+                pickup_cat = categorize_location(leg.pickup_location)
+                dropoff_cat = categorize_location(leg.dropoff_location)
+
+                # Extract status timestamps from prefetched history
+                status_times = {}
+                if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
+                    for s in leg.status_history.all():
+                        if s.status not in status_times:
+                            ts = s.timestamp
+                            if timezone.is_aware(ts):
+                                ts = timezone.localtime(ts)
+                            status_times[s.status] = ts
+
+                # Compute durations between each status step
+                def _safe_delta(start_key, end_key, max_min=300):
+                    if start_key in status_times and end_key in status_times:
+                        d = (status_times[end_key] - status_times[start_key]).total_seconds() / 60
+                        if 0 < d < max_min:
+                            return round(d)
+                    return None
+
+                conf_to_otw = _safe_delta('confirmed', 'on-the-way')
+                otw_to_loc = _safe_delta('on-the-way', 'on-location')
+                loc_to_pickup = _safe_delta('on-location', 'picked-up')
+                pickup_to_done = _safe_delta('picked-up', 'completed')
+
+                driver_trips.append({
+                    'id': leg.id,
+                    'reservation_id': leg.reservation_id,
+                    'pickup_date': leg.pickup_date,
+                    'pickup_time': leg.pickup_time,
+                    'pickup_location': leg.pickup_location or '',
+                    'dropoff_location': leg.dropoff_location or '',
+                    'pickup_cat': pickup_cat,
+                    'dropoff_cat': dropoff_cat,
+                    'trip_type': trip_type,
+                    'customer': customer_name,
+                    'vehicle': vehicle_name,
+                    'dwell_min': dwell,
+                    'drive_min': drive,
+                    'total_min': total,
+                    'valid_chain': valid,
+                    'confirmed_at': status_times.get('confirmed'),
+                    'otw_at': status_times.get('on-the-way'),
+                    'on_location_at': status_times.get('on-location'),
+                    'picked_up_at': status_times.get('picked-up'),
+                    'completed_at': status_times.get('completed'),
+                    'conf_to_otw_min': conf_to_otw,
+                    'otw_to_location_min': otw_to_loc,
+                    'loc_to_pickup_min': loc_to_pickup,
+                    'pickup_to_done_min': pickup_to_done,
+                    'store_stop': leg.reservation.store_stop if leg.reservation else False,
+                })
+
+                if drive is not None:
+                    total_drive.append(drive)
+                if dwell is not None:
+                    total_dwell.append(dwell)
+                if total is not None:
+                    total_total.append(total)
+
+            import statistics as stats_module
+
+            # Separate trips by type for per-category averages
+            arrival_trips = [t for t in driver_trips if t['trip_type'] == 'arrival']
+            return_trips = [t for t in driver_trips if t['trip_type'] == 'return']
+            cruise_trips = [t for t in driver_trips if t['trip_type'] == 'cruise']
+
+            # Arrival stats — separate with/without store stop
+            arr_dwells = [t['dwell_min'] for t in arrival_trips if t['dwell_min'] is not None]
+            arr_totals_no_stop = [t['total_min'] for t in arrival_trips if t['total_min'] is not None and not t.get('store_stop')]
+            arr_totals_with_stop = [t['total_min'] for t in arrival_trips if t['total_min'] is not None and t.get('store_stop')]
+
+            # Return stats
+            ret_drives = [t['drive_min'] for t in return_trips if t['drive_min'] is not None]
+            ret_totals = [t['total_min'] for t in return_trips if t['total_min'] is not None]
+
+            # Cruise stats
+            cruise_totals_list = [t['total_min'] for t in cruise_trips if t['total_min'] is not None]
+
+            driver_summary = {
+                'total_trips': len(driver_trips),
+                'valid_count': sum(1 for t in driver_trips if t['valid_chain']),
+                # Arrivals
+                'arrival_count': len(arrival_trips),
+                'arrival_avg_dwell': round(stats_module.mean(arr_dwells)) if arr_dwells else None,
+                'arrival_avg_total': round(stats_module.mean(arr_totals_no_stop)) if arr_totals_no_stop else None,
+                'arrival_avg_total_stop': round(stats_module.mean(arr_totals_with_stop)) if arr_totals_with_stop else None,
+                'arrival_count_no_stop': len(arr_totals_no_stop),
+                'arrival_count_with_stop': len(arr_totals_with_stop),
+                # Returns
+                'return_count': len(return_trips),
+                'return_avg_drive': round(stats_module.mean(ret_drives)) if ret_drives else None,
+                'return_avg_total': round(stats_module.mean(ret_totals)) if ret_totals else None,
+                # Cruises
+                'cruise_count': len(cruise_trips),
+                'cruise_avg_total': round(stats_module.mean(cruise_totals_list)) if cruise_totals_list else None,
+            }
+    else:
+        # ── Overview mode: all drivers with summary stats ──
+        # Single query for ALL inhouse driver legs (instead of per-driver loop)
+        import statistics as stats_module
+        from collections import defaultdict
+
+        driver_ids = [drv.id for drv in drivers]
+        driver_map = {drv.id: drv for drv in drivers}
+
+        all_legs = (
+            Leg.objects.filter(
+                driver_id__in=driver_ids,
+                pickup_date__gte=start_date,
+                pickup_date__lte=end_date,
+                status='completed',
+                status_history__isnull=False,
+            )
+            .distinct()
+            .select_related('flight_information')
+            .prefetch_related('status_history')
+        )
+
+        # Group legs by driver in Python
+        legs_by_driver = defaultdict(list)
+        for leg in all_legs:
+            legs_by_driver[leg.driver_id].append(leg)
+
+        for drv_id, drv_legs in legs_by_driver.items():
+            drv = driver_map.get(drv_id)
+            if not drv:
+                continue
+
+            drive_times = []
+            total_times = []
+            valid_count = 0
+            for leg in drv_legs:
+                drive = calculate_drive_time(leg)
+                dwell = calculate_airport_dwell_time(leg)
+                if drive is not None:
+                    drive_times.append(drive)
+                    total = (dwell + drive) if dwell is not None else drive
+                    total_times.append(total)
+                if has_valid_status_chain(leg):
+                    valid_count += 1
+
+            all_drivers_summary.append({
+                'driver': drv,
+                'driver_name': drv.profile.get_full_name() or drv.profile.username,
+                'total_trips': len(drv_legs),
+                'valid_count': valid_count,
+                'avg_drive': round(stats_module.mean(drive_times)) if drive_times else None,
+                'med_drive': round(stats_module.median(drive_times)) if len(drive_times) >= 2 else None,
+                'avg_total': round(stats_module.mean(total_times)) if total_times else None,
+                'med_total': round(stats_module.median(total_times)) if len(total_times) >= 2 else None,
+            })
+
+        all_drivers_summary.sort(key=lambda d: d['total_trips'], reverse=True)
+
+    context = {
+        'drivers': drivers,
+        'selected_driver': selected_driver,
+        'selected_driver_id': selected_driver_id,
+        'date_from': date_from,
+        'date_to': date_to,
+        'driver_trips': driver_trips,
+        'driver_summary': driver_summary,
+        'all_drivers_summary': all_drivers_summary,
+    }
+    return render(request, 'dispatching/driver_performance.html', context)
 
 
 # ============================================================================

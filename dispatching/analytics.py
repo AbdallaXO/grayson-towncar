@@ -12,11 +12,11 @@ Used to populate RouteTimingMetric, DriverDailyCapacity, and DemandPattern model
 
 from datetime import date, datetime, timedelta, time
 from decimal import Decimal
+from functools import lru_cache
 from typing import Optional, Dict, List, Tuple
 from django.db.models import Avg, Count, Q, Sum, F
 from django.utils import timezone
 import statistics
-import holidays
 
 
 # ============================================================================
@@ -76,6 +76,7 @@ def adaptive_max(values: list, fallback_max: int) -> int:
 # LOCATION CATEGORIZATION
 # ============================================================================
 
+@lru_cache(maxsize=512)
 def categorize_location(location_text: str) -> str:
     """
     Categorize free-text location into standard categories for analytics.
@@ -221,27 +222,154 @@ def categorize_time_of_day(time_obj) -> str:
 
 def categorize_day_type(date_obj) -> str:
     """
-    Categorize day as weekday/weekend/holiday.
+    Categorize day as weekday or weekend.
 
     Args:
         date_obj: datetime.date or datetime.datetime object
 
     Returns:
-        Category string: 'weekday', 'weekend', 'holiday'
+        Category string: 'weekday', 'weekend'
     """
     if isinstance(date_obj, datetime):
         date_obj = date_obj.date()
 
-    # Check if it's a US holiday
-    us_holidays = holidays.US(years=date_obj.year)
-    if date_obj in us_holidays:
-        return 'holiday'
-
-    # Check if weekend
     if date_obj.weekday() >= 5:  # Saturday=5, Sunday=6
         return 'weekend'
 
     return 'weekday'
+
+
+# ============================================================================
+# STATUS CHAIN VALIDATION
+# ============================================================================
+
+# Required statuses for a leg to be included in analytics.
+# Driver must have gone through the full workflow — skipping statuses
+# means the timing data is unreliable.
+REQUIRED_ANALYTICS_STATUSES = {'on-the-way', 'picked-up', 'completed'}
+
+# Minimum minutes between transitions (catches instant button-mashing)
+MIN_OTW_TO_PICKUP = 1       # At least 1 min from on-the-way to picked-up
+MIN_PICKUP_TO_COMPLETE = 2   # At least 2 min from picked-up to completed
+
+# Maximum minutes between transitions (catches forgotten status updates)
+MAX_OTW_TO_PICKUP = 180      # 3 hours max from on-the-way to picked-up
+MAX_PICKUP_TO_COMPLETE = MAX_DRIVE_MINUTES  # Reuse the 240 min drive cap
+
+
+def has_valid_status_chain(leg) -> bool:
+    """
+    Check if a leg has a complete, valid status chain for analytics.
+
+    Requires on-the-way, picked-up, and completed statuses with:
+    - Sequential timestamps (each later than the previous)
+    - Reasonable time gaps (not instant, not forgotten)
+
+    Works with prefetched status_history to avoid N+1 queries.
+
+    Returns:
+        True if the leg has valid timing data for analytics.
+    """
+    # Gather status timestamps from prefetched or DB
+    statuses = {}
+    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
+        for s in leg.status_history.all():
+            if s.status in REQUIRED_ANALYTICS_STATUSES and s.status not in statuses:
+                statuses[s.status] = s.timestamp
+    else:
+        from reservations.models import LegStatus
+        for s in leg.status_history.filter(status__in=REQUIRED_ANALYTICS_STATUSES).order_by('timestamp'):
+            if s.status not in statuses:
+                statuses[s.status] = s.timestamp
+
+    # Must have all required statuses
+    if not REQUIRED_ANALYTICS_STATUSES.issubset(statuses.keys()):
+        return False
+
+    # Make all timestamps naive for comparison
+    def _naive(ts):
+        if timezone.is_aware(ts):
+            return timezone.make_naive(ts, timezone.get_current_timezone())
+        return ts
+
+    otw_time = _naive(statuses['on-the-way'])
+    pickup_time = _naive(statuses['picked-up'])
+    complete_time = _naive(statuses['completed'])
+
+    # Timestamps must be sequential
+    if not (otw_time < pickup_time < complete_time):
+        return False
+
+    # Check time gaps are reasonable
+    otw_to_pickup = (pickup_time - otw_time).total_seconds() / 60
+    pickup_to_complete = (complete_time - pickup_time).total_seconds() / 60
+
+    if otw_to_pickup < MIN_OTW_TO_PICKUP or otw_to_pickup > MAX_OTW_TO_PICKUP:
+        return False
+
+    if pickup_to_complete < MIN_PICKUP_TO_COMPLETE or pickup_to_complete > MAX_PICKUP_TO_COMPLETE:
+        return False
+
+    return True
+
+
+# Gate → Completed fallback bounds (minutes)
+# For arrivals without full status chain: allow gate_arrival → completed total
+MIN_GATE_TO_COMPLETE = 15    # At least 15 min (walk + drive minimum)
+MAX_GATE_TO_COMPLETE = 150   # At most 2.5 hours (generous for long routes)
+
+
+def calculate_gate_to_completed_time(leg) -> Optional[int]:
+    """
+    Fallback for arrival legs without a full status chain.
+
+    Calculates total time from flight gate arrival to 'completed' status.
+    Only used when has_valid_status_chain() fails but the leg still has
+    usable gate arrival + completed timestamps within a reasonable window.
+
+    Returns total minutes (gate → completed) or None.
+    """
+    if leg.get_trip_type() != 'arrival':
+        return None
+
+    if not leg.flight_information:
+        return None
+
+    flight = leg.flight_information
+    gate_arrival = (
+        flight.actual_gate_arrival_local
+        or flight.estimated_gate_arrival_local
+        or flight.scheduled_gate_arrival_local
+    )
+    if not gate_arrival:
+        return None
+
+    # Get completed timestamp from status history
+    completed_status = None
+    if hasattr(leg, '_prefetched_objects_cache') and 'status_history' in leg._prefetched_objects_cache:
+        for s in leg.status_history.all():
+            if s.status == 'completed':
+                completed_status = s
+                break
+    else:
+        completed_status = leg.status_history.filter(status='completed').first()
+
+    if not completed_status:
+        return None
+
+    # Make naive for comparison
+    if timezone.is_aware(gate_arrival):
+        gate_arrival = timezone.make_naive(gate_arrival, timezone.get_current_timezone())
+    completed_time = completed_status.timestamp
+    if timezone.is_aware(completed_time):
+        completed_time = timezone.make_naive(completed_time, timezone.get_current_timezone())
+
+    minutes = int((completed_time - gate_arrival).total_seconds() / 60)
+
+    if minutes < MIN_GATE_TO_COMPLETE or minutes > MAX_GATE_TO_COMPLETE:
+        return None
+
+    return minutes
 
 
 # ============================================================================
@@ -309,8 +437,8 @@ def calculate_airport_dwell_time(leg) -> Optional[int]:
     delta = picked_up_time - gate_arrival
     minutes = int(delta.total_seconds() / 60)
 
-    # Sanity check: dwell time should be positive and reasonable (< 5 hours)
-    if minutes < 0 or minutes > 300:
+    # Sanity check: dwell time should be positive and reasonable
+    if minutes < 0 or minutes > MAX_DWELL_MINUTES:
         return None
 
     return minutes
@@ -361,8 +489,8 @@ def calculate_drive_time(leg) -> Optional[int]:
     delta = completed_time - picked_up_time
     minutes = int(delta.total_seconds() / 60)
 
-    # Sanity check: drive time should be positive and reasonable (< 4 hours)
-    if minutes < 0 or minutes > 240:
+    # Sanity check: drive time should be positive and reasonable
+    if minutes < 0 or minutes > MAX_DRIVE_MINUTES:
         return None
 
     return minutes
