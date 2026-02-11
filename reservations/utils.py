@@ -11,7 +11,7 @@ from .forms import (
     CruiseForm,
 )
 from decimal import Decimal
-from datetime import time
+from datetime import time, date, datetime
 import logging
 from typing import Dict, Any
 
@@ -518,8 +518,11 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
         url = f"{server}/{topic}"
 
         headers = {
-            "Content-Type": "text/plain",
+            "Content-Type": "text/plain; charset=utf-8",
         }
+
+        if title:
+            headers["Title"] = title.encode("utf-8")
 
         if priority != "default":
             headers["Priority"] = priority
@@ -527,7 +530,9 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
         if tags:
             headers["Tags"] = ",".join(tags)
 
-        response = requests.post(url, data=message, headers=headers, timeout=10)
+        response = requests.post(
+            url, data=message.encode("utf-8"), headers=headers, timeout=10
+        )
 
         if response.status_code == 200:
             logger.info(f"NTFY notification sent successfully: {title}")
@@ -542,38 +547,76 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
 
 def send_lead_notification(lead):
     """
-    Send a notification for a new lead
-
-    Args:
-        lead: Lead object with customer and trip details
+    Send a notification for a new lead with urgency based on pickup date proximity.
     """
     try:
-        # Format pickup and dropoff locations
-        pickup_location = lead.pickup_location or "N/A"
-        dropoff_location = lead.dropoff_location or "N/A"
+        pickup_location = lead.pickup_location or "Unknown"
+        dropoff_location = lead.dropoff_location or "Unknown"
+        customer_name = lead.get_full_name
+        trip_type_display = dict(lead.TripTypeChoices.choices).get(lead.trip_type, lead.trip_type or "N/A")
+        vehicle_name = str(lead.vehicle) if lead.vehicle else "No Vehicle"
 
-        title = f"🚗 New Lead: {lead.get_full_name}"
-        message = f"""
-New lead received!
-
-Customer: {lead.get_full_name}
-Phone: {lead.phone or "N/A"}
-Email: {lead.email or "N/A"}
-
-From: {pickup_location}
-To: {dropoff_location}
-Date: {lead.pickup_date or "N/A"}
-Vehicle: {lead.vehicle or "N/A"}
-Trip Type: {lead.trip_type or "N/A"}
-Estimated Price: ${lead.estimated_price or "N/A"}
-
-Lead ID: #{lead.id}
-Priority: {lead.priority}
-        """.strip()
-
+        # Determine urgency based on how soon the trip is
+        urgency = ""
+        priority = "high"
         tags = ["car", "money", "new"]
+        days_until = None
 
-        send_ntfy_notification(title, message, priority="high", tags=tags)
+        if lead.pickup_date:
+            days_until = (lead.pickup_date - date.today()).days
+
+            if days_until < 0:
+                urgency = "PAST DATE"
+                priority = "urgent"
+                tags = ["rotating_light", "car", "money"]
+            elif days_until == 0:
+                urgency = "URGENT - TODAY"
+                priority = "urgent"
+                tags = ["rotating_light", "car", "money"]
+            elif days_until == 1:
+                urgency = "URGENT - TOMORROW"
+                priority = "urgent"
+                tags = ["rotating_light", "car", "money"]
+            elif days_until <= 3:
+                urgency = f"URGENT - In {days_until} days"
+                priority = "urgent"
+                tags = ["warning", "car", "money"]
+            elif days_until <= 7:
+                urgency = f"Soon - In {days_until} days"
+                priority = "high"
+
+        # Build title
+        if urgency:
+            title = f"{urgency} | {customer_name} - {pickup_location} to {dropoff_location}"
+        else:
+            title = f"New Lead: {customer_name} - {pickup_location} to {dropoff_location}"
+
+        # Build message body — lead with natural sentence, then details
+        date_str = lead.pickup_date.strftime("%a %b %d, %Y") if lead.pickup_date else "No date"
+        price_str = f"${lead.estimated_price}" if lead.estimated_price else "No quote"
+
+        # Human-readable opening line
+        if days_until is not None and days_until == 0:
+            message = f"New lead from {customer_name} needs a {trip_type_display} TODAY from {pickup_location} to {dropoff_location}"
+        elif days_until is not None and days_until == 1:
+            message = f"New lead from {customer_name} needs a {trip_type_display} TOMORROW from {pickup_location} to {dropoff_location}"
+        elif days_until is not None and days_until <= 3:
+            message = f"New lead from {customer_name} needs a {trip_type_display} in {days_until} days from {pickup_location} to {dropoff_location}"
+        else:
+            message = f"New lead from {customer_name} requesting a {trip_type_display} from {pickup_location} to {dropoff_location}"
+
+        message += f"\n\nDate: {date_str}"
+        if days_until is not None and days_until > 3:
+            message += f" ({days_until} days away)"
+        message += f"\nVehicle: {vehicle_name}"
+        message += f"\nPrice: {price_str}"
+
+        if lead.phone:
+            message += f"\nPhone: {lead.phone}"
+        if lead.email:
+            message += f"\nEmail: {lead.email}"
+
+        send_ntfy_notification(title, message, priority=priority, tags=tags)
 
     except Exception as e:
         logger.error(f"Error sending lead notification: {str(e)}")
@@ -581,12 +624,8 @@ Priority: {lead.priority}
 
 def send_driver_status_notification(leg, old_status=None, new_status=None):
     """
-    Send a notification for driver leg status updates
-
-    Args:
-        leg: Leg object with driver and reservation details
-        old_status: Previous status (optional)
-        new_status: New status (optional, defaults to leg.status)
+    Send a notification for driver leg status updates with descriptive titles.
+    Title format: "Driver action_phrase to Customer for Time - Trip Type from Location to Location"
     """
     try:
         if not leg.driver:
@@ -596,53 +635,65 @@ def send_driver_status_notification(leg, old_status=None, new_status=None):
         if new_status is None:
             new_status = leg.status
 
-        # Get status display information
         status_info = get_driver_status_info(new_status)
-        
-        # Format customer information
+
         customer_name = leg.reservation.customer.get_full_name()
-        driver_name = leg.driver.__str__()
-        
-        # Format pickup/dropoff locations
-        pickup_location = leg.pickup_location or "N/A"
-        dropoff_location = leg.dropoff_location or "N/A"
-        
-        # Format date and time
-        pickup_datetime = f"{leg.pickup_date} at {leg.pickup_time}"
-        
-        # Create natural notification title and message
-        title = f"{status_info['emoji']} {driver_name} {status_info['action_phrase']}"
-        
-        # Create a natural message based on status
-        if new_status == "on-location":
-            message = f"{driver_name} is on location for {customer_name}'s pickup"
-        elif new_status == "on-the-way":
-            message = f"{driver_name} is on the way to pickup {customer_name}"
-        elif new_status == "picked-up":
-            message = f"{driver_name} has picked up {customer_name}"
-        elif new_status == "confirmed":
-            message = f"{driver_name} has confirmed the job for {customer_name}"
-        elif new_status == "completed":
-            message = f"{driver_name} has completed the trip for {customer_name}"
+        driver_name = str(leg.driver)
+        pickup_location = leg.pickup_location or "Unknown"
+        dropoff_location = leg.dropoff_location or "Unknown"
+        trip_type = leg.get_trip_type().title()  # Arrival, Return, Cruise, Other
+        vehicle_name = str(leg.reservation.vehicle) if leg.reservation.vehicle else "Vehicle TBD"
+
+        # Format time nicely (e.g., "2:30 PM")
+        if leg.pickup_time:
+            hour = leg.pickup_time.hour
+            minute = leg.pickup_time.minute
+            ampm = "AM" if hour < 12 else "PM"
+            display_hour = hour if 1 <= hour <= 12 else (hour - 12 if hour > 12 else 12)
+            time_str = f"{display_hour}:{minute:02d} {ampm}"
         else:
-            message = f"{driver_name} - {status_info['label']} for {customer_name}"
-        
-        # Add trip details
-        message += f"\n\n📍 {pickup_location} → {dropoff_location}"
-        message += f"\n🕐 {pickup_datetime}"
-        message += f"\n🚗 {leg.reservation.vehicle or 'Vehicle TBD'}"
-        message += f"\n📋 Reservation #{leg.reservation.id}"
+            time_str = "TBD"
 
-        # Add status change info if old status provided
+        # Build descriptive title per status
+        # e.g., "Yovanny on the way to John for his 2:30 PM Arrival from MCO to Disney"
+        if new_status == "on-the-way":
+            title = f"{driver_name} on the way to {customer_name} for {time_str} {trip_type} - {pickup_location} to {dropoff_location}"
+        elif new_status == "on-location":
+            title = f"{driver_name} on location for {customer_name}'s {time_str} {trip_type} at {pickup_location}"
+        elif new_status == "picked-up":
+            title = f"{driver_name} picked up {customer_name} - {trip_type} to {dropoff_location}"
+        elif new_status == "confirmed":
+            title = f"{driver_name} confirmed {customer_name}'s {time_str} {trip_type} - {pickup_location} to {dropoff_location}"
+        elif new_status == "completed":
+            title = f"{driver_name} completed {customer_name}'s {trip_type} - {dropoff_location}"
+        else:
+            title = f"{driver_name} {status_info['action_phrase']} - {customer_name}'s {time_str} {trip_type}"
+
+        # Message body — lead with the same human-readable context, then details
+        if new_status == "on-the-way":
+            message = f"{driver_name} is on the way to {customer_name} for the {time_str} {trip_type} from {pickup_location} to {dropoff_location}"
+        elif new_status == "on-location":
+            message = f"{driver_name} is on location waiting for {customer_name} at {pickup_location} for the {time_str} {trip_type}"
+        elif new_status == "picked-up":
+            message = f"{driver_name} has picked up {customer_name} and is heading to {dropoff_location}"
+        elif new_status == "confirmed":
+            message = f"{driver_name} confirmed the {time_str} {trip_type} for {customer_name} from {pickup_location} to {dropoff_location}"
+        elif new_status == "completed":
+            message = f"{driver_name} completed {customer_name}'s {trip_type} to {dropoff_location}"
+        else:
+            message = f"{driver_name} — {status_info['label']} for {customer_name}'s {time_str} {trip_type}"
+
+        message += f"\n\n{pickup_location} -> {dropoff_location}"
+        message += f"\n{leg.pickup_date.strftime('%a %b %d')} at {time_str} | {vehicle_name}"
+        message += f"\nRes #{leg.reservation.id}"
+
         if old_status and old_status != new_status:
-            old_status_info = get_driver_status_info(old_status)
-            message += f"\n\nChanged from: {old_status_info['label']}"
+            old_info = get_driver_status_info(old_status)
+            message += f"\nPrev: {old_info['label']}"
 
-        # Set appropriate tags and priority
         tags = ["car", "driver", status_info['tag']]
         priority = status_info['priority']
 
-        # Send notification to driver-specific topic
         send_driver_ntfy_notification(title, message, priority=priority, tags=tags)
 
     except Exception as e:
@@ -735,8 +786,11 @@ def send_driver_ntfy_notification(title, message, priority="default", tags=None)
         url = f"{server}/{topic}"
 
         headers = {
-            "Content-Type": "text/plain",
+            "Content-Type": "text/plain; charset=utf-8",
         }
+
+        if title:
+            headers["Title"] = title.encode("utf-8")
 
         if priority != "default":
             headers["Priority"] = priority
@@ -744,7 +798,9 @@ def send_driver_ntfy_notification(title, message, priority="default", tags=None)
         if tags:
             headers["Tags"] = ",".join(tags)
 
-        response = requests.post(url, data=message, headers=headers, timeout=10)
+        response = requests.post(
+            url, data=message.encode("utf-8"), headers=headers, timeout=10
+        )
 
         if response.status_code == 200:
             logger.info(f"Driver NTFY notification sent successfully: {title}")

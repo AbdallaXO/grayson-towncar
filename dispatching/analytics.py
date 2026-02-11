@@ -27,6 +27,50 @@ MAX_DWELL_MINUTES = 120   # Discard dwell > 2 hours
 MAX_DRIVE_MINUTES = 240   # Discard drive > 4 hours
 MAX_TOTAL_MINUTES = 360   # Discard total > 6 hours
 
+# IQR multiplier for outlier detection (1.5 = standard, 2.0 = lenient)
+IQR_MULTIPLIER = 1.5
+# Minimum samples needed before applying IQR filtering
+IQR_MIN_SAMPLES = 5
+
+
+def iqr_filter(values: list, multiplier: float = IQR_MULTIPLIER) -> list:
+    """
+    Remove outliers using the Interquartile Range (IQR) method.
+
+    Values outside [Q1 - multiplier*IQR, Q3 + multiplier*IQR] are removed.
+    With multiplier=1.5 this is the standard Tukey fence.
+
+    Returns filtered list. If fewer than IQR_MIN_SAMPLES, returns original
+    list unchanged (not enough data for meaningful IQR).
+    """
+    if len(values) < IQR_MIN_SAMPLES:
+        return values
+
+    sorted_vals = sorted(values)
+    q1, _, q3 = statistics.quantiles(sorted_vals, n=4)
+    iqr = q3 - q1
+
+    lower = q1 - multiplier * iqr
+    upper = q3 + multiplier * iqr
+
+    return [v for v in values if lower <= v <= upper]
+
+
+def adaptive_max(values: list, fallback_max: int) -> int:
+    """
+    Compute a tighter per-route max using P90 * 1.5.
+
+    If we have 10+ samples, use P90 * 1.5 as the max instead of
+    the blanket global max. This catches realistic-but-wrong values
+    (e.g. 45 min drive on a route that's normally 28-32 min).
+
+    Returns the tighter of (P90 * 1.5) or fallback_max.
+    """
+    if len(values) < 10:
+        return fallback_max
+    p90 = statistics.quantiles(sorted(values), n=10)[8]
+    return min(int(p90 * 1.5), fallback_max)
+
 
 # ============================================================================
 # LOCATION CATEGORIZATION
@@ -444,7 +488,7 @@ def calculate_route_timing_metrics(
         dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
         drive = calculate_drive_time(leg)
 
-        # Filter outliers
+        # Hard threshold filter
         if dwell is not None and (dwell < 0 or dwell > MAX_DWELL_MINUTES):
             dwell = None
         if drive is not None and (drive < 0 or drive > MAX_DRIVE_MINUTES):
@@ -463,6 +507,18 @@ def calculate_route_timing_metrics(
         elif drive is not None:
             if drive <= MAX_TOTAL_MINUTES:
                 total_times.append(drive)
+
+    # Adaptive per-route max (tighter than global if enough data)
+    dwell_max = adaptive_max(dwell_times, MAX_DWELL_MINUTES)
+    drive_max = adaptive_max(drive_times, MAX_DRIVE_MINUTES)
+    dwell_times = [v for v in dwell_times if v <= dwell_max]
+    drive_times = [v for v in drive_times if v <= drive_max]
+    total_times = [v for v in total_times if v <= adaptive_max(total_times, MAX_TOTAL_MINUTES)]
+
+    # IQR outlier removal
+    dwell_times = iqr_filter(dwell_times)
+    drive_times = iqr_filter(drive_times)
+    total_times = iqr_filter(total_times)
 
     # Build result with percentile safety rules:
     #   len < 1 -> avg = None
@@ -770,6 +826,18 @@ def update_all_route_timing_metrics(recent_days: int = None):
             elif drive is not None:
                 if drive <= MAX_TOTAL_MINUTES:
                     total_times.append(drive)
+
+        # Adaptive per-route max (tighter than global if enough data)
+        dwell_max = adaptive_max(dwell_times, MAX_DWELL_MINUTES)
+        drive_max = adaptive_max(drive_times, MAX_DRIVE_MINUTES)
+        dwell_times = [v for v in dwell_times if v <= dwell_max]
+        drive_times = [v for v in drive_times if v <= drive_max]
+        total_times = [v for v in total_times if v <= adaptive_max(total_times, MAX_TOTAL_MINUTES)]
+
+        # IQR outlier removal
+        dwell_times = iqr_filter(dwell_times)
+        drive_times = iqr_filter(drive_times)
+        total_times = iqr_filter(total_times)
 
         metrics_data = dict(empty_result)
         metrics_data['sample_count'] = len(legs_list)

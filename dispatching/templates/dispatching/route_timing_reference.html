@@ -24,120 +24,37 @@
     .stat-card {
         background: #fff;
         border-radius: 0.75rem;
-        padding: 1.5rem;
+        padding: 1.25rem;
         box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
         text-align: center;
-        transition: transform 0.2s ease;
     }
-    .stat-card:hover { transform: translateY(-2px); }
-    .stat-value { font-size: 2rem; font-weight: 700; color: var(--dark); line-height: 1; margin-bottom: 0.3rem; }
-    .stat-label { font-size: 0.75rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-    .stat-icon { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: 0.5rem; }
-
-    .chart-container {
-        background: #fff;
-        border-radius: 0.75rem;
-        padding: 1.5rem;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
-        margin-bottom: 1.5rem;
-    }
-    .chart-title {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--dark);
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 2px solid var(--gold);
-    }
-
-    /* Table */
-    .table-timing { font-size: 0.82rem; }
-    .table-timing thead th {
-        background: var(--dark);
-        color: #fff;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.7rem;
-        letter-spacing: 0.5px;
-        padding: 0.65rem 0.5rem;
-        border: none;
-        white-space: nowrap;
-        text-align: center;
-    }
-    .table-timing thead th:first-child { text-align: left; }
-    .table-timing td {
-        padding: 0.6rem 0.5rem;
-        vertical-align: middle;
-        text-align: center;
-        border-bottom: 1px solid #eee;
-    }
-    .table-timing td:first-child { text-align: left; }
-    .table-timing tbody tr { transition: background-color 0.15s ease; }
-    .table-timing tbody tr:hover { background-color: var(--cream); }
-    .table-timing tbody tr.low-confidence { opacity: 0.55; }
-
-    /* Metric cell */
-    .metric-cell { font-variant-numeric: tabular-nums; }
-    .metric-cell .val { font-weight: 600; }
-    .metric-cell .lbl { font-size: 0.6rem; color: #999; display: block; }
-    .metric-na { color: #ccc; }
-
-    /* Badges */
-    .badge-trip { padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-weight: 600; font-size: 0.7rem; }
-    .badge-arrival { background: #e3f2fd; color: #1565c0; }
-    .badge-return { background: #e8f5e9; color: #2e7d32; }
-    .badge-cruise { background: #fff3e0; color: #e65100; }
-    .badge-other { background: #f3e5f5; color: #6a1b9a; }
-
-    .badge-confidence { padding: 0.15rem 0.45rem; border-radius: 0.2rem; font-size: 0.65rem; font-weight: 600; }
-    .confidence-high { background: #e8f5e9; color: #2e7d32; }
-    .confidence-medium { background: #fffbea; color: #8d6e00; }
-    .confidence-low { background: #fff3e0; color: #e65100; }
-    .confidence-none { background: #f5f5f5; color: #999; }
-
-    /* Hardcoded comparison */
-    .hardcoded-val { font-size: 0.75rem; color: #888; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--dark); line-height: 1; margin-bottom: 0.2rem; }
+    .stat-label { font-size: 0.8rem; color: #6c757d; font-weight: 600; }
 
     /* Filter bar */
-    .filter-bar { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end; }
-    .filter-bar .form-select, .filter-bar .form-control { font-size: 0.82rem; }
-    .filter-bar label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: #6c757d; margin-bottom: 0.2rem; }
-
-    /* Info card (no data) */
-    .info-card {
-        background: linear-gradient(135deg, #f8f6f0, #fff);
-        border: 1px solid #e0ddd5;
+    .filter-panel {
+        background: #fff;
         border-radius: 0.75rem;
-        padding: 2rem;
-        text-align: center;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        margin-bottom: 1.5rem;
     }
-    .info-card i { font-size: 2.5rem; color: var(--gold); margin-bottom: 1rem; }
-
-    /* Collapsible */
-    .collapse-trigger { cursor: pointer; user-select: none; }
-    .collapse-trigger:hover { color: var(--gold); }
+    .filter-panel label { font-size: 0.8rem; font-weight: 600; color: #6c757d; margin-bottom: 0.2rem; }
+    .filter-panel .form-select, .filter-panel .form-control { font-size: 0.9rem; }
 
     /* Recalculate panel */
     .recalc-panel {
         background: linear-gradient(135deg, #f8f6f0, #fff);
         border: 1px solid #e0ddd5;
         border-radius: 0.75rem;
-        padding: 1.25rem 1.5rem;
+        padding: 1rem 1.5rem;
         margin-bottom: 1.5rem;
-    }
-    .recalc-panel .recalc-title {
-        font-size: 0.85rem;
-        font-weight: 700;
-        color: var(--dark);
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        margin-bottom: 0.75rem;
     }
     .recalc-options { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
     .recalc-btn {
         padding: 0.4rem 1rem;
         border-radius: 0.4rem;
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         font-weight: 600;
         border: 1px solid #ddd;
         background: #fff;
@@ -146,10 +63,10 @@
         transition: all 0.2s ease;
     }
     .recalc-btn:hover { border-color: var(--gold); color: var(--gold); }
-    .recalc-btn.active { background: var(--dark); color: var(--gold); border-color: var(--dark); }
     .recalc-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .recalc-spinner { display: none; margin-left: 0.5rem; }
     .recalc-result {
-        font-size: 0.8rem;
+        font-size: 0.85rem;
         padding: 0.5rem 0.75rem;
         border-radius: 0.4rem;
         margin-top: 0.75rem;
@@ -157,16 +74,106 @@
     }
     .recalc-result.success { background: #e8f5e9; color: #2e7d32; display: block; }
     .recalc-result.error { background: #ffeef0; color: #c62828; display: block; }
-    .recalc-spinner { display: none; margin-left: 0.5rem; }
 
-    /* Responsive */
-    .table-responsive { border-radius: 0.5rem; overflow: hidden; }
+    /* Route cards */
+    .route-card {
+        background: #fff;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+    }
+    .route-card-header {
+        background: var(--dark);
+        color: #fff;
+        padding: 0.85rem 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+    .route-name { font-size: 1.05rem; font-weight: 700; }
+    .route-name .arrow { color: var(--gold); margin: 0 0.5rem; }
+    .route-hardcoded { font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+    .route-hardcoded strong { color: var(--gold); }
+
+    /* Route table inside card */
+    .route-table { width: 100%; font-size: 0.9rem; margin: 0; }
+    .route-table thead th {
+        background: #f8f6f0;
+        font-weight: 700;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: #666;
+        padding: 0.6rem 1rem;
+        border-bottom: 2px solid #e8e5dd;
+        white-space: nowrap;
+    }
+    .route-table td {
+        padding: 0.65rem 1rem;
+        vertical-align: middle;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .route-table tbody tr:hover { background: #fafaf8; }
+    .route-table tbody tr.low-confidence { opacity: 0.5; }
+
+    /* Badges */
+    .badge-trip { padding: 0.25rem 0.6rem; border-radius: 0.3rem; font-weight: 700; font-size: 0.75rem; }
+    .badge-arrival { background: #e3f2fd; color: #1565c0; }
+    .badge-return { background: #e8f5e9; color: #2e7d32; }
+    .badge-cruise { background: #fff3e0; color: #e65100; }
+    .badge-other { background: #f3e5f5; color: #6a1b9a; }
+
+    .badge-confidence { padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 700; }
+    .confidence-high { background: #e8f5e9; color: #2e7d32; }
+    .confidence-medium { background: #fffbea; color: #8d6e00; }
+    .confidence-low { background: #fff3e0; color: #e65100; }
+    .confidence-none { background: #f5f5f5; color: #999; }
+
+    /* Metric values */
+    .metric-main { font-size: 1rem; font-weight: 700; color: var(--dark); }
+    .metric-sub { font-size: 0.75rem; color: #999; margin-left: 0.25rem; }
+    .metric-na { color: #ccc; font-size: 0.85rem; }
+    .time-period { font-size: 0.85rem; color: #555; }
+    .day-type { font-size: 0.75rem; color: #999; }
+
+    /* Info card */
+    .info-card {
+        background: linear-gradient(135deg, #f8f6f0, #fff);
+        border: 1px solid #e0ddd5;
+        border-radius: 0.75rem;
+        padding: 2.5rem;
+        text-align: center;
+    }
+    .info-card i { font-size: 2.5rem; color: var(--gold); margin-bottom: 1rem; }
+
+    /* Live badge */
+    .live-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem; background: #e3f2fd; color: #1565c0; font-weight: 700; }
+
+    /* Collapsible */
+    .collapse-trigger { cursor: pointer; user-select: none; }
+    .collapse-trigger:hover .chart-title { color: var(--gold); }
+
+    .chart-container {
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        margin-bottom: 1.5rem;
+    }
+    .chart-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--dark);
+        transition: color 0.2s;
+    }
+
     @media (max-width: 768px) {
         .page-header { padding: 1.5rem 0 1rem; }
         .page-header h1 { font-size: 1.5rem; }
-        .stat-value { font-size: 1.5rem; }
-        .filter-bar { flex-direction: column; }
-        .recalc-options { flex-direction: column; align-items: stretch; }
+        .stat-value { font-size: 1.4rem; }
+        .route-card-header { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
     }
 </style>
 {% endblock %}
@@ -181,7 +188,7 @@
         <div class="container">
             <h1 class="fw-bold mb-2" style="font-size: 2rem;">Route Timing Reference</h1>
             <p class="mb-1">Computed from completed leg timestamps (gate arrival, pickup, dropoff)</p>
-            <small>Metrics accumulate automatically as legs complete with status tracking</small>
+            {% if use_live %}<span class="live-badge"><i class="bi bi-lightning-fill me-1"></i>Live — computed from filtered legs</span>{% endif %}
         </div>
     </div>
 
@@ -190,21 +197,18 @@
         <div class="row mb-4 g-3">
             <div class="col-md-4">
                 <div class="stat-card">
-                    <div class="stat-icon" style="background: #e3f2fd;"><i class="bi bi-signpost-2" style="color: #1565c0;"></i></div>
                     <div class="stat-value">{{ total_routes }}</div>
                     <div class="stat-label">Routes Tracked</div>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="stat-card">
-                    <div class="stat-icon" style="background: #fff3e0;"><i class="bi bi-database" style="color: #e65100;"></i></div>
                     <div class="stat-value">{{ total_samples }}</div>
-                    <div class="stat-label">Total Data Points</div>
+                    <div class="stat-label">Data Points</div>
                 </div>
             </div>
             <div class="col-md-4">
                 <div class="stat-card">
-                    <div class="stat-icon" style="background: #e8f5e9;"><i class="bi bi-patch-check" style="color: #2e7d32;"></i></div>
                     <div class="stat-value">{{ high_confidence }}</div>
                     <div class="stat-label">High Confidence (20+)</div>
                 </div>
@@ -215,17 +219,17 @@
         <div class="recalc-panel">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div>
-                    <div class="recalc-title"><i class="bi bi-arrow-repeat me-1"></i> Recalculate Metrics</div>
-                    <div style="font-size: 0.78rem; color: #6c757d;">Reprocess completed legs to update timing data. Choose a time range:</div>
+                    <div style="font-size: 0.9rem; font-weight: 700; color: var(--dark);"><i class="bi bi-arrow-repeat me-1"></i> Recalculate Metrics</div>
+                    <div style="font-size: 0.8rem; color: #6c757d;">Reprocess completed legs to update timing data</div>
                 </div>
                 <div class="recalc-options">
-                    <button type="button" class="recalc-btn" onclick="recalcMetrics(30)">Last 30 Days</button>
-                    <button type="button" class="recalc-btn" onclick="recalcMetrics(90)">Last 90 Days</button>
-                    <button type="button" class="recalc-btn" onclick="recalcMetrics(180)">Last 6 Months</button>
-                    <button type="button" class="recalc-btn" onclick="recalcMetrics(null)" style="background: var(--dark); color: var(--gold); border-color: var(--dark);">All Time</button>
+                    <button type="button" class="recalc-btn" onclick="recalcMetrics(30)">30 Days</button>
+                    <button type="button" class="recalc-btn" onclick="recalcMetrics(90)">90 Days</button>
+                    <button type="button" class="recalc-btn" onclick="recalcMetrics(180)">6 Months</button>
+                    <button type="button" class="recalc-btn" onclick="recalcMetrics(null)" style="background:var(--dark);color:var(--gold);border-color:var(--dark);">All Time</button>
                     <span class="recalc-spinner">
                         <span class="spinner-border spinner-border-sm text-muted" role="status"></span>
-                        <span style="font-size: 0.8rem; color: #6c757d; margin-left: 0.3rem;">Calculating...</span>
+                        <span style="font-size: 0.8rem; color: #6c757d;">Calculating...</span>
                     </span>
                 </div>
             </div>
@@ -233,9 +237,33 @@
         </div>
 
         <!-- Filters -->
-        <div class="chart-container">
-            <form method="get" class="filter-bar">
-                <div>
+        <div class="filter-panel">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label>Driver</label>
+                    <select name="driver" class="form-select form-select-sm">
+                        <option value="">All Drivers</option>
+                        {% for d in inhouse_drivers %}
+                        <option value="{{ d.id }}" {% if driver_filter == d.id|stringformat:"d" %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label>Team</label>
+                    <select name="team" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        <option value="inhouse" {% if team_filter == 'inhouse' %}selected{% endif %}>In-House Only</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-lg-1">
+                    <label>From</label>
+                    <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+                </div>
+                <div class="col-md-2 col-lg-1">
+                    <label>To</label>
+                    <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+                </div>
+                <div class="col-md-2 col-lg-1">
                     <label>Trip Type</label>
                     <select name="trip_type" class="form-select form-select-sm">
                         <option value="">All</option>
@@ -244,7 +272,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div>
+                <div class="col-md-2 col-lg-1">
                     <label>Pickup</label>
                     <select name="pickup" class="form-select form-select-sm">
                         <option value="">All</option>
@@ -253,7 +281,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div>
+                <div class="col-md-2 col-lg-1">
                     <label>Dropoff</label>
                     <select name="dropoff" class="form-select form-select-sm">
                         <option value="">All</option>
@@ -262,128 +290,117 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div>
+                <div class="col-md-2 col-lg-1">
                     <label>Min Samples</label>
-                    <input type="number" name="min_samples" class="form-control form-control-sm" value="{{ min_samples }}" min="0" style="width: 80px;">
+                    <input type="number" name="min_samples" class="form-control form-control-sm" value="{{ min_samples }}" min="0">
                 </div>
-                <div>
-                    <button type="submit" class="btn btn-sm px-3" style="background: var(--dark); color: var(--gold); font-weight: 600; border: 1px solid var(--gold);">
+                <div class="col-auto d-flex gap-2">
+                    <button type="submit" class="btn btn-sm px-3" style="background:var(--dark);color:var(--gold);font-weight:600;border:1px solid var(--gold);">
                         <i class="bi bi-funnel me-1"></i>Filter
                     </button>
-                    <a href="{% url 'route_timing_reference' %}" class="btn btn-sm btn-outline-secondary ms-1">Clear</a>
+                    <a href="{% url 'route_timing_reference' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
                 </div>
             </form>
         </div>
 
-        <!-- Main Table -->
-        {% if metrics %}
-        <div class="chart-container p-0">
-            <div class="table-responsive">
-                <table class="table table-timing mb-0">
-                    <thead>
-                        <tr>
-                            <th style="min-width: 200px;">Route</th>
-                            <th>Type</th>
-                            <th>Samples</th>
-                            <th colspan="4" style="border-left: 2px solid rgba(255,255,255,0.2);">Dwell (Gate&rarr;Pickup)</th>
-                            <th colspan="4" style="border-left: 2px solid rgba(255,255,255,0.2);">Drive (Pickup&rarr;Drop)</th>
-                            <th colspan="4" style="border-left: 2px solid rgba(255,255,255,0.2);">Total (Gate&rarr;Drop)</th>
-                            <th style="border-left: 2px solid rgba(255,255,255,0.2);">Hardcoded</th>
-                        </tr>
-                        <tr style="background: #1a2030;">
-                            <th></th>
-                            <th></th>
-                            <th></th>
-                            <th style="border-left: 2px solid rgba(255,255,255,0.1);">Avg</th><th>Med</th><th>P75</th><th>P90</th>
-                            <th style="border-left: 2px solid rgba(255,255,255,0.1);">Avg</th><th>Med</th><th>P75</th><th>P90</th>
-                            <th style="border-left: 2px solid rgba(255,255,255,0.1);">Avg</th><th>Med</th><th>P75</th><th>P90</th>
-                            <th style="border-left: 2px solid rgba(255,255,255,0.1);">Est.</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in metrics %}
-                        <tr class="{% if item.metric.sample_count < 5 %}low-confidence{% endif %}">
-                            <td>
-                                <strong>{{ item.metric.pickup_location_category }}</strong>
-                                <span class="text-muted mx-1">&rarr;</span>
-                                <strong>{{ item.metric.dropoff_location_category }}</strong>
-                                <br>
-                                <small class="text-muted">{{ item.metric.get_time_of_day_category_display }} &middot; {{ item.metric.get_day_type_display }}</small>
-                            </td>
-                            <td>
-                                <span class="badge-trip badge-{{ item.metric.trip_type }}">{{ item.metric.trip_type|title }}</span>
-                            </td>
-                            <td>
-                                <strong>{{ item.metric.sample_count }}</strong>
-                                <br>
-                                <span class="badge-confidence confidence-{{ item.confidence }}">{{ item.confidence|title }}</span>
-                            </td>
-
-                            <!-- Dwell: avg/med/p75/p90 -->
-                            {% if item.metric.trip_type == 'arrival' %}
-                            <td class="metric-cell" style="border-left: 2px solid #eee;">{% if item.metric.avg_airport_dwell_time %}<span class="val">{{ item.metric.avg_airport_dwell_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.median_airport_dwell_time %}<span class="val">{{ item.metric.median_airport_dwell_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.p75_airport_dwell_time %}<span class="val">{{ item.metric.p75_airport_dwell_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.p90_airport_dwell_time %}<span class="val">{{ item.metric.p90_airport_dwell_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            {% else %}
-                            <td class="metric-na" style="border-left: 2px solid #eee;" colspan="4"><small>n/a</small></td>
-                            {% endif %}
-
-                            <!-- Drive: avg/med/p75/p90 -->
-                            <td class="metric-cell" style="border-left: 2px solid #eee;">{% if item.metric.avg_drive_time %}<span class="val">{{ item.metric.avg_drive_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.median_drive_time %}<span class="val">{{ item.metric.median_drive_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.p75_drive_time %}<span class="val">{{ item.metric.p75_drive_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.p90_drive_time %}<span class="val">{{ item.metric.p90_drive_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-
-                            <!-- Total: avg/med/p75/p90 -->
-                            <td class="metric-cell" style="border-left: 2px solid #eee;">{% if item.metric.avg_total_time %}<span class="val">{{ item.metric.avg_total_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.median_total_time %}<span class="val">{{ item.metric.median_total_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.p75_total_time %}<span class="val">{{ item.metric.p75_total_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-                            <td class="metric-cell">{% if item.metric.p90_total_time %}<span class="val">{{ item.metric.p90_total_time }}</span>{% else %}<span class="metric-na">&mdash;</span>{% endif %}</td>
-
-                            <!-- Hardcoded -->
-                            <td style="border-left: 2px solid #eee;">
-                                {% if item.hardcoded_drive_time %}
-                                <span class="hardcoded-val">{{ item.hardcoded_drive_time }}m</span>
-                                {% else %}
-                                <span class="metric-na">&mdash;</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <!-- Route Cards -->
+        {% if route_groups %}
+        {% for group in route_groups %}
+        <div class="route-card">
+            <div class="route-card-header">
+                <div class="route-name">
+                    {{ group.pickup_cat }}<span class="arrow">&rarr;</span>{{ group.dropoff_cat }}
+                </div>
+                {% if group.hardcoded_drive_time %}
+                <div class="route-hardcoded">Hardcoded estimate: <strong>{{ group.hardcoded_drive_time }} min</strong></div>
+                {% endif %}
             </div>
+            <table class="route-table">
+                <thead>
+                    <tr>
+                        <th>Time Period</th>
+                        <th>Type</th>
+                        <th>Samples</th>
+                        <th>Dwell <span style="font-weight:400;text-transform:none;">(Gate&rarr;Pickup)</span></th>
+                        <th>Drive <span style="font-weight:400;text-transform:none;">(Pickup&rarr;Drop)</span></th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in group.rows %}
+                    <tr class="{% if row.sample_count < 5 %}low-confidence{% endif %}">
+                        <td>
+                            <div class="time-period">{{ row.time_label }}</div>
+                            <div class="day-type">{{ row.day_label }}</div>
+                        </td>
+                        <td><span class="badge-trip badge-{{ row.trip_type }}">{{ row.trip_type|title }}</span></td>
+                        <td>
+                            <strong>{{ row.sample_count }}</strong>
+                            <span class="badge-confidence confidence-{{ row.confidence }}">{{ row.confidence|title }}</span>
+                        </td>
+                        <td>
+                            {% if row.trip_type == 'arrival' and row.dwell.median %}
+                                <span class="metric-main">{{ row.dwell.median }}m</span>
+                                {% if row.dwell.p75 %}<span class="metric-sub">p75: {{ row.dwell.p75 }}m</span>{% endif %}
+                            {% elif row.trip_type == 'arrival' and row.dwell.avg %}
+                                <span class="metric-main">{{ row.dwell.avg }}m</span>
+                            {% elif row.trip_type != 'arrival' %}
+                                <span class="metric-na">n/a</span>
+                            {% else %}
+                                <span class="metric-na">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.drive.median %}
+                                <span class="metric-main">{{ row.drive.median }}m</span>
+                                {% if row.drive.p75 %}<span class="metric-sub">p75: {{ row.drive.p75 }}m</span>{% endif %}
+                            {% elif row.drive.avg %}
+                                <span class="metric-main">{{ row.drive.avg }}m</span>
+                            {% else %}
+                                <span class="metric-na">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.total.median %}
+                                <span class="metric-main">{{ row.total.median }}m</span>
+                                {% if row.total.p75 %}<span class="metric-sub">p75: {{ row.total.p75 }}m</span>{% endif %}
+                            {% elif row.total.avg %}
+                                <span class="metric-main">{{ row.total.avg }}m</span>
+                            {% else %}
+                                <span class="metric-na">&mdash;</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        {% endfor %}
         {% else %}
         <div class="info-card">
             <i class="bi bi-stopwatch d-block"></i>
             <h5 style="color: var(--dark);">No Timing Data Yet</h5>
             <p class="text-muted mb-3">
-                Route timing metrics will accumulate as legs complete with status tracking.<br>
-                Each time a leg is marked "completed", its dwell and drive times are recorded.
-            </p>
-            <p class="text-muted mb-0" style="font-size: 0.85rem;">
+                Route timing metrics accumulate as legs complete with status tracking.<br>
                 Use the <strong>Recalculate Metrics</strong> panel above to process existing completed legs.
             </p>
         </div>
         {% endif %}
 
-        <!-- Hardcoded Estimates Reference -->
+        <!-- Hardcoded Estimates Reference (Collapsible) -->
         <div class="chart-container">
             <div class="collapse-trigger d-flex align-items-center" data-bs-toggle="collapse" data-bs-target="#hardcodedSection">
-                <div class="chart-title mb-0 flex-grow-1" style="border-bottom: none; padding-bottom: 0;">
+                <div class="chart-title flex-grow-1" style="margin: 0;">
                     <i class="bi bi-gear me-2" style="color: var(--gold);"></i>Hardcoded Drive Time Estimates (Fallback)
                 </div>
                 <i class="bi bi-chevron-down text-muted"></i>
             </div>
             <div class="collapse mt-3" id="hardcodedSection">
-                <p class="text-muted mb-3" style="font-size: 0.85rem;">
-                    These are the fallback estimates used when fewer than 5 data points exist for a route.
-                    As real data accumulates, the scheduler will prefer computed P75 values.
+                <p class="text-muted mb-3" style="font-size: 0.9rem;">
+                    Fallback estimates used when fewer than 5 data points exist. As real data accumulates, the scheduler prefers computed P75 values.
                 </p>
                 <div class="table-responsive">
-                    <table class="table table-sm table-striped mb-0" style="font-size: 0.82rem;">
+                    <table class="table table-sm table-striped mb-0" style="font-size: 0.9rem;">
                         <thead>
                             <tr style="background: #f8f6f0;">
                                 <th>From</th>
@@ -416,16 +433,13 @@ function recalcMetrics(recentDays) {
     const spinner = document.querySelector('.recalc-spinner');
     const resultDiv = document.getElementById('recalcResult');
 
-    // Disable all buttons, show spinner
     btns.forEach(b => b.disabled = true);
     spinner.style.display = 'inline-flex';
     resultDiv.className = 'recalc-result';
     resultDiv.textContent = '';
 
     const payload = {};
-    if (recentDays !== null) {
-        payload.recent_days = recentDays;
-    }
+    if (recentDays !== null) payload.recent_days = recentDays;
 
     fetch("{% url 'recalculate_route_metrics' %}", {
         method: 'POST',
@@ -439,10 +453,9 @@ function recalcMetrics(recentDays) {
     .then(data => {
         spinner.style.display = 'none';
         btns.forEach(b => b.disabled = false);
-
         if (data.success) {
             resultDiv.className = 'recalc-result success';
-            resultDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i>' + data.message + ' <a href="" style="color: #2e7d32; font-weight: 600;">Refresh page to see updated data.</a>';
+            resultDiv.innerHTML = '<i class="bi bi-check-circle me-1"></i>' + data.message + ' <a href="" style="color:#2e7d32;font-weight:600;">Refresh to see updated data.</a>';
         } else {
             resultDiv.className = 'recalc-result error';
             resultDiv.textContent = 'Error: ' + (data.error || 'Unknown error');

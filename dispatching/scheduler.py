@@ -391,6 +391,7 @@ def check_feasibility(
     driver_schedule: DriverDaySchedule,
     new_leg,
     target_date: date,
+    inter_job_buffer: int = None,
 ) -> FeasibilityResult:
     """
     Check whether a driver can fit a new leg into their schedule.
@@ -401,6 +402,9 @@ def check_feasibility(
     3. Enough time before following job (drive + buffer)
     """
     from dispatching.analytics import categorize_location
+
+    if inter_job_buffer is None:
+        inter_job_buffer = INTER_JOB_BUFFER
 
     if not driver_schedule.slots:
         return FeasibilityResult(feasible=True, buffer_minutes=999, reason="Available - no jobs yet")
@@ -428,7 +432,7 @@ def check_feasibility(
     # Check against preceding slot
     if preceding:
         reposition = get_drive_time(preceding.dropoff_category, new_pickup_cat)
-        earliest_available = preceding.estimated_end_time + timedelta(minutes=reposition + INTER_JOB_BUFFER)
+        earliest_available = preceding.estimated_end_time + timedelta(minutes=reposition + inter_job_buffer)
         buffer_minutes = int((new_pickup_dt - earliest_available).total_seconds() / 60)
 
         if buffer_minutes < 0:
@@ -437,7 +441,7 @@ def check_feasibility(
                 feasible=False,
                 buffer_minutes=buffer_minutes,
                 reason=f"Needs {abs(buffer_minutes)} more min. Previous job ends ~{end_str}, "
-                       f"+{reposition}min drive +{INTER_JOB_BUFFER}min buffer.",
+                       f"+{reposition}min drive +{inter_job_buffer}min buffer.",
             )
         if buffer_minutes < 15:
             warnings.append(f"Tight: {buffer_minutes}min after previous job")
@@ -446,7 +450,7 @@ def check_feasibility(
     if following:
         following_pickup_dt = datetime.combine(target_date, following.pickup_time)
         reposition = get_drive_time(new_dropoff_cat, following.pickup_category)
-        earliest_for_next = new_end_dt + timedelta(minutes=reposition + INTER_JOB_BUFFER)
+        earliest_for_next = new_end_dt + timedelta(minutes=reposition + inter_job_buffer)
         following_buffer = int((following_pickup_dt - earliest_for_next).total_seconds() / 60)
 
         if following_buffer < 0:
@@ -538,13 +542,12 @@ def suggest_assignments(
     Vehicle-aware: only assigns legs that match the driver's vehicle tier.
     """
     from dispatching.analytics import categorize_location
+    from dispatching.models import SchedulerSettings
+    cfg = SchedulerSettings.get_settings()
 
     suggestions = []
 
     # Sort legs strategically: returns/cruise BEFORE arrivals within each hour.
-    # Returns are short, predictable jobs that free drivers quickly — processing
-    # them first preserves capacity for longer arrival jobs instead of pushing
-    # returns to affiliates when drivers are already stacked with arrivals.
     _TYPE_PRIORITY = {'return': 0, 'cruise': 1, 'other': 2, 'arrival': 3}
 
     def _assignment_sort_key(leg):
@@ -572,10 +575,8 @@ def suggest_assignments(
     # Pre-compute scarcity: how many eligible drivers per leg
     scarcity_map = compute_leg_scarcity(sorted_legs, driver_vtypes)
 
-    # Pre-compute chain opportunities: for each leg, how many other unassigned
-    # legs are near its DROPOFF location within 30-180 min? If a leg "chains"
-    # into future work, the driver who takes it gets positioned for more jobs.
-    chain_map = {}  # leg_id -> count of chainable follow-up legs
+    # Pre-compute chain opportunities
+    chain_map = {}
     for leg in sorted_legs:
         dropoff_cat = categorize_location(leg.dropoff_location)
         leg_end_est = estimate_job_end_time(leg, target_date)
@@ -584,27 +585,101 @@ def suggest_assignments(
             if other.id == leg.id:
                 continue
             other_pickup_cat = categorize_location(other.pickup_location)
-            # Check: is the other leg's pickup near this leg's dropoff?
             if other_pickup_cat == dropoff_cat:
-                drive_between = 0  # same area
+                drive_between = 0
             else:
                 drive_between = DRIVE_TIME_ESTIMATES.get(
                     (dropoff_cat, other_pickup_cat), DEFAULT_DRIVE_TIME
                 )
-                if drive_between > 30:
-                    continue  # too far to chain
-
-            # Check: is the other leg within a reasonable time window after?
+                if drive_between > cfg.chain_drive_threshold:
+                    continue
             other_pickup_dt = datetime.combine(target_date, other.pickup_time)
             gap_minutes = (other_pickup_dt - leg_end_est).total_seconds() / 60
-            if 10 <= gap_minutes <= 180:  # 10 min to 3 hours after
+            if cfg.chain_time_min <= gap_minutes <= cfg.chain_time_max:
                 chain_count += 1
         chain_map[leg.id] = chain_count
+
+    # Pre-compute vehicle reservation: for each driver, count upcoming scarce
+    # jobs that MATCH their exact vehicle type. If they have matching jobs
+    # waiting, penalize assigning them to a different vehicle type.
+    #
+    # IMPORTANT: We use "exact type scarcity" here, NOT the general scarcity_map.
+    # scarcity_map counts all COMPATIBLE drivers (e.g., Van(14 Pax) can do Van jobs),
+    # but for reservation we need to know how many drivers have the EXACT vehicle
+    # type. Example: 1 Van + 2 Van(14 Pax) → scarcity_map says Van jobs have 3
+    # eligible drivers, but exact_type_count says only 1 driver IS a Van. The Van
+    # driver should be saved for Van jobs even though Van(14 Pax) drivers COULD help.
+    #
+    # Pre-count: how many drivers have each exact vehicle type
+    exact_type_driver_counts = {}
+    for dvtype in driver_vtypes.values():
+        if dvtype:
+            exact_type_driver_counts[dvtype] = exact_type_driver_counts.get(dvtype, 0) + 1
+
+    driver_reserved_count = {}
+    for did, dvtype in driver_vtypes.items():
+        if not dvtype:
+            continue
+        count = 0
+        for leg_check in sorted_legs:
+            leg_check_vtype = getattr(
+                getattr(getattr(leg_check, 'reservation', None), 'vehicle', None),
+                'vehicle_type', None
+            )
+            if leg_check_vtype and str(leg_check_vtype) == dvtype:
+                # This job matches the driver's exact vehicle type.
+                # Use exact-type driver count (not general scarcity) to decide
+                # if this job is rare enough to warrant saving this driver.
+                exact_drivers = exact_type_driver_counts.get(dvtype, len(working))
+                if exact_drivers <= cfg.reserve_max_scarcity:
+                    count += 1
+        driver_reserved_count[did] = count
+
+    # ── Two-pass processing order ────────────────────────────────────
+    # Pass 1: Legs whose vehicle type is TRULY scarce — few exact-type
+    #   drivers AND few total eligible drivers. This ensures specialized
+    #   drivers (e.g., the only Van driver) get their matching jobs BEFORE
+    #   being consumed as fallback for general jobs.
+    #
+    #   Both conditions must be met:
+    #   a) Exact-type driver count ≤ reserve_max_scarcity (few drivers ARE this type)
+    #   b) Total eligible drivers ≤ half the fleet (few drivers CAN do this type)
+    #
+    #   Example: mini_van has 1 exact driver but ALL 8 drivers are eligible
+    #   → NOT Pass 1 (condition b fails). Van has 1 exact driver and only
+    #   3 eligible → Pass 1 (both conditions met).
+    #
+    # Pass 2: Everything else (types with many eligible drivers).
+    #
+    # Within each pass, the original sort order is preserved:
+    #   (hour, type_priority [returns→cruise→other→arrivals], pickup_time)
+    _TYPE_PRIORITY_REF = _TYPE_PRIORITY
+    half_fleet = max(len(working) // 2, 3)
+
+    def _two_pass_sort_key(leg):
+        trip_type = leg.get_trip_type()
+        leg_vtype = getattr(
+            getattr(getattr(leg, 'reservation', None), 'vehicle', None),
+            'vehicle_type', None
+        )
+        pass_priority = 1  # Pass 2 (normal)
+        if leg_vtype:
+            exact_count = exact_type_driver_counts.get(str(leg_vtype), 0)
+            eligible = scarcity_map.get(leg.id, len(working))
+            if 0 < exact_count <= cfg.reserve_max_scarcity and eligible <= half_fleet:
+                pass_priority = 0  # Pass 1 (truly scarce)
+        return (pass_priority, leg.pickup_time.hour, _TYPE_PRIORITY_REF.get(trip_type, 2), leg.pickup_time)
+
+    sorted_legs = sorted(sorted_legs, key=_two_pass_sort_key)
 
     for leg in sorted_legs:
         best_id = None
         best_score = -1
         best_feasibility = None
+        # Fallback: reserved-mismatch drivers (only used if no non-reserved driver fits)
+        best_reserved_id = None
+        best_reserved_score = -1
+        best_reserved_feasibility = None
         pickup_cat = categorize_location(leg.pickup_location)
         leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
         eligible_drivers = scarcity_map.get(leg.id, len(working))
@@ -615,69 +690,78 @@ def suggest_assignments(
             if driver_vtype and leg_vtype:
                 compatible = get_compatible_vehicle_types(driver_vtype)
                 if leg_vtype not in compatible:
-                    continue  # driver's vehicle can't handle this tier
+                    continue
 
-            feas = check_feasibility(sched, leg, target_date)
+            feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
             if not feas.feasible:
                 continue
+
+            # Check if this driver is reserved for matching jobs but this
+            # leg doesn't match their type. These drivers are HARD SKIPPED
+            # and only used as fallback if no non-reserved driver is feasible.
+            is_reserved_mismatch = False
+            if driver_vtype and leg_vtype:
+                d_tier = get_vehicle_tier(driver_vtype)
+                l_tier = get_vehicle_tier(str(leg_vtype))
+                if d_tier > l_tier and driver_reserved_count.get(did, 0) > 0:
+                    is_reserved_mismatch = True
 
             score = 0
             buf = feas.buffer_minutes
 
-            # Score by buffer quality
-            if 20 <= buf <= 60:
-                score += 100
+            # Buffer quality
+            if 20 <= buf <= 30:
+                score += cfg.buffer_perfect
+            elif 30 < buf <= 60:
+                score += cfg.buffer_sweet_spot
             elif 10 <= buf < 20:
-                score += 70
+                score += cfg.buffer_tight
             elif 60 < buf <= 120:
-                score += 80
+                score += cfg.buffer_good
             elif buf > 120:
-                score += 50
+                score += cfg.buffer_loose
             else:
-                score += 30
+                score += cfg.buffer_risky
 
-            # Vehicle tier preference — prefer closest tier match
+            # Vehicle tier preference
             if driver_vtype and leg_vtype:
                 d_tier = get_vehicle_tier(driver_vtype)
                 l_tier = get_vehicle_tier(leg_vtype)
                 tier_diff = d_tier - l_tier
                 if tier_diff == 0:
-                    score += 60   # exact match — ideal
+                    score += cfg.tier_exact
                 elif tier_diff == 1:
-                    score += 40
+                    score += cfg.tier_1_down
                 elif tier_diff == 2:
-                    score += 25
+                    score += cfg.tier_2_down
                 else:
-                    score += 10
+                    score += cfg.tier_4_down
 
-            # Scarcity bonus — if few drivers can handle this job, prioritize it
+            # Scarcity bonus
             if eligible_drivers <= 1:
-                score += 80   # only 1 driver can do this — must take it
+                score += cfg.scarcity_1
             elif eligible_drivers == 2:
-                score += 50   # rare — strong preference
+                score += cfg.scarcity_2
             elif eligible_drivers == 3:
-                score += 30   # somewhat scarce
+                score += cfg.scarcity_3
             elif eligible_drivers == 4:
-                score += 15   # mild scarcity
-            # 5+ drivers = no bonus, let other factors decide
+                score += cfg.scarcity_4
 
-            # Location proximity bonus
+            # Location proximity
             if sched.slots:
                 last = sched.slots[-1]
                 if last.dropoff_category == pickup_cat:
-                    score += 50
+                    score += cfg.loc_same_area
                 else:
                     repo = DRIVE_TIME_ESTIMATES.get((last.dropoff_category, pickup_cat))
                     if repo and repo <= 15:
-                        score += 30
+                        score += cfg.loc_close
             else:
-                score += 40
+                score += cfg.loc_first_job
 
-            # Schedule flow — avoid stacking too many arrivals in a row
-            # and prefer a natural rhythm (return → arrival → return)
+            # Schedule flow
             leg_trip_type = leg.get_trip_type()
             if sched.slots:
-                # Count consecutive same trip types from end of schedule
                 consecutive_arrivals = 0
                 for slot in reversed(sched.slots):
                     if slot.trip_type == 'arrival':
@@ -686,34 +770,49 @@ def suggest_assignments(
                         break
 
                 if leg_trip_type == 'arrival' and consecutive_arrivals >= 2:
-                    score -= 40  # 3rd+ arrival in a row — cascade risk, unrealistic
+                    score += cfg.flow_3rd_arrival  # negative value
                 elif leg_trip_type == 'arrival' and consecutive_arrivals == 1:
-                    score -= 15  # 2nd arrival in a row — mild penalty
+                    score += cfg.flow_2nd_arrival  # negative value
                 elif leg_trip_type in ('return', 'cruise') and consecutive_arrivals >= 1:
-                    score += 30  # breaking an arrival streak — natural flow
+                    score += cfg.flow_break_bonus
 
-            # In-house retention bonus for returns and cruise transfers
-            # These are short, predictable jobs that should stay in-house
+            # In-house retention bonus
             if leg_trip_type in ('return', 'cruise'):
-                score += 25
+                score += cfg.retention_bonus
 
-            # Chain bonus — if taking this leg positions the driver near
-            # future unassigned work, favor it (enables 2-3 job chains)
+            # Chain bonus
             chains = chain_map.get(leg.id, 0)
             if chains >= 3:
-                score += 45  # great chain — 3+ follow-up jobs nearby
+                score += cfg.chain_3_plus
             elif chains == 2:
-                score += 35  # strong chain
+                score += cfg.chain_2
             elif chains == 1:
-                score += 20  # single follow-up
+                score += cfg.chain_1
 
-            # Load balance: fewer legs = higher score
-            score -= len(sched.slots) * 5
+            # Load balance
+            score -= len(sched.slots) * cfg.load_balance_multiplier
 
-            if score > best_score:
-                best_score = score
-                best_id = did
-                best_feasibility = feas
+            if is_reserved_mismatch:
+                # Reserved driver on mismatched job — track as fallback only.
+                # Apply penalty so the best fallback is still ranked sensibly.
+                score += cfg.reserve_penalty
+                if score > best_reserved_score:
+                    best_reserved_score = score
+                    best_reserved_id = did
+                    best_reserved_feasibility = feas
+            else:
+                if score > best_score:
+                    best_score = score
+                    best_id = did
+                    best_feasibility = feas
+
+        # Fallback: if no non-reserved driver fits, use the best reserved one.
+        # This prevents jobs from going unassigned when only reserved drivers
+        # are available, while still preferring non-reserved drivers first.
+        if not best_id and best_reserved_id:
+            best_id = best_reserved_id
+            best_score = best_reserved_score
+            best_feasibility = best_reserved_feasibility
 
         if best_id:
             same_area = ""
@@ -749,6 +848,16 @@ def suggest_assignments(
             )
             working[best_id].slots.append(sim_slot)
             working[best_id].slots.sort(key=lambda s: s.pickup_time)
+
+            # Update reservation counts: this leg is now assigned, so
+            # decrement for all drivers whose exact type matched this leg
+            if leg_vtype:
+                assigned_vtype = str(leg_vtype)
+                exact_drivers = exact_type_driver_counts.get(assigned_vtype, len(working))
+                if exact_drivers <= cfg.reserve_max_scarcity:
+                    for did_r, dvtype_r in driver_vtypes.items():
+                        if dvtype_r == assigned_vtype and driver_reserved_count.get(did_r, 0) > 0:
+                            driver_reserved_count[did_r] -= 1
         else:
             suggestion = AssignmentSuggestion(
                 leg_id=leg.id,
@@ -859,6 +968,9 @@ def build_smart_schedule(
     """
     from dispatching.analytics import categorize_location
 
+    from dispatching.models import SchedulerSettings
+    cfg = SchedulerSettings.get_settings()
+
     pinned_leg_ids = pinned_leg_ids or []
     excluded_leg_ids = excluded_leg_ids or []
     warnings = []
@@ -927,7 +1039,7 @@ def build_smart_schedule(
     # Step 1: Insert pinned legs first (they're mandatory)
     pinned_sorted = sorted(pinned_legs, key=lambda l: l.pickup_time)
     for leg in pinned_sorted:
-        feas = check_feasibility(working, leg, target_date)
+        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
         if feas.feasible:
             timing = _capture_timing_details(working, leg, target_date)
             _add_leg_to_schedule(working, leg, target_date)
@@ -938,6 +1050,26 @@ def build_smart_schedule(
             warnings.append(f"Pinned leg #{leg.id} at {leg.pickup_time.strftime('%I:%M %p').lstrip('0')} doesn't fit: {feas.reason}")
 
     # Step 2: Fill remaining slots with optional legs, scored by preference
+    # Parse preference mode and trip type
+    pref_mode = 'prefer'  # default
+    pref_type = None
+    if preferred_trip_type:
+        parts = preferred_trip_type.split('_', 1)
+        if len(parts) == 2 and parts[0] in ('prefer', 'heavy', 'only'):
+            pref_mode, pref_type = parts
+        else:
+            # Backward compatibility: bare type like 'arrival'
+            pref_type = preferred_trip_type
+
+    # For "only" mode: hard-filter to matching trip type
+    if pref_mode == 'only' and pref_type:
+        pre_filter_count = len(optional_legs)
+        optional_legs = [l for l in optional_legs if l.get_trip_type() == pref_type]
+        if len(optional_legs) == 0:
+            warnings.append(f"No {pref_type} legs available in this window. Try a different preference or time range.")
+        elif pre_filter_count > len(optional_legs):
+            warnings.append(f"Strict mode: showing {len(optional_legs)} {pref_type} leg(s) ({pre_filter_count - len(optional_legs)} other type(s) excluded)")
+
     # Pre-compute scarcity: how many OTHER drivers can handle each leg
     scarcity_map = compute_leg_scarcity(optional_legs, all_driver_vtypes, exclude_driver_id=driver_id)
 
@@ -957,21 +1089,61 @@ def build_smart_schedule(
                 drive_between = DRIVE_TIME_ESTIMATES.get(
                     (dropoff_cat, other_pickup_cat), DEFAULT_DRIVE_TIME
                 )
-                if drive_between > 30:
+                if drive_between > cfg.chain_drive_threshold:
                     continue
             other_pickup_dt = datetime.combine(target_date, other.pickup_time)
             gap_minutes = (other_pickup_dt - leg_end_est).total_seconds() / 60
-            if 10 <= gap_minutes <= 180:
+            if cfg.chain_time_min <= gap_minutes <= cfg.chain_time_max:
                 chain_count += 1
         chain_map[leg.id] = chain_count
 
-    # Sort by vehicle tier descending (own-tier first), then by pickup time
-    def _leg_tier_sort_key(leg):
-        vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
-        tier = get_vehicle_tier(vtype) if vtype else 0
-        return (-tier, leg.pickup_time)
+    # Pre-compute vehicle reservation count for this driver
+    # Use exact-type driver count (how many drivers have this EXACT vehicle),
+    # not general scarcity (which counts all compatible higher-tier drivers).
+    exact_type_driver_counts = {}
+    for dvtype in all_driver_vtypes.values():
+        if dvtype:
+            exact_type_driver_counts[dvtype] = exact_type_driver_counts.get(dvtype, 0) + 1
 
-    optional_sorted = sorted(optional_legs, key=_leg_tier_sort_key)
+    reserved_count = 0
+    if driver_vtype:
+        exact_drivers_for_type = exact_type_driver_counts.get(driver_vtype, len(all_driver_vtypes))
+        for leg_check in optional_legs:
+            leg_check_vtype = getattr(
+                getattr(getattr(leg_check, 'reservation', None), 'vehicle', None),
+                'vehicle_type', None
+            )
+            if leg_check_vtype and str(leg_check_vtype) == driver_vtype:
+                if exact_drivers_for_type <= cfg.reserve_max_scarcity:
+                    reserved_count += 1
+
+    # Sort by vehicle tier descending, with preference-aware ordering
+    if pref_type and pref_mode == 'heavy':
+        # Heavy mode: preference match is PRIMARY sort key
+        # All matching-type legs processed before any non-matching
+        def _leg_sort_key(leg):
+            tt = leg.get_trip_type()
+            match = 0 if tt == pref_type else 1
+            vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+            tier = get_vehicle_tier(vtype) if vtype else 0
+            return (match, -tier, leg.pickup_time)
+        optional_sorted = sorted(optional_legs, key=_leg_sort_key)
+    elif pref_type and pref_mode == 'prefer':
+        # Prefer mode: tier primary, preference as tiebreaker within same tier
+        def _leg_sort_key(leg):
+            tt = leg.get_trip_type()
+            match = 0 if tt == pref_type else 1
+            vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+            tier = get_vehicle_tier(vtype) if vtype else 0
+            return (-tier, match, leg.pickup_time)
+        optional_sorted = sorted(optional_legs, key=_leg_sort_key)
+    else:
+        # No preference or "only" mode (already filtered): sort by tier
+        def _leg_sort_key(leg):
+            vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+            tier = get_vehicle_tier(vtype) if vtype else 0
+            return (-tier, leg.pickup_time)
+        optional_sorted = sorted(optional_legs, key=_leg_sort_key)
 
     for leg in optional_sorted:
         # Check if within time window
@@ -983,16 +1155,18 @@ def build_smart_schedule(
         if est_end.hour > end_hour + 1:  # allow 1 hour grace for last job
             continue
 
-        feas = check_feasibility(working, leg, target_date)
+        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
         if not feas.feasible:
             continue
 
         # Score this leg (with vehicle tier + scarcity + chain awareness)
+        # Pass pref_type for scoring; skip preference scoring in "only" mode (all legs match)
         eligible_others = scarcity_map.get(leg.id, len(all_driver_vtypes))
         chains = chain_map.get(leg.id, 0)
+        scoring_pref = pref_type if pref_mode != 'only' else None
         score = _score_leg_for_smart_schedule(
-            leg, working, feas, preferred_trip_type, target_date, driver_tier,
-            eligible_others, chains
+            leg, working, feas, scoring_pref, target_date, driver_tier,
+            eligible_others, chains, cfg, reserved_count=reserved_count
         )
 
         if score > 0:
@@ -1095,76 +1269,78 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
 def _score_leg_for_smart_schedule(
     leg, schedule: DriverDaySchedule, feasibility: FeasibilityResult,
     preferred_trip_type: str, target_date: date, driver_tier: int = -1,
-    eligible_others: int = -1, chain_count: int = 0
+    eligible_others: int = -1, chain_count: int = 0, cfg=None,
+    reserved_count: int = 0
 ) -> int:
-    """Score a leg for smart schedule insertion. Higher = better fit.
-
-    eligible_others: how many OTHER drivers can handle this leg's vehicle type.
-        0 = only this driver can do it (scarce), high numbers = many alternatives.
-    chain_count: how many other unassigned legs are near this leg's dropoff
-        within 10-180 min. Higher = this job opens up more follow-up work.
-    """
+    """Score a leg for smart schedule insertion. Higher = better fit."""
     from dispatching.analytics import categorize_location
 
-    score = 50  # base score
+    if cfg is None:
+        from dispatching.models import SchedulerSettings
+        cfg = SchedulerSettings.get_settings()
 
-    # Vehicle tier scoring — strongly prefer own-tier, then descend
+    score = cfg.base_score
+
+    # Vehicle tier scoring
     if driver_tier >= 0:
         leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
         leg_tier = get_vehicle_tier(leg_vtype) if leg_vtype else 0
-        tier_diff = driver_tier - leg_tier  # 0 = same tier, positive = downgrade
+        tier_diff = driver_tier - leg_tier
 
         if tier_diff == 0:
-            score += 60   # own-tier: highest priority
+            score += cfg.tier_exact
         elif tier_diff == 1:
-            score += 40   # one tier down
+            score += cfg.tier_1_down
         elif tier_diff == 2:
-            score += 25   # two tiers down
+            score += cfg.tier_2_down
         elif tier_diff == 3:
-            score += 15   # three tiers down
+            score += cfg.tier_3_down
         else:
-            score += 5    # four tiers down (e.g. towncar for a van14pax driver)
+            score += cfg.tier_4_down
 
-    # Scarcity bonus — if few other drivers can handle this job, this driver
-    # should prioritize it (don't waste it on a job that anyone could do)
+        # Vehicle reservation penalty
+        if tier_diff > 0 and reserved_count > 0:
+            score += cfg.reserve_penalty  # negative value
+
+    # Scarcity bonus
     if eligible_others >= 0:
         if eligible_others == 0:
-            score += 80   # ONLY this driver can do it — must take it
+            score += cfg.scarcity_1
         elif eligible_others == 1:
-            score += 50   # only 1 other driver — very scarce
+            score += cfg.scarcity_2
         elif eligible_others == 2:
-            score += 30   # 2 others — somewhat scarce
+            score += cfg.scarcity_3
         elif eligible_others == 3:
-            score += 15   # 3 others — mild scarcity
-        # 4+ others = no bonus, let location/buffer decide
+            score += cfg.scarcity_4
 
-    # Trip type preference bonus
+    # Trip type preference
     trip_type = leg.get_trip_type()
     if preferred_trip_type and trip_type == preferred_trip_type:
-        score += 40
+        score += cfg.trip_pref_match
     elif preferred_trip_type and trip_type != preferred_trip_type:
-        score -= 10  # still include, just lower priority
+        score += cfg.trip_pref_mismatch
 
-    # Buffer quality (sweet spot 20-60 min)
+    # Buffer quality
     buf = feasibility.buffer_minutes
-    if 20 <= buf <= 60:
-        score += 30
+    if 20 <= buf <= 30:
+        score += cfg.sb_buffer_perfect
+    elif 30 < buf <= 60:
+        score += cfg.sb_buffer_sweet_spot
     elif 10 <= buf < 20:
-        score += 15
+        score += cfg.sb_buffer_tight
     elif 60 < buf <= 120:
-        score += 20
+        score += cfg.sb_buffer_good
     elif buf >= 999:
-        score += 25  # first job, good
+        score += cfg.sb_buffer_first_job
 
-    # Location proximity bonus
+    # Location proximity
     if schedule.slots:
         pickup_cat = categorize_location(leg.pickup_location)
         last = schedule.slots[-1]
         if last.dropoff_category == pickup_cat:
-            score += 35  # same area = very efficient
+            score += cfg.sb_loc_same_area
 
-    # Schedule flow — avoid stacking too many arrivals in a row,
-    # prefer alternating pattern (return → arrival → return)
+    # Schedule flow
     if schedule.slots:
         consecutive_arrivals = 0
         for slot in reversed(schedule.slots):
@@ -1174,23 +1350,23 @@ def _score_leg_for_smart_schedule(
                 break
 
         if trip_type == 'arrival' and consecutive_arrivals >= 2:
-            score -= 35  # 3rd+ arrival in a row — cascade risk
+            score += cfg.sb_flow_3rd_arrival  # negative value
         elif trip_type == 'arrival' and consecutive_arrivals == 1:
-            score -= 10  # 2nd arrival in a row — mild penalty
+            score += cfg.sb_flow_2nd_arrival  # negative value
         elif trip_type in ('return', 'cruise') and consecutive_arrivals >= 1:
-            score += 25  # breaking an arrival streak — natural flow
+            score += cfg.sb_flow_break_bonus
 
-    # Chain bonus — jobs that position the driver near future work
+    # Chain bonus
     if chain_count >= 3:
-        score += 45  # great chain — 3+ follow-up jobs nearby
+        score += cfg.chain_3_plus
     elif chain_count == 2:
-        score += 35  # strong chain
+        score += cfg.chain_2
     elif chain_count == 1:
-        score += 20  # single follow-up
+        score += cfg.chain_1
 
     # Revenue bonus
     if leg.revenue_share and leg.revenue_share > 0:
-        score += min(int(leg.revenue_share / 10), 20)  # up to 20 bonus pts
+        score += min(int(leg.revenue_share / cfg.revenue_divisor), cfg.revenue_cap)
 
     return score
 

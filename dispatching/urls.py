@@ -30,6 +30,8 @@ urlpatterns = [
     path("delete-snapshot/", views.delete_schedule_snapshot, name="delete_schedule_snapshot"),
     path("smart-schedule-builder/", views.smart_schedule_builder, name="smart_schedule_builder"),
     path("update-drive-time/", views.update_drive_time, name="update_drive_time"),
+    path("scheduler-settings/", views.get_scheduler_settings, name="get_scheduler_settings"),
+    path("update-scheduler-settings/", views.update_scheduler_settings, name="update_scheduler_settings"),
     path("update-leg-assignment/", views.update_leg_assignment, name="update_leg_assignment"),
     path(
         "update-inhouse-vehicle-assignment/",

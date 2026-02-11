@@ -47,7 +47,7 @@ from rates.models import Vehicle, Rate
 from users.emails import send_reservation_confirmation
 from reservations.conversions import send_purchase_event
 from payment.webhook import save_card_to_customer
-from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics
+from .utils import get_comprehensive_statistics, get_filtered_legs_queryset, calculate_vehicle_statistics, detect_leg_flags
 from .aeroapi_service import AeroAPIService
 from .forms import (
     DispatcherCustomerForm,
@@ -233,6 +233,24 @@ def index(request):
     inhouse_vehicles = sorted(
         FleetVehicle.objects.all(), key=_vehicle_sort_key
     )
+
+    # Compute real-time dispatch flags for today's legs
+    today = timezone.localdate()
+    if selected_date == today:
+        now = datetime.now()
+        for leg in legs:
+            leg.dispatch_flags = detect_leg_flags(leg, now)
+            # Set worst flag level for row highlighting
+            if any(f['level'] == 'danger' for f in leg.dispatch_flags):
+                leg.dispatch_flag_level = 'danger'
+            elif leg.dispatch_flags:
+                leg.dispatch_flag_level = 'warning'
+            else:
+                leg.dispatch_flag_level = ''
+    else:
+        for leg in legs:
+            leg.dispatch_flags = []
+            leg.dispatch_flag_level = ''
 
     context = {
         "legs": legs,
@@ -5350,14 +5368,18 @@ def smart_schedule_builder(request):
 
     # Format response
     timing_details = result.get('slot_timing_details', {})
+    leg_map = {l.id: l for l in legs}
     schedule_data = []
+    scheduled_leg_ids = set()
     for slot in result['schedule']:
+        scheduled_leg_ids.add(slot.leg_id)
         is_existing = existing_schedule and any(
             s.leg_id == slot.leg_id for s in existing_schedule.slots
         )
         slot_data = {
             'leg_id': slot.leg_id,
             'pickup_time': slot.pickup_time.strftime('%I:%M %p').lstrip('0'),
+            'pickup_minutes': slot.pickup_time.hour * 60 + slot.pickup_time.minute,
             'cleared_time': slot.estimated_end_time.strftime('%I:%M %p').lstrip('0'),
             'pickup_location': slot.pickup_location[:50],
             'dropoff_location': slot.dropoff_location[:50],
@@ -5366,6 +5388,20 @@ def smart_schedule_builder(request):
             'revenue': float(slot.revenue) if slot.revenue else 0,
             'is_existing': is_existing,
         }
+        # Add job details from the leg's reservation
+        leg_obj = leg_map.get(slot.leg_id)
+        if leg_obj and leg_obj.reservation:
+            res = leg_obj.reservation
+            veh = res.vehicle
+            slot_data['vehicle_type'] = str(veh.vehicle_type).upper() if veh else ''
+            slot_data['passengers'] = res.passenger_count or 0
+            slot_data['luggage'] = res.luggage_count or 0
+            cs_parts = []
+            if res.need_carseats:
+                if res.rf_carseats: cs_parts.append(f"{res.rf_carseats} RF")
+                if res.ff_carseats: cs_parts.append(f"{res.ff_carseats} FF")
+                if res.booster_seats: cs_parts.append(f"{res.booster_seats} Bstr")
+            slot_data['carseats'] = ", ".join(cs_parts)
         # Add timing details for new slots
         if slot.leg_id in timing_details:
             td = timing_details[slot.leg_id]
@@ -5382,10 +5418,37 @@ def smart_schedule_builder(request):
             }
         schedule_data.append(slot_data)
 
+    # Build alternatives: unassigned legs NOT in the built schedule
+    alternatives = []
+    for leg_alt in available_legs:
+        if leg_alt.id in scheduled_leg_ids or leg_alt.id in excluded_leg_ids:
+            continue
+        res = leg_alt.reservation
+        veh = res.vehicle if res else None
+        alt_cs = []
+        if res and res.need_carseats:
+            if res.rf_carseats: alt_cs.append(f"{res.rf_carseats} RF")
+            if res.ff_carseats: alt_cs.append(f"{res.ff_carseats} FF")
+            if res.booster_seats: alt_cs.append(f"{res.booster_seats} Bstr")
+        alternatives.append({
+            'leg_id': leg_alt.id,
+            'pickup_time': leg_alt.pickup_time.strftime('%I:%M %p').lstrip('0'),
+            'pickup_minutes': leg_alt.pickup_time.hour * 60 + leg_alt.pickup_time.minute,
+            'trip_type': leg_alt.get_trip_type(),
+            'vehicle_type': str(veh.vehicle_type).upper() if veh else '',
+            'pickup_location': (leg_alt.pickup_location or '')[:40],
+            'dropoff_location': (leg_alt.dropoff_location or '')[:40],
+            'passengers': res.passenger_count if res else 0,
+            'luggage': res.luggage_count if res else 0,
+            'carseats': ", ".join(alt_cs),
+            'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
+        })
+
     response = {
         'success': True,
         'driver_name': str(driver),
         'schedule': schedule_data,
+        'alternatives': alternatives,
         'total_legs': result['total_legs'],
         'existing_count': result['existing_count'],
         'new_count': result['new_count'],
@@ -5476,64 +5539,214 @@ def route_timing_reference(request):
 
     from reservations.models import RouteTimingMetric
     from dispatching.scheduler import DRIVE_TIME_ESTIMATES
+    from dispatching.analytics import (
+        categorize_location, categorize_time_of_day, categorize_day_type,
+        calculate_airport_dwell_time, calculate_drive_time,
+    )
+    import statistics
+    from collections import defaultdict
 
     # Filters
     trip_type_filter = request.GET.get('trip_type', '')
     pickup_filter = request.GET.get('pickup', '')
     dropoff_filter = request.GET.get('dropoff', '')
     min_samples = int(request.GET.get('min_samples', 0))
+    driver_filter = request.GET.get('driver', '')
+    team_filter = request.GET.get('team', '')  # 'inhouse' or ''
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
 
-    # Build queryset
-    metrics = RouteTimingMetric.objects.all().order_by(
-        '-sample_count', 'trip_type', 'pickup_location_category'
-    )
+    # Determine if we need on-the-fly computation (driver/date filters)
+    use_live = bool(driver_filter or team_filter or date_from or date_to)
 
-    if trip_type_filter:
-        metrics = metrics.filter(trip_type=trip_type_filter)
-    if pickup_filter:
-        metrics = metrics.filter(pickup_location_category=pickup_filter)
-    if dropoff_filter:
-        metrics = metrics.filter(dropoff_location_category=dropoff_filter)
-    if min_samples:
-        metrics = metrics.filter(sample_count__gte=min_samples)
+    # Get all inhouse drivers for filter dropdown
+    inhouse_drivers = Driver.objects.filter(driver_type='inhouse').select_related('profile').order_by('profile__first_name')
 
-    # Filter options
-    all_metrics = RouteTimingMetric.objects.all()
-    pickup_categories = sorted(all_metrics.values_list('pickup_location_category', flat=True).distinct())
-    dropoff_categories = sorted(all_metrics.values_list('dropoff_location_category', flat=True).distinct())
-    trip_types = sorted(all_metrics.values_list('trip_type', flat=True).distinct())
+    if use_live:
+        # On-the-fly computation from raw completed legs
+        legs_qs = Leg.objects.filter(status='completed').prefetch_related(
+            'status_history', 'flight_information'
+        ).select_related('driver')
 
-    # Enrich with confidence + hardcoded comparison
-    metrics_list = []
-    for m in metrics:
-        if m.sample_count >= 20:
-            confidence = 'high'
-        elif m.sample_count >= 10:
-            confidence = 'medium'
-        elif m.sample_count >= 5:
-            confidence = 'low'
-        else:
-            confidence = 'none'
+        if driver_filter:
+            legs_qs = legs_qs.filter(driver_id=int(driver_filter))
+        if team_filter == 'inhouse':
+            legs_qs = legs_qs.filter(driver__driver_type='inhouse')
+        if date_from:
+            try:
+                legs_qs = legs_qs.filter(pickup_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                legs_qs = legs_qs.filter(pickup_date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
+            except ValueError:
+                pass
+        # Compute metrics grouped by route + time_of_day + day_type
+        buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': []})
 
-        hardcoded = DRIVE_TIME_ESTIMATES.get(
-            (m.pickup_location_category, m.dropoff_location_category)
+        for leg in legs_qs:
+            pickup_cat = categorize_location(leg.pickup_location)
+            dropoff_cat = categorize_location(leg.dropoff_location)
+            time_cat = categorize_time_of_day(leg.pickup_time)
+            day_cat = categorize_day_type(leg.pickup_date)
+            trip_type = leg.get_trip_type()
+
+            # trip_type is computed (arrival/return/cruise/other), not a DB field
+            if trip_type_filter and trip_type != trip_type_filter:
+                continue
+            if pickup_filter and pickup_cat != pickup_filter:
+                continue
+            if dropoff_filter and dropoff_cat != dropoff_filter:
+                continue
+
+            dwell = calculate_airport_dwell_time(leg)
+            drive = calculate_drive_time(leg)
+
+            key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+            if dwell is not None:
+                buckets[key]['dwell'].append(dwell)
+            if drive is not None:
+                buckets[key]['drive'].append(drive)
+                total = (dwell + drive) if dwell is not None else drive
+                buckets[key]['total'].append(total)
+
+        # Build metrics_list from buckets (with IQR outlier filtering)
+        from dispatching.analytics import iqr_filter
+        metrics_list = []
+        for key, vals in sorted(buckets.items(), key=lambda x: -len(x[1]['drive'])):
+            trip_type, pickup_cat, dropoff_cat, time_cat, day_cat = key
+            # Apply IQR filtering to clean outliers
+            vals['dwell'] = iqr_filter(vals['dwell'])
+            vals['drive'] = iqr_filter(vals['drive'])
+            vals['total'] = iqr_filter(vals['total'])
+            sample_count = len(vals['drive'])
+            if min_samples and sample_count < min_samples:
+                continue
+
+            def _stats(lst):
+                if not lst:
+                    return {}
+                r = {'avg': round(statistics.mean(lst))}
+                if len(lst) >= 2:
+                    r['median'] = round(statistics.median(lst))
+                if len(lst) >= 4:
+                    r['p75'] = round(statistics.quantiles(lst, n=4)[2])
+                if len(lst) >= 10:
+                    r['p90'] = round(statistics.quantiles(lst, n=10)[8])
+                return r
+
+            dwell_stats = _stats(vals['dwell'])
+            drive_stats = _stats(vals['drive'])
+            total_stats = _stats(vals['total'])
+
+            confidence = 'high' if sample_count >= 20 else ('medium' if sample_count >= 10 else ('low' if sample_count >= 5 else 'none'))
+            hardcoded = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat))
+
+            # Match the time_of_day display labels
+            TIME_LABELS = {
+                'early_morning': 'Early Morning (4-7 AM)',
+                'morning_rush': 'Morning Rush (7-10 AM)',
+                'midday': 'Midday (10 AM - 2 PM)',
+                'afternoon': 'Afternoon (2-6 PM)',
+                'evening': 'Evening (6-10 PM)',
+                'night': 'Night (10 PM - 4 AM)',
+            }
+            DAY_LABELS = {'weekday': 'Weekday', 'weekend': 'Weekend', 'holiday': 'Holiday'}
+
+            metrics_list.append({
+                'pickup_cat': pickup_cat,
+                'dropoff_cat': dropoff_cat,
+                'trip_type': trip_type,
+                'time_label': TIME_LABELS.get(time_cat, time_cat),
+                'day_label': DAY_LABELS.get(day_cat, day_cat),
+                'sample_count': sample_count,
+                'confidence': confidence,
+                'dwell': dwell_stats,
+                'drive': drive_stats,
+                'total': total_stats,
+                'hardcoded_drive_time': hardcoded,
+            })
+
+        total_routes = len(set((m['pickup_cat'], m['dropoff_cat']) for m in metrics_list))
+        total_samples = sum(m['sample_count'] for m in metrics_list)
+        high_confidence = sum(1 for m in metrics_list if m['confidence'] == 'high')
+    else:
+        # Use pre-computed RouteTimingMetric rows
+        metrics_qs = RouteTimingMetric.objects.all().order_by(
+            '-sample_count', 'trip_type', 'pickup_location_category'
         )
+        if trip_type_filter:
+            metrics_qs = metrics_qs.filter(trip_type=trip_type_filter)
+        if pickup_filter:
+            metrics_qs = metrics_qs.filter(pickup_location_category=pickup_filter)
+        if dropoff_filter:
+            metrics_qs = metrics_qs.filter(dropoff_location_category=dropoff_filter)
+        if min_samples:
+            metrics_qs = metrics_qs.filter(sample_count__gte=min_samples)
 
-        metrics_list.append({
-            'metric': m,
-            'confidence': confidence,
-            'hardcoded_drive_time': hardcoded,
-        })
+        metrics_list = []
+        for m in metrics_qs:
+            confidence = 'high' if m.sample_count >= 20 else ('medium' if m.sample_count >= 10 else ('low' if m.sample_count >= 5 else 'none'))
+            hardcoded = DRIVE_TIME_ESTIMATES.get((m.pickup_location_category, m.dropoff_location_category))
 
-    # Summary stats
-    total_routes = all_metrics.values(
-        'pickup_location_category', 'dropoff_location_category'
-    ).distinct().count()
-    total_samples = sum(m.sample_count for m in all_metrics)
-    high_confidence = all_metrics.filter(sample_count__gte=20).count()
+            dwell = {}
+            if m.avg_airport_dwell_time: dwell['avg'] = m.avg_airport_dwell_time
+            if m.median_airport_dwell_time: dwell['median'] = m.median_airport_dwell_time
+            if m.p75_airport_dwell_time: dwell['p75'] = m.p75_airport_dwell_time
+            if m.p90_airport_dwell_time: dwell['p90'] = m.p90_airport_dwell_time
+            drive = {}
+            if m.avg_drive_time: drive['avg'] = m.avg_drive_time
+            if m.median_drive_time: drive['median'] = m.median_drive_time
+            if m.p75_drive_time: drive['p75'] = m.p75_drive_time
+            if m.p90_drive_time: drive['p90'] = m.p90_drive_time
+            total = {}
+            if m.avg_total_time: total['avg'] = m.avg_total_time
+            if m.median_total_time: total['median'] = m.median_total_time
+            if m.p75_total_time: total['p75'] = m.p75_total_time
+            if m.p90_total_time: total['p90'] = m.p90_total_time
+
+            metrics_list.append({
+                'pickup_cat': m.pickup_location_category,
+                'dropoff_cat': m.dropoff_location_category,
+                'trip_type': m.trip_type,
+                'time_label': m.get_time_of_day_category_display(),
+                'day_label': m.get_day_type_display(),
+                'sample_count': m.sample_count,
+                'confidence': confidence,
+                'dwell': dwell,
+                'drive': drive,
+                'total': total,
+                'hardcoded_drive_time': hardcoded,
+            })
+
+        all_metrics = RouteTimingMetric.objects.all()
+        total_routes = all_metrics.values('pickup_location_category', 'dropoff_location_category').distinct().count()
+        total_samples = sum(m.sample_count for m in all_metrics)
+        high_confidence = all_metrics.filter(sample_count__gte=20).count()
+
+    # Filter options from pre-computed metrics (always available)
+    all_metrics_qs = RouteTimingMetric.objects.all()
+    pickup_categories = sorted(all_metrics_qs.values_list('pickup_location_category', flat=True).distinct())
+    dropoff_categories = sorted(all_metrics_qs.values_list('dropoff_location_category', flat=True).distinct())
+    trip_types = sorted(all_metrics_qs.values_list('trip_type', flat=True).distinct())
+
+    # Group metrics by route for card display
+    grouped = {}
+    for m in metrics_list:
+        route_key = (m['pickup_cat'], m['dropoff_cat'])
+        if route_key not in grouped:
+            grouped[route_key] = {
+                'pickup_cat': m['pickup_cat'],
+                'dropoff_cat': m['dropoff_cat'],
+                'hardcoded_drive_time': m['hardcoded_drive_time'],
+                'rows': [],
+            }
+        grouped[route_key]['rows'].append(m)
+    route_groups = sorted(grouped.values(), key=lambda g: -sum(r['sample_count'] for r in g['rows']))
 
     context = {
-        'metrics': metrics_list,
+        'route_groups': route_groups,
         'pickup_categories': pickup_categories,
         'dropoff_categories': dropoff_categories,
         'trip_types': trip_types,
@@ -5541,10 +5754,16 @@ def route_timing_reference(request):
         'pickup_filter': pickup_filter,
         'dropoff_filter': dropoff_filter,
         'min_samples': min_samples,
+        'driver_filter': driver_filter,
+        'team_filter': team_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'inhouse_drivers': inhouse_drivers,
         'total_routes': total_routes,
         'total_samples': total_samples,
         'high_confidence': high_confidence,
         'drive_time_estimates': DRIVE_TIME_ESTIMATES,
+        'use_live': use_live,
     }
 
     return render(request, 'dispatching/route_timing_reference.html', context)
@@ -5592,4 +5811,77 @@ def recalculate_route_metrics(request):
     return JsonResponse({
         "success": True,
         "message": f"Recalculation started for {label}. This runs in the background — metrics will update shortly.",
+    })
+
+
+# ============================================================================
+# SCHEDULER SETTINGS API
+# ============================================================================
+
+@login_required(login_url="login")
+def get_scheduler_settings(request):
+    """Return all scheduler tuning parameters as JSON."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    from dispatching.models import SchedulerSettings
+    settings = SchedulerSettings.get_settings()
+    return JsonResponse({
+        "success": True,
+        "settings": settings.to_dict(),
+        "defaults": settings.get_defaults(),
+    })
+
+
+@login_required(login_url="login")
+def update_scheduler_settings(request):
+    """Update scheduler tuning parameters. Accepts JSON body with field:value pairs.
+    Send {"reset": true} to reset all values to defaults."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    from dispatching.models import SchedulerSettings
+    settings = SchedulerSettings.get_settings()
+
+    if data.get("reset"):
+        settings.reset_to_defaults()
+        return JsonResponse({
+            "success": True,
+            "message": "All settings reset to defaults",
+            "settings": settings.to_dict(),
+        })
+
+    # Get valid field names
+    valid_fields = set(settings.to_dict().keys())
+    updated = []
+
+    for field_name, value in data.items():
+        if field_name not in valid_fields:
+            continue
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            return JsonResponse({
+                "success": False,
+                "error": f"Invalid value for {field_name}: must be an integer",
+            }, status=400)
+        setattr(settings, field_name, value)
+        updated.append(field_name)
+
+    if updated:
+        settings.save()
+        SchedulerSettings.clear_cache()
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Updated {len(updated)} settings",
+        "updated": updated,
+        "settings": settings.to_dict(),
     })

@@ -313,6 +313,7 @@ class Reservation(models.Model):
             carseats.append(f"{self.booster_seats} Booster")
         return ", ".join(carseats) if carseats else None
 
+
     def calculate_total_driver_payments(self):
         """
         Calculate total amount to be paid to drivers

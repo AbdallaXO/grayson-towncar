@@ -255,7 +255,7 @@
     .sb-result-slot {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
         padding: 0.5rem 0.75rem;
         border-radius: 0.375rem;
         margin-bottom: 0.35rem;
@@ -328,6 +328,29 @@
         text-align: center;
         padding: 0.5rem;
     }
+
+    /* Tuning help popovers */
+    .tuning-help-icon:hover { opacity: 1 !important; }
+    #schedulerTuningModal .popover {
+        max-width: 320px;
+        font-size: 0.82rem;
+        border: 1px solid var(--gold);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    #schedulerTuningModal .popover-header {
+        background: var(--dark);
+        color: #fff;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border-bottom: 2px solid var(--gold);
+    }
+    #schedulerTuningModal .popover-body {
+        color: #333;
+        line-height: 1.5;
+    }
+    #schedulerTuningModal .popover-body b {
+        color: var(--dark);
+    }
 </style>
 {% endblock %}
 
@@ -361,6 +384,9 @@
                     {% endif %}
                     <button id="saveSnapshotBtn" class="btn btn-sm ms-2" style="border-color: var(--gold); color: var(--gold);" title="Save current schedule as snapshot">
                         <i class="bi bi-camera me-1"></i>Save
+                    </button>
+                    <button id="schedulerTuningBtn" class="btn btn-sm" style="border-color: var(--gold); color: var(--gold);" title="Adjust scheduler scoring parameters" data-bs-toggle="modal" data-bs-target="#schedulerTuningModal">
+                        <i class="bi bi-sliders me-1"></i>Tuning
                     </button>
                     <button id="resetScheduleBtn" class="btn btn-outline-danger btn-sm" title="Unassign all drivers for this day">
                         <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
@@ -723,10 +749,21 @@
                             <div class="sb-label">Trip Type Preference (optional)</div>
                             <select id="sbTripType" class="form-select form-select-sm">
                                 <option value="">No preference - fill any jobs</option>
-                                <option value="arrival">Prefer Arrivals</option>
-                                <option value="return">Prefer Returns</option>
-                                <option value="cruise">Prefer Cruise</option>
-                                <option value="other">Prefer Other</option>
+                                <optgroup label="Soft Preference (bonus scoring)">
+                                    <option value="prefer_arrival">Prefer Arrivals</option>
+                                    <option value="prefer_return">Prefer Returns</option>
+                                    <option value="prefer_cruise">Prefer Cruises</option>
+                                </optgroup>
+                                <optgroup label="Strong (fill mostly with...)">
+                                    <option value="heavy_arrival">Heavy on Arrivals</option>
+                                    <option value="heavy_return">Heavy on Returns</option>
+                                    <option value="heavy_cruise">Heavy on Cruises</option>
+                                </optgroup>
+                                <optgroup label="Strict (only this type)">
+                                    <option value="only_arrival">Arrivals Only</option>
+                                    <option value="only_return">Returns Only</option>
+                                    <option value="only_cruise">Cruises Only</option>
+                                </optgroup>
                             </select>
                         </div>
                     </div>
@@ -803,6 +840,7 @@
                                     <span class="badge-trip badge-{{ leg.get_trip_type }}" style="font-size:0.65rem; padding:0.15rem 0.35rem;">
                                         {% if leg.get_trip_type == 'arrival' %}Arrival{% elif leg.get_trip_type == 'return' %}Return{% elif leg.get_trip_type == 'cruise' %}Cruise{% else %}Other{% endif %}
                                     </span>
+                                    {% if leg.reservation and leg.reservation.vehicle %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.reservation.vehicle.vehicle_type|upper }}</span>{% endif %}
                                     <span class="text-muted" style="font-size:0.8rem;">
                                         {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}
                                     </span>
@@ -866,6 +904,354 @@
                         <p class="mt-2 mb-0 fw-bold" style="color: #2e7d32;">Schedule applied! Refreshing...</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scheduler Tuning Modal -->
+<div class="modal fade" id="schedulerTuningModal" tabindex="-1" aria-labelledby="schedulerTuningLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="schedulerTuningLabel">
+                    <i class="bi bi-sliders me-2" style="color: var(--gold);"></i>Scheduler Tuning
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="font-size: 0.85rem;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <p class="text-muted mb-0" style="font-size: 0.78rem;">
+                        Adjust how the scheduler decides which driver gets which job. Changes take effect on the next run.
+                    </p>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ms-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#tuningGuideModal" style="font-size: 0.75rem;">
+                        <i class="bi bi-book me-1"></i>How This Works
+                    </button>
+                </div>
+                <div id="tuningAlert" class="alert d-none mb-3" style="font-size: 0.8rem;"></div>
+
+                <div class="accordion" id="tuningAccordion">
+                    <!-- 1. Timing & Buffer -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tuningBuffer"><i class="bi bi-clock me-2"></i>Timing & Buffer</button></h2>
+                        <div id="tuningBuffer" class="accordion-collapse collapse" data-bs-parent="#tuningAccordion">
+                            <div class="accordion-body">
+                                <h6 class="fw-bold mb-2">Global</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Job Buffer (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="inter_job_buffer" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">Auto-Assign Buffer Scores</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">20-30 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="buffer_perfect" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">30-60 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="buffer_sweet_spot" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">10-20 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="buffer_tight" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">60-120 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="buffer_good" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">120+ min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="buffer_loose" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Under 10</label><input type="number" class="form-control form-control-sm tuning-input" data-field="buffer_risky" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">Schedule Builder Buffer Scores</h6>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">20-30 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_buffer_perfect" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">30-60 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_buffer_sweet_spot" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">10-20 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_buffer_tight" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">60-120 min</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_buffer_good" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">First Job</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_buffer_first_job" style="width:75px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 2. Vehicle & Scarcity -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tuningVehicle"><i class="bi bi-truck me-2"></i>Vehicle & Scarcity</button></h2>
+                        <div id="tuningVehicle" class="accordion-collapse collapse" data-bs-parent="#tuningAccordion">
+                            <div class="accordion-body">
+                                <h6 class="fw-bold mb-2">Tier Match Scores</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Exact Match</label><input type="number" class="form-control form-control-sm tuning-input" data-field="tier_exact" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">1 Tier Down</label><input type="number" class="form-control form-control-sm tuning-input" data-field="tier_1_down" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">2 Tiers Down</label><input type="number" class="form-control form-control-sm tuning-input" data-field="tier_2_down" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">3 Tiers Down</label><input type="number" class="form-control form-control-sm tuning-input" data-field="tier_3_down" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">4 Tiers Down</label><input type="number" class="form-control form-control-sm tuning-input" data-field="tier_4_down" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">Scarcity Scores</h6>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">1 Driver</label><input type="number" class="form-control form-control-sm tuning-input" data-field="scarcity_1" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">2 Drivers</label><input type="number" class="form-control form-control-sm tuning-input" data-field="scarcity_2" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">3 Drivers</label><input type="number" class="form-control form-control-sm tuning-input" data-field="scarcity_3" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">4 Drivers</label><input type="number" class="form-control form-control-sm tuning-input" data-field="scarcity_4" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2 mt-3">Save Rare Vehicles for Matching Jobs</h6>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Mismatch Penalty</label><input type="number" class="form-control form-control-sm tuning-input" data-field="reserve_penalty" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Max Drivers</label><input type="number" class="form-control form-control-sm tuning-input" data-field="reserve_max_scarcity" style="width:75px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 3. Location & Chains -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tuningLocation"><i class="bi bi-geo-alt me-2"></i>Location & Chains</button></h2>
+                        <div id="tuningLocation" class="accordion-collapse collapse" data-bs-parent="#tuningAccordion">
+                            <div class="accordion-body">
+                                <h6 class="fw-bold mb-2">Auto-Assign Location</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Same Area</label><input type="number" class="form-control form-control-sm tuning-input" data-field="loc_same_area" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Close Area</label><input type="number" class="form-control form-control-sm tuning-input" data-field="loc_close" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">First Job</label><input type="number" class="form-control form-control-sm tuning-input" data-field="loc_first_job" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">Builder Location</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Same Area</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_loc_same_area" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">Chain Awareness</h6>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">3+ Chains</label><input type="number" class="form-control form-control-sm tuning-input" data-field="chain_3_plus" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">2 Chains</label><input type="number" class="form-control form-control-sm tuning-input" data-field="chain_2" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">1 Chain</label><input type="number" class="form-control form-control-sm tuning-input" data-field="chain_1" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Drive Limit</label><input type="number" class="form-control form-control-sm tuning-input" data-field="chain_drive_threshold" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Min Gap</label><input type="number" class="form-control form-control-sm tuning-input" data-field="chain_time_min" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Max Gap</label><input type="number" class="form-control form-control-sm tuning-input" data-field="chain_time_max" style="width:75px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 4. Schedule Flow -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tuningFlow"><i class="bi bi-arrow-repeat me-2"></i>Schedule Flow</button></h2>
+                        <div id="tuningFlow" class="accordion-collapse collapse" data-bs-parent="#tuningAccordion">
+                            <div class="accordion-body">
+                                <h6 class="fw-bold mb-2">Auto-Assign Flow</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">3rd Arrival</label><input type="number" class="form-control form-control-sm tuning-input" data-field="flow_3rd_arrival" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">2nd Arrival</label><input type="number" class="form-control form-control-sm tuning-input" data-field="flow_2nd_arrival" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Flow Break</label><input type="number" class="form-control form-control-sm tuning-input" data-field="flow_break_bonus" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">Builder Flow</h6>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">3rd Arrival</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_flow_3rd_arrival" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">2nd Arrival</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_flow_2nd_arrival" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Flow Break</label><input type="number" class="form-control form-control-sm tuning-input" data-field="sb_flow_break_bonus" style="width:75px;"></div>
+                                </div>
+                                <h6 class="fw-bold mb-2">In-House Retention</h6>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Return/Cruise</label><input type="number" class="form-control form-control-sm tuning-input" data-field="retention_bonus" style="width:75px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 5. Balance & Revenue -->
+                    <div class="accordion-item">
+                        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tuningBalance"><i class="bi bi-bar-chart me-2"></i>Balance & Revenue</button></h2>
+                        <div id="tuningBalance" class="accordion-collapse collapse" data-bs-parent="#tuningAccordion">
+                            <div class="accordion-body">
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Load Balance</label><input type="number" class="form-control form-control-sm tuning-input" data-field="load_balance_multiplier" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Base Score</label><input type="number" class="form-control form-control-sm tuning-input" data-field="base_score" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Trip Pref Match</label><input type="number" class="form-control form-control-sm tuning-input" data-field="trip_pref_match" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Trip Pref Miss</label><input type="number" class="form-control form-control-sm tuning-input" data-field="trip_pref_mismatch" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Revenue / N</label><input type="number" class="form-control form-control-sm tuning-input" data-field="revenue_divisor" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Revenue Cap</label><input type="number" class="form-control form-control-sm tuning-input" data-field="revenue_cap" style="width:75px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-warning btn-sm" id="tuningResetBtn">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults
+                </button>
+                <button type="button" class="btn btn-sm text-white" id="tuningSaveBtn" style="background: linear-gradient(135deg, var(--gold), #d4a843);">
+                    <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- How Tuning Works Guide Modal -->
+<div class="modal fade" id="tuningGuideModal" tabindex="-1" aria-labelledby="tuningGuideLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--dark); border-bottom: 2px solid var(--gold);">
+                <h5 class="modal-title text-white" id="tuningGuideLabel">
+                    <i class="bi bi-book me-2" style="color: var(--gold);"></i>How Scheduler Tuning Works
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="font-size: 0.85rem; line-height: 1.7;">
+
+                <!-- The Big Picture -->
+                <div class="mb-4">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">The Big Picture</h5>
+                    <p>When you click <b>Auto-Assign</b> or <b>Schedule Builder</b>, the scheduler looks at every unassigned job and every available driver, then asks: <em>"Which driver is the best fit for this job?"</em></p>
+                    <p>To answer that, it gives every driver-job combination a <b>point total</b>. The driver with the most points gets the job. These tuning settings control how many points each factor is worth.</p>
+                    <div class="bg-light rounded p-3 mb-3" style="border-left: 3px solid var(--gold);">
+                        <b>Simple example:</b> A job needs an SUV pickup at MCO at 1 PM.
+                        <ul class="mb-0 mt-2">
+                            <li><b>Driver A</b> has an SUV, just dropped off at MCO, and has 25 min free &rarr; gets lots of points</li>
+                            <li><b>Driver B</b> has a Sedan (wrong vehicle), is at Disney, and has 3 hours free &rarr; gets fewer points</li>
+                        </ul>
+                        Driver A wins and gets the job.
+                    </div>
+                </div>
+
+                <!-- What Gets Scored -->
+                <div class="mb-4">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">What Gets Scored (10 Factors)</h5>
+                    <p>Each driver-job pair gets points from these categories. They all add up to a final total:</p>
+                    <table class="table table-sm table-bordered" style="font-size: 0.82rem;">
+                        <thead style="background: var(--dark); color: #fff;">
+                            <tr><th style="width:30%">Factor</th><th>What It Means</th><th style="width:18%">Typical Points</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><b>Free Time (Buffer)</b></td><td>How much time the driver has between their last job and this one</td><td>30 to 120</td></tr>
+                            <tr><td><b>Vehicle Match</b></td><td>Does the driver's vehicle match what the customer booked?</td><td>10 to 60</td></tr>
+                            <tr><td><b>Vehicle Rarity</b></td><td>Is this the only driver with this vehicle type? Protect them for matching jobs</td><td>15 to 80</td></tr>
+                            <tr><td><b>Location</b></td><td>Is the driver already near the pickup? Or do they need to drive across town?</td><td>0 to 50</td></tr>
+                            <tr><td><b>Follow-Up Work</b></td><td>After this job, will the driver be near other upcoming jobs? (job chaining)</td><td>0 to 45</td></tr>
+                            <tr><td><b>Schedule Flow</b></td><td>Is the driver already stacked with too many arrivals in a row?</td><td>-40 to +30</td></tr>
+                            <tr><td><b>Keep In-House</b></td><td>Returns and cruise jobs get a bonus to stay with your drivers, not affiliates</td><td>0 to 25</td></tr>
+                            <tr><td><b>Job Spreading</b></td><td>Drivers with fewer jobs today get a slight edge, so work spreads evenly</td><td>-15 to 0</td></tr>
+                            <tr><td><b>Driver Preference</b></td><td>Prefer = soft bonus. Heavy = fill with preferred type first, then gaps. Only = strict filter (builder only)</td><td>-10 to +40</td></tr>
+                            <tr><td><b>Job Price</b></td><td>Higher-paying jobs get a small bonus (builder only)</td><td>0 to 20</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- How Parameters Compete -->
+                <div class="mb-4">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">How Parameters Compete With Each Other</h5>
+                    <p>This is the most important thing to understand: <b>every factor is competing for influence.</b> If you turn one way up, it can overpower the others.</p>
+
+                    <div class="card mb-3" style="border-color: #e65100;">
+                        <div class="card-header bg-white" style="font-size: 0.82rem;"><b style="color: #e65100;">Example: Location set too high</b></div>
+                        <div class="card-body" style="font-size: 0.82rem;">
+                            <p>If you set "Same Area" to <b>150</b>, the scheduler will almost always pick the closest driver &mdash; even if that means:</p>
+                            <ul class="mb-0">
+                                <li>Sending a Sprinter for a Sedan booking (vehicle mismatch doesn't matter enough to overcome 150 location points)</li>
+                                <li>Ignoring that another driver has the perfect vehicle and perfect timing, but is 15 min away</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3" style="border-color: #2e7d32;">
+                        <div class="card-header bg-white" style="font-size: 0.82rem;"><b style="color: #2e7d32;">Example: Good balance</b></div>
+                        <div class="card-body" style="font-size: 0.82rem;">
+                            <p>With "Same Area" at <b>50</b> and "Vehicle Exact Match" at <b>60</b>:</p>
+                            <ul class="mb-0">
+                                <li>A driver with the right vehicle who's 15 min away (0 + 60 = 60) beats a driver with the wrong vehicle who's already there (50 + 25 = 75)... barely</li>
+                                <li>But a driver with the right vehicle AND in the right area (50 + 60 = 110) clearly wins</li>
+                                <li>This creates natural priorities: right vehicle + right location > right location alone > right vehicle alone</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3" style="border-color: #1565c0;">
+                        <div class="card-header bg-white" style="font-size: 0.82rem;"><b style="color: #1565c0;">Example: Arrival stacking</b></div>
+                        <div class="card-body" style="font-size: 0.82rem;">
+                            <p>If "3rd Arrival Penalty" is <b>-40</b> but "Same Area" is <b>50</b>, a driver at MCO who already has 2 arrivals still gets: 50 (location) - 40 (penalty) = 10 points from those two factors. They might still win.</p>
+                            <p class="mb-0">To really prevent stacking, either make the penalty bigger (-70) or keep location moderate (40-50).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- The Balancing Act -->
+                <div class="mb-4">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">The Balancing Act</h5>
+                    <p>Think of each setting as a volume knob on a mixing board. Each one controls how loud that factor is in the final decision:</p>
+                    <div class="bg-light rounded p-3">
+                        <div class="row g-2" style="font-size: 0.8rem;">
+                            <div class="col-md-6">
+                                <b>If you want the scheduler to care more about...</b>
+                                <ul class="mt-1 mb-0">
+                                    <li>Keeping drivers local &rarr; turn up Location</li>
+                                    <li>Matching the right vehicle &rarr; turn up Vehicle Match + Rarity</li>
+                                    <li>Avoiding rushed schedules &rarr; turn up Perfect Free Time, turn down Tight/Risky</li>
+                                    <li>Maximizing jobs per driver &rarr; turn down Free Time scores, turn up Follow-Up Work</li>
+                                    <li>Mixing up job types &rarr; turn up Arrival Penalties + Streak Break</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <b>Watch out for...</b>
+                                <ul class="mt-1 mb-0">
+                                    <li>Any single factor above <b>100</b> &mdash; it will dominate unless others are also high</li>
+                                    <li>Penalties weaker than bonuses &mdash; a -15 penalty can't overcome a +50 location bonus</li>
+                                    <li>Too many things turned up high &mdash; if everything is 100+, nothing stands out and results become unpredictable</li>
+                                    <li>Follow-Up Work vs Location &mdash; both try to position drivers well, but sometimes they disagree</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- How to Test -->
+                <div class="mb-4">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">How to Test & Find the Right Settings</h5>
+                    <ol style="font-size: 0.82rem;">
+                        <li><b>Save a snapshot first</b> &mdash; Before changing anything, save your current schedule as a snapshot so you can compare or go back</li>
+                        <li><b>Change one thing at a time</b> &mdash; If you change 5 settings at once and the schedule gets worse, you won't know which one caused it</li>
+                        <li><b>Use Reset Schedule</b> &mdash; After changing settings, reset the schedule and re-run Auto-Assign to see the new results</li>
+                        <li><b>Compare against your snapshot</b> &mdash; Look at what changed: Did returns stay in-house? Are drivers less stacked? Are vehicles matched better?</li>
+                        <li><b>Small changes first</b> &mdash; Change by 10-20 points, not 50-100. Small tweaks can have big effects</li>
+                        <li><b>Reset to Defaults if lost</b> &mdash; The defaults are a solid starting point. You can always go back</li>
+                    </ol>
+                </div>
+
+                <!-- Common Problems -->
+                <div class="mb-3">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">Quick Fix Guide</h5>
+                    <table class="table table-sm table-bordered" style="font-size: 0.8rem;">
+                        <thead style="background: var(--dark); color: #fff;">
+                            <tr><th>Problem You're Seeing</th><th>What to Change</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Returns/cruises going to affiliates</td><td>Turn up <b>Keep In-House</b> (try 40-50)</td></tr>
+                            <tr><td>One driver has 5 arrivals, another has 1</td><td>Turn up <b>3rd Arrival Penalty</b> (try -60 to -80) and <b>Job Spreading</b> (try 10)</td></tr>
+                            <tr><td>Big vehicles doing small jobs</td><td>Turn up <b>Vehicle Exact Match</b> (try 80+), turn down <b>Vehicle 1-2 Sizes Bigger</b> (try 15-20)</td></tr>
+                            <tr><td>Drivers rushing between jobs</td><td>Turn up <b>Break Between Jobs</b> (try 8-10 min) and turn up <b>Perfect Free Time</b> (try 130+)</td></tr>
+                            <tr><td>Drivers sitting idle for hours</td><td>Turn down <b>Okay Free Time</b> and <b>Too Much Free Time</b> (try 40 and 20)</td></tr>
+                            <tr><td>Drivers criss-crossing the city</td><td>Turn up <b>Same Area</b> (try 70+) and <b>Follow-Up Work</b> settings</td></tr>
+                            <tr><td>Driver gets 1 job when they could do 3</td><td>Turn up all <b>Follow-Up Work</b> (chain) settings by 10-15</td></tr>
+                            <tr><td>Your only Sprinter/Van is doing Sedan/Towncar jobs while matching jobs wait</td><td>Turn up <b>Mismatch Penalty</b> under "Save Rare Vehicles" (try -80 to -100). Also turn up <b>Only 1 Driver Has This Vehicle</b> (try 100+)</td></tr>
+                            <tr><td>Schedule looks random/chaotic</td><td>You may have too many settings turned up high. Try <b>Reset to Defaults</b> and adjust one thing at a time</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Auto-Assign vs Builder -->
+                <div class="mb-3">
+                    <h5 style="color: var(--gold); border-bottom: 2px solid var(--gold); padding-bottom: 0.5rem;">Auto-Assign vs Schedule Builder</h5>
+                    <div class="row g-3" style="font-size: 0.82rem;">
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header" style="background: var(--dark); color: #fff;"><b>Auto-Assign</b></div>
+                                <div class="card-body">
+                                    <p>Goes through each unassigned job one at a time (returns first, then arrivals) and picks the best available driver.</p>
+                                    <p class="mb-0"><b>Uses:</b> All the main settings (Free Time, Vehicle, Location, Rarity, Follow-Up, Flow, Keep In-House, Job Spreading)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="card-header" style="background: var(--dark); color: #fff;"><b>Schedule Builder</b></div>
+                                <div class="card-body">
+                                    <p>For each driver, looks at ALL unassigned jobs and builds the best possible schedule. More thorough but takes longer.</p>
+                                    <p class="mb-0"><b>Also uses:</b> Builder-specific settings + Driver Preference + Job Price. Has its own separate Free Time and Flow settings.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-muted mt-2" style="font-size: 0.78rem;">
+                        Settings labeled "Builder:" only affect the Schedule Builder. All other settings affect Auto-Assign. Some factors (like Vehicle Match, Rarity, Location, Follow-Up) are shared by both.
+                    </p>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Tuning
+                </button>
             </div>
         </div>
     </div>
@@ -1112,6 +1498,8 @@
     // ================================================================
     let sbLastResult = null;   // store payload for apply
     let sbExcluded = [];       // excluded leg IDs (removed by user)
+    let sbSwapPins = [];       // dynamically pinned via swap (merged with manual pins)
+    let sbAlternatives = [];   // cached alternatives from last response
 
     function togglePin(el) {
         el.classList.toggle('pinned');
@@ -1131,12 +1519,14 @@
     }
 
     function buildPayload(apply) {
+        const manualPins = getPinnedLegIds();
+        const allPins = [...new Set([...manualPins, ...sbSwapPins])];
         return {
             driver_id: parseInt(document.getElementById('sbDriver').value),
             date: document.getElementById('datePicker').value,
             start_hour: parseInt(document.getElementById('sbStartHour').value),
             end_hour: parseInt(document.getElementById('sbEndHour').value),
-            pinned_leg_ids: getPinnedLegIds(),
+            pinned_leg_ids: allPins,
             preferred_trip_type: document.getElementById('sbTripType').value,
             excluded_leg_ids: sbExcluded,
             apply: apply || false,
@@ -1180,6 +1570,68 @@
     function removeJob(legId) {
         if (!sbExcluded.includes(legId)) sbExcluded.push(legId);
         // Re-preview with exclusion
+        const payload = buildPayload(false);
+        fetch('{% url "smart_schedule_builder" %}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { alert(data.error); return; }
+            sbLastResult = payload;
+            showResults(data);
+        });
+    }
+
+    // Toggle alternatives panel for a slot
+    function toggleAlternatives(slotLegId, slotMinutes) {
+        const panel = document.getElementById('alts-' + slotLegId);
+        if (!panel) return;
+
+        if (!panel.classList.contains('d-none')) {
+            panel.classList.add('d-none');
+            return;
+        }
+
+        // Filter alternatives within ±2 hours of this slot's pickup
+        const windowMin = 120;
+        const tripColors = { arrival: '#1565c0', 'return': '#2e7d32', cruise: '#e65100', other: '#6a1b9a' };
+        const nearby = sbAlternatives.filter(a => Math.abs(a.pickup_minutes - slotMinutes) <= windowMin);
+
+        if (nearby.length === 0) {
+            panel.innerHTML = '<div class="text-muted text-center py-1">No alternative jobs within \u00b12 hours</div>';
+        } else {
+            let h = '<div class="text-muted mb-1"><i class="bi bi-arrow-left-right"></i> <b>Swap with:</b></div>';
+            nearby.forEach(function(alt) {
+                const c = tripColors[alt.trip_type] || '#666';
+                h += '<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #eee;">';
+                h += '<div style="flex:1;">';
+                h += '<strong>' + alt.pickup_time + '</strong> ';
+                h += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + alt.trip_type.charAt(0).toUpperCase() + alt.trip_type.slice(1) + '</span> ';
+                if (alt.vehicle_type) h += '<span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;opacity:0.85;">' + alt.vehicle_type + '</span> ';
+                let dets = [];
+                if (alt.passengers) dets.push('<i class="bi bi-people-fill"></i>' + alt.passengers);
+                if (alt.luggage) dets.push('<i class="bi bi-luggage-fill"></i>' + alt.luggage);
+                if (alt.carseats) dets.push('<i class="bi bi-car-front-fill"></i>' + alt.carseats);
+                if (dets.length > 0) h += '<span style="font-size:0.65rem;color:#999;"> ' + dets.join(' ') + '</span>';
+                h += '<div style="font-size:0.7rem;color:#999;">' + alt.pickup_location + ' &rarr; ' + alt.dropoff_location + '</div>';
+                h += '</div>';
+                if (alt.revenue > 0) h += '<span style="font-size:0.75rem;font-weight:600;">$' + Math.round(alt.revenue) + '</span>';
+                h += '<button class="btn btn-sm py-0 px-1" style="font-size:0.7rem;color:var(--gold);border:1px solid var(--gold);line-height:1.4;" ';
+                h += 'onclick="swapJob(' + slotLegId + ',' + alt.leg_id + ')" title="Swap: remove current, pin this one">';
+                h += '<i class="bi bi-arrow-repeat"></i></button>';
+                h += '</div>';
+            });
+            panel.innerHTML = h;
+        }
+        panel.classList.remove('d-none');
+    }
+
+    // Swap a job: exclude current slot's leg, pin the alternative, re-preview
+    function swapJob(removeLegId, pinLegId) {
+        if (!sbExcluded.includes(removeLegId)) sbExcluded.push(removeLegId);
+        if (!sbSwapPins.includes(pinLegId)) sbSwapPins.push(pinLegId);
         const payload = buildPayload(false);
         fetch('{% url "smart_schedule_builder" %}', {
             method: 'POST',
@@ -1269,6 +1721,9 @@
             warningsDiv.classList.add('d-none');
         }
 
+        // Cache alternatives for swap UI
+        sbAlternatives = data.alternatives || [];
+
         // Schedule list
         const listDiv = document.getElementById('sbScheduleList');
         const tripColors = { arrival: '#1565c0', 'return': '#2e7d32', cruise: '#e65100', other: '#6a1b9a' };
@@ -1284,14 +1739,27 @@
 
             html += '<div class="sb-result-slot ' + cls + '">';
             html += '<div style="flex:1;">';
-            html += '<div class="d-flex align-items-center gap-2">';
+            html += '<div class="d-flex align-items-center gap-2 flex-wrap">';
             html += '<strong>' + slot.pickup_time + '</strong> ';
             html += '<span style="color:' + color + ';font-size:0.75rem;font-weight:600;">' + slot.trip_type.charAt(0).toUpperCase() + slot.trip_type.slice(1) + '</span> ';
+            if (slot.vehicle_type) {
+                html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;opacity:0.85;">' + slot.vehicle_type + '</span> ';
+            }
             html += label;
             if (slot.cleared_time) {
                 html += '<span style="font-size:0.7rem;color:#666;margin-left:auto;"><i class="bi bi-check2-circle" style="color:#2e7d32;"></i> Cleared ~' + slot.cleared_time + '</span>';
             }
             html += '</div>';
+
+            // Job details summary line
+            let details = [];
+            if (slot.passengers) details.push('<i class="bi bi-people-fill"></i> ' + slot.passengers);
+            if (slot.luggage) details.push('<i class="bi bi-luggage-fill"></i> ' + slot.luggage);
+            if (slot.carseats) details.push('<i class="bi bi-car-front-fill"></i> ' + slot.carseats);
+            if (details.length > 0) {
+                html += '<div style="font-size:0.7rem;color:#888;margin-top:0.15rem;" class="d-flex gap-2">' + details.join('<span style="opacity:0.4;">|</span>') + '</div>';
+            }
+
             html += '<div style="font-size:0.8rem;" class="text-muted mt-1">';
             html += slot.pickup_location + ' &rarr; ' + slot.dropoff_location;
             html += '</div>';
@@ -1323,7 +1791,8 @@
 
             html += '</div>';
 
-            // Right side: revenue + remove button
+            // Right side: revenue + actions
+            html += '<div class="d-flex flex-column align-items-end gap-1">';
             html += '<div class="d-flex align-items-center gap-2">';
             if (slot.revenue > 0) {
                 html += '<span style="font-weight:600;">$' + Math.round(slot.revenue) + '</span>';
@@ -1334,7 +1803,20 @@
                 html += '<i class="bi bi-x-circle"></i></button>';
             }
             html += '</div>';
+            // Alternatives toggle (only for new/non-existing slots)
+            if (!slot.is_existing) {
+                html += '<button class="btn btn-sm p-0" style="color:#666;font-size:0.7rem;line-height:1;" ';
+                html += 'onclick="toggleAlternatives(' + slot.leg_id + ',' + (slot.pickup_minutes || 0) + ')" title="Show alternative jobs">';
+                html += '<i class="bi bi-arrow-down-short"></i> alts</button>';
+            }
             html += '</div>';
+            html += '</div>';
+
+            // Alternatives panel (hidden by default)
+            if (!slot.is_existing) {
+                html += '<div id="alts-' + slot.leg_id + '" class="d-none" style="margin-top:-0.25rem;margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:0.35rem;font-size:0.75rem;">';
+                html += '</div>';
+            }
         });
 
         if (data.new_count === 0) {
@@ -1348,7 +1830,8 @@
     function backToParams() {
         document.getElementById('sbParams').classList.remove('d-none');
         document.getElementById('sbResults').classList.add('d-none');
-        sbExcluded = [];  // reset exclusions when going back
+        sbExcluded = [];
+        sbSwapPins = [];
     }
 
     function applySchedule() {
@@ -1390,6 +1873,507 @@
         document.getElementById('sbResults').classList.add('d-none');
         sbLastResult = null;
         sbExcluded = [];
+        sbSwapPins = [];
+    });
+
+    // ================================================================
+    // Scheduler Tuning Settings
+    // ================================================================
+    let tuningDefaults = {};
+
+    // Plain-English help for each setting
+    const tuningInfo = {
+        // ── Timing & Buffer ──
+        inter_job_buffer: {
+            title: 'Break Between Jobs',
+            body: 'Minutes of breathing room after a driver finishes one job before the next one can start.'
+                + '<br><br><span style="color:#2e7d32"><b>3-5 min</b></span> — tight, fits more jobs but drivers rush'
+                + '<br><span style="color:#1565c0"><b>5-10 min</b></span> — comfortable for most days'
+                + '<br><span style="color:#e65100"><b>15-20 min</b></span> — very relaxed, fewer jobs fit per driver'
+        },
+        buffer_perfect: {
+            title: 'Perfect Free Time (20-30 min gap)',
+            body: 'The absolute best gap between jobs — 20-30 minutes. Driver has enough time to get there comfortably without sitting around.'
+                + '<br><br><span style="color:#2e7d32"><b>130-150</b></span> — always try for this gap'
+                + '<br><span style="color:#1565c0"><b>100-120</b></span> — strong preference (default area)'
+                + '<br><span style="color:#e65100"><b>60-80</b></span> — nice to have but other factors can win'
+        },
+        buffer_sweet_spot: {
+            title: 'Comfortable Free Time (30-60 min gap)',
+            body: 'Driver has 30-60 min free. Still good — plenty of time but slightly more idle than the 20-30 sweet spot.'
+                + '<br><br><span style="color:#2e7d32"><b>110-130</b></span> — treat 30-60 almost as good as 20-30'
+                + '<br><span style="color:#1565c0"><b>80-100</b></span> — good preference (default area)'
+                + '<br><span style="color:#e65100"><b>40-60</b></span> — prefer tighter gaps over this'
+        },
+        buffer_good: {
+            title: 'Okay Free Time (1-2 hour gap)',
+            body: 'Driver has 1-2 hours free between jobs. Fine, but they\'re sitting around a while.'
+                + '<br><br><span style="color:#2e7d32"><b>90-100</b></span> — 1-2 hour gaps are fine'
+                + '<br><span style="color:#1565c0"><b>60-80</b></span> — decent but prefer tighter gaps'
+                + '<br><span style="color:#e65100"><b>30-50</b></span> — try to avoid that much idle time'
+        },
+        buffer_tight: {
+            title: 'Tight Free Time (10-20 min gap)',
+            body: 'Only 10-20 min between jobs. Doable but cutting it close — driver might feel rushed.'
+                + '<br><br><span style="color:#2e7d32"><b>80-90</b></span> — okay with tight gaps, pack the schedule'
+                + '<br><span style="color:#1565c0"><b>50-70</b></span> — allow it if needed'
+                + '<br><span style="color:#e65100"><b>20-40</b></span> — avoid tight gaps, drivers need more room'
+        },
+        buffer_loose: {
+            title: 'Too Much Free Time (2+ hour gap)',
+            body: 'Driver has 2+ hours with nothing to do. Wasted time.'
+                + '<br><br><span style="color:#2e7d32"><b>60-80</b></span> — big gaps are fine, no big deal'
+                + '<br><span style="color:#1565c0"><b>40-50</b></span> — not ideal but acceptable'
+                + '<br><span style="color:#e65100"><b>10-25</b></span> — strongly avoid, find a closer job'
+        },
+        buffer_risky: {
+            title: 'Risky Free Time (Under 10 min gap)',
+            body: 'Less than 10 min between jobs. Very tight — high chance of being late.'
+                + '<br><br><span style="color:#2e7d32"><b>40-60</b></span> — okay with risk, maximize jobs'
+                + '<br><span style="color:#1565c0"><b>20-30</b></span> — allow in a pinch'
+                + '<br><span style="color:#e65100"><b>0-10</b></span> — almost never allow this'
+        },
+        sb_buffer_perfect: {
+            title: 'Builder: Perfect Gap (20-30 min)',
+            body: 'Schedule Builder: Best possible gap. Driver has just the right amount of time.'
+                + '<br><br><b>Range:</b> 20-55. Default is 35.'
+        },
+        sb_buffer_sweet_spot: {
+            title: 'Builder: Comfortable Gap (30-60 min)',
+            body: 'Schedule Builder: A comfortable but slightly longer gap.'
+                + '<br><br><b>Range:</b> 15-50. Default is 30.'
+        },
+        sb_buffer_good: {
+            title: 'Builder: Okay Gap (1-2 hours)',
+            body: 'Schedule Builder: How it feels about 1-2 hour gaps.'
+                + '<br><br><b>Range:</b> 10-40. Default is 20.'
+        },
+        sb_buffer_first_job: {
+            title: 'Builder: First Job of the Day',
+            body: 'When the driver has no previous job yet today. There\'s no gap to measure, so this is just a starting baseline.'
+                + '<br><br><b>Range:</b> 10-40. Default is 25.'
+        },
+        sb_buffer_tight: {
+            title: 'Builder: Tight Gap (10-20 min)',
+            body: 'Schedule Builder: How it feels about tight 10-20 min gaps.'
+                + '<br><br><b>Range:</b> 5-30. Default is 15.'
+        },
+
+        // ── Vehicle & Scarcity ──
+        tier_exact: {
+            title: 'Vehicle Matches Exactly',
+            body: 'Customer booked an SUV and the driver has an SUV — perfect match.'
+                + '<br><br><span style="color:#2e7d32"><b>80-100</b></span> — almost always send the right vehicle'
+                + '<br><span style="color:#1565c0"><b>50-60</b></span> — prefer it but flexible'
+                + '<br><span style="color:#e65100"><b>20-40</b></span> — doesn\'t matter much, any vehicle works'
+        },
+        tier_1_down: {
+            title: 'Vehicle 1 Size Bigger Than Needed',
+            body: 'Sending a slightly bigger vehicle (e.g., Sprinter for an SUV booking). Works fine but wastes the bigger vehicle.'
+                + '<br><br><span style="color:#2e7d32"><b>50-60</b></span> — one size up is totally fine'
+                + '<br><span style="color:#1565c0"><b>30-40</b></span> — acceptable'
+                + '<br><span style="color:#e65100"><b>10-20</b></span> — try to save the bigger vehicle for matching jobs'
+        },
+        tier_2_down: {
+            title: 'Vehicle 2 Sizes Bigger Than Needed',
+            body: 'E.g., sending a Van for a Sedan booking. Noticeable waste.'
+                + '<br><br><span style="color:#2e7d32"><b>30-40</b></span> — 2 sizes up is okay'
+                + '<br><span style="color:#1565c0"><b>15-25</b></span> — allow if no better option'
+                + '<br><span style="color:#e65100"><b>0-10</b></span> — strongly avoid this mismatch'
+        },
+        tier_3_down: {
+            title: 'Vehicle 3 Sizes Bigger Than Needed',
+            body: 'Way bigger than needed. Significant waste of a large vehicle.'
+                + '<br><br><span style="color:#1565c0"><b>10-20</b></span> — allow in a pinch'
+                + '<br><span style="color:#e65100"><b>0-5</b></span> — almost never do this'
+        },
+        tier_4_down: {
+            title: 'Vehicle 4 Sizes Bigger Than Needed',
+            body: 'Your biggest vehicle for the smallest booking. Maximum waste.'
+                + '<br><br><span style="color:#1565c0"><b>10-15</b></span> — last resort'
+                + '<br><span style="color:#e65100"><b>0-5</b></span> — basically never'
+        },
+        scarcity_1: {
+            title: 'Only 1 Driver Has This Vehicle',
+            body: 'You have one Sprinter and a Sprinter booking comes in — only one driver can do it. Protect that driver for matching jobs.'
+                + '<br><br><span style="color:#2e7d32"><b>100-120</b></span> — always save the rare vehicle for its matching jobs'
+                + '<br><span style="color:#1565c0"><b>70-80</b></span> — strong protection'
+                + '<br><span style="color:#e65100"><b>30-50</b></span> — some protection but other factors can override'
+        },
+        scarcity_2: {
+            title: 'Only 2 Drivers Have This Vehicle',
+            body: '2 drivers can handle this type. Still limited availability.'
+                + '<br><br><span style="color:#2e7d32"><b>60-80</b></span> — protect these drivers'
+                + '<br><span style="color:#1565c0"><b>40-50</b></span> — moderate protection'
+                + '<br><span style="color:#e65100"><b>15-30</b></span> — mild protection'
+        },
+        scarcity_3: {
+            title: '3 Drivers Have This Vehicle',
+            body: '3 drivers available. Decent options.'
+                + '<br><br><span style="color:#1565c0"><b>25-40</b></span> — some preference'
+                + '<br><span style="color:#e65100"><b>10-20</b></span> — minimal preference'
+        },
+        scarcity_4: {
+            title: '4+ Drivers Have This Vehicle',
+            body: 'Plenty of drivers available for this type. Low need to protect.'
+                + '<br><br><span style="color:#1565c0"><b>15-25</b></span> — slight preference'
+                + '<br><span style="color:#e65100"><b>0-10</b></span> — no special treatment'
+        },
+        reserve_penalty: {
+            title: 'Save Rare Vehicle for Matching Jobs',
+            body: 'When a driver with a rare vehicle (Van, Sprinter) is about to be assigned a smaller job (Towncar, Sedan), AND there are upcoming jobs that NEED their vehicle — this penalty discourages wasting them.'
+                + '<br><br>Example: Van driver is about to get an 8 AM Towncar arrival. But there\'s a 9 AM Van return in the queue. This penalty says "don\'t waste the Van on a Towncar when a Van job is coming."'
+                + '<br><br><span style="color:#2e7d32"><b>-80 to -100</b></span> — almost never waste a rare vehicle'
+                + '<br><span style="color:#1565c0"><b>-50 to -70</b></span> — strong protection'
+                + '<br><span style="color:#e65100"><b>-20 to -40</b></span> — mild protection, other factors can override'
+                + '<br><b>0</b> — no protection, rare vehicles can do any job'
+        },
+        reserve_max_scarcity: {
+            title: 'When Does "Saving" Kick In?',
+            body: 'The saving penalty only applies when the matching job is scarce (few drivers can handle it). This sets the threshold.'
+                + '<br><br>If set to <b>2</b>: saving kicks in when 1-2 drivers can do the matching job.'
+                + '<br>If set to <b>3</b>: saving kicks in when 1-3 drivers can do it (more protective).'
+                + '<br><br><span style="color:#2e7d32"><b>3-4</b></span> — protect even when a few drivers can handle it'
+                + '<br><span style="color:#1565c0"><b>2</b></span> — only protect truly scarce jobs'
+                + '<br><span style="color:#e65100"><b>1</b></span> — only protect when this is the ONLY driver'
+        },
+
+        // ── Location & Chains ──
+        loc_same_area: {
+            title: 'Driver Already in Same Area',
+            body: 'Driver just dropped off at MCO and next pickup is also at MCO — no driving needed!'
+                + '<br><br><span style="color:#2e7d32"><b>70-100</b></span> — strongly keep drivers where they already are'
+                + '<br><span style="color:#1565c0"><b>40-60</b></span> — prefer it but okay to move drivers'
+                + '<br><span style="color:#e65100"><b>10-30</b></span> — location doesn\'t matter much'
+        },
+        loc_close: {
+            title: 'Driver is Nearby (Short Drive)',
+            body: 'Driver needs a short drive (under 15 min) to reach the next pickup. Close but not the same spot.'
+                + '<br><br><span style="color:#2e7d32"><b>40-60</b></span> — nearby is almost as good as same area'
+                + '<br><span style="color:#1565c0"><b>20-30</b></span> — a decent option'
+                + '<br><span style="color:#e65100"><b>5-15</b></span> — barely matters'
+        },
+        loc_first_job: {
+            title: 'First Job of the Day',
+            body: 'Driver hasn\'t done any jobs yet today — we don\'t know where they are. This is a neutral starting point.'
+                + '<br><br><span style="color:#2e7d32"><b>50-60</b></span> — give first-job drivers a slight advantage'
+                + '<br><span style="color:#1565c0"><b>30-40</b></span> — neutral'
+                + '<br><span style="color:#e65100"><b>10-20</b></span> — prefer drivers already in the right area'
+        },
+        sb_loc_same_area: {
+            title: 'Builder: Same Area',
+            body: 'Schedule Builder version of "Same Area."'
+                + '<br><br><b>Range:</b> 15-60. Default is 35. Higher = builder keeps drivers in one zone.'
+        },
+        chain_3_plus: {
+            title: '3+ Follow-Up Jobs Nearby',
+            body: 'After this job, there are 3+ other jobs near where the driver ends up. Great — the driver can keep working without driving far!'
+                + '<br><br><span style="color:#2e7d32"><b>60-80</b></span> — heavily favor jobs that lead to lots more work'
+                + '<br><span style="color:#1565c0"><b>35-50</b></span> — good preference'
+                + '<br><span style="color:#e65100"><b>10-25</b></span> — mild preference, focus more on the current job'
+        },
+        chain_2: {
+            title: '2 Follow-Up Jobs Nearby',
+            body: 'After this job, 2 more jobs are near the dropoff location.'
+                + '<br><br><span style="color:#2e7d32"><b>50-65</b></span> — strongly value 2-job chains'
+                + '<br><span style="color:#1565c0"><b>25-40</b></span> — good'
+                + '<br><span style="color:#e65100"><b>10-20</b></span> — mild'
+        },
+        chain_1: {
+            title: '1 Follow-Up Job Nearby',
+            body: 'After this job, at least 1 more job is near the dropoff. Driver won\'t be stranded at a dead end.'
+                + '<br><br><span style="color:#2e7d32"><b>30-45</b></span> — even 1 follow-up is worth a lot'
+                + '<br><span style="color:#1565c0"><b>15-25</b></span> — nice to have'
+                + '<br><span style="color:#e65100"><b>0-10</b></span> — doesn\'t really matter'
+        },
+        chain_drive_threshold: {
+            title: 'How Far is "Nearby"?',
+            body: 'Max drive time (in minutes) between this job\'s dropoff and a follow-up job\'s pickup to count them as chainable.'
+                + '<br><br><span style="color:#2e7d32"><b>40-60 min</b></span> — wide net, even jobs a city apart count'
+                + '<br><span style="color:#1565c0"><b>25-35 min</b></span> — reasonable radius'
+                + '<br><span style="color:#e65100"><b>10-20 min</b></span> — only very close follow-ups count'
+        },
+        chain_time_min: {
+            title: 'Minimum Gap Between Chained Jobs',
+            body: 'A follow-up job must start at least this many minutes after the current one ends. Prevents unrealistic back-to-back chains.'
+                + '<br><br><span style="color:#2e7d32"><b>5 min</b></span> — very tight, aggressive chaining'
+                + '<br><span style="color:#1565c0"><b>10-15 min</b></span> — realistic'
+                + '<br><span style="color:#e65100"><b>20-30 min</b></span> — conservative, only obvious chains'
+        },
+        chain_time_max: {
+            title: 'How Far Ahead to Look for Chains',
+            body: 'Maximum time gap (in minutes) to still consider a future job as part of a chain.'
+                + '<br><br><span style="color:#2e7d32"><b>240-360 min</b></span> — look 4-6 hours ahead'
+                + '<br><span style="color:#1565c0"><b>120-180 min</b></span> — look 2-3 hours ahead'
+                + '<br><span style="color:#e65100"><b>60-90 min</b></span> — only immediate follow-ups'
+        },
+
+        // ── Schedule Flow ──
+        flow_3rd_arrival: {
+            title: '3rd Airport Arrival in a Row',
+            body: 'Driver already has 2 arrivals back-to-back. Giving them a 3rd is too many. This is a NEGATIVE number — it pushes the scheduler away from stacking.'
+                + '<br><br><span style="color:#2e7d32"><b>-60 to -80</b></span> — strongly avoid 3+ arrivals in a row'
+                + '<br><span style="color:#1565c0"><b>-30 to -50</b></span> — discourage it'
+                + '<br><span style="color:#e65100"><b>-5 to -20</b></span> — mild nudge, stacking can still happen'
+                + '<br><b>0</b> — no penalty at all, arrivals stack freely'
+        },
+        flow_2nd_arrival: {
+            title: '2nd Airport Arrival in a Row',
+            body: 'Driver already has 1 arrival and is about to get another. A nudge against doubling up. This is a NEGATIVE number.'
+                + '<br><br><span style="color:#2e7d32"><b>-30 to -50</b></span> — strongly avoid back-to-back arrivals'
+                + '<br><span style="color:#1565c0"><b>-10 to -20</b></span> — mild discouragement'
+                + '<br><span style="color:#e65100"><b>0 to -5</b></span> — barely matters, back-to-back is fine'
+        },
+        flow_break_bonus: {
+            title: 'Breaking the Arrival Streak',
+            body: 'When a driver has been doing arrivals and now gets a return or cruise job instead. Rewards mixing up the schedule so it feels more natural.'
+                + '<br><br><span style="color:#2e7d32"><b>40-60</b></span> — strongly reward alternating job types'
+                + '<br><span style="color:#1565c0"><b>20-35</b></span> — nice to alternate'
+                + '<br><span style="color:#e65100"><b>0-15</b></span> — don\'t really care about variety'
+        },
+        sb_flow_3rd_arrival: {
+            title: 'Builder: 3rd Arrival Penalty',
+            body: 'Schedule Builder version. Same idea as above — penalty for stacking 3+ arrivals.'
+                + '<br><br><b>Range:</b> 0 to -80. Default is -35.'
+        },
+        sb_flow_2nd_arrival: {
+            title: 'Builder: 2nd Arrival Penalty',
+            body: 'Schedule Builder version. Penalty for back-to-back arrivals.'
+                + '<br><br><b>Range:</b> 0 to -50. Default is -10.'
+        },
+        sb_flow_break_bonus: {
+            title: 'Builder: Streak Break Bonus',
+            body: 'Schedule Builder version. Bonus for mixing in a return/cruise after arrivals.'
+                + '<br><br><b>Range:</b> 0-60. Default is 25.'
+        },
+        retention_bonus: {
+            title: 'Keep Returns & Cruises In-House',
+            body: 'Return and cruise trips are quick and easy. This gives them a bonus to keep them assigned to your drivers instead of farming out to affiliates.'
+                + '<br><br><span style="color:#2e7d32"><b>40-60</b></span> — almost always keep these in-house'
+                + '<br><span style="color:#1565c0"><b>20-35</b></span> — prefer in-house when possible'
+                + '<br><span style="color:#e65100"><b>0-15</b></span> — no special treatment, fine to send to affiliates'
+        },
+
+        // ── Balance & Revenue ──
+        load_balance_multiplier: {
+            title: 'Spread Jobs Evenly Across Drivers',
+            body: 'For each job a driver already has today, they lose this many points when considered for another job. Prevents one driver from getting overloaded.'
+                + '<br><br><span style="color:#2e7d32"><b>10-15</b></span> — spread very evenly, everyone gets similar job count'
+                + '<br><span style="color:#1565c0"><b>4-7</b></span> — light balancing'
+                + '<br><span style="color:#e65100"><b>0-2</b></span> — barely balance, best-fit driver gets the most jobs'
+        },
+        base_score: {
+            title: 'Builder: Starting Points',
+            body: 'Every job starts with this many points in the Schedule Builder before any bonuses or penalties. Just a baseline — changing this shifts ALL scores up or down equally.'
+                + '<br><br><b>Range:</b> 20-100. Default is 50. Usually no need to change this.'
+        },
+        trip_pref_match: {
+            title: 'Builder: Driver Prefers This Job Type (Prefer mode only)',
+            body: 'Applies to <b>Prefer</b> mode only. When the job matches the preferred type, it gets this bonus.'
+                + '<br><br><b>Heavy</b> and <b>Only</b> modes use sorting/filtering instead of scoring, so these values don\'t affect them.'
+                + '<br><br><span style="color:#2e7d32"><b>50-70</b></span> — strongly respect driver preferences'
+                + '<br><span style="color:#1565c0"><b>30-45</b></span> — balance preferences with logistics'
+                + '<br><span style="color:#e65100"><b>0-20</b></span> — ignore preferences, assign by logistics only'
+        },
+        trip_pref_mismatch: {
+            title: 'Builder: Driver Doesn\'t Prefer This Job (Prefer mode only)',
+            body: 'Applies to <b>Prefer</b> mode only. Penalty when the job type doesn\'t match the preferred type.'
+                + '<br><br><b>Heavy</b> and <b>Only</b> modes use sorting/filtering instead of scoring, so these values don\'t affect them.'
+                + '<br><br><span style="color:#2e7d32"><b>-25 to -40</b></span> — strongly avoid giving drivers jobs they don\'t prefer'
+                + '<br><span style="color:#1565c0"><b>-5 to -15</b></span> — mild discouragement'
+                + '<br><span style="color:#e65100"><b>0</b></span> — no penalty, preferences ignored'
+        },
+        revenue_divisor: {
+            title: 'Builder: How Much Price Matters',
+            body: 'Higher-paying jobs get bonus points (job price divided by this number). Smaller number = price matters MORE.'
+                + '<br><br><span style="color:#2e7d32"><b>3-5</b></span> — high-paying jobs get big priority boost'
+                + '<br><span style="color:#1565c0"><b>8-12</b></span> — mild boost for expensive jobs'
+                + '<br><span style="color:#e65100"><b>15-25</b></span> — price barely matters in scheduling'
+        },
+        revenue_cap: {
+            title: 'Builder: Max Price Bonus',
+            body: 'Cap on how many bonus points a job can get from its price. Prevents a $500 job from completely dominating.'
+                + '<br><br><span style="color:#2e7d32"><b>30-50</b></span> — let expensive jobs have strong influence'
+                + '<br><span style="color:#1565c0"><b>15-25</b></span> — moderate cap'
+                + '<br><span style="color:#e65100"><b>5-10</b></span> — price barely changes the outcome'
+        },
+    };
+
+    let tuningInfoInjected = false;
+
+    function injectInfoIcons() {
+        if (tuningInfoInjected) return;
+        document.querySelectorAll('.tuning-input').forEach(input => {
+            const field = input.dataset.field;
+            if (!(field in tuningInfo)) return;
+            const label = input.parentElement.querySelector('label');
+            if (!label) return;
+            const icon = document.createElement('span');
+            icon.innerHTML = '<i class="bi bi-question-circle"></i>';
+            icon.className = 'tuning-help-icon ms-1';
+            icon.style.cssText = 'font-size:0.72rem; color:var(--gold); cursor:pointer; opacity:0.7;';
+            icon.setAttribute('data-bs-toggle', 'popover');
+            icon.setAttribute('data-bs-trigger', 'click');
+            icon.setAttribute('data-bs-placement', 'top');
+            icon.setAttribute('data-bs-html', 'true');
+            icon.setAttribute('data-bs-title', tuningInfo[field].title);
+            icon.setAttribute('data-bs-content', tuningInfo[field].body);
+            label.appendChild(icon);
+        });
+        // Initialize Bootstrap popovers (dismiss on outside click)
+        const popoverEls = document.querySelectorAll('#schedulerTuningModal [data-bs-toggle="popover"]');
+        popoverEls.forEach(el => {
+            new bootstrap.Popover(el, {
+                container: '#schedulerTuningModal',
+                sanitize: false,
+            });
+        });
+        // Close any open popover when clicking elsewhere in the modal
+        document.getElementById('schedulerTuningModal').addEventListener('click', function(e) {
+            if (!e.target.closest('[data-bs-toggle="popover"]') && !e.target.closest('.popover')) {
+                popoverEls.forEach(el => bootstrap.Popover.getInstance(el)?.hide());
+            }
+        });
+        tuningInfoInjected = true;
+    }
+
+    function loadSettings() {
+        injectInfoIcons();
+        fetch('{% url "get_scheduler_settings" %}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) return;
+            tuningDefaults = data.defaults || {};
+            const settings = data.settings || {};
+            document.querySelectorAll('.tuning-input').forEach(input => {
+                const field = input.dataset.field;
+                if (field in settings) {
+                    input.value = settings[field];
+                }
+                // Show default as placeholder
+                if (field in tuningDefaults) {
+                    input.placeholder = tuningDefaults[field];
+                    // Add or update default hint text
+                    let hint = input.parentElement.querySelector('.default-hint');
+                    if (!hint) {
+                        hint = document.createElement('small');
+                        hint.className = 'default-hint text-muted ms-1';
+                        hint.style.fontSize = '0.65rem';
+                        input.parentElement.appendChild(hint);
+                    }
+                    hint.textContent = '(' + tuningDefaults[field] + ')';
+                    // Highlight if changed from default
+                    if (parseInt(input.value) !== tuningDefaults[field]) {
+                        input.style.borderColor = 'var(--gold)';
+                        input.style.fontWeight = '600';
+                    } else {
+                        input.style.borderColor = '';
+                        input.style.fontWeight = '';
+                    }
+                }
+            });
+        })
+        .catch(err => console.error('Failed to load settings:', err));
+    }
+
+    function saveSettings() {
+        const payload = {};
+        document.querySelectorAll('.tuning-input').forEach(input => {
+            const field = input.dataset.field;
+            const val = input.value.trim();
+            if (val !== '') {
+                payload[field] = parseInt(val);
+            }
+        });
+
+        const saveBtn = document.getElementById('tuningSaveBtn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+        fetch('{% url "update_scheduler_settings" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify(payload),
+        })
+        .then(r => r.json())
+        .then(data => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save';
+            if (data.success) {
+                // Flash green on save button
+                saveBtn.classList.add('btn-success');
+                saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Saved!';
+                setTimeout(() => {
+                    saveBtn.classList.remove('btn-success');
+                    saveBtn.style.background = 'linear-gradient(135deg, var(--gold), #d4a843)';
+                    saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save';
+                }, 1500);
+                // Reload values to refresh highlights
+                loadSettings();
+            } else {
+                alert('Error saving settings: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save';
+            alert('Network error: ' + err.message);
+        });
+    }
+
+    function resetSettings() {
+        if (!confirm('Reset ALL scheduler parameters to their default values?\n\nThis cannot be undone.')) {
+            return;
+        }
+        const resetBtn = document.getElementById('tuningResetBtn');
+        resetBtn.disabled = true;
+        resetBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Resetting...';
+
+        fetch('{% url "update_scheduler_settings" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({ reset: true }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            resetBtn.disabled = false;
+            resetBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults';
+            if (data.success) {
+                loadSettings();
+            } else {
+                alert('Error resetting: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            resetBtn.disabled = false;
+            resetBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Defaults';
+            alert('Network error: ' + err.message);
+        });
+    }
+
+    // Wire up tuning modal events
+    document.getElementById('schedulerTuningModal').addEventListener('shown.bs.modal', loadSettings);
+    document.getElementById('tuningSaveBtn').addEventListener('click', saveSettings);
+    document.getElementById('tuningResetBtn').addEventListener('click', resetSettings);
+
+    // Highlight inputs that differ from default on change
+    document.querySelectorAll('.tuning-input').forEach(input => {
+        input.addEventListener('input', function() {
+            const field = this.dataset.field;
+            if (field in tuningDefaults && parseInt(this.value) !== tuningDefaults[field]) {
+                this.style.borderColor = 'var(--gold)';
+                this.style.fontWeight = '600';
+            } else {
+                this.style.borderColor = '';
+                this.style.fontWeight = '';
+            }
+        });
     });
 </script>
 {% endblock %}

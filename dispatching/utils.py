@@ -567,5 +567,88 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
     # Apply driver filter
     if driver_filter:
         legs_query = legs_query.filter(driver_id=driver_filter)
-    
+
     return legs_query.order_by("pickup_date", "pickup_time")
+
+
+# ============================================================================
+# REAL-TIME DISPATCH FLAGS
+# ============================================================================
+
+# Minutes before pickup to expect "on-the-way" status
+OTW_LEAD_MINUTES = 20
+# Cruise pickups need more lead time (Port Canaveral is far from Orlando)
+OTW_LEAD_MINUTES_CRUISE = 50
+
+# Status progression sets
+STATUSES_OTW_OR_LATER = {'on-the-way', 'on-location', 'picked-up', 'completed'}
+STATUSES_PICKED_OR_LATER = {'picked-up', 'completed'}
+
+
+def detect_leg_flags(leg, now: datetime) -> list:
+    """
+    Check a leg against the current time and return real-time dispatch flags.
+
+    Meant for today's legs only. Each flag is a dict with:
+        level  – 'warning' | 'danger'
+        icon   – Bootstrap Icons class
+        text   – Short human-readable description
+
+    Flag rules:
+        1. Not Confirmed – leg is still 'in-progress' on the day of pickup
+        2. Should Be On The Way – within lead time of pickup, not on-the-way+
+           (20 min default, 50 min for cruises — Port Canaveral is far)
+        3. Not Picked Up – for returns/cruise/other, pickup time passed, not picked-up+
+           (arrivals excluded — drivers can wait 1+ hours at the airport)
+    """
+    flags = []
+
+    # Only flag assigned, non-completed legs
+    if not leg.driver or leg.status == 'completed':
+        return flags
+
+    if not leg.pickup_time:
+        return flags
+
+    pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
+    minutes_until_pickup = (pickup_dt - now).total_seconds() / 60
+    trip_type = leg.get_trip_type()
+
+    # ── Flag 1: Not Confirmed ──
+    if leg.status == 'in-progress':
+        flags.append({
+            'level': 'warning' if minutes_until_pickup > 60 else 'danger',
+            'icon': 'bi-question-circle',
+            'text': 'Not confirmed yet',
+        })
+
+    # ── Flag 2: Should Be On The Way ──
+    lead_minutes = OTW_LEAD_MINUTES_CRUISE if trip_type == 'cruise' else OTW_LEAD_MINUTES
+    if minutes_until_pickup <= lead_minutes and leg.status not in STATUSES_OTW_OR_LATER:
+        if minutes_until_pickup < 0:
+            mins_late = int(abs(minutes_until_pickup))
+            flags.append({
+                'level': 'danger',
+                'icon': 'bi-exclamation-triangle-fill',
+                'text': f'Not on the way — {mins_late} min past pickup',
+            })
+        else:
+            mins_left = int(minutes_until_pickup)
+            flags.append({
+                'level': 'warning',
+                'icon': 'bi-clock',
+                'text': f'Not on the way yet — pickup in {mins_left} min',
+            })
+
+    # ── Flag 3: Not Picked Up (returns / cruise / other) ──
+    # Arrivals excluded — gate-to-pickup can take 1+ hours legitimately.
+    if trip_type != 'arrival' and minutes_until_pickup < 0:
+        if leg.status not in STATUSES_PICKED_OR_LATER:
+            mins_late = int(abs(minutes_until_pickup))
+            flags.append({
+                'level': 'danger' if mins_late > 10 else 'warning',
+                'icon': 'bi-person-x',
+                'text': f'Not picked up — {mins_late} min past pickup time',
+            })
+
+    return flags

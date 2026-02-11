@@ -406,7 +406,7 @@
             <tbody>
               {% for leg in legs %}
                 {% with mismatch=leg.get_flight_time_mismatch_display %}
-                <tr class="align-middle {% if mismatch %}table-danger{% endif %}" {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
+                <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %}" {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
                   <!-- Customer -->
                   <td>
                     <div class="d-flex flex-column">
@@ -824,6 +824,16 @@
                           </div>
                         {% endif %}
                       {% endwith %}
+                      {% if leg.dispatch_flags %}
+                        <div class="mt-2">
+                          {% for flag in leg.dispatch_flags %}
+                            <div class="alert alert-{{ flag.level }} py-1 px-2 mb-1 d-flex align-items-center" style="font-size: 0.75rem;">
+                              <i class="bi {{ flag.icon }} me-1"></i>
+                              <span>{{ flag.text }}</span>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
                       <div class="mt-2">
                         <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                            class="btn btn-sm btn-outline-primary w-100">
@@ -857,8 +867,8 @@
             {% for leg in legs %}
               {% with mismatch=leg.get_flight_time_mismatch_display %}
               <div class="col-12">
-                <div class="card shadow-sm {% if mismatch %}border-danger{% endif %}">
-                  <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% else %}bg-light p-2{% endif %}">
+                <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' %}border-warning{% endif %}">
+                  <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                     <div class="d-flex justify-content-between align-items-center">
                       <h6 class="mb-0 fw-bold">
                         {{ leg.reservation.customer.get_full_name }}
@@ -1072,6 +1082,16 @@
                             </div>
                           {% endif %}
                         {% endwith %}
+                        {% if leg.dispatch_flags %}
+                          <div class="mt-2">
+                            {% for flag in leg.dispatch_flags %}
+                              <div class="alert alert-{{ flag.level }} py-1 px-2 mb-1 d-flex align-items-center" style="font-size: 0.75rem;">
+                                <i class="bi {{ flag.icon }} me-1"></i>
+                                <span>{{ flag.text }}</span>
+                              </div>
+                            {% endfor %}
+                          </div>
+                        {% endif %}
                         <div class="d-grid mt-2">
                           <a href="{% url 'reservation_details' leg.reservation.uuid %}"
                              class="btn btn-sm btn-outline-primary">
