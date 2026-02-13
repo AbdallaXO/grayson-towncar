@@ -830,46 +830,62 @@ class Leg(models.Model):
         """
         return f"Leg #{self.id} from {self.pickup_location} to {self.dropoff_location}"
 
+    CRUISE_PORT_KEYWORDS = [
+        "port canaveral", "canaveral", "cruise port", "cruise terminal",
+        "cruise termina", "cruise ship", "port canaveral terminal",
+    ]
+    AIRPORT_KEYWORDS = ["mco", "sfb", "sanford", "airport", "terminal", "gate", "international"]
+
     def get_trip_type(self):
         """
         Determine trip type from pickup/dropoff locations.
         Returns: 'arrival', 'return', 'cruise', or 'other'
         """
-        # Cruise/port locations — any leg involving these is "Cruise Transfer" (not return/arrival).
-        # Port Canaveral → airport is Cruise Transfer, not return.
-        cruise_port_keywords = [
-            "port canaveral", "canaveral", "cruise port", "cruise terminal",
-            "cruise termina", "cruise ship", "port canaveral terminal",
-        ]
-
-        # Keywords that indicate airport locations (MCO, SFB/Sanford, airport, terminal/gate)
-        airport_keywords = ["mco", "sfb", "sanford", "airport", "terminal", "gate", "international"]
-
         pickup_lower = (self.pickup_location or "").lower()
         dropoff_lower = (self.dropoff_location or "").lower()
 
-        # Any leg involving Port Canaveral / cruise terminal is "Cruise Transfer"
-        if any(cruise in pickup_lower for cruise in cruise_port_keywords):
-            return "cruise"
-        if any(cruise in dropoff_lower for cruise in cruise_port_keywords):
+        pickup_is_cruise = any(kw in pickup_lower for kw in self.CRUISE_PORT_KEYWORDS)
+        dropoff_is_cruise = any(kw in dropoff_lower for kw in self.CRUISE_PORT_KEYWORDS)
+
+        # Any leg involving a cruise port is "cruise"
+        if pickup_is_cruise or dropoff_is_cruise:
             return "cruise"
 
-        def is_airport(location_lower):
-            if not location_lower:
-                return False
-            if any(cruise in location_lower for cruise in cruise_port_keywords):
-                return False
-            return any(kw in location_lower for kw in airport_keywords)
-
-        pickup_is_airport = is_airport(pickup_lower)
-        dropoff_is_airport = is_airport(dropoff_lower)
+        pickup_is_airport = self._is_airport(pickup_lower)
+        dropoff_is_airport = self._is_airport(dropoff_lower)
 
         if pickup_is_airport and not dropoff_is_airport:
-            return "arrival"  # From airport to destination
+            return "arrival"
         elif dropoff_is_airport and not pickup_is_airport:
-            return "return"  # From destination to airport
+            return "return"
         else:
-            return "other"  # Neither pickup nor dropoff is airport, or both are
+            return "other"
+
+    def get_cruise_direction(self):
+        """
+        For cruise legs, determine the direction:
+          'to_cruise'   — Airport/Hotel → Cruise Port (pickup at airport or hotel)
+          'from_cruise' — Cruise Port → Hotel/Airport (pickup at cruise terminal)
+        Returns None if not a cruise leg.
+        """
+        if self.get_trip_type() != "cruise":
+            return None
+
+        pickup_lower = (self.pickup_location or "").lower()
+        pickup_is_cruise = any(kw in pickup_lower for kw in self.CRUISE_PORT_KEYWORDS)
+        return "from_cruise" if pickup_is_cruise else "to_cruise"
+
+    def is_airport_pickup(self):
+        """True if this leg's pickup is at an airport (for cruise legs going airport→cruise port)."""
+        pickup_lower = (self.pickup_location or "").lower()
+        return self._is_airport(pickup_lower)
+
+    def _is_airport(self, location_lower):
+        if not location_lower:
+            return False
+        if any(kw in location_lower for kw in self.CRUISE_PORT_KEYWORDS):
+            return False
+        return any(kw in location_lower for kw in self.AIRPORT_KEYWORDS)
 
     def has_flight_time_mismatch(self, threshold_minutes=30):
         """

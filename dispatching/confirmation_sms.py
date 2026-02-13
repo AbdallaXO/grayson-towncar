@@ -72,11 +72,13 @@ def leg_to_row(leg):
     c = r.customer
     vehicle = r.vehicle
     trip_type = leg.get_trip_type()
+    cruise_direction = leg.get_cruise_direction()  # 'to_cruise', 'from_cruise', or None
+    is_airport_pickup = leg.is_airport_pickup()
     flight = leg.flight_information
     cruise = leg.cruise_information
     travel_agent = r.travel_agent
 
-    # Landing time for arrival (scheduled gate arrival or runway arrival)
+    # Landing time for arrival OR airport→cruise legs (scheduled gate arrival or runway arrival)
     landing_time = ""
     if flight:
         landing_time = _format_datetime(
@@ -94,6 +96,16 @@ def leg_to_row(leg):
             .replace("Booster", "Booster seat")
         )
 
+    # Finer-grained cruise label for display
+    if trip_type == "cruise" and cruise_direction == "to_cruise" and is_airport_pickup:
+        display_trip_type = "Cruise (MCO)"
+    elif trip_type == "cruise" and cruise_direction == "to_cruise":
+        display_trip_type = "Cruise (To Port)"
+    elif trip_type == "cruise" and cruise_direction == "from_cruise":
+        display_trip_type = "Cruise (From Port)"
+    else:
+        display_trip_type = TRIP_TYPE_LABELS.get(trip_type, "Other")
+
     return {
         "leg_id": leg.id,
         "guest_name": c.get_full_name() if c else "",
@@ -102,7 +114,7 @@ def leg_to_row(leg):
         "pickup_time": _format_time(leg.pickup_time) if leg.pickup_time else "",
         "pickup_location": leg.pickup_location or "",
         "dropoff_location": leg.dropoff_location or "",
-        "trip_type": TRIP_TYPE_LABELS.get(trip_type, "Other"),
+        "trip_type": display_trip_type,
         "vehicle_type": vehicle.get_vehicle_type_display() if vehicle else "",
         "passenger_count": r.passenger_count or 0,
         "suitcase_count": r.luggage_count or 0,
@@ -115,6 +127,8 @@ def leg_to_row(leg):
         "flight_number": (flight.flight_number or "").strip() if flight else "",
         "landing_time": landing_time,
         "cruise_line": (cruise.cruise_line or "").strip() if cruise else "",
+        "cruise_direction": cruise_direction,
+        "is_airport_pickup": is_airport_pickup,
         "first_name": (c.first_name or "").strip() if c else "Guest",
     }
 
@@ -189,9 +203,47 @@ def get_confirmation_message(leg, row):
         msg += "\n\nSafe travels — we look forward to welcoming you!" + AUTOMATED_FOOTER
         return msg
 
-    # --- CRUISE: Port Canaveral → Hotel ---
+    # --- CRUISE TRANSFERS ---
     if trip_type == "cruise":
+        cruise_direction = row.get("cruise_direction")
+        is_airport_pickup = row.get("is_airport_pickup", False)
         terminal = f"{cruise_line} terminal at Port Canaveral" if cruise_line else "Port Canaveral"
+
+        # Airport → Cruise Port (arrival-style: flight tracking, baggage claim, then drive to port)
+        if cruise_direction == "to_cruise" and is_airport_pickup:
+            msg = (
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from MCO to {terminal} tomorrow.\n"
+                "\n"
+            )
+            if landing_time:
+                tracking_line = f"We'll be tracking your flight (landing {landing_time}). "
+            else:
+                tracking_line = "We'll be tracking your flight. "
+            msg += (
+                tracking_line
+                + "If your flight is delayed, no need to call — we'll adjust automatically.\n"
+                "\n"
+                "Please make sure your phone is off airplane mode when you land — "
+                "your chauffeur will contact you and meet you inside baggage claim with a name sign."
+            )
+            if car_seats_detail:
+                msg += f"\nCar seats: {car_seats_detail} will be installed."
+            msg += "\n\nSafe travels — we look forward to welcoming you!" + AUTOMATED_FOOTER
+            return msg
+
+        # Hotel/Resort → Cruise Port (departure-style: pickup at lobby, drive to port)
+        if cruise_direction == "to_cruise":
+            msg = (
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {pickup_location} to {terminal} tomorrow.\n"
+                f"Pickup Time: {pickup_time}\n"
+                "Meet: Main lobby entrance — your chauffeur will be waiting out front."
+            )
+            if car_seats_detail:
+                msg += f"\nCar seats: {car_seats_detail} will be installed."
+            msg += "\nSafe travels!" + AUTOMATED_FOOTER
+            return msg
+
+        # Cruise Port → Hotel (from_cruise: chauffeur meets at terminal)
         msg = (
             f"Hi {first_name}, Grayson Towncar confirming your transfer from the {terminal} to {dropoff_location} tomorrow.\n"
             "\n"
@@ -282,11 +334,12 @@ def send_confirmation_via_twilio(leg, row, message):
         return False, str(e)
 
 
-def send_confirmations_for_date(target_date, skip_already_sent=True):
+def send_confirmations_for_date(target_date, skip_already_sent=True, excluded_leg_ids=None):
     """
     For each leg on target_date, generate message and send via Twilio.
     Returns dict: sent=int, failed=int, skipped=int, errors=[(leg_id, msg), ...].
     If skip_already_sent=True, legs with confirmation_sms_sent_at set are skipped.
+    If excluded_leg_ids is provided, those legs are skipped.
     """
     legs = get_legs_for_confirmation(target_date)
     sent = 0
@@ -295,6 +348,9 @@ def send_confirmations_for_date(target_date, skip_already_sent=True):
     errors = []
 
     for leg in legs:
+        if excluded_leg_ids and leg.id in excluded_leg_ids:
+            skipped += 1
+            continue
         if skip_already_sent and getattr(leg, "confirmation_sms_sent_at", None):
             skipped += 1
             continue

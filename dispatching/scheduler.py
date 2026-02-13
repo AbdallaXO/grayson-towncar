@@ -376,6 +376,11 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
         return pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes)
 
+    # Cruise legs picking up from airport (MCO → Cruise Port) need dwell time too
+    if trip_type == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
+        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
+        return pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes)
+
     return pickup_dt + timedelta(minutes=drive_minutes)
 
 
@@ -535,6 +540,8 @@ def suggest_assignments(
     unassigned_legs,
     inhouse_schedules: Dict[int, DriverDaySchedule],
     target_date: date,
+    driver_hours: Dict[int, tuple] = None,
+    driver_preferences: Dict[int, str] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -685,6 +692,12 @@ def suggest_assignments(
         eligible_drivers = scarcity_map.get(leg.id, len(working))
 
         for did, sched in working.items():
+            # Per-driver time window check
+            if driver_hours and did in driver_hours:
+                dh_start, dh_end = driver_hours[did]
+                if leg.pickup_time < time(dh_start, 0) or leg.pickup_time > time(dh_end, 59):
+                    continue
+
             # Vehicle compatibility check
             driver_vtype = driver_vtypes.get(did)
             if driver_vtype and leg_vtype:
@@ -791,6 +804,22 @@ def suggest_assignments(
 
             # Load balance
             score -= len(sched.slots) * cfg.load_balance_multiplier
+
+            # Per-driver trip type preference
+            if driver_preferences and did in driver_preferences:
+                pref_str = driver_preferences[did]
+                parts = pref_str.split('_', 1)
+                p_mode, p_type = (parts[0], parts[1]) if len(parts) == 2 else ('prefer', pref_str)
+                if p_mode == 'only' and leg_trip_type != p_type:
+                    continue  # hard skip — driver only wants this type
+                elif p_mode == 'heavy' and leg_trip_type == p_type:
+                    score += cfg.trip_pref_match * 2
+                elif p_mode == 'heavy' and leg_trip_type != p_type:
+                    score += cfg.trip_pref_mismatch * 2
+                elif p_type and leg_trip_type == p_type:
+                    score += cfg.trip_pref_match
+                elif p_type and leg_trip_type != p_type:
+                    score += cfg.trip_pref_mismatch
 
             if is_reserved_mismatch:
                 # Reserved driver on mismatched job — track as fallback only.
@@ -996,12 +1025,15 @@ def build_smart_schedule(
             'slot_timing_details': {},
         }
 
-    # Build working schedule (start with existing assignments)
+    # Build working schedule (start with existing assignments, minus excluded)
+    existing_slots = list(existing_schedule.slots) if existing_schedule else []
+    if excluded_leg_ids:
+        existing_slots = [s for s in existing_slots if s.leg_id not in excluded_leg_ids]
     working = DriverDaySchedule(
         driver_id=driver_id,
         driver_name=driver_name,
         driver_type='inhouse',
-        slots=list(existing_schedule.slots) if existing_schedule else [],
+        slots=existing_slots,
     )
 
     # Time window boundaries

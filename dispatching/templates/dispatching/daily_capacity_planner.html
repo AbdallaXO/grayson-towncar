@@ -1257,79 +1257,441 @@
     </div>
 </div>
 
+<!-- Auto-Assign Preview Modal -->
+<div class="modal fade" id="autoAssignPreviewModal" tabindex="-1" aria-labelledby="autoAssignPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--dark); border-bottom: 2px solid var(--gold);">
+                <h5 class="modal-title text-white" id="autoAssignPreviewLabel">
+                    <i class="bi bi-magic me-2" style="color: var(--gold);"></i><span id="aaModalTitle">Auto-Assign — Driver Availability</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="background: #f8f9fa;">
+
+                <!-- Step 1: Driver Availability -->
+                <div id="aaStep1">
+                    <p class="text-muted mb-3" style="font-size:0.85rem;">Set each driver's available hours for the day, then build the schedule.</p>
+                    <div style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;overflow:hidden;">
+                        <table class="table table-sm mb-0" style="font-size:0.85rem;">
+                            <thead style="background:var(--dark);color:#fff;">
+                                <tr>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;">Driver</th>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:140px;">Start</th>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:140px;">End</th>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:170px;">Prefer</th>
+                                    <th style="padding:0.5rem 0.75rem;font-weight:600;width:60px;text-align:center;">Off</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in inhouse_drivers %}
+                                <tr class="aa-driver-row" data-driver-id="{{ d.id }}">
+                                    <td style="padding:0.4rem 0.75rem;font-weight:500;">{{ d }}</td>
+                                    <td style="padding:0.4rem 0.75rem;">
+                                        <select class="form-select form-select-sm aa-start-hour" style="font-size:0.8rem;">
+                                            <option value="0">12 AM</option>
+                                            <option value="1">1 AM</option>
+                                            <option value="2">2 AM</option>
+                                            <option value="3">3 AM</option>
+                                            <option value="4">4 AM</option>
+                                            <option value="5">5 AM</option>
+                                            <option value="6" selected>6 AM</option>
+                                            <option value="7">7 AM</option>
+                                            <option value="8">8 AM</option>
+                                            <option value="9">9 AM</option>
+                                            <option value="10">10 AM</option>
+                                            <option value="11">11 AM</option>
+                                            <option value="12">12 PM</option>
+                                            <option value="13">1 PM</option>
+                                            <option value="14">2 PM</option>
+                                            <option value="15">3 PM</option>
+                                            <option value="16">4 PM</option>
+                                            <option value="17">5 PM</option>
+                                            <option value="18">6 PM</option>
+                                            <option value="19">7 PM</option>
+                                            <option value="20">8 PM</option>
+                                            <option value="21">9 PM</option>
+                                            <option value="22">10 PM</option>
+                                            <option value="23">11 PM</option>
+                                        </select>
+                                    </td>
+                                    <td style="padding:0.4rem 0.75rem;">
+                                        <select class="form-select form-select-sm aa-end-hour" style="font-size:0.8rem;">
+                                            <option value="0">12 AM</option>
+                                            <option value="1">1 AM</option>
+                                            <option value="2">2 AM</option>
+                                            <option value="3">3 AM</option>
+                                            <option value="4">4 AM</option>
+                                            <option value="5">5 AM</option>
+                                            <option value="6">6 AM</option>
+                                            <option value="7">7 AM</option>
+                                            <option value="8">8 AM</option>
+                                            <option value="9">9 AM</option>
+                                            <option value="10">10 AM</option>
+                                            <option value="11">11 AM</option>
+                                            <option value="12">12 PM</option>
+                                            <option value="13">1 PM</option>
+                                            <option value="14">2 PM</option>
+                                            <option value="15">3 PM</option>
+                                            <option value="16">4 PM</option>
+                                            <option value="17">5 PM</option>
+                                            <option value="18">6 PM</option>
+                                            <option value="19">7 PM</option>
+                                            <option value="20">8 PM</option>
+                                            <option value="21">9 PM</option>
+                                            <option value="22">10 PM</option>
+                                            <option value="23" selected>11 PM</option>
+                                        </select>
+                                    </td>
+                                    <td style="padding:0.4rem 0.75rem;">
+                                        <select class="form-select form-select-sm aa-preference" style="font-size:0.75rem;">
+                                            <option value="">Any</option>
+                                            <option value="prefer_arrival">Prefer Arrivals</option>
+                                            <option value="prefer_return">Prefer Returns</option>
+                                            <option value="prefer_cruise">Prefer Cruises</option>
+                                            <option value="heavy_arrival">Heavy Arrivals</option>
+                                            <option value="heavy_return">Heavy Returns</option>
+                                            <option value="heavy_cruise">Heavy Cruises</option>
+                                            <option value="only_arrival">Arrivals Only</option>
+                                            <option value="only_return">Returns Only</option>
+                                            <option value="only_cruise">Cruises Only</option>
+                                        </select>
+                                    </td>
+                                    <td style="padding:0.4rem 0.75rem;text-align:center;">
+                                        <input type="checkbox" class="form-check-input aa-day-off" title="Mark as off for the day">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Step 2: Preview (hidden initially) -->
+                <div id="aaStep2" class="d-none">
+                    <div id="aaPreviewSummary" class="d-flex gap-3 flex-wrap mb-3 p-2" style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;"></div>
+                    <div id="aaPreviewDrivers"></div>
+                </div>
+
+            </div>
+            <div class="modal-footer" style="background: var(--dark); border-top: 2px solid var(--gold);">
+                <!-- Step 1 footer -->
+                <div id="aaFooter1">
+                    <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i>Cancel
+                    </button>
+                    <button type="button" id="aaBuildBtn" class="btn btn-sm px-4" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600; border: none;">
+                        <i class="bi bi-eye me-1"></i>Build Schedule
+                    </button>
+                </div>
+                <!-- Step 2 footer (hidden initially) -->
+                <div id="aaFooter2" class="d-none">
+                    <button type="button" id="aaBackBtn" class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i>Back
+                    </button>
+                    <button type="button" id="aaApplyBtn" class="btn btn-sm px-4" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600; border: none;">
+                        <i class="bi bi-check2-all me-1"></i>Apply All Assignments
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.getElementById('datePicker').addEventListener('change', function() {
         window.location.href = '?date=' + this.value;
     });
 
-    // Auto-Assign functionality
+    // Auto-Assign: Step 1 (driver hours) → Step 2 (interactive preview) → Apply
     const autoBtn = document.getElementById('autoAssignBtn');
     if (autoBtn) {
+        const tripColors = { arrival: '#1565c0', 'return': '#2e7d32', cruise: '#e65100', other: '#6a1b9a' };
+        let aaDriverHours = {};
+        let aaDriverPrefs = {};        // {driver_id: "prefer_arrival"}
+        let aaExcluded = [];           // leg IDs removed by user
+        let aaManual = {};             // {leg_id: driver_id} manual overrides
+        let aaDriverList = [];         // cached driver list for dropdowns
+        let aaIsRebuilding = false;
+
+        // Handle "day off" checkbox
+        document.querySelectorAll('.aa-day-off').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const row = this.closest('tr');
+                row.querySelectorAll('select').forEach(s => { s.disabled = this.checked; });
+                row.style.opacity = this.checked ? '0.4' : '1';
+            });
+        });
+
         autoBtn.addEventListener('click', function() {
-            const btn = this;
-            const resultDiv = document.getElementById('autoAssignResult');
+            // Reset state
+            aaExcluded = [];
+            aaManual = {};
+            document.getElementById('aaStep1').classList.remove('d-none');
+            document.getElementById('aaStep2').classList.add('d-none');
+            document.getElementById('aaFooter1').classList.remove('d-none');
+            document.getElementById('aaFooter2').classList.add('d-none');
+            document.getElementById('aaModalTitle').textContent = 'Auto-Assign — Driver Availability';
+            new bootstrap.Modal(document.getElementById('autoAssignPreviewModal')).show();
+        });
+
+        function collectDriverHours() {
+            aaDriverHours = {};
+            aaDriverPrefs = {};
+            document.querySelectorAll('.aa-driver-row').forEach(row => {
+                const did = row.dataset.driverId;
+                if (row.querySelector('.aa-day-off').checked) return;
+                aaDriverHours[did] = {
+                    start: parseInt(row.querySelector('.aa-start-hour').value),
+                    end: parseInt(row.querySelector('.aa-end-hour').value),
+                };
+                const pref = row.querySelector('.aa-preference').value;
+                if (pref) aaDriverPrefs[did] = pref;
+            });
+        }
+
+        // Fetch preview from backend
+        function fetchPreview(callback) {
             const dateVal = document.getElementById('datePicker').value;
-
-            // Confirm before proceeding
-            if (!confirm('Auto-assign all inhouse drivers to unassigned legs for ' + dateVal + '?\n\nThis will apply the suggested assignments shown below.')) {
-                return;
-            }
-
-            // Loading state
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Assigning...';
-
+            collectDriverHours();
             fetch('{% url "auto_assign_drivers" %}', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}',
-                },
-                body: JSON.stringify({ date: dateVal }),
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({
+                    date: dateVal, apply: false,
+                    driver_hours: aaDriverHours,
+                    driver_preferences: aaDriverPrefs,
+                    excluded_leg_ids: aaExcluded,
+                    manual_assignments: aaManual,
+                }),
             })
             .then(r => r.json())
             .then(data => {
-                resultDiv.classList.remove('d-none');
+                aaIsRebuilding = false;
+                if (!data.success) { alert(data.error || data.message || 'Error'); callback && callback(); return; }
+                aaDriverList = data.driver_list || [];
+                renderAutoAssignPreview(data);
+                // Switch to Step 2
+                document.getElementById('aaStep1').classList.add('d-none');
+                document.getElementById('aaStep2').classList.remove('d-none');
+                document.getElementById('aaFooter1').classList.add('d-none');
+                document.getElementById('aaFooter2').classList.remove('d-none');
+                document.getElementById('aaModalTitle').textContent = 'Proposed Schedule — ' + data.assigned + ' new assignments';
+                callback && callback();
+            })
+            .catch(err => { aaIsRebuilding = false; alert('Network error: ' + err.message); callback && callback(); });
+        }
+
+        // Step 1 → Build
+        document.getElementById('aaBuildBtn').addEventListener('click', function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Building...';
+            fetchPreview(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-eye me-1"></i>Build Schedule'; });
+        });
+
+        // Back button
+        document.getElementById('aaBackBtn').addEventListener('click', function() {
+            document.getElementById('aaStep1').classList.remove('d-none');
+            document.getElementById('aaStep2').classList.add('d-none');
+            document.getElementById('aaFooter1').classList.remove('d-none');
+            document.getElementById('aaFooter2').classList.add('d-none');
+            document.getElementById('aaModalTitle').textContent = 'Auto-Assign — Driver Availability';
+        });
+
+        // Re-preview after changes (exclude, manual assign)
+        function rePreview() {
+            if (aaIsRebuilding) return;
+            aaIsRebuilding = true;
+            document.getElementById('aaPreviewSummary').innerHTML = '<div class="text-center py-2 w-100"><span class="spinner-border spinner-border-sm me-1"></span> Rebuilding...</div>';
+            fetchPreview();
+        }
+
+        // Remove a leg from a driver's schedule
+        window.aaRemoveSlot = function(legId) {
+            if (!aaExcluded.includes(legId)) aaExcluded.push(legId);
+            delete aaManual[String(legId)];
+            rePreview();
+        };
+
+        // Manually assign an unassigned leg to a driver
+        window.aaAssignLeg = function(legId, driverId) {
+            if (driverId) {
+                aaManual[String(legId)] = driverId;
+            } else {
+                delete aaManual[String(legId)];
+            }
+            rePreview();
+        };
+
+        // Swap: remove current slot, assign alt to that driver
+        window.aaSwapSlot = function(removeLegId, altLegId, driverId) {
+            if (!aaExcluded.includes(removeLegId)) aaExcluded.push(removeLegId);
+            delete aaManual[String(removeLegId)];
+            aaManual[String(altLegId)] = driverId;
+            rePreview();
+        };
+
+        // Toggle alts panel for a slot
+        let aaLastUnassigned = [];  // cached from last render
+        window.aaToggleAlts = function(slotLegId, slotMinutes, driverId) {
+            const panel = document.getElementById('aa-alts-' + slotLegId);
+            if (!panel) return;
+            if (!panel.classList.contains('d-none')) { panel.classList.add('d-none'); return; }
+
+            const windowMin = 120;
+            const nearby = aaLastUnassigned.filter(a => Math.abs(a.pickup_minutes - slotMinutes) <= windowMin);
+
+            if (nearby.length === 0) {
+                panel.innerHTML = '<div class="text-muted text-center py-1">No alternative jobs within \u00b12 hours</div>';
+            } else {
+                let h = '<div class="text-muted mb-1" style="font-size:0.75rem;"><i class="bi bi-arrow-left-right me-1"></i><b>Swap with:</b></div>';
+                nearby.forEach(function(alt) {
+                    const c = tripColors[alt.trip_type] || '#666';
+                    h += '<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #eee;font-size:0.78rem;">';
+                    h += '<strong>' + alt.pickup_time + '</strong> ';
+                    h += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + alt.trip_type.charAt(0).toUpperCase() + alt.trip_type.slice(1) + '</span> ';
+                    if (alt.vehicle_type) h += '<span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;">' + alt.vehicle_type + '</span> ';
+                    h += '<div style="flex:1;color:#555;" class="text-truncate">' + alt.pickup_location.substring(0, 25) + ' &rarr; ' + alt.dropoff_location.substring(0, 25) + '</div>';
+                    if (alt.revenue > 0) h += '<span style="font-weight:600;">$' + Math.round(alt.revenue) + '</span>';
+                    h += '<button class="btn btn-sm py-0 px-1" style="font-size:0.7rem;color:var(--gold);border:1px solid var(--gold);line-height:1.4;" ';
+                    h += 'onclick="aaSwapSlot(' + slotLegId + ',' + alt.leg_id + ',' + driverId + ')" title="Swap">';
+                    h += '<i class="bi bi-arrow-repeat"></i></button>';
+                    h += '</div>';
+                });
+                panel.innerHTML = h;
+            }
+            panel.classList.remove('d-none');
+        };
+
+        function renderAutoAssignPreview(data) {
+            aaLastUnassigned = data.unassigned_legs || [];
+            const summaryDiv = document.getElementById('aaPreviewSummary');
+            const driversDiv = document.getElementById('aaPreviewDrivers');
+            const totalRevenue = data.driver_schedules.reduce((sum, d) => sum + d.total_revenue, 0);
+            const unassignedCount = (data.unassigned_legs || []).length;
+
+            summaryDiv.innerHTML =
+                '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:#2e7d32;">' + data.assigned + '</div><div style="font-size:0.7rem;color:#888;">New Assignments</div></div>' +
+                (unassignedCount > 0 ? '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:#e65100;">' + unassignedCount + '</div><div style="font-size:0.7rem;color:#888;">Need Affiliates</div></div>' : '') +
+                '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:var(--dark);">' + data.driver_schedules.length + '</div><div style="font-size:0.7rem;color:#888;">Drivers Active</div></div>' +
+                '<div class="text-center flex-fill"><div style="font-size:1.4rem;font-weight:700;color:var(--dark);">$' + Math.round(totalRevenue) + '</div><div style="font-size:0.7rem;color:#888;">Total Revenue</div></div>';
+
+            let html = '';
+
+            // Driver schedule cards
+            data.driver_schedules.forEach(function(driver) {
+                html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;overflow:hidden;">';
+                html += '<div class="d-flex justify-content-between align-items-center px-3 py-2" style="background:var(--dark);color:#fff;">';
+                html += '<div>';
+                html += '<strong style="font-size:0.95rem;">' + driver.driver_name + '</strong>';
+                html += '<span class="ms-2" style="font-size:0.75rem;opacity:0.7;">' + driver.first_pickup + ' &mdash; ' + driver.last_end + '</span>';
+                html += '</div>';
+                html += '<div class="d-flex gap-2 align-items-center">';
+                if (driver.new_legs > 0) {
+                    html += '<span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.7rem;">+' + driver.new_legs + ' new</span>';
+                }
+                html += '<span style="font-size:0.8rem;opacity:0.8;">' + driver.total_legs + ' legs</span>';
+                html += '<span style="font-size:0.8rem;font-weight:600;color:var(--gold);">$' + Math.round(driver.total_revenue) + '</span>';
+                html += '</div></div>';
+
+                driver.slots.forEach(function(slot) {
+                    const color = tripColors[slot.trip_type] || '#666';
+                    const isNew = slot.is_new;
+                    html += '<div class="d-flex align-items-center gap-2 px-3 py-2" style="border-bottom:1px solid #f0f0f0;font-size:0.82rem;' + (isNew ? 'border-left:3px solid var(--gold);background:rgba(201,162,39,0.06);' : '') + '">';
+                    html += '<div style="min-width:70px;font-weight:600;">' + slot.pickup_time + '</div>';
+                    html += '<div style="min-width:60px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';margin-right:4px;"></span>';
+                    html += '<span style="color:' + color + ';font-size:0.7rem;font-weight:600;">' + slot.trip_type.charAt(0).toUpperCase() + slot.trip_type.slice(1) + '</span></div>';
+                    html += '<div style="flex:1;color:#555;" class="text-truncate">' + slot.pickup_location.substring(0, 30) + ' &rarr; ' + slot.dropoff_location.substring(0, 30) + '</div>';
+                    html += '<div style="min-width:100px;color:#888;font-size:0.75rem;" class="text-truncate">' + slot.customer_name + '</div>';
+                    if (slot.revenue > 0) {
+                        html += '<div style="min-width:50px;text-align:right;font-weight:600;">$' + Math.round(slot.revenue) + '</div>';
+                    }
+                    if (isNew) {
+                        html += '<span class="badge me-1" style="background:var(--gold);color:var(--dark);font-size:0.6rem;">NEW</span>';
+                    }
+                    // Alts + X buttons
+                    html += '<button class="btn btn-sm p-0 me-1" style="color:#666;font-size:0.7rem;line-height:1;" onclick="aaToggleAlts(' + slot.leg_id + ',' + (slot.pickup_minutes || 0) + ',' + driver.driver_id + ')" title="Show alternatives"><i class="bi bi-arrow-down-short"></i>alts</button>';
+                    html += '<button class="btn btn-sm p-0" style="color:#c62828;font-size:0.8rem;line-height:1;" onclick="aaRemoveSlot(' + slot.leg_id + ')" title="Remove this job"><i class="bi bi-x-circle"></i></button>';
+                    html += '</div>';
+                    // Alts panel (hidden)
+                    html += '<div id="aa-alts-' + slot.leg_id + '" class="d-none" style="margin:0 0.75rem 0.25rem;padding:0.4rem 0.6rem;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:0.35rem;font-size:0.75rem;"></div>';
+                });
+
+                html += '</div>';
+            });
+
+            // Unassigned legs section
+            const unassigned = data.unassigned_legs || [];
+            if (unassigned.length > 0) {
+                html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:2px dashed #e65100;overflow:hidden;">';
+                html += '<div class="d-flex justify-content-between align-items-center px-3 py-2" style="background:#fff3e0;">';
+                html += '<div><i class="bi bi-exclamation-triangle me-2" style="color:#e65100;"></i><strong style="color:#e65100;font-size:0.9rem;">Need Affiliates</strong>';
+                html += '<span class="ms-2 badge" style="background:#e65100;font-size:0.7rem;">' + unassigned.length + '</span></div></div>';
+
+                unassigned.forEach(function(leg) {
+                    const color = tripColors[leg.trip_type] || '#666';
+                    html += '<div class="d-flex align-items-center gap-2 px-3 py-2" style="border-bottom:1px solid #f0f0f0;font-size:0.82rem;">';
+                    html += '<div style="min-width:70px;font-weight:600;">' + leg.pickup_time + '</div>';
+                    html += '<div style="min-width:60px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';margin-right:4px;"></span>';
+                    html += '<span style="color:' + color + ';font-size:0.7rem;font-weight:600;">' + leg.trip_type.charAt(0).toUpperCase() + leg.trip_type.slice(1) + '</span></div>';
+                    if (leg.vehicle_type) {
+                        html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;">' + leg.vehicle_type + '</span>';
+                    }
+                    html += '<div style="flex:1;color:#555;" class="text-truncate">' + leg.pickup_location.substring(0, 25) + ' &rarr; ' + leg.dropoff_location.substring(0, 25) + '</div>';
+                    html += '<div style="min-width:80px;color:#888;font-size:0.75rem;" class="text-truncate">' + leg.customer_name + '</div>';
+                    if (leg.revenue > 0) {
+                        html += '<div style="min-width:45px;text-align:right;font-weight:600;font-size:0.8rem;">$' + Math.round(leg.revenue) + '</div>';
+                    }
+                    // Assign dropdown
+                    html += '<select class="form-select form-select-sm" style="width:120px;font-size:0.75rem;padding:0.15rem 0.4rem;" onchange="aaAssignLeg(' + leg.leg_id + ', this.value)">';
+                    html += '<option value="">Assign to...</option>';
+                    aaDriverList.forEach(function(d) {
+                        html += '<option value="' + d.id + '">' + d.name + '</option>';
+                    });
+                    html += '</select>';
+                    html += '</div>';
+                });
+
+                html += '</div>';
+            }
+
+            driversDiv.innerHTML = html;
+        }
+
+        // Apply button
+        document.getElementById('aaApplyBtn').addEventListener('click', function() {
+            const btn = this;
+            const dateVal = document.getElementById('datePicker').value;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Applying...';
+
+            fetch('{% url "auto_assign_drivers" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({
+                    date: dateVal, apply: true,
+                    driver_hours: aaDriverHours,
+                    driver_preferences: aaDriverPrefs,
+                    excluded_leg_ids: aaExcluded,
+                    manual_assignments: aaManual,
+                }),
+            })
+            .then(r => r.json())
+            .then(data => {
                 if (data.success) {
-                    resultDiv.style.background = 'rgba(46, 125, 50, 0.1)';
-                    resultDiv.style.border = '1px solid rgba(46, 125, 50, 0.3)';
-                    resultDiv.style.color = '#2e7d32';
-
-                    let html = '<i class="bi bi-check-circle me-2"></i><strong>' + data.assigned + ' legs assigned</strong> to inhouse drivers.';
-                    if (data.remaining > 0) {
-                        html += ' <span style="color:#e65100;">' + data.remaining + ' legs still need affiliates.</span>';
-                    }
-                    if (data.assignments && data.assignments.length > 0) {
-                        html += '<div class="mt-2" style="font-size:0.8rem;">';
-                        data.assignments.forEach(function(a) {
-                            html += '<div class="py-1 border-top" style="border-color:rgba(46,125,50,0.15)!important;">';
-                            html += 'Leg #' + a.leg_id + ' &rarr; <strong>' + a.driver_name + '</strong>';
-                            html += ' <span class="text-muted">(' + a.reason + ')</span></div>';
-                        });
-                        html += '</div>';
-                    }
-                    html += '<div class="mt-2"><small>Refreshing page...</small></div>';
-                    resultDiv.innerHTML = html;
-
-                    // Reload after brief pause so user can see the result
-                    setTimeout(function() { window.location.reload(); }, 2500);
+                    btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Done! Reloading...';
+                    setTimeout(function() { window.location.reload(); }, 1000);
                 } else {
-                    resultDiv.style.background = 'rgba(198, 40, 40, 0.1)';
-                    resultDiv.style.border = '1px solid rgba(198, 40, 40, 0.3)';
-                    resultDiv.style.color = '#c62828';
-                    resultDiv.innerHTML = '<i class="bi bi-x-circle me-2"></i>' + (data.error || data.message || 'Unknown error');
+                    alert(data.error || 'Error applying assignments');
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto-Assign All';
+                    btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply All Assignments';
                 }
             })
-            .catch(function(err) {
-                resultDiv.classList.remove('d-none');
-                resultDiv.style.background = 'rgba(198, 40, 40, 0.1)';
-                resultDiv.style.border = '1px solid rgba(198, 40, 40, 0.3)';
-                resultDiv.style.color = '#c62828';
-                resultDiv.innerHTML = '<i class="bi bi-x-circle me-2"></i>Network error: ' + err.message;
+            .catch(err => {
+                alert('Network error: ' + err.message);
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-magic me-1"></i>Auto-Assign All';
+                btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply All Assignments';
             });
         });
     }
@@ -1797,26 +2159,20 @@
             if (slot.revenue > 0) {
                 html += '<span style="font-weight:600;">$' + Math.round(slot.revenue) + '</span>';
             }
-            if (!slot.is_existing) {
-                html += '<button class="btn btn-sm p-0" style="color:#c62828;font-size:0.85rem;line-height:1;" ';
-                html += 'onclick="removeJob(' + slot.leg_id + ')" title="Remove this job and re-build">';
-                html += '<i class="bi bi-x-circle"></i></button>';
-            }
+            html += '<button class="btn btn-sm p-0" style="color:#c62828;font-size:0.85rem;line-height:1;" ';
+            html += 'onclick="removeJob(' + slot.leg_id + ')" title="Remove this job and re-build">';
+            html += '<i class="bi bi-x-circle"></i></button>';
             html += '</div>';
-            // Alternatives toggle (only for new/non-existing slots)
-            if (!slot.is_existing) {
-                html += '<button class="btn btn-sm p-0" style="color:#666;font-size:0.7rem;line-height:1;" ';
-                html += 'onclick="toggleAlternatives(' + slot.leg_id + ',' + (slot.pickup_minutes || 0) + ')" title="Show alternative jobs">';
-                html += '<i class="bi bi-arrow-down-short"></i> alts</button>';
-            }
+            // Alternatives toggle
+            html += '<button class="btn btn-sm p-0" style="color:#666;font-size:0.7rem;line-height:1;" ';
+            html += 'onclick="toggleAlternatives(' + slot.leg_id + ',' + (slot.pickup_minutes || 0) + ')" title="Show alternative jobs">';
+            html += '<i class="bi bi-arrow-down-short"></i> alts</button>';
             html += '</div>';
             html += '</div>';
 
             // Alternatives panel (hidden by default)
-            if (!slot.is_existing) {
-                html += '<div id="alts-' + slot.leg_id + '" class="d-none" style="margin-top:-0.25rem;margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:0.35rem;font-size:0.75rem;">';
-                html += '</div>';
-            }
+            html += '<div id="alts-' + slot.leg_id + '" class="d-none" style="margin-top:-0.25rem;margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:0.35rem;font-size:0.75rem;">';
+            html += '</div>';
         });
 
         if (data.new_count === 0) {

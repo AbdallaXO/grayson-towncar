@@ -2371,7 +2371,15 @@ def confirmations_view(request):
                     "Twilio is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in .env",
                 )
                 return redirect("confirmations")
-            result = send_confirmations_for_date(target, skip_already_sent=True)
+            # Parse excluded leg IDs from the form
+            excluded_raw = request.POST.get("excluded_leg_ids", "")
+            excluded_ids = set()
+            if excluded_raw.strip():
+                for x in excluded_raw.split(","):
+                    x = x.strip()
+                    if x.isdigit():
+                        excluded_ids.add(int(x))
+            result = send_confirmations_for_date(target, skip_already_sent=True, excluded_leg_ids=excluded_ids)
             sent, failed, skipped = result["sent"], result["failed"], result["skipped"]
             if result["errors"]:
                 for leg_id, err in result["errors"][:5]:
@@ -5012,7 +5020,9 @@ def _create_schedule_snapshot(target_date, user, trigger):
 def auto_assign_drivers(request):
     """
     Auto-assign inhouse drivers to unassigned legs for a given date.
-    Runs the suggestion engine and applies all assignments at once.
+    Two modes controlled by `apply` flag:
+      - apply=False (default): Preview — run suggestions, build proposed schedules, return without saving.
+      - apply=True: Apply — run suggestions and save assignments to DB.
     """
     if not request.user.is_superuser:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
@@ -5028,9 +5038,20 @@ def auto_assign_drivers(request):
     date_str = data.get("date")
     if not date_str:
         return JsonResponse({"success": False, "error": "Date required"}, status=400)
+    apply_mode = data.get("apply", False)
+    raw_driver_hours = data.get("driver_hours", {})  # {driver_id_str: {start: int, end: int}}
+    excluded_leg_ids = data.get("excluded_leg_ids", [])  # legs to skip
+    raw_manual = data.get("manual_assignments", {})  # {leg_id_str: driver_id} overrides
+    raw_preferences = data.get("driver_preferences", {})  # {driver_id_str: "prefer_arrival"}
 
     from datetime import datetime as dt
-    from dispatching.scheduler import build_driver_schedules, suggest_assignments
+    from dispatching.scheduler import (
+        build_driver_schedules, suggest_assignments,
+        ScheduleSlot, estimate_job_end_time,
+    )
+    from dispatching.analytics import categorize_location
+    from copy import deepcopy
+    from decimal import Decimal
 
     try:
         target_date = dt.strptime(date_str, "%Y-%m-%d").date()
@@ -5040,57 +5061,210 @@ def auto_assign_drivers(request):
     # Get all legs for this date
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
-        .select_related("driver", "driver__profile", "reservation", "reservation__vehicle")
+        .select_related("driver", "driver__profile", "reservation", "reservation__vehicle",
+                        "reservation__customer")
     )
 
     # Get inhouse drivers and build schedules from already-assigned legs
-    inhouse_drivers = Driver.objects.filter(driver_type="inhouse")
+    inhouse_drivers = list(Driver.objects.filter(driver_type="inhouse").select_related("profile"))
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
-    # Auto-snapshot before making changes
-    _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
+    # Parse per-driver time windows: {driver_id: (start_hour, end_hour)}
+    driver_hours = {}
+    for did_str, hours in raw_driver_hours.items():
+        try:
+            driver_hours[int(did_str)] = (int(hours["start"]), int(hours["end"]))
+        except (ValueError, KeyError, TypeError):
+            continue
 
-    # Get unassigned legs only
-    unassigned = [l for l in legs if not l.driver]
-    if not unassigned:
-        return JsonResponse({"success": True, "assigned": 0, "message": "No unassigned legs"})
+    # Parse per-driver trip preferences: {driver_id: "prefer_arrival"}
+    driver_preferences = {}
+    for did_str, pref in raw_preferences.items():
+        try:
+            if pref:
+                driver_preferences[int(did_str)] = str(pref)
+        except (ValueError, TypeError):
+            continue
 
-    # Run suggestion engine
-    suggestions = suggest_assignments(unassigned, schedules, target_date)
+    # Parse manual assignments: {leg_id: driver_id}
+    manual_assignments = {}
+    for lid_str, did in raw_manual.items():
+        try:
+            manual_assignments[int(lid_str)] = int(did)
+        except (ValueError, TypeError):
+            continue
 
-    # Apply all suggestions — use pre-loaded lookups instead of per-suggestion queries
     legs_by_id = {l.id: l for l in legs}
     drivers_by_id = {d.id: d for d in inhouse_drivers}
 
-    assigned_count = 0
-    assignments = []
-    for suggestion in suggestions:
-        leg = legs_by_id.get(suggestion.leg_id)
-        driver = drivers_by_id.get(suggestion.suggested_driver_id)
-        if not leg or not driver:
-            continue
+    # Get unassigned legs (excluding user-excluded ones)
+    excluded_set = set(excluded_leg_ids)
+    unassigned = [l for l in legs if not l.driver and l.id not in excluded_set]
+
+    # Separate manually-assigned legs from auto-assign pool
+    manual_leg_ids = set(manual_assignments.keys())
+    auto_unassigned = [l for l in unassigned if l.id not in manual_leg_ids]
+
+    # Run suggestion engine on remaining unassigned legs
+    suggestions = suggest_assignments(auto_unassigned, schedules, target_date,
+                                      driver_hours=driver_hours or None,
+                                      driver_preferences=driver_preferences or None) if auto_unassigned else []
+
+    # Merge: auto suggestions + manual overrides
+    valid_suggestions = [
+        s for s in suggestions
+        if s.suggested_driver_id and legs_by_id.get(s.leg_id) and drivers_by_id.get(s.suggested_driver_id)
+    ]
+    # Build final assignment map: {leg_id: driver_id}
+    final_assignments = {}
+    for s in valid_suggestions:
+        final_assignments[s.leg_id] = s.suggested_driver_id
+    for lid, did in manual_assignments.items():
+        if legs_by_id.get(lid) and drivers_by_id.get(did):
+            final_assignments[lid] = did
+
+    assigned_count = len(final_assignments)
+    remaining = len(unassigned) - assigned_count
+
+    if apply_mode:
+        # ── Apply mode: save assignments to DB ──
+        _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
+
+        saved = 0
+        for lid, did in final_assignments.items():
+            leg = legs_by_id[lid]
+            driver = drivers_by_id[did]
+            try:
+                leg.driver = driver
+                leg.driver_assigned_by = request.user
+                leg.driver_assigned_at = timezone.now()
+                leg.save()
+                saved += 1
+            except Exception:
+                continue
+
+        return JsonResponse({
+            "success": True,
+            "assigned": saved,
+            "remaining": len(unassigned) - saved,
+            "message": f"Assigned {saved} legs to inhouse drivers.",
+        })
+
+    # ── Preview mode: build proposed schedules without saving ──
+    proposed = deepcopy(schedules)
+    new_leg_ids = set()
+
+    # Helper to build a ScheduleSlot from a leg
+    def _leg_to_slot(leg):
+        pickup_cat = categorize_location(leg.pickup_location)
+        dropoff_cat = categorize_location(leg.dropoff_location)
+        end_time = estimate_job_end_time(leg, target_date)
+        customer_name = ""
+        if leg.reservation and leg.reservation.customer:
+            customer_name = leg.reservation.customer.get_full_name()
+        flight_info = None
+        has_flight = False
         try:
-            leg.driver = driver
-            leg.driver_assigned_by = request.user
-            leg.driver_assigned_at = timezone.now()
-            leg.save()
-            assigned_count += 1
-            assignments.append({
-                "leg_id": leg.id,
-                "driver_name": suggestion.suggested_driver_name,
-                "reason": suggestion.reason,
-            })
+            if leg.flight_information:
+                has_flight = True
+                flight_info = str(leg.flight_information)
         except Exception:
+            pass
+        return ScheduleSlot(
+            leg_id=leg.id, pickup_time=leg.pickup_time,
+            pickup_location=leg.pickup_location, pickup_category=pickup_cat,
+            dropoff_location=leg.dropoff_location, dropoff_category=dropoff_cat,
+            trip_type=leg.get_trip_type(), estimated_end_time=end_time,
+            reservation_id=leg.reservation_id, customer_name=customer_name,
+            status=leg.status or 'pending', has_flight=has_flight,
+            flight_info=flight_info, revenue=leg.revenue_share,
+        )
+
+    for lid, did in final_assignments.items():
+        leg = legs_by_id[lid]
+        proposed[did].slots.append(_leg_to_slot(leg))
+        new_leg_ids.add(lid)
+
+    # Remove excluded legs from existing schedules
+    if excluded_set:
+        for sched in proposed.values():
+            sched.slots = [s for s in sched.slots if s.leg_id not in excluded_set]
+
+    # Serialize driver schedules
+    driver_schedules = []
+    for schedule in sorted(proposed.values(), key=lambda s: s.driver_name):
+        schedule.slots.sort(key=lambda s: s.pickup_time)
+        if not schedule.slots:
             continue
 
-    remaining = len(unassigned) - assigned_count
+        first_pickup = schedule.slots[0].pickup_time.strftime("%I:%M %p").lstrip("0")
+        last_end = schedule.slots[-1].estimated_end_time.strftime("%I:%M %p").lstrip("0") if schedule.slots[-1].estimated_end_time else ""
+
+        slots_data = []
+        for slot in schedule.slots:
+            slots_data.append({
+                "leg_id": slot.leg_id,
+                "pickup_time": slot.pickup_time.strftime("%I:%M %p").lstrip("0"),
+                "end_time": slot.estimated_end_time.strftime("%I:%M %p").lstrip("0") if slot.estimated_end_time else "",
+                "pickup_location": slot.pickup_location,
+                "dropoff_location": slot.dropoff_location,
+                "trip_type": slot.trip_type,
+                "customer_name": slot.customer_name,
+                "revenue": float(slot.revenue or 0),
+                "status": slot.status,
+                "is_new": slot.leg_id in new_leg_ids,
+                "flight_info": slot.flight_info or "",
+                "pickup_minutes": slot.pickup_time.hour * 60 + slot.pickup_time.minute,
+            })
+
+        driver_schedules.append({
+            "driver_id": schedule.driver_id,
+            "driver_name": schedule.driver_name,
+            "total_legs": schedule.total_legs,
+            "existing_legs": sum(1 for s in slots_data if not s["is_new"]),
+            "new_legs": sum(1 for s in slots_data if s["is_new"]),
+            "total_revenue": float(schedule.total_revenue),
+            "first_pickup": first_pickup,
+            "last_end": last_end,
+            "slots": slots_data,
+        })
+
+    # Build unassigned legs list (not assigned by auto or manual)
+    assigned_leg_ids = set(final_assignments.keys())
+    still_unassigned = []
+    for leg in unassigned:
+        if leg.id in assigned_leg_ids:
+            continue
+        customer_name = ""
+        if leg.reservation and leg.reservation.customer:
+            customer_name = leg.reservation.customer.get_full_name()
+        vtype = getattr(getattr(leg.reservation, 'vehicle', None), 'vehicle_type', '') if leg.reservation else ''
+        still_unassigned.append({
+            "leg_id": leg.id,
+            "pickup_time": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
+            "pickup_location": leg.pickup_location,
+            "dropoff_location": leg.dropoff_location,
+            "trip_type": leg.get_trip_type(),
+            "customer_name": customer_name,
+            "revenue": float(leg.revenue_share or 0),
+            "vehicle_type": str(vtype),
+            "pickup_minutes": leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0,
+        })
+
+    # Driver list for manual assignment dropdown
+    driver_list = [
+        {"id": d.id, "name": str(d)}
+        for d in sorted(inhouse_drivers, key=lambda d: str(d))
+    ]
+
     return JsonResponse({
         "success": True,
         "assigned": assigned_count,
         "remaining": remaining,
         "total": len(legs),
-        "assignments": assignments,
-        "message": f"Assigned {assigned_count} legs to inhouse drivers. {remaining} still need affiliates.",
+        "driver_schedules": driver_schedules,
+        "unassigned_legs": still_unassigned,
+        "driver_list": driver_list,
     })
 
 
@@ -5354,8 +5528,8 @@ def smart_schedule_builder(request):
     schedules = build_driver_schedules(legs, all_drivers, target_date)
     existing_schedule = schedules.get(driver.id)
 
-    # Get unassigned legs
-    available_legs = [l for l in legs if not l.driver]
+    # Get unassigned legs + excluded existing legs (so they can be swapped/replaced)
+    available_legs = [l for l in legs if not l.driver or l.id in excluded_leg_ids]
 
     # Run the smart scheduler
     result = build_smart_schedule(
