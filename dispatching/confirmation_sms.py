@@ -39,6 +39,62 @@ TRIP_TYPE_LABELS = {
     "other": "Other",
 }
 
+# Known airports — order matters: check specific codes before generic "airport"
+_AIRPORT_PATTERNS = [
+    # (substrings to match in lowercased location, display name)
+    (["sfb", "sanford"], "Sanford International Airport (SFB)"),
+    (["mlb", "melbourne"], "Melbourne Orlando International Airport (MLB)"),
+    (["lal", "lakeland"], "Lakeland Linder International Airport (LAL)"),
+    (["mco", "orlando international"], "Orlando International Airport (MCO)"),
+]
+
+# Hotel brands / keywords — if present, the location is a hotel, not an airport
+_HOTEL_INDICATORS = [
+    "hotel", "inn", "resort", "suites", "suite", "lodge", "motel",
+    "hyatt", "hilton", "marriott", "sheraton", "westin", "doubletree",
+    "hampton", "fairfield", "courtyard", "comfort", "holiday",
+    "radisson", "wyndham", "embassy", "omni", "ritz", "waldorf",
+    "four seasons", "loews", "renaissance", "springhill", "aloft",
+    "best western", "la quinta", "homewood", "residence",
+]
+
+
+def _is_hotel(location):
+    """True if location contains a hotel brand or hotel keyword."""
+    loc = (location or "").lower()
+    return any(kw in loc for kw in _HOTEL_INDICATORS)
+
+
+def _detect_airport(location):
+    """Return a short airport display name from a location string, or 'the airport' as fallback."""
+    loc = (location or "").lower()
+    if not _is_hotel(location):
+        for keywords, display_name in _AIRPORT_PATTERNS:
+            if any(kw in loc for kw in keywords):
+                return display_name
+    # Generic fallback — location mentions 'airport' but we don't know which one
+    if "airport" in loc:
+        return _short_location(location)
+    return "the airport"
+
+
+def _is_known_airport(location):
+    """True if location matches a known airport (MCO, SFB, etc.) — not airport hotels."""
+    if _is_hotel(location):
+        return False
+    loc = (location or "").lower()
+    return any(
+        any(kw in loc for kw in keywords)
+        for keywords, _ in _AIRPORT_PATTERNS
+    )
+
+
+def _short_location(location):
+    """Shorten a full address to just the venue/place name (text before first comma)."""
+    if not location:
+        return ""
+    return location.split(",")[0].strip()
+
 
 def get_legs_for_confirmation(target_date):
     """Legs for the given date, excluding refunded reservations, ordered by pickup time."""
@@ -163,10 +219,12 @@ def get_confirmation_message(leg, row):
 
     trip_type = leg.get_trip_type()
 
-    # --- DEPARTURE: Hotel → Airport ---
+    # --- DEPARTURE: Hotel/Location → Airport ---
     if trip_type == "return":
+        short_pickup = _short_location(pickup_location)
+        short_dropoff = _short_location(dropoff_location)
         msg = (
-            f"Hi {first_name}, Grayson Towncar confirming your transfer from {pickup_location} to the airport tomorrow.\n"
+            f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
             f"Pickup Time: {pickup_time}\n"
             "Meet: Main lobby entrance — your chauffeur will be waiting out front."
         )
@@ -175,24 +233,36 @@ def get_confirmation_message(leg, row):
         msg += "\nSafe travels!" + AUTOMATED_FOOTER
         return msg
 
-    # --- ARRIVAL: Airport → Hotel ---
-    # Landing time comes from leg.flight_information; refresh flights on the legs dashboard to populate.
+    # --- ARRIVAL: Airport/Location → Hotel/Location ---
     if trip_type == "arrival":
-        msg = (
-            f"Hi {first_name}, Grayson Towncar confirming your transfer from MCO to {dropoff_location} tomorrow.\n"
-            "\n"
-        )
-        if landing_time:
-            tracking_line = f"We'll be tracking your flight (landing {landing_time}). "
+        short_pickup = _short_location(pickup_location)
+        short_dropoff = _short_location(dropoff_location)
+        known_airport = _is_known_airport(pickup_location)
+
+        if known_airport:
+            # Real airport arrival — flight tracking + baggage claim
+            msg = (
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+                "\n"
+            )
+            if landing_time:
+                tracking_line = f"We'll be tracking your flight (landing {landing_time}). "
+            else:
+                tracking_line = "We'll be tracking your flight. "
+            msg += (
+                tracking_line
+                + "If your flight is delayed, no need to call — we'll adjust automatically.\n"
+                "\n"
+                "Please make sure your phone is off airplane mode when you land — "
+                "your chauffeur will contact you and meet you inside baggage claim with a name sign."
+            )
         else:
-            tracking_line = "We'll be tracking your flight. "
-        msg += (
-            tracking_line
-            + "If your flight is delayed, no need to call — we'll adjust automatically.\n"
-            "\n"
-            "Please make sure your phone is off airplane mode when you land — "
-            "your chauffeur will contact you and meet you inside baggage claim with a name sign."
-        )
+            # Airport hotel or other non-airport pickup — treat like a departure (lobby meet)
+            msg = (
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+                f"Pickup Time: {pickup_time}\n"
+                "Meet: Main lobby entrance — your chauffeur will be waiting out front."
+            )
         if car_seats_detail:
             msg += f"\nCar seats: {car_seats_detail} will be installed."
         if store_stop:
@@ -211,8 +281,9 @@ def get_confirmation_message(leg, row):
 
         # Airport → Cruise Port (arrival-style: flight tracking, baggage claim, then drive to port)
         if cruise_direction == "to_cruise" and is_airport_pickup:
+            short_pickup = _short_location(pickup_location)
             msg = (
-                f"Hi {first_name}, Grayson Towncar confirming your transfer from MCO to {terminal} tomorrow.\n"
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {terminal} tomorrow.\n"
                 "\n"
             )
             if landing_time:
@@ -233,8 +304,9 @@ def get_confirmation_message(leg, row):
 
         # Hotel/Resort → Cruise Port (departure-style: pickup at lobby, drive to port)
         if cruise_direction == "to_cruise":
+            short_pickup = _short_location(pickup_location)
             msg = (
-                f"Hi {first_name}, Grayson Towncar confirming your transfer from {pickup_location} to {terminal} tomorrow.\n"
+                f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {terminal} tomorrow.\n"
                 f"Pickup Time: {pickup_time}\n"
                 "Meet: Main lobby entrance — your chauffeur will be waiting out front."
             )
@@ -244,8 +316,9 @@ def get_confirmation_message(leg, row):
             return msg
 
         # Cruise Port → Hotel (from_cruise: chauffeur meets at terminal)
+        short_dropoff = _short_location(dropoff_location)
         msg = (
-            f"Hi {first_name}, Grayson Towncar confirming your transfer from the {terminal} to {dropoff_location} tomorrow.\n"
+            f"Hi {first_name}, Grayson Towncar confirming your transfer from the {terminal} to {short_dropoff} tomorrow.\n"
             "\n"
             "Your chauffeur will call/text you once they arrive at the terminal."
         )
@@ -254,16 +327,17 @@ def get_confirmation_message(leg, row):
         msg += "\n\nSafe travels!" + AUTOMATED_FOOTER
         return msg
 
-    # --- OTHER / GENERIC ---
+    # --- OTHER / GENERIC (hotel-to-hotel, airport hotel transfers, etc.) ---
+    short_pickup = _short_location(pickup_location) or pickup_location
+    short_dropoff = _short_location(dropoff_location) or dropoff_location
     msg = (
-        f"Hi {first_name}, Grayson Towncar confirming your ride tomorrow.\n"
-        "\n"
-        f"Pickup: {pickup_time} at {pickup_location}\n"
-        f"Dropoff: {dropoff_location}"
+        f"Hi {first_name}, Grayson Towncar confirming your transfer from {short_pickup} to {short_dropoff} tomorrow.\n"
+        f"Pickup Time: {pickup_time}\n"
+        "Meet: Main lobby entrance — your chauffeur will be waiting out front."
     )
     if car_seats_detail:
         msg += f"\nCar seats: {car_seats_detail} will be installed."
-    msg += "\n\nSafe travels!" + AUTOMATED_FOOTER
+    msg += "\nSafe travels!" + AUTOMATED_FOOTER
     return msg
 
 

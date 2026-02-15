@@ -1070,6 +1070,59 @@ def update_inhouse_vehicle_assignment(request):
 
 @login_required
 @require_POST
+def copy_vehicle_assignments(request):
+    """Copy vehicle assignments from the most recent previous date to a target date."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    if not date_str:
+        return JsonResponse({"success": False, "error": "Date required"}, status=400)
+
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+
+    # Find the most recent previous date with assignments
+    prev = (
+        DriverVehicleAssignment.objects.filter(date__lt=target_date)
+        .order_by("-date")
+        .values_list("date", flat=True)
+        .first()
+    )
+    if not prev:
+        return JsonResponse({"success": False, "error": "No previous assignments found"})
+
+    prev_assignments = DriverVehicleAssignment.objects.filter(date=prev).select_related("driver", "vehicle")
+    copied = 0
+    result_map = {}
+    for a in prev_assignments:
+        obj, created = DriverVehicleAssignment.objects.get_or_create(
+            driver=a.driver, date=target_date,
+            defaults={"vehicle": a.vehicle},
+        )
+        if not created:
+            obj.vehicle = a.vehicle
+            obj.save()
+        copied += 1
+        result_map[str(a.driver_id)] = a.vehicle_id
+
+    return JsonResponse({
+        "success": True,
+        "copied": copied,
+        "source_date": prev.strftime("%Y-%m-%d"),
+        "assignments": result_map,
+    })
+
+
+@login_required
+@require_POST
 def update_private_notes(request):
     """
     Updates the private notes and special requests for a reservation.
@@ -4887,6 +4940,28 @@ def capacity_planner(request):
     )
     all_drivers = Driver.objects.select_related("profile").all()
 
+    # Vehicle assignments for this date
+    inhouse_assignments = DriverVehicleAssignment.objects.filter(
+        date=selected_date, driver__in=inhouse_drivers
+    ).select_related("driver", "driver__profile", "vehicle", "vehicle__vehicle_type")
+    assignment_map = {a.driver_id: a for a in inhouse_assignments}
+    eligible_driver_ids = set(assignment_map.keys())
+    eligible_drivers = [d for d in inhouse_drivers if d.id in eligible_driver_ids]
+
+    # Fleet vehicles for quick-assign panel
+    inhouse_vehicles = FleetVehicle.objects.select_related("vehicle_type").all().order_by("vehicle_number")
+    vehicle_assign_rows = [
+        {"driver": d, "assignment": assignment_map.get(d.id)}
+        for d in inhouse_drivers
+    ]
+    # Sort: assigned drivers first (by vehicle number), then unassigned
+    vehicle_assign_rows.sort(
+        key=lambda r: (
+            r["assignment"] is None,
+            r["assignment"].vehicle.vehicle_number if r["assignment"] and r["assignment"].vehicle else "",
+        )
+    )
+
     # Build schedules from assigned legs
     driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
 
@@ -4921,9 +4996,9 @@ def capacity_planner(request):
     timeline_hours = list(range(display_start, display_end + 1))
     total_display_minutes = (display_end - display_start + 1) * 60
 
-    # Build in-house timeline data with position calculations
+    # Build in-house timeline data — only drivers with vehicles assigned for the day
     inhouse_timeline = []
-    for driver in inhouse_drivers:
+    for driver in eligible_drivers:
         sched = driver_schedules.get(driver.id)
         if not sched:
             continue
@@ -4978,6 +5053,9 @@ def capacity_planner(request):
         'display_start': display_start,
         'display_end': display_end,
         'inhouse_drivers': list(inhouse_drivers),
+        'eligible_drivers': eligible_drivers,
+        'inhouse_vehicles': inhouse_vehicles,
+        'vehicle_assign_rows': vehicle_assign_rows,
     }
 
     clear_timing_cache()
@@ -5065,8 +5143,16 @@ def auto_assign_drivers(request):
                         "reservation__customer")
     )
 
-    # Get inhouse drivers and build schedules from already-assigned legs
-    inhouse_drivers = list(Driver.objects.filter(driver_type="inhouse").select_related("profile"))
+    # Get inhouse drivers with vehicle assignments for this date
+    eligible_driver_ids = set(
+        DriverVehicleAssignment.objects.filter(
+            date=target_date, driver__driver_type="inhouse"
+        ).values_list("driver_id", flat=True)
+    )
+    inhouse_drivers = list(
+        Driver.objects.filter(driver_type="inhouse", id__in=eligible_driver_ids)
+        .select_related("profile")
+    )
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
     # Parse per-driver time windows: {driver_id: (start_hour, end_hour)}

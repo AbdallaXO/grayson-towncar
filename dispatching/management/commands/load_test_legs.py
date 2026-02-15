@@ -22,9 +22,16 @@ from drivers.models import Driver
 INHOUSE_DRIVERS = {
     "carlos medina",
     "michael olmo",
+    "david encarnacion",
     "yovanny suarez",
     "angel almanzar",
-    "rayyan vorajee",
+    "julio bonilla",
+    "shipo",
+    "neuma",
+    "roberto",
+    "alex",
+    "runer",
+    "junaid baidr",
 }
 
 # Map CSV vehicle types to model vehicle_type choices

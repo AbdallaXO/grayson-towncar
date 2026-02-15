@@ -41,6 +41,11 @@ urlpatterns = [
         views.update_inhouse_vehicle_assignment,
         name="update_inhouse_vehicle_assignment",
     ),
+    path(
+        "copy-vehicle-assignments/",
+        views.copy_vehicle_assignments,
+        name="copy_vehicle_assignments",
+    ),
     path("update-contact-info/", views.update_contact_info, name="update_contact_info"),
     path("update-leg-info/", views.update_leg_info, name="update_leg_info"),
     path("refresh-flight-data/", views.refresh_flight_data, name="refresh_flight_data"),

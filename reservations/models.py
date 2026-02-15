@@ -834,7 +834,16 @@ class Leg(models.Model):
         "port canaveral", "canaveral", "cruise port", "cruise terminal",
         "cruise termina", "cruise ship", "port canaveral terminal",
     ]
-    AIRPORT_KEYWORDS = ["mco", "sfb", "sanford", "airport", "terminal", "gate", "international"]
+    AIRPORT_KEYWORDS = ["mco", "sfb", "mlb", "lal", "international airport"]
+    # Hotel brands / keywords — if present, the location is a hotel, not an airport
+    HOTEL_INDICATORS = [
+        "hotel", "inn", "resort", "suites", "suite", "lodge", "motel",
+        "hyatt", "hilton", "marriott", "sheraton", "westin", "doubletree",
+        "hampton", "fairfield", "courtyard", "comfort", "holiday",
+        "radisson", "wyndham", "embassy", "omni", "ritz", "waldorf",
+        "four seasons", "loews", "renaissance", "springhill", "aloft",
+        "best western", "la quinta", "homewood", "residence",
+    ]
 
     def get_trip_type(self):
         """
@@ -884,6 +893,8 @@ class Leg(models.Model):
         if not location_lower:
             return False
         if any(kw in location_lower for kw in self.CRUISE_PORT_KEYWORDS):
+            return False
+        if any(kw in location_lower for kw in self.HOTEL_INDICATORS):
             return False
         return any(kw in location_lower for kw in self.AIRPORT_KEYWORDS)
 
