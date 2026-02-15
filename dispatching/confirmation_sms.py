@@ -319,6 +319,7 @@ def get_confirmation_message(leg, row):
         short_dropoff = _short_location(dropoff_location)
         msg = (
             f"Hi {first_name}, Grayson Towncar confirming your transfer from the {terminal} to {short_dropoff} tomorrow.\n"
+            f"Pickup Time: {pickup_time}\n"
             "\n"
             "Your chauffeur will call/text you once they arrive at the terminal."
         )

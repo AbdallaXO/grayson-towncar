@@ -2569,62 +2569,8 @@ def _refresh_single_flight(leg):
         flight.last_updated = flight_data.get("last_updated", timezone.now())
         flight.save()
 
-        # Update pickup time for ALL legs that use this flight
-        # Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
-        best_arrival_time = None
-
-        logger.info(f"Flight {flight.id} - Determining best arrival time:")
-        logger.info(f"  actual_gate_arrival_local: {flight.actual_gate_arrival_local}")
-        logger.info(f"  estimated_gate_arrival_local: {flight.estimated_gate_arrival_local}")
-        logger.info(f"  actual_arrival_local: {flight.actual_arrival_local}")
-        logger.info(f"  estimated_arrival_local: {flight.estimated_arrival_local}")
-
-        if flight.actual_gate_arrival_local:
-            best_arrival_time = flight.actual_gate_arrival_local
-            logger.info(f"  Using actual_gate_arrival_local: {best_arrival_time}")
-        elif flight.estimated_gate_arrival_local:
-            best_arrival_time = flight.estimated_gate_arrival_local
-            logger.info(f"  Using estimated_gate_arrival_local: {best_arrival_time}")
-        elif flight.actual_arrival_local:
-            best_arrival_time = flight.actual_arrival_local
-            logger.info(f"  Using actual_arrival_local: {best_arrival_time}")
-        elif flight.estimated_arrival_local:
-            best_arrival_time = flight.estimated_arrival_local
-            logger.info(f"  Using estimated_arrival_local: {best_arrival_time}")
-        elif flight.scheduled_gate_arrival_local:
-            best_arrival_time = flight.scheduled_gate_arrival_local
-            logger.info(f"  Using scheduled_gate_arrival_local: {best_arrival_time}")
-        elif flight.scheduled_arrival_local:
-            best_arrival_time = flight.scheduled_arrival_local
-            logger.info(f"  Using scheduled_arrival_local: {best_arrival_time}")
-
-        # Update ALL legs that use this flight (not just the one passed to this function)
-        if best_arrival_time:
-            local_arrival = timezone.localtime(best_arrival_time)
-            new_pickup_time = local_arrival.time()
-            logger.info(f"  New pickup time would be: {new_pickup_time}")
-
-            # Find all legs using this flight
-            all_legs_with_flight = Leg.objects.filter(flight_information=flight)
-            legs_updated = 0
-
-            for leg_to_update in all_legs_with_flight:
-                if leg_to_update.pickup_time != new_pickup_time:
-                    old_time = leg_to_update.pickup_time
-                    leg_to_update.pickup_time = new_pickup_time
-                    leg_to_update.save()
-                    legs_updated += 1
-                    logger.info(
-                        f"✅ Updated leg {leg_to_update.id} pickup time from {old_time} to {new_pickup_time} "
-                        f"based on flight arrival update"
-                    )
-
-            if legs_updated > 0:
-                logger.info(f"Updated {legs_updated} leg(s) with new pickup time")
-            else:
-                logger.info(f"All legs already have correct pickup time, no updates needed")
-        else:
-            logger.warning(f"  No arrival time available for flight {flight.id} to update leg pickup times")
+        # NOTE: Pickup times are NOT auto-updated here.
+        # Use "Match All Flight Times" or per-leg "Match" to update pickup times manually.
 
         return {
             "leg_id": leg.id,
