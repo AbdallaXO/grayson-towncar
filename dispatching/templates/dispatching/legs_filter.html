@@ -664,6 +664,24 @@
                         </span>
                       {% endwith %}
                     </div>
+                    {% if leg.cleared_time %}
+                      <div style="font-size: 0.72rem; color: #666; margin-top: 0.25rem;">
+                        <i class="bi bi-check2-circle" style="color: #2e7d32; font-size: 0.65rem;"></i>
+                        Clearing ~{{ leg.cleared_time }}
+                        {% if leg.duration_display %}
+                          <span style="color: #999;">({{ leg.duration_display }})</span>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                    {% if leg.actual_cleared_time %}
+                      <div style="font-size: 0.72rem; color: #2e7d32; margin-top: 0.15rem;">
+                        <i class="bi bi-check-circle-fill" style="font-size: 0.65rem;"></i>
+                        Cleared {{ leg.actual_cleared_time }}
+                        {% if leg.actual_duration_display %}
+                          <span style="color: #999;">({{ leg.actual_duration_display }})</span>
+                        {% endif %}
+                      </div>
+                    {% endif %}
                   </td>
 
                   <!-- Locations -->
@@ -928,6 +946,24 @@
                                 </span>
                               {% endwith %}
                             </div>
+                            {% if leg.cleared_time %}
+                              <div style="font-size: 0.72rem; color: #666; margin-top: 0.15rem;">
+                                <i class="bi bi-check2-circle" style="color: #2e7d32; font-size: 0.65rem;"></i>
+                                Clearing ~{{ leg.cleared_time }}
+                                {% if leg.duration_display %}
+                                  <span style="color: #999;">({{ leg.duration_display }})</span>
+                                {% endif %}
+                              </div>
+                            {% endif %}
+                            {% if leg.actual_cleared_time %}
+                              <div style="font-size: 0.72rem; color: #2e7d32; margin-top: 0.1rem;">
+                                <i class="bi bi-check-circle-fill" style="font-size: 0.65rem;"></i>
+                                Cleared {{ leg.actual_cleared_time }}
+                                {% if leg.actual_duration_display %}
+                                  <span style="color: #999;">({{ leg.actual_duration_display }})</span>
+                                {% endif %}
+                              </div>
+                            {% endif %}
                           </div>
                         </div>
                       </div>

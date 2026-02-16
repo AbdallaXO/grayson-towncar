@@ -41,6 +41,7 @@ from drivers.models import (
     LegPayment,
     DriverVehicleAssignment,
     FleetVehicle,
+    DriverWeeklySchedule,
 )
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate
@@ -251,6 +252,44 @@ def index(request):
         for leg in legs:
             leg.dispatch_flags = []
             leg.dispatch_flag_level = ''
+
+    # Annotate each leg with estimated cleared time and duration
+    from dispatching.scheduler import estimate_job_end_time
+    for leg in legs:
+        try:
+            end_dt = estimate_job_end_time(leg, selected_date)
+            pickup_dt = datetime.combine(selected_date, leg.pickup_time)
+            dur_mins = int((end_dt - pickup_dt).total_seconds() // 60)
+            leg.cleared_time = end_dt.strftime('%I:%M %p').lstrip('0')
+            hrs, mins = divmod(dur_mins, 60)
+            if hrs > 0 and mins > 0:
+                leg.duration_display = f"{hrs} hr {mins} mins"
+            elif hrs > 0:
+                leg.duration_display = f"{hrs} hr"
+            else:
+                leg.duration_display = f"{mins} mins"
+        except Exception:
+            leg.cleared_time = None
+            leg.duration_display = None
+
+        # Actual cleared time from status history (if completed)
+        leg.actual_cleared_time = None
+        leg.actual_duration_display = None
+        if leg.status == 'completed':
+            for sh in leg.status_history.all():
+                if sh.status == 'completed':
+                    actual_dt = timezone.localtime(sh.timestamp)
+                    leg.actual_cleared_time = actual_dt.strftime('%I:%M %p').lstrip('0')
+                    actual_dur = int((actual_dt.replace(tzinfo=None) - pickup_dt).total_seconds() // 60)
+                    if actual_dur > 0:
+                        ah, am = divmod(actual_dur, 60)
+                        if ah > 0 and am > 0:
+                            leg.actual_duration_display = f"{ah} hr {am} mins"
+                        elif ah > 0:
+                            leg.actual_duration_display = f"{ah} hr"
+                        else:
+                            leg.actual_duration_display = f"{am} mins"
+                    break
 
     context = {
         "legs": legs,
@@ -801,6 +840,44 @@ def legs_list(request):
     for leg in page_obj:
         trip_type = leg.get_trip_type()
         current_page_stats[trip_type] += 1
+
+    # Annotate each leg with estimated cleared time and duration
+    from dispatching.scheduler import estimate_job_end_time
+    for leg in page_obj:
+        try:
+            end_dt = estimate_job_end_time(leg, leg.pickup_date)
+            pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
+            dur_mins = int((end_dt - pickup_dt).total_seconds() // 60)
+            leg.cleared_time = end_dt.strftime('%I:%M %p').lstrip('0')
+            hrs, mins = divmod(dur_mins, 60)
+            if hrs > 0 and mins > 0:
+                leg.duration_display = f"{hrs} hr {mins} mins"
+            elif hrs > 0:
+                leg.duration_display = f"{hrs} hr"
+            else:
+                leg.duration_display = f"{mins} mins"
+        except Exception:
+            leg.cleared_time = None
+            leg.duration_display = None
+
+        # Actual cleared time from status history (if completed)
+        leg.actual_cleared_time = None
+        leg.actual_duration_display = None
+        if leg.status == 'completed':
+            for sh in leg.status_history.all():
+                if sh.status == 'completed':
+                    actual_dt = timezone.localtime(sh.timestamp)
+                    leg.actual_cleared_time = actual_dt.strftime('%I:%M %p').lstrip('0')
+                    actual_dur = int((actual_dt.replace(tzinfo=None) - pickup_dt).total_seconds() // 60)
+                    if actual_dur > 0:
+                        ah, am = divmod(actual_dur, 60)
+                        if ah > 0 and am > 0:
+                            leg.actual_duration_display = f"{ah} hr {am} mins"
+                        elif ah > 0:
+                            leg.actual_duration_display = f"{ah} hr"
+                        else:
+                            leg.actual_duration_display = f"{am} mins"
+                    break
 
     context = {
         "legs": page_obj,
@@ -2213,12 +2290,40 @@ def refresh_flight_data(request):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
+def _best_flight_arrival_time(flight):
+    """
+    Pick the best arrival time based on flight status.
+
+    - Flight not yet departed (Scheduled, Filed, etc.): use scheduled time only,
+      because estimated is just a FlightAware prediction before takeoff.
+    - Flight en route / delayed / landed / arrived: use the best real-time data
+      (actual > estimated > scheduled).
+    """
+    status = (flight.status or "").strip().lower()
+    # Statuses that mean the flight has NOT departed yet
+    not_departed = status in ("", "scheduled", "filed", "not yet departed")
+
+    if not_departed:
+        # Pre-departure: only use scheduled times
+        return flight.scheduled_gate_arrival_local or flight.scheduled_arrival_local
+
+    # In-air or post-arrival: use best available real-time data
+    return (
+        flight.actual_gate_arrival_local
+        or flight.estimated_gate_arrival_local
+        or flight.actual_arrival_local
+        or flight.estimated_arrival_local
+        or flight.scheduled_gate_arrival_local
+        or flight.scheduled_arrival_local
+    )
+
+
 @login_required
 @require_POST
 def match_leg_time_to_flight(request):
     """
     Set a leg's pickup date/time to match the flight's best available arrival time.
-    Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
+    Uses scheduled time for pre-departure flights, real-time data for en-route/landed.
     """
     if not request.user.is_staff:
         return JsonResponse(
@@ -2243,15 +2348,7 @@ def match_leg_time_to_flight(request):
                 status=400,
             )
         flight = leg.flight_information
-        # Use best available arrival time (prioritize actual/estimated over scheduled)
-        flight_dt = (
-            flight.actual_gate_arrival_local
-            or flight.estimated_gate_arrival_local
-            or flight.actual_arrival_local
-            or flight.estimated_arrival_local
-            or flight.scheduled_gate_arrival_local
-            or flight.scheduled_arrival_local
-        )
+        flight_dt = _best_flight_arrival_time(flight)
         if not flight_dt:
             return JsonResponse(
                 {"success": False, "error": "Flight has no scheduled arrival time (refresh flight data first)"},
@@ -2261,19 +2358,19 @@ def match_leg_time_to_flight(request):
             flight_dt = timezone.make_naive(
                 flight_dt, timezone.get_current_timezone()
             )
-        leg.pickup_date = flight_dt.date()
-        leg.pickup_time = flight_dt.time()
-        leg.save()
+        new_date = flight_dt.date()
+        new_time = flight_dt.time()
+        Leg.objects.filter(id=leg.id).update(pickup_date=new_date, pickup_time=new_time)
         return JsonResponse({
             "success": True,
             "message": "Leg pickup time updated to match flight arrival",
-            "pickup_date": leg.pickup_date.isoformat(),
-            "pickup_time": leg.pickup_time.strftime("%H:%M"),
+            "pickup_date": new_date.isoformat(),
+            "pickup_time": new_time.strftime("%H:%M"),
         })
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
-        logger.error(f"Error matching leg time to flight: {e}")
+        logger.error(f"Error matching leg time to flight: {e}", exc_info=True)
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
@@ -2282,8 +2379,7 @@ def match_leg_time_to_flight(request):
 def match_all_leg_times_to_flight(request):
     """
     Set pickup date/time to flight's best available arrival time for all arrival legs on a date.
-    Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway
-    Light on DB: one query for legs, one save per leg updated.
+    Uses scheduled time for pre-departure flights, real-time data for en-route/landed.
     """
     if not request.user.is_staff:
         return JsonResponse(
@@ -2314,25 +2410,18 @@ def match_all_leg_times_to_flight(request):
         updated = 0
         for leg in arrival_legs:
             flight = leg.flight_information
-            # Use best available arrival time (prioritize actual/estimated over scheduled)
-            flight_dt = (
-                flight.actual_gate_arrival_local
-                or flight.estimated_gate_arrival_local
-                or flight.actual_arrival_local
-                or flight.estimated_arrival_local
-                or flight.scheduled_gate_arrival_local
-                or flight.scheduled_arrival_local
-            )
+            flight_dt = _best_flight_arrival_time(flight)
             if not flight_dt:
                 continue
             if timezone.is_aware(flight_dt):
                 flight_dt = timezone.make_naive(
                     flight_dt, timezone.get_current_timezone()
                 )
-            leg.pickup_date = flight_dt.date()
-            leg.pickup_time = flight_dt.time()
-            leg.save()
-            updated += 1
+            new_date = flight_dt.date()
+            new_time = flight_dt.time()
+            if leg.pickup_date != new_date or leg.pickup_time != new_time:
+                Leg.objects.filter(id=leg.id).update(pickup_date=new_date, pickup_time=new_time)
+                updated += 1
         return JsonResponse({
             "success": True,
             "message": f"Updated {updated} arrival leg(s) to match flight arrival time.",
@@ -2342,7 +2431,7 @@ def match_all_leg_times_to_flight(request):
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
-        logger.error(f"Error matching all leg times: {e}")
+        logger.error(f"Error matching all leg times: {e}", exc_info=True)
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
@@ -4835,6 +4924,7 @@ def capacity_planner(request):
         get_coverage_stats,
         preload_timing_cache,
         clear_timing_cache,
+        estimate_job_end_time,
     )
 
     # Preload route timing metrics into memory (1 query instead of ~1400)
@@ -4882,6 +4972,7 @@ def capacity_planner(request):
     inhouse_drivers = (
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
+        .prefetch_related("weekly_schedule")
         .order_by("profile__first_name")
     )
     all_drivers = Driver.objects.select_related("profile").all()
@@ -4915,6 +5006,44 @@ def capacity_planner(request):
         did: sched for did, sched in driver_schedules.items()
         if sched.driver_type == 'inhouse'
     }
+
+    # Annotate legs with estimated cleared time and duration
+    for leg in legs_list:
+        try:
+            end_dt = estimate_job_end_time(leg, selected_date)
+            pickup_dt = datetime.combine(selected_date, leg.pickup_time)
+            dur_mins = int((end_dt - pickup_dt).total_seconds() // 60)
+            leg.cleared_time = end_dt.strftime('%I:%M %p').lstrip('0')
+            hrs, mins = divmod(dur_mins, 60)
+            if hrs > 0 and mins > 0:
+                leg.duration_display = f"{hrs} hr {mins} mins"
+            elif hrs > 0:
+                leg.duration_display = f"{hrs} hr"
+            else:
+                leg.duration_display = f"{mins} mins"
+        except Exception:
+            leg.cleared_time = None
+            leg.duration_display = None
+
+        # Actual cleared time from status history (if completed)
+        leg.actual_cleared_time = None
+        leg.actual_duration_display = None
+        if leg.status == 'completed':
+            for sh in leg.status_history.all():
+                if sh.status == 'completed':
+                    actual_dt = timezone.localtime(sh.timestamp)
+                    leg.actual_cleared_time = actual_dt.strftime('%I:%M %p').lstrip('0')
+                    pickup_dt = datetime.combine(selected_date, leg.pickup_time)
+                    actual_dur = int((actual_dt.replace(tzinfo=None) - pickup_dt).total_seconds() // 60)
+                    if actual_dur > 0:
+                        ah, am = divmod(actual_dur, 60)
+                        if ah > 0 and am > 0:
+                            leg.actual_duration_display = f"{ah} hr {am} mins"
+                        elif ah > 0:
+                            leg.actual_duration_display = f"{ah} hr"
+                        else:
+                            leg.actual_duration_display = f"{am} mins"
+                    break
 
     # Find unassigned legs and generate suggestions
     unassigned_legs = [leg for leg in legs_list if leg.driver is None]
@@ -4980,6 +5109,17 @@ def capacity_planner(request):
             'total_revenue': sched.total_revenue,
         })
 
+    # Build per-driver availability for the selected date (for auto-assign modal defaults)
+    driver_availability = {}
+    for d in eligible_drivers:
+        is_avail, start_h, end_h, pref = d.get_availability_for_date(selected_date)
+        driver_availability[d.id] = {
+            "is_available": is_avail,
+            "start_hour": start_h,
+            "end_hour": end_h,
+            "preference": pref,
+        }
+
     context = {
         'selected_date': selected_date,
         'prev_date': prev_date,
@@ -5002,6 +5142,7 @@ def capacity_planner(request):
         'eligible_drivers': eligible_drivers,
         'inhouse_vehicles': inhouse_vehicles,
         'vehicle_assign_rows': vehicle_assign_rows,
+        'driver_availability_json': json.dumps(driver_availability),
     }
 
     clear_timing_cache()
@@ -5234,6 +5375,11 @@ def auto_assign_drivers(request):
 
         slots_data = []
         for slot in schedule.slots:
+            # Look up vehicle type from the actual leg
+            vtype = ""
+            leg_obj = legs_by_id.get(slot.leg_id)
+            if leg_obj and leg_obj.reservation and leg_obj.reservation.vehicle:
+                vtype = str(leg_obj.reservation.vehicle.vehicle_type).upper()
             slots_data.append({
                 "leg_id": slot.leg_id,
                 "pickup_time": slot.pickup_time.strftime("%I:%M %p").lstrip("0"),
@@ -5247,6 +5393,7 @@ def auto_assign_drivers(request):
                 "is_new": slot.leg_id in new_leg_ids,
                 "flight_info": slot.flight_info or "",
                 "pickup_minutes": slot.pickup_time.hour * 60 + slot.pickup_time.minute,
+                "vehicle_type": vtype,
             })
 
         driver_schedules.append({
@@ -5592,6 +5739,7 @@ def smart_schedule_builder(request):
             'pickup_time': slot.pickup_time.strftime('%I:%M %p').lstrip('0'),
             'pickup_minutes': slot.pickup_time.hour * 60 + slot.pickup_time.minute,
             'cleared_time': slot.estimated_end_time.strftime('%I:%M %p').lstrip('0'),
+            'duration_minutes': int((slot.estimated_end_time - datetime.combine(target_date, slot.pickup_time)).total_seconds() // 60),
             'pickup_location': slot.pickup_location[:50],
             'dropoff_location': slot.dropoff_location[:50],
             'trip_type': slot.trip_type,
@@ -6489,3 +6637,81 @@ def update_scheduler_settings(request):
         "updated": updated,
         "settings": settings.to_dict(),
     })
+
+
+@login_required
+def get_driver_weekly_schedules(request):
+    """Return weekly schedule data for all inhouse drivers."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    drivers = Driver.objects.filter(driver_type="inhouse").select_related("profile").prefetch_related("weekly_schedule")
+    result = []
+    for d in drivers:
+        entries = {}
+        for entry in d.weekly_schedule.all():
+            entries[entry.day_of_week] = {
+                "is_available": entry.is_available,
+                "start_hour": entry.start_hour,
+                "end_hour": entry.end_hour,
+                "preference": entry.preference,
+            }
+        result.append({
+            "id": d.id,
+            "name": str(d),
+            "default_start_hour": d.default_start_hour,
+            "default_end_hour": d.default_end_hour,
+            "default_preference": d.default_preference,
+            "weekly": entries,
+        })
+    return JsonResponse({"success": True, "drivers": result})
+
+
+@login_required
+@require_POST
+def save_driver_weekly_schedules(request):
+    """Save weekly schedule data for all inhouse drivers."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    drivers_data = data.get("drivers", [])
+    updated_count = 0
+
+    for d_data in drivers_data:
+        driver_id = d_data.get("id")
+        if not driver_id:
+            continue
+
+        try:
+            driver = Driver.objects.get(id=driver_id, driver_type="inhouse")
+        except Driver.DoesNotExist:
+            continue
+
+        # Update driver defaults
+        driver.default_start_hour = int(d_data.get("default_start_hour", 6))
+        driver.default_end_hour = int(d_data.get("default_end_hour", 23))
+        driver.default_preference = d_data.get("default_preference", "")
+        driver.save(update_fields=["default_start_hour", "default_end_hour", "default_preference"])
+
+        # Update weekly entries
+        weekly = d_data.get("weekly", {})
+        for day_str, entry in weekly.items():
+            day = int(day_str)
+            DriverWeeklySchedule.objects.update_or_create(
+                driver=driver,
+                day_of_week=day,
+                defaults={
+                    "is_available": entry.get("is_available", True),
+                    "start_hour": int(entry.get("start_hour", 6)),
+                    "end_hour": int(entry.get("end_hour", 23)),
+                    "preference": entry.get("preference", ""),
+                },
+            )
+        updated_count += 1
+
+    return JsonResponse({"success": True, "message": f"Updated schedules for {updated_count} drivers"})

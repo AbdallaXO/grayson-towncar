@@ -4,10 +4,17 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
+
+
+class DriverWeeklyScheduleInline(admin.TabularInline):
+    model = DriverWeeklySchedule
+    extra = 0
+    max_num = 7
+    fields = ["day_of_week", "is_available", "start_hour", "end_hour", "preference"]
 
 
 @admin.register(Driver)
@@ -38,6 +45,8 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "vehicle",
     ]
 
+    inlines = [DriverWeeklyScheduleInline]
+
     fieldsets = (
         (
             "Driver Information",
@@ -51,6 +60,18 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "notes",
                     "payment_method",
                 )
+            },
+        ),
+        (
+            "Auto-Assign Defaults",
+            {
+                "fields": (
+                    "default_start_hour",
+                    "default_end_hour",
+                    "default_preference",
+                ),
+                "description": "Default working hours and preferences for auto-assign. "
+                               "Per-day overrides can be set in the Weekly Schedule section below.",
             },
         ),
         (

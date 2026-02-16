@@ -571,6 +571,9 @@
                         <i class="bi bi-person-plus me-2" style="color: var(--gold);"></i>Unassigned Jobs
                         {% if unassigned_legs %}<span class="badge bg-warning text-dark ms-2">{{ unassigned_legs|length }}</span>{% endif %}
                     </div>
+                    <button id="driverSchedulesBtn" class="btn btn-sm px-3 py-1" style="background: var(--dark); color: #fff; font-weight: 500; font-size: 0.8rem; border: 1px solid var(--gold); border-radius: 6px;" title="Manage driver weekly schedules & defaults">
+                        <i class="bi bi-calendar-week me-1" style="color: var(--gold);"></i>Driver Schedules
+                    </button>
                     {% if unassigned_legs %}
                     <button id="autoAssignBtn" class="btn btn-sm px-3 py-1" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600; font-size: 0.8rem; border: none; border-radius: 6px; transition: all 0.2s ease;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(201,162,39,0.4)';" onmouseout="this.style.transform='';this.style.boxShadow='';">
                         <i class="bi bi-magic me-1"></i>Auto-Assign All
@@ -594,6 +597,20 @@
                                     {% elif leg.get_trip_type == 'cruise' %}Cruise
                                     {% else %}Other{% endif %}
                                 </span>
+                                {% if leg.cleared_time %}
+                                <span style="font-size: 0.7rem; color: #666;">
+                                    <i class="bi bi-check2-circle" style="color: #2e7d32; font-size: 0.6rem;"></i>
+                                    ~{{ leg.cleared_time }}
+                                    {% if leg.duration_display %}<span style="color:#999;">({{ leg.duration_display }})</span>{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if leg.actual_cleared_time %}
+                                <span style="font-size: 0.7rem; color: #2e7d32;">
+                                    <i class="bi bi-check-circle-fill" style="font-size: 0.6rem;"></i>
+                                    Cleared {{ leg.actual_cleared_time }}
+                                    {% if leg.actual_duration_display %}<span style="color:#999;">({{ leg.actual_duration_display }})</span>{% endif %}
+                                </span>
+                                {% endif %}
                             </div>
                             <div class="text-muted" style="font-size: 0.8rem;">
                                 {{ leg.pickup_location|truncatechars:40 }}<br>
@@ -737,7 +754,21 @@
                     <tbody>
                         {% for leg in hour_legs %}
                         <tr>
-                            <td><strong>{{ leg.pickup_time|time:"g:i A" }}</strong></td>
+                            <td>
+                                <strong>{{ leg.pickup_time|time:"g:i A" }}</strong>
+                                {% if leg.cleared_time %}
+                                <div style="font-size:0.68rem;color:#666;">
+                                    <i class="bi bi-check2-circle" style="color:#2e7d32;font-size:0.6rem;"></i> ~{{ leg.cleared_time }}
+                                    {% if leg.duration_display %}<span style="color:#999;">({{ leg.duration_display }})</span>{% endif %}
+                                </div>
+                                {% endif %}
+                                {% if leg.actual_cleared_time %}
+                                <div style="font-size:0.68rem;color:#2e7d32;">
+                                    <i class="bi bi-check-circle-fill" style="font-size:0.6rem;"></i> Cleared {{ leg.actual_cleared_time }}
+                                    {% if leg.actual_duration_display %}<span style="color:#999;">({{ leg.actual_duration_display }})</span>{% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
                             <td>
                                 <span class="badge-trip badge-{{ leg.get_trip_type }}">
                                     {% if leg.get_trip_type == 'arrival' %}Arrival
@@ -863,6 +894,12 @@
                         <div class="col-6">
                             <div class="sb-label">Available Until</div>
                             <select id="sbEndHour" class="form-select form-select-sm">
+                                <option value="0">12:00 AM</option>
+                                <option value="1">1:00 AM</option>
+                                <option value="2">2:00 AM</option>
+                                <option value="3">3:00 AM</option>
+                                <option value="4">4:00 AM</option>
+                                <option value="5">5:00 AM</option>
                                 <option value="6">6:00 AM</option>
                                 <option value="7">7:00 AM</option>
                                 <option value="8">8:00 AM</option>
@@ -1316,6 +1353,31 @@
     </div>
 </div>
 
+<!-- Driver Weekly Schedules Modal -->
+<div class="modal fade" id="driverSchedulesModal" tabindex="-1" aria-labelledby="driverSchedulesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--dark); border-bottom: 2px solid var(--gold);">
+                <h5 class="modal-title text-white" id="driverSchedulesLabel">
+                    <i class="bi bi-calendar-week me-2" style="color: var(--gold);"></i>Driver Weekly Schedules
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="background: #f8f9fa;">
+                <p class="text-muted mb-3" style="font-size:0.85rem;">Set each driver's default working hours and preferences for each day of the week. These will auto-populate the Auto-Assign modal.</p>
+                <div id="dsLoading" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span> Loading...</div>
+                <div id="dsContent" class="d-none"></div>
+            </div>
+            <div class="modal-footer" style="background: var(--dark); border-top: 2px solid var(--gold);">
+                <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="dsSaveBtn" class="btn btn-sm px-4" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600;">
+                    <i class="bi bi-check-lg me-1"></i>Save Schedules
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Auto-Assign Preview Modal -->
 <div class="modal fade" id="autoAssignPreviewModal" tabindex="-1" aria-labelledby="autoAssignPreviewLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -1354,7 +1416,7 @@
                                             <option value="3">3 AM</option>
                                             <option value="4">4 AM</option>
                                             <option value="5">5 AM</option>
-                                            <option value="6" selected>6 AM</option>
+                                            <option value="6">6 AM</option>
                                             <option value="7">7 AM</option>
                                             <option value="8">8 AM</option>
                                             <option value="9">9 AM</option>
@@ -1399,7 +1461,7 @@
                                             <option value="20">8 PM</option>
                                             <option value="21">9 PM</option>
                                             <option value="22">10 PM</option>
-                                            <option value="23" selected>11 PM</option>
+                                            <option value="23">11 PM</option>
                                         </select>
                                     </td>
                                     <td style="padding:0.4rem 0.75rem;">
@@ -1472,6 +1534,34 @@
         let aaManual = {};             // {leg_id: driver_id} manual overrides
         let aaDriverList = [];         // cached driver list for dropdowns
         let aaIsRebuilding = false;
+
+        // Per-driver availability defaults for this date (from weekly schedule or driver defaults)
+        const driverAvailability = {{ driver_availability_json|safe }};
+
+        function applyDriverDefaults() {
+            document.querySelectorAll('.aa-driver-row').forEach(row => {
+                const did = row.dataset.driverId;
+                const avail = driverAvailability[did];
+                if (!avail) return;
+                row.querySelector('.aa-start-hour').value = avail.start_hour;
+                row.querySelector('.aa-end-hour').value = avail.end_hour;
+                if (avail.preference) {
+                    row.querySelector('.aa-preference').value = avail.preference;
+                }
+                const dayOffCb = row.querySelector('.aa-day-off');
+                if (!avail.is_available) {
+                    dayOffCb.checked = true;
+                    row.querySelectorAll('select').forEach(s => { s.disabled = true; });
+                    row.style.opacity = '0.4';
+                } else {
+                    dayOffCb.checked = false;
+                    row.querySelectorAll('select').forEach(s => { s.disabled = false; });
+                    row.style.opacity = '1';
+                }
+            });
+        }
+        // Apply defaults on page load so they're ready when modal opens
+        applyDriverDefaults();
 
         // Handle "day off" checkbox
         document.querySelectorAll('.aa-day-off').forEach(cb => {
@@ -1583,7 +1673,7 @@
             rePreview();
         };
 
-        // Swap: remove current slot, assign alt to that driver
+        // Swap: remove current slot, assign unassigned alt to that driver
         window.aaSwapSlot = function(removeLegId, altLegId, driverId) {
             if (!aaExcluded.includes(removeLegId)) aaExcluded.push(removeLegId);
             delete aaManual[String(removeLegId)];
@@ -1592,7 +1682,7 @@
         };
 
         // Toggle alts panel for a slot
-        let aaLastUnassigned = [];  // cached from last render
+        let aaLastUnassigned = [];   // cached from last render
         window.aaToggleAlts = function(slotLegId, slotMinutes, driverId) {
             const panel = document.getElementById('aa-alts-' + slotLegId);
             if (!panel) return;
@@ -1600,26 +1690,26 @@
 
             const windowMin = 120;
             const nearby = aaLastUnassigned.filter(a => Math.abs(a.pickup_minutes - slotMinutes) <= windowMin);
-
+            let h = '';
             if (nearby.length === 0) {
-                panel.innerHTML = '<div class="text-muted text-center py-1">No alternative jobs within \u00b12 hours</div>';
+                h = '<div class="text-muted text-center py-1">No alternative jobs within \u00b12 hours</div>';
             } else {
-                let h = '<div class="text-muted mb-1" style="font-size:0.75rem;"><i class="bi bi-arrow-left-right me-1"></i><b>Swap with:</b></div>';
                 nearby.forEach(function(alt) {
                     const c = tripColors[alt.trip_type] || '#666';
                     h += '<div class="d-flex align-items-center gap-2 py-1" style="border-bottom:1px solid #eee;font-size:0.78rem;">';
                     h += '<strong>' + alt.pickup_time + '</strong> ';
-                    h += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + alt.trip_type.charAt(0).toUpperCase() + alt.trip_type.slice(1) + '</span> ';
+                    h += '<span style="color:' + c + ';font-size:0.65rem;font-weight:600;">' + alt.trip_type.charAt(0).toUpperCase() + alt.trip_type.slice(1) + '</span> ';
                     if (alt.vehicle_type) h += '<span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;">' + alt.vehicle_type + '</span> ';
                     h += '<div style="flex:1;color:#555;" class="text-truncate">' + alt.pickup_location.substring(0, 25) + ' &rarr; ' + alt.dropoff_location.substring(0, 25) + '</div>';
-                    if (alt.revenue > 0) h += '<span style="font-weight:600;">$' + Math.round(alt.revenue) + '</span>';
+                    if (alt.revenue > 0) h += '<span style="font-weight:600;font-size:0.75rem;">$' + Math.round(alt.revenue) + '</span>';
                     h += '<button class="btn btn-sm py-0 px-1" style="font-size:0.7rem;color:var(--gold);border:1px solid var(--gold);line-height:1.4;" ';
-                    h += 'onclick="aaSwapSlot(' + slotLegId + ',' + alt.leg_id + ',' + driverId + ')" title="Swap">';
+                    h += 'onclick="aaSwapSlot(' + slotLegId + ',' + alt.leg_id + ',' + driverId + ')" title="Replace with this job">';
                     h += '<i class="bi bi-arrow-repeat"></i></button>';
                     h += '</div>';
                 });
-                panel.innerHTML = h;
             }
+
+            panel.innerHTML = h;
             panel.classList.remove('d-none');
         };
 
@@ -1661,8 +1751,14 @@
                     html += '<div style="min-width:70px;font-weight:600;">' + slot.pickup_time + '</div>';
                     html += '<div style="min-width:60px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';margin-right:4px;"></span>';
                     html += '<span style="color:' + color + ';font-size:0.7rem;font-weight:600;">' + slot.trip_type.charAt(0).toUpperCase() + slot.trip_type.slice(1) + '</span></div>';
+                    if (slot.vehicle_type) {
+                        html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;">' + slot.vehicle_type + '</span>';
+                    }
                     html += '<div style="flex:1;color:#555;" class="text-truncate">' + slot.pickup_location.substring(0, 30) + ' &rarr; ' + slot.dropoff_location.substring(0, 30) + '</div>';
                     html += '<div style="min-width:100px;color:#888;font-size:0.75rem;" class="text-truncate">' + slot.customer_name + '</div>';
+                    if (slot.end_time) {
+                        html += '<div style="min-width:70px;color:#888;font-size:0.7rem;text-align:center;" title="Clearing by"><i class="bi bi-clock" style="font-size:0.6rem;"></i> ' + slot.end_time + '</div>';
+                    }
                     if (slot.revenue > 0) {
                         html += '<div style="min-width:50px;text-align:right;font-weight:600;">$' + Math.round(slot.revenue) + '</div>';
                     }
@@ -1922,6 +2018,22 @@
     let sbSwapPins = [];       // dynamically pinned via swap (merged with manual pins)
     let sbAlternatives = [];   // cached alternatives from last response
 
+    // When a driver is selected in the Schedule Builder, update start/end/preference from their availability
+    document.getElementById('sbDriver').addEventListener('change', function() {
+        const did = this.value;
+        if (!did) return;
+        const avail = driverAvailability[did];
+        if (avail) {
+            document.getElementById('sbStartHour').value = avail.start_hour;
+            document.getElementById('sbEndHour').value = avail.end_hour;
+            if (avail.preference) {
+                document.getElementById('sbTripType').value = avail.preference;
+            } else {
+                document.getElementById('sbTripType').value = '';
+            }
+        }
+    });
+
     function togglePin(el) {
         el.classList.toggle('pinned');
         const icon = el.querySelector('.pin-icon');
@@ -2168,7 +2280,17 @@
             }
             html += label;
             if (slot.cleared_time) {
-                html += '<span style="font-size:0.7rem;color:#666;margin-left:auto;"><i class="bi bi-check2-circle" style="color:#2e7d32;"></i> Cleared ~' + slot.cleared_time + '</span>';
+                let durStr = '';
+                if (slot.duration_minutes) {
+                    const hrs = Math.floor(slot.duration_minutes / 60);
+                    const mins = slot.duration_minutes % 60;
+                    if (hrs > 0 && mins > 0) durStr = hrs + ' hr ' + mins + ' mins';
+                    else if (hrs > 0) durStr = hrs + ' hr';
+                    else durStr = mins + ' mins';
+                }
+                html += '<span style="font-size:0.7rem;color:#666;margin-left:auto;"><i class="bi bi-check2-circle" style="color:#2e7d32;"></i> Clearing ~' + slot.cleared_time;
+                if (durStr) html += ' <span style="color:#999;">(' + durStr + ')</span>';
+                html += '</span>';
             }
             html += '</div>';
 
@@ -2858,6 +2980,164 @@
             btn.disabled = false;
         });
     });
+
+    // ============ Driver Weekly Schedules Modal ============
+    (function() {
+        const dsBtn = document.getElementById('driverSchedulesBtn');
+        if (!dsBtn) return;
+        const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const dayAbbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const hourLabels = [
+            '12 AM','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM','7 AM','8 AM','9 AM','10 AM','11 AM',
+            '12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','9 PM','10 PM','11 PM'
+        ];
+        const prefOptions = [
+            {v:'', l:'Any'}, {v:'prefer_arrival', l:'Prefer Arrivals'}, {v:'prefer_return', l:'Prefer Returns'},
+            {v:'prefer_cruise', l:'Prefer Cruises'}, {v:'heavy_arrival', l:'Heavy Arrivals'}, {v:'heavy_return', l:'Heavy Returns'},
+            {v:'heavy_cruise', l:'Heavy Cruises'}, {v:'only_arrival', l:'Arrivals Only'}, {v:'only_return', l:'Returns Only'},
+            {v:'only_cruise', l:'Cruises Only'}
+        ];
+
+        let dsData = null;
+
+        function hourSelect(cls, val) {
+            let html = `<select class="form-select form-select-sm ${cls}" style="font-size:0.75rem;">`;
+            for (let h = 0; h < 24; h++) {
+                html += `<option value="${h}"${h === val ? ' selected' : ''}>${hourLabels[h]}</option>`;
+            }
+            return html + '</select>';
+        }
+
+        function prefSelect(cls, val) {
+            let html = `<select class="form-select form-select-sm ${cls}" style="font-size:0.72rem;">`;
+            prefOptions.forEach(o => { html += `<option value="${o.v}"${o.v === val ? ' selected' : ''}>${o.l}</option>`; });
+            return html + '</select>';
+        }
+
+        function renderSchedules(drivers) {
+            dsData = drivers;
+            let html = '';
+            drivers.forEach(d => {
+                html += `<div class="ds-driver-card mb-3" data-driver-id="${d.id}" style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;overflow:hidden;">`;
+                html += `<div style="background:var(--dark);color:#fff;padding:0.5rem 0.75rem;font-weight:600;font-size:0.85rem;">`;
+                html += `<i class="bi bi-person-fill me-1" style="color:var(--gold);"></i>${d.name}</div>`;
+                html += `<table class="table table-sm mb-0" style="font-size:0.8rem;">`;
+                html += `<thead style="background:#f5f5f5;"><tr>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:70px;">Day</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:50px;text-align:center;">Off</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:120px;">Start</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:120px;">End</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:150px;">Preference</th>`;
+                html += `</tr></thead><tbody>`;
+
+                for (let day = 0; day < 7; day++) {
+                    const entry = d.weekly[day] || { is_available: true, start_hour: d.default_start_hour, end_hour: d.default_end_hour, preference: d.default_preference };
+                    const off = !entry.is_available;
+                    const rowStyle = off ? 'opacity:0.4;' : '';
+                    html += `<tr class="ds-day-row" data-day="${day}" style="${rowStyle}">`;
+                    html += `<td style="padding:0.3rem 0.5rem;font-weight:500;">${dayAbbr[day]}</td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;text-align:center;"><input type="checkbox" class="form-check-input ds-off" ${off ? 'checked' : ''}></td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;">${hourSelect('ds-start', entry.start_hour)}</td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;">${hourSelect('ds-end', entry.end_hour)}</td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;">${prefSelect('ds-pref', entry.preference)}</td>`;
+                    html += `</tr>`;
+                }
+                html += `</tbody></table></div>`;
+            });
+            document.getElementById('dsContent').innerHTML = html;
+
+            // Wire up off checkboxes
+            document.querySelectorAll('.ds-off').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    const row = this.closest('tr');
+                    row.querySelectorAll('select').forEach(s => { s.disabled = this.checked; });
+                    row.style.opacity = this.checked ? '0.4' : '1';
+                });
+                // Apply initial state
+                if (cb.checked) {
+                    const row = cb.closest('tr');
+                    row.querySelectorAll('select').forEach(s => { s.disabled = true; });
+                }
+            });
+        }
+
+        function collectSchedules() {
+            const drivers = [];
+            document.querySelectorAll('.ds-driver-card').forEach(card => {
+                const did = parseInt(card.dataset.driverId);
+                const orig = dsData.find(d => d.id === did);
+                const weekly = {};
+                card.querySelectorAll('.ds-day-row').forEach(row => {
+                    const day = parseInt(row.dataset.day);
+                    weekly[day] = {
+                        is_available: !row.querySelector('.ds-off').checked,
+                        start_hour: parseInt(row.querySelector('.ds-start').value),
+                        end_hour: parseInt(row.querySelector('.ds-end').value),
+                        preference: row.querySelector('.ds-pref').value,
+                    };
+                });
+                drivers.push({
+                    id: did,
+                    default_start_hour: orig ? orig.default_start_hour : 6,
+                    default_end_hour: orig ? orig.default_end_hour : 23,
+                    default_preference: orig ? orig.default_preference : '',
+                    weekly: weekly,
+                });
+            });
+            return drivers;
+        }
+
+        dsBtn.addEventListener('click', function() {
+            document.getElementById('dsLoading').classList.remove('d-none');
+            document.getElementById('dsContent').classList.add('d-none');
+            new bootstrap.Modal(document.getElementById('driverSchedulesModal')).show();
+
+            fetch('{% url "get_driver_weekly_schedules" %}')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('dsLoading').classList.add('d-none');
+                    document.getElementById('dsContent').classList.remove('d-none');
+                    if (data.success) {
+                        renderSchedules(data.drivers);
+                    } else {
+                        document.getElementById('dsContent').innerHTML = '<p class="text-danger">Error loading schedules</p>';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('dsLoading').classList.add('d-none');
+                    document.getElementById('dsContent').classList.remove('d-none');
+                    document.getElementById('dsContent').innerHTML = '<p class="text-danger">Network error</p>';
+                });
+        });
+
+        document.getElementById('dsSaveBtn').addEventListener('click', function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+            fetch('{% url "save_driver_weekly_schedules" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ drivers: collectSchedules() }),
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Schedules';
+                if (data.success) {
+                    // Reload page to refresh auto-assign defaults
+                    location.reload();
+                } else {
+                    alert(data.error || 'Error saving schedules');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Schedules';
+                alert('Network error');
+            });
+        });
+    })();
 </script>
 {% endblock %}
 

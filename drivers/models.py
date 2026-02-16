@@ -14,6 +14,18 @@ class Driver(models.Model):
     phone_number = models.CharField(max_length=25, null=True, blank=True, help_text="Driver's phone number")
     vehicle = models.CharField(null=True, blank=True, max_length=55)
     schedule = models.CharField(max_length=255, null=True, blank=True, help_text="Driver's availability schedule (e.g., 'Mon-Thu: 4AM-4PM, Fri: 6PM-8PM, Sat-Sun: 5AM-5PM')")
+    default_start_hour = models.IntegerField(
+        default=6,
+        help_text="Default earliest hour this driver is available (0-23). Used as default in auto-assign."
+    )
+    default_end_hour = models.IntegerField(
+        default=23,
+        help_text="Default latest hour this driver works until (0-23). Used as default in auto-assign."
+    )
+    default_preference = models.CharField(
+        max_length=30, blank=True, default="",
+        help_text="Default trip type preference for auto-assign (e.g., prefer_arrival, only_return)."
+    )
     notes = models.TextField(null=True, blank=True, help_text="Internal notes about this driver for dispatchers")
     payment_method = models.CharField(
         max_length=50, default="direct deposit", blank=True
@@ -90,16 +102,76 @@ class Driver(models.Model):
         """Format schedule for display in multi-line format"""
         if not self.schedule:
             return None
-        
+
         # Split by comma and format each part on a new line
         # This handles formats like "Mon-Thu: 4AM-4PM, Fri: 6PM-8PM, Sat-Sun: 5AM-5PM"
         schedule_parts = [part.strip() for part in self.schedule.split(',')]
         return '\n'.join(schedule_parts)
 
+    def get_availability_for_date(self, target_date):
+        """
+        Return (is_available, start_hour, end_hour, preference) for a given date.
+        Checks DriverWeeklySchedule first, then falls back to default_* fields.
+        Works efficiently with prefetched weekly_schedule data.
+        """
+        day_of_week = target_date.weekday()  # 0=Monday, 6=Sunday
+        # Use prefetched cache if available (iterate in Python to avoid extra DB hit)
+        for entry in self.weekly_schedule.all():
+            if entry.day_of_week == day_of_week:
+                return (
+                    entry.is_available,
+                    entry.start_hour,
+                    entry.end_hour,
+                    entry.preference,
+                )
+        return (True, self.default_start_hour, self.default_end_hour, self.default_preference)
+
     def __str__(self):
         if self.profile.first_name:
             return f"{self.profile.first_name} {self.profile.last_name}"
         return self.profile.username
+
+
+class DriverWeeklySchedule(models.Model):
+    """Per-day-of-week availability for a driver. Overrides driver's default_* fields."""
+    DAY_CHOICES = [
+        (0, "Monday"),
+        (1, "Tuesday"),
+        (2, "Wednesday"),
+        (3, "Thursday"),
+        (4, "Friday"),
+        (5, "Saturday"),
+        (6, "Sunday"),
+    ]
+    PREFERENCE_CHOICES = [
+        ("", "Any"),
+        ("prefer_arrival", "Prefer Arrivals"),
+        ("prefer_return", "Prefer Returns"),
+        ("prefer_cruise", "Prefer Cruises"),
+        ("heavy_arrival", "Heavy Arrivals"),
+        ("heavy_return", "Heavy Returns"),
+        ("heavy_cruise", "Heavy Cruises"),
+        ("only_arrival", "Arrivals Only"),
+        ("only_return", "Returns Only"),
+        ("only_cruise", "Cruises Only"),
+    ]
+
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="weekly_schedule")
+    day_of_week = models.IntegerField(choices=DAY_CHOICES)
+    is_available = models.BooleanField(default=True)
+    start_hour = models.IntegerField(default=6)
+    end_hour = models.IntegerField(default=23)
+    preference = models.CharField(max_length=30, blank=True, default="", choices=PREFERENCE_CHOICES)
+
+    class Meta:
+        unique_together = ("driver", "day_of_week")
+        ordering = ["driver", "day_of_week"]
+
+    def __str__(self):
+        day_name = dict(self.DAY_CHOICES).get(self.day_of_week, "?")
+        if not self.is_available:
+            return f"{self.driver} — {day_name}: OFF"
+        return f"{self.driver} — {day_name}: {self.start_hour}:00–{self.end_hour}:00"
 
 
 class FleetVehicle(models.Model):

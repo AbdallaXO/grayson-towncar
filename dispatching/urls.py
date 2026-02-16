@@ -35,6 +35,8 @@ urlpatterns = [
     path("update-drive-time/", views.update_drive_time, name="update_drive_time"),
     path("scheduler-settings/", views.get_scheduler_settings, name="get_scheduler_settings"),
     path("update-scheduler-settings/", views.update_scheduler_settings, name="update_scheduler_settings"),
+    path("driver-weekly-schedules/", views.get_driver_weekly_schedules, name="get_driver_weekly_schedules"),
+    path("save-driver-weekly-schedules/", views.save_driver_weekly_schedules, name="save_driver_weekly_schedules"),
     path("update-leg-assignment/", views.update_leg_assignment, name="update_leg_assignment"),
     path(
         "update-inhouse-vehicle-assignment/",
