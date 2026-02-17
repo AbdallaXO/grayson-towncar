@@ -261,6 +261,10 @@ def tos(request):
     return render(request, "reservations/tos.html")
 
 
+def privacy(request):
+    return render(request, "reservations/privacy.html")
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class QuoteFormHandlerView(View):
     """
