@@ -97,7 +97,28 @@
         position: relative;
         overflow: visible;
     }
-
+    .timeline-grid-wrapper {
+        position: relative;
+    }
+    .timeline-grid-lines {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 130px;
+        right: 0;
+        pointer-events: none;
+        z-index: 2;
+    }
+    .timeline-grid-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 0;
+        border-left: 1px solid #e4e4e4;
+    }
+    .timeline-rows {
+        position: relative;
+    }
     .timeline-slot {
         position: absolute;
         top: 2px;
@@ -113,7 +134,7 @@
         white-space: nowrap;
         cursor: pointer;
         transition: opacity 0.15s;
-        z-index: 2;
+        z-index: 3;
     }
     .timeline-slot:hover { opacity: 0.85; }
     .timeline-slot.arrival { background: #1565c0; }
@@ -131,6 +152,53 @@
         color: #999;
         text-align: left;
         padding-left: 2px;
+    }
+
+    /* ── Timeline hover popup ── */
+    .tl-popup {
+        position: fixed;
+        z-index: 9999;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        padding: 0;
+        min-width: 240px;
+        max-width: 300px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.12s;
+        font-size: 0.8rem;
+        overflow: hidden;
+    }
+    .tl-popup.visible { opacity: 1; }
+    .tl-popup-header {
+        padding: 0.5rem 0.7rem;
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.78rem;
+    }
+    .tl-popup-header.arrival { background: #1565c0; }
+    .tl-popup-header.return { background: #2e7d32; }
+    .tl-popup-header.cruise { background: #e65100; }
+    .tl-popup-header.other { background: #6a1b9a; }
+    .tl-popup-body {
+        padding: 0.5rem 0.7rem;
+    }
+    .tl-popup-row {
+        display: flex;
+        gap: 0.4rem;
+        padding: 0.2rem 0;
+        font-size: 0.75rem;
+        line-height: 1.3;
+    }
+    .tl-popup-row .tl-label {
+        color: #999;
+        min-width: 55px;
+        flex-shrink: 0;
+    }
+    .tl-popup-row .tl-value {
+        color: #333;
     }
 
     /* ── Suggestion cards ── */
@@ -277,6 +345,7 @@
         .driver-name-col { min-width: 90px; max-width: 90px; }
         .timeline-slot { font-size: 0.55rem; padding: 0 3px; }
         .timeline-hour-markers { padding-left: 90px; }
+        .timeline-grid-lines { left: 90px; }
         .stat-card-dark .stat-value { font-size: 1.25rem; }
     }
 
@@ -474,13 +543,9 @@
                     <small class="text-muted fw-normal ms-2" id="vaCount">
                         ({{ eligible_drivers|length }} of {{ inhouse_drivers|length }} assigned)
                     </small>
-                    <i class="bi bi-chevron-down ms-1 text-muted" style="font-size:0.7rem;"></i>
+                    <i class="bi bi-chevron-down ms-2" style="font-size:0.85rem; color: var(--gold);"></i>
                 </a>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="vaCopyPrevBtn"
-                    style="font-size:0.75rem;" title="Copy assignments from the most recent previous day">
-                <i class="bi bi-clipboard-check me-1"></i>Copy Previous
-            </button>
         </div>
         <div class="collapse" id="vaPanel">
             <div class="row g-2 mt-2">
@@ -531,26 +596,48 @@
             {% endfor %}
         </div>
 
-        {% for data in inhouse_timeline %}
-        <div class="driver-timeline-row">
-            <div class="driver-name-col">
-                <strong>{{ data.driver }}</strong>
-                <small class="text-muted">{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}</small>
+        <div class="timeline-grid-wrapper">
+            <!-- Vertical hour lines spanning all rows -->
+            <div class="timeline-grid-lines">
+                {% for hour in timeline_hours %}
+                {% if not forloop.first %}
+                <div class="timeline-grid-line" style="left:{% widthratio forloop.counter0 timeline_hours|length 100 %}%;"></div>
+                {% endif %}
+                {% endfor %}
             </div>
-            <div class="timeline-bar">
-                {% for slot in data.schedule.slots %}
-                <div class="timeline-slot {{ slot.trip_type }}"
-                     style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
-                     title="{{ slot.pickup_time|time:'g:i A' }} | {{ slot.pickup_location|truncatechars:25 }} → {{ slot.dropoff_location|truncatechars:25 }} | {{ slot.customer_name }}">
-                    {{ slot.pickup_time|time:"g:i" }}
+
+            <div class="timeline-rows">
+                {% for data in inhouse_timeline %}
+                <div class="driver-timeline-row">
+                    <div class="driver-name-col">
+                        <strong>{{ data.driver }}</strong>
+                        <small class="text-muted">{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}</small>
+                    </div>
+                    <div class="timeline-bar">
+                        {% for slot in data.schedule.slots %}
+                        <div class="timeline-slot {{ slot.trip_type }}" data-tl-popup
+                             style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
+                             data-trip="{{ slot.trip_type }}"
+                             data-time="{{ slot.pickup_time|time:'g:i A' }}"
+                             data-cleared="{{ slot.end_time_display }}"
+                             data-pickup="{{ slot.pickup_location }}"
+                             data-dropoff="{{ slot.dropoff_location }}"
+                             data-customer="{{ slot.customer_name }}"
+                             data-status="{{ slot.status }}"
+                             data-flight="{{ slot.flight_info|default:'' }}"
+                             data-revenue="{{ slot.revenue|default:'0' }}"
+                             data-res-id="{{ slot.reservation_id }}">
+                            {{ slot.pickup_time|time:"g:i" }}
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>
         </div>
-        {% endfor %}
 
         <!-- Legend -->
-        <div class="d-flex gap-3 mt-3 flex-wrap">
+        <div class="d-flex gap-3 mt-3 flex-wrap align-items-center">
             <small><span style="display:inline-block;width:12px;height:12px;background:#1565c0;border-radius:2px;"></span> Arrival</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#2e7d32;border-radius:2px;"></span> Return</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#e65100;border-radius:2px;"></span> Cruise</small>
@@ -1656,28 +1743,65 @@
             fetchPreview();
         }
 
-        // Remove a leg from a driver's schedule
+        // Remove a leg from a driver's schedule (client-side, no rebuild)
         window.aaRemoveSlot = function(legId) {
+            if (!aaLastData) return;
             if (!aaExcluded.includes(legId)) aaExcluded.push(legId);
             delete aaManual[String(legId)];
-            rePreview();
-        };
 
-        // Manually assign an unassigned leg to a driver
-        window.aaAssignLeg = function(legId, driverId) {
-            if (driverId) {
-                aaManual[String(legId)] = driverId;
-            } else {
-                delete aaManual[String(legId)];
+            // Find and remove the slot from its driver, move to unassigned
+            let removedSlot = null;
+            aaLastData.driver_schedules.forEach(function(driver) {
+                const idx = driver.slots.findIndex(s => s.leg_id === legId);
+                if (idx !== -1) {
+                    removedSlot = driver.slots.splice(idx, 1)[0];
+                    driver.total_legs--;
+                    driver.total_revenue -= (removedSlot.revenue || 0);
+                    if (removedSlot.is_new) driver.new_legs--;
+                    // Update first/last times
+                    if (driver.slots.length > 0) {
+                        driver.first_pickup = driver.slots[0].pickup_time;
+                        driver.last_end = driver.slots[driver.slots.length - 1].end_time || driver.slots[driver.slots.length - 1].pickup_time;
+                    }
+                }
+            });
+
+            // Remove empty drivers
+            aaLastData.driver_schedules = aaLastData.driver_schedules.filter(d => d.slots.length > 0);
+
+            // Add to unassigned
+            if (removedSlot) {
+                aaLastData.unassigned_legs = aaLastData.unassigned_legs || [];
+                aaLastData.unassigned_legs.push({
+                    leg_id: removedSlot.leg_id,
+                    pickup_time: removedSlot.pickup_time,
+                    pickup_minutes: removedSlot.pickup_minutes,
+                    trip_type: removedSlot.trip_type,
+                    vehicle_type: removedSlot.vehicle_type,
+                    pickup_location: removedSlot.pickup_location,
+                    dropoff_location: removedSlot.dropoff_location,
+                    customer_name: removedSlot.customer_name,
+                    revenue: removedSlot.revenue,
+                    store_stop: removedSlot.store_stop || false,
+                });
+                aaLastData.unassigned_legs.sort((a, b) => (a.pickup_minutes || 0) - (b.pickup_minutes || 0));
             }
-            rePreview();
+
+            // Update assigned count
+            aaLastData.assigned = aaLastData.driver_schedules.reduce((sum, d) => sum + d.new_legs, 0);
+
+            // Re-render without server call
+            renderAutoAssignPreview(aaLastData);
+            document.getElementById('aaModalTitle').textContent = 'Proposed Schedule — ' + aaLastData.assigned + ' new assignments';
         };
 
-        // Swap: remove current slot, assign unassigned alt to that driver
-        window.aaSwapSlot = function(removeLegId, altLegId, driverId) {
-            if (!aaExcluded.includes(removeLegId)) aaExcluded.push(removeLegId);
-            delete aaManual[String(removeLegId)];
-            aaManual[String(altLegId)] = driverId;
+        // Manually assign an unassigned leg to a driver, then rebuild to handle conflicts
+        window.aaAssignLeg = function(legId, driverId) {
+            if (!driverId || !aaLastData) return;
+            aaManual[String(legId)] = parseInt(driverId);
+            // Remove from excluded if it was there
+            const exIdx = aaExcluded.indexOf(legId);
+            if (exIdx !== -1) aaExcluded.splice(exIdx, 1);
             rePreview();
         };
 
@@ -1702,8 +1826,11 @@
                     if (alt.vehicle_type) h += '<span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;">' + alt.vehicle_type + '</span> ';
                     h += '<div style="flex:1;color:#555;" class="text-truncate">' + alt.pickup_location.substring(0, 25) + ' &rarr; ' + alt.dropoff_location.substring(0, 25) + '</div>';
                     if (alt.revenue > 0) h += '<span style="font-weight:600;font-size:0.75rem;">$' + Math.round(alt.revenue) + '</span>';
+                    h += '<button class="btn btn-sm py-0 px-1 me-1" style="font-size:0.7rem;color:#2e7d32;border:1px solid #2e7d32;line-height:1.4;" ';
+                    h += 'onclick="aaAddSlot(' + alt.leg_id + ',' + driverId + ')" title="Add this job to driver">';
+                    h += '<i class="bi bi-plus-lg"></i></button>';
                     h += '<button class="btn btn-sm py-0 px-1" style="font-size:0.7rem;color:var(--gold);border:1px solid var(--gold);line-height:1.4;" ';
-                    h += 'onclick="aaSwapSlot(' + slotLegId + ',' + alt.leg_id + ',' + driverId + ')" title="Replace with this job">';
+                    h += 'onclick="aaSwapSlot(' + slotLegId + ',' + alt.leg_id + ',' + driverId + ')" title="Swap — replace current with this job">';
                     h += '<i class="bi bi-arrow-repeat"></i></button>';
                     h += '</div>';
                 });
@@ -1713,7 +1840,34 @@
             panel.classList.remove('d-none');
         };
 
+        // Add: assign an unassigned alt job to a driver, then rebuild to handle conflicts
+        window.aaAddSlot = function(altLegId, driverId) {
+            if (!aaLastData) return;
+            aaManual[String(altLegId)] = driverId;
+            // Remove from excluded if it was there
+            const exIdx = aaExcluded.indexOf(altLegId);
+            if (exIdx !== -1) aaExcluded.splice(exIdx, 1);
+            rePreview();
+        };
+
+        // Swap: exclude current slot, assign alt to driver, then rebuild to handle conflicts
+        window.aaSwapSlot = function(removeLegId, altLegId, driverId) {
+            if (!aaLastData) return;
+            // Exclude the old slot
+            if (!aaExcluded.includes(removeLegId)) aaExcluded.push(removeLegId);
+            delete aaManual[String(removeLegId)];
+            // Assign the alt to this driver
+            aaManual[String(altLegId)] = driverId;
+            // Remove alt from excluded if it was there
+            const exIdx = aaExcluded.indexOf(altLegId);
+            if (exIdx !== -1) aaExcluded.splice(exIdx, 1);
+            rePreview();
+        };
+
+        let aaLastData = null;  // store last preview data for client-side edits
+
         function renderAutoAssignPreview(data) {
+            aaLastData = data;
             aaLastUnassigned = data.unassigned_legs || [];
             const summaryDiv = document.getElementById('aaPreviewSummary');
             const driversDiv = document.getElementById('aaPreviewDrivers');
@@ -1754,6 +1908,9 @@
                     if (slot.vehicle_type) {
                         html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;">' + slot.vehicle_type + '</span>';
                     }
+                    if (slot.store_stop) {
+                        html += '<span class="badge" style="font-size:0.55rem;padding:0.1rem 0.3rem;background:#2e7d32;color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>';
+                    }
                     html += '<div style="flex:1;color:#555;" class="text-truncate">' + slot.pickup_location.substring(0, 30) + ' &rarr; ' + slot.dropoff_location.substring(0, 30) + '</div>';
                     html += '<div style="min-width:100px;color:#888;font-size:0.75rem;" class="text-truncate">' + slot.customer_name + '</div>';
                     if (slot.end_time) {
@@ -1792,6 +1949,9 @@
                     html += '<span style="color:' + color + ';font-size:0.7rem;font-weight:600;">' + leg.trip_type.charAt(0).toUpperCase() + leg.trip_type.slice(1) + '</span></div>';
                     if (leg.vehicle_type) {
                         html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;">' + leg.vehicle_type + '</span>';
+                    }
+                    if (leg.store_stop) {
+                        html += '<span class="badge" style="font-size:0.55rem;padding:0.1rem 0.3rem;background:#2e7d32;color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>';
                     }
                     html += '<div style="flex:1;color:#555;" class="text-truncate">' + leg.pickup_location.substring(0, 25) + ' &rarr; ' + leg.dropoff_location.substring(0, 25) + '</div>';
                     html += '<div style="min-width:80px;color:#888;font-size:0.75rem;" class="text-truncate">' + leg.customer_name + '</div>';
@@ -2943,43 +3103,81 @@
         if (el) el.textContent = '(' + assigned + ' of ' + total + ' assigned)';
     }
 
-    // Copy Previous button
-    document.getElementById('vaCopyPrevBtn')?.addEventListener('click', function() {
-        const btn = this;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Copying...';
-        fetch("{% url 'copy_vehicle_assignments' %}", {
-            method: "POST",
-            headers: {"Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}"},
-            body: JSON.stringify({date: "{{ selected_date|date:'Y-m-d' }}"}),
-        }).then(r => r.json()).then(data => {
-            if (data.success) {
-                // Update dropdown selections from response
-                for (const [driverId, vehicleId] of Object.entries(data.assignments)) {
-                    const card = document.querySelector(`.va-row[data-driver-id="${driverId}"]`);
-                    if (!card) continue;
-                    const select = card.querySelector('.va-select');
-                    if (select) {
-                        select.value = String(vehicleId);
-                        card.classList.add('va-has-vehicle');
-                    }
-                }
-                vaUpdateCount();
-                btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Copied from ' + data.source_date;
-                setTimeout(() => {
-                    btn.innerHTML = '<i class="bi bi-clipboard-check me-1"></i>Copy Previous';
-                    btn.disabled = false;
-                }, 2000);
-            } else {
-                alert(data.error || 'Failed to copy assignments');
-                btn.innerHTML = '<i class="bi bi-clipboard-check me-1"></i>Copy Previous';
-                btn.disabled = false;
+    // ============ Timeline Hover Popup ============
+    (function() {
+        const popup = document.createElement('div');
+        popup.className = 'tl-popup';
+        document.body.appendChild(popup);
+
+        const tripLabels = {arrival: 'Arrival', return: 'Return', cruise: 'Cruise', other: 'Other'};
+
+        function showPopup(el, e) {
+            const trip = el.dataset.trip || 'other';
+            const label = tripLabels[trip] || 'Trip';
+            let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
+            html += '<div class="tl-popup-body">';
+            html += '<div class="tl-popup-row"><span class="tl-label">Pickup</span><span class="tl-value">' + (el.dataset.pickup || '') + '</span></div>';
+            html += '<div class="tl-popup-row"><span class="tl-label">Dropoff</span><span class="tl-value">' + (el.dataset.dropoff || '') + '</span></div>';
+            if (el.dataset.customer) {
+                html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">' + el.dataset.customer + '</span></div>';
             }
-        }).catch(() => {
-            btn.innerHTML = '<i class="bi bi-clipboard-check me-1"></i>Copy Previous';
-            btn.disabled = false;
+            if (el.dataset.flight) {
+                html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
+            }
+            html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
+            if (el.dataset.revenue && el.dataset.revenue !== '0') {
+                html += '<div class="tl-popup-row"><span class="tl-label">Revenue</span><span class="tl-value">$' + Math.round(parseFloat(el.dataset.revenue)) + '</span></div>';
+            }
+            if (el.dataset.status) {
+                html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="text-transform:capitalize;">' + el.dataset.status + '</span></div>';
+            }
+            html += '</div>';
+            popup.innerHTML = html;
+
+            // Position near cursor
+            const px = e.clientX + 12;
+            const py = e.clientY + 12;
+            popup.style.left = px + 'px';
+            popup.style.top = py + 'px';
+            popup.classList.add('visible');
+
+            // Keep within viewport
+            requestAnimationFrame(function() {
+                const rect = popup.getBoundingClientRect();
+                if (rect.right > window.innerWidth - 8) {
+                    popup.style.left = (e.clientX - rect.width - 12) + 'px';
+                }
+                if (rect.bottom > window.innerHeight - 8) {
+                    popup.style.top = (e.clientY - rect.height - 12) + 'px';
+                }
+            });
+        }
+
+        document.addEventListener('mouseover', function(e) {
+            const slot = e.target.closest('[data-tl-popup]');
+            if (slot) showPopup(slot, e);
         });
-    });
+        document.addEventListener('mousemove', function(e) {
+            if (!popup.classList.contains('visible')) return;
+            const slot = e.target.closest('[data-tl-popup]');
+            if (slot) {
+                popup.style.left = (e.clientX + 12) + 'px';
+                popup.style.top = (e.clientY + 12) + 'px';
+                // Viewport bounds
+                requestAnimationFrame(function() {
+                    const rect = popup.getBoundingClientRect();
+                    if (rect.right > window.innerWidth - 8) popup.style.left = (e.clientX - rect.width - 12) + 'px';
+                    if (rect.bottom > window.innerHeight - 8) popup.style.top = (e.clientY - rect.height - 12) + 'px';
+                });
+            }
+        });
+        document.addEventListener('mouseout', function(e) {
+            const slot = e.target.closest('[data-tl-popup]');
+            if (slot && !slot.contains(e.relatedTarget)) {
+                popup.classList.remove('visible');
+            }
+        });
+    })();
 
     // ============ Driver Weekly Schedules Modal ============
     (function() {

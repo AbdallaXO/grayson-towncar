@@ -446,6 +446,24 @@ def update_driver_notes_ajax(request, driver_id):
 
 @login_required
 @require_POST
+def toggle_timing_exclude(request, driver_id):
+    """Toggle a driver's exclude_from_timing flag."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    try:
+        data = json.loads(request.body)
+        driver = get_object_or_404(Driver, id=driver_id)
+        driver.exclude_from_timing = data.get("exclude", False)
+        driver.save(update_fields=["exclude_from_timing"])
+        name = driver.profile.get_full_name() or driver.profile.username
+        status = "excluded from" if driver.exclude_from_timing else "included in"
+        return JsonResponse({"success": True, "message": f"{name} {status} route timing"})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@login_required
+@require_POST
 def refresh_flight_data(request):
     """
     Refresh flight data for a leg assigned to the current driver.

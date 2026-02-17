@@ -24,8 +24,8 @@ import statistics
 # ============================================================================
 
 MAX_DWELL_MINUTES = 120   # Discard dwell > 2 hours
-MAX_DRIVE_MINUTES = 240   # Discard drive > 4 hours
-MAX_TOTAL_MINUTES = 360   # Discard total > 6 hours
+MAX_DRIVE_MINUTES = 180   # Discard drive > 3 hours
+MAX_TOTAL_MINUTES = 300   # Discard total > 5 hours
 
 # IQR multiplier for outlier detection (1.5 = standard, 2.0 = lenient)
 IQR_MULTIPLIER = 1.5
@@ -437,8 +437,10 @@ def calculate_airport_dwell_time(leg) -> Optional[int]:
     delta = picked_up_time - gate_arrival
     minutes = int(delta.total_seconds() / 60)
 
-    # Sanity check: dwell time should be positive and reasonable
-    if minutes < 0 or minutes > MAX_DWELL_MINUTES:
+    # Sanity checks:
+    # - Must be positive and under hard cap
+    # - Must be at least 5 minutes (nobody gets picked up instantly after landing)
+    if minutes < 5 or minutes > MAX_DWELL_MINUTES:
         return None
 
     return minutes
@@ -489,9 +491,24 @@ def calculate_drive_time(leg) -> Optional[int]:
     delta = completed_time - picked_up_time
     minutes = int(delta.total_seconds() / 60)
 
-    # Sanity check: drive time should be positive and reasonable
-    if minutes < 0 or minutes > MAX_DRIVE_MINUTES:
+    # Sanity checks:
+    # - Must be at least 15 minutes (anything shorter is likely bad data — both marked at once)
+    # - Returns cap at 80 minutes (most are ~30 min, over 80 is definitely inaccurate)
+    # - Other trip types cap at 4 hours (hard cap)
+    # - Picked-up should be within reasonable window of scheduled pickup
+    trip_type = leg.get_trip_type()
+    max_drive = 80 if trip_type == 'return' else MAX_DRIVE_MINUTES
+
+    if minutes < 15 or minutes > max_drive:
         return None
+
+    # Check picked-up happened within reasonable window of scheduled pickup
+    if leg.pickup_time and leg.pickup_date:
+        from datetime import datetime as dt
+        scheduled = dt.combine(leg.pickup_date, leg.pickup_time)
+        hours_from_scheduled = abs((picked_up_time - scheduled).total_seconds()) / 3600
+        if hours_from_scheduled > 3:
+            return None  # Timestamp too far from scheduled time — likely bad data
 
     return minutes
 
@@ -585,11 +602,13 @@ def calculate_route_timing_metrics(
     """
     from reservations.models import Leg
 
-    # Use provided queryset or fetch all completed legs
+    # Use provided queryset or fetch all completed legs (inhouse only, non-excluded)
     if legs_queryset is None:
         legs_queryset = Leg.objects.filter(
-            status='completed'
-        ).prefetch_related('status_history', 'flight_information')
+            status='completed',
+            driver__driver_type='inhouse',
+            driver__exclude_from_timing=False,
+        ).select_related('reservation').prefetch_related('status_history', 'flight_information')
 
     # Filter by bucket criteria (in-memory)
     matching_legs = []
@@ -631,6 +650,11 @@ def calculate_route_timing_metrics(
     total_times = []
 
     for leg in matching_legs:
+        # Skip legs with store stops (e.g. Publix) — the extra stop time
+        # would inflate drive/total times and skew route timing data
+        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
+            continue
+
         dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
         drive = calculate_drive_time(leg)
 
@@ -902,8 +926,12 @@ def update_all_route_timing_metrics(recent_days: int = None):
 
     print("Calculating route timing metrics from historical data...")
 
-    # Get completed legs, optionally filtered by recency — single DB query
-    completed_legs = Leg.objects.filter(status='completed').prefetch_related(
+    # Get completed legs — inhouse drivers only, excluding opted-out drivers
+    completed_legs = Leg.objects.filter(
+        status='completed',
+        driver__driver_type='inhouse',
+        driver__exclude_from_timing=False,
+    ).select_related('reservation').prefetch_related(
         'status_history', 'flight_information'
     )
     if recent_days is not None:
@@ -952,6 +980,10 @@ def update_all_route_timing_metrics(recent_days: int = None):
         total_times = []
 
         for leg in legs_list:
+            # Skip legs with store stops — inflated drive times would skew data
+            if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
+                continue
+
             dwell = calculate_airport_dwell_time(leg) if trip_type == 'arrival' else None
             drive = calculate_drive_time(leg)
 
@@ -1151,13 +1183,19 @@ def update_single_route_timing_metric(leg):
     if not leg.pickup_time or not leg.pickup_date:
         return
 
+    # Skip affiliates and excluded drivers
+    if leg.driver and (leg.driver.driver_type != 'inhouse' or leg.driver.exclude_from_timing):
+        return
+
     time_cat = categorize_time_of_day(leg.pickup_time)
     day_cat = categorize_day_type(leg.pickup_date)
 
-    # Re-fetch all completed legs for this specific bucket
+    # Re-fetch all completed legs for this specific bucket — inhouse only, non-excluded
     all_bucket_legs = Leg.objects.filter(
-        status='completed'
-    ).prefetch_related('status_history', 'flight_information')
+        status='completed',
+        driver__driver_type='inhouse',
+        driver__exclude_from_timing=False,
+    ).select_related('reservation').prefetch_related('status_history', 'flight_information')
 
     metrics_data = calculate_route_timing_metrics(
         trip_type, pickup_cat, dropoff_cat, time_cat, day_cat,

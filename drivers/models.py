@@ -36,6 +36,10 @@ class Driver(models.Model):
         default="affiliate",
         help_text="Inhouse drivers work for the company and can drive any vehicle. Affiliates are contractors with specific vehicles."
     )
+    exclude_from_timing = models.BooleanField(
+        default=False,
+        help_text="Exclude this driver's completed trips from route timing data. Affiliates are always excluded."
+    )
 
     def get_unpaid_legs(self):
         """Return all legs that are unpaid regardless of status"""

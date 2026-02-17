@@ -5087,18 +5087,37 @@ def capacity_planner(request):
             slot.position_pct = round(max(0, slot_start_min / total_display_minutes * 100), 1)
             slot.width_pct = round(min(duration / total_display_minutes * 100, 100 - slot.position_pct), 1)
 
+        # Calculate end-time marker positions for each slot
+        for slot in sched.slots:
+            end_min = (slot.estimated_end_time.hour - display_start) * 60 + slot.estimated_end_time.minute
+            slot.end_position_pct = round(max(0, end_min / total_display_minutes * 100), 1)
+            slot.end_time_display = slot.estimated_end_time.strftime('%I:%M').lstrip('0')
+
         # Calculate gaps between consecutive slots
         gaps = []
         for i in range(len(sched.slots) - 1):
             cur_end = sched.slots[i].estimated_end_time
             nxt_start = datetime.combine(selected_date, sched.slots[i + 1].pickup_time)
             gap_min = int((nxt_start - cur_end).total_seconds() / 60)
+            # Gap bar position/width
+            end_min = (cur_end.hour - display_start) * 60 + cur_end.minute
+            start_min = (sched.slots[i + 1].pickup_time.hour - display_start) * 60 + sched.slots[i + 1].pickup_time.minute
+            gap_pos = round(max(0, end_min / total_display_minutes * 100), 1)
+            gap_width = round(max(0, (start_min - end_min) / total_display_minutes * 100), 1)
+            if gap_min >= 60:
+                gh, gm = divmod(gap_min, 60)
+                gap_display = f"{gh}h,{gm}m" if gm else f"{gh}h"
+            else:
+                gap_display = f"{gap_min}m"
             gaps.append({
                 'after_leg': sched.slots[i].leg_id,
                 'before_leg': sched.slots[i + 1].leg_id,
                 'gap_minutes': gap_min,
+                'gap_display': gap_display,
                 'is_tight': gap_min < 20,
                 'is_critical': gap_min < 10,
+                'position_pct': gap_pos,
+                'width_pct': gap_width,
             })
 
         inhouse_timeline.append({
@@ -5375,11 +5394,14 @@ def auto_assign_drivers(request):
 
         slots_data = []
         for slot in schedule.slots:
-            # Look up vehicle type from the actual leg
+            # Look up vehicle type and store stop from the actual leg
             vtype = ""
+            has_store_stop = False
             leg_obj = legs_by_id.get(slot.leg_id)
-            if leg_obj and leg_obj.reservation and leg_obj.reservation.vehicle:
-                vtype = str(leg_obj.reservation.vehicle.vehicle_type).upper()
+            if leg_obj and leg_obj.reservation:
+                if leg_obj.reservation.vehicle:
+                    vtype = str(leg_obj.reservation.vehicle.vehicle_type).upper()
+                has_store_stop = bool(getattr(leg_obj.reservation, 'store_stop', False))
             slots_data.append({
                 "leg_id": slot.leg_id,
                 "pickup_time": slot.pickup_time.strftime("%I:%M %p").lstrip("0"),
@@ -5394,6 +5416,7 @@ def auto_assign_drivers(request):
                 "flight_info": slot.flight_info or "",
                 "pickup_minutes": slot.pickup_time.hour * 60 + slot.pickup_time.minute,
                 "vehicle_type": vtype,
+                "store_stop": has_store_stop,
             })
 
         driver_schedules.append({
@@ -5418,6 +5441,7 @@ def auto_assign_drivers(request):
         if leg.reservation and leg.reservation.customer:
             customer_name = leg.reservation.customer.get_full_name()
         vtype = getattr(getattr(leg.reservation, 'vehicle', None), 'vehicle_type', '') if leg.reservation else ''
+        has_store_stop = bool(getattr(leg.reservation, 'store_stop', False)) if leg.reservation else False
         still_unassigned.append({
             "leg_id": leg.id,
             "pickup_time": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
@@ -5428,6 +5452,7 @@ def auto_assign_drivers(request):
             "revenue": float(leg.revenue_share or 0),
             "vehicle_type": str(vtype),
             "pickup_minutes": leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0,
+            "store_stop": has_store_stop,
         })
 
     # Driver list for manual assignment dropdown

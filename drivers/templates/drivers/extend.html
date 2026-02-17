@@ -181,6 +181,13 @@
                         <i class="bi bi-person-badge me-1"></i>Affiliate
                       {% endif %}
                     </span>
+                    {% if driver.driver_type == 'inhouse' %}
+                    <i class="bi bi-stopwatch{% if not driver.exclude_from_timing %}-fill{% endif %} ms-1 timing-toggle"
+                       style="cursor:pointer; font-size:0.9rem; color:{% if driver.exclude_from_timing %}#ccc{% else %}#2e7d32{% endif %};"
+                       data-driver-id="{{ driver.id }}"
+                       data-excluded="{{ driver.exclude_from_timing|yesno:'true,false' }}"
+                       title="{% if driver.exclude_from_timing %}Excluded from route timing — click to include{% else %}Included in route timing — click to exclude{% endif %}"></i>
+                    {% endif %}
                   </td>
                   <td class="phone-cell">
                     {% if driver.phone_number %}
@@ -470,6 +477,42 @@
           // Re-enable button
           this.disabled = false;
           this.innerHTML = originalText;
+        });
+      });
+
+      // Timing toggle click handler
+      document.querySelectorAll('.timing-toggle').forEach(function(icon) {
+        icon.addEventListener('click', function() {
+          const driverId = this.dataset.driverId;
+          const currentlyExcluded = this.dataset.excluded === 'true';
+          const newExcluded = !currentlyExcluded;
+          const el = this;
+
+          fetch('/drivers/toggle_timing/' + driverId + '/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({ exclude: newExcluded }),
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              el.dataset.excluded = String(newExcluded);
+              if (newExcluded) {
+                el.className = 'bi bi-stopwatch ms-1 timing-toggle';
+                el.style.color = '#ccc';
+                el.title = 'Excluded from route timing — click to include';
+              } else {
+                el.className = 'bi bi-stopwatch-fill ms-1 timing-toggle';
+                el.style.color = '#2e7d32';
+                el.title = 'Included in route timing — click to exclude';
+              }
+              showToast(data.message, 'success');
+            }
+          })
+          .catch(() => showToast('Error toggling timing setting', 'error'));
         });
       });
     });

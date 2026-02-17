@@ -42,4 +42,9 @@ urlpatterns = [
         views.refresh_flight_data,
         name="driver_refresh_flight_data",
     ),
+    path(
+        "toggle_timing/<int:driver_id>/",
+        views.toggle_timing_exclude,
+        name="toggle_timing_exclude",
+    ),
 ]

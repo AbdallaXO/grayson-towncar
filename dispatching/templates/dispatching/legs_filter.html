@@ -665,20 +665,20 @@
                       {% endwith %}
                     </div>
                     {% if leg.cleared_time %}
-                      <div style="font-size: 0.72rem; color: #666; margin-top: 0.25rem;">
-                        <i class="bi bi-check2-circle" style="color: #2e7d32; font-size: 0.65rem;"></i>
+                      <div style="font-size: 0.88rem; color: #222; margin-top: 0.3rem; font-weight: 600;">
+                        <i class="bi bi-clock" style="font-size: 0.8rem;"></i>
                         Clearing ~{{ leg.cleared_time }}
                         {% if leg.duration_display %}
-                          <span style="color: #999;">({{ leg.duration_display }})</span>
+                          <span style="color: #888; font-weight: 400;">({{ leg.duration_display }})</span>
                         {% endif %}
                       </div>
                     {% endif %}
                     {% if leg.actual_cleared_time %}
-                      <div style="font-size: 0.72rem; color: #2e7d32; margin-top: 0.15rem;">
-                        <i class="bi bi-check-circle-fill" style="font-size: 0.65rem;"></i>
+                      <div style="font-size: 0.88rem; color: #1b5e20; margin-top: 0.2rem; font-weight: 600;">
+                        <i class="bi bi-check-circle-fill" style="font-size: 0.8rem;"></i>
                         Cleared {{ leg.actual_cleared_time }}
                         {% if leg.actual_duration_display %}
-                          <span style="color: #999;">({{ leg.actual_duration_display }})</span>
+                          <span style="color: #888; font-weight: 400;">({{ leg.actual_duration_display }})</span>
                         {% endif %}
                       </div>
                     {% endif %}
@@ -947,20 +947,20 @@
                               {% endwith %}
                             </div>
                             {% if leg.cleared_time %}
-                              <div style="font-size: 0.72rem; color: #666; margin-top: 0.15rem;">
-                                <i class="bi bi-check2-circle" style="color: #2e7d32; font-size: 0.65rem;"></i>
+                              <div style="font-size: 0.88rem; color: #222; margin-top: 0.2rem; font-weight: 600;">
+                                <i class="bi bi-clock" style="font-size: 0.8rem;"></i>
                                 Clearing ~{{ leg.cleared_time }}
                                 {% if leg.duration_display %}
-                                  <span style="color: #999;">({{ leg.duration_display }})</span>
+                                  <span style="color: #888; font-weight: 400;">({{ leg.duration_display }})</span>
                                 {% endif %}
                               </div>
                             {% endif %}
                             {% if leg.actual_cleared_time %}
-                              <div style="font-size: 0.72rem; color: #2e7d32; margin-top: 0.1rem;">
-                                <i class="bi bi-check-circle-fill" style="font-size: 0.65rem;"></i>
+                              <div style="font-size: 0.88rem; color: #1b5e20; margin-top: 0.15rem; font-weight: 600;">
+                                <i class="bi bi-check-circle-fill" style="font-size: 0.8rem;"></i>
                                 Cleared {{ leg.actual_cleared_time }}
                                 {% if leg.actual_duration_display %}
-                                  <span style="color: #999;">({{ leg.actual_duration_display }})</span>
+                                  <span style="color: #888; font-weight: 400;">({{ leg.actual_duration_display }})</span>
                                 {% endif %}
                               </div>
                             {% endif %}

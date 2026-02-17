@@ -356,10 +356,12 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
     return 45  # Default: 40 min airport dwell (flight land → bags → walk → in car)
 
 
+PUBLIX_STOP_MINUTES = 25  # Extra time for grocery store stop
+
 def estimate_job_end_time(leg, target_date: date) -> datetime:
     """
     Estimate when a driver finishes this leg.
-    For arrivals: pickup_time + dwell + drive.
+    For arrivals: pickup_time + dwell + drive (+ Publix stop if applicable).
     For non-arrivals: pickup_time + drive.
     """
     from dispatching.analytics import categorize_location
@@ -370,11 +372,14 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
 
     pickup_dt = datetime.combine(target_date, leg.pickup_time)
 
-    # For arrivals, add airport dwell time
+    # For arrivals, add airport dwell time (+ Publix stop if applicable)
     trip_type = leg.get_trip_type()
     if trip_type == 'arrival':
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
-        return pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes)
+        store_stop_minutes = 0
+        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
+            store_stop_minutes = PUBLIX_STOP_MINUTES
+        return pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop_minutes)
 
     # Cruise legs picking up from airport (MCO → Cruise Port) need dwell time too
     if trip_type == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
