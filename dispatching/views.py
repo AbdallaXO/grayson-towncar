@@ -5401,7 +5401,8 @@ def auto_assign_drivers(request):
             if leg_obj and leg_obj.reservation:
                 if leg_obj.reservation.vehicle:
                     vtype = str(leg_obj.reservation.vehicle.vehicle_type).upper()
-                has_store_stop = bool(getattr(leg_obj.reservation, 'store_stop', False))
+                if slot.trip_type == 'arrival':
+                    has_store_stop = bool(getattr(leg_obj.reservation, 'store_stop', False))
             slots_data.append({
                 "leg_id": slot.leg_id,
                 "pickup_time": slot.pickup_time.strftime("%I:%M %p").lstrip("0"),
@@ -5441,7 +5442,8 @@ def auto_assign_drivers(request):
         if leg.reservation and leg.reservation.customer:
             customer_name = leg.reservation.customer.get_full_name()
         vtype = getattr(getattr(leg.reservation, 'vehicle', None), 'vehicle_type', '') if leg.reservation else ''
-        has_store_stop = bool(getattr(leg.reservation, 'store_stop', False)) if leg.reservation else False
+        trip_type = leg.get_trip_type()
+        has_store_stop = bool(getattr(leg.reservation, 'store_stop', False)) if leg.reservation and trip_type == 'arrival' else False
         still_unassigned.append({
             "leg_id": leg.id,
             "pickup_time": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",

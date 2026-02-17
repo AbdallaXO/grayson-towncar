@@ -358,10 +358,35 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
 
 PUBLIX_STOP_MINUTES = 25  # Extra time for grocery store stop
 
+def _get_best_flight_arrival(leg) -> 'datetime | None':
+    """
+    Return the best available flight arrival datetime for an arrival leg,
+    or None if no flight data exists. Uses naive local time.
+    Priority: actual gate > estimated gate > actual runway > estimated runway > scheduled gate > scheduled runway.
+    """
+    from django.utils import timezone as tz
+    flight = getattr(leg, 'flight_information', None)
+    if not flight:
+        return None
+    flight_dt = (
+        flight.actual_gate_arrival_local
+        or flight.estimated_gate_arrival_local
+        or flight.actual_arrival_local
+        or flight.estimated_arrival_local
+        or flight.scheduled_gate_arrival_local
+        or flight.scheduled_arrival_local
+    )
+    if not flight_dt:
+        return None
+    if tz.is_aware(flight_dt):
+        flight_dt = tz.make_naive(flight_dt, tz.get_current_timezone())
+    return flight_dt
+
+
 def estimate_job_end_time(leg, target_date: date) -> datetime:
     """
     Estimate when a driver finishes this leg.
-    For arrivals: pickup_time + dwell + drive (+ Publix stop if applicable).
+    For arrivals: flight_arrival (or pickup_time) + dwell + drive (+ Publix stop if applicable).
     For non-arrivals: pickup_time + drive.
     """
     from dispatching.analytics import categorize_location
@@ -372,14 +397,16 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
 
     pickup_dt = datetime.combine(target_date, leg.pickup_time)
 
-    # For arrivals, add airport dwell time (+ Publix stop if applicable)
+    # For arrivals, use best flight arrival time if available (dynamic clearing)
     trip_type = leg.get_trip_type()
     if trip_type == 'arrival':
+        flight_dt = _get_best_flight_arrival(leg)
+        start_dt = flight_dt if flight_dt else pickup_dt
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
         store_stop_minutes = 0
         if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
             store_stop_minutes = PUBLIX_STOP_MINUTES
-        return pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop_minutes)
+        return start_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop_minutes)
 
     # Cruise legs picking up from airport (MCO → Cruise Port) need dwell time too
     if trip_type == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
