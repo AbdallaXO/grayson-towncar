@@ -158,17 +158,22 @@ def payment_success(request):
                 "event_id": event_id,  # For Meta Pixel deduplication
             }
 
-            # Send Meta CAPI Purchase event from success page (better attribution with IP/UA)
+            # Send Meta CAPI Purchase event in background (don't block success page)
             # This will deduplicate with webhook event via event_id
             if reservation and purchase_data:
                 try:
+                    from threading import Thread
                     from reservations.conversions import send_purchase_event
-                    send_purchase_event(
-                        reservation, 
-                        value=None,  # Use reservation.total_price (matches Google)
-                        event_id=purchase_data.get("event_id"),
-                        request=request  # Include request for IP/UA tracking
-                    )
+                    Thread(
+                        target=send_purchase_event,
+                        kwargs={
+                            "reservation": reservation,
+                            "value": None,
+                            "event_id": purchase_data.get("event_id"),
+                            "request": request,
+                        },
+                        daemon=True,
+                    ).start()
                 except Exception as e:
                     logger.warning(f"Error sending Meta CAPI purchase event from success page: {e}")
 

@@ -31,21 +31,21 @@ def index(request):
         selected_date = timezone.localdate()
 
     # Use select_related to fetch related reservation and customer data in a single query
-    # This prevents N+1 query problems
+    # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
     legs = (
         Leg.objects.select_related(
             "reservation", "reservation__customer", "reservation__vehicle",
             "flight_information", "cruise_information"
         )
+        .prefetch_related("reservation__legs")
         .filter(driver=driver, pickup_date=selected_date)
         .order_by("pickup_time")
     )
 
-    # Add is_first_leg property to each leg
+    # Add is_first_leg property using prefetched data (no extra queries)
     for leg in legs:
-        # Check if this is the first leg of the reservation (by ID - first created)
-        first_leg = leg.reservation.legs.order_by('id').first()
-        leg.is_first_leg = leg.id == first_leg.id
+        first_id = min(l.id for l in leg.reservation.legs.all())
+        leg.is_first_leg = leg.id == first_id
 
     return render(
         request, "drivers/index.html", {"legs": legs, "selected_date": selected_date}
@@ -57,19 +57,21 @@ def completed_trips(request):
     driver = get_object_or_404(Driver, profile=request.user)
 
     # Use select_related to fetch related data efficiently
+    # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
     legs = (
         Leg.objects.select_related(
             "reservation", "reservation__customer", "reservation__vehicle",
             "flight_information", "cruise_information"
         )
+        .prefetch_related("reservation__legs")
         .filter(driver=driver, status="completed")
         .order_by("-pickup_date", "-pickup_time")
-    )  # Order by most recent first
+    )
 
-    # Add is_first_leg property to each leg
+    # Add is_first_leg property using prefetched data (no extra queries)
     for leg in legs:
-        first_leg = leg.reservation.legs.order_by('id').first()
-        leg.is_first_leg = leg.id == first_leg.id
+        first_id = min(l.id for l in leg.reservation.legs.all())
+        leg.is_first_leg = leg.id == first_id
 
     return render(
         request,

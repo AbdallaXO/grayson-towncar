@@ -11,7 +11,10 @@
 </style>
 {% endblock extra_css %}
 
+{% block navbar %}{% endblock %}
+
 {% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
 <div class="container-fluid py-3">
   <h4 class="mb-3">Driver Pay Rates</h4>
 
@@ -62,7 +65,7 @@
           <option value="">-- Select Driver --</option>
           {% for driver in drivers %}
           <option value="{{ driver.id }}" {% if selected_driver_id == driver.id|stringformat:"d" %}selected{% endif %}>
-            {{ driver.profile.get_full_name }} ({{ driver.get_driver_type_display }})
+            {{ driver }} ({{ driver.get_driver_type_display }})
           </option>
           {% endfor %}
         </select>
@@ -349,3 +352,6 @@ if (addBtn) {
 }
 </script>
 {% endblock extra_js %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

@@ -59,6 +59,11 @@ class Reservation(models.Model):
     pricing, and ties a customer, route, and vehicle together.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Track original status so save() can detect changes without a DB query
+        self._original_status = self.status if self.pk else None
+
     trip_type = models.CharField(max_length=20, choices=TRIP_CHOICES)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     rate = models.ForeignKey("rates.Rate", on_delete=models.PROTECT)
@@ -264,24 +269,9 @@ class Reservation(models.Model):
             except:
                 pass  # If middleware not available, skip
 
-        # Check for changes if this is an existing instance
-        if self.pk:
-            try:
-                # Get the current state from the database
-                old_instance = Reservation.objects.get(pk=self.pk)
-
-                # Compare all fields and track which ones changed
-                for field in self._meta.fields:
-                    old_value = getattr(old_instance, field.name)
-                    new_value = getattr(self, field.name)
-
-                    # Check if the field has changed
-                    if old_value != new_value:
-                        self._changed_fields.append(field.name)
-
-            except Reservation.DoesNotExist:
-                # This is technically a new instance
-                pass
+        # Track changed fields using values captured at __init__ (no extra DB query)
+        if self.pk and hasattr(self, '_original_status') and self._original_status != self.status:
+            self._changed_fields.append("status")
 
         # Business logic for pricing
         if not self.base_price:
@@ -541,6 +531,11 @@ class Leg(models.Model):
     Multiple legs can be tied to a single Reservation.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Track original driver_id so save() can detect reassignment without a DB query
+        self._original_driver_id = self.driver_id
+
     reservation = models.ForeignKey(
         Reservation, on_delete=models.CASCADE, related_name="legs"
     )
@@ -776,18 +771,16 @@ class Leg(models.Model):
             self.revenue_share = self.calculate_revenue_share()
 
         # Clear pay fields when driver changes (recalculate for new driver)
-        if self.pk:
-            try:
-                old_driver_id = Leg.objects.filter(pk=self.pk).values_list(
-                    'driver_id', flat=True
-                ).first()
-                if old_driver_id is not None and old_driver_id != self.driver_id:
-                    self.driver_base_pay = None
-                    self.driver_gratuity = None
-                    self.driver_additional = None
-                    self.driver_pay_amount = None
-            except Exception:
-                pass
+        if (
+            self.pk
+            and hasattr(self, '_original_driver_id')
+            and self._original_driver_id is not None
+            and self._original_driver_id != self.driver_id
+        ):
+            self.driver_base_pay = None
+            self.driver_gratuity = None
+            self.driver_additional = None
+            self.driver_pay_amount = None
 
         # Auto-fill driver pay when not set (inhouse and affiliate)
         if (
@@ -802,31 +795,30 @@ class Leg(models.Model):
             base_pay = calculate_driver_pay(self)
 
             if base_pay is not None:
-                # Gratuity split (inhouse only — affiliates don't get customer gratuity)
+                # Gratuity split — divide customer gratuity across all legs
                 gratuity_share = Decimal("0.00")
-                if self.driver.driver_type == "inhouse":
-                    reservation = self.reservation
-                    if reservation:
-                        gratuity_amount = reservation.gratuity_amount
-                        if (
-                            gratuity_amount is None
-                            and reservation.gratuity_percentage
-                            and reservation.base_price
-                        ):
-                            gratuity_amount = (
-                                reservation.base_price
-                                * reservation.gratuity_percentage
-                                / Decimal("100")
-                            )
-                        if gratuity_amount:
-                            leg_count = reservation.legs.count()
-                            if self.pk is None:
-                                leg_count += 1
-                            if leg_count <= 0:
-                                leg_count = 1
-                            gratuity_share = (gratuity_amount / Decimal(leg_count)).quantize(
-                                Decimal("0.01")
-                            )
+                reservation = self.reservation
+                if reservation:
+                    gratuity_amount = reservation.gratuity_amount
+                    if (
+                        gratuity_amount is None
+                        and reservation.gratuity_percentage
+                        and reservation.base_price
+                    ):
+                        gratuity_amount = (
+                            reservation.base_price
+                            * reservation.gratuity_percentage
+                            / Decimal("100")
+                        )
+                    if gratuity_amount:
+                        leg_count = reservation.legs.count()
+                        if self.pk is None:
+                            leg_count += 1
+                        if leg_count <= 0:
+                            leg_count = 1
+                        gratuity_share = (gratuity_amount / Decimal(leg_count)).quantize(
+                            Decimal("0.01")
+                        )
 
                 # Set base pay and gratuity separately
                 self.driver_base_pay = base_pay.quantize(Decimal("0.01"))

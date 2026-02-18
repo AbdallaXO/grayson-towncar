@@ -57,7 +57,8 @@ def send_capi_event(event_name, user_data, custom_data=None, request=None, event
 
     try:
         response = requests.post(
-            url, params={"access_token": FB_CAPI_ACCESS_TOKEN}, json=payload
+            url, params={"access_token": FB_CAPI_ACCESS_TOKEN}, json=payload,
+            timeout=5
         )
         response.raise_for_status()
         response_data = response.json()
