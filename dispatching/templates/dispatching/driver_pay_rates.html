@@ -1,0 +1,351 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  .rate-input { width: 90px; }
+  .rate-row:hover { background: #f8f9fa; }
+  .save-indicator { font-size: 0.75rem; margin-left: 0.5rem; }
+  .section-card { border: 1px solid #dee2e6; border-radius: 0.5rem; }
+  .section-header { background: #f8f9fa; padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; border-radius: 0.5rem 0.5rem 0 0; }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <h4 class="mb-3">Driver Pay Rates</h4>
+
+  {# ── Section 1: Inhouse Default Rates ─────────────────────────── #}
+  <div class="section-card mb-4">
+    <div class="section-header">
+      <h6 class="mb-0">Inhouse Default Rates <small class="text-muted">(applies to all inhouse drivers unless overridden)</small></h6>
+    </div>
+    <div class="p-3">
+      <table class="table table-sm table-bordered mb-0">
+        <thead>
+          <tr>
+            <th>Route</th>
+            <th style="width:140px">Default Base Pay</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for route in routes %}
+          <tr>
+            <td>{{ route.origin.name }} &rarr; {{ route.destination.name }}</td>
+            <td>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" min="0"
+                       class="form-control form-control-sm rate-input inhouse-rate"
+                       data-route-id="{{ route.id }}"
+                       value="{% if route.inhouse_base_pay %}{{ route.inhouse_base_pay }}{% endif %}"
+                       placeholder="Not set">
+              </div>
+            </td>
+            <td>
+              <span class="save-indicator text-success" id="inhouse-save-{{ route.id }}" style="display:none">Saved</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Section 2: Driver Rate Setup ─────────────────────────────── #}
+  <div class="section-card">
+    <div class="section-header d-flex justify-content-between align-items-center">
+      <h6 class="mb-0">Driver Rate Setup</h6>
+      <form method="get" class="d-flex align-items-center gap-2 mb-0">
+        <select name="driver" class="form-select form-select-sm" style="width:250px" onchange="this.form.submit()">
+          <option value="">-- Select Driver --</option>
+          {% for driver in drivers %}
+          <option value="{{ driver.id }}" {% if selected_driver_id == driver.id|stringformat:"d" %}selected{% endif %}>
+            {{ driver.profile.get_full_name }} ({{ driver.get_driver_type_display }})
+          </option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+
+    {% if selected_driver %}
+    <div class="p-3">
+      {# Night bonus #}
+      <div class="d-flex align-items-center mb-3">
+        <label class="me-2 fw-bold">Night Bonus (10 PM - 6 AM):</label>
+        <div class="input-group input-group-sm" style="width:120px">
+          <span class="input-group-text">$</span>
+          <input type="number" step="0.01" min="0"
+                 class="form-control form-control-sm"
+                 id="night-bonus-input"
+                 data-driver-id="{{ selected_driver.id }}"
+                 value="{{ selected_driver.night_bonus }}">
+        </div>
+        <span class="save-indicator text-success ms-2" id="night-bonus-save" style="display:none">Saved</span>
+        <small class="text-muted ms-3">Set to $0 if this driver doesn't get a night bonus</small>
+      </div>
+
+      {# Existing rates table #}
+      <h6>
+        Rates for {{ selected_driver.profile.get_full_name }}
+        <span class="badge bg-{% if selected_driver.driver_type == 'inhouse' %}primary{% else %}warning text-dark{% endif %}">
+          {{ selected_driver.get_driver_type_display }}
+        </span>
+      </h6>
+
+      {% if driver_rates %}
+      <table class="table table-sm table-bordered mb-3">
+        <thead>
+          <tr>
+            <th>Route</th>
+            {% if selected_driver.driver_type == 'affiliate' %}
+            <th>Direction</th>
+            <th>Vehicle</th>
+            {% endif %}
+            <th style="width:140px">Base Pay</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rate in driver_rates %}
+          <tr class="rate-row" data-rate-id="{{ rate.id }}">
+            <td>{{ rate.route.origin.name }} &harr; {{ rate.route.destination.name }}</td>
+            {% if selected_driver.driver_type == 'affiliate' %}
+            <td>
+              {% if rate.direction == 'both' %}
+                Both (&harr;)
+              {% elif rate.direction == 'reverse' %}
+                {{ rate.route.destination.name }} &rarr; {{ rate.route.origin.name }}
+              {% else %}
+                {{ rate.route.origin.name }} &rarr; {{ rate.route.destination.name }}
+              {% endif %}
+            </td>
+            <td>{% if rate.vehicle %}{{ rate.vehicle.get_vehicle_type_display }}{% else %}<em>All Vehicles</em>{% endif %}</td>
+            {% endif %}
+            <td>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" min="0"
+                       class="form-control form-control-sm rate-input existing-rate"
+                       data-rate-id="{{ rate.id }}"
+                       data-driver-id="{{ selected_driver.id }}"
+                       data-route-id="{{ rate.route.id }}"
+                       data-vehicle-id="{% if rate.vehicle %}{{ rate.vehicle.id }}{% endif %}"
+                       data-direction="{{ rate.direction }}"
+                       value="{{ rate.base_pay }}">
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-rate-id="{{ rate.id }}" title="Delete">
+                &times;
+              </button>
+              <span class="save-indicator text-success" id="rate-save-{{ rate.id }}" style="display:none">Saved</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-muted mb-3">No rates set for this driver yet.</p>
+      {% endif %}
+
+      {# Add new rate form #}
+      <div class="card card-body bg-light">
+        <h6 class="mb-2">Add Rate</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-auto">
+            <label class="form-label small mb-0">Route</label>
+            <select id="new-route" class="form-select form-select-sm" style="width:280px">
+              <option value="">-- Select --</option>
+              {% for route in routes %}
+              <option value="{{ route.id }}">{{ route.origin.name }} &harr; {{ route.destination.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% if selected_driver.driver_type == 'affiliate' %}
+          <div class="col-auto">
+            <label class="form-label small mb-0">Direction</label>
+            <select id="new-direction" class="form-select form-select-sm" style="width:160px">
+              <option value="both">Both (&harr;)</option>
+              <option value="forward">Forward (&rarr;)</option>
+              <option value="reverse">Reverse (&larr;)</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <label class="form-label small mb-0">Vehicle</label>
+            <select id="new-vehicle" class="form-select form-select-sm" style="width:160px">
+              <option value="">All Vehicles</option>
+              {% for vehicle in vehicles %}
+              <option value="{{ vehicle.id }}">{{ vehicle.get_vehicle_type_display }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div class="col-auto">
+            <label class="form-label small mb-0">Base Pay</label>
+            <div class="input-group input-group-sm" style="width:120px">
+              <span class="input-group-text">$</span>
+              <input type="number" step="0.01" min="0" id="new-base-pay" class="form-control form-control-sm" placeholder="0.00">
+            </div>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-sm btn-primary" id="add-rate-btn">Add</button>
+          </div>
+        </div>
+        <div id="add-rate-feedback" class="mt-2" style="display:none"></div>
+      </div>
+    </div>
+    {% else %}
+    <div class="p-3 text-center text-muted">
+      Select a driver to manage their pay rates.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function showSaved(el) {
+  el.style.display = 'inline';
+  setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+
+// ── Inhouse default rates ──────────────────────────────────────────
+document.querySelectorAll('.inhouse-rate').forEach(input => {
+  let timer;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    const routeId = this.dataset.routeId;
+    const val = this.value;
+    timer = setTimeout(() => {
+      fetch('{% url "update_inhouse_default_rate" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({route_id: routeId, base_pay: val || null})
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showSaved(document.getElementById('inhouse-save-' + routeId));
+        }
+      });
+    }, 600);
+  });
+});
+
+// ── Night bonus ────────────────────────────────────────────────────
+const nightInput = document.getElementById('night-bonus-input');
+if (nightInput) {
+  let timer;
+  nightInput.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      fetch('{% url "update_night_bonus" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({driver_id: this.dataset.driverId, night_bonus: this.value})
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showSaved(document.getElementById('night-bonus-save'));
+        }
+      });
+    }, 600);
+  });
+}
+
+// ── Existing rate inline edit ──────────────────────────────────────
+document.querySelectorAll('.existing-rate').forEach(input => {
+  let timer;
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    const el = this;
+    timer = setTimeout(() => {
+      fetch('{% url "update_pay_rate" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({
+          driver_id: el.dataset.driverId,
+          route_id: el.dataset.routeId,
+          vehicle_id: el.dataset.vehicleId || null,
+          direction: el.dataset.direction || 'both',
+          base_pay: el.value
+        })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          showSaved(document.getElementById('rate-save-' + el.dataset.rateId));
+        }
+      });
+    }, 600);
+  });
+});
+
+// ── Delete rate ────────────────────────────────────────────────────
+document.querySelectorAll('.delete-rate-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    if (!confirm('Delete this rate?')) return;
+    fetch('{% url "delete_pay_rate" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      body: JSON.stringify({rate_id: this.dataset.rateId})
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        this.closest('tr').remove();
+      }
+    });
+  });
+});
+
+// ── Add new rate ───────────────────────────────────────────────────
+const addBtn = document.getElementById('add-rate-btn');
+if (addBtn) {
+  addBtn.addEventListener('click', function() {
+    const routeId = document.getElementById('new-route').value;
+    const basePay = document.getElementById('new-base-pay').value;
+    const directionEl = document.getElementById('new-direction');
+    const vehicleEl = document.getElementById('new-vehicle');
+    const feedback = document.getElementById('add-rate-feedback');
+
+    if (!routeId || !basePay) {
+      feedback.style.display = 'block';
+      feedback.innerHTML = '<span class="text-danger">Please select a route and enter a base pay.</span>';
+      return;
+    }
+
+    const payload = {
+      driver_id: '{{ selected_driver.id }}',
+      route_id: routeId,
+      vehicle_id: vehicleEl ? (vehicleEl.value || null) : null,
+      direction: directionEl ? directionEl.value : 'both',
+      base_pay: basePay
+    };
+
+    fetch('{% url "update_pay_rate" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        feedback.style.display = 'block';
+        feedback.innerHTML = '<span class="text-success">Rate saved! Reloading...</span>';
+        setTimeout(() => location.reload(), 500);
+      } else {
+        feedback.style.display = 'block';
+        feedback.innerHTML = '<span class="text-danger">' + (data.error || 'Error saving rate') + '</span>';
+      }
+    });
+  });
+}
+</script>
+{% endblock extra_js %}

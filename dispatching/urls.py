@@ -148,6 +148,31 @@ urlpatterns = [
         name="process_driver_payment",
     ),
     path(
+        "driver-pay-rates/",
+        views.driver_pay_rates,
+        name="driver_pay_rates",
+    ),
+    path(
+        "update-pay-rate/",
+        views.update_pay_rate,
+        name="update_pay_rate",
+    ),
+    path(
+        "delete-pay-rate/",
+        views.delete_pay_rate,
+        name="delete_pay_rate",
+    ),
+    path(
+        "update-inhouse-default-rate/",
+        views.update_inhouse_default_rate,
+        name="update_inhouse_default_rate",
+    ),
+    path(
+        "update-night-bonus/",
+        views.update_night_bonus,
+        name="update_night_bonus",
+    ),
+    path(
         "delete-leg/",
         views.delete_leg,
         name="delete_leg",

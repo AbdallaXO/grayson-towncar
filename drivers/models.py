@@ -40,6 +40,10 @@ class Driver(models.Model):
         default=False,
         help_text="Exclude this driver's completed trips from route timing data. Affiliates are always excluded."
     )
+    night_bonus = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("10.00"),
+        help_text="Night pickup bonus (10 PM - 6 AM). Set per driver. $0 for no bonus."
+    )
 
     def get_unpaid_legs(self):
         """Return all legs that are unpaid regardless of status"""
@@ -211,6 +215,53 @@ class DriverVehicleAssignment(models.Model):
 
     def __str__(self):
         return f"{self.driver} - {self.vehicle} ({self.date})"
+
+
+class DriverPayRate(models.Model):
+    """Per-driver pay rate. Handles inhouse overrides and affiliate rates.
+
+    For INHOUSE: vehicle is NULL (pay is route-based, same for all vehicles).
+    For AFFILIATE: vehicle can be set for vehicle-specific rates, or NULL for all vehicles.
+    direction handles directional rates without duplicating Route records.
+    """
+    DIRECTION_CHOICES = [
+        ("both", "Both directions"),
+        ("forward", "Forward (origin → dest)"),
+        ("reverse", "Reverse (dest → origin)"),
+    ]
+
+    driver = models.ForeignKey(
+        "Driver", on_delete=models.CASCADE, related_name="pay_rates"
+    )
+    route = models.ForeignKey(
+        "rates.Route", on_delete=models.CASCADE, related_name="driver_pay_rates"
+    )
+    vehicle = models.ForeignKey(
+        "rates.Vehicle", on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="driver_pay_rates",
+        help_text="NULL = same rate for all vehicles on this route."
+    )
+    direction = models.CharField(
+        max_length=10, choices=DIRECTION_CHOICES, default="both",
+        help_text="'both' = same rate both ways. 'forward' = origin→dest. 'reverse' = dest→origin."
+    )
+    base_pay = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        help_text="Base pay for this driver/route/vehicle/direction combo"
+    )
+
+    class Meta:
+        unique_together = ("driver", "route", "vehicle", "direction")
+        ordering = ["driver", "route"]
+        indexes = [
+            models.Index(fields=["driver", "route"]),
+        ]
+
+    def __str__(self):
+        arrows = {"both": "↔", "forward": "→", "reverse": "←"}
+        veh = f" / {self.vehicle}" if self.vehicle else ""
+        return f"{self.driver} - {self.route} {arrows.get(self.direction, '↔')}{veh}: ${self.base_pay}"
 
 
 class DriverPayment(models.Model):

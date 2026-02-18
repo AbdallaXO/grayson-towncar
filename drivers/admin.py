@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -15,6 +15,12 @@ class DriverWeeklyScheduleInline(admin.TabularInline):
     extra = 0
     max_num = 7
     fields = ["day_of_week", "is_available", "start_hour", "end_hour", "preference"]
+
+
+class DriverPayRateInline(admin.TabularInline):
+    model = DriverPayRate
+    extra = 1
+    fields = ["route", "vehicle", "direction", "base_pay"]
 
 
 @admin.register(Driver)
@@ -45,7 +51,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "vehicle",
     ]
 
-    inlines = [DriverWeeklyScheduleInline]
+    inlines = [DriverPayRateInline, DriverWeeklyScheduleInline]
 
     fieldsets = (
         (
@@ -59,6 +65,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                     "schedule",
                     "notes",
                     "payment_method",
+                    "night_bonus",
                 )
             },
         ),
@@ -882,6 +889,16 @@ class LegPaymentAdmin(admin.ModelAdmin):
             return format_html('<span style="color: red;">${0}</span>', abs(profit))
 
     profit_display.short_description = "Profit"
+
+
+@admin.register(DriverPayRate)
+class DriverPayRateAdmin(admin.ModelAdmin):
+    list_display = ["driver", "route", "vehicle", "direction", "base_pay"]
+    list_filter = ["driver__driver_type", "direction"]
+    search_fields = [
+        "driver__profile__first_name",
+        "driver__profile__last_name",
+    ]
 
 
 @admin.register(FleetVehicle)

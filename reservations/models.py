@@ -740,13 +740,30 @@ class Leg(models.Model):
         return best_match
 
     def _assign_route_from_locations(self):
-        if self.route or not self.pickup_location or not self.dropoff_location:
+        if self.route:
+            return
+
+        # 1. Try to get route from reservation's rate (customer chose this at booking)
+        if self.reservation_id:
+            try:
+                res = self.reservation
+                if res and res.rate_id and res.rate.route_id:
+                    self.route = res.rate.route
+                    return
+            except Exception:
+                pass
+
+        # 2. Fall back to text matching from pickup/dropoff locations
+        if not self.pickup_location or not self.dropoff_location:
             return
         locations = list(Location.objects.all())
         origin = self._match_location(self.pickup_location, locations)
         destination = self._match_location(self.dropoff_location, locations)
         if origin and destination:
             route = Route.objects.filter(origin=origin, destination=destination).first()
+            if not route:
+                # Check reverse direction (return trips match origin↔destination)
+                route = Route.objects.filter(origin=destination, destination=origin).first()
             if route:
                 self.route = route
 
@@ -758,62 +775,69 @@ class Leg(models.Model):
         if self.revenue_share is None:
             self.revenue_share = self.calculate_revenue_share()
 
-        # Auto-fill driver pay for inhouse drivers when not set
+        # Clear pay fields when driver changes (recalculate for new driver)
+        if self.pk:
+            try:
+                old_driver_id = Leg.objects.filter(pk=self.pk).values_list(
+                    'driver_id', flat=True
+                ).first()
+                if old_driver_id is not None and old_driver_id != self.driver_id:
+                    self.driver_base_pay = None
+                    self.driver_gratuity = None
+                    self.driver_additional = None
+                    self.driver_pay_amount = None
+            except Exception:
+                pass
+
+        # Auto-fill driver pay when not set (inhouse and affiliate)
         if (
             self.driver_base_pay is None
             and self.driver_gratuity is None
             and self.driver_additional is None
             and self.driver_pay_amount is None
             and self.driver
-            and self.driver.driver_type == "inhouse"
         ):
-            base_pay = None
-            route = self.route
-            if route:
-                base_pay = route.inhouse_base_pay
+            from drivers.pay_calc import calculate_driver_pay, calculate_night_bonus
+
+            base_pay = calculate_driver_pay(self)
 
             if base_pay is not None:
+                # Gratuity split (inhouse only — affiliates don't get customer gratuity)
                 gratuity_share = Decimal("0.00")
-                reservation = self.reservation
-                if reservation:
-                    gratuity_amount = reservation.gratuity_amount
-                    if (
-                        gratuity_amount is None
-                        and reservation.gratuity_percentage
-                        and reservation.base_price
-                    ):
-                        gratuity_amount = (
-                            reservation.base_price
-                            * reservation.gratuity_percentage
-                            / Decimal("100")
-                        )
-                    if gratuity_amount:
-                        leg_count = reservation.legs.count()
-                        if self.pk is None:
-                            leg_count += 1
-                        if leg_count <= 0:
-                            leg_count = 1
-                        gratuity_share = (gratuity_amount / Decimal(leg_count)).quantize(
-                            Decimal("0.01")
-                        )
+                if self.driver.driver_type == "inhouse":
+                    reservation = self.reservation
+                    if reservation:
+                        gratuity_amount = reservation.gratuity_amount
+                        if (
+                            gratuity_amount is None
+                            and reservation.gratuity_percentage
+                            and reservation.base_price
+                        ):
+                            gratuity_amount = (
+                                reservation.base_price
+                                * reservation.gratuity_percentage
+                                / Decimal("100")
+                            )
+                        if gratuity_amount:
+                            leg_count = reservation.legs.count()
+                            if self.pk is None:
+                                leg_count += 1
+                            if leg_count <= 0:
+                                leg_count = 1
+                            gratuity_share = (gratuity_amount / Decimal(leg_count)).quantize(
+                                Decimal("0.01")
+                            )
 
                 # Set base pay and gratuity separately
                 self.driver_base_pay = base_pay.quantize(Decimal("0.01"))
                 self.driver_gratuity = gratuity_share.quantize(Decimal("0.01"))
-                
-                # Handle night pickup bonus (adds to base pay)
-                if self.pickup_time:
-                    is_night_pickup = (
-                        self.pickup_time >= time(22, 1)
-                        or self.pickup_time <= time(5, 59)
-                    )
-                    if is_night_pickup:
-                        self.driver_base_pay = (
-                            self.driver_base_pay + Decimal("10.00")
-                        ).quantize(Decimal("0.01"))
-                
-                # Maintain backward compatibility with driver_pay_amount
+
+                # Night pickup bonus goes in additional (early/late fee)
+                night_bonus = calculate_night_bonus(self.driver, self.pickup_time)
                 additional = self.driver_additional or Decimal("0.00")
+                if night_bonus > 0:
+                    additional = (additional + night_bonus).quantize(Decimal("0.01"))
+                    self.driver_additional = additional
                 self.driver_pay_amount = (self.driver_base_pay + self.driver_gratuity + additional).quantize(
                     Decimal("0.01")
                 )

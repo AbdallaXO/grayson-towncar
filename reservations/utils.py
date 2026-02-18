@@ -494,6 +494,20 @@ def extra_charges(reservation):
     reservation.additional_charges = total_extra
     reservation.total_price = reservation.base_price + total_extra + gratuity_amount
     reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount", "special_requests"])
+
+    # For round-trips, split gratuity into each leg's private_notes
+    if gratuity_amount > 0:
+        legs = list(reservation.legs.all())
+        if len(legs) > 1:
+            gratuity_per_leg = (gratuity_amount / Decimal(len(legs))).quantize(Decimal("0.01"))
+            for leg in legs:
+                note = f"${gratuity_per_leg:.2f} Gratuity Included"
+                if leg.private_notes:
+                    leg.private_notes = f"{leg.private_notes}\n{note}"
+                else:
+                    leg.private_notes = note
+                leg.save(update_fields=["private_notes"])
+
     return total_extra
 
 

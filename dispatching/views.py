@@ -4242,6 +4242,210 @@ def process_driver_payment(request):
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
 
 
+# ── Driver Pay Rates ─────────────────────────────────────────────────
+
+
+@login_required(login_url="login")
+def driver_pay_rates(request):
+    """Pay rates management page — inhouse defaults + per-driver rates."""
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from drivers.models import Driver, DriverPayRate
+    from rates.models import Route, Vehicle
+
+    selected_driver_id = request.GET.get("driver")
+    selected_driver = None
+    driver_rates = []
+
+    drivers = Driver.objects.select_related("profile").order_by(
+        "driver_type", "profile__first_name"
+    )
+    routes = Route.objects.select_related("origin", "destination").order_by("id")
+    vehicles = Vehicle.objects.order_by("capacity")
+
+    if selected_driver_id:
+        try:
+            selected_driver = Driver.objects.select_related("profile").get(
+                id=selected_driver_id
+            )
+            driver_rates = DriverPayRate.objects.filter(
+                driver=selected_driver
+            ).select_related("route__origin", "route__destination", "vehicle").order_by(
+                "route__id", "direction", "vehicle__vehicle_type"
+            )
+        except Driver.DoesNotExist:
+            pass
+
+    context = {
+        "drivers": drivers,
+        "selected_driver": selected_driver,
+        "selected_driver_id": selected_driver_id,
+        "driver_rates": driver_rates,
+        "routes": routes,
+        "vehicles": vehicles,
+    }
+    return render(request, "dispatching/driver_pay_rates.html", context)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def update_pay_rate(request):
+    """Create or update a DriverPayRate via AJAX."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from drivers.models import Driver, DriverPayRate
+    from rates.models import Route, Vehicle
+
+    try:
+        data = json.loads(request.body)
+        driver_id = data.get("driver_id")
+        route_id = data.get("route_id")
+        vehicle_id = data.get("vehicle_id")  # None = all vehicles
+        direction = data.get("direction", "both")
+        if direction not in ("both", "forward", "reverse"):
+            direction = "both"
+        base_pay = data.get("base_pay")
+
+        if not driver_id or not route_id or base_pay is None:
+            return JsonResponse(
+                {"success": False, "error": "Missing required fields"}, status=400
+            )
+
+        driver = Driver.objects.get(id=driver_id)
+        route = Route.objects.get(id=route_id)
+        vehicle = Vehicle.objects.get(id=vehicle_id) if vehicle_id else None
+
+        rate, created = DriverPayRate.objects.update_or_create(
+            driver=driver,
+            route=route,
+            vehicle=vehicle,
+            direction=direction,
+            defaults={"base_pay": base_pay},
+        )
+
+        return JsonResponse({
+            "success": True,
+            "rate_id": rate.id,
+            "created": created,
+            "base_pay": float(rate.base_pay),
+        })
+
+    except (Driver.DoesNotExist, Route.DoesNotExist, Vehicle.DoesNotExist):
+        return JsonResponse(
+            {"success": False, "error": "Driver, route, or vehicle not found"},
+            status=404,
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": str(e)}, status=500
+        )
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def delete_pay_rate(request):
+    """Delete a DriverPayRate via AJAX."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from drivers.models import DriverPayRate
+
+    try:
+        data = json.loads(request.body)
+        rate_id = data.get("rate_id")
+        if not rate_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing rate_id"}, status=400
+            )
+        DriverPayRate.objects.filter(id=rate_id).delete()
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": str(e)}, status=500
+        )
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def update_inhouse_default_rate(request):
+    """Update Route.inhouse_base_pay via AJAX."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from rates.models import Route
+
+    try:
+        data = json.loads(request.body)
+        route_id = data.get("route_id")
+        base_pay = data.get("base_pay")
+
+        if not route_id:
+            return JsonResponse(
+                {"success": False, "error": "Missing route_id"}, status=400
+            )
+
+        route = Route.objects.get(id=route_id)
+        if base_pay is None or base_pay == "":
+            route.inhouse_base_pay = None
+        else:
+            route.inhouse_base_pay = base_pay
+        route.save()
+
+        return JsonResponse({
+            "success": True,
+            "base_pay": float(route.inhouse_base_pay) if route.inhouse_base_pay else None,
+        })
+
+    except Route.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Route not found"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": str(e)}, status=500
+        )
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def update_night_bonus(request):
+    """Update Driver.night_bonus via AJAX."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from drivers.models import Driver
+
+    try:
+        data = json.loads(request.body)
+        driver_id = data.get("driver_id")
+        night_bonus = data.get("night_bonus")
+
+        if not driver_id or night_bonus is None:
+            return JsonResponse(
+                {"success": False, "error": "Missing fields"}, status=400
+            )
+
+        driver = Driver.objects.get(id=driver_id)
+        driver.night_bonus = night_bonus
+        driver.save(update_fields=["night_bonus"])
+
+        return JsonResponse({
+            "success": True,
+            "night_bonus": float(driver.night_bonus),
+        })
+
+    except Driver.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Driver not found"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"success": False, "error": str(e)}, status=500
+        )
+
+
 @login_required(login_url="login")
 @require_http_methods(["POST"])
 def delete_leg(request):
