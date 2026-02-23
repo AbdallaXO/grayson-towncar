@@ -158,6 +158,11 @@ urlpatterns = [
         name="update_pay_rate",
     ),
     path(
+        "bulk-update-pay-rates/",
+        views.bulk_update_pay_rates,
+        name="bulk_update_pay_rates",
+    ),
+    path(
         "delete-pay-rate/",
         views.delete_pay_rate,
         name="delete_pay_rate",

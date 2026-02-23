@@ -8,6 +8,19 @@
   .save-indicator { font-size: 0.75rem; margin-left: 0.5rem; }
   .section-card { border: 1px solid #dee2e6; border-radius: 0.5rem; }
   .section-header { background: #f8f9fa; padding: 0.75rem 1rem; border-bottom: 1px solid #dee2e6; border-radius: 0.5rem 0.5rem 0 0; }
+  /* Grid setup styles */
+  .grid-table { font-size: 0.85rem; }
+  .grid-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d; font-weight: 600; }
+  .grid-table .grid-input { width: 80px; text-align: center; }
+  .grid-table td { vertical-align: middle; }
+  .grid-vehicle-label { font-weight: 500; white-space: nowrap; }
+  .grid-arrow { color: #6c757d; font-size: 0.75rem; }
+  .copy-btn { font-size: 0.7rem; padding: 0.15rem 0.4rem; }
+  /* Route group collapsed display */
+  .route-group-header { border-radius: 0.25rem 0.25rem 0 0; }
+  .route-group-header:hover { background: #e9ecef !important; }
+  .route-group-header[aria-expanded="true"] .route-group-preview { display: none; }
+  .route-group-header .badge { font-size: 0.7rem; font-weight: 500; }
 </style>
 {% endblock extra_css %}
 
@@ -89,7 +102,7 @@
         <small class="text-muted ms-3">Set to $0 if this driver doesn't get a night bonus</small>
       </div>
 
-      {# Existing rates table #}
+      {# Existing rates #}
       <h6>
         Rates for {{ selected_driver.profile.get_full_name }}
         <span class="badge bg-{% if selected_driver.driver_type == 'inhouse' %}primary{% else %}warning text-dark{% endif %}">
@@ -97,15 +110,75 @@
         </span>
       </h6>
 
-      {% if driver_rates %}
+      {% if selected_driver.driver_type == 'affiliate' and grouped_rates %}
+      {# ── Affiliate: grouped by route ─────────────────────────── #}
+      <div class="d-flex flex-column gap-2 mb-3">
+        {% for group in grouped_rates %}
+        <div class="border rounded">
+          <div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light route-group-header" style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#route-group-{{ group.route.id }}">
+            <div>
+              <strong>{{ group.route.origin.name }} &harr; {{ group.route.destination.name }}</strong>
+              <span class="badge bg-secondary ms-2">{{ group.rates|length }} rate{{ group.rates|length|pluralize }}</span>
+            </div>
+            <small class="text-muted route-group-preview">
+              {% for rate in group.rates %}{% if rate.vehicle %}{{ rate.vehicle.get_vehicle_type_display }}{% else %}All{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}
+            </small>
+          </div>
+          <div class="collapse" id="route-group-{{ group.route.id }}">
+            <table class="table table-sm table-bordered mb-0 grid-table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>Direction</th>
+                  <th style="width:130px">Base Pay</th>
+                  <th style="width:60px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for rate in group.rates %}
+                <tr class="rate-row" data-rate-id="{{ rate.id }}">
+                  <td class="grid-vehicle-label">{% if rate.vehicle %}{{ rate.vehicle.get_vehicle_type_display }}{% else %}<em>All Vehicles</em>{% endif %}</td>
+                  <td>
+                    {% if rate.direction == 'both' %}
+                      Both (&harr;)
+                    {% elif rate.direction == 'reverse' %}
+                      {{ group.route.destination.name }} &rarr; {{ group.route.origin.name }}
+                    {% else %}
+                      {{ group.route.origin.name }} &rarr; {{ group.route.destination.name }}
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">$</span>
+                      <input type="number" step="0.01" min="0"
+                             class="form-control form-control-sm rate-input existing-rate"
+                             data-rate-id="{{ rate.id }}"
+                             data-driver-id="{{ selected_driver.id }}"
+                             data-route-id="{{ rate.route.id }}"
+                             data-vehicle-id="{% if rate.vehicle %}{{ rate.vehicle.id }}{% endif %}"
+                             data-direction="{{ rate.direction }}"
+                             value="{{ rate.base_pay }}">
+                    </div>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-rate-id="{{ rate.id }}" title="Delete">&times;</button>
+                    <span class="save-indicator text-success" id="rate-save-{{ rate.id }}" style="display:none">Saved</span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% elif driver_rates %}
+      {# ── Inhouse: flat table ─────────────────────────────────── #}
       <table class="table table-sm table-bordered mb-3">
         <thead>
           <tr>
             <th>Route</th>
-            {% if selected_driver.driver_type == 'affiliate' %}
-            <th>Direction</th>
-            <th>Vehicle</th>
-            {% endif %}
             <th style="width:140px">Base Pay</th>
             <th style="width:80px"></th>
           </tr>
@@ -114,18 +187,6 @@
           {% for rate in driver_rates %}
           <tr class="rate-row" data-rate-id="{{ rate.id }}">
             <td>{{ rate.route.origin.name }} &harr; {{ rate.route.destination.name }}</td>
-            {% if selected_driver.driver_type == 'affiliate' %}
-            <td>
-              {% if rate.direction == 'both' %}
-                Both (&harr;)
-              {% elif rate.direction == 'reverse' %}
-                {{ rate.route.destination.name }} &rarr; {{ rate.route.origin.name }}
-              {% else %}
-                {{ rate.route.origin.name }} &rarr; {{ rate.route.destination.name }}
-              {% endif %}
-            </td>
-            <td>{% if rate.vehicle %}{{ rate.vehicle.get_vehicle_type_display }}{% else %}<em>All Vehicles</em>{% endif %}</td>
-            {% endif %}
             <td>
               <div class="input-group input-group-sm">
                 <span class="input-group-text">$</span>
@@ -140,9 +201,7 @@
               </div>
             </td>
             <td>
-              <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-rate-id="{{ rate.id }}" title="Delete">
-                &times;
-              </button>
+              <button class="btn btn-sm btn-outline-danger delete-rate-btn" data-rate-id="{{ rate.id }}" title="Delete">&times;</button>
               <span class="save-indicator text-success" id="rate-save-{{ rate.id }}" style="display:none">Saved</span>
             </td>
           </tr>
@@ -153,51 +212,151 @@
       <p class="text-muted mb-3">No rates set for this driver yet.</p>
       {% endif %}
 
-      {# Add new rate form #}
-      <div class="card card-body bg-light">
-        <h6 class="mb-2">Add Rate</h6>
-        <div class="row g-2 align-items-end">
+      {% if selected_driver.driver_type == 'affiliate' %}
+      {# ── Quick Setup (Affiliate only) ──────────────────────────── #}
+      <div class="card card-body bg-light mb-3" id="quick-setup">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Quick Setup</h6>
+        </div>
+        <div class="row g-2 align-items-end mb-3">
           <div class="col-auto">
             <label class="form-label small mb-0">Route</label>
-            <select id="new-route" class="form-select form-select-sm" style="width:280px">
-              <option value="">-- Select --</option>
+            <select id="grid-route" class="form-select form-select-sm" style="width:320px">
+              <option value="">-- Select Route --</option>
               {% for route in routes %}
-              <option value="{{ route.id }}">{{ route.origin.name }} &harr; {{ route.destination.name }}</option>
+              <option value="{{ route.id }}"
+                      data-origin="{{ route.origin.name }}"
+                      data-dest="{{ route.destination.name }}">
+                {{ route.origin.name }} &harr; {{ route.destination.name }}
+              </option>
               {% endfor %}
             </select>
-          </div>
-          {% if selected_driver.driver_type == 'affiliate' %}
-          <div class="col-auto">
-            <label class="form-label small mb-0">Direction</label>
-            <select id="new-direction" class="form-select form-select-sm" style="width:160px">
-              <option value="both">Both (&harr;)</option>
-              <option value="forward">Forward (&rarr;)</option>
-              <option value="reverse">Reverse (&larr;)</option>
-            </select>
-          </div>
-          <div class="col-auto">
-            <label class="form-label small mb-0">Vehicle</label>
-            <select id="new-vehicle" class="form-select form-select-sm" style="width:160px">
-              <option value="">All Vehicles</option>
-              {% for vehicle in vehicles %}
-              <option value="{{ vehicle.id }}">{{ vehicle.get_vehicle_type_display }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          {% endif %}
-          <div class="col-auto">
-            <label class="form-label small mb-0">Base Pay</label>
-            <div class="input-group input-group-sm" style="width:120px">
-              <span class="input-group-text">$</span>
-              <input type="number" step="0.01" min="0" id="new-base-pay" class="form-control form-control-sm" placeholder="0.00">
-            </div>
-          </div>
-          <div class="col-auto">
-            <button class="btn btn-sm btn-primary" id="add-rate-btn">Add</button>
           </div>
         </div>
-        <div id="add-rate-feedback" class="mt-2" style="display:none"></div>
+
+        <div id="grid-container" style="display:none">
+          {# ── Mode toggle ── #}
+          <div class="d-flex gap-3 mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="grid-mode" id="mode-flat" value="flat" checked>
+              <label class="form-check-label small" for="mode-flat">Same price for all vehicles</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="grid-mode" id="mode-per-vehicle" value="per-vehicle">
+              <label class="form-check-label small" for="mode-per-vehicle">Different price per vehicle</label>
+            </div>
+          </div>
+
+          {# ── Flat mode: single row ── #}
+          <div id="flat-container">
+            <div class="row g-2 align-items-end">
+              <div class="col-auto">
+                <label class="form-label small mb-0" id="flat-fwd-label">Forward</label>
+                <div class="input-group input-group-sm" style="width:120px">
+                  <span class="input-group-text">$</span>
+                  <input type="number" step="0.01" min="0" id="flat-fwd" class="form-control form-control-sm" placeholder="0.00">
+                </div>
+              </div>
+              <div class="col-auto">
+                <label class="form-label small mb-0" id="flat-rev-label">Reverse</label>
+                <div class="input-group input-group-sm" style="width:120px">
+                  <span class="input-group-text">$</span>
+                  <input type="number" step="0.01" min="0" id="flat-rev" class="form-control form-control-sm" placeholder="0.00">
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="form-check" style="margin-bottom:0.3rem">
+                  <input class="form-check-input" type="checkbox" id="flat-same" checked>
+                  <label class="form-check-label small" for="flat-same">Same both ways</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {# ── Per-vehicle mode: full grid ── #}
+          <div id="per-vehicle-container" style="display:none">
+            <table class="table table-sm table-bordered grid-table mb-2">
+              <thead>
+                <tr>
+                  <th style="width:140px">Vehicle</th>
+                  <th class="text-center" id="grid-fwd-header" style="width:120px">
+                    <span class="grid-arrow">Forward &rarr;</span>
+                  </th>
+                  <th class="text-center" style="width:40px"></th>
+                  <th class="text-center" id="grid-rev-header" style="width:120px">
+                    <span class="grid-arrow">&larr; Reverse</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="grid-body">
+                {# Populated by JS #}
+              </tbody>
+            </table>
+
+            <div class="d-flex gap-2 align-items-center mb-2">
+              <button class="btn btn-sm btn-outline-secondary" id="grid-copy-fwd-btn" title="Copy all Forward prices to Reverse">
+                Copy Forward &rarr; Reverse
+              </button>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 align-items-center mt-3">
+            <button class="btn btn-sm btn-primary" id="grid-save-btn">
+              <i class="bi bi-check2-all me-1"></i>Save Rates
+            </button>
+            <span id="grid-save-status" class="text-success small" style="display:none">All saved!</span>
+          </div>
+        </div>
       </div>
+      {% endif %}
+
+      {# Add single rate form (kept as fallback) #}
+      <details class="mb-2">
+        <summary class="small text-muted" style="cursor:pointer">Add single rate manually</summary>
+        <div class="card card-body bg-light mt-2">
+          <div class="row g-2 align-items-end">
+            <div class="col-auto">
+              <label class="form-label small mb-0">Route</label>
+              <select id="new-route" class="form-select form-select-sm" style="width:280px">
+                <option value="">-- Select --</option>
+                {% for route in routes %}
+                <option value="{{ route.id }}">{{ route.origin.name }} &harr; {{ route.destination.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% if selected_driver.driver_type == 'affiliate' %}
+            <div class="col-auto">
+              <label class="form-label small mb-0">Direction</label>
+              <select id="new-direction" class="form-select form-select-sm" style="width:160px">
+                <option value="both">Both (&harr;)</option>
+                <option value="forward">Forward (&rarr;)</option>
+                <option value="reverse">Reverse (&larr;)</option>
+              </select>
+            </div>
+            <div class="col-auto">
+              <label class="form-label small mb-0">Vehicle</label>
+              <select id="new-vehicle" class="form-select form-select-sm" style="width:160px">
+                <option value="">All Vehicles</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.id }}">{{ vehicle.get_vehicle_type_display }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+            <div class="col-auto">
+              <label class="form-label small mb-0">Base Pay</label>
+              <div class="input-group input-group-sm" style="width:120px">
+                <span class="input-group-text">$</span>
+                <input type="number" step="0.01" min="0" id="new-base-pay" class="form-control form-control-sm" placeholder="0.00">
+              </div>
+            </div>
+            <div class="col-auto">
+              <button class="btn btn-sm btn-primary" id="add-rate-btn">Add</button>
+            </div>
+          </div>
+          <div id="add-rate-feedback" class="mt-2" style="display:none"></div>
+        </div>
+      </details>
     </div>
     {% else %}
     <div class="p-3 text-center text-muted">
@@ -211,6 +370,15 @@
 {% block extra_js %}
 <script>
 const csrfToken = '{{ csrf_token }}';
+const driverId = '{{ selected_driver.id|default:"" }}';
+const existingRates = JSON.parse('{{ existing_rates_json|escapejs }}');
+
+// Vehicle data from Django
+const vehicles = [
+  {% for vehicle in vehicles %}
+  {id: '{{ vehicle.id }}', name: '{{ vehicle.get_vehicle_type_display }}'}{% if not forloop.last %},{% endif %}
+  {% endfor %}
+];
 
 function showSaved(el) {
   el.style.display = 'inline';
@@ -294,6 +462,7 @@ document.querySelectorAll('.existing-rate').forEach(input => {
 document.querySelectorAll('.delete-rate-btn').forEach(btn => {
   btn.addEventListener('click', function() {
     if (!confirm('Delete this rate?')) return;
+    const row = this.closest('tr');
     fetch('{% url "delete_pay_rate" %}', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
@@ -302,13 +471,18 @@ document.querySelectorAll('.delete-rate-btn').forEach(btn => {
     .then(r => r.json())
     .then(data => {
       if (data.success) {
-        this.closest('tr').remove();
+        // Remove the row; if last rate in a route group, remove the whole card
+        const groupCard = row.closest('.border.rounded');
+        row.remove();
+        if (groupCard && groupCard.querySelectorAll('.rate-row').length === 0) {
+          groupCard.remove();
+        }
       }
     });
   });
 });
 
-// ── Add new rate ───────────────────────────────────────────────────
+// ── Add new rate (single) ──────────────────────────────────────────
 const addBtn = document.getElementById('add-rate-btn');
 if (addBtn) {
   addBtn.addEventListener('click', function() {
@@ -325,7 +499,7 @@ if (addBtn) {
     }
 
     const payload = {
-      driver_id: '{{ selected_driver.id }}',
+      driver_id: driverId,
       route_id: routeId,
       vehicle_id: vehicleEl ? (vehicleEl.value || null) : null,
       direction: directionEl ? directionEl.value : 'both',
@@ -349,6 +523,219 @@ if (addBtn) {
       }
     });
   });
+}
+
+// ── Quick Setup (Affiliate) ────────────────────────────────────────
+const gridRoute = document.getElementById('grid-route');
+const gridContainer = document.getElementById('grid-container');
+const gridBody = document.getElementById('grid-body');
+const flatContainer = document.getElementById('flat-container');
+const perVehicleContainer = document.getElementById('per-vehicle-container');
+
+function getGridMode() {
+  var el = document.querySelector('input[name="grid-mode"]:checked');
+  return el ? el.value : 'flat';
+}
+
+if (gridRoute) {
+  // Mode toggle: switch between flat and per-vehicle
+  document.querySelectorAll('input[name="grid-mode"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      if (this.value === 'flat') {
+        flatContainer.style.display = '';
+        perVehicleContainer.style.display = 'none';
+      } else {
+        flatContainer.style.display = 'none';
+        perVehicleContainer.style.display = '';
+      }
+    });
+  });
+
+  // "Same both ways" checkbox syncs reverse to forward
+  var flatSame = document.getElementById('flat-same');
+  var flatFwd = document.getElementById('flat-fwd');
+  var flatRev = document.getElementById('flat-rev');
+
+  flatSame.addEventListener('change', function() {
+    if (this.checked) {
+      flatRev.value = flatFwd.value;
+      flatRev.disabled = true;
+    } else {
+      flatRev.disabled = false;
+    }
+  });
+  flatFwd.addEventListener('input', function() {
+    if (flatSame.checked) flatRev.value = this.value;
+  });
+  // Init: disable reverse since "same" is checked by default
+  flatRev.disabled = true;
+
+  gridRoute.addEventListener('change', function() {
+    var routeId = this.value;
+    if (!routeId) {
+      gridContainer.style.display = 'none';
+      return;
+    }
+
+    var opt = this.options[this.selectedIndex];
+    var origin = opt.dataset.origin;
+    var dest = opt.dataset.dest;
+
+    // Update flat labels
+    document.getElementById('flat-fwd-label').textContent = origin + ' → ' + dest;
+    document.getElementById('flat-rev-label').textContent = dest + ' → ' + origin;
+
+    // Pre-fill flat from existing "all/both" rate
+    var bothKey = routeId + '-all-both';
+    var fwdAllKey = routeId + '-all-forward';
+    var revAllKey = routeId + '-all-reverse';
+    if (existingRates[bothKey]) {
+      flatFwd.value = existingRates[bothKey];
+      flatRev.value = existingRates[bothKey];
+      flatSame.checked = true;
+      flatRev.disabled = true;
+    } else if (existingRates[fwdAllKey] || existingRates[revAllKey]) {
+      flatFwd.value = existingRates[fwdAllKey] || '';
+      flatRev.value = existingRates[revAllKey] || '';
+      flatSame.checked = (flatFwd.value === flatRev.value && flatFwd.value !== '');
+      flatRev.disabled = flatSame.checked;
+    } else {
+      flatFwd.value = '';
+      flatRev.value = '';
+    }
+
+    // Update per-vehicle column headers
+    var fwdHeader = document.getElementById('grid-fwd-header');
+    var revHeader = document.getElementById('grid-rev-header');
+    if (fwdHeader) fwdHeader.innerHTML = '<span class="grid-arrow">' + origin + ' &rarr; ' + dest + '</span>';
+    if (revHeader) revHeader.innerHTML = '<span class="grid-arrow">' + dest + ' &rarr; ' + origin + '</span>';
+
+    // Build per-vehicle grid rows
+    gridBody.innerHTML = '';
+    vehicles.forEach(function(v) {
+      var fwdKey = routeId + '-' + v.id + '-forward';
+      var revKey = routeId + '-' + v.id + '-reverse';
+      var fwdVal = existingRates[fwdKey] || '';
+      var revVal = existingRates[revKey] || '';
+
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="grid-vehicle-label">' + v.name + '</td>' +
+        '<td class="text-center">' +
+          '<div class="input-group input-group-sm justify-content-center">' +
+            '<span class="input-group-text">$</span>' +
+            '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-fwd"' +
+                   ' data-route="' + routeId + '" data-vehicle="' + v.id + '"' +
+                   ' value="' + fwdVal + '" placeholder="&#8212;">' +
+          '</div>' +
+        '</td>' +
+        '<td class="text-center">' +
+          '<button class="btn btn-outline-secondary copy-btn copy-row-btn" title="Copy forward to reverse">&rarr;</button>' +
+        '</td>' +
+        '<td class="text-center">' +
+          '<div class="input-group input-group-sm justify-content-center">' +
+            '<span class="input-group-text">$</span>' +
+            '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-rev"' +
+                   ' data-route="' + routeId + '" data-vehicle="' + v.id + '"' +
+                   ' value="' + revVal + '" placeholder="&#8212;">' +
+          '</div>' +
+        '</td>';
+      gridBody.appendChild(tr);
+
+      tr.querySelector('.copy-row-btn').addEventListener('click', function() {
+        var fwd = tr.querySelector('.grid-fwd');
+        var rev = tr.querySelector('.grid-rev');
+        if (fwd.value) {
+          rev.value = fwd.value;
+          rev.classList.add('border-success');
+          setTimeout(function() { rev.classList.remove('border-success'); }, 600);
+        }
+      });
+    });
+
+    gridContainer.style.display = 'block';
+  });
+
+  // Copy ALL forward to reverse (per-vehicle mode)
+  var copyAllBtn = document.getElementById('grid-copy-fwd-btn');
+  if (copyAllBtn) {
+    copyAllBtn.addEventListener('click', function() {
+      gridBody.querySelectorAll('tr').forEach(function(tr) {
+        var fwd = tr.querySelector('.grid-fwd');
+        var rev = tr.querySelector('.grid-rev');
+        if (fwd && rev && fwd.value) rev.value = fwd.value;
+      });
+    });
+  }
+
+  // Save — works for both modes
+  var gridSaveBtn = document.getElementById('grid-save-btn');
+  if (gridSaveBtn) {
+    gridSaveBtn.addEventListener('click', function() {
+      var routeId = gridRoute.value;
+      if (!routeId) return;
+
+      var rates = [];
+      var mode = getGridMode();
+
+      if (mode === 'flat') {
+        // Flat mode: save as "All Vehicles / Both" or separate fwd/rev
+        var fwdVal = flatFwd.value;
+        var revVal = flatRev.value;
+        if (!fwdVal && !revVal) return;
+
+        if (flatSame.checked && fwdVal) {
+          rates.push({route_id: routeId, vehicle_id: null, direction: 'both', base_pay: fwdVal});
+        } else {
+          if (fwdVal) rates.push({route_id: routeId, vehicle_id: null, direction: 'forward', base_pay: fwdVal});
+          if (revVal) rates.push({route_id: routeId, vehicle_id: null, direction: 'reverse', base_pay: revVal});
+        }
+      } else {
+        // Per-vehicle mode
+        gridBody.querySelectorAll('tr').forEach(function(tr) {
+          var fwd = tr.querySelector('.grid-fwd');
+          var rev = tr.querySelector('.grid-rev');
+          var vehicleId = fwd.dataset.vehicle;
+          if (fwd.value) rates.push({route_id: routeId, vehicle_id: vehicleId, direction: 'forward', base_pay: fwd.value});
+          if (rev.value) rates.push({route_id: routeId, vehicle_id: vehicleId, direction: 'reverse', base_pay: rev.value});
+        });
+      }
+
+      if (rates.length === 0) return;
+
+      gridSaveBtn.disabled = true;
+      gridSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+
+      fetch('{% url "bulk_update_pay_rates" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({driver_id: driverId, rates: rates})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var status = document.getElementById('grid-save-status');
+        if (data.success) {
+          status.textContent = data.saved + ' rate(s) saved!';
+          status.className = 'text-success small';
+          status.style.display = 'inline';
+
+          // Update local existingRates map
+          rates.forEach(function(r) {
+            var vid = r.vehicle_id || 'all';
+            existingRates[r.route_id + '-' + vid + '-' + r.direction] = r.base_pay;
+          });
+        } else {
+          status.textContent = data.error || 'Error saving rates';
+          status.className = 'text-danger small';
+          status.style.display = 'inline';
+        }
+        setTimeout(function() { status.style.display = 'none'; }, 3000);
+      }).finally(function() {
+        gridSaveBtn.disabled = false;
+        gridSaveBtn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Save Rates';
+      });
+    });
+  }
 }
 </script>
 {% endblock extra_js %}

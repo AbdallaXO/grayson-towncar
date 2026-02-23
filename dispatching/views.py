@@ -4277,13 +4277,35 @@ def driver_pay_rates(request):
         except Driver.DoesNotExist:
             pass
 
+    # Build JSON map of existing rates for grid pre-fill: "routeId-vehicleId-direction" -> base_pay
+    existing_rates_map = {}
+    for rate in driver_rates:
+        vid = str(rate.vehicle_id) if rate.vehicle_id else "all"
+        key = f"{rate.route_id}-{vid}-{rate.direction}"
+        existing_rates_map[key] = str(rate.base_pay)
+
+    # Group rates by route for collapsed display
+    from collections import OrderedDict
+
+    grouped_rates = OrderedDict()
+    for rate in driver_rates:
+        route_key = rate.route_id
+        if route_key not in grouped_rates:
+            grouped_rates[route_key] = {
+                "route": rate.route,
+                "rates": [],
+            }
+        grouped_rates[route_key]["rates"].append(rate)
+
     context = {
         "drivers": drivers,
         "selected_driver": selected_driver,
         "selected_driver_id": selected_driver_id,
         "driver_rates": driver_rates,
+        "grouped_rates": list(grouped_rates.values()),
         "routes": routes,
         "vehicles": vehicles,
+        "existing_rates_json": json.dumps(existing_rates_map),
     }
     return render(request, "dispatching/driver_pay_rates.html", context)
 
@@ -4341,6 +4363,72 @@ def update_pay_rate(request):
         return JsonResponse(
             {"success": False, "error": str(e)}, status=500
         )
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def bulk_update_pay_rates(request):
+    """Create or update multiple DriverPayRates in a single request."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    from drivers.models import Driver, DriverPayRate
+    from rates.models import Route, Vehicle
+
+    try:
+        data = json.loads(request.body)
+        driver_id = data.get("driver_id")
+        rates_list = data.get("rates", [])
+
+        if not driver_id or not rates_list:
+            return JsonResponse(
+                {"success": False, "error": "Missing driver_id or rates"}, status=400
+            )
+
+        driver = Driver.objects.get(id=driver_id)
+
+        # Pre-fetch all vehicles and routes in one query each
+        vehicle_ids = {r["vehicle_id"] for r in rates_list if r.get("vehicle_id")}
+        route_ids = {r["route_id"] for r in rates_list if r.get("route_id")}
+
+        vehicles_map = {str(v.id): v for v in Vehicle.objects.filter(id__in=vehicle_ids)}
+        routes_map = {str(r.id): r for r in Route.objects.filter(id__in=route_ids)}
+
+        saved = 0
+        errors = []
+        for item in rates_list:
+            route_id = str(item.get("route_id", ""))
+            vehicle_id = str(item.get("vehicle_id", ""))
+            direction = item.get("direction", "both")
+            base_pay = item.get("base_pay")
+
+            if direction not in ("both", "forward", "reverse"):
+                direction = "both"
+
+            route = routes_map.get(route_id)
+            vehicle = vehicles_map.get(vehicle_id)
+
+            if not route:
+                errors.append(f"Route {route_id} not found")
+                continue
+
+            DriverPayRate.objects.update_or_create(
+                driver=driver,
+                route=route,
+                vehicle=vehicle,
+                direction=direction,
+                defaults={"base_pay": base_pay},
+            )
+            saved += 1
+
+        return JsonResponse({"success": True, "saved": saved, "errors": errors})
+
+    except Driver.DoesNotExist:
+        return JsonResponse(
+            {"success": False, "error": "Driver not found"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
 @login_required(login_url="login")
