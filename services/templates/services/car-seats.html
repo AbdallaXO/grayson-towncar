@@ -1,0 +1,734 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Car Seat Car Service Orlando | Free Child Seats | Grayson Towncar{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Free professionally installed Graco car seats on every ride. MCO airport transfers to Disney World, Universal, Epic Universe & Port Canaveral. Book today." />
+  <meta name="keywords"
+        content="car seat transportation orlando, transportation from mco to disney with car seats, uber car seat orlando, do you need a car seat in an uber in florida, disney car service with car seats, orlando airport car service car seats, port canaveral car seats, universal orlando car seat transportation, florida car seat laws taxi" />
+  <meta property="og:title" content="Free Car Seats on Every Orlando Transfer | Grayson Towncar" />
+  <meta property="og:description" content="Complimentary Graco car seats, professionally installed. Private airport transfers from MCO to Disney World, Universal, Epic Universe & Port Canaveral." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="{% static 'images/services-bg.webp' %}" />
+  <link rel="preload"
+        href="{% static 'images/services-bg.webp' %}"
+        as="image"
+        type="image/webp" />
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="canonical" href="{{ canonical_url }}" />
+
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Car Seat Transportation",
+        "item": "https://www.graysontowncar.com/services/car-seats/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does Florida require car seats in Uber or taxis?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Florida Statute 316.613 exempts for-hire transportation vehicles, including taxis, limos, and rideshares, from car seat requirements. However, just because it's legal to hold a child on your lap doesn't make it safe. Grayson Towncar provides complimentary car seats on every family booking because we believe your child's safety shouldn't depend on a legal loophole."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What type of car seats does Grayson Towncar provide?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We provide Graco car seats in three configurations: rear-facing infant seats (birth to 12 months, up to 35 lbs), convertible toddler seats that can be rear- or forward-facing (1-4 years, 20-65 lbs), and backless booster seats (4-8 years, 40-100 lbs). High-back boosters are available on request. All seats are professionally installed by our drivers before your arrival."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I bring my own car seat instead?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Absolutely. If you prefer to use your own car seat, our driver will help you install it in the vehicle. Many families traveling with infants prefer to bring their own seat for use throughout their vacation. Either way, we'll make sure it's securely installed."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats for the return trip to MCO?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. When you book a round-trip transfer, we provide car seats for both the arrival and departure. Your return driver will have the same type of seats pre-installed and ready when they pick you up from your hotel or resort."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I request a car seat when booking?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "During the booking process, select the type of car seat you need right on the reservation form. Our team will confirm everything and have the seats installed before your driver meets you at the airport."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is there an extra charge for car seats?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Car seats are complimentary on every family booking. There is no extra charge, no deposit, and no hidden fees. It's included because we believe every child deserves a safe ride, regardless of whether the law requires it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats for Port Canaveral cruise transfers?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Car seats are included on all Port Canaveral transfers at no extra charge, including MCO to Port Canaveral and Disney World to Port Canaveral routes. Whether you're heading to a Disney cruise, Royal Caribbean, or Carnival sailing, your children will ride safely in professionally installed Graco seats."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What if I have multiple children who need different seat types?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No problem at all. We regularly install multiple car seats for families with children of different ages. For example, we can set up a rear-facing infant seat and a booster seat in the same SUV or minivan. Just specify each child's age and weight when booking, and we'll have the right combination of seats ready."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Car Seat Transportation Service — Orlando",
+    "serviceType": "Airport Transportation with Car Seats",
+    "description": "Private transfers from Orlando International Airport (MCO) to Disney World, Universal Studios, Epic Universe, Port Canaveral, and all Orlando-area hotels. Complimentary Graco car seats professionally installed on every family booking.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Walt Disney World"},
+      {"@type": "Place", "name": "Universal Orlando Resort"},
+      {"@type": "Place", "name": "Port Canaveral"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Car Seat Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Disney World with Free Car Seats"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Universal Orlando with Free Car Seats"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Port Canaveral with Free Car Seats"
+          }
+        }
+      ]
+    },
+    "url": "https://www.graysontowncar.com/services/car-seats/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/services-bg.webp' %}"
+         width="1920" height="1080"
+         alt="Family with children boarding private car service at Orlando airport"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">Free Car Seats on Every Ride</p>
+          <h1 class="lux-title mb-3">Private Car Service with Free Car Seats — Orlando Airport to Disney, Universal &amp; Port Canaveral</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Complimentary Graco car seats, professionally installed before you land. Transportation from MCO to Disney with car seats, Universal, Epic Universe, and Port Canaveral cruise terminals. No extra charge. No hassle.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Family Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-airplane"></i> Real-time flight tracking</span>
+            <span><i class="bi bi-person-check"></i> Meet &amp; greet at baggage claim</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing, no surge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Car Seat Transportation</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: FLORIDA CAR SEAT LAW
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Safety First</p>
+          <h2 class="lux-section-title">Florida Car Seat Laws for Taxis and Rideshares</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-law-callout mb-4">
+            <span class="law-ref">Florida Statute 316.613</span>
+            <h3>Do You Need a Car Seat in an Uber in Florida?</h3>
+            <p>
+              Under Florida law, for-hire vehicles are exempt from child restraint requirements. That means your Uber driver, your taxi, and your airport shuttle are not required to have a car seat in the vehicle. Your child can legally ride on your lap from MCO to Disney World, Universal, or Port Canaveral. So do you need a car seat in an Uber in Florida? Legally, no. But safety-wise, absolutely.
+            </p>
+            <div class="safety-pivot">
+              <p>
+                <strong>Legal doesn't mean safe.</strong> At Grayson Towncar, we provide complimentary car seats on every family booking — every route, every vehicle — because your child's safety shouldn't depend on a loophole in the law.
+              </p>
+            </div>
+          </div>
+
+          <!-- Seat Types -->
+          <div class="row g-3 mt-4">
+            <div class="col-md-4">
+              <div class="seo-seat-card">
+                <div class="seat-icon"><i class="bi bi-heart-pulse"></i></div>
+                <h4>Rear-Facing Infant</h4>
+                <p class="seat-ages">Birth – 12 Months / Up to 35 lbs</p>
+                <p>Graco convertible seats installed in rear-facing mode. Secure LATCH connection keeps the seat locked in the vehicle while you carry baby through the terminal.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="seo-seat-card">
+                <div class="seat-icon"><i class="bi bi-shield-check"></i></div>
+                <h4>Convertible Toddler</h4>
+                <p class="seat-ages">1 – 4 Years / 20 – 65 lbs</p>
+                <p>Graco convertible car seats with side-impact protection. Installed rear-facing or forward-facing depending on your child's size and weight.</p>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="seo-seat-card">
+                <div class="seat-icon"><i class="bi bi-person-up"></i></div>
+                <h4>Backless Booster</h4>
+                <p class="seat-ages">4 – 8 Years / 40 – 100 lbs</p>
+                <p>Backless booster seats that position the seatbelt correctly across your child's chest and lap. High-back boosters available on request.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="seo-highlight-box mt-4">
+            <p>
+              <strong>All seats are professionally installed by our drivers before your arrival.</strong> We confirm the correct seat types when you book, match them to your children's ages and weights, and have them secured in your vehicle before you even land. This applies to every route — Disney World airport transportation with car seats, Universal transfers, Epic Universe, and Port Canaveral cruises.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: WHY UBER/LYFT & MEARS DON'T WORK
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Problem</p>
+          <h2 class="lux-section-title">Why Uber Car Seat Orlando and Mears Aren't Built for Families</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            You've got kids, luggage, strollers, and a flight's worth of exhaustion. Here's what families actually deal with when searching for car seat transportation in Orlando.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-lg-5">
+          <div class="seo-problem-card">
+            <div class="problem-icon"><i class="bi bi-car-front-fill"></i></div>
+            <h4>Uber &amp; Lyft Car Seat Mode Is Unreliable</h4>
+            <ul>
+              <li>Car Seat Mode is only available in a handful of cities and often has zero availability in Orlando</li>
+              <li>When a car seat driver is available, wait times run 20-40 minutes while your kids melt down at baggage claim</li>
+              <li>The driver is a gig worker — there's no guarantee the seat is installed correctly or even the right type for your child's age</li>
+              <li>Lyft doesn't offer car seat mode in most Florida markets at all</li>
+              <li>Most families end up holding their kids on their laps or hauling their own car seat through MCO</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="seo-problem-card">
+            <div class="problem-icon"><i class="bi bi-bus-front"></i></div>
+            <h4>Mears Connect Doesn't Solve the Problem</h4>
+            <ul>
+              <li>Shared shuttle — you're on a bus with strangers, and there's no way to install a car seat properly</li>
+              <li>If you bring your own car seat, it has to be folded and stored in the luggage bay</li>
+              <li>Multiple stops before your resort, which means 45-90 minutes of restless kids</li>
+              <li>Per-person pricing adds up fast for families — $32 round-trip per adult, $25 per child (3-9)</li>
+              <li>No personalized service, no flexibility, and no driver waiting at baggage claim</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: HOW IT WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">5 Steps to a Safe Family Transfer</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book Online</h4>
+            <p>Reserve your ride and select the type of car seat needed on the reservation form.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>We Pre-Install</h4>
+            <p>Our team selects the correct Graco seats and installs them in your vehicle before you land.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Meet at MCO</h4>
+            <p>Your driver tracks your flight and texts you when you land. Meet at baggage claim — no waiting, no searching.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Kids Buckled In</h4>
+            <p>Walk to your private vehicle, buckle the kids into their seats, and you're on your way in minutes.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="seo-step-card">
+            <div class="seo-step-number">5</div>
+            <h4>Return Trip Ready</h4>
+            <p>Booked round-trip? Same seats, same setup waiting for you on your departure day.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: CAR SEATS FOR EVERY DESTINATION
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Every Route Covered</p>
+          <h2 class="lux-section-title">Car Seats for Every Orlando Destination</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">No matter where you're headed from MCO, your children ride safely with professionally installed car seats at no extra charge.</p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-md-6">
+          <div class="seo-highlight-box" style="height: 100%;">
+            <h3><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i> MCO to Disney World</h3>
+            <p>Our most popular family route. Car seats are pre-installed for the 30-minute ride from Orlando airport to any Disney resort — Grand Floridian, Pop Century, Art of Animation, and every property in between. This is the best transportation from MCO to Disney with car seats: private vehicle, meet and greet at baggage claim, and a free Publix grocery stop on the way. Whether you need MCO to Disney transportation with car seats for one child or three, we've got you covered.</p>
+            <a href="{% url 'disney_world_transportation' %}" style="color: var(--lux-gold); font-weight: 500; font-size: 0.9rem;">Disney World transportation from MCO &rarr;</a>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="seo-highlight-box" style="height: 100%;">
+            <h3><i class="bi bi-stars me-2" style="color: var(--lux-gold);"></i> MCO to Universal &amp; Epic Universe</h3>
+            <p>Visiting Universal's new Epic Universe? Universal Orlando car seat transportation is included on all transfers to Universal hotels including Helios Grand, Stella Nova, and Terra Luna. Also covering Royal Pacific, Hard Rock, Cabana Bay, and all other Universal resorts. Whether it's your first time at Islands of Adventure or you're planning a Disney-to-Epic Universe transfer, car seats are included on every ride.</p>
+            <a href="{% url 'epic_universe_transportation' %}" style="color: var(--lux-gold); font-weight: 500; font-size: 0.9rem;">Universal Orlando &amp; Epic Universe transfers &rarr;</a>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="seo-highlight-box" style="height: 100%;">
+            <h3><i class="bi bi-water me-2" style="color: var(--lux-gold);"></i> MCO to Port Canaveral</h3>
+            <p>Cruising with toddlers? Port Canaveral car seats are included on all cruise port transfers. The ride from MCO to Port Canaveral runs about 45 minutes — plenty of time for little ones to nap in a properly secured car seat. We'll even stop at Publix so you can grab drinks and snacks for the ship. Heading to a Disney Cruise, Royal Caribbean, or Carnival? Car seats are always included.</p>
+            <a href="{% url 'port_canaveral_transportation' %}" style="color: var(--lux-gold); font-weight: 500; font-size: 0.9rem;">Port Canaveral cruise transfers with car seats &rarr;</a>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="seo-highlight-box" style="height: 100%;">
+            <h3><i class="bi bi-arrow-left-right me-2" style="color: var(--lux-gold);"></i> Disney to Port Canaveral</h3>
+            <p>Combining a Disney stay with a cruise? Car seats are included on the transfer between your Disney resort and the cruise terminal at Port Canaveral. This is a popular route for families doing a Disney + cruise combo vacation. Your driver will have the same quality Graco seats waiting at your Disney resort lobby, ready for the 60-75 minute ride to the ship.</p>
+            <a href="{% url 'port_canaveral_transportation' %}" style="color: var(--lux-gold); font-weight: 500; font-size: 0.9rem;">Disney to Port Canaveral transfers &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Compare Options</p>
+          <h2 class="lux-section-title">How Grayson Stacks Up</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">A side-by-side look at what families actually get with each option from MCO to Disney World and other Orlando destinations.</p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-12">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="highlight-col">Grayson Towncar</th>
+                  <th>Tiffany Towncar</th>
+                  <th>Mears Connect<br><small style="font-weight:400;text-transform:none;letter-spacing:0;font-size:0.7rem;opacity:0.6;">(Family of 4)</small></th>
+                  <th>Uber w/ Car Seat</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Car Seats</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free, pre-installed</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Extra charge</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                </tr>
+                <tr>
+                  <td>Vehicle Type</td>
+                  <td class="highlight-col">Private vehicle, your family only</td>
+                  <td>Private vehicle</td>
+                  <td>Shared shuttle with strangers</td>
+                  <td>Random sedan/SUV</td>
+                </tr>
+                <tr>
+                  <td>Driver Meets You</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> At baggage claim</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> At baggage claim</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> You find the bus stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> At curb pickup</td>
+                </tr>
+                <tr>
+                  <td>Grocery Stop</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free 20-min Publix stop</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Available</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                </tr>
+                <tr>
+                  <td>Wait Time</td>
+                  <td class="highlight-col">0 min — driver at claim</td>
+                  <td>0 min — driver at claim</td>
+                  <td>15-30 min for shuttle to fill</td>
+                  <td>10-40 min (if available)</td>
+                </tr>
+                <tr>
+                  <td>Flight Tracking</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Automatic</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+                <tr>
+                  <td>Travel Time</td>
+                  <td class="highlight-col">~30 min direct</td>
+                  <td>~30 min direct</td>
+                  <td>45-90 min (multiple stops)</td>
+                  <td>~30 min direct</td>
+                </tr>
+                <tr>
+                  <td>Pricing (MCO→Disney)</td>
+                  <td class="highlight-col">From $105, no surge</td>
+                  <td>From $150+</td>
+                  <td>~$114 round-trip (family of 4)</td>
+                  <td>$35-80+ each way (surge)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">See Our Rates</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Does Florida require car seats in Uber or taxis?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>No. Florida Statute 316.613 exempts for-hire transportation vehicles — including taxis, limos, and rideshares — from child restraint requirements. That means your Uber driver is not legally required to provide a car seat, and your child can ride unrestrained. However, just because it's legal doesn't make it safe. Grayson Towncar provides complimentary car seats on every family booking because we believe your child's safety shouldn't depend on a legal loophole.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What type of car seats does Grayson Towncar provide?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>We provide Graco car seats in three configurations: rear-facing infant seats for babies up to 12 months and 35 lbs, convertible toddler seats (rear- or forward-facing) for children 1-4 years and 20-65 lbs, and backless booster seats for children 4-8 years and 40-100 lbs. High-back boosters are available on request. All seats are professionally installed by our drivers before your arrival at MCO.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can I bring my own car seat instead?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Absolutely. If you prefer to use your own car seat, our driver will help you install it in the vehicle. Many families traveling with infants prefer to bring their own seat so they have it available throughout their vacation. Either way, we'll make sure it's securely installed before we leave the airport.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats for the return trip to MCO?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. When you book a round-trip transfer, car seats are included for both legs. Your return driver will have the same type of seats pre-installed and ready when they pick you up from your hotel or resort.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How do I request a car seat when booking?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>During the booking process, select the type of car seat you need right on the reservation form. Our team will confirm everything and have the seats installed before your driver meets you at the airport. If you're unsure which seat your child needs, just call us at <a href="tel:+14072127190" style="color: var(--lux-gold);">407-212-7190</a> and we'll help you figure it out.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is there an extra charge for car seats?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>No. Car seats are complimentary on every family booking. There is no extra charge, no deposit, and no hidden fees. This applies to transportation from Orlando airport to Disney World with car seats, Universal transfers, Port Canaveral cruises, and every other route. It's included because we believe every child deserves a safe ride, regardless of whether the law requires it.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats for Port Canaveral cruise transfers?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Car seats are included on all Port Canaveral transfers at no extra charge, including MCO to Port Canaveral and Disney World to Port Canaveral routes. Whether you're heading to a Disney Cruise Line sailing, Royal Caribbean, or Carnival, your children will ride safely in professionally installed Graco seats for the entire journey.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What if I have multiple children who need different seat types?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>No problem at all. We regularly install multiple car seats for families with children of different ages. For example, we can set up a rear-facing infant seat and a booster in the same SUV or minivan. Just specify each child's age and weight when booking, and we'll have the right combination of seats ready when your driver meets you.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       RELATED SERVICES
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Popular Family Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-6 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World Transportation from MCO</h5>
+            <p>Private transfers to all Disney resorts with free car seats and Publix stop.</p>
+          </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <a href="{% url 'epic_universe_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-stars me-2" style="color: var(--lux-gold);"></i>Universal Orlando &amp; Epic Universe Transfers</h5>
+            <p>Direct service to all Universal hotels including Helios Grand, Stella Nova &amp; Terra Luna.</p>
+          </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <a href="{% url 'port_canaveral_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-water me-2" style="color: var(--lux-gold);"></i>Port Canaveral Cruise Transfers with Car Seats</h5>
+            <p>Cruise port transfers with car seats and a Publix stop for onboard supplies.</p>
+          </a>
+        </div>
+        <div class="col-md-6 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>Orlando Airport (MCO) Car Service</h5>
+            <p>All Orlando airport transportation routes and rates.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your Family Transfer</h2>
+          <p class="mb-4">Complimentary car seats on every family booking. Fixed pricing. No surprises. Disney, Universal, Epic Universe, Port Canaveral — every route covered.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    /* Close all */
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    /* Toggle clicked */
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}

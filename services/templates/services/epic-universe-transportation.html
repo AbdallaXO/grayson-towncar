@@ -1,0 +1,785 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Epic Universe Transportation — MCO Airport to Universal's Newest Park | Grayson Towncar{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Private car service from Orlando Airport (MCO) to Epic Universe. Direct transfers, free car seats, no surge pricing. Book your ride to Universal's newest theme park." />
+  <meta name="keywords"
+        content="epic universe transportation, mco to epic universe, orlando airport to epic universe, epic universe car service, epic universe shuttle, how to get to epic universe, epic universe private transfer" />
+  <meta property="og:title" content="Epic Universe Transportation from MCO | Grayson Towncar" />
+  <meta property="og:description" content="Private transfers from Orlando Airport to Epic Universe. Fixed pricing, free car seats for families, meet & greet at baggage claim." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="{% static 'images/services-bg.webp' %}" />
+  <link rel="preload"
+        href="{% static 'images/services-bg.webp' %}"
+        as="image"
+        type="image/webp" />
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="canonical" href="{{ canonical_url }}" />
+
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "Epic Universe Transportation",
+        "item": "https://www.graysontowncar.com/services/epic-universe-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How far is Epic Universe from Orlando Airport (MCO)?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Epic Universe is approximately 20 miles from Orlando International Airport, about a 25-minute drive via I-4 and Universal Boulevard. With a private car service, you go direct with no stops."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is there a shuttle from MCO to Epic Universe?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Mears Connect offers shared shuttle service from MCO to the Universal area, but it makes multiple stops at other hotels and resorts before reaching your destination. Travel time can be 45 to 90 minutes on a shared shuttle versus about 25 minutes with a private car service."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much does an Uber cost from MCO to Epic Universe?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Uber and Lyft fares from MCO to Epic Universe typically range from $25 to $60 or more depending on demand. During peak hours, park opening times, and special events, surge pricing can push fares significantly higher. Grayson Towncar offers fixed pricing with no surge — the rate you book is the rate you pay."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I book a transfer from Epic Universe to Disney World?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. We provide point-to-point transfers between Epic Universe and all Disney World resorts, as well as other Orlando-area hotels. Just book a one-way or round-trip transfer and we will handle the rest."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats for families going to Epic Universe?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Complimentary Graco car seats are available on every family booking at no extra charge. Just select the car seat type during booking and they will be professionally installed in your vehicle before pickup."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What time should I book my transfer to arrive for park opening?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We recommend arriving at the park entrance 30 to 45 minutes before the published opening time, especially during peak season or if you have early park admission. Our team can help you schedule the right pickup time based on your hotel location and the park's opening hours."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer transfers between Epic Universe and the original Universal parks?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We can, but honestly the original Universal parks are only a few minutes from Epic Universe. Most guests handle that short hop on their own via rideshare or Universal's own transportation. Where we really help is getting you from MCO to the Epic Universe area, or from Disney World resorts to Epic Universe — those are the longer rides where a private car service makes a real difference."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Epic Universe Transportation — Orlando Airport",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service from Orlando International Airport (MCO) to Universal's Epic Universe theme park. Direct transfers with fixed pricing, complimentary car seats, and meet and greet at baggage claim.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Universal's Epic Universe"},
+      {"@type": "Place", "name": "Universal Orlando Resort"},
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Epic Universe Transportation Services",
+      "itemListElement": [
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "MCO to Epic Universe Transfer"
+          }
+        },
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "Disney World to Epic Universe Transfer"
+          }
+        }
+      ]
+    },
+    "url": "https://www.graysontowncar.com/services/epic-universe-transportation/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    .world-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 1.75rem 1.5rem;
+      transition: var(--transition);
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .world-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--lux-gold);
+      transform: scaleX(0);
+      transition: transform 0.3s ease;
+    }
+    .world-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.08);
+    }
+    .world-card:hover::before {
+      transform: scaleX(1);
+    }
+    .world-card h4 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--lux-charcoal);
+      margin-bottom: 0.5rem;
+    }
+    .world-card p {
+      font-weight: 300;
+      font-size: 0.88rem;
+      color: var(--lux-medium-gray);
+      line-height: 1.65;
+      margin-bottom: 0;
+    }
+    .world-card .world-icon {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--lux-gold);
+      color: var(--lux-gold);
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      transition: var(--transition);
+    }
+    .world-card:hover .world-icon {
+      background: var(--lux-gold);
+      color: var(--lux-white);
+    }
+    .route-info-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem;
+      text-align: center;
+      height: 100%;
+    }
+    .route-info-card .route-value {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 2.25rem;
+      font-weight: 300;
+      color: var(--lux-charcoal);
+      line-height: 1.2;
+      margin-bottom: 0.25rem;
+    }
+    .route-info-card .route-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lux-medium-gray);
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 1: HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/services-bg.webp' %}"
+         width="1920" height="1080"
+         alt="Orlando airport transportation to Epic Universe theme park"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">Universal's Newest Theme Park</p>
+          <h1 class="lux-title mb-3">Epic Universe Transportation — Orlando Airport to Universal's New Park</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Private transfers from MCO directly to Epic Universe. Fixed pricing, no surge, no shared shuttles. Your driver meets you at baggage claim.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Epic Universe Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-airplane"></i> Real-time flight tracking</span>
+            <span><i class="bi bi-geo-alt"></i> Direct to the park — no stops</span>
+            <span><i class="bi bi-currency-dollar"></i> Fixed pricing, no surge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Epic Universe Transportation</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 2: ABOUT EPIC UNIVERSE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Destination</p>
+          <h2 class="lux-section-title">What Is Universal's Epic Universe?</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Universal's newest and most ambitious theme park — five immersive worlds connected by a celestial hub, located on a brand-new campus south of the original Universal Orlando Resort.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-lg">
+          <div class="world-card">
+            <div class="world-icon"><i class="bi bi-stars"></i></div>
+            <h4>Celestial Park</h4>
+            <p>The central hub connecting all five worlds, with dining, shopping, and its own attractions.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="world-card">
+            <div class="world-icon"><i class="bi bi-controller"></i></div>
+            <h4>Super Nintendo World</h4>
+            <p>Mario Kart, Donkey Kong, and the Mushroom Kingdom brought to life.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="world-card">
+            <div class="world-icon"><i class="bi bi-lightning"></i></div>
+            <h4>Wizarding World</h4>
+            <p>Harry Potter's Ministry of Magic — an all-new wizarding experience in Paris and London.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="world-card">
+            <div class="world-icon"><i class="bi bi-fire"></i></div>
+            <h4>How to Train Your Dragon</h4>
+            <p>The Isle of Berk — ride dragons and explore the Viking village.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg">
+          <div class="world-card">
+            <div class="world-icon"><i class="bi bi-moon-stars"></i></div>
+            <h4>Dark Universe</h4>
+            <p>Universal's Classic Monsters — Dracula, Frankenstein, and the Wolfman in a gothic setting.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="seo-highlight-box">
+        <p>
+          <strong>Epic Universe is on a separate campus</strong> from Universal Studios Florida and Islands of Adventure. It's located off Universal Boulevard near the Orange County Convention Center — about 2 miles south of the original parks. Getting there requires its own transportation plan, especially if you're coming straight from the airport.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 3: GETTING THERE FROM MCO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Route</p>
+          <h2 class="lux-section-title">Getting from MCO to Epic Universe</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-3 justify-content-center mb-4">
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~20</div>
+            <div class="route-label">Miles from MCO</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">~25</div>
+            <div class="route-label">Minutes Direct</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">I-4</div>
+            <div class="route-label">Primary Route</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="route-info-card">
+            <div class="route-value">0</div>
+            <div class="route-label">Extra Stops</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <h4>Why a Private Car Service Makes Sense for Epic Universe</h4>
+            <p>
+              Epic Universe sits on its own campus — separate from the main Universal resort. There's no monorail connecting it, no free resort bus from the airport, and no direct public transit. If you're flying into MCO, a private car service is the most direct way to get there without dealing with shuttle transfers, rideshare surge pricing, or hauling luggage through multiple stops.
+            </p>
+            <p>
+              Your driver tracks your flight in real time, texts you when you land, meets you at baggage claim, loads your luggage, and drives you straight to the park or your nearby hotel. Door to door, about 25 minutes.
+            </p>
+          </div>
+
+          <!-- Disney to Epic Universe -->
+          <div class="seo-highlight-box mt-3" style="border-left-color: var(--lux-charcoal);">
+            <h4>Disney World to Epic Universe — One of Our Most Popular Routes</h4>
+            <p>
+              Staying at a Disney resort but want to spend a day at Epic Universe? We run this route constantly. Your driver picks you up at your Disney resort, drives you directly to Epic Universe (about 20 minutes depending on your resort), and picks you up when you're done. No parking fees, no navigating I-4 yourself, no figuring out rideshare pickup zones at an unfamiliar park.
+            </p>
+            <p>
+              Traveling with kids? <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold); font-weight: 500;">Complimentary car seats</a> are available on every trip — including Disney-to-Epic transfers. Just select the seat type when you book and they'll be installed and ready when your driver arrives at your resort.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 4: WHY NOT UBER / SHUTTLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Problem</p>
+          <h2 class="lux-section-title">Uber Surge and Shuttle Delays at a Brand-New Park</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            New parks attract massive crowds. Here's what that means for your ride from the airport.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-lg-5">
+          <div class="seo-problem-card">
+            <div class="problem-icon"><i class="bi bi-graph-up-arrow"></i></div>
+            <h4>Uber &amp; Lyft Surge Pricing at Peak Times</h4>
+            <ul>
+              <li>Park opening mornings and closing times trigger heavy surge — fares can double or triple</li>
+              <li>Special events, holidays, and weekends at a popular new park mean unpredictable pricing</li>
+              <li>Wait times at MCO can hit 15-30 minutes during peak arrival windows</li>
+              <li>No one meets you at baggage claim — you're on your own finding the rideshare pickup zone</li>
+              <li>If you need car seats for kids, Uber's Car Seat Mode has limited availability in Orlando</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="seo-problem-card">
+            <div class="problem-icon"><i class="bi bi-clock-history"></i></div>
+            <h4>Shared Shuttles Aren't Built for This</h4>
+            <ul>
+              <li>Mears Connect makes multiple hotel stops — what should be 25 minutes becomes 45-90</li>
+              <li>Epic Universe's separate campus means shuttles may route through the main Universal resort first</li>
+              <li>Per-person pricing adds up for families and groups</li>
+              <li>You're on their schedule, not yours — limited departure times and long waits for the bus to fill</li>
+              <li>No room for flexibility if your flight is delayed or you want to stop for groceries</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 5: HOW IT WORKS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-5">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">How It Works</p>
+          <h2 class="lux-section-title">Airport to Epic Universe in 4 Steps</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row g-4 seo-steps-row justify-content-center">
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">1</div>
+            <h4>Book Your Ride</h4>
+            <p>Reserve online with your flight details. We'll track your arrival in real time.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">2</div>
+            <h4>Meet at MCO</h4>
+            <p>Your driver texts you when you land to confirm they're there. Meet at baggage claim — no searching, no app refreshing.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">3</div>
+            <h4>Ride Direct</h4>
+            <p>Straight to Epic Universe or your hotel — about 25 minutes, no stops unless you want one.</p>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="seo-step-card">
+            <div class="seo-step-number">4</div>
+            <h4>Return Trip Ready</h4>
+            <p>Book round-trip and we'll pick you up on departure day. Same service, same fixed price.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 6: COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Compare Options</p>
+          <h2 class="lux-section-title">Your Options from MCO to Epic Universe</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="highlight-col">Grayson Towncar</th>
+                  <th>Mears Connect</th>
+                  <th>Uber / Lyft</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Pricing</td>
+                  <td class="highlight-col">From $105, no surge</td>
+                  <td>Per-person, adds up for groups</td>
+                  <td>$25-60+ (surge during peak)</td>
+                </tr>
+                <tr>
+                  <td>Travel Time</td>
+                  <td class="highlight-col">~25 min direct</td>
+                  <td>45-90 min (multiple stops)</td>
+                  <td>~25 min direct</td>
+                </tr>
+                <tr>
+                  <td>Driver Meets You</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> At baggage claim</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> You find the bus stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> At curb pickup</td>
+                </tr>
+                <tr>
+                  <td>Flight Tracking</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Automatic</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+                <tr>
+                  <td>Car Seats</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free, pre-installed</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                </tr>
+                <tr>
+                  <td>Grocery Stop</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free 20-min Publix stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                </tr>
+                <tr>
+                  <td>Vehicle</td>
+                  <td class="highlight-col">Private, your group only</td>
+                  <td>Shared shuttle</td>
+                  <td>Private, random driver</td>
+                </tr>
+                <tr>
+                  <td>Luggage</td>
+                  <td class="highlight-col">Full trunk space</td>
+                  <td>Shared luggage bay</td>
+                  <td>Trunk space varies</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">See Our Rates</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 7: FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How far is Epic Universe from Orlando Airport (MCO)?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Epic Universe is approximately 20 miles from Orlando International Airport, about a 25-minute drive via I-4 and Universal Boulevard. With a private car service, you go direct with no stops — straight from baggage claim to the park or your nearby hotel.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is there a shuttle from MCO to Epic Universe?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Mears Connect offers shared shuttle service from MCO to the Universal area, but it makes multiple stops at other hotels and resorts before reaching your destination. What should be a 25-minute ride can take 45 to 90 minutes on a shared shuttle. A private car service gets you there direct.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How much does an Uber cost from MCO to Epic Universe?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Uber and Lyft fares from MCO to Epic Universe typically range from $25 to $60 or more depending on demand. During peak hours, park opening times, and special events, surge pricing can push fares well above that. Grayson Towncar offers fixed pricing — the rate you book is the rate you pay, regardless of demand.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Can I book a transfer from Epic Universe to Disney World?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. We provide point-to-point transfers between Epic Universe and all Disney World resorts, as well as other Orlando-area hotels and attractions. Just book a one-way transfer and we'll handle the rest.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats for families going to Epic Universe?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Complimentary Graco car seats are available on every family booking at no extra charge. Just select the car seat type during booking and they'll be professionally installed in your vehicle before pickup. <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold);">Learn more about our car seat program.</a></p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                What time should I book my transfer to arrive for park opening?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>We recommend arriving at the park entrance 30 to 45 minutes before the published opening time, especially during peak season or if you have early park admission. Our team can help you schedule the right pickup time based on your hotel location and the day's opening hours.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you offer transfers between Epic Universe and the original Universal parks?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>We can, but honestly the original Universal parks are only a few minutes from Epic Universe — most guests handle that short hop on their own via rideshare or Universal's own transportation. Where we really help is getting you from MCO to the Epic Universe area, or from Disney World resorts to Epic Universe. Those are the longer rides where a private car service makes a real difference.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       RELATED DESTINATIONS
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Explore</p>
+          <h2 class="lux-section-title">Other Popular Destinations</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'universal_orlando_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-stars me-2" style="color: var(--lux-gold);"></i>Universal Orlando</h5>
+            <p>Transfers to Universal Studios, Islands of Adventure & Volcano Bay.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World</h5>
+            <p>Private transfers to all Disney resorts from MCO.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'car_seats_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-shield-check me-2" style="color: var(--lux-gold);"></i>Free Car Seat Service</h5>
+            <p>Free Graco car seats on every family booking.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'orlando_airport_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-airplane me-2" style="color: var(--lux-gold);"></i>MCO Transfers</h5>
+            <p>All Orlando airport transportation routes and rates.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       SECTION 8: CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your Epic Universe Transfer</h2>
+          <p class="mb-4">Fixed pricing. No surge. Driver meets you at baggage claim. About 25 minutes to the park.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}

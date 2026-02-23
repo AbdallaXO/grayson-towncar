@@ -1,0 +1,714 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}MCO Terminal C Pickup & Transportation | Orlando Airport | Grayson Towncar{% endblock %}
+
+{% block meta_description %}
+  <meta name="description"
+        content="Know exactly where to meet your driver at MCO Terminal C. Private car service with meet & greet, flight tracking, and free car seats. No confusion, no waiting." />
+  <meta name="keywords"
+        content="MCO terminal C pickup, orlando airport terminal C transportation, terminal C car service, MCO terminal C ground transportation, how to get picked up terminal C orlando, MCO new terminal pickup" />
+  <meta property="og:title" content="MCO Terminal C Pickup & Car Service | Grayson Towncar" />
+  <meta property="og:description" content="Private car service at Orlando Airport's Terminal C. Your driver meets you inside — no searching for rideshare zones. Flight tracking, free car seats, fixed pricing." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="{% static 'images/Orlando_Airport_Terminal_c.webp' %}" />
+  <link rel="preload"
+        href="{% static 'images/Orlando_Airport_Terminal_c.webp' %}"
+        as="image"
+        type="image/webp" />
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="canonical" href="{{ canonical_url }}" />
+
+  <!-- BreadcrumbList Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://www.graysontowncar.com/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Services",
+        "item": "https://www.graysontowncar.com/services/"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": "MCO Terminal C Transportation",
+        "item": "https://www.graysontowncar.com/services/mco-terminal-c-transportation/"
+      }
+    ]
+  }
+  </script>
+
+  <!-- FAQPage Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Which airlines use MCO Terminal C?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Terminal C primarily serves JetBlue, which moved most of its Orlando flights to the new terminal. Several international carriers and select domestic airlines also operate from Terminal C. Check your airline's terminal assignment before you fly — it will be printed on your boarding pass."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Where do I meet my driver at Terminal C?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Your driver waits for you on Level 6 near the escalators and elevators with a greeting sign. When you arrive at Level 6, the driver greets you, walks you to your baggage carousel, helps collect your luggage, and then escorts you to the vehicle on Level 1."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is Terminal C connected to the main MCO terminal?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Terminal C is connected to the main terminal complex via the Automated People Mover (APM), a train system that runs between the terminals. However, you do not need to take the train if you have a car service — your driver meets you directly at Terminal C's ground transportation level."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does Uber and Lyft pickup work at Terminal C?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "For Uber and Lyft at Terminal C, you need to go to the designated rideshare pickup area on Level 1. You request your ride through the app and wait at the curb for your driver to arrive. During peak times, wait times can be 10 to 30 minutes and surge pricing may apply. With a private car service, your driver is already there waiting when you land."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you provide car seats for families arriving at Terminal C?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Complimentary Graco car seats are available on every family booking at no extra charge, regardless of which terminal you arrive at. Just select the car seat type when booking and they will be pre-installed in your vehicle."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do I know which terminal my flight arrives at?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Your terminal is listed on your boarding pass and in your airline's app. You can also check the MCO airport website for terminal assignments. Either way, it does not affect your booking with us — we track your flight and know exactly which terminal you are arriving at."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "MCO Terminal C Transportation",
+    "serviceType": "Airport Transportation",
+    "description": "Private car service with meet and greet at Orlando International Airport Terminal C. Driver meets you at baggage claim, flight tracking, complimentary car seats, and fixed pricing to Disney World, Universal, and all Orlando destinations.",
+    "provider": {
+      "@type": "LocalBusiness",
+      "name": "Grayson Towncar",
+      "telephone": "+1-407-212-7190",
+      "image": "https://www.graysontowncar.com/static/images/logo.png",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Orlando",
+        "addressRegion": "FL",
+        "addressCountry": "US"
+      },
+      "priceRange": "$$"
+    },
+    "areaServed": [
+      {"@type": "Airport", "name": "Orlando International Airport", "iataCode": "MCO"},
+      {"@type": "City", "name": "Orlando"},
+      {"@type": "Place", "name": "Walt Disney World"},
+      {"@type": "Place", "name": "Universal Orlando Resort"}
+    ],
+    "url": "https://www.graysontowncar.com/services/mco-terminal-c-transportation/"
+  }
+  </script>
+{% endblock %}
+
+{% block extra_css %}
+  <link href="{% static 'css/seo-landing.css' %}" rel="stylesheet" />
+  <style>
+    .terminal-card {
+      background: var(--lux-white);
+      border: 1px solid rgba(0,0,0,0.08);
+      padding: 2rem 1.75rem;
+      height: 100%;
+      position: relative;
+    }
+    .terminal-card.active-terminal {
+      border-color: var(--lux-gold);
+      box-shadow: 0 8px 30px rgba(184,149,108,0.12);
+    }
+    .terminal-card .terminal-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+    .terminal-card .terminal-label.gold {
+      color: var(--lux-gold);
+    }
+    .terminal-card .terminal-label.gray {
+      color: var(--lux-medium-gray);
+    }
+    .terminal-card h4 {
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-weight: 400;
+      font-size: 1.5rem;
+      color: var(--lux-charcoal);
+      margin-bottom: 0.75rem;
+    }
+    .terminal-card p, .terminal-card li {
+      font-weight: 300;
+      font-size: 0.9rem;
+      color: var(--lux-medium-gray);
+      line-height: 1.7;
+    }
+    .terminal-card ul {
+      padding-left: 0;
+      list-style: none;
+      margin-bottom: 0;
+    }
+    .terminal-card ul li {
+      padding: 0.25rem 0 0.25rem 1.25rem;
+      position: relative;
+    }
+    .terminal-card ul li::before {
+      content: '\f058';
+      font-family: 'Font Awesome 6 Free';
+      font-weight: 900;
+      position: absolute;
+      left: 0;
+      font-size: 0.7rem;
+      top: 0.45rem;
+    }
+    .terminal-card.active-terminal ul li::before {
+      color: var(--lux-gold);
+    }
+    .terminal-card:not(.active-terminal) ul li::before {
+      color: var(--lux-light-gray);
+    }
+    .pickup-step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+      padding: 1.5rem 0;
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+    .pickup-step:last-child {
+      border-bottom: none;
+    }
+    .pickup-step-num {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--lux-gold);
+      color: var(--lux-gold);
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 1.2rem;
+    }
+    .pickup-step h5 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--lux-charcoal);
+      margin-bottom: 0.25rem;
+    }
+    .pickup-step p {
+      font-weight: 300;
+      font-size: 0.88rem;
+      color: var(--lux-medium-gray);
+      line-height: 1.65;
+      margin-bottom: 0;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="seo-page">
+
+  <!-- ═══════════════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-hero">
+    <img src="{% static 'images/Orlando_Airport_Terminal_c.webp' %}"
+         width="1920" height="1080"
+         alt="Orlando International Airport Terminal C"
+         class="seo-hero-bg"
+         fetchpriority="high" />
+    <div class="container seo-hero-content py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-10 text-center text-white">
+          <p class="lux-eyebrow">MCO's Newest Terminal</p>
+          <h1 class="lux-title mb-3">MCO Terminal C Pickup &amp; Transportation</h1>
+          <div class="lux-divider"></div>
+          <p class="seo-hero-subtitle">
+            Flying into Orlando's new Terminal C? Your driver knows exactly where to meet you. No confusion, no searching for rideshare zones. Your driver greets you on Level 6, helps with bags, and escorts you to the car.
+          </p>
+          <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">Book Your Airport Transfer</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call 407-212-7190</a>
+          </div>
+          <div class="seo-trust-badges">
+            <span><i class="bi bi-airplane"></i> Real-time flight tracking</span>
+            <span><i class="bi bi-person-check"></i> Driver meets you at baggage claim</span>
+            <span><i class="bi bi-building"></i> Terminal C &amp; A/B coverage</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Breadcrumb -->
+  <nav class="seo-breadcrumb" aria-label="breadcrumb">
+    <div class="container">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'services' %}">Services</a></li>
+        <li class="breadcrumb-item active" aria-current="page">MCO Terminal C Transportation</li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════
+       WHAT IS TERMINAL C
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The New Terminal</p>
+          <h2 class="lux-section-title">What Is MCO Terminal C?</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Orlando International Airport opened Terminal C in 2022 — a brand-new, state-of-the-art facility south of the original terminals. If your airline operates from Terminal C, the pickup process is different from what you might be used to.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-lg-5">
+          <div class="terminal-card active-terminal">
+            <p class="terminal-label gold">New Terminal</p>
+            <h4>Terminal C</h4>
+            <p class="mb-3">The newest addition to MCO, with modern design and its own ground transportation level.</p>
+            <ul>
+              <li>JetBlue (most Orlando flights)</li>
+              <li>Select international carriers</li>
+              <li>Connected via Automated People Mover</li>
+              <li>Baggage claim on Level 6</li>
+              <li>Ground transportation on Level 1</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="terminal-card">
+            <p class="terminal-label gray">Original Terminals</p>
+            <h4>Terminals A &amp; B</h4>
+            <p class="mb-3">The main terminal complex that most domestic airlines use, connected to the North and South terminals.</p>
+            <ul>
+              <li>Delta, American, United, Southwest</li>
+              <li>Frontier, Spirit, Sun Country</li>
+              <li>Most domestic airlines</li>
+              <li>Baggage claim on Level 2</li>
+              <li>Ground transportation on Level 1</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center mt-4">
+        <div class="col-lg-10">
+          <div class="seo-highlight-box">
+            <p>
+              <strong>Not sure which terminal you're arriving at?</strong> It doesn't matter for your booking. We track your flight and know exactly which terminal and gate you're arriving at. Your driver will be at the right baggage claim regardless — Terminal C, Terminal A, or Terminal B.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       HOW PICKUP WORKS AT TERMINAL C
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Step by Step</p>
+          <h2 class="lux-section-title">How Your Terminal C Pickup Works</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Terminal C has its own ground transportation area. Here's exactly what happens when you land.
+          </p>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <div class="pickup-step">
+            <div class="pickup-step-num">1</div>
+            <div>
+              <h5>You Land — We Already Know</h5>
+              <p>We track your flight in real time. If you're early, delayed, or diverted, we know before you do. Your driver adjusts automatically.</p>
+            </div>
+          </div>
+          <div class="pickup-step">
+            <div class="pickup-step-num">2</div>
+            <div>
+              <h5>Collect Your Bags at Terminal C Level 6</h5>
+              <p>Head to the Terminal C baggage claim on Level 6. Your bags will arrive on the carousel just like any other terminal.</p>
+            </div>
+          </div>
+          <div class="pickup-step">
+            <div class="pickup-step-num">3</div>
+            <div>
+              <h5>Meet Your Driver on Level 6</h5>
+              <p>Your driver is waiting near the escalators and elevators on Level 6 with a greeting sign. They'll walk you to your baggage carousel and help you collect your luggage.</p>
+            </div>
+          </div>
+          <div class="pickup-step">
+            <div class="pickup-step-num">4</div>
+            <div>
+              <h5>Walk to Your Vehicle</h5>
+              <p>Your driver helps with luggage and walks you to your private vehicle on Level 1. If you have kids, car seats are already installed and ready.</p>
+            </div>
+          </div>
+          <div class="pickup-step">
+            <div class="pickup-step-num">5</div>
+            <div>
+              <h5>Direct to Your Destination</h5>
+              <p>Straight to Disney, Universal, your hotel, or anywhere in the Orlando area. Want to stop at Publix for groceries on the way? It's included — just ask.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       TERMINAL C vs UBER/LYFT
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">The Problem</p>
+          <h2 class="lux-section-title">Rideshare Pickup at Terminal C Is Confusing</h2>
+          <div class="lux-divider"></div>
+          <p class="lux-section-subtitle">
+            Terminal C is new, the layout is unfamiliar, and the rideshare pickup process isn't what most travelers expect.
+          </p>
+        </div>
+      </div>
+
+      <div class="row g-4 justify-content-center">
+        <div class="col-lg-5">
+          <div class="seo-problem-card">
+            <div class="problem-icon"><i class="bi bi-signpost-split"></i></div>
+            <h4>Uber &amp; Lyft at Terminal C</h4>
+            <ul>
+              <li>You have to find the designated rideshare pickup zone on Level 1 — it's not where you'd expect</li>
+              <li>Request your ride from the app, then wait at the curb for a driver to show up</li>
+              <li>Peak arrival times mean 10-30 minute waits, standing outside with luggage and kids</li>
+              <li>Surge pricing hits hardest during afternoon and evening arrival waves</li>
+              <li>No one inside the terminal to help — you're on your own navigating the new layout</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="seo-problem-card" style="border-top: none;">
+            <div class="problem-icon" style="border-color: rgba(184,149,108,0.3); color: var(--lux-gold);"><i class="bi bi-check-lg"></i></div>
+            <h4>Private Car Service at Terminal C</h4>
+            <ul style="list-style: none; padding-left: 0;">
+              <li style="padding-left: 1.25rem; position: relative;"><i class="bi bi-check-circle-fill" style="position:absolute;left:0;top:0.45rem;font-size:0.7rem;color:var(--lux-gold);"></i> Your driver greets you on Level 6 with a sign, walks you to baggage claim, and helps with luggage</li>
+              <li style="padding-left: 1.25rem; position: relative;"><i class="bi bi-check-circle-fill" style="position:absolute;left:0;top:0.45rem;font-size:0.7rem;color:var(--lux-gold);"></i> You get a text with their name, photo, and phone number before landing</li>
+              <li style="padding-left: 1.25rem; position: relative;"><i class="bi bi-check-circle-fill" style="position:absolute;left:0;top:0.45rem;font-size:0.7rem;color:var(--lux-gold);"></i> Zero wait time — they're already there when you walk out</li>
+              <li style="padding-left: 1.25rem; position: relative;"><i class="bi bi-check-circle-fill" style="position:absolute;left:0;top:0.45rem;font-size:0.7rem;color:var(--lux-gold);"></i> Fixed pricing, no surge regardless of time or demand</li>
+              <li style="padding-left: 1.25rem; position: relative;"><i class="bi bi-check-circle-fill" style="position:absolute;left:0;top:0.45rem;font-size:0.7rem;color:var(--lux-gold);"></i> Help with luggage, car seats pre-installed, Publix stop available</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       COMPARISON TABLE
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Compare Options</p>
+          <h2 class="lux-section-title">Terminal C Ground Transportation Options</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="table-responsive">
+            <table class="seo-comparison-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="highlight-col">Grayson Towncar</th>
+                  <th>Uber / Lyft</th>
+                  <th>Mears Connect</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Where Driver Meets You</td>
+                  <td class="highlight-col">Inside, at baggage claim</td>
+                  <td>Outside, at curb pickup</td>
+                  <td>Shuttle bus stop</td>
+                </tr>
+                <tr>
+                  <td>Wait Time</td>
+                  <td class="highlight-col">0 min — already there</td>
+                  <td>10-30 min (peak times)</td>
+                  <td>15-30 min for bus</td>
+                </tr>
+                <tr>
+                  <td>Pricing</td>
+                  <td class="highlight-col">From $105, no surge</td>
+                  <td>$25-60+ (surge pricing)</td>
+                  <td>Per-person pricing</td>
+                </tr>
+                <tr>
+                  <td>Flight Tracking</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Automatic</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-check-circle-fill check-yes"></i> Yes</td>
+                </tr>
+                <tr>
+                  <td>Car Seats</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free, pre-installed</td>
+                  <td><i class="bi bi-exclamation-circle-fill check-maybe"></i> Unreliable</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Not available</td>
+                </tr>
+                <tr>
+                  <td>Grocery Stop</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Free Publix stop</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> No</td>
+                </tr>
+                <tr>
+                  <td>Vehicle</td>
+                  <td class="highlight-col">Private, your group only</td>
+                  <td>Private, random driver</td>
+                  <td>Shared shuttle</td>
+                </tr>
+                <tr>
+                  <td>Luggage Help</td>
+                  <td class="highlight-col"><i class="bi bi-check-circle-fill check-yes"></i> Driver assists</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> You load</td>
+                  <td><i class="bi bi-x-circle-fill check-no"></i> Self-load</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-center mt-4">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-dark">See Our Rates</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       FAQ
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Questions</p>
+          <h2 class="lux-section-title">Terminal C — Frequently Asked Questions</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="seo-faq-section">
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Which airlines use MCO Terminal C?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Terminal C primarily serves JetBlue, which moved most of its Orlando flights to the new terminal. Several international carriers and select domestic airlines also operate from Terminal C. Check your airline's terminal assignment before you fly — it'll be on your boarding pass and in the airline's app.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Where do I meet my driver at Terminal C?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Your driver waits for you on Level 6 near the escalators and elevators with a greeting sign. When you arrive, they greet you, walk you to your baggage carousel, help collect your luggage, and then escort you to the vehicle on Level 1.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Is Terminal C connected to the main MCO terminal?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. Terminal C is connected to the main terminal complex via the Automated People Mover (APM), a train that runs between the terminals. But you don't need to take the train if you have a car service — your driver meets you directly at Terminal C. No transferring between terminals required.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How does Uber and Lyft pickup work at Terminal C?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>For Uber and Lyft at Terminal C, you need to go to the designated rideshare pickup area on Level 1. Request your ride through the app and wait at the curb for your driver. During peak times, expect 10-30 minute waits and possible surge pricing. With Grayson, your driver is already waiting on Level 6 to greet you, help with bags, and walk you to your vehicle.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                Do you provide car seats for families arriving at Terminal C?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Yes. <a href="{% url 'car_seats_transportation' %}" style="color: var(--lux-gold);">Complimentary Graco car seats</a> are available on every family booking at no extra charge, regardless of which terminal you arrive at. Select the car seat type when booking and they'll be pre-installed in your vehicle before your driver meets you.</p>
+              </div>
+            </div>
+
+            <div class="seo-faq-item">
+              <button class="seo-faq-question" type="button" aria-expanded="false">
+                How do I know which terminal my flight arrives at?
+                <span class="faq-icon"><i class="bi bi-plus"></i></span>
+              </button>
+              <div class="seo-faq-answer">
+                <p>Your terminal is listed on your boarding pass and in your airline's app. You can also check the MCO airport website for terminal assignments. Either way, it doesn't affect your booking with us — we track your flight and know exactly which terminal you're arriving at. Your driver will be in the right place.</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       POPULAR DESTINATIONS FROM MCO
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-section" style="background: var(--lux-off-white);">
+    <div class="container">
+      <div class="row justify-content-center mb-4">
+        <div class="col-lg-10 text-center">
+          <p class="lux-eyebrow" style="color: var(--lux-gold);">Where To Next</p>
+          <h2 class="lux-section-title">Popular Destinations from Terminal C</h2>
+          <div class="lux-divider"></div>
+        </div>
+      </div>
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'disney_world_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-magic me-2" style="color: var(--lux-gold);"></i>Disney World</h5>
+            <p>~30 min from MCO to all Disney resorts.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'epic_universe_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-stars me-2" style="color: var(--lux-gold);"></i>Epic Universe</h5>
+            <p>~25 min direct to Universal's newest park.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'universal_orlando_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-building me-2" style="color: var(--lux-gold);"></i>Universal Orlando</h5>
+            <p>~20 min to Universal Studios & Islands of Adventure.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'port_canaveral_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-water me-2" style="color: var(--lux-gold);"></i>Port Canaveral</h5>
+            <p>~50 min to the cruise port.</p>
+          </a>
+        </div>
+        <div class="col-md-4 col-lg-3">
+          <a href="{% url 'car_seats_transportation' %}" class="seo-link-card">
+            <h5><i class="bi bi-shield-check me-2" style="color: var(--lux-gold);"></i>Free Car Seat Service</h5>
+            <p>Complimentary Graco car seats on every family booking.</p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════
+       CTA BANNER
+       ═══════════════════════════════════════════════ -->
+  <section class="seo-cta-banner">
+    <div class="container">
+      <div class="row justify-content-center text-center">
+        <div class="col-lg-8">
+          <h2>Book Your MCO Airport Transfer</h2>
+          <p class="mb-4">Terminal C or Terminals A/B — your driver will be there. Fixed pricing, meet &amp; greet at baggage claim, and a smooth ride to your destination.</p>
+          <div class="d-flex flex-wrap justify-content-center gap-3 mb-3">
+            <a href="{% url 'rates' %}" class="lux-btn lux-btn-primary">View Rates &amp; Book</a>
+            <a href="tel:+14072127190" class="lux-btn lux-btn-outline-light">Call Now</a>
+          </div>
+          <a href="tel:+14072127190" class="cta-phone">407-212-7190</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /.seo-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* FAQ Accordion */
+document.querySelectorAll('.seo-faq-question').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var item = this.closest('.seo-faq-item');
+    var wasActive = item.classList.contains('active');
+
+    document.querySelectorAll('.seo-faq-item').forEach(function(el) {
+      el.classList.remove('active');
+      el.querySelector('.seo-faq-question').setAttribute('aria-expanded', 'false');
+    });
+
+    if (!wasActive) {
+      item.classList.add('active');
+      this.setAttribute('aria-expanded', 'true');
+    }
+  });
+});
+</script>
+{% endblock %}
