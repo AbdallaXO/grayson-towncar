@@ -65,6 +65,7 @@ def completed_trips(request):
         )
         .prefetch_related("reservation__legs")
         .filter(driver=driver, status="completed")
+        .exclude(reservation__status="cancelled")
         .order_by("-pickup_date", "-pickup_time")
     )
 
@@ -98,6 +99,7 @@ def schedule(request):
             pickup_date__lte=next_week,
             status__in=["in-progress", "confirmed", "on-the-way", "picked-up", "on-location"],
         )
+        .exclude(reservation__status="cancelled")
         .order_by("pickup_date", "pickup_time")
     )
 

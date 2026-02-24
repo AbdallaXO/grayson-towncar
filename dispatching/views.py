@@ -112,7 +112,7 @@ def index(request):
         selected_date = timezone.localdate()
 
     # Get all legs for the selected date, excluding refunded reservations
-    legs_query = Leg.objects.filter(pickup_date=selected_date).exclude(reservation__refund_status='completed')
+    legs_query = Leg.objects.filter(pickup_date=selected_date).exclude(reservation__status='cancelled')
     
     # Apply driver filter if specified
     if driver_filter:
@@ -331,7 +331,7 @@ def export_legs_dashboard_csv(request):
 
     legs_query = (
         Leg.objects.filter(pickup_date=selected_date)
-        .exclude(reservation__refund_status="completed")
+        .exclude(reservation__status="cancelled")
     )
 
     if driver_filter:
@@ -474,7 +474,7 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 queryset = queryset.filter(status=status_filter)
 
         if status_filter not in ["cancelled", "pending"]:
-            queryset = queryset.exclude(refund_status="completed")
+            queryset = queryset.exclude(status="cancelled")
 
         return queryset
 
@@ -956,15 +956,12 @@ def update_leg_assignment(request):
                 {"success": False, "error": "Leg not found"}, status=404
             )
         
-        # Prevent driver assignment only for fully refunded reservations
-        if field == "driver" and leg.reservation.refund_status == 'completed' and (
-            leg.reservation.refund_amount is not None
-            and leg.reservation.refund_amount >= leg.reservation.total_price
-        ):
-            logger.warning(f"Attempted to assign driver to refunded reservation {leg.reservation.id}")
+        # Prevent driver assignment to cancelled reservations
+        if field == "driver" and leg.reservation.status == 'cancelled':
+            logger.warning(f"Attempted to assign driver to cancelled reservation {leg.reservation.id}")
             return JsonResponse({
                 "success": False,
-                "error": "Cannot assign driver to a refunded reservation"
+                "error": "Cannot assign driver to a cancelled reservation"
             }, status=400)
 
         if field == "driver":
@@ -4891,15 +4888,15 @@ def process_refund(request):
                     "error": f"Failed to process refund: {'; '.join(refund_errors)}"
                 }, status=500)
             
-            # Update reservation status to completed
+            # Update reservation status
             reservation.refund_status = 'completed'
-            reservation.status = 'cancelled'  # Cancel the reservation
+            reservation.status = 'cancelled'
             if refund_errors:
                 reservation.refund_notes = (refund_notes or "") + f"\n\nRefund processing notes: {'; '.join(refund_errors)}"
             reservation.save()
-            
+
             logger.info(f"Refund processed for reservation {reservation.id} by {request.user.username}. Amount: ${refunded_amount}")
-            
+
             return JsonResponse({
                 "success": True,
                 "message": f"Refund approved and processed successfully. Amount refunded: ${refunded_amount}",
@@ -4979,16 +4976,15 @@ def process_refund(request):
             reservation.refund_status = 'completed'
             reservation.refund_processed_by = request.user
             reservation.refund_processed_at = timezone.now()
-            # Cancel the reservation so it doesn't show in legs list or allow driver assignment
             reservation.status = 'cancelled'
             if refund_notes:
                 reservation.refund_notes = refund_notes
             if refund_errors:
                 reservation.refund_notes = (refund_notes or "") + f"\n\nRefund processing notes: {'; '.join(refund_errors)}"
             reservation.save()
-            
+
             logger.info(f"Refund processed for reservation {reservation.id} by {request.user.username}. Amount: ${refunded_amount}")
-            
+
             return JsonResponse({
                 "success": True,
                 "message": f"Refund processed successfully. Amount refunded: ${refunded_amount}",
@@ -5034,7 +5030,9 @@ def analytics_dashboard(request):
             pickup_date__gte=start_date,
             pickup_date__lte=end_date,
             status='completed'
-        ).select_related('driver', 'driver__profile', 'reservation')
+        )
+        .exclude(reservation__status="cancelled")
+        .select_related('driver', 'driver__profile', 'reservation')
     )
 
     # Overall statistics
@@ -5240,7 +5238,7 @@ def capacity_planner(request):
     # Query all legs for the selected date
     legs = (
         Leg.objects.filter(pickup_date=selected_date)
-        .exclude(reservation__refund_status='completed')
+        .exclude(reservation__status='cancelled')
         .select_related(
             "reservation",
             "reservation__customer",
@@ -5534,9 +5532,10 @@ def auto_assign_drivers(request):
     except ValueError:
         return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
 
-    # Get all legs for this date
+    # Get all legs for this date (exclude cancelled reservations)
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
+        .exclude(reservation__status="cancelled")
         .select_related("driver", "driver__profile", "reservation", "reservation__vehicle",
                         "reservation__customer")
     )
@@ -5796,7 +5795,9 @@ def reset_schedule(request):
     # Auto-snapshot before resetting
     snapshot = _create_schedule_snapshot(target_date, request.user, 'before_reset')
 
-    legs = Leg.objects.filter(pickup_date=target_date, driver__isnull=False)
+    legs = Leg.objects.filter(
+        pickup_date=target_date, driver__isnull=False
+    ).exclude(reservation__status="cancelled")
     count = legs.count()
     legs.update(driver=None, driver_assigned_by=None, driver_assigned_at=None)
 
@@ -6015,9 +6016,10 @@ def smart_schedule_builder(request):
     except DriverModel.DoesNotExist:
         return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
 
-    # Get all legs for this date
+    # Get all legs for this date (exclude cancelled reservations)
     legs = list(
         Leg.objects.filter(pickup_date=target_date)
+        .exclude(reservation__status="cancelled")
         .select_related("driver", "driver__profile", "reservation", "reservation__customer", "reservation__vehicle")
     )
 

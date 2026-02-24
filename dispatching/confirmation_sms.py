@@ -97,10 +97,10 @@ def _short_location(location):
 
 
 def get_legs_for_confirmation(target_date):
-    """Legs for the given date, excluding refunded reservations, ordered by pickup time."""
+    """Legs for the given date, excluding cancelled reservations, ordered by pickup time."""
     return (
         Leg.objects.filter(pickup_date=target_date)
-        .exclude(reservation__refund_status="completed")
+        .exclude(reservation__status="cancelled")
         .select_related(
             "reservation",
             "reservation__customer",

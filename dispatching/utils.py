@@ -53,8 +53,8 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             Prefetch("status_history", queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')),
         )
     
-    # Exclude refunded reservations - they should be hidden from normal operations
-    legs_query = legs_query.exclude(reservation__refund_status='completed')
+    # Exclude cancelled reservations (full refunds) - they should be hidden from normal operations
+    legs_query = legs_query.exclude(reservation__status='cancelled')
     
     # Apply date filters
     if date_from and date_to:
