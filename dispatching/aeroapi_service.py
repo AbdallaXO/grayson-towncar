@@ -1,13 +1,15 @@
 """
-Simple AeroAPI service for flight tracking.
-Uses the /flights/{ident} endpoint to get flight information.
+AeroAPI service for flight tracking.
+Uses /flights/{ident} for live data (within ~48hrs) and
+/schedules/{start}/{end} for scheduled data (up to 1 year out).
 """
+import re
 import requests
 import logging
 from django.conf import settings
 from django.utils import timezone as django_timezone
-from typing import Dict, Optional, Any
-from datetime import datetime
+from typing import Dict, Optional, Any, Tuple
+from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
@@ -21,10 +23,238 @@ class AeroAPIService:
     Simple service to fetch flight data from AeroAPI using /flights/{ident} endpoint
     """
     
+    # Hours threshold: use /schedules/ for flights beyond this, /flights/ within
+    SCHEDULE_THRESHOLD_HOURS = 48
+
     def __init__(self):
         self.api_key = getattr(settings, 'AEROAPI_KEY', None)
         self.base_url = getattr(settings, 'AEROAPI_BASE_URL', 'https://aeroapi.flightaware.com/aeroapi')
-        
+
+    @staticmethod
+    def _split_flight_ident(flight_ident: str) -> Tuple[Optional[str], Optional[int]]:
+        """Split 'DL2204' into ('DL', 2204). Returns (None, None) if unparseable."""
+        flight_ident = flight_ident.strip().upper()
+        match = re.match(r'^([A-Z]{2,3})(\d+)$', flight_ident)
+        if match:
+            return match.group(1), int(match.group(2))
+        return None, None
+
+    def get_flight_data(self, flight_ident: str, flight_date: Optional[str] = None,
+                        trip_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Smart wrapper: auto-picks /flights/ (live) or /schedules/ (future) based on
+        how far out the flight is. Returns the same dict format either way.
+        """
+        if not flight_date:
+            # No date — can only use live endpoint
+            return self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+
+        try:
+            target = datetime.strptime(flight_date, '%Y-%m-%d').date()
+        except ValueError:
+            return self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+
+        now = django_timezone.now().astimezone(ZoneInfo('America/New_York'))
+        hours_until = (datetime.combine(target, datetime.min.time()) - datetime.combine(now.date(), datetime.min.time())).total_seconds() / 3600
+
+        if hours_until > self.SCHEDULE_THRESHOLD_HOURS:
+            logger.info(f"Flight {flight_ident} is {hours_until:.0f}h away — using /schedules/ endpoint")
+            result = self.get_scheduled_flight(flight_ident, flight_date, trip_type=trip_type)
+            if result.get('status') == 'success':
+                return result
+            # Fall back to live endpoint if schedules fails
+            logger.warning(f"Schedules endpoint failed for {flight_ident}, falling back to /flights/")
+
+        return self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+
+    def get_scheduled_flight(self, flight_ident: str, flight_date: str,
+                             trip_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Fetch scheduled flight data using /schedules/{date_start}/{date_end}.
+        Works up to 1 year in the future. Returns same dict format as get_flight_info().
+        """
+        if not self.api_key:
+            return {'error': 'AeroAPI key not configured', 'status': 'error'}
+
+        flight_ident = flight_ident.strip().upper()
+        airline, flight_number = self._split_flight_ident(flight_ident)
+        if not airline or not flight_number:
+            return {'error': f'Cannot parse flight ident: {flight_ident}', 'status': 'error'}
+
+        try:
+            target = datetime.strptime(flight_date, '%Y-%m-%d').date()
+        except ValueError:
+            return {'error': f'Invalid date format: {flight_date}', 'status': 'error'}
+
+        # date_end must be the next day to cover the full target date
+        date_start = target.isoformat()
+        date_end = (target + timedelta(days=1)).isoformat()
+
+        # Build query params — filter by airline + flight_number + airport
+        params = {
+            'airline': airline,
+            'flight_number': flight_number,
+            'include_codeshares': 'false',
+            'max_pages': 1,
+        }
+
+        # For arrivals, filter by destination; for departures, filter by origin
+        if trip_type == 'arrival':
+            params['destination'] = 'MCO'
+        elif trip_type == 'return':
+            params['origin'] = 'MCO'
+
+        try:
+            url = f"{self.base_url}/schedules/{date_start}/{date_end}"
+            headers = {'x-apikey': self.api_key}
+
+            logger.info(f"Fetching scheduled flight {airline}{flight_number} for {flight_date} from /schedules/")
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', '60'))
+                return {
+                    'error': f'Rate limit exceeded. Please wait {retry_after} seconds.',
+                    'status': 'rate_limited',
+                    'retry_after': retry_after,
+                    'flight_ident': flight_ident,
+                }
+
+            if response.status_code == 404:
+                return {'error': f'No schedules found for {flight_ident}', 'status': 'not_found'}
+
+            response.raise_for_status()
+            data = response.json()
+
+            scheduled_flights = data.get('scheduled', [])
+            if not scheduled_flights:
+                return {'error': f'No scheduled flights found for {flight_ident} on {flight_date}', 'status': 'not_found'}
+
+            # Find the matching flight (prefer actual flight over codeshares)
+            best = None
+            for sched in scheduled_flights:
+                iata = sched.get('ident_iata', '') or ''
+                actual_iata = sched.get('actual_ident_iata', '') or ''
+                # Primary flight: ident_iata matches and it's not a codeshare
+                if iata == flight_ident and not actual_iata:
+                    best = sched
+                    break
+                # Codeshare pointing to our flight
+                if actual_iata == flight_ident:
+                    best = sched
+                    break
+                # Fallback: any matching ident
+                if iata == flight_ident and best is None:
+                    best = sched
+
+            if not best:
+                # Use first result as last resort
+                best = scheduled_flights[0]
+
+            return self._parse_scheduled_data(best, trip_type=trip_type)
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"AeroAPI /schedules/ request failed: {e}")
+            return {'error': f'API request failed: {str(e)}', 'status': 'error'}
+        except Exception as e:
+            logger.error(f"Unexpected error in get_scheduled_flight: {e}", exc_info=True)
+            return {'error': f'Unexpected error: {str(e)}', 'status': 'error'}
+
+    def _parse_scheduled_data(self, data: Dict, trip_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Parse /schedules/ response into the same dict format as _parse_flight_data().
+        Only scheduled times are available — no estimated/actual, no gate/terminal/baggage.
+        """
+        eastern = ZoneInfo('America/New_York')
+
+        def parse_utc_to_eastern(utc_str):
+            if not utc_str:
+                return None
+            try:
+                dt = datetime.fromisoformat(utc_str.replace('Z', '+00:00'))
+                return dt.astimezone(eastern)
+            except (ValueError, TypeError):
+                return None
+
+        # Airport codes from schedules are flat strings like "MCO", "KMCO"
+        origin_iata = data.get('origin_iata', '') or data.get('origin', '')
+        dest_iata = data.get('destination_iata', '') or data.get('destination', '')
+        # Strip ICAO prefix if it looks like one (KMCO → MCO)
+        if len(origin_iata) == 4 and origin_iata.startswith('K'):
+            origin_iata = origin_iata[1:]
+        if len(dest_iata) == 4 and dest_iata.startswith('K'):
+            dest_iata = dest_iata[1:]
+
+        origin_str = origin_iata
+        dest_str = dest_iata
+
+        is_arrival = dest_iata in ORLANDO_AIRPORT_CODES
+        is_departure = origin_iata in ORLANDO_AIRPORT_CODES
+
+        # Parse scheduled times
+        scheduled_in = parse_utc_to_eastern(data.get('scheduled_in'))   # gate arrival
+        scheduled_out = parse_utc_to_eastern(data.get('scheduled_out')) # gate departure
+
+        # Map to our standard fields based on trip type
+        scheduled_gate_arrival = None
+        scheduled_runway_arrival = None
+
+        if trip_type == 'arrival' or (trip_type != 'return' and is_arrival):
+            # Arrival at Orlando — scheduled_in is gate arrival at MCO
+            scheduled_gate_arrival = scheduled_in
+            # No runway time available from schedules, use gate time as fallback
+            scheduled_runway_arrival = scheduled_in
+        elif trip_type == 'return' or is_departure:
+            # Departure from Orlando — scheduled_out is gate departure from MCO
+            scheduled_gate_arrival = scheduled_out
+            scheduled_runway_arrival = scheduled_out
+        else:
+            # Default to arrival times
+            scheduled_gate_arrival = scheduled_in
+            scheduled_runway_arrival = scheduled_in
+
+        flight_iata = data.get('ident_iata', '') or data.get('actual_ident_iata', '') or data.get('ident', '')
+
+        result = {
+            'status': 'success',
+            'flight_iata': flight_iata,
+            'origin': origin_str,
+            'destination': dest_str,
+            'flight_status': 'Scheduled',
+            'data_source': 'schedules',  # Lets callers know this is schedule-only data
+
+            'scheduled_runway_arrival_local': scheduled_runway_arrival,
+            'estimated_runway_arrival_local': None,
+            'actual_runway_arrival_local': None,
+
+            'scheduled_gate_arrival_local': scheduled_gate_arrival,
+            'estimated_gate_arrival_local': None,
+            'actual_gate_arrival_local': None,
+
+            'scheduled_arrival_local': scheduled_runway_arrival,
+            'estimated_arrival_local': None,
+
+            'cancelled': False,
+            'diverted': False,
+            'progress_percent': None,
+
+            'terminal': None,
+            'gate': None,
+            'baggage_claim': None,
+            'last_updated': django_timezone.now(),
+        }
+
+        # Add destination arrival times for return trips
+        if trip_type == 'return' or is_departure:
+            result['scheduled_dest_arrival_local'] = scheduled_in
+            result['estimated_dest_arrival_local'] = None
+            result['actual_dest_arrival_local'] = None
+            result['scheduled_dest_gate_arrival_local'] = scheduled_in
+            result['estimated_dest_gate_arrival_local'] = None
+            result['actual_dest_gate_arrival_local'] = None
+
+        return result
+
     def get_flight_info(self, flight_ident: str, flight_date: Optional[str] = None, trip_type: Optional[str] = None) -> Dict[str, Any]:
         """
         Get flight information using AeroAPI /flights/{ident} endpoint

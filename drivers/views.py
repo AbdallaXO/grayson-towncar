@@ -515,7 +515,7 @@ def refresh_flight_data(request):
         trip_type = leg.get_trip_type()
 
         aeroapi = AeroAPIService()
-        flight_data = aeroapi.get_flight_info(
+        flight_data = aeroapi.get_flight_data(
             flight_ident, flight_date=flight_date, trip_type=trip_type
         )
 

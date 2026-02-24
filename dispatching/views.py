@@ -2169,7 +2169,7 @@ def refresh_flight_data(request):
 
         # Fetch flight data from AeroAPI
         aeroapi = AeroAPIService()
-        flight_data = aeroapi.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+        flight_data = aeroapi.get_flight_data(flight_ident, flight_date=flight_date, trip_type=trip_type)
 
         logger.info(f"Flight data response: {flight_data}")
 
@@ -2583,7 +2583,7 @@ def _refresh_single_flight(leg):
         aeroapi = AeroAPIService()
 
         # Fetch flight data from AeroAPI
-        flight_data = aeroapi.get_flight_info(
+        flight_data = aeroapi.get_flight_data(
             flight_ident, flight_date=flight_date, trip_type=trip_type
         )
 
