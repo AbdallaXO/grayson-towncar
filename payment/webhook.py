@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import transaction  # Added for atomicity
 import logging
 import time
+import threading
 from reservations.models import Reservation, Customer
 from .models import Payment
 from users.emails import send_reservation_confirmation  # Added import
@@ -225,10 +226,14 @@ def handle_checkout_session(session):
                     logger.error(f"Error sending confirmation email for reservation {reservation_id}: {e}")
                     # Don't fail payment processing if email fails
                 
-                # Send purchase event to Meta - use None to default to reservation.total_price (matches Google Analytics)
-                # Generate event_id from payment intent for deduplication
+                # Send purchase event to Meta in background thread to avoid blocking webhook response
                 event_id = f"{payment_intent}_{int(time.time())}" if payment_intent else None
-                send_purchase_event(reservation, value=None, event_id=event_id)
+                threading.Thread(
+                    target=send_purchase_event,
+                    args=(reservation,),
+                    kwargs={"value": None, "event_id": event_id},
+                    daemon=True,
+                ).start()
             else:
                 logger.error("No payment_intent in session")
 

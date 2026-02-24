@@ -1050,6 +1050,8 @@ class Leg(models.Model):
             models.Index(fields=["reservation"]),
             models.Index(fields=["flight_information"]),
             models.Index(fields=["pickup_date", "pickup_time"]),
+            models.Index(fields=["driver"]),
+            models.Index(fields=["status"]),
         ]
 
 

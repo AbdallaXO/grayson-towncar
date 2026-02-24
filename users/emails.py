@@ -205,6 +205,7 @@ def send_refund_request_notification(reservation):
 def agent_register_email(instance):
     """
     Sends a welcome email to new travel agents after registration.
+    Uses background thread to avoid blocking the request.
     """
     try:
         context = {
@@ -217,10 +218,13 @@ def agent_register_email(instance):
         to = [instance.user.email]
         html_content = render_to_string("users/agent_register_email.html", context)
 
-        msg = EmailMultiAlternatives(subject, "", from_email, to)
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-        logger.info(f"Welcome email sent to {instance.user.email}")
+        def _send_email():
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            logger.info(f"Welcome email sent to {instance.user.email}")
+
+        _send_email_with_retry(_send_email, max_retries=3)
 
     except Exception as e:
         logger.error(f"Error sending agent welcome email: {e}")
@@ -345,6 +349,7 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email):
 def thankyou_email(instance):
     """
     Sends a thank you email to the customer after they submit a contact form.
+    Uses background thread to avoid blocking the request.
     """
     try:
         context = {"name": instance.name, "email": instance.email}
@@ -353,10 +358,13 @@ def thankyou_email(instance):
         to = [instance.email]
         html_content = render_to_string("users/thankyou_email.html", context)
 
-        msg = EmailMultiAlternatives(subject, "", from_email, to)
-        msg.attach_alternative(html_content, "text/html")
-        msg.send()
-        logger.info(f"Thank you email sent to {instance.email}")
+        def _send_email():
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            logger.info(f"Thank you email sent to {instance.email}")
+
+        _send_email_with_retry(_send_email, max_retries=3)
 
     except Exception as e:
         logger.error(f"Error sending thank you email: {e}")

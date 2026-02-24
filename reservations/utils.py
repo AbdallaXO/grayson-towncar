@@ -3,6 +3,7 @@ from django.shortcuts import redirect
 from django.conf import settings
 import requests
 import re
+import threading
 from .forms import (
     ReservationForm,
     CustomerForm,
@@ -16,6 +17,17 @@ import logging
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
+
+def _run_in_background(func, *args, **kwargs):
+    """Run a function in a background daemon thread to avoid blocking the request."""
+    def _wrapper():
+        try:
+            func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Background task error in {func.__name__}: {e}")
+    thread = threading.Thread(target=_wrapper, daemon=True)
+    thread.start()
 
 
 def get_form_details(request, rate):
@@ -516,7 +528,7 @@ def extra_charges(reservation):
 
 def send_ntfy_notification(title, message, priority="default", tags=None):
     """
-    Send a notification via ntfy
+    Send a notification via ntfy (runs in background thread to avoid blocking).
 
     Args:
         title (str): Notification title
@@ -528,81 +540,88 @@ def send_ntfy_notification(title, message, priority="default", tags=None):
         logger.info("NTFY notifications are disabled")
         return
 
-    try:
-        topic = getattr(settings, "NTFY_TOPIC", "grayson-leads")
-        server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
+    def _do_send():
+        try:
+            topic = getattr(settings, "NTFY_TOPIC", "grayson-leads")
+            server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
 
-        url = f"{server}/{topic}"
+            url = f"{server}/{topic}"
 
-        headers = {
-            "Content-Type": "text/plain; charset=utf-8",
-        }
+            headers = {
+                "Content-Type": "text/plain; charset=utf-8",
+            }
 
-        if title:
-            headers["Title"] = title.encode("utf-8")
+            if title:
+                headers["Title"] = title.encode("utf-8")
 
-        if priority != "default":
-            headers["Priority"] = priority
+            if priority != "default":
+                headers["Priority"] = priority
 
-        if tags:
-            headers["Tags"] = ",".join(tags)
+            if tags:
+                headers["Tags"] = ",".join(tags)
 
-        response = requests.post(
-            url, data=message.encode("utf-8"), headers=headers, timeout=10
-        )
-
-        if response.status_code == 200:
-            logger.info(f"NTFY notification sent successfully: {title}")
-        else:
-            logger.error(
-                f"Failed to send NTFY notification. Status: {response.status_code}"
+            response = requests.post(
+                url, data=message.encode("utf-8"), headers=headers, timeout=10
             )
 
-    except Exception as e:
-        logger.error(f"Error sending NTFY notification: {str(e)}")
+            if response.status_code == 200:
+                logger.info(f"NTFY notification sent successfully: {title}")
+            else:
+                logger.error(
+                    f"Failed to send NTFY notification. Status: {response.status_code}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error sending NTFY notification: {str(e)}")
+
+    _run_in_background(_do_send)
 
 
 def send_dispatch_alert_notification(title, message, priority="urgent", tags=None):
     """
     Send a notification to the dispatch alerts channel (grayson-dispatch-alerts).
     Separate from leads and driver topics — for urgent dispatcher warnings.
+    Runs in background thread to avoid blocking.
     """
     if not getattr(settings, "NTFY_ENABLED", False):
         logger.info("NTFY notifications are disabled")
         return
 
-    try:
-        topic = getattr(settings, "NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
-        server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
+    def _do_send():
+        try:
+            topic = getattr(settings, "NTFY_DISPATCH_ALERT_TOPIC", "grayson-dispatch-alerts")
+            server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
 
-        url = f"{server}/{topic}"
+            url = f"{server}/{topic}"
 
-        headers = {
-            "Content-Type": "text/plain; charset=utf-8",
-        }
+            headers = {
+                "Content-Type": "text/plain; charset=utf-8",
+            }
 
-        if title:
-            headers["Title"] = title.encode("utf-8")
+            if title:
+                headers["Title"] = title.encode("utf-8")
 
-        if priority != "default":
-            headers["Priority"] = priority
+            if priority != "default":
+                headers["Priority"] = priority
 
-        if tags:
-            headers["Tags"] = ",".join(tags)
+            if tags:
+                headers["Tags"] = ",".join(tags)
 
-        response = requests.post(
-            url, data=message.encode("utf-8"), headers=headers, timeout=10
-        )
-
-        if response.status_code == 200:
-            logger.info(f"Dispatch alert sent successfully: {title}")
-        else:
-            logger.error(
-                f"Failed to send dispatch alert. Status: {response.status_code}"
+            response = requests.post(
+                url, data=message.encode("utf-8"), headers=headers, timeout=10
             )
 
-    except Exception as e:
-        logger.error(f"Error sending dispatch alert: {str(e)}")
+            if response.status_code == 200:
+                logger.info(f"Dispatch alert sent successfully: {title}")
+            else:
+                logger.error(
+                    f"Failed to send dispatch alert. Status: {response.status_code}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error sending dispatch alert: {str(e)}")
+
+    _run_in_background(_do_send)
 
 
 def send_lead_notification(lead):
@@ -826,7 +845,8 @@ def get_driver_status_info(status):
 
 def send_driver_ntfy_notification(title, message, priority="default", tags=None):
     """
-    Send a notification via ntfy to the driver topic
+    Send a notification via ntfy to the driver topic.
+    Runs in background thread to avoid blocking.
 
     Args:
         title (str): Notification title
@@ -838,39 +858,42 @@ def send_driver_ntfy_notification(title, message, priority="default", tags=None)
         logger.info("NTFY notifications are disabled")
         return
 
-    try:
-        # Use driver-specific topic
-        topic = getattr(settings, "NTFY_DRIVER_TOPIC", "grayson-driver-noti")
-        server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
+    def _do_send():
+        try:
+            # Use driver-specific topic
+            topic = getattr(settings, "NTFY_DRIVER_TOPIC", "grayson-driver-noti")
+            server = getattr(settings, "NTFY_SERVER", "https://ntfy.sh")
 
-        url = f"{server}/{topic}"
+            url = f"{server}/{topic}"
 
-        headers = {
-            "Content-Type": "text/plain; charset=utf-8",
-        }
+            headers = {
+                "Content-Type": "text/plain; charset=utf-8",
+            }
 
-        if title:
-            headers["Title"] = title.encode("utf-8")
+            if title:
+                headers["Title"] = title.encode("utf-8")
 
-        if priority != "default":
-            headers["Priority"] = priority
+            if priority != "default":
+                headers["Priority"] = priority
 
-        if tags:
-            headers["Tags"] = ",".join(tags)
+            if tags:
+                headers["Tags"] = ",".join(tags)
 
-        response = requests.post(
-            url, data=message.encode("utf-8"), headers=headers, timeout=10
-        )
-
-        if response.status_code == 200:
-            logger.info(f"Driver NTFY notification sent successfully: {title}")
-        else:
-            logger.error(
-                f"Failed to send driver NTFY notification. Status: {response.status_code}"
+            response = requests.post(
+                url, data=message.encode("utf-8"), headers=headers, timeout=10
             )
 
-    except Exception as e:
-        logger.error(f"Error sending driver NTFY notification: {str(e)}")
+            if response.status_code == 200:
+                logger.info(f"Driver NTFY notification sent successfully: {title}")
+            else:
+                logger.error(
+                    f"Failed to send driver NTFY notification. Status: {response.status_code}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error sending driver NTFY notification: {str(e)}")
+
+    _run_in_background(_do_send)
 
 
 def add_utm_to_metadata(metadata: Dict[str, Any], reservation) -> Dict[str, Any]:
