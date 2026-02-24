@@ -297,12 +297,14 @@ class BatchingOpportunity:
 def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
     """
     Get estimated drive time between two location categories in minutes.
-    Prefers median from RouteTimingMetric, falls back to avg then hardcoded.
+    Prefers P75 from RouteTimingMetric, falls back to median then avg then hardcoded.
     Uses in-memory cache when available to avoid repeated DB queries.
     """
     # Try cache first
     cached = _get_cached_metric(pickup_category, dropoff_category)
     if cached:
+        if cached['p75_drive_time']:
+            return cached['p75_drive_time']
         if cached['median_drive_time']:
             return cached['median_drive_time']
         if cached['avg_drive_time']:
@@ -316,6 +318,8 @@ def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
             sample_count__gte=5,
         ).order_by('-sample_count').first()
         if metric:
+            if metric.p75_drive_time:
+                return metric.p75_drive_time
             if metric.median_drive_time:
                 return metric.median_drive_time
             if metric.avg_drive_time:
@@ -336,6 +340,8 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
     # Try cache first
     cached = _get_cached_metric(pickup_category, dropoff_category)
     if cached:
+        if cached['p75_airport_dwell_time']:
+            return cached['p75_airport_dwell_time']
         if cached['median_airport_dwell_time']:
             return cached['median_airport_dwell_time']
         if cached['avg_airport_dwell_time']:
@@ -350,6 +356,8 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
             sample_count__gte=5,
         ).order_by('-sample_count').first()
         if metric:
+            if metric.p75_airport_dwell_time:
+                return metric.p75_airport_dwell_time
             if metric.median_airport_dwell_time:
                 return metric.median_airport_dwell_time
             if metric.avg_airport_dwell_time:
@@ -403,7 +411,9 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
     trip_type = leg.get_trip_type()
     if trip_type == 'arrival':
         flight_dt = _get_best_flight_arrival(leg)
-        start_dt = flight_dt if flight_dt else pickup_dt
+        # Normalize flight datetime to target_date to avoid date mismatches
+        # in duration calculations (flight data may carry a different date)
+        start_dt = datetime.combine(target_date, flight_dt.time()) if flight_dt else pickup_dt
         dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
         store_stop_minutes = 0
         if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
@@ -1107,9 +1117,7 @@ def build_smart_schedule(
     for leg in pinned_sorted:
         feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
         if feas.feasible:
-            timing = _capture_timing_details(working, leg, target_date)
             _add_leg_to_schedule(working, leg, target_date)
-            slot_timing_details[leg.id] = timing
             pinned_included.append(leg.id)
         else:
             pinned_failed.append(leg.id)
@@ -1236,9 +1244,12 @@ def build_smart_schedule(
         )
 
         if score > 0:
-            timing = _capture_timing_details(working, leg, target_date)
             _add_leg_to_schedule(working, leg, target_date)
-            slot_timing_details[leg.id] = timing
+
+    # Recalculate ALL timing details after schedule is fully built.
+    # During greedy insertion, legs aren't added in chronological order,
+    # so timing captured at insertion time references wrong preceding jobs.
+    slot_timing_details = _recalculate_timing_details(working, target_date)
 
     # Calculate utilization
     total_window_minutes = (end_hour - start_hour) * 60
@@ -1264,6 +1275,65 @@ def build_smart_schedule(
         'new_count': len(working.slots) - (len(existing_schedule.slots) if existing_schedule else 0),
         'slot_timing_details': slot_timing_details,
     }
+
+
+def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date) -> dict:
+    """
+    Recalculate timing details for ALL slots after the schedule is fully built.
+    This ensures each slot references the correct preceding job, since greedy
+    insertion doesn't add legs in chronological order.
+    """
+    details_map = {}
+    sorted_slots = sorted(schedule.slots, key=lambda s: s.pickup_time)
+
+    for i, slot in enumerate(sorted_slots):
+        pickup_cat = slot.pickup_category
+        dropoff_cat = slot.dropoff_category
+        drive_time = get_drive_time(pickup_cat, dropoff_cat)
+        est_end = slot.estimated_end_time
+
+        details = {
+            'pickup_category': pickup_cat,
+            'dropoff_category': dropoff_cat,
+            'job_drive_time': drive_time,
+            'est_end_time': est_end.strftime('%I:%M %p').lstrip('0'),
+        }
+
+        if i == 0:
+            details['prev_job'] = None
+            details['reposition_from'] = None
+            details['reposition_drive_time'] = None
+            details['buffer_minutes'] = None
+            details['reasoning'] = (
+                f"First job. Drive: {pickup_cat} \u2192 {dropoff_cat} ({drive_time} min)"
+            )
+        else:
+            preceding = sorted_slots[i - 1]
+            new_pickup_dt = datetime.combine(target_date, slot.pickup_time)
+            repo_drive = get_drive_time(preceding.dropoff_category, pickup_cat)
+            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + INTER_JOB_BUFFER)
+            buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
+
+            details['prev_job'] = {
+                'leg_id': preceding.leg_id,
+                'end_time': preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0'),
+                'dropoff_category': preceding.dropoff_category,
+            }
+            details['reposition_from'] = preceding.dropoff_category
+            details['reposition_to'] = pickup_cat
+            details['reposition_drive_time'] = repo_drive
+            details['buffer_minutes'] = buffer
+            details['reasoning'] = (
+                f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
+                f"at {preceding.dropoff_category}. "
+                f"Reposition: {preceding.dropoff_category} \u2192 {pickup_cat} ({repo_drive} min) "
+                f"+ {INTER_JOB_BUFFER} min buffer = {buffer} min spare. "
+                f"Job drive: {pickup_cat} \u2192 {dropoff_cat} ({drive_time} min)"
+            )
+
+        details_map[slot.leg_id] = details
+
+    return details_map
 
 
 def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: date) -> dict:
