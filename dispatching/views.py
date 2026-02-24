@@ -5200,7 +5200,7 @@ def capacity_planner(request):
     Daily Capacity Planner: helps dispatchers schedule drivers for a specific date.
     Shows driver timelines, unassigned jobs with suggestions, batching opportunities.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("dashboard")
 
     from datetime import timedelta
@@ -5498,7 +5498,7 @@ def auto_assign_drivers(request):
       - apply=False (default): Preview — run suggestions, build proposed schedules, return without saving.
       - apply=True: Apply — run suggestions and save assignments to DB.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     if request.method != "POST":
@@ -5771,7 +5771,7 @@ def reset_schedule(request):
     Reset all driver assignments for a given date.
     Sets driver=None on every leg for that day.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     if request.method != "POST":
@@ -5816,7 +5816,7 @@ def reset_schedule(request):
 @login_required
 def save_schedule_snapshot(request):
     """Manually save a snapshot of the current schedule for a date."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -5859,7 +5859,7 @@ def save_schedule_snapshot(request):
 @login_required
 def list_schedule_snapshots(request):
     """List available snapshots for a date."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     date_str = request.GET.get("date")
@@ -5894,7 +5894,7 @@ def list_schedule_snapshots(request):
 @login_required
 def restore_schedule_snapshot(request):
     """Restore a schedule from a snapshot."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -5951,7 +5951,7 @@ def restore_schedule_snapshot(request):
 @login_required
 def delete_schedule_snapshot(request):
     """Delete a snapshot."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -5979,7 +5979,7 @@ def smart_schedule_builder(request):
     - preferred_trip_type: 'arrival', 'return', 'cruise', 'other', or '' (no preference)
     - apply: if true, actually save the assignments. If false, just preview.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -6214,7 +6214,7 @@ def update_drive_time(request):
 @login_required(login_url="login")
 def route_timing_reference(request):
     """Route timing reference page showing computed metrics from completed legs."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return redirect("dashboard")
 
     from dispatching.scheduler import DRIVE_TIME_ESTIMATES
@@ -6484,7 +6484,7 @@ def route_timing_reference(request):
 @login_required
 def route_timing_leg_details(request):
     """AJAX endpoint: return leg details for a comma-separated list of leg IDs."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"error": "Permission denied"}, status=403)
 
     from dispatching.analytics import calculate_airport_dwell_time, calculate_drive_time
@@ -6538,7 +6538,7 @@ def route_timing_leg_details(request):
 @login_required
 def route_timing_exclude_leg(request):
     """AJAX endpoint: toggle exclude_from_analytics flag on a leg."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"error": "Permission denied"}, status=403)
     if request.method != 'POST':
         return JsonResponse({"error": "POST required"}, status=405)
@@ -6548,9 +6548,25 @@ def route_timing_exclude_leg(request):
     exclude = data.get('exclude', True)
 
     try:
-        leg = Leg.objects.get(id=leg_id)
+        leg = Leg.objects.select_related('driver').get(id=leg_id)
         leg.exclude_from_analytics = exclude
         leg.save(update_fields=['exclude_from_analytics'])
+
+        # Recalculate the affected bucket immediately so the change takes effect
+        import threading
+        from django.db import connection as _conn
+
+        def _recalc_bucket(leg_obj):
+            try:
+                from dispatching.analytics import update_single_route_timing_metric
+                update_single_route_timing_metric(leg_obj)
+            except Exception:
+                pass
+            finally:
+                _conn.close()
+
+        threading.Thread(target=_recalc_bucket, args=(leg,), daemon=True).start()
+
         return JsonResponse({"success": True, "excluded": exclude})
     except Leg.DoesNotExist:
         return JsonResponse({"error": "Leg not found"}, status=404)
@@ -6562,7 +6578,7 @@ def recalculate_route_metrics(request):
     Runs in a background thread so the request returns immediately without
     blocking the web server.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -6894,7 +6910,7 @@ def driver_performance(request):
 @login_required(login_url="login")
 def get_scheduler_settings(request):
     """Return all scheduler tuning parameters as JSON."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     from dispatching.models import SchedulerSettings
@@ -6910,7 +6926,7 @@ def get_scheduler_settings(request):
 def update_scheduler_settings(request):
     """Update scheduler tuning parameters. Accepts JSON body with field:value pairs.
     Send {"reset": true} to reset all values to defaults."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -6963,7 +6979,7 @@ def update_scheduler_settings(request):
 @login_required
 def get_driver_weekly_schedules(request):
     """Return weekly schedule data for all inhouse drivers."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     drivers = Driver.objects.filter(driver_type="inhouse").select_related("profile").prefetch_related("weekly_schedule")
@@ -6992,7 +7008,7 @@ def get_driver_weekly_schedules(request):
 @require_POST
 def save_driver_weekly_schedules(request):
     """Save weekly schedule data for all inhouse drivers."""
-    if not request.user.is_superuser:
+    if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
     try:

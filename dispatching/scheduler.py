@@ -191,8 +191,10 @@ def preload_timing_cache():
         if existing is None or m.sample_count > existing['sample_count']:
             _timing_cache[key] = {
                 'sample_count': m.sample_count,
+                'median_drive_time': m.median_drive_time,
                 'p75_drive_time': m.p75_drive_time,
                 'avg_drive_time': m.avg_drive_time,
+                'median_airport_dwell_time': m.median_airport_dwell_time,
                 'p75_airport_dwell_time': m.p75_airport_dwell_time,
                 'avg_airport_dwell_time': m.avg_airport_dwell_time,
                 'trip_type': m.trip_type,
@@ -295,14 +297,14 @@ class BatchingOpportunity:
 def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
     """
     Get estimated drive time between two location categories in minutes.
-    Prefers P75 from RouteTimingMetric (conservative), falls back to hardcoded.
+    Prefers median from RouteTimingMetric, falls back to avg then hardcoded.
     Uses in-memory cache when available to avoid repeated DB queries.
     """
     # Try cache first
     cached = _get_cached_metric(pickup_category, dropoff_category)
     if cached:
-        if cached['p75_drive_time']:
-            return cached['p75_drive_time']
+        if cached['median_drive_time']:
+            return cached['median_drive_time']
         if cached['avg_drive_time']:
             return cached['avg_drive_time']
     elif _timing_cache is None:
@@ -314,8 +316,8 @@ def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
             sample_count__gte=5,
         ).order_by('-sample_count').first()
         if metric:
-            if metric.p75_drive_time:
-                return metric.p75_drive_time
+            if metric.median_drive_time:
+                return metric.median_drive_time
             if metric.avg_drive_time:
                 return metric.avg_drive_time
 
@@ -328,14 +330,14 @@ def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
 def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
     """
     Get estimated airport dwell time (gate arrival → pickup) in minutes.
-    Only meaningful for arrival trips. Falls back to 20 min.
+    Only meaningful for arrival trips. Falls back to 45 min.
     Uses in-memory cache when available.
     """
     # Try cache first
     cached = _get_cached_metric(pickup_category, dropoff_category)
     if cached:
-        if cached['p75_airport_dwell_time']:
-            return cached['p75_airport_dwell_time']
+        if cached['median_airport_dwell_time']:
+            return cached['median_airport_dwell_time']
         if cached['avg_airport_dwell_time']:
             return cached['avg_airport_dwell_time']
     elif _timing_cache is None:
@@ -348,8 +350,8 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
             sample_count__gte=5,
         ).order_by('-sample_count').first()
         if metric:
-            if metric.p75_airport_dwell_time:
-                return metric.p75_airport_dwell_time
+            if metric.median_airport_dwell_time:
+                return metric.median_airport_dwell_time
             if metric.avg_airport_dwell_time:
                 return metric.avg_airport_dwell_time
 

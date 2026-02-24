@@ -282,56 +282,64 @@
 
   {% block extra_js %}
     <script>
-        let searchTimeout;
-        const searchInput = document.getElementById('searchInput');
-        const filterForm = document.getElementById('filterForm');
-        const clearFiltersBtn = document.getElementById('clearFilters');
-        const resetFiltersBtn = document.getElementById('resetFilters');
-        const reservationsList = document.getElementById('reservationsList');
-        const statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
-        const statusUpdateModal = new bootstrap.Modal(document.getElementById('statusUpdateModal'));
-        const deleteReservationModal = new bootstrap.Modal(document.getElementById('deleteReservationModal'));
-        let currentDeleteReservationUuid = null;
+    document.addEventListener('DOMContentLoaded', function() {
+        var searchTimeout;
+        var currentDeleteReservationUuid = null;
+        var searchInput = document.getElementById('searchInput');
+        var filterForm = document.getElementById('filterForm');
+        var clearFiltersBtn = document.getElementById('clearFilters');
+        var resetFiltersBtn = document.getElementById('resetFilters');
+        var reservationsList = document.getElementById('reservationsList');
+        var statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
+        var statusUpdateModal = new bootstrap.Modal(document.getElementById('statusUpdateModal'));
+        var deleteReservationModal = new bootstrap.Modal(document.getElementById('deleteReservationModal'));
 
         // Function to update the list via AJAX
         function updateList() {
-            const formData = new FormData(filterForm);
-            const queryString = new URLSearchParams(formData).toString();
+            var formData = new FormData(filterForm);
+            var queryString = new URLSearchParams(formData).toString();
 
-            fetch(`?${queryString}`, {
+            fetch('?' + queryString, {
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 })
-                .then(response => response.json())
-                .then(data => {
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
                     reservationsList.innerHTML = data.html;
                     document.getElementById('totalCount').textContent = data.total_count;
                     document.getElementById('pendingCount').textContent = data.pending_count;
                     document.getElementById('confirmedCount').textContent = data.confirmed_count;
                     document.getElementById('needPaymentCount').textContent = data.need_payment_count;
-                    document.getElementById('totalRevenue').textContent = data.total_revenue.toFixed(2);
+                    var revenueEl = document.getElementById('totalRevenue');
+                    if (revenueEl) revenueEl.textContent = data.total_revenue.toFixed(2);
 
-                    // Update URL without page reload
-                    const newUrl = `${window.location.pathname}?${queryString}`;
-                    window.history.pushState({
-                        path: newUrl
-                    }, '', newUrl);
+                    var newUrl = window.location.pathname + '?' + queryString;
+                    window.history.pushState({ path: newUrl }, '', newUrl);
                 });
         }
 
-        // Function to show status update modal
-        function showStatusUpdateModal(reservationId, currentStatus) {
+        // Function to show status update modal — attached to window so inline onclick can call it
+        window.showStatusUpdateModal = function(reservationId, currentStatus) {
             document.getElementById('reservationId').value = reservationId;
             document.getElementById('statusSelect').value = currentStatus;
             statusUpdateModal.show();
-        }
+        };
+
+        // Function to show delete reservation modal — attached to window so inline onclick can call it
+        window.showDeleteReservationModal = function(reservationUuid, reservationId, customerName) {
+            currentDeleteReservationUuid = reservationUuid;
+            document.getElementById('deleteReservationDetails').innerHTML =
+                '<div><strong>Reservation ID:</strong> #' + reservationId + '</div>' +
+                '<div><strong>Customer:</strong> ' + customerName + '</div>';
+            deleteReservationModal.show();
+        };
 
         // Handle status update form submission
         document.getElementById('statusUpdateForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const formData = new FormData(this);
-            const data = {
+            var formData = new FormData(this);
+            var data = {
                 reservation_id: formData.get('reservation_id'),
                 status: formData.get('status')
             };
@@ -344,19 +352,19 @@
                     },
                     body: JSON.stringify(data)
                 })
-                .then(response => response.json())
-                .then(data => {
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
                     if (data.success) {
                         statusUpdateModal.hide();
-                        const toastBody = document.querySelector('#statusToast .toast-body');
-                        toastBody.textContent = `Reservation status updated to ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}`;
+                        var toastBody = document.querySelector('#statusToast .toast-body');
+                        toastBody.textContent = 'Reservation status updated to ' + data.status.charAt(0).toUpperCase() + data.status.slice(1);
                         statusToast.show();
                         updateList();
                     } else {
                         alert('Error updating status: ' + data.error);
                     }
                 })
-                .catch(error => {
+                .catch(function(error) {
                     console.error('Error:', error);
                     alert('Error updating status. Please try again.');
                 });
@@ -374,20 +382,15 @@
 
         // Clear filters
         clearFiltersBtn.addEventListener('click', function() {
-            // Reset form values
             searchInput.value = '';
             document.getElementById('statusFilter').value = '';
             document.getElementById('timeFilter').value = 'all';
-
-            // Update the list
             updateList();
         });
 
         // Reset all filters and refresh page
         resetFiltersBtn.addEventListener('click', function() {
-            // Clear URL parameters
             window.history.pushState({}, '', window.location.pathname);
-            // Reload the page
             window.location.reload();
         });
 
@@ -397,16 +400,6 @@
             updateList();
         });
 
-        // Function to show delete reservation modal
-        function showDeleteReservationModal(reservationUuid, reservationId, customerName) {
-            currentDeleteReservationUuid = reservationUuid;
-            document.getElementById('deleteReservationDetails').innerHTML = `
-                <div><strong>Reservation ID:</strong> #${reservationId}</div>
-                <div><strong>Customer:</strong> ${customerName}</div>
-            `;
-            deleteReservationModal.show();
-        }
-
         // Handle delete confirmation
         document.getElementById('confirmDeleteReservationBtn').addEventListener('click', function() {
             if (!currentDeleteReservationUuid) {
@@ -414,10 +407,10 @@
                 return;
             }
 
-            // Disable button and show loading
-            this.disabled = true;
-            const originalText = this.innerHTML;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
+            var btn = this;
+            btn.disabled = true;
+            var originalText = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Deleting...';
 
             fetch('/dispatching/delete-reservation/', {
                 method: 'POST',
@@ -429,35 +422,36 @@
                     reservation_uuid: currentDeleteReservationUuid
                 })
             })
-            .then(response => response.json())
-            .then(data => {
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
                 if (data.success) {
                     deleteReservationModal.hide();
-                    const toastBody = document.querySelector('#statusToast .toast-body');
+                    var toastBody = document.querySelector('#statusToast .toast-body');
                     toastBody.textContent = 'Reservation deleted successfully';
                     statusToast.show();
                     updateList();
                 } else {
                     alert('Error deleting reservation: ' + (data.error || 'Unknown error'));
-                    this.disabled = false;
-                    this.innerHTML = originalText;
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
                 }
             })
-            .catch(error => {
+            .catch(function(error) {
                 console.error('Error:', error);
                 alert('Error deleting reservation. Please try again.');
-                this.disabled = false;
-                this.innerHTML = originalText;
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             });
         });
 
         // Reset delete reservation UUID when modal is hidden
         document.getElementById('deleteReservationModal').addEventListener('hidden.bs.modal', function() {
             currentDeleteReservationUuid = null;
-            const confirmBtn = document.getElementById('confirmDeleteReservationBtn');
+            var confirmBtn = document.getElementById('confirmDeleteReservationBtn');
             confirmBtn.disabled = false;
             confirmBtn.innerHTML = '<i class="bi bi-trash me-2"></i>Delete Reservation';
         });
+    });
     </script>
   {% endblock %}
 {% endblock %}

@@ -608,6 +608,7 @@ def calculate_route_timing_metrics(
             status='completed',
             driver__driver_type='inhouse',
             driver__exclude_from_timing=False,
+            exclude_from_analytics=False,
         ).select_related('reservation').prefetch_related('status_history', 'flight_information')
 
     # Filter by bucket criteria (in-memory)
@@ -926,11 +927,12 @@ def update_all_route_timing_metrics(recent_days: int = None):
 
     print("Calculating route timing metrics from historical data...")
 
-    # Get completed legs — inhouse drivers only, excluding opted-out drivers
+    # Get completed legs — inhouse drivers only, excluding opted-out drivers and excluded legs
     completed_legs = Leg.objects.filter(
         status='completed',
         driver__driver_type='inhouse',
         driver__exclude_from_timing=False,
+        exclude_from_analytics=False,
     ).select_related('reservation').prefetch_related(
         'status_history', 'flight_information'
     )
@@ -1183,7 +1185,9 @@ def update_single_route_timing_metric(leg):
     if not leg.pickup_time or not leg.pickup_date:
         return
 
-    # Skip affiliates and excluded drivers
+    # Skip affiliates, excluded drivers, and individually excluded legs
+    if leg.exclude_from_analytics:
+        return
     if leg.driver and (leg.driver.driver_type != 'inhouse' or leg.driver.exclude_from_timing):
         return
 
@@ -1195,6 +1199,7 @@ def update_single_route_timing_metric(leg):
         status='completed',
         driver__driver_type='inhouse',
         driver__exclude_from_timing=False,
+        exclude_from_analytics=False,
     ).select_related('reservation').prefetch_related('status_history', 'flight_information')
 
     metrics_data = calculate_route_timing_metrics(
