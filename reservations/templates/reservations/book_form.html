@@ -1,158 +1,118 @@
 {% extends "main.html" %}
 {% load static %}
-{% block content %}
-  <body class="page-booking">
-    {% block extra_css %}
-      <link rel="stylesheet" href="{% static "css/book_form.css" %}">
-    {% endblock extra_css %}
+{% block extra_css %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="{% static "css/book_form.css" %}">
+{% endblock extra_css %}
 
+{% block body_class %}page-booking{% endblock %}
+
+{% block content %}
     <main class="container form-container py-2 py-md-4">
       <div class="row">
         <div class="col-12 col-lg-10 mx-auto">
-          <!-- Trip Overview Card -->
+
+          <!-- ====== Sticky Progress Bar ====== -->
+          <nav class="gt-progress-bar" aria-label="Form progress">
+            <div class="gt-progress-track">
+              <div class="gt-progress-fill" id="progressFill"></div>
+              <a href="#section-contact" class="gt-progress-step active" data-step="1" aria-label="Contact Info section">
+                <span class="gt-progress-dot">1</span>
+                <span class="gt-progress-label">Contact</span>
+              </a>
+              <a href="#section-passengers" class="gt-progress-step" data-step="2" aria-label="Passenger Details section">
+                <span class="gt-progress-dot">2</span>
+                <span class="gt-progress-label">Passengers</span>
+              </a>
+              <a href="#section-ride" class="gt-progress-step" data-step="3" aria-label="Trip Details section">
+                <span class="gt-progress-dot">3</span>
+                <span class="gt-progress-label">Trip</span>
+              </a>
+              <a href="#section-complete" class="gt-progress-step" data-step="4" aria-label="Complete Booking section">
+                <span class="gt-progress-dot">4</span>
+                <span class="gt-progress-label">Book</span>
+              </a>
+            </div>
+          </nav>
+
+          <!-- ====== Trip Overview Card ====== -->
           <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
             <div class="card-header bg-white px-3 px-md-4 py-3">
               <div class="d-flex align-items-center">
                 <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                      style="width: 40px;
-                             height: 40px;
-                             line-height: 1;
-                             padding: 0">
-                  <img src="{% static 'images/find.webp' %}"
-                       alt="Find Icon"
-                       width="20"
-                       height="20"
-                       style="object-fit: contain">
+                      style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                  <img src="{% static 'images/find.webp' %}" alt="" width="20" height="20" style="object-fit: contain" aria-hidden="true">
                 </span>
                 <h2 class="fs-5 mb-0 fw-bold">Trip Overview</h2>
               </div>
             </div>
             <div class="card-body px-3 px-md-4">
-              <!-- Trip Type & Vehicle -->
-              <div class="mb-3 d-flex flex-wrap justify-content-center align-items-center gap-2 gap-md-3">
-                <!-- Trip Type Badge -->
-                <div class="badge {% if trip_type == 'round trip' %}bg-primary{% else %}bg-dark{% endif %} p-2 px-3">
+
+              <!-- Badges: Trip Type / Vehicle / Price -->
+              <div class="gt-badge-row">
+                <span class="gt-badge gt-badge-trip">
                   {% if trip_type == 'round trip' %}
-                    <i class="bi bi-arrow-left-right me-1"></i> Round Trip
+                    <i class="bi bi-arrow-left-right" aria-hidden="true"></i> Round Trip
                   {% else %}
-                    <i class="bi bi-arrow-right me-1"></i> One Way
+                    <i class="bi bi-arrow-right" aria-hidden="true"></i> One Way
                   {% endif %}
-                </div>
-
-                <!-- Vehicle Type Badge -->
-                <div class="badge bg-secondary p-2 px-3">
-                  <i class="bi bi-car-front me-1"></i> {{ vehicle }}
-                </div>
-
-                <!-- Price Badge -->
-                <div class="badge bg-success p-2 px-3">
-                  <i class="bi bi-tag-fill me-1"></i> ${{ price }}
-                </div>
+                </span>
+                <span class="gt-badge gt-badge-vehicle">
+                  <i class="bi bi-car-front" aria-hidden="true"></i> {{ vehicle }}
+                </span>
+                <span class="gt-badge gt-badge-price">
+                  ${{ price }}
+                </span>
               </div>
 
-              <!-- Visual Route Display -->
-              <div class="route-visual p-3 bg-light rounded position-relative mb-3">
-                <div class="d-flex justify-content-center align-items-center">
-                  <div class="route-box border shadow-sm p-3 w-100">
-                    <div class="d-flex justify-content-center align-items-center gap-3 gap-md-5">
-                      <i class="bi bi-geo-alt-fill fs-4 text-secondary"></i>
-                      <div class="border-top border-2 flex-grow-1" style="max-width: 80px;"></div>
-                      <i class="bi bi-geo-alt-fill fs-4 text-warning"></i>
-                    </div>
-
-                    <div class="mt-2 pt-2 border-top fw-bold text-center small">{{ route }}</div>
-
-                    <!-- Direction Indicator -->
-                    <div class="mt-2 text-center">
-                      {% if trip_type == 'round trip' %}
-                        <span class="badge bg-primary bg-opacity-10 text-primary small">
-                          <i class="bi bi-arrow-left"></i>
-                          <span class="mx-1">Round Trip</span>
-                          <i class="bi bi-arrow-right"></i>
-                        </span>
-                      {% else %}
-                        <span class="badge bg-dark bg-opacity-10 text-dark small">
-                          <i class="bi bi-arrow-right"></i>
-                          <span class="mx-1">One Way</span>
-                        </span>
-                      {% endif %}
-                    </div>
-                  </div>
-                </div>
+              <!-- Route Display -->
+              <div class="gt-route-inline" aria-label="Route: {{ route }}">
+                <span class="gt-route-inline-text">{{ route }}</span>
+                {% if trip_type == 'round trip' %}
+                  <span class="gt-route-inline-badge">
+                    <i class="bi bi-arrow-left-right" aria-hidden="true"></i> Round Trip
+                  </span>
+                {% endif %}
               </div>
 
               <!-- Travel Tips -->
-              <div class="travel-tips d-flex flex-column gap-2 gap-md-3">
-
-                <!-- Arrival Tip -->
-                <div class="d-flex align-items-start bg-light rounded p-3 shadow-sm">
-                  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3 flex-shrink-0"
-                       style="min-width: 40px;
-                              height: 40px">
-                    <img src="{% static 'images/arrival.webp' %}"
-                         alt="Arrival Icon"
-                         width="20"
-                         height="20"
-                         style="object-fit: contain">
+              <div class="d-flex flex-column gap-2">
+                <div class="gt-tip">
+                  <div class="gt-tip-icon">
+                    <img src="{% static 'images/arrival.webp' %}" alt="" width="18" height="18" style="object-fit: contain" aria-hidden="true">
                   </div>
-                  <div class="small">
-                    <strong>Arrival Tip:</strong> Schedule pickup for your flight's landing time — we monitor delays and adjust automatically.
+                  <div class="gt-tip-text">
+                    <strong>Arrival Tip:</strong> Schedule pickup for your flight's landing time &mdash; we monitor delays and adjust automatically.
                   </div>
                 </div>
-
-                <!-- Departure Tip -->
-                <div class="d-flex align-items-start bg-light rounded p-3 shadow-sm">
-                  <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-25 text-info rounded-circle me-3 flex-shrink-0"
-                       style="min-width: 40px;
-                              height: 40px">
-                    <img src="{% static 'images/departure.webp' %}"
-                         alt="Departure Icon"
-                         width="20"
-                         height="20"
-                         style="object-fit: contain">
+                <div class="gt-tip">
+                  <div class="gt-tip-icon">
+                    <img src="{% static 'images/departure.webp' %}" alt="" width="18" height="18" style="object-fit: contain" aria-hidden="true">
                   </div>
-                  <div class="small">
+                  <div class="gt-tip-text">
                     <strong>Departure Tip:</strong> Book pickup at least 2.5 hours before domestic flights, or 3 hours for international travel.
                   </div>
                 </div>
-
               </div>
+
+              <!-- Trust: Reviews -->
+              <div class="text-center mt-3">
+                <span class="gt-reviews">
+                  <i class="bi bi-star-fill" aria-hidden="true"></i>
+                  <i class="bi bi-star-fill" aria-hidden="true"></i>
+                  <i class="bi bi-star-fill" aria-hidden="true"></i>
+                  <i class="bi bi-star-fill" aria-hidden="true"></i>
+                  <i class="bi bi-star-fill" aria-hidden="true"></i>
+                  500+ 5-star reviews
+                </span>
+              </div>
+
             </div>
           </section>
 
-          <!-- Sticky Form Progress -->
-          <div class="sticky-top bg-white shadow-sm py-2 mb-3 d-none d-md-block"
-               style="z-index: 100">
-            <div class="container">
-              <div class="row">
-                <div class="col-12">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                      <span class="badge bg-primary me-2">1</span>
-                      <span class="small fw-semibold">Contact Info</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                      <span class="badge bg-light text-dark me-2">2</span>
-                      <span class="small text-muted">Passenger Details</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                      <span class="badge bg-light text-dark me-2">3</span>
-                      <span class="small text-muted">Trip Details</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                      <span class="badge bg-light text-dark">4</span>
-                      <span class="small text-muted">Complete</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <form method="POST"
-                class="needs-validation"
-                novalidate
-                id="reservation_form">
+          <form method="POST" class="needs-validation" novalidate id="reservation_form">
             {% csrf_token %}
 
             <!-- Hidden UTM Parameter Fields -->
@@ -164,95 +124,86 @@
             <input type="hidden" name="utm_term" id="utm_term_field">
             <input type="hidden" name="utm_content" id="utm_content_field">
 
-            <!-- Contact Information -->
-            <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+            <!-- ====== Contact Information ====== -->
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4" id="section-contact" data-progress-step="1">
               <div class="card-header bg-white px-3 px-md-4 py-3">
                 <div class="d-flex align-items-center">
                   <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                        style="width: 40px;
-                               height: 40px;
-                               line-height: 1;
-                               padding: 0">
-                    <img src="{% static 'images/id-card.webp' %}"
-                         alt="Passenger Icon"
-                         width="20"
-                         height="20"
-                         style="object-fit: contain">
+                        style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                    <img src="{% static 'images/id-card.webp' %}" alt="" width="20" height="20" style="object-fit: contain" aria-hidden="true">
                   </span>
                   <h2 class="fs-5 mb-0 fw-bold">Contact Information</h2>
                 </div>
               </div>
               <div class="card-body px-3 px-md-4">
-                <div class="row g-3">
-                  <!-- First and Last Name on same row -->
-                  <div class="col-12 col-md-6 form-row">
-                    <label for="{{ customer_form.first_name.id_for_label }}"
-                           class="form-label required fw-semibold">First Name</label>
-                    {{ customer_form.first_name }}
-                    {% if customer_form.first_name.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in customer_form.first_name.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  <div class="col-12 col-md-6 form-row">
-                    <label for="{{ customer_form.last_name.id_for_label }}"
-                           class="form-label required fw-semibold">Last Name</label>
-                    {{ customer_form.last_name }}
-                    {% if customer_form.last_name.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in customer_form.last_name.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  <!-- Email and Phone on same row -->
-                  <div class="col-12 col-md-6 form-row">
-                    <label for="{{ customer_form.email.id_for_label }}"
-                           class="form-label required fw-semibold">Email Address</label>
-                    {{ customer_form.email }}
-                    <div class="form-text small">
-                      <i class="bi bi-envelope-check me-1"></i> We'll send your confirmation here
+                <fieldset>
+                  <legend class="visually-hidden">Your contact details</legend>
+                  <div class="row g-3">
+                    <!-- First + Last Name (same row on desktop) -->
+                    <div class="col-12 col-md-6 form-row">
+                      <label for="{{ customer_form.first_name.id_for_label }}" class="form-label required fw-semibold">First Name</label>
+                      {{ customer_form.first_name }}
+                      {% if customer_form.first_name.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in customer_form.first_name.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
                     </div>
-                    {% if customer_form.email.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in customer_form.email.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
 
-                  <div class="col-12 col-md-6 form-row">
-                    <label for="{{ customer_form.phone_number.id_for_label }}"
-                           class="form-label required fw-semibold">Phone Number</label>
-                    {{ customer_form.phone_number }}
-                    <div class="form-text small">
-                      <i class="bi bi-telephone me-1"></i> For day-of-travel updates
+                    <div class="col-12 col-md-6 form-row">
+                      <label for="{{ customer_form.last_name.id_for_label }}" class="form-label required fw-semibold">Last Name</label>
+                      {{ customer_form.last_name }}
+                      {% if customer_form.last_name.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in customer_form.last_name.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
                     </div>
-                    {% if customer_form.phone_number.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in customer_form.phone_number.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
 
-                  <!-- Zipcode on its own row -->
-                  <div class="col-12 col-md-6 form-row">
-                    <label for="{{ customer_form.zipcode.id_for_label }}"
-                           class="form-label required fw-semibold">Zipcode</label>
-                    {{ customer_form.zipcode }}
-                    {% if customer_form.zipcode.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in customer_form.zipcode.errors %}{{ error }}{% endfor %}
+                    <!-- Email + Phone (same row on desktop) -->
+                    <div class="col-12 col-md-6 form-row">
+                      <label for="{{ customer_form.email.id_for_label }}" class="form-label required fw-semibold">Email Address</label>
+                      {{ customer_form.email }}
+                      <div class="form-text">
+                        <i class="bi bi-envelope-check me-1" aria-hidden="true"></i> We'll send your confirmation here
                       </div>
-                    {% endif %}
+                      {% if customer_form.email.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in customer_form.email.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    <div class="col-12 col-md-6 form-row">
+                      <label for="{{ customer_form.phone_number.id_for_label }}" class="form-label required fw-semibold">Phone Number</label>
+                      {{ customer_form.phone_number }}
+                      <div class="form-text">
+                        <i class="bi bi-telephone me-1" aria-hidden="true"></i> For day-of-travel updates
+                      </div>
+                      {% if customer_form.phone_number.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in customer_form.phone_number.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    <!-- Zipcode -->
+                    <div class="col-12 col-md-6 form-row">
+                      <label for="{{ customer_form.zipcode.id_for_label }}" class="form-label required fw-semibold">Zipcode</label>
+                      {{ customer_form.zipcode }}
+                      {% if customer_form.zipcode.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in customer_form.zipcode.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
                   </div>
-                </div>
+                </fieldset>
               </div>
             </section>
 
-            <!-- Passenger Details -->
-            <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+            <!-- ====== Passenger Details ====== -->
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4" id="section-passengers" data-progress-step="2">
               <div id="vehicle-limits"
                    data-vehicle-type="{{ vehicle.vehicle_type }}"
                    data-max-passengers="{{ vehicle.capacity }}"
@@ -260,225 +211,274 @@
                    data-max-ff="{{ vehicle.ff_carseats_max }}"
                    data-max-rf="{{ vehicle.rf_carseats_max }}"
                    data-max-boosters="{{ vehicle.boosters_max }}"
-                   data-max-carseats="{{ vehicle.carseats_capacity }}"></div>
+                   data-max-carseats="{{ vehicle.carseats_capacity }}"
+                   data-included-carseats="{{ vehicle.included_carseats }}"
+                   data-included-boosters="{{ vehicle.included_boosters }}"
+                   data-extra-carseat-fee="{{ vehicle.extra_carseat_fee }}"
+                   data-extra-booster-fee="{{ vehicle.extra_booster_fee }}"
+                   data-base-price="{{ price }}"></div>
               <div class="card-header bg-white px-3 px-md-4 py-3">
                 <div class="d-flex align-items-center">
                   <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                        style="width: 40px;
-                               height: 40px;
-                               line-height: 1;
-                               padding: 0">
-                    <img src="{% static 'images/travel-guy.webp' %}"
-                         alt="Passenger Icon"
-                         width="30"
-                         height="30"
-                         style="object-fit: contain">
+                        style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                    <img src="{% static 'images/travel-guy.webp' %}" alt="" width="30" height="30" style="object-fit: contain" aria-hidden="true">
                   </span>
                   <h2 class="fs-5 mb-0 fw-bold">Passenger Details</h2>
                 </div>
               </div>
 
               <div class="card-body px-3 px-md-4">
-                <div class="row g-3">
-                  <!-- Passenger Count -->
-                  <div class="col-12 col-md-6">
-                    <label for="{{ reservation_form.passenger_count.id_for_label }}"
-                           class="form-label required d-flex align-items-center fw-semibold">
-                      <span>Number of Passengers</span>
-                      <i class="bi bi-question-circle ms-2 info-tooltip"
-                         data-bs-toggle="tooltip"
-                         title="Include all travelers who need a seat, including infants and children"></i>
-                    </label>
-                    {{ reservation_form.passenger_count }}
-                    <div class="form-text small">
-                      <i class="bi bi-people me-1"></i> Include all travelers needing a seat
-                    </div>
-                    {% if reservation_form.passenger_count.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                  </div>
+                <fieldset>
+                  <legend class="visually-hidden">Passenger and luggage information</legend>
+                  <div class="row g-3">
 
-                  <!-- Luggage Count -->
-                  <div class="col-12 col-md-6">
-                    <label for="{{ reservation_form.luggage_count.id_for_label }}"
-                           class="form-label required d-flex align-items-center fw-semibold">
-                      <span>Number of Luggage Items</span>
-                      <i class="bi bi-question-circle ms-2 info-tooltip"
-                         data-bs-toggle="tooltip"
-                         title="Count all hard-shell luggage, strollers, and large items. Single stroller = 1 suitcase, double stroller = 2 suitcases"></i>
-                    </label>
-                    {{ reservation_form.luggage_count }}
-                    <div class="form-text small">
-                      <i class="bi bi-bag-check me-1"></i> Include hard-shell luggage, strollers, and large items
-                    </div>
-                    <div class="mt-2">
-                      <small class="text-muted">
-                        <strong>What counts:</strong> Hard-shell luggage (including carry-ons), strollers, large items
-                        <br>
-                        <strong>What doesn't:</strong> Soft carry-ons, small personal items
-                      </small>
-                    </div>
-                    {% if reservation_form.luggage_count.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
+                    <!-- Passenger Count — Stepper -->
+                    <div class="col-12 col-md-6">
+                      <label for="{{ reservation_form.passenger_count.id_for_label }}"
+                             class="form-label required d-flex align-items-center fw-semibold">
+                        <span>Number of Passengers</span>
+                        <i class="bi bi-question-circle ms-2 info-tooltip"
+                           data-bs-toggle="tooltip"
+                           title="Include all travelers who need a seat, including infants and children"
+                           aria-label="Help: Include all travelers who need a seat"></i>
+                      </label>
+                      <div class="gt-stepper" role="group" aria-label="Passenger count">
+                        <button type="button" class="gt-stepper-btn" data-action="decrement" data-target="{{ reservation_form.passenger_count.id_for_label }}" aria-label="Decrease passengers">
+                          <i class="bi bi-dash" aria-hidden="true"></i>
+                        </button>
+                        {{ reservation_form.passenger_count }}
+                        <button type="button" class="gt-stepper-btn" data-action="increment" data-target="{{ reservation_form.passenger_count.id_for_label }}" aria-label="Increase passengers">
+                          <i class="bi bi-plus" aria-hidden="true"></i>
+                        </button>
                       </div>
-                    {% endif %}
-                  </div>
-
-                  <!-- Checkboxes -->
-                  <div class="col-12">
-                    <div class="row g-4">
-                      <!-- Has Children -->
-                      <div class="col-md-6">
-                        <div class="form-label d-flex align-items-center mb-1">
-                          <span>Traveling with children?</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="Select if you're traveling with children of any age"></i>
+                      <div class="form-text">
+                        <i class="bi bi-people me-1" aria-hidden="true"></i> Include all travelers needing a seat
+                      </div>
+                      {% if reservation_form.passenger_count.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in reservation_form.passenger_count.errors %}{{ error }}{% endfor %}
                         </div>
+                      {% endif %}
+                    </div>
 
-                        <div class="form-check d-flex align-items-center">
+                    <!-- Luggage Count — Stepper -->
+                    <div class="col-12 col-md-6">
+                      <label for="{{ reservation_form.luggage_count.id_for_label }}"
+                             class="form-label required d-flex align-items-center fw-semibold">
+                        <span>Number of Luggage Items</span>
+                        <i class="bi bi-question-circle ms-2 info-tooltip"
+                           data-bs-toggle="tooltip"
+                           title="Count all hard-shell luggage, strollers, and large items"
+                           aria-label="Help: Count all luggage and large items"></i>
+                      </label>
+                      <div class="gt-stepper" role="group" aria-label="Luggage count">
+                        <button type="button" class="gt-stepper-btn" data-action="decrement" data-target="{{ reservation_form.luggage_count.id_for_label }}" aria-label="Decrease luggage">
+                          <i class="bi bi-dash" aria-hidden="true"></i>
+                        </button>
+                        {{ reservation_form.luggage_count }}
+                        <button type="button" class="gt-stepper-btn" data-action="increment" data-target="{{ reservation_form.luggage_count.id_for_label }}" aria-label="Increase luggage">
+                          <i class="bi bi-plus" aria-hidden="true"></i>
+                        </button>
+                      </div>
+                      <div class="form-text">
+                        <i class="bi bi-bag-check me-1" aria-hidden="true"></i> Hard-shell luggage, strollers &amp; large items
+                      </div>
+                      <div class="form-text mt-1">
+                        <small class="text-muted"><strong>Doesn't count:</strong> Soft carry-ons, small personal items</small>
+                      </div>
+                      {% if reservation_form.luggage_count.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in reservation_form.luggage_count.errors %}{{ error }}{% endfor %}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    <!-- Luggage Type — Card Selectors -->
+                    <div class="col-12">
+                      <span class="form-label fw-semibold d-flex align-items-center mb-2">
+                        Luggage Type
+                        <i class="bi bi-question-circle ms-2 info-tooltip"
+                           data-bs-toggle="tooltip"
+                           title="Carry-on only means no baggage claim wait. Checked bags require a stop at baggage claim."
+                           aria-label="Help: Luggage type affects baggage claim wait"></i>
+                      </span>
+                      <div class="gt-card-select" role="radiogroup" aria-label="Luggage type">
+                        {% for radio in reservation_form.luggage_type %}
+                          <div class="gt-card-option">
+                            {{ radio.tag }}
+                            <label for="{{ radio.id_for_label }}">
+                              {% if forloop.first %}
+                                <span class="gt-card-icon"><i class="bi bi-bag" aria-hidden="true"></i></span>
+                              {% elif forloop.last %}
+                                <span class="gt-card-icon"><i class="bi bi-shuffle" aria-hidden="true"></i></span>
+                              {% else %}
+                                <span class="gt-card-icon"><i class="bi bi-luggage-fill" aria-hidden="true"></i></span>
+                              {% endif %}
+                              {{ radio.choice_label }}
+                            </label>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+
+                    <!-- Traveling with Children — Toggle Card -->
+                    <div class="col-12 col-md-6">
+                      <label class="gt-toggle-card" id="children-toggle" for="{{ reservation_form.need_carseats.id_for_label }}">
+                        <div class="gt-toggle-icon">
+                          <i class="bi bi-people-fill" aria-hidden="true"></i>
+                        </div>
+                        <div class="gt-toggle-content">
+                          <div class="gt-toggle-title">Traveling with children?</div>
+                          <div class="gt-toggle-desc">We provide complimentary car seats for all ages</div>
+                        </div>
+                        <div class="gt-toggle-switch">
                           {{ reservation_form.need_carseats }}
-                          <label class="form-check-label ms-2"
-                                 for="{{ reservation_form.need_carseats.id_for_label }}">Yes</label>
+                          <span class="gt-toggle-track" aria-hidden="true"></span>
                         </div>
-
-                        <div class="form-text mt-1">
-                          <i class="bi bi-people me-1"></i> Include all travelers needing a seat
+                      </label>
+                      {% if reservation_form.need_carseats.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
                         </div>
+                      {% endif %}
+                    </div>
 
-                        {% if reservation_form.need_carseats.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.need_carseats.errors %}{{ error }}{% endfor %}
-                          </div>
-                        {% endif %}
-                      </div>
-
-                      <!-- Grocery Stop -->
-                      <div class="col-md-6">
-                        <label class="form-label d-flex align-items-center mb-1"
-                               for="{{ reservation_form.store_stop.id_for_label }}">
-                          <span>Need a grocery stop?</span>
-                          <i class="bi bi-question-circle ms-2 info-tooltip"
-                             data-bs-toggle="tooltip"
-                             title="We'll make a quick stop (15-20 minutes) at a grocery store on the way"></i>
-                        </label>
-                        <div class="form-check">
+                    <!-- Grocery Stop — Toggle Card -->
+                    <div class="col-12 col-md-6">
+                      <label class="gt-toggle-card" id="grocery-toggle" for="{{ reservation_form.store_stop.id_for_label }}">
+                        <div class="gt-toggle-icon">
+                          <i class="bi bi-cart3" aria-hidden="true"></i>
+                        </div>
+                        <div class="gt-toggle-content">
+                          <div class="gt-toggle-title">Need a grocery stop?</div>
+                          <div class="gt-toggle-desc">20-min Publix stop for essentials on the way</div>
+                        </div>
+                        <div class="gt-toggle-switch">
                           {{ reservation_form.store_stop }}
-                          <label class="form-check-label ms-2"
-                                 for="{{ reservation_form.store_stop.id_for_label }}">Yes</label>
+                          <span class="gt-toggle-track" aria-hidden="true"></span>
                         </div>
-                        <div class="form-text mt-1">
-                          <i class="bi bi-bag-check me-1"></i> 20-min Publix stop for essentials
-                          <button type="button"
-                                  class="btn btn-link p-0 ms-2 text-decoration-none"
-                                  data-bs-toggle="modal"
-                                  data-bs-target="#publixStopModal"
-                                  style="font-size: 0.875rem">
-                            <i class="bi bi-info-circle me-1"></i>View details
-                          </button>
+                      </label>
+                      <div id="grocery-details" style="display: none;">
+                        <div class="gt-grocery-warning mt-2">
+                          <i class="bi bi-info-circle" aria-hidden="true"></i>
+                          <span>Grocery stops must be selected at booking time. Same-day requests cannot be accommodated.
+                            <button type="button" class="btn btn-link p-0 ms-1 text-decoration-none" data-bs-toggle="modal" data-bs-target="#publixStopModal" style="font-size: inherit; color: inherit; font-weight: 600;">View details</button>
+                          </span>
                         </div>
-                        <div class="alert alert-warning alert-sm mt-2 mb-0 py-2 px-2"
-                             style="font-size: 0.875rem">
-                          <i class="bi bi-exclamation-triangle me-1"></i>
-                          <strong>Important:</strong> To ensure smooth scheduling, grocery stops must be selected at the time of booking. Same-day or last-minute grocery stop requests cannot be accommodated.
+                      </div>
+                      {% if reservation_form.store_stop.errors %}
+                        <div class="invalid-feedback d-block" role="alert">
+                          {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
                         </div>
-                        {% if reservation_form.store_stop.errors %}
-                          <div class="invalid-feedback d-block">
-                            {% for error in reservation_form.store_stop.errors %}{{ error }}{% endfor %}
+                      {% endif %}
+                    </div>
+
+                    <!-- Car Seats Section (shown when children toggle is on) -->
+                    <div class="col-12" id="car-seats-section" style="display: none;">
+                      <div class="gt-carseat-panel">
+                        <h4>
+                          <img src="{% static 'images/carseat.webp' %}" alt="" class="me-2" style="width: 1.25em; height: 1.25em; object-fit: contain" aria-hidden="true">
+                          Child Seat Selection
+                        </h4>
+                        <p class="form-text mb-3">Select the type and number of seats needed. All seats are complimentary.</p>
+
+                        <div class="gt-carseat-rows">
+                          <!-- Rear-Facing -->
+                          <div class="gt-carseat-row">
+                            <div class="gt-carseat-row-info">
+                              <i class="bi bi-shield-check gt-carseat-row-icon" aria-hidden="true"></i>
+                              <div>
+                                <div class="gt-carseat-name">Rear-Facing</div>
+                                <div class="gt-carseat-age">Birth &ndash; 2 yrs &middot; Up to 35 lbs</div>
+                              </div>
+                            </div>
+                            <div class="gt-stepper" role="group" aria-label="Rear-facing car seats">
+                              <button type="button" class="gt-stepper-btn" data-action="decrement" data-target="{{ reservation_form.rf_carseats.id_for_label }}" aria-label="Decrease rear-facing seats">
+                                <i class="bi bi-dash" aria-hidden="true"></i>
+                              </button>
+                              {{ reservation_form.rf_carseats }}
+                              <button type="button" class="gt-stepper-btn" data-action="increment" data-target="{{ reservation_form.rf_carseats.id_for_label }}" aria-label="Increase rear-facing seats">
+                                <i class="bi bi-plus" aria-hidden="true"></i>
+                              </button>
+                            </div>
+                            {% if reservation_form.rf_carseats.errors %}
+                              <div class="invalid-feedback d-block w-100" role="alert">
+                                {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
                           </div>
-                        {% endif %}
+
+                          <!-- Forward-Facing -->
+                          <div class="gt-carseat-row">
+                            <div class="gt-carseat-row-info">
+                              <i class="bi bi-shield-fill-check gt-carseat-row-icon" aria-hidden="true"></i>
+                              <div>
+                                <div class="gt-carseat-name">Forward-Facing</div>
+                                <div class="gt-carseat-age">2 &ndash; 5 yrs &middot; 22 &ndash; 65 lbs</div>
+                              </div>
+                            </div>
+                            <div class="gt-stepper" role="group" aria-label="Forward-facing car seats">
+                              <button type="button" class="gt-stepper-btn" data-action="decrement" data-target="{{ reservation_form.ff_carseats.id_for_label }}" aria-label="Decrease forward-facing seats">
+                                <i class="bi bi-dash" aria-hidden="true"></i>
+                              </button>
+                              {{ reservation_form.ff_carseats }}
+                              <button type="button" class="gt-stepper-btn" data-action="increment" data-target="{{ reservation_form.ff_carseats.id_for_label }}" aria-label="Increase forward-facing seats">
+                                <i class="bi bi-plus" aria-hidden="true"></i>
+                              </button>
+                            </div>
+                            {% if reservation_form.ff_carseats.errors %}
+                              <div class="invalid-feedback d-block w-100" role="alert">
+                                {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+
+                          <!-- Booster -->
+                          <div class="gt-carseat-row">
+                            <div class="gt-carseat-row-info">
+                              <i class="bi bi-arrow-up-circle gt-carseat-row-icon" aria-hidden="true"></i>
+                              <div>
+                                <div class="gt-carseat-name">Booster</div>
+                                <div class="gt-carseat-age">4 &ndash; 10 yrs &middot; 40 &ndash; 100 lbs</div>
+                              </div>
+                            </div>
+                            <div class="gt-stepper" role="group" aria-label="Booster seats">
+                              <button type="button" class="gt-stepper-btn" data-action="decrement" data-target="{{ reservation_form.booster_seats.id_for_label }}" aria-label="Decrease booster seats">
+                                <i class="bi bi-dash" aria-hidden="true"></i>
+                              </button>
+                              {{ reservation_form.booster_seats }}
+                              <button type="button" class="gt-stepper-btn" data-action="increment" data-target="{{ reservation_form.booster_seats.id_for_label }}" aria-label="Increase booster seats">
+                                <i class="bi bi-plus" aria-hidden="true"></i>
+                              </button>
+                            </div>
+                            {% if reservation_form.booster_seats.errors %}
+                              <div class="invalid-feedback d-block w-100" role="alert">
+                                {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+
+                        <!-- Trust signal -->
+                        <div class="gt-carseat-trust">
+                          <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                          <span>Complimentary car seats for all ages &mdash; installed by your driver</span>
+                        </div>
                       </div>
                     </div>
+
                   </div>
-
-                  <!-- Car Seats Section (Shown if "has_children" is checked) -->
-                  <div class="col-12" id="car-seats-section" style="display: none;">
-                    <div class="p-4 rounded border border-secondary bg-light position-relative">
-                      <div class="position-absolute top-0 start-0 h-100 bg-warning"
-                           style="width: 4px;
-                                  border-radius: 0 4px 4px 0"></div>
-                      <h4 class="fs-5 mb-3">
-                        <img src="{% static 'images/carseat.webp' %}"
-                             alt="Car Seat Icon"
-                             class="me-2"
-                             style="width: 1em;
-                                    height: 1em;
-                                    object-fit: contain">
-                        Child Seat Details
-                      </h4>
-                      <div class="row g-3">
-
-                        <div class="col-md-4">
-                          <label for="{{ reservation_form.ff_carseats.id_for_label }}"
-                                 class="form-label d-flex align-items-center">
-                            <span>Forward-Facing Carseats</span>
-                            <i class="bi bi-question-circle ms-2 info-tooltip"
-                               data-bs-toggle="tooltip"
-                               title="Select the appropriate car seat type based on your child's age and size"></i>
-                          </label>
-                          {{ reservation_form.ff_carseats }}
-                          {% if reservation_form.ff_carseats.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in reservation_form.ff_carseats.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-
-                        <div class="col-md-4">
-                          <label for="{{ reservation_form.rf_carseats.id_for_label }}"
-                                 class="form-label d-flex align-items-center">
-                            <span>Rear-Facing Carseats</span>
-                            <i class="bi bi-question-circle ms-2 info-tooltip"
-                               data-bs-toggle="tooltip"
-                               title="Select the appropriate car seat type based on your child's age and size"></i>
-                          </label>
-                          {{ reservation_form.rf_carseats }}
-                          {% if reservation_form.rf_carseats.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in reservation_form.rf_carseats.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-                        <div class="col-md-4">
-                          <label for="{{ reservation_form.booster_seats.id_for_label }}"
-                                 class="form-label d-flex align-items-center">
-                            <span>Booster Seats</span>
-                            <i class="bi bi-question-circle ms-2 info-tooltip"
-                               data-bs-toggle="tooltip"
-                               title="Select the appropriate car seat type based on your child's age and size"></i>
-                          </label>
-                          {{ reservation_form.booster_seats }}
-                          {% if reservation_form.booster_seats.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in reservation_form.booster_seats.errors %}{{ error }}{% endfor %}
-                            </div>
-                          {% endif %}
-                        </div>
-
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                </fieldset>
               </div>
             </section>
 
-            <!-- First Ride Details -->
-            <section class="form-card shadow-sm border-0 mb-4">
-              <div class="card-header bg-white">
+            <!-- ====== First Ride Details ====== -->
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4" id="section-ride" data-progress-step="3">
+              <div class="card-header bg-white px-3 px-md-4 py-3">
                 <div class="d-flex align-items-center">
                   <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                        style="width: 40px;
-                               height: 40px;
-                               line-height: 1;
-                               padding: 0">
-                    <img src="{% static 'images/ride-deets.webp' %}"
-                         alt="Find Icon"
-                         style="width: 25px;
-                                height: 25px;
-                                object-fit: contain">
+                        style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                    <img src="{% static 'images/ride-deets.webp' %}" alt="" style="width: 25px; height: 25px; object-fit: contain" aria-hidden="true">
                   </span>
                   <h2 class="fs-5 mb-0 fw-bold">
                     {% if trip_type == 'one way' %}
@@ -489,39 +489,41 @@
                   </h2>
                 </div>
               </div>
-              <div class="card-body">
-                <!-- Flight Info Section -->
-                <div class="mb-4">
-                  <h3 class="section-heading fs-5 mb-3">
-                    <i class="bi bi-airplane text-secondary me-2"></i> Flight Information
-                  </h3>
-                  <div class="alert alert-info d-flex align-items-center mb-4 border-0 bg-info bg-opacity-10">
-                    <i class="bi bi-info-circle-fill fs-5 me-3"></i>
-                    <div>
-                      <strong>Please Note:</strong> Flight information helps us track arrival times. Skip if not applicable.
-                    </div>
-                  </div>
+              <div class="card-body px-3 px-md-4">
+                <fieldset>
+                  <legend class="visually-hidden">Flight and pickup information</legend>
 
-                  <div class="row g-3">
-                    <div class="col-md-6 form-row mb-0">
-                      <label for="{{ flight1_form.airline.id_for_label }}" class="form-label">Airline</label>
-                      {{ flight1_form.airline }}
-                      <datalist id="airlines">
-                        {% for airline in airlines %}<option value="{{ airline }}">{% endfor %}
+                  <!-- Flight Info -->
+                  <div class="mb-4">
+                    <h3 class="section-heading fs-5 mb-3">
+                      <i class="bi bi-airplane" aria-hidden="true"></i> Flight Information
+                    </h3>
+                    <div class="gt-info-callout info mb-3">
+                      <i class="bi bi-radar" aria-hidden="true"></i>
+                      <div>
+                        <strong>We track your flight</strong> &mdash; no stress if it's delayed. Skip this section if not flying.
+                      </div>
+                    </div>
+
+                    <div class="row g-3">
+                      <div class="col-md-6 form-row mb-0">
+                        <label for="{{ flight1_form.airline.id_for_label }}" class="form-label">Airline</label>
+                        {{ flight1_form.airline }}
+                        <datalist id="airlines">
+                          {% for airline in airlines %}<option value="{{ airline }}">{% endfor %}
                         </datalist>
                         {% if flight1_form.airline.errors %}
-                          <div class="invalid-feedback d-block">
+                          <div class="invalid-feedback d-block" role="alert">
                             {% for error in flight1_form.airline.errors %}{{ error }}{% endfor %}
                           </div>
                         {% endif %}
                       </div>
 
                       <div class="col-md-6 form-row mb-0">
-                        <label for="{{ flight1_form.flight_number.id_for_label }}"
-                               class="form-label">Flight Number</label>
+                        <label for="{{ flight1_form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
                         {{ flight1_form.flight_number }}
                         {% if flight1_form.flight_number.errors %}
-                          <div class="invalid-feedback d-block">
+                          <div class="invalid-feedback d-block" role="alert">
                             {% for error in flight1_form.flight_number.errors %}{{ error }}{% endfor %}
                           </div>
                         {% endif %}
@@ -529,7 +531,7 @@
                     </div>
                   </div>
 
-                  <!-- Cruise Info Section (Only show for Port Canaveral routes) -->
+                  <!-- Cruise Info (Port Canaveral routes only) -->
                   {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
                     <div class="mb-4">
                       <div class="row g-3">
@@ -538,20 +540,170 @@
                           {{ cruise1_form.cruise_line }}
                           <datalist id="cruise_lines">
                             {% for cruise_line in cruise_lines %}<option value="{{ cruise_line }}">{% endfor %}
-                            </datalist>
-                            {% if cruise1_form.cruise_line.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in cruise1_form.cruise_line.errors %}{{ error }}{% endfor %}
+                          </datalist>
+                          {% if cruise1_form.cruise_line.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in cruise1_form.cruise_line.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-6 form-row mb-0">
+                          <label for="{{ cruise1_form.ship_name.id_for_label }}" class="form-label">Ship Name</label>
+                          {{ cruise1_form.ship_name }}
+                          {% if cruise1_form.ship_name.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in cruise1_form.ship_name.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  {% endif %}
+
+                  <!-- Pickup Info -->
+                  <div>
+                    <h3 class="section-heading fs-5 mb-3">
+                      <i class="bi bi-pin-map" aria-hidden="true"></i> Pickup Information
+                    </h3>
+                    <div class="row g-3">
+                      <div class="col-md-6 form-row">
+                        <label for="{{ leg1_form.pickup_date.id_for_label }}" class="form-label required">Pickup Date</label>
+                        {{ leg1_form.pickup_date }}
+                        <div class="form-text">
+                          <i class="bi bi-calendar me-1" aria-hidden="true"></i> When will you be traveling?
+                        </div>
+                        {% if leg1_form.pickup_date.errors %}
+                          <div class="invalid-feedback d-block" role="alert">
+                            {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
+                          </div>
+                        {% endif %}
+                      </div>
+
+                      <div class="col-md-6 form-row">
+                        <label for="{{ leg1_form.pickup_time.id_for_label }}" class="form-label required d-flex align-items-center">
+                          <span>Pickup Time</span>
+                          <i class="bi bi-question-circle ms-2 info-tooltip"
+                             data-bs-toggle="tooltip"
+                             title="For flight arrivals, use your flight's landing time. For departures, schedule at least 2.5 hours before your flight"
+                             aria-label="Help: pickup time guidance"></i>
+                        </label>
+                        {{ leg1_form.pickup_time }}
+                        <div class="form-text">
+                          <i class="bi bi-clock-history me-1" aria-hidden="true"></i> We'll adjust for any flight delays
+                        </div>
+                        {% if leg1_form.pickup_time.errors %}
+                          <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert" id="pickup-time-error-leg1">
+                            <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+                            <strong>Time Not Available:</strong>
+                            {% for error in leg1_form.pickup_time.errors %}<div class="mt-1">{{ error }}</div>{% endfor %}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                          </div>
+                        {% endif %}
+                      </div>
+
+                      <div class="col-md-6 form-row">
+                        <label for="{{ leg1_form.pickup_location.id_for_label }}" class="form-label required">Pickup Location</label>
+                        {{ leg1_form.pickup_location }}
+                        <div class="form-text">
+                          <i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Airport, hotel name, or address
+                        </div>
+                        {% if leg1_form.pickup_location.errors %}
+                          <div class="invalid-feedback d-block" role="alert">
+                            {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
+                          </div>
+                        {% endif %}
+                      </div>
+
+                      <div class="col-md-6 form-row">
+                        <label for="{{ leg1_form.dropoff_location.id_for_label }}" class="form-label required">Drop-off Location</label>
+                        {{ leg1_form.dropoff_location }}
+                        <div class="form-text">
+                          <i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Hotel name or full address
+                        </div>
+                        {% if leg1_form.dropoff_location.errors %}
+                          <div class="invalid-feedback d-block" role="alert">
+                            {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                          </div>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+            </section>
+
+            <!-- ====== Return Ride Details (Conditional) ====== -->
+            {% if leg2_form %}
+              <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+                <div class="card-header bg-white px-3 px-md-4 py-3">
+                  <div class="d-flex align-items-center">
+                    <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                          style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                      <img src="{% static 'images/return-trip.webp' %}" alt="" style="width: 30px; height: 30px; object-fit: contain" aria-hidden="true">
+                    </span>
+                    <h2 class="fs-5 mb-0 fw-bold">Return Ride Details</h2>
+                  </div>
+                </div>
+                <div class="card-body px-3 px-md-4">
+                  <fieldset>
+                    <legend class="visually-hidden">Return trip information</legend>
+
+                    <!-- Return Flight -->
+                    <div class="mb-4">
+                      <h3 class="section-heading fs-5 mb-3">
+                        <i class="bi bi-airplane" aria-hidden="true"></i> Return Flight Information
+                      </h3>
+                      <div class="gt-info-callout info mb-3">
+                        <i class="bi bi-radar" aria-hidden="true"></i>
+                        <div>
+                          <strong>We track your return flight too.</strong> Skip if not applicable.
+                        </div>
+                      </div>
+
+                      <div class="row g-3">
+                        <div class="col-md-6 form-row mb-0">
+                          <label for="{{ flight2_form.airline.id_for_label }}" class="form-label">Airline</label>
+                          {{ flight2_form.airline }}
+                          {% if flight2_form.airline.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
+
+                        <div class="col-md-6 form-row mb-0">
+                          <label for="{{ flight2_form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
+                          {{ flight2_form.flight_number }}
+                          {% if flight2_form.flight_number.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Return Cruise Info -->
+                    {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
+                      <div class="mb-4">
+                        <div class="row g-3">
+                          <div class="col-md-6 form-row mb-0">
+                            <label for="{{ cruise2_form.cruise_line.id_for_label }}" class="form-label">Cruise Line</label>
+                            {{ cruise2_form.cruise_line }}
+                            {% if cruise2_form.cruise_line.errors %}
+                              <div class="invalid-feedback d-block" role="alert">
+                                {% for error in cruise2_form.cruise_line.errors %}{{ error }}{% endfor %}
                               </div>
                             {% endif %}
                           </div>
 
                           <div class="col-md-6 form-row mb-0">
-                            <label for="{{ cruise1_form.ship_name.id_for_label }}" class="form-label">Ship Name</label>
-                            {{ cruise1_form.ship_name }}
-                            {% if cruise1_form.ship_name.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in cruise1_form.ship_name.errors %}{{ error }}{% endfor %}
+                            <label for="{{ cruise2_form.ship_name.id_for_label }}" class="form-label">Ship Name</label>
+                            {{ cruise2_form.ship_name }}
+                            {% if cruise2_form.ship_name.errors %}
+                              <div class="invalid-feedback d-block" role="alert">
+                                {% for error in cruise2_form.ship_name.errors %}{{ error }}{% endfor %}
                               </div>
                             {% endif %}
                           </div>
@@ -559,1032 +711,607 @@
                       </div>
                     {% endif %}
 
-                    <!-- Pickup Info -->
+                    <!-- Return Pickup -->
                     <div>
                       <h3 class="section-heading fs-5 mb-3">
-                        <i class="bi bi-pin-map text-secondary me-2"></i> Pickup Information
+                        <i class="bi bi-pin-map" aria-hidden="true"></i> Return Pickup Information
                       </h3>
                       <div class="row g-3">
                         <div class="col-md-6 form-row">
-                          <label for="{{ leg1_form.pickup_date.id_for_label }}"
-                                 class="form-label required">Pickup Date</label>
-                          {{ leg1_form.pickup_date }}
+                          <label for="{{ leg2_form.pickup_date.id_for_label }}" class="form-label required">Pickup Date</label>
+                          {{ leg2_form.pickup_date }}
                           <div class="form-text">
-                            <i class="bi bi-calendar me-1"></i> When will you be traveling?
+                            <i class="bi bi-calendar me-1" aria-hidden="true"></i> When are you returning?
                           </div>
-                          {% if leg1_form.pickup_date.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.pickup_date.errors %}{{ error }}{% endfor %}
+                          {% if leg2_form.pickup_date.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
                             </div>
                           {% endif %}
                         </div>
 
                         <div class="col-md-6 form-row">
-                          <label for="{{ leg1_form.pickup_time.id_for_label }}"
-                                 class="form-label required d-flex align-items-center">
+                          <label for="{{ leg2_form.pickup_time.id_for_label }}" class="form-label required d-flex align-items-center">
                             <span>Pickup Time</span>
                             <i class="bi bi-question-circle ms-2 info-tooltip"
                                data-bs-toggle="tooltip"
-                               title="For flight arrivals, use your flight's landing time. For departures, schedule at least 2.5 hours before your flight"></i>
+                               title="For airport departures, schedule at least 2.5 hours before your flight time"
+                               aria-label="Help: return pickup time guidance"></i>
                           </label>
-                          {{ leg1_form.pickup_time }}
+                          {{ leg2_form.pickup_time }}
                           <div class="form-text">
-                            <i class="bi bi-clock-history me-1"></i> We'll adjust for any flight delays
+                            <i class="bi bi-clock-history me-1" aria-hidden="true"></i> Allow enough time for airport check-in
                           </div>
-                          {% if leg1_form.pickup_time.errors %}
-                            <div class="alert alert-warning alert-dismissible fade show mt-2"
-                                 role="alert"
-                                 id="pickup-time-error-leg1">
-                              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                          {% if leg2_form.pickup_time.errors %}
+                            <div class="alert alert-warning alert-dismissible fade show mt-2" role="alert" id="pickup-time-error-leg2">
+                              <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
                               <strong>Time Not Available:</strong>
-                              {% for error in leg1_form.pickup_time.errors %}<div class="mt-1">{{ error }}</div>{% endfor %}
-                              <button type="button"
-                                      class="btn-close"
-                                      data-bs-dismiss="alert"
-                                      aria-label="Close"></button>
+                              {% for error in leg2_form.pickup_time.errors %}<div class="mt-1">{{ error }}</div>{% endfor %}
+                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                           {% endif %}
                         </div>
 
                         <div class="col-md-6 form-row">
-                          <label for="{{ leg1_form.pickup_location.id_for_label }}"
-                                 class="form-label required">Pickup Location</label>
-                          {{ leg1_form.pickup_location }}
+                          <label for="{{ leg2_form.pickup_location.id_for_label }}" class="form-label required">Pickup Location</label>
+                          {{ leg2_form.pickup_location }}
                           <div class="form-text">
-                            <i class="bi bi-geo-alt me-1"></i> Airport, hotel name, or address
+                            <i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Hotel name or full address
                           </div>
-                          {% if leg1_form.pickup_location.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.pickup_location.errors %}{{ error }}{% endfor %}
+                          {% if leg2_form.pickup_location.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
                             </div>
                           {% endif %}
                         </div>
 
                         <div class="col-md-6 form-row">
-                          <label for="{{ leg1_form.dropoff_location.id_for_label }}"
-                                 class="form-label required">Drop-off Location</label>
-                          {{ leg1_form.dropoff_location }}
+                          <label for="{{ leg2_form.dropoff_location.id_for_label }}" class="form-label required">Drop-off Location</label>
+                          {{ leg2_form.dropoff_location }}
                           <div class="form-text">
-                            <i class="bi bi-geo-alt me-1"></i> Hotel name or full address
+                            <i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Airport terminal or full address
                           </div>
-                          {% if leg1_form.dropoff_location.errors %}
-                            <div class="invalid-feedback d-block">
-                              {% for error in leg1_form.dropoff_location.errors %}{{ error }}{% endfor %}
+                          {% if leg2_form.dropoff_location.errors %}
+                            <div class="invalid-feedback d-block" role="alert">
+                              {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
                             </div>
                           {% endif %}
                         </div>
                       </div>
                     </div>
-                  </div>
-                </section>
-
-                <!-- Return Details (Conditional) -->
-                {% if leg2_form %}
-                  <section class="form-card shadow-sm border-0 mb-4">
-                    <div class="card-header bg-white">
-                      <div class="d-flex align-items-center">
-                        <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                              style="width: 40px;
-                                     height: 40px;
-                                     line-height: 1;
-                                     padding: 0">
-                          <img src="{% static 'images/return-trip.webp' %}"
-                               alt="Passenger Icon"
-                               style="width: 30px;
-                                      height: 30px;
-                                      object-fit: contain">
-                        </span>
-                        <h2 class="fs-5 mb-0 fw-bold">Return Ride Details</h2>
-                      </div>
-                    </div>
-                    <div class="card-body">
-                      <div class="mb-4">
-                        <h3 class="section-heading fs-5 mb-3">
-                          <i class="bi bi-airplane text-secondary me-2"></i> Return Flight Information
-                        </h3>
-                        <div class="alert alert-info d-flex align-items-center mb-4 border-0 bg-info bg-opacity-10">
-                          <i class="bi bi-info-circle-fill fs-5 me-3"></i>
-                          <div>
-                            <strong>Please Note:</strong> Flight information helps us plan your return. Skip if not applicable.
-                          </div>
-                        </div>
-
-                        <div class="row g-3">
-                          <div class="col-md-6 form-row mb-0">
-                            <label for="{{ flight2_form.airline.id_for_label }}" class="form-label">Airline</label>
-                            {{ flight2_form.airline }}
-                            {% if flight2_form.airline.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in flight2_form.airline.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-
-                          <div class="col-md-6 form-row mb-0">
-                            <label for="{{ flight2_form.flight_number.id_for_label }}"
-                                   class="form-label">Flight Number</label>
-                            {{ flight2_form.flight_number }}
-                            {% if flight2_form.flight_number.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in flight2_form.flight_number.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Return Cruise Info Section (Only show for Port Canaveral routes) -->
-                      {% if "Port Canaveral" in route.origin.name or "Port Canaveral" in route.destination.name %}
-                        <div class="mb-4">
-                          <div class="row g-3">
-                            <div class="col-md-6 form-row mb-0">
-                              <label for="{{ cruise2_form.cruise_line.id_for_label }}" class="form-label">Cruise Line</label>
-                              {{ cruise2_form.cruise_line }}
-                              {% if cruise2_form.cruise_line.errors %}
-                                <div class="invalid-feedback d-block">
-                                  {% for error in cruise2_form.cruise_line.errors %}{{ error }}{% endfor %}
-                                </div>
-                              {% endif %}
-                            </div>
-
-                            <div class="col-md-6 form-row mb-0">
-                              <label for="{{ cruise2_form.ship_name.id_for_label }}" class="form-label">Ship Name</label>
-                              {{ cruise2_form.ship_name }}
-                              {% if cruise2_form.ship_name.errors %}
-                                <div class="invalid-feedback d-block">
-                                  {% for error in cruise2_form.ship_name.errors %}{{ error }}{% endfor %}
-                                </div>
-                              {% endif %}
-                            </div>
-                          </div>
-                        </div>
-                      {% endif %}
-
-                      <div>
-                        <h3 class="section-heading fs-5 mb-3">
-                          <i class="bi bi-pin-map text-secondary me-2"></i> Return Pickup Information
-                        </h3>
-                        <div class="row g-3">
-                          <div class="col-md-6 form-row">
-                            <label for="{{ leg2_form.pickup_date.id_for_label }}"
-                                   class="form-label required">Pickup Date</label>
-                            {{ leg2_form.pickup_date }}
-                            <div class="form-text">
-                              <i class="bi bi-calendar me-1"></i> When are you returning?
-                            </div>
-                            {% if leg2_form.pickup_date.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.pickup_date.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-
-                          <div class="col-md-6 form-row">
-                            <label for="{{ leg2_form.pickup_time.id_for_label }}"
-                                   class="form-label required d-flex align-items-center">
-                              <span>Pickup Time</span>
-                              <i class="bi bi-question-circle ms-2 info-tooltip"
-                                 data-bs-toggle="tooltip"
-                                 title="For airport departures, schedule at least 2.5 hours before your flight time"></i>
-                            </label>
-                            {{ leg2_form.pickup_time }}
-                            <div class="form-text">
-                              <i class="bi bi-clock-history me-1"></i> Allow enough time for airport check-in
-                            </div>
-                            {% if leg2_form.pickup_time.errors %}
-                              <div class="alert alert-warning alert-dismissible fade show mt-2"
-                                   role="alert"
-                                   id="pickup-time-error-leg2">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                <strong>Time Not Available:</strong>
-                                {% for error in leg2_form.pickup_time.errors %}<div class="mt-1">{{ error }}</div>{% endfor %}
-                                <button type="button"
-                                        class="btn-close"
-                                        data-bs-dismiss="alert"
-                                        aria-label="Close"></button>
-                              </div>
-                            {% endif %}
-                          </div>
-
-                          <div class="col-md-6 form-row">
-                            <label for="{{ leg2_form.pickup_location.id_for_label }}"
-                                   class="form-label required">Pickup Location</label>
-                            {{ leg2_form.pickup_location }}
-                            <div class="form-text">
-                              <i class="bi bi-geo-alt me-1"></i> Hotel name or full address
-                            </div>
-                            {% if leg2_form.pickup_location.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.pickup_location.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-
-                          <div class="col-md-6 form-row">
-                            <label for="{{ leg2_form.dropoff_location.id_for_label }}"
-                                   class="form-label required">Drop-off Location</label>
-                            {{ leg2_form.dropoff_location }}
-                            <div class="form-text">
-                              <i class="bi bi-geo-alt me-1"></i> Airport terminal or full address
-                            </div>
-                            {% if leg2_form.dropoff_location.errors %}
-                              <div class="invalid-feedback d-block">
-                                {% for error in leg2_form.dropoff_location.errors %}{{ error }}{% endfor %}
-                              </div>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-                {% endif %}
-
-                <!-- Special Requests -->
-                <section class="form-card shadow-sm border-0 mb-4">
-                  <div class="card-header bg-white">
-                    <div class="d-flex align-items-center">
-                      <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                            style="width: 40px;
-                                   height: 40px;
-                                   line-height: 1;
-                                   padding: 0">
-                        <img src="{% static 'images/request.webp' %}"
-                             alt="Find Icon"
-                             style="width: 20px;
-                                    height: 20px;
-                                    object-fit: contain">
-                      </span>
-                      <h2 class="fs-5 mb-0 fw-bold">Notes for Your Trip</h2>
-                    </div>
-                  </div>
-                  <div class="card-body">
-                    <label for="{{ reservation_form.special_requests.id_for_label }}"
-                           class="form-label">Anything we should know?</label>
-                    {{ reservation_form.special_requests }}
-                    {% if reservation_form.special_requests.errors %}
-                      <div class="invalid-feedback d-block">
-                        {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
-                      </div>
-                    {% endif %}
-                    <div class="form-text mt-2">
-                      <i class="bi bi-info-circle me-1"></i> This field is optional
-                    </div>
-                  </div>
-                </section>
-
-                <!-- Non-field errors -->
-                {% if form.non_field_errors %}
-                  <section class="form-card border-danger shadow-sm mb-4">
-                    <div class="card-header bg-danger text-white">
-                      <h2 class="fs-5 mb-0">
-                        <i class="bi bi-exclamation-circle me-2"></i>Form Errors
-                      </h2>
-                    </div>
-                    <div class="card-body">
-                      {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
-                    </div>
-                  </section>
-                {% endif %}
-
-                <!-- Price & Summary -->
-                <section class="form-card shadow-sm border-0 mb-4">
-                  <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                      <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-25 rounded-circle me-3"
-                           style="width: 48px;
-                                  height: 48px">
-                        <img src="{% static 'images/receipt.webp' %}"
-                             alt="Receipt"
-                             style="width: 24px;
-                                    height: 24px">
-                      </div>
-                      <h2 class="fs-5 mb-0 fw-bold">Price & Summary</h2>
-                    </div>
-                    <div class="fw-bold fs-3 text-success mb-0">${{ price }}</div>
-                  </div>
-
-                  <div class="card-body">
-                    <div class="row justify-content-center g-3">
-
-                      <!-- Gratuity Note -->
-                      <div class="col-md-6">
-                        <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
-                          <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
-                               style="min-width: 40px;
-                                      height: 40px">
-                            <img src="{% static 'images/gratuity.webp' %}"
-                                 alt="Gratuity"
-                                 style="width: 25px;
-                                        height: 25px">
-                          </div>
-                          <div>
-                            Gratuity is <strong>not</strong> included. You can tip by card or cash — add preferences in the Notes section.
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- After-Hours Fee Note -->
-                      <div class="col-md-6">
-                        <div class="d-flex align-items-start bg-white rounded border p-3 shadow-sm h-100">
-                          <div class="d-inline-flex align-items-center justify-content-center bg-warning bg-opacity-10 text-info rounded-circle me-3"
-                               style="min-width: 40px;
-                                      height: 40px">
-                            <img src="{% static 'images/afterhours.webp' %}"
-                                 alt="Gratuity"
-                                 style="width: 20px;
-                                        height: 20px">
-                          </div>
-                          <div>
-                            Pickups from 10PM to 6AM include a <strong>$20 late-night fee</strong> — paid directly to the driver.
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-                </section>
-
-                <!-- Gratuity Section -->
-                <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
-                  <div class="card-header bg-white px-3 px-md-4 py-3">
-                    <div class="d-flex align-items-center">
-                      <span class="bg-success bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
-                            style="width: 40px;
-                                   height: 40px;
-                                   line-height: 1;
-                                   padding: 0">
-                        <i class="bi bi-heart-fill text-success" style="font-size: 20px;"></i>
-                      </span>
-                      <h2 class="fs-5 mb-0 fw-bold">Gratuity (Optional)</h2>
-                    </div>
-                  </div>
-                  <div class="card-body px-3 px-md-4">
-                    <div class="row g-3">
-                      <div class="col-12">
-                        <div class="alert alert-info mb-3">
-                          <i class="bi bi-info-circle me-2"></i>
-                          <strong>Include your gratuity</strong> - A 20% gratuity is recommended for professional chauffeured service. You may include it here for convenience, or provide gratuity in cash. All gratuities go 100% to your chauffeur.
-                        </div>
-                      </div>
-
-                      <div class="col-12">
-                        <label class="form-label fw-semibold">Would you like to include gratuity?</label>
-                        <div class="row g-2">
-                          <div class="col-6 col-md-3">
-                            <div class="form-check">
-                              <input class="form-check-input"
-                                     type="radio"
-                                     name="gratuity_option"
-                                     id="gratuity_20"
-                                     value="20">
-                              <label class="form-check-label fw-semibold" for="gratuity_20">20%</label>
-                            </div>
-                          </div>
-                          <div class="col-6 col-md-3">
-                            <div class="form-check">
-                              <input class="form-check-input"
-                                     type="radio"
-                                     name="gratuity_option"
-                                     id="gratuity_25"
-                                     value="25">
-                              <label class="form-check-label fw-semibold" for="gratuity_25">25%</label>
-                            </div>
-                          </div>
-                          <div class="col-6 col-md-3">
-                            <div class="form-check">
-                              <input class="form-check-input"
-                                     type="radio"
-                                     name="gratuity_option"
-                                     id="gratuity_custom"
-                                     value="custom">
-                              <label class="form-check-label fw-semibold" for="gratuity_custom">Custom</label>
-                            </div>
-                          </div>
-                          <div class="col-6 col-md-3">
-                            <div class="form-check">
-                              <input class="form-check-input"
-                                     type="radio"
-                                     name="gratuity_option"
-                                     id="gratuity_none"
-                                     value="0"
-                                     checked>
-                              <label class="form-check-label fw-semibold" for="gratuity_none">Cash</label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="col-12" id="custom_gratuity_wrap" style="display: none;">
-                        <label class="form-label fw-semibold" for="custom_gratuity_value">Custom gratuity</label>
-                        <div class="input-group">
-                          <input type="number"
-                                 class="form-control"
-                                 id="custom_gratuity_value"
-                                 name="custom_gratuity_value"
-                                 min="21"
-                                 max="100"
-                                 step="0.01"
-                                 placeholder="e.g. 25">
-                          <span class="input-group-text">%</span>
-                        </div>
-                        <div class="form-text text-danger d-none" id="custom_gratuity_error">
-                          Online gratuity is available starting at 20%. If you prefer a different amount, gratuity may be provided directly to your chauffeur in cash.
-                        </div>
-                      </div>
-
-                      <!-- Gratuity amount display -->
-                      <div class="col-12" id="gratuity_display" style="display: none;">
-                        <div class="alert alert-success">
-                          <div class="d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-currency-dollar me-1"></i><strong>Gratuity Amount:</strong></span>
-                            <span class="fw-bold" id="gratuity_amount_display">$0.00</span>
-                          </div>
-                          <div class="d-flex justify-content-between align-items-center mt-2">
-                            <span><strong>New Total:</strong></span>
-                            <span class="fw-bold text-success" id="new_total_display">$0.00</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Django form field (hidden) -->
-                      <div style="display: none;">{{ reservation_form.gratuity_percentage }}</div>
-
-
-                    </div>
-                  </div>
-                </section>
-
-                <!-- Submit Button -->
-                <div class="mb-5">
-                  <div class="text-center">
-                    <button type="submit" class="button_reservation">
-                      Complete Reservation
-                      <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm4.28 10.28a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06l1.72 1.72H8.25a.75.75 0 000 1.5h5.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z" clip-rule="evenodd">
-                        </path>
-                      </svg>
-                    </button>
-                  </div>
-                  <p class="text-center text-muted small mt-3">
-                    By submitting, you agree to our <a href="{% url 'tos' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">Terms of Service</a> &amp; <a href="{% url 'privacy' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-none">Privacy Policy</a>, and consent to receive automated SMS messages about your reservation. Msg & data rates may apply. Reply STOP to opt out.
-                  </p>
+                  </fieldset>
                 </div>
-              </form>
+              </section>
+            {% endif %}
+
+            <!-- ====== Special Requests ====== -->
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+              <div class="card-header bg-white px-3 px-md-4 py-3">
+                <div class="d-flex align-items-center">
+                  <span class="bg-warning bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                        style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                    <img src="{% static 'images/request.webp' %}" alt="" style="width: 20px; height: 20px; object-fit: contain" aria-hidden="true">
+                  </span>
+                  <h2 class="fs-5 mb-0 fw-bold">Notes for Your Trip</h2>
+                </div>
+              </div>
+              <div class="card-body px-3 px-md-4">
+                <label for="{{ reservation_form.special_requests.id_for_label }}" class="form-label">Anything we should know?</label>
+                {{ reservation_form.special_requests }}
+                {% if reservation_form.special_requests.errors %}
+                  <div class="invalid-feedback d-block" role="alert">
+                    {% for error in reservation_form.special_requests.errors %}{{ error }}{% endfor %}
+                  </div>
+                {% endif %}
+
+                <div class="form-text mt-2">
+                  <i class="bi bi-info-circle me-1" aria-hidden="true"></i> This field is optional
+                </div>
+              </div>
+            </section>
+
+            <!-- Non-field errors -->
+            {% if form.non_field_errors %}
+              <section class="form-card border-danger shadow-sm mb-3 mb-md-4">
+                <div class="card-header bg-danger text-white">
+                  <h2 class="fs-5 mb-0">
+                    <i class="bi bi-exclamation-circle me-2" aria-hidden="true"></i>Form Errors
+                  </h2>
+                </div>
+                <div class="card-body">
+                  {% for error in form.non_field_errors %}<p class="mb-1 text-danger">{{ error }}</p>{% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            <!-- ====== Price & Summary (Receipt Card) ====== -->
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4" id="section-complete" data-progress-step="4">
+              <div class="card-body px-0 py-0">
+                <div class="gt-receipt">
+                  <div class="gt-receipt-header">
+                    <span class="gt-receipt-title">
+                      <i class="bi bi-receipt me-2" aria-hidden="true"></i> Price Summary
+                    </span>
+                    <span class="gt-receipt-price">${{ price }}</span>
+                  </div>
+                  <div class="gt-receipt-body">
+                    <div class="gt-receipt-line">
+                      <i class="bi bi-heart" aria-hidden="true"></i>
+                      <span>Gratuity is <strong>not</strong> included &mdash; tip by card below or cash to your driver. 100% goes to your chauffeur.</span>
+                    </div>
+                    <div class="gt-receipt-line">
+                      <i class="bi bi-moon-stars" aria-hidden="true"></i>
+                      <span>Pickups from <strong>10 PM &ndash; 6 AM</strong> include a <strong>$20 late-night fee</strong> paid directly to the driver.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ====== Gratuity Section ====== -->
+            <section class="form-card shadow-sm border-0 mb-3 mb-md-4">
+              <div class="card-header bg-white px-3 px-md-4 py-3">
+                <div class="d-flex align-items-center">
+                  <span class="bg-success bg-opacity-25 rounded-circle d-inline-flex align-items-center justify-content-center me-3"
+                        style="width: 40px; height: 40px; line-height: 1; padding: 0">
+                    <i class="bi bi-heart-fill text-success" style="font-size: 20px;" aria-hidden="true"></i>
+                  </span>
+                  <h2 class="fs-5 mb-0 fw-bold">Gratuity <span class="fw-normal" style="font-size: 0.8em; color: var(--gt-slate-light);">(Optional)</span></h2>
+                </div>
+              </div>
+              <div class="card-body px-3 px-md-4">
+                <p class="form-text mb-3" style="font-size: var(--gt-text-sm);">
+                  A 20% gratuity is recommended for chauffeured service. All gratuities go 100% to your driver.
+                </p>
+
+                <!-- Pill-style gratuity options -->
+                <div class="gt-gratuity-grid" role="radiogroup" aria-label="Gratuity amount">
+                  <div class="gt-gratuity-option">
+                    <input type="radio" name="gratuity_option" id="gratuity_20" value="20">
+                    <label for="gratuity_20">20%</label>
+                  </div>
+                  <div class="gt-gratuity-option">
+                    <input type="radio" name="gratuity_option" id="gratuity_25" value="25">
+                    <label for="gratuity_25">25%</label>
+                  </div>
+                  <div class="gt-gratuity-option">
+                    <input type="radio" name="gratuity_option" id="gratuity_custom" value="custom">
+                    <label for="gratuity_custom">Custom</label>
+                  </div>
+                  <div class="gt-gratuity-option">
+                    <input type="radio" name="gratuity_option" id="gratuity_none" value="0" checked>
+                    <label for="gratuity_none">
+                      <i class="bi bi-cash me-1" aria-hidden="true"></i> Cash
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Custom amount -->
+                <div id="custom_gratuity_wrap" style="display: none;">
+                  <label class="form-label fw-semibold mt-3" for="custom_gratuity_value">Custom gratuity percentage</label>
+                  <div class="input-group">
+                    <input type="number" class="form-control" id="custom_gratuity_value" name="custom_gratuity_value"
+                           min="21" max="100" step="0.01" placeholder="e.g. 25" aria-label="Custom gratuity percentage">
+                    <span class="input-group-text">%</span>
+                  </div>
+                  <div class="form-text text-danger d-none" id="custom_gratuity_error" role="alert">
+                    Online gratuity starts at 20%. Prefer a different amount? Tip your chauffeur directly in cash.
+                  </div>
+                </div>
+
+                <!-- Cash note -->
+                <div class="gt-cash-note" id="cash_note" style="display: none;">
+                  <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                  <span>You can tip your driver directly at the end of your ride.</span>
+                </div>
+
+                <!-- Gratuity total display -->
+                <div id="gratuity_display" style="display: none;">
+                  <div class="gt-gratuity-total">
+                    <div class="gt-gratuity-row">
+                      <span><i class="bi bi-heart me-1" aria-hidden="true"></i> Gratuity</span>
+                      <span class="amount" id="gratuity_amount_display">$0.00</span>
+                    </div>
+                    <div class="gt-gratuity-row">
+                      <span><strong>New Total</strong></span>
+                      <span class="amount" id="new_total_display">$0.00</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hidden Django fields -->
+                <div style="display: none;">
+                  {{ reservation_form.gratuity_percentage }}
+                  {{ reservation_form.extra_carseats }}
+                  {{ reservation_form.extra_boosters }}
+                </div>
+              </div>
+            </section>
+
+            <!-- ====== Submit Button ====== -->
+            <div class="gt-submit-area mb-5">
+              <button type="submit" class="button_reservation" aria-label="Complete your reservation">
+                <i class="bi bi-lock-fill" style="font-size: 0.875rem; opacity: 0.6;" aria-hidden="true"></i>
+                Complete Reservation
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm4.28 10.28a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06l1.72 1.72H8.25a.75.75 0 000 1.5h5.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z" clip-rule="evenodd"></path>
+                </svg>
+              </button>
+
+              <p class="text-muted mt-3">
+                By submitting, you agree to our <a href="{% url 'tos' %}" target="_blank" rel="noopener noreferrer">Terms of Service</a> &amp; <a href="{% url 'privacy' %}" target="_blank" rel="noopener noreferrer">Privacy Policy</a>, and consent to receive automated SMS messages about your reservation. Msg &amp; data rates may apply. Reply STOP to opt out.
+              </p>
             </div>
-          </div>
-        </main>
+          </form>
+        </div>
+      </div>
+    </main>
 
-        {% block footer_scripts %}
-          <script src="{% static 'js/form-ui-enhancer.js' %}"></script>
-          <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete" async defer>
-          </script>
-          <script src="{% static 'js/maps_autocomplete.js' %}"></script>
-          <script src="{% static 'js/validate-vehicle-limits.js' %}"></script>
-          <script src="{% static 'js/validate-trip-times.js' %}"></script>
+    {% block footer_scripts %}
+      <script src="{% static 'js/form-ui-enhancer.js' %}"></script>
+      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCvKWNOiEsp0h9nJ4EbwhYohznuQewVyCk&libraries=places&callback=initAutocomplete" async defer></script>
+      <script src="{% static 'js/maps_autocomplete.js' %}"></script>
+      <script src="{% static 'js/validate-vehicle-limits.js' %}"></script>
+      <script src="{% static 'js/validate-trip-times.js' %}"></script>
 
-          <!-- Autofill customer information from URL parameters -->
-          <script>
-              function autofillForm() {
-                  const urlParams = new URLSearchParams(window.location.search);
+      <!-- Autofill customer information from URL parameters -->
+      <script>
+          function autofillForm() {
+              const urlParams = new URLSearchParams(window.location.search);
+              const firstName = urlParams.get('first_name');
+              const lastName = urlParams.get('last_name');
+              const email = urlParams.get('email');
+              const phone = urlParams.get('phone');
 
-                  // Get customer information from URL parameters
-                  const firstName = urlParams.get('first_name');
-                  const lastName = urlParams.get('last_name');
-                  const email = urlParams.get('email');
-                  const phone = urlParams.get('phone');
-
-                  // Autofill the form fields if the data exists
-                  if (firstName) {
-                      const firstNameField = document.querySelector('input[name="first_name"]');
-                      if (firstNameField) firstNameField.value = firstName;
-                  }
-
-                  if (lastName) {
-                      const lastNameField = document.querySelector('input[name="last_name"]');
-                      if (lastNameField) lastNameField.value = lastName;
-                  }
-
-                  if (email) {
-                      const emailField = document.querySelector('input[name="email"]');
-                      if (emailField) emailField.value = email;
-                  }
-
-                  if (phone) {
-                      const phoneField = document.querySelector('input[name="phone_number"]');
-                      if (phoneField) phoneField.value = phone;
-                  }
+              if (firstName) {
+                  const f = document.querySelector('input[name="first_name"]');
+                  if (f) f.value = firstName;
               }
-
-              // Autofill when DOM is ready
-              document.addEventListener('DOMContentLoaded', autofillForm);
-          </script>
-
-          <!-- UTM Parameter Capture Script -->
-          <script>
-              // Helper function to get cookie value
-              function getCookie(name) {
-                  const value = `; ${document.cookie}`;
-                  const parts = value.split(`; ${name}=`);
-                  if (parts.length === 2) return parts.pop().split(';').shift();
-                  return null;
+              if (lastName) {
+                  const f = document.querySelector('input[name="last_name"]');
+                  if (f) f.value = lastName;
               }
+              if (email) {
+                  const f = document.querySelector('input[name="email"]');
+                  if (f) f.value = email;
+              }
+              if (phone) {
+                  const f = document.querySelector('input[name="phone_number"]');
+                  if (f) f.value = phone;
+              }
+          }
+          document.addEventListener('DOMContentLoaded', autofillForm);
+      </script>
 
-              document.addEventListener('DOMContentLoaded', function() {
-                  const form = document.getElementById('reservation_form');
+      <!-- UTM Parameter Capture Script -->
+      <script>
+          function getCookie(name) {
+              const value = `; ${document.cookie}`;
+              const parts = value.split(`; ${name}=`);
+              if (parts.length === 2) return parts.pop().split(';').shift();
+              return null;
+          }
 
-                  form.addEventListener('submit', function(e) {
-                      // Capture UTM parameters from cookies
-                      const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+          document.addEventListener('DOMContentLoaded', function() {
+              const form = document.getElementById('reservation_form');
 
-                      utmParams.forEach(function(param) {
-                          const value = getCookie(param);
-                          const field = document.getElementById(param + '_field');
-                          if (value && field) {
-                              field.value = value;
-                              console.log('Populated UTM field from cookie:', param, '=', value);
-                          }
-                      });
-                  });
-
-                  // Gratuity calculation functionality
-                  const basePrice = parseFloat({{ price|default:0 }}) || 0;
-                  const gratuityOptions = document.querySelectorAll('input[name="gratuity_option"]');
-                  const gratuityDisplay = document.getElementById('gratuity_display');
-                  const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
-                  const newTotalDisplay = document.getElementById('new_total_display');
-                  const gratuityPercentageField = document.getElementById('id_gratuity_percentage');
-                  const customGratuityWrap = document.getElementById('custom_gratuity_wrap');
-                  const customGratuityValue = document.getElementById('custom_gratuity_value');
-                  const customGratuityError = document.getElementById('custom_gratuity_error');
-
-                  function calculateGratuity() {
-                      const selectedOption = document.querySelector('input[name="gratuity_option"]:checked');
-                      let percentage = 0;
-
-                      customGratuityWrap.style.display = 'none';
-                      customGratuityError.classList.add('d-none');
-
-                      if (selectedOption) {
-                          if (selectedOption.value === 'custom') {
-                              customGratuityWrap.style.display = 'block';
-                              const customValue = parseFloat(customGratuityValue.value);
-                              if (Number.isFinite(customValue) && customValue >= 21) {
-                                  percentage = customValue;
-                              } else {
-                                  percentage = 0;
-                                  if (customGratuityValue.value !== '') {
-                                      customGratuityError.classList.remove('d-none');
-                                  }
-                              }
-                          } else {
-                              percentage = parseFloat(selectedOption.value) || 0;
-                          }
+              form.addEventListener('submit', function(e) {
+                  const utmParams = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+                  utmParams.forEach(function(param) {
+                      const value = getCookie(param);
+                      const field = document.getElementById(param + '_field');
+                      if (value && field) {
+                          field.value = value;
                       }
-
-                      if (percentage > 0) {
-                          const gratuityAmount = (basePrice * percentage) / 100;
-                          const newTotal = basePrice + gratuityAmount;
-
-                          gratuityAmountDisplay.textContent = '$' + gratuityAmount.toFixed(2);
-                          newTotalDisplay.textContent = '$' + newTotal.toFixed(2);
-                          gratuityDisplay.style.display = 'block';
-                          gratuityPercentageField.value = percentage;
-                      } else {
-                          gratuityDisplay.style.display = 'none';
-                          gratuityPercentageField.value = 0;
-                      }
-                  }
-
-                  // Handle gratuity option changes
-                  gratuityOptions.forEach(option => {
-                      option.addEventListener('change', function() {
-                          calculateGratuity();
-                      });
                   });
-
-                  if (customGratuityValue) {
-                      customGratuityValue.addEventListener('input', function() {
-                          calculateGratuity();
-                      });
-                  }
-
-                  // Initial calculation
-                  calculateGratuity();
               });
-          </script>
-          <!-- End UTM Parameter Capture Script -->
 
-        {% endblock %}
+              // ===== Gratuity Calculation =====
+              const basePrice = parseFloat({{ price|default:0 }}) || 0;
+              const gratuityOptions = document.querySelectorAll('input[name="gratuity_option"]');
+              const gratuityDisplay = document.getElementById('gratuity_display');
+              const gratuityAmountDisplay = document.getElementById('gratuity_amount_display');
+              const newTotalDisplay = document.getElementById('new_total_display');
+              const gratuityPercentageField = document.getElementById('id_gratuity_percentage');
+              const customGratuityWrap = document.getElementById('custom_gratuity_wrap');
+              const customGratuityValue = document.getElementById('custom_gratuity_value');
+              const customGratuityError = document.getElementById('custom_gratuity_error');
+              const cashNote = document.getElementById('cash_note');
 
-        <!-- Mobile Form Enhancements -->
-        <style>
-            /* Mobile Form Improvements */
-            @media (max-width: 768px) {
-                .form-container {
-                    padding-left: 0.5rem;
-                    padding-right: 0.5rem;
-                }
+              function calculateGratuity() {
+                  const selectedOption = document.querySelector('input[name="gratuity_option"]:checked');
+                  let percentage = 0;
 
-                .form-card {
-                    margin-bottom: 1rem;
-                }
+                  customGratuityWrap.style.display = 'none';
+                  customGratuityError.classList.add('d-none');
+                  if (cashNote) cashNote.style.display = 'none';
 
-                .card-body {
-                    padding: 1rem;
-                }
+                  if (selectedOption) {
+                      if (selectedOption.value === 'custom') {
+                          customGratuityWrap.style.display = 'block';
+                          const customValue = parseFloat(customGratuityValue.value);
+                          if (Number.isFinite(customValue) && customValue >= 21) {
+                              percentage = customValue;
+                          } else {
+                              percentage = 0;
+                              if (customGratuityValue.value !== '') {
+                                  customGratuityError.classList.remove('d-none');
+                              }
+                          }
+                      } else if (selectedOption.value === '0') {
+                          // Cash selected
+                          if (cashNote) cashNote.style.display = 'flex';
+                      } else {
+                          percentage = parseFloat(selectedOption.value) || 0;
+                      }
+                  }
 
-                .form-label {
-                    font-size: 0.9rem;
-                    margin-bottom: 0.5rem;
-                }
+                  if (percentage > 0) {
+                      const gratuityAmount = (basePrice * percentage) / 100;
+                      const newTotal = basePrice + gratuityAmount;
+                      gratuityAmountDisplay.textContent = '$' + gratuityAmount.toFixed(2);
+                      newTotalDisplay.textContent = '$' + newTotal.toFixed(2);
+                      gratuityDisplay.style.display = 'block';
+                      gratuityPercentageField.value = percentage;
+                  } else {
+                      gratuityDisplay.style.display = 'none';
+                      gratuityPercentageField.value = 0;
+                  }
+              }
 
-                .form-control,
-                .form-select {
-                    font-size: 16px;
-                    /* Prevents zoom on iOS */
-                    padding: 0.75rem;
-                    border-radius: 0.5rem;
-                }
+              gratuityOptions.forEach(option => {
+                  option.addEventListener('change', calculateGratuity);
+              });
 
-                .btn {
-                    font-size: 1rem;
-                    padding: 0.75rem 1.5rem;
-                }
+              if (customGratuityValue) {
+                  customGratuityValue.addEventListener('input', calculateGratuity);
+              }
 
-                .badge {
-                    font-size: 0.75rem;
-                    padding: 0.5rem 0.75rem;
-                }
+              calculateGratuity();
+          });
+      </script>
 
-                .travel-tips .d-flex {
-                    flex-direction: column;
-                    text-align: center;
-                }
+      <!-- Time availability checking -->
+      <script>
+          function checkTimeAvailability(legPrefix) {
+              const dateInput = document.querySelector(`input[name="${legPrefix}-pickup_date"]`);
+              const timeInput = document.querySelector(`input[name="${legPrefix}-pickup_time"]`);
+              const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
 
-                .travel-tips .me-3 {
-                    margin-right: 0 !important;
-                    margin-bottom: 0.75rem;
-                }
+              if (!dateInput || !timeInput) return;
 
-                .route-visual .route-box {
-                    padding: 1rem;
-                }
+              const pickupDate = dateInput.value;
+              const pickupTime = timeInput.value;
 
-                .info-tooltip {
-                    font-size: 0.8rem;
-                }
-            }
+              if (!pickupDate || !pickupTime) {
+                  if (errorContainer) errorContainer.remove();
+                  if (timeInput) {
+                      timeInput.classList.remove('is-invalid');
+                      timeInput.style.borderColor = '';
+                      timeInput.style.borderWidth = '';
+                  }
+                  return;
+              }
 
-            /* Touch-friendly improvements */
-            .form-check-input {
-                width: 1.25rem;
-                height: 1.25rem;
-            }
+              if (timeInput) timeInput.style.borderColor = '#6c757d';
 
-            .form-check-label {
-                font-size: 0.9rem;
-                padding-left: 0.5rem;
-            }
+              const url = `{% url 'check_time_availability' %}?pickup_date=${pickupDate}&pickup_time=${pickupTime}`;
+              fetch(url)
+                  .then(response => response.json())
+                  .then(data => {
+                      if (!data.available) {
+                          showTimeError(legPrefix, data.message, timeInput);
+                      } else {
+                          clearTimeError(legPrefix, timeInput);
+                      }
+                  })
+                  .catch(error => {
+                      console.error('Error checking time availability:', error);
+                  });
+          }
 
-            /* Better focus states for mobile */
-            .form-control:focus,
-            .form-select:focus {
-                border-color: #0d6efd;
-                box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-            }
+          function showTimeError(legPrefix, message, timeInput) {
+              const errorContainerId = `pickup-time-error-${legPrefix}`;
+              let errorContainer = document.getElementById(errorContainerId);
+              if (errorContainer) errorContainer.remove();
 
-            /* Sticky progress bar mobile adjustments */
-            @media (max-width: 768px) {
-                .sticky-top {
-                    position: relative !important;
-                    margin-bottom: 1rem;
-                }
-            }
-
-            /* Error alert styling */
-            #pickup-time-error-leg1,
-            #pickup-time-error-leg2 {
-                border-left: 4px solid #ffc107;
-                animation: slideIn 0.3s ease-out;
-            }
-
-            @keyframes slideIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-10px);
-                }
-
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            /* Highlight time field when there's an error */
-            .form-control.is-invalid {
-                border-color: #ffc107;
-                box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
-            }
-        </style>
-
-        <script>
-            // Real-time time availability checking
-            function checkTimeAvailability(legPrefix) {
-                const dateInput = document.querySelector(`input[name="${legPrefix}-pickup_date"]`);
-                const timeInput = document.querySelector(`input[name="${legPrefix}-pickup_time"]`);
-                const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
-
-                if (!dateInput || !timeInput) return;
-
-                const pickupDate = dateInput.value;
-                const pickupTime = timeInput.value;
-
-                // Only check if both date and time are filled
-                if (!pickupDate || !pickupTime) {
-                    // Clear error if date or time is cleared
-                    if (errorContainer) {
-                        errorContainer.remove();
-                    }
-                    if (timeInput) {
-                        timeInput.classList.remove('is-invalid');
-                        timeInput.style.borderColor = '';
-                        timeInput.style.borderWidth = '';
-                    }
-                    return;
-                }
-
-                // Show loading state
-                if (timeInput) {
-                    timeInput.style.borderColor = '#6c757d';
-                }
-
-                // Check availability via AJAX
-                const url = `{% url 'check_time_availability' %}?pickup_date=${pickupDate}&pickup_time=${pickupTime}`;
-
-                fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.available) {
-                            // Time is blocked - show error
-                            showTimeError(legPrefix, data.message, timeInput);
-                        } else {
-                            // Time is available - clear any existing error
-                            clearTimeError(legPrefix, timeInput);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error checking time availability:', error);
-                        // On error, don't block the form - let server-side validation handle it
-                    });
-            }
-
-            function showTimeError(legPrefix, message, timeInput) {
-                const errorContainerId = `pickup-time-error-${legPrefix}`;
-                let errorContainer = document.getElementById(errorContainerId);
-
-                // Remove existing error if present
-                if (errorContainer) {
-                    errorContainer.remove();
-                }
-
-                // Create new error alert
-                errorContainer = document.createElement('div');
-                errorContainer.id = errorContainerId;
-                errorContainer.className = 'alert alert-warning alert-dismissible fade show mt-2';
-                errorContainer.setAttribute('role', 'alert');
-                errorContainer.innerHTML = `
-                  <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                  <strong>Time Not Available:</strong>
-                  <div class="mt-1">${message}</div>
-                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              errorContainer = document.createElement('div');
+              errorContainer.id = errorContainerId;
+              errorContainer.className = 'alert alert-warning alert-dismissible fade show mt-2';
+              errorContainer.setAttribute('role', 'alert');
+              errorContainer.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill me-2" aria-hidden="true"></i>
+                <strong>Time Not Available:</strong>
+                <div class="mt-1">${message}</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
               `;
 
-                // Insert error after the time input's parent form-row
-                const formRow = timeInput.closest('.form-row');
-                if (formRow) {
-                    formRow.appendChild(errorContainer);
+              const formRow = timeInput.closest('.form-row');
+              if (formRow) {
+                  formRow.appendChild(errorContainer);
+                  setTimeout(() => {
+                      errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }, 100);
+              }
 
-                    // Smooth scroll to error
-                    setTimeout(() => {
-                        errorContainer.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                        });
-                    }, 100);
-                }
+              timeInput.classList.add('is-invalid');
+              timeInput.style.borderColor = 'var(--gt-warning)';
+              timeInput.style.borderWidth = '2px';
+          }
 
-                // Highlight the time input
-                timeInput.classList.add('is-invalid');
-                timeInput.style.borderColor = '#ffc107';
-                timeInput.style.borderWidth = '2px';
-            }
+          function clearTimeError(legPrefix, timeInput) {
+              const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
+              if (errorContainer) errorContainer.remove();
+              if (timeInput) {
+                  timeInput.classList.remove('is-invalid');
+                  timeInput.style.borderColor = '';
+                  timeInput.style.borderWidth = '';
+              }
+          }
 
-            function clearTimeError(legPrefix, timeInput) {
-                const errorContainer = document.getElementById(`pickup-time-error-${legPrefix}`);
-                if (errorContainer) {
-                    errorContainer.remove();
-                }
+          document.addEventListener('DOMContentLoaded', function() {
+              // Leg 1 time validation
+              const leg1DateInput = document.querySelector('input[name="leg1-pickup_date"]');
+              const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
+              if (leg1DateInput && leg1TimeInput) {
+                  leg1DateInput.addEventListener('change', () => checkTimeAvailability('leg1'));
+                  leg1TimeInput.addEventListener('change', () => checkTimeAvailability('leg1'));
+                  leg1TimeInput.addEventListener('input', () => checkTimeAvailability('leg1'));
+                  if (leg1DateInput.value && leg1TimeInput.value) checkTimeAvailability('leg1');
+              }
 
-                if (timeInput) {
-                    timeInput.classList.remove('is-invalid');
-                    timeInput.style.borderColor = '';
-                    timeInput.style.borderWidth = '';
-                }
-            }
+              // Leg 2 time validation
+              const leg2DateInput = document.querySelector('input[name="leg2-pickup_date"]');
+              const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
+              if (leg2DateInput && leg2TimeInput) {
+                  leg2DateInput.addEventListener('change', () => checkTimeAvailability('leg2'));
+                  leg2TimeInput.addEventListener('change', () => checkTimeAvailability('leg2'));
+                  leg2TimeInput.addEventListener('input', () => checkTimeAvailability('leg2'));
+                  if (leg2DateInput.value && leg2TimeInput.value) checkTimeAvailability('leg2');
+              }
 
-            // Initialize on page load
-            document.addEventListener('DOMContentLoaded', function() {
-                // Set up real-time validation for leg1
-                const leg1DateInput = document.querySelector('input[name="leg1-pickup_date"]');
-                const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
+              // Handle server-side errors
+              const leg1Error = document.getElementById('pickup-time-error-leg1');
+              const leg2Error = document.getElementById('pickup-time-error-leg2');
+              if (leg1Error) {
+                  const ti = document.querySelector('input[name="leg1-pickup_time"]');
+                  if (ti) { ti.classList.add('is-invalid'); ti.style.borderColor = 'var(--gt-warning)'; ti.style.borderWidth = '2px'; }
+                  setTimeout(() => { leg1Error.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+              }
+              if (leg2Error) {
+                  const ti = document.querySelector('input[name="leg2-pickup_time"]');
+                  if (ti) { ti.classList.add('is-invalid'); ti.style.borderColor = 'var(--gt-warning)'; ti.style.borderWidth = '2px'; }
+                  setTimeout(() => { leg2Error.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
+              }
 
-                if (leg1DateInput && leg1TimeInput) {
-                    leg1DateInput.addEventListener('change', () => checkTimeAvailability('leg1'));
-                    leg1TimeInput.addEventListener('change', () => checkTimeAvailability('leg1'));
-                    leg1TimeInput.addEventListener('input', () => checkTimeAvailability('leg1'));
+              // Prevent form submission with time errors
+              const form = document.querySelector('form.needs-validation');
+              if (form) {
+                  form.addEventListener('submit', function(e) {
+                      const e1 = document.getElementById('pickup-time-error-leg1');
+                      const e2 = document.getElementById('pickup-time-error-leg2');
+                      if (e1 || e2) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          (e1 || e2).scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          return false;
+                      }
+                  });
+              }
 
-                    // Check on load if both are already filled
-                    if (leg1DateInput.value && leg1TimeInput.value) {
-                        checkTimeAvailability('leg1');
-                    }
-                }
+              // Publix modal on store_stop check
+              const storeStopCheckbox = document.querySelector('input[name="store_stop"]');
+              const publixModalEl = document.getElementById('publixStopModal');
+              if (storeStopCheckbox && publixModalEl) {
+                  const publixModal = new bootstrap.Modal(publixModalEl);
+                  storeStopCheckbox.addEventListener('change', function() {
+                      if (this.checked) publixModal.show();
+                  });
+              }
+          });
+      </script>
+    {% endblock %}
 
-                // Set up real-time validation for leg2 (return trip)
-                const leg2DateInput = document.querySelector('input[name="leg2-pickup_date"]');
-                const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
+    <!-- Extra Car Seat Confirmation Modal -->
+    <div class="modal fade" id="extraSeatModal" tabindex="-1" aria-labelledby="extraSeatModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="extraSeatModalLabel">
+              <i class="bi bi-plus-circle me-2" aria-hidden="true"></i>Additional Seat
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p id="extraSeatMessage">Would you like to add an additional seat for <strong id="extraSeatFee">$30</strong>?</p>
+            <p class="form-text mb-2">This fee will be added to your total.</p>
 
-                if (leg2DateInput && leg2TimeInput) {
-                    leg2DateInput.addEventListener('change', () => checkTimeAvailability('leg2'));
-                    leg2TimeInput.addEventListener('change', () => checkTimeAvailability('leg2'));
-                    leg2TimeInput.addEventListener('input', () => checkTimeAvailability('leg2'));
-
-                    // Check on load if both are already filled
-                    if (leg2DateInput.value && leg2TimeInput.value) {
-                        checkTimeAvailability('leg2');
-                    }
-                }
-
-                // Handle server-side errors (from form submission)
-                const leg1Error = document.getElementById('pickup-time-error-leg1');
-                const leg2Error = document.getElementById('pickup-time-error-leg2');
-
-                if (leg1Error) {
-                    const leg1TimeInput = document.querySelector('input[name="leg1-pickup_time"]');
-                    if (leg1TimeInput) {
-                        leg1TimeInput.classList.add('is-invalid');
-                        leg1TimeInput.style.borderColor = '#ffc107';
-                        leg1TimeInput.style.borderWidth = '2px';
-                    }
-                    setTimeout(() => {
-                        leg1Error.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                        });
-                    }, 300);
-                }
-
-                if (leg2Error) {
-                    const leg2TimeInput = document.querySelector('input[name="leg2-pickup_time"]');
-                    if (leg2TimeInput) {
-                        leg2TimeInput.classList.add('is-invalid');
-                        leg2TimeInput.style.borderColor = '#ffc107';
-                        leg2TimeInput.style.borderWidth = '2px';
-                    }
-                    setTimeout(() => {
-                        leg2Error.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                        });
-                    }, 300);
-                }
-
-                // Prevent form submission if there's a time error
-                const form = document.querySelector('form.needs-validation');
-                if (form) {
-                    form.addEventListener('submit', function(e) {
-                        const leg1Error = document.getElementById('pickup-time-error-leg1');
-                        const leg2Error = document.getElementById('pickup-time-error-leg2');
-
-                        if (leg1Error || leg2Error) {
-                            e.preventDefault();
-                            e.stopPropagation();
-
-                            // Scroll to first error
-                            if (leg1Error) {
-                                leg1Error.scrollIntoView({
-                                    behavior: 'smooth',
-                                    block: 'center'
-                                });
-                            } else if (leg2Error) {
-                                leg2Error.scrollIntoView({
-                                    behavior: 'smooth',
-                                    block: 'center'
-                                });
-                            }
-
-                            return false;
-                        }
-                    });
-                }
-
-                // Publix Stop Modal - Show when checkbox is checked
-                const storeStopCheckbox = document.querySelector('input[name="store_stop"]');
-                const publixModal = new bootstrap.Modal(document.getElementById('publixStopModal'));
-
-                if (storeStopCheckbox) {
-                    storeStopCheckbox.addEventListener('change', function() {
-                        if (this.checked) {
-                            // Show modal when checkbox is checked
-                            publixModal.show();
-                        }
-                    });
-                }
-            });
-        </script>
-
-        <!-- Publix Stop Details Modal -->
-        <div class="modal fade"
-             id="publixStopModal"
-             tabindex="-1"
-             aria-labelledby="publixStopModalLabel"
-             aria-hidden="true">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header bg-warning bg-opacity-10">
-                <h5 class="modal-title" id="publixStopModalLabel">
-                  <i class="bi bi-bag-check me-2"></i>Publix Stop Details
-                </h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"
-                        aria-label="Close"></button>
-              </div>
-              <div class="modal-body">
-                <div class="mb-3">
-                  <h6 class="fw-semibold mb-2">
-                    <i class="bi bi-geo-alt-fill text-primary me-2"></i>Location
-                  </h6>
-                  <p class="mb-1">
-                    <strong>Publix Super Market at Lake Cay Commons</strong>
-                    <br>
-                    9930 Universal Blvd, Orlando, FL 32819
-                  </p>
-                </div>
-
-                <div class="mb-3">
-                  <h6 class="fw-semibold mb-2">
-                    <i class="bi bi-cart-check text-success me-2"></i>Pre-Order Online
-                  </h6>
-                  <p class="mb-2">For your convenience, you can pre-order online and select curbside pickup.</p>
-                  <a href="https://www.publix.com/locations/1191-lake-cay-commons"
-                     target="_blank"
-                     class="btn btn-outline-primary btn-sm">
-                    <i class="bi bi-box-arrow-up-right me-1"></i>Pre-Order at Publix
-                  </a>
-                </div>
-
-                <div class="alert alert-info mb-2">
-                  <h6 class="fw-semibold mb-2">
-                    <i class="bi bi-clock-history me-2"></i>Stop Duration
-                  </h6>
-                  <ul class="mb-0 ps-3">
-                    <li>
-                      <strong>20-minute stop available upon request</strong> at no charge <strong>(arrivals only)</strong>
-                    </li>
-                    <li>
-                      Anytime over 20 minutes is an <strong>additional charge</strong>
-                    </li>
-                    <li class="text-danger">
-                      <strong>May not be available</strong> if your flight is <strong>delayed</strong>
-                    </li>
-                    <li>
-                      <strong>Must be requested when making the reservation or in advance so we can plan accordingly</strong> - Please check the box above to request this stop
-                    </li>
-                  </ul>
-                </div>
-
-                <div class="alert alert-warning mb-0">
-                  <h6 class="fw-semibold mb-2">
-                    <i class="bi bi-info-circle me-2"></i>Important Information
-                  </h6>
-                  <ul class="mb-0 ps-3">
-                    <li>
-                      We <strong>only stop at Publix</strong> for grocery stops
-                    </li>
-                    <li>
-                      Walmart or Target would be an <strong>additional charge</strong>
-                    </li>
-                    <li>
-                      This stop <strong>cannot be substituted</strong> for other locations (fast food, other stores, etc.)
-                    </li>
-                  </ul>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Got it</button>
+            <!-- Seat type picker (shown for car seats, hidden for boosters) -->
+            <div id="extraSeatTypePicker" class="d-none">
+              <p class="fw-semibold mb-2" style="font-size: 0.9rem;">Which type?</p>
+              <div class="d-flex flex-column gap-2">
+                <button type="button" class="btn btn-outline-dark d-flex align-items-center gap-2 extra-seat-type-btn" data-seat-type="rf">
+                  <i class="bi bi-shield-check" aria-hidden="true"></i>
+                  <span><strong>Rear-Facing</strong><br><small style="opacity:.7">Birth &ndash; 2 yrs</small></span>
+                </button>
+                <button type="button" class="btn btn-outline-dark d-flex align-items-center gap-2 extra-seat-type-btn" data-seat-type="ff">
+                  <i class="bi bi-shield-fill-check" aria-hidden="true"></i>
+                  <span><strong>Forward-Facing</strong><br><small style="opacity:.7">2 &ndash; 5 yrs</small></span>
+                </button>
               </div>
             </div>
           </div>
+          <!-- Single confirm footer (used for boosters / direct stepper clicks) -->
+          <div class="modal-footer" id="extraSeatFooterSingle">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">No thanks</button>
+            <button type="button" class="btn btn-dark" id="extraSeatConfirm">
+              <i class="bi bi-plus me-1" aria-hidden="true"></i> Add Seat
+            </button>
+          </div>
+          <!-- No footer when picker is shown (buttons are inline) -->
+          <div class="modal-footer d-none" id="extraSeatFooterPicker">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">No thanks</button>
+          </div>
         </div>
+      </div>
+    </div>
 
-      {% endblock content %}
+    <!-- Publix Stop Details Modal -->
+    <div class="modal fade" id="publixStopModal" tabindex="-1" aria-labelledby="publixStopModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="publixStopModalLabel">
+              <i class="bi bi-bag-check me-2" aria-hidden="true"></i>Publix Stop Details
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <h6 class="fw-semibold mb-2">
+                <i class="bi bi-geo-alt-fill text-primary me-2" aria-hidden="true"></i>Location
+              </h6>
+              <p class="mb-1">
+                <strong>Publix Super Market at Lake Cay Commons</strong><br>
+                9930 Universal Blvd, Orlando, FL 32819
+              </p>
+            </div>
+            <div class="mb-3">
+              <h6 class="fw-semibold mb-2">
+                <i class="bi bi-cart-check text-success me-2" aria-hidden="true"></i>Pre-Order Online
+              </h6>
+              <p class="mb-2">For your convenience, you can pre-order online and select curbside pickup.</p>
+              <a href="https://www.publix.com/locations/1191-lake-cay-commons" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>Pre-Order at Publix
+              </a>
+            </div>
+            <div class="alert alert-info mb-2">
+              <h6 class="fw-semibold mb-2">
+                <i class="bi bi-clock-history me-2" aria-hidden="true"></i>Stop Duration
+              </h6>
+              <ul class="mb-0 ps-3">
+                <li><strong>20-minute stop available upon request</strong> at no charge <strong>(arrivals only)</strong></li>
+                <li>Anytime over 20 minutes is an <strong>additional charge</strong></li>
+                <li class="text-danger"><strong>May not be available</strong> if your flight is <strong>delayed</strong></li>
+                <li><strong>Must be requested when making the reservation</strong></li>
+              </ul>
+            </div>
+            <div class="alert alert-warning mb-0">
+              <h6 class="fw-semibold mb-2">
+                <i class="bi bi-info-circle me-2" aria-hidden="true"></i>Important Information
+              </h6>
+              <ul class="mb-0 ps-3">
+                <li>We <strong>only stop at Publix</strong> for grocery stops</li>
+                <li>Walmart or Target would be an <strong>additional charge</strong></li>
+                <li>This stop <strong>cannot be substituted</strong> for other locations</li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Got it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  {% endblock content %}

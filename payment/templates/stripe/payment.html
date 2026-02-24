@@ -289,12 +289,20 @@
               </div>
               <div class="card-body p-3">
                 <h4 class="text-success mb-0">$ {{ reservation.total_price }}</h4>
-                {% if reservation.additional_charges %}
+                {% if reservation.additional_charges or reservation.gratuity_amount %}
                   <div class="mt-2 pt-2 border-top">
-                    <p class="text-muted small mb-0">
-                      <i class="bi bi-info-circle me-1"></i>
-                      Includes ${{ reservation.additional_charges }} fee for early/late pickup.
-                    </p>
+                    {% if reservation.additional_charges %}
+                      <p class="text-muted small mb-1">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Includes ${{ reservation.additional_charges }} in additional fees.
+                      </p>
+                    {% endif %}
+                    {% if reservation.gratuity_amount %}
+                      <p class="text-muted small mb-0">
+                        <i class="bi bi-heart me-1"></i>
+                        Includes ${{ reservation.gratuity_amount }} gratuity ({{ reservation.gratuity_percentage }}%).
+                      </p>
+                    {% endif %}
                   </div>
                 {% endif %}
               </div>

@@ -72,11 +72,21 @@ class Reservation(models.Model):
     )
     passenger_count = models.PositiveIntegerField(default=1)
 
+    LUGGAGE_TYPE_CHOICES = [
+        ("carry_on", "Carry-On Only"),
+        ("checked", "Checked Bags"),
+        ("mixed", "Mixed / Not Sure"),
+    ]
     luggage_count = models.PositiveIntegerField(default=1)
+    luggage_type = models.CharField(
+        max_length=10, choices=LUGGAGE_TYPE_CHOICES, blank=True, default="",
+    )
     need_carseats = models.BooleanField(default=False)  #
     rf_carseats = models.PositiveIntegerField("RF-Seat", default=0)
     ff_carseats = models.PositiveBigIntegerField("FF-Seat", default=0)
     booster_seats = models.PositiveIntegerField("Booster", default=0)
+    extra_carseats = models.PositiveIntegerField("Extra Car Seats", default=0)
+    extra_boosters = models.PositiveIntegerField("Extra Boosters", default=0)
     uuid = models.UUIDField(blank=True, unique=True, default=uuid.uuid4, editable=False)
 
     # Special Requests

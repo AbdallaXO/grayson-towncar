@@ -568,6 +568,7 @@
                     </div>
                     <div>
                       <strong>Luggage:</strong> {{ leg.reservation.luggage_count }}
+                      {% if leg.reservation.luggage_type %}<span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-1" style="font-size:.65rem">{{ leg.reservation.get_luggage_type_display }}</span>{% endif %}
                     </div>
                     <div>
                       <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}

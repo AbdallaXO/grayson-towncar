@@ -116,6 +116,7 @@ class DispatcherReservationForm(forms.ModelForm):
             # Passenger details first
             "passenger_count",
             "luggage_count",
+            "luggage_type",
             "need_carseats",
             "rf_carseats",
             "ff_carseats",
@@ -178,17 +179,20 @@ class DispatcherReservationForm(forms.ModelForm):
             ),
             "booster_seats": forms.NumberInput(
                 attrs={
-                    "class": "form-control", 
+                    "class": "form-control",
                     "type": "number",
                     "min": 0,
                     # No max limit for dispatchers
                 }
             ),
-
+            "luggage_type": forms.RadioSelect(
+                attrs={"class": "form-check-input"},
+            ),
         }
         labels = {
             "passenger_count": "Number of Passengers",
             "luggage_count": "Number of Bags",
+            "luggage_type": "Luggage Type",
             "store_stop": "Grocery Store Stop",
             "special_requests": "Special Requests",
             "need_carseats": "Car Seats Needed?",
@@ -202,9 +206,13 @@ class DispatcherReservationForm(forms.ModelForm):
             "need_carseats": "Check if customer needs car seats",
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["luggage_type"].choices = Reservation.LUGGAGE_TYPE_CHOICES
+
     def clean(self):
         cleaned_data = super().clean()
-        
+
         # NO VEHICLE CONSTRAINTS FOR DISPATCHERS
         # Dispatchers have full flexibility to override normal restrictions
         # They can add as many carseats as needed for any vehicle

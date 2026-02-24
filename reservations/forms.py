@@ -83,6 +83,7 @@ class ReservationForm(forms.ModelForm):
         fields = [
             "passenger_count",
             "luggage_count",
+            "luggage_type",
             "store_stop",
             "special_requests",
             "need_carseats",
@@ -90,6 +91,8 @@ class ReservationForm(forms.ModelForm):
             "ff_carseats",
             "booster_seats",
             "gratuity_percentage",
+            "extra_carseats",
+            "extra_boosters",
         ]
         widgets = {
             "passenger_count": forms.NumberInput(
@@ -97,6 +100,9 @@ class ReservationForm(forms.ModelForm):
             ),
             "luggage_count": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "max": 14, "type": "number"}
+            ),
+            "luggage_type": forms.RadioSelect(
+                attrs={"class": "form-check-input"},
             ),
             "store_stop": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "special_requests": forms.Textarea(
@@ -127,6 +133,8 @@ class ReservationForm(forms.ModelForm):
             "gratuity_percentage": forms.NumberInput(
                 attrs={"class": "form-control", "type": "number", "step": "0.01", "min": "0", "max": "100"}
             ),
+            "extra_carseats": forms.HiddenInput(),
+            "extra_boosters": forms.HiddenInput(),
         }
         help_texts = {
             "special_requests": "Optional. We'll do our best to accommodate. ",
@@ -137,14 +145,16 @@ class ReservationForm(forms.ModelForm):
             "ff_carseats": "Forward-Facing Carseats",
             "booster_seats": "Boosters",
             "need_carseats": "Traveling with children?",
+            "luggage_type": "Luggage Type",
             "store_stop": "Need to stop at Publix on the way? (Optional)",
             "gratuity_percentage": "Gratuity Percentage",
         }
 
-    # Grab and store rate when the reservation is created.
     def __init__(self, *args, **kwargs):
         self.rate = kwargs.pop("rate", None)
         super().__init__(*args, **kwargs)
+        self.fields["luggage_type"].required = True
+        self.fields["luggage_type"].choices = Reservation.LUGGAGE_TYPE_CHOICES
 
     def clean(self):
         cleaned_data = super().clean()

@@ -561,6 +561,9 @@
                       </div>
                       <div class="d-flex align-items-center mb-1">
                         <span>{{ leg.reservation.luggage_count }} Suitcases</span>
+                        <span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2" style="font-size: .65rem;">
+                          {{ leg.reservation.get_luggage_type_display }}
+                        </span>
                       </div>
                       <div class="d-flex align-items-center">
                         <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
@@ -825,6 +828,9 @@
                           </div>
                           <div class="d-flex align-items-center mb-1">
                             <span>{{ leg.reservation.luggage_count }} Suitcases</span>
+                            <span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2" style="font-size: .65rem;">
+                              {{ leg.reservation.get_luggage_type_display }}
+                            </span>
                           </div>
                           <div class="d-flex align-items-center">
                             <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>

@@ -236,11 +236,12 @@
                         </div>
                         <div class="mb-1">
                           <strong>Luggage:</strong> {{ leg.reservation.luggage_count }}
+                          {% if leg.reservation.luggage_type %}<span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-1" style="font-size:.65rem">{{ leg.reservation.get_luggage_type_display }}</span>{% endif %}
                         </div>
 
                         <!-- Progression Buttons - Show based on current status -->
                         {% if leg.status == "in-progress" %}
-                          <button class="btn btn-success btn-sm progression-btn mt-2" 
+                          <button class="btn btn-success btn-sm progression-btn mt-2"
                                   data-leg-id="{{ leg.id }}"
                                   data-next-status="confirmed">
                             <i class="bi bi-check-circle"></i> Confirm Job
@@ -525,6 +526,7 @@
                     </div>
                     <div class="mb-1">
                       <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
+                      {% if leg.reservation.luggage_type %}<span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-1" style="font-size:.65rem">{{ leg.reservation.get_luggage_type_display }}</span>{% endif %}
                     </div>
 
                     <!-- Progression Buttons - Show based on current status -->

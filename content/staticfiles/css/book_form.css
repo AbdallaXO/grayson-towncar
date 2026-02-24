@@ -1,49 +1,110 @@
-/* Modern color variables */
+/* ============================================================
+   GRAYSON TOWNCAR — Luxury Reservation Form
+   Premium family concierge aesthetic
+   ============================================================ */
+
+/* ---------- Design Tokens ---------- */
 :root {
-  --primary-color: #4158d0;
-  --secondary-color: #486581;
-  --dark-color: #1e2a3a;
-  --light-color: #f8f9fa;
-  --success-color: #2ecc71;
-  --warning-color: #f39c12;
-  --info-color: #3498db;
-  --box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.08);
-  --border-radius: 0.75rem;
-  --transition: all 0.3s ease;
+  /* Brand palette */
+  --gt-gold: #C9A227;
+  --gt-gold-light: #D4AF37;
+  --gt-gold-muted: #BFA76A;
+  --gt-gold-bg: rgba(201, 162, 39, 0.08);
+  --gt-gold-bg-hover: rgba(201, 162, 39, 0.14);
+  --gt-charcoal: #1B1F2B;
+  --gt-charcoal-soft: #2D3142;
+  --gt-slate: #4A5568;
+  --gt-slate-light: #718096;
+  --gt-cream: #FAF8F4;
+  --gt-cream-warm: #F5F0E8;
+  --gt-white: #FFFFFF;
+  --gt-border: #E8E4DC;
+  --gt-border-light: #F0ECE4;
+
+  /* Semantic */
+  --gt-success: #2D8659;
+  --gt-success-bg: rgba(45, 134, 89, 0.08);
+  --gt-info: #2B6CB0;
+  --gt-info-bg: rgba(43, 108, 176, 0.08);
+  --gt-warning: #B7791F;
+  --gt-warning-bg: rgba(183, 121, 31, 0.08);
+  --gt-danger: #C53030;
+  --gt-danger-bg: rgba(197, 48, 48, 0.08);
+
+  /* Typography */
+  --gt-font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --gt-font-body: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --gt-text-base: 1rem;       /* 16px */
+  --gt-text-sm: 0.875rem;     /* 14px */
+  --gt-text-xs: 0.8125rem;    /* 13px */
+  --gt-text-lg: 1.125rem;     /* 18px */
+  --gt-text-xl: 1.25rem;      /* 20px */
+  --gt-text-2xl: 1.5rem;      /* 24px */
+  --gt-text-3xl: 1.875rem;    /* 30px */
+
+  /* Spacing */
+  --gt-radius: 12px;
+  --gt-radius-sm: 8px;
+  --gt-radius-lg: 16px;
+  --gt-radius-pill: 9999px;
+
+  /* Shadows */
+  --gt-shadow-sm: 0 1px 3px rgba(27, 31, 43, 0.06), 0 1px 2px rgba(27, 31, 43, 0.04);
+  --gt-shadow: 0 4px 16px rgba(27, 31, 43, 0.08);
+  --gt-shadow-md: 0 8px 24px rgba(27, 31, 43, 0.1);
+  --gt-shadow-lg: 0 12px 40px rgba(27, 31, 43, 0.12);
+  --gt-shadow-gold: 0 4px 20px rgba(201, 162, 39, 0.2);
+
+  /* Transitions */
+  --gt-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --gt-duration: 0.25s;
+  --gt-duration-slow: 0.4s;
 }
 
-/* Give the body a slightly muted modern background color */
-body {
-  background-color: #f2f4f7;
-  /* <––– pick any neutral color you like */
-  color: #1e2a3a;
-  /* <––– ensure text remains visible */
-  margin: 0;
-  padding: 0;
-}
-
-/* Container to keep form centered and readable against the body background */
-.form-container {
-  max-width: 1000px;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 1rem;
-  width: 100%;
-}
-
-@media (max-width: 576px) {
-  .form-container {
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
-    width: 100%;
+/* ---------- Reduced Motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* * {
-    outline: 1px solid red;
-} */
+/* ---------- Body & Page ---------- */
+body.page-booking {
+  background-color: var(--gt-cream);
+  color: var(--gt-charcoal);
+  font-family: var(--gt-font-body);
+  font-size: var(--gt-text-base);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-/* Target row only inside this page */
+/* ---------- Form Container ---------- */
+.form-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem 1rem 3rem;
+  background-color: transparent;
+  border-radius: 0;
+}
+
+@media (min-width: 768px) {
+  .form-container {
+    padding: 2rem 1.5rem 4rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .form-container {
+    max-width: 780px;
+    padding: 2.5rem 2rem 4rem;
+  }
+}
+
 .form-container .row {
   margin-left: 0 !important;
   margin-right: 0 !important;
@@ -52,589 +113,1132 @@ body {
 .form-container .col-lg-10.mx-auto {
   max-width: 100%;
   width: 100%;
-  padding-left: 1rem;
-  padding-right: 1rem;
-  box-sizing: border-box;
+  padding-left: 0;
+  padding-right: 0;
 }
 
-body.page-booking {
-  overflow-x: hidden;
-}
-
-/* Modern Form styling */
+/* ---------- Section Cards ---------- */
 .form-card {
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
-  margin-bottom: 1.5rem;
+  background: var(--gt-white);
+  border: 1px solid var(--gt-border);
+  border-left: 4px solid var(--gt-gold);
+  border-radius: var(--gt-radius);
+  box-shadow: var(--gt-shadow-sm);
+  margin-bottom: 1.25rem;
   overflow: hidden;
-  transition: var(--transition);
-  background: #fff;
-  /* Ensure card background is solid white */
+  transition: box-shadow var(--gt-duration) var(--gt-ease),
+              transform var(--gt-duration) var(--gt-ease);
 }
 
 .form-card:hover {
-  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.12);
+  box-shadow: var(--gt-shadow);
 }
 
-.card-header {
+@media (min-width: 768px) {
+  .form-card {
+    margin-bottom: 1.5rem;
+  }
+}
+
+/* Card header */
+.form-card > .card-header {
+  background: var(--gt-white);
+  border-bottom: 1px solid var(--gt-border-light);
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  background: #fff;
-  /* Solid background for better contrast */
 }
 
-/* Header section with gradient */
-.form-header {
-  background: linear-gradient(45deg, var(--dark-color), var(--secondary-color));
-  color: #fff;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  border-radius: var(--border-radius);
-  position: relative;
-  overflow: hidden;
-  box-shadow: var(--box-shadow);
+@media (min-width: 768px) {
+  .form-card > .card-header {
+    padding: 1.25rem 1.5rem;
+  }
 }
 
-.form-header:after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background-size: contain;
-  opacity: 0.1;
-  /* Light overlay pattern */
-}
-
-.form-heading {
+.form-card > .card-header h2 {
+  font-family: var(--gt-font-display);
+  font-size: var(--gt-text-xl);
+  font-weight: 600;
+  color: var(--gt-charcoal);
   margin: 0;
-  font-weight: 700;
-  position: relative;
-  z-index: 1;
+  letter-spacing: -0.01em;
 }
 
-.form-subheading {
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 0;
-  font-weight: 400;
-  position: relative;
-  z-index: 1;
+/* Section icon circles */
+.form-card .card-header .bg-warning.bg-opacity-25,
+.form-card .card-header .bg-success.bg-opacity-25 {
+  background: var(--gt-gold-bg) !important;
+  border: 1px solid rgba(201, 162, 39, 0.15);
 }
 
-/* Label and form controls */
-.form-label {
-  font-weight: 500;
-  margin-bottom: 0.5rem;
+/* Card body */
+.form-card > .card-body {
+  padding: 1.25rem;
 }
 
-.form-label.required:after {
-  content: '*';
-  color: #dc3545;
-  margin-left: 0.25rem;
+@media (min-width: 768px) {
+  .form-card > .card-body {
+    padding: 1.5rem;
+  }
 }
 
-.form-control {
-  border-radius: 0.5rem;
-  padding: 0.6rem 1rem;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  transition: var(--transition);
+/* ---------- Sticky Progress Indicator ---------- */
+.gt-progress-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--gt-white);
+  border-bottom: 1px solid var(--gt-border);
+  padding: 0.75rem 0;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--gt-shadow-sm);
 }
 
-.form-control:focus {
-  box-shadow: 0 0 0 0.25rem rgba(65, 88, 208, 0.15);
-  border-color: var(--primary-color);
-}
-
-.form-row {
-  margin-bottom: 1.5rem;
-}
-
-/* Progress steps */
-.progress-steps {
+.gt-progress-track {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 1rem;
   position: relative;
 }
 
-.progress-steps:before {
+.gt-progress-track::before {
   content: '';
   position: absolute;
-  top: 24px;
-  left: 0;
-  right: 0;
+  top: 50%;
+  left: 2rem;
+  right: 2rem;
   height: 2px;
-  background: #e9ecef;
+  background: var(--gt-border);
+  transform: translateY(-50%);
   z-index: 0;
 }
 
-.step {
+.gt-progress-fill {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 2rem;
+  height: 2px;
+  background: var(--gt-gold);
+  transform: translateY(-50%);
+  z-index: 1;
+  transition: width var(--gt-duration-slow) var(--gt-ease);
+  width: 0%;
+}
+
+.gt-progress-step {
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  z-index: 1;
-  flex: 1;
+  z-index: 2;
+  cursor: pointer;
 }
 
-.step-circle {
-  width: 50px;
-  height: 50px;
+.gt-progress-dot {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background-color: #e9ecef;
+  background: var(--gt-white);
+  border: 2px solid var(--gt-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6c757d;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-  border: 2px solid transparent;
-  transition: var(--transition);
+  font-size: var(--gt-text-xs);
+  font-weight: 600;
+  color: var(--gt-slate-light);
+  transition: all var(--gt-duration) var(--gt-ease);
 }
 
-.step-circle.active {
-  background-color: var(--primary-color);
-  color: #fff;
-  border-color: #fff;
-  box-shadow: 0 0 0 5px rgba(65, 88, 208, 0.2);
+.gt-progress-step.active .gt-progress-dot {
+  background: var(--gt-gold);
+  border-color: var(--gt-gold);
+  color: var(--gt-white);
+  box-shadow: 0 0 0 4px rgba(201, 162, 39, 0.2);
 }
 
-.step-label {
-  font-size: 0.875rem;
-  color: #6c757d;
+.gt-progress-step.completed .gt-progress-dot {
+  background: var(--gt-gold);
+  border-color: var(--gt-gold);
+  color: var(--gt-white);
+}
+
+.gt-progress-label {
+  font-size: 0.6875rem;
   font-weight: 500;
+  color: var(--gt-slate-light);
+  margin-top: 0.35rem;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
-.step.active .step-label {
-  color: var(--primary-color);
+.gt-progress-step.active .gt-progress-label,
+.gt-progress-step.completed .gt-progress-label {
+  color: var(--gt-charcoal);
   font-weight: 600;
 }
 
-/* Route visual */
-.route-visual,
-.route-display {
-  background-color: rgba(248, 249, 250, 0.85);
-  /* Slightly stronger for better visibility */
-  border-radius: var(--border-radius);
-  transition: var(--transition);
+/* Mobile progress: compact */
+@media (max-width: 480px) {
+  .gt-progress-label {
+    font-size: 0.5625rem;
+  }
+  .gt-progress-dot {
+    width: 28px;
+    height: 28px;
+    font-size: 0.6875rem;
+  }
 }
 
-.route-box {
-  display: inline-block;
-  padding: 1rem 1.5rem;
-  background-color: #fff;
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
-  position: relative;
-  transition: var(--transition);
+/* ---------- Typography ---------- */
+.form-label {
+  font-family: var(--gt-font-body);
+  font-weight: 600;
+  font-size: var(--gt-text-sm);
+  color: var(--gt-charcoal);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.01em;
 }
 
-.route-visual:hover .route-box {
-  transform: translateY(-3px);
-  box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.12);
-}
-
-/* Price display */
-.price-display {
-  background: linear-gradient(135deg, var(--primary-color), #c850c0);
-  color: #fff;
-  transition: var(--transition);
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-}
-
-.price-amount {
+.form-label.required::after {
+  content: '*';
+  color: var(--gt-danger);
+  margin-left: 4px;
   font-weight: 700;
 }
 
-/* Benefits list animation */
-.benefits-list li {
-  opacity: 0;
-  transform: translateY(10px);
-  animation: fadeInUp 0.5s forwards;
+.form-text {
+  font-size: var(--gt-text-xs);
+  color: var(--gt-slate-light);
+  margin-top: 0.35rem;
+  line-height: 1.4;
 }
 
-@keyframes fadeInUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.benefits-list li:nth-child(1) {
-  animation-delay: 0.1s;
-}
-
-.benefits-list li:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.benefits-list li:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.benefits-list li:nth-child(4) {
-  animation-delay: 0.4s;
-}
-
-.benefits-list li:nth-child(5) {
-  animation-delay: 0.5s;
-}
-
-/* Travel tips */
-.travel-tips {
-  background-color: rgba(248, 249, 250, 0.85);
-  border-left: 3px solid var(--primary-color);
-  padding: 1rem;
-  border-radius: 0 var(--border-radius) var(--border-radius) 0;
-}
-
-/* Submit button animation */
-.btn-submit {
-  background: linear-gradient(45deg, var(--primary-color), #c850c0);
-  border: none;
-  color: #fff;
-  border-radius: 50px;
-  padding: 1rem 1.5rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  z-index: 1;
-}
-
-.btn-submit:before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 0%;
-  height: 100%;
-  background: linear-gradient(45deg, #c850c0, var(--primary-color));
-  transition: all 0.3s ease;
-  z-index: -1;
-}
-
-.btn-submit:hover:before {
-  width: 100%;
-}
-
-.btn-submit:hover {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-  transform: translateY(-3px);
-}
-
-/* Mobile optimizations */
-@media (max-width: 768px) {
-  .form-header {
-    padding: 1.25rem;
-  }
-
-  .progress-steps:before {
-    top: 15px;
-  }
-
-  .step-circle {
-    width: 30px;
-    height: 30px;
-    font-size: 0.75rem;
-  }
-
-  .step-label {
-    font-size: 0.7rem;
-  }
-
-  .card-body {
-    padding: 1rem;
-  }
-
-  .form-label {
-    font-size: 0.9rem;
-  }
-
-  .price-display {
-    width: 120px !important;
-    height: 120px !important;
-  }
-
-  .price-amount {
-    font-size: 1.75rem !important;
-  }
-}
-
-/* Info tooltip */
-.info-tooltip {
-  color: var(--primary-color);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.info-tooltip:hover {
-  color: var(--secondary-color);
-}
-
-/* Section headings with accents */
+/* Section sub-headings */
 .section-heading {
-  position: relative;
+  font-family: var(--gt-font-display);
+  font-size: var(--gt-text-lg);
+  font-weight: 600;
+  color: var(--gt-charcoal);
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
   padding-left: 0.75rem;
-  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--gt-border-light);
+  display: flex;
+  align-items: center;
+  position: relative;
 }
 
-.section-heading:before {
+.section-heading::before {
   content: '';
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #c89b3c !important;
+  background: var(--gt-gold);
   border-radius: 3px;
 }
 
-/* Simple highlight animation for invalid fields */
-.highlight-error {
-  outline: 2px solid #dc3545 !important;
-}
-
-.form-container {
-  background-color: #f5f7fa;
-  border-radius: 12px;
-  padding: 30px 0;
-}
-
-.form-card {
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  border: none;
-  overflow: hidden;
-  margin-bottom: 24px;
-}
-
-.form-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-.card-header {
-  padding: 16px 20px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #eaedf2;
-}
-
-.card-header h4 {
-  font-weight: 600;
-  color: #1e2432;
-  margin: 0;
-  display: flex;
-  align-items: center;
-}
-
-.card-body {
-  padding: 24px;
-}
-
-.section-heading {
-  font-size: 18px;
-  margin-bottom: 20px;
-  font-weight: 600;
-  color: #1e2432;
-  border-bottom: 1px solid #eaedf2;
-  padding-bottom: 10px;
-  display: flex;
-  align-items: center;
-}
-
 .section-heading i {
-  margin-right: 8px;
-  color: #0d6efd;
+  color: var(--gt-gold-muted);
+  margin-right: 0.5rem;
 }
 
-/* Form labels and fields */
-.form-label {
-  font-weight: 500;
-  margin-bottom: 8px;
-  color: #1e2432;
-  display: flex;
-  align-items: center;
+/* ---------- Form Inputs ---------- */
+.form-control,
+.form-select {
+  font-family: var(--gt-font-body);
+  font-size: var(--gt-text-base);
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--gt-border);
+  border-radius: var(--gt-radius-sm);
+  background-color: var(--gt-white);
+  color: var(--gt-charcoal);
+  min-height: 48px;
+  transition: border-color var(--gt-duration) var(--gt-ease),
+              box-shadow var(--gt-duration) var(--gt-ease);
 }
 
-.required::after {
-  content: '*';
-  color: #dc3545;
-  margin-left: 4px;
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--gt-gold);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+  outline: none;
 }
 
-/* Info tooltip */
-.info-tooltip {
-  color: #6c757d;
-  font-size: 14px;
-  margin-left: 5px;
-  cursor: help;
+.form-control::placeholder {
+  color: var(--gt-slate-light);
+  opacity: 0.7;
 }
 
-.info-tooltip:hover {
-  color: #0d6efd;
+/* Prevent iOS zoom on focus */
+@media (max-width: 768px) {
+  .form-control,
+  .form-select {
+    font-size: 16px;
+  }
 }
 
-/* Form row spacing */
+/* ---------- Form Row Spacing ---------- */
 .form-row {
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
-/* Checkboxes */
-.form-check {
-  margin: 12px 0;
-}
-
-.form-check-input {
-  margin-right: 8px;
-  cursor: pointer;
-}
-
-.form-check-label {
+/* ---------- Stepper Controls (+/−) ---------- */
+.gt-stepper {
   display: flex;
   align-items: center;
+  gap: 0;
+  max-width: 180px;
+}
+
+.gt-stepper-btn {
+  width: 48px;
+  height: 48px;
+  border: 1.5px solid var(--gt-border);
+  background: var(--gt-white);
+  color: var(--gt-charcoal);
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--gt-duration) var(--gt-ease);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.gt-stepper-btn:first-child {
+  border-radius: var(--gt-radius-sm) 0 0 var(--gt-radius-sm);
+  border-right: none;
+}
+
+.gt-stepper-btn:last-child {
+  border-radius: 0 var(--gt-radius-sm) var(--gt-radius-sm) 0;
+  border-left: none;
+}
+
+.gt-stepper-btn:hover:not(:disabled) {
+  background: var(--gt-gold-bg);
+  border-color: var(--gt-gold);
+  color: var(--gt-gold);
+}
+
+.gt-stepper-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.gt-stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gt-stepper-btn:focus-visible {
+  outline: 2px solid var(--gt-gold);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.gt-stepper input.form-control {
+  width: 56px;
+  text-align: center;
+  font-weight: 700;
+  font-size: var(--gt-text-lg);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  padding: 0.5rem 0.25rem;
+  min-height: 48px;
+  -moz-appearance: textfield;
+}
+
+.gt-stepper input.form-control::-webkit-inner-spin-button,
+.gt-stepper input.form-control::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ---------- Card-Style Selectors (Luggage Type) ---------- */
+.gt-card-select {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.625rem;
+}
+
+@media (max-width: 400px) {
+  .gt-card-select {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gt-card-option {
+  position: relative;
+}
+
+.gt-card-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.gt-card-option label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.875rem 0.5rem;
+  border: 2px solid var(--gt-border);
+  border-radius: var(--gt-radius);
+  background: var(--gt-white);
+  cursor: pointer;
+  text-align: center;
+  min-height: 48px;
   font-weight: 500;
+  font-size: var(--gt-text-sm);
+  color: var(--gt-slate);
+  transition: all var(--gt-duration) var(--gt-ease);
+}
+
+.gt-card-option label .gt-card-icon {
+  font-size: 1.5rem;
+  color: var(--gt-slate-light);
+  transition: color var(--gt-duration) var(--gt-ease);
+}
+
+.gt-card-option input:checked + label {
+  border-color: var(--gt-gold);
+  background: var(--gt-gold-bg);
+  color: var(--gt-charcoal);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.12);
+}
+
+.gt-card-option input:checked + label .gt-card-icon {
+  color: var(--gt-gold);
+}
+
+.gt-card-option label:hover {
+  border-color: var(--gt-gold-muted);
+  background: var(--gt-gold-bg);
+}
+
+.gt-card-option input:focus-visible + label {
+  outline: 2px solid var(--gt-gold);
+  outline-offset: 2px;
+}
+
+/* ---------- Toggle Switch (Children / Grocery Stop) ---------- */
+.gt-toggle-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1.5px solid var(--gt-border);
+  border-radius: var(--gt-radius);
+  background: var(--gt-white);
+  transition: all var(--gt-duration) var(--gt-ease);
   cursor: pointer;
 }
 
-/* Alerts */
-.alert {
-  border-radius: 6px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  border: none;
+.gt-toggle-card:hover {
+  border-color: var(--gt-gold-muted);
+  background: var(--gt-gold-bg);
 }
 
-.alert-info {
-  background-color: #e5f5fb;
-  color: #055160;
-  border-left: 4px solid #0dcaf0;
+.gt-toggle-card.active {
+  border-color: var(--gt-gold);
+  background: var(--gt-gold-bg);
 }
 
-/* Price tag */
-.price-amount {
-  font-size: 32px;
-  font-weight: 700;
-  color: #198754;
-  padding: 10px 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  display: inline-block;
+.gt-toggle-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--gt-radius-sm);
+  background: var(--gt-gold-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.375rem;
+  flex-shrink: 0;
+  color: var(--gt-gold-muted);
+  transition: all var(--gt-duration) var(--gt-ease);
+}
+
+.gt-toggle-card.active .gt-toggle-icon {
+  background: var(--gt-gold);
+  color: var(--gt-white);
+}
+
+.gt-toggle-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.gt-toggle-title {
+  font-weight: 600;
+  font-size: var(--gt-text-base);
+  color: var(--gt-charcoal);
+  margin-bottom: 0.125rem;
+}
+
+.gt-toggle-desc {
+  font-size: var(--gt-text-xs);
+  color: var(--gt-slate-light);
+  line-height: 1.4;
+}
+
+.gt-toggle-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.gt-toggle-switch input,
+.gt-toggle-switch input.form-check-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.gt-toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--gt-border);
+  border-radius: var(--gt-radius-pill);
+  transition: background var(--gt-duration) var(--gt-ease);
+  cursor: pointer;
+}
+
+.gt-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: var(--gt-white);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: transform var(--gt-duration) var(--gt-ease);
+}
+
+.gt-toggle-switch input:checked + .gt-toggle-track {
+  background: var(--gt-gold);
+}
+
+.gt-toggle-switch input:checked + .gt-toggle-track::after {
+  transform: translateX(20px);
+}
+
+.gt-toggle-switch input:focus-visible + .gt-toggle-track {
+  outline: 2px solid var(--gt-gold);
+  outline-offset: 2px;
+}
+
+/* ---------- Car Seat Selector ---------- */
+#car-seats-section {
+  transition: all var(--gt-duration-slow) var(--gt-ease);
+}
+
+.gt-carseat-panel {
+  background: var(--gt-cream-warm);
+  border: 1.5px solid var(--gt-gold-muted);
+  border-left: 4px solid var(--gt-gold);
+  border-radius: var(--gt-radius);
+  padding: 1.25rem;
+}
+
+.gt-carseat-panel h4 {
+  font-family: var(--gt-font-display);
+  font-size: var(--gt-text-lg);
+  font-weight: 600;
+  color: var(--gt-charcoal);
+  margin-bottom: 0.5rem;
+}
+
+/* Car seat row layout */
+.gt-carseat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gt-carseat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--gt-border);
+  border-radius: var(--gt-radius);
+  background: var(--gt-white);
+  transition: border-color var(--gt-duration) var(--gt-ease);
+}
+
+.gt-carseat-row:has(input:not([value="0"])) {
+  border-color: var(--gt-gold);
+}
+
+.gt-carseat-row-info {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.gt-carseat-row-icon {
+  font-size: 1.375rem;
+  color: var(--gt-gold-muted);
+  flex-shrink: 0;
+}
+
+.gt-carseat-name {
+  font-weight: 600;
+  font-size: var(--gt-text-sm);
+  color: var(--gt-charcoal);
+  line-height: 1.3;
+}
+
+.gt-carseat-age {
+  font-size: var(--gt-text-xs);
+  color: var(--gt-slate-light);
+  line-height: 1.3;
+}
+
+.gt-carseat-trust {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--gt-gold-bg);
+  border-radius: var(--gt-radius-sm);
+  margin-top: 1rem;
+}
+
+.gt-carseat-trust i {
+  color: var(--gt-gold);
+  font-size: 1rem;
+}
+
+.gt-carseat-trust span {
+  font-size: var(--gt-text-sm);
+  font-weight: 600;
+  color: var(--gt-charcoal);
+}
+
+/* ---------- Trip Overview — Inline Route ---------- */
+.gt-route-inline {
+  text-align: center;
+  padding: 1rem;
+  background: var(--gt-cream);
+  border-radius: var(--gt-radius);
   margin-bottom: 1rem;
 }
 
-/* Benefits list */
-.grayson-benefits {
-  padding: 10px 0;
+.gt-route-inline-text {
+  font-family: var(--gt-font-display);
+  font-size: var(--gt-text-lg);
+  font-weight: 600;
+  color: var(--gt-charcoal);
+  display: block;
+  line-height: 1.4;
 }
 
-.grayson-benefits h5 {
+.gt-route-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--gt-radius-pill);
+  background: var(--gt-charcoal);
+  color: var(--gt-white);
+  font-size: var(--gt-text-xs);
   font-weight: 600;
+}
+
+/* Trip type & vehicle badges */
+.gt-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.gt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.875rem;
+  border-radius: var(--gt-radius-pill);
+  font-size: var(--gt-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.gt-badge-trip {
+  background: var(--gt-charcoal);
+  color: var(--gt-white);
+}
+
+.gt-badge-vehicle {
+  background: var(--gt-gold-bg);
+  color: var(--gt-gold);
+  border: 1px solid rgba(201, 162, 39, 0.2);
+}
+
+.gt-badge-price {
+  background: var(--gt-success-bg);
+  color: var(--gt-success);
+  border: 1px solid rgba(45, 134, 89, 0.15);
+  font-size: var(--gt-text-lg);
+  font-weight: 700;
+  padding: 0.375rem 1rem;
+}
+
+/* Travel tips */
+.gt-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: var(--gt-cream);
+  border-radius: var(--gt-radius-sm);
+  border-left: 3px solid var(--gt-gold-muted);
+}
+
+.gt-tip-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--gt-gold-bg);
   display: flex;
   align-items: center;
-  margin-bottom: 15px;
-  color: #212529;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.benefits-list {
-  list-style: none;
-  padding-left: 0;
-  margin-bottom: 0;
+.gt-tip-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
-.benefits-list li {
-  margin-bottom: 8px;
+.gt-tip-text {
+  font-size: var(--gt-text-sm);
+  color: var(--gt-slate);
+  line-height: 1.5;
+}
+
+.gt-tip-text strong {
+  color: var(--gt-charcoal);
+}
+
+/* ---------- Info Callouts ---------- */
+.gt-info-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--gt-radius-sm);
+  font-size: var(--gt-text-sm);
+  line-height: 1.5;
+}
+
+.gt-info-callout i {
+  font-size: 1.125rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.gt-info-callout.info {
+  background: var(--gt-info-bg);
+  color: var(--gt-info);
+  border: 1px solid rgba(43, 108, 176, 0.12);
+}
+
+.gt-info-callout.warning {
+  background: var(--gt-warning-bg);
+  color: var(--gt-warning);
+  border: 1px solid rgba(183, 121, 31, 0.12);
+}
+
+.gt-info-callout.success {
+  background: var(--gt-success-bg);
+  color: var(--gt-success);
+  border: 1px solid rgba(45, 134, 89, 0.12);
+}
+
+/* Extra seat upsell banner (inline, appears at limit) */
+.gt-extra-seat-banner {
   display: flex;
   align-items: center;
-}
-
-.benefits-list li i {
-  margin-right: 8px;
-  font-size: 14px;
-}
-
-/* Submit button */
-.btn-submit {
-  background-color: #0d6efd;
-  border: none;
-  padding: 14px 24px;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 16px;
-  transition: all 0.3s ease;
-}
-
-.btn-submit:hover {
-  background-color: #0b5ed7;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(13, 110, 253, 0.2);
-}
-
-/* Car seats section */
-.form-check input[type='checkbox'] {
-  transform: scale(1.15);
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: linear-gradient(135deg, var(--gt-gold-bg) 0%, rgba(201, 162, 39, 0.14) 100%);
+  border: 1.5px dashed var(--gt-gold-muted);
+  border-radius: var(--gt-radius-sm);
+  margin-top: 0.75rem;
   cursor: pointer;
+  transition: all var(--gt-duration-fast) var(--gt-ease);
 }
 
-#car-seats-section {
-  background-color: transparent;
-  transition: all 0.3s ease-in-out;
+.gt-extra-seat-banner:hover {
+  background: var(--gt-gold-bg-hover);
+  border-color: var(--gt-gold);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.15);
 }
 
-/* Validation styling */
-.invalid-feedback {
-  color: #dc3545;
-  font-size: 13px;
-  margin-top: 5px;
+.gt-extra-seat-banner .gt-esb-icon {
+  width: 36px;
+  height: 36px;
+  background: var(--gt-gold);
+  color: var(--gt-white);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
-.price-amount {
-  font-size: 28px;
-  margin-bottom: 15px;
+.gt-extra-seat-banner .gt-esb-text {
+  flex: 1;
+  font-size: var(--gt-text-sm);
+  color: var(--gt-charcoal);
+  line-height: 1.4;
 }
 
-.benefits-list li {
-  font-size: 14px;
+.gt-extra-seat-banner .gt-esb-text strong {
+  color: var(--gt-gold);
 }
 
+.gt-extra-seat-banner .gt-esb-price {
+  font-weight: 700;
+  font-size: var(--gt-text-sm);
+  color: var(--gt-gold);
+  white-space: nowrap;
+}
+
+/* ---------- Quick-Tap Chips ---------- */
+.gt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.gt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  border: 1.5px solid var(--gt-border);
+  border-radius: var(--gt-radius-pill);
+  background: var(--gt-white);
+  font-size: var(--gt-text-xs);
+  font-weight: 500;
+  color: var(--gt-slate);
+  cursor: pointer;
+  transition: all var(--gt-duration) var(--gt-ease);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  min-height: 36px;
+}
+
+.gt-chip:hover {
+  border-color: var(--gt-gold-muted);
+  color: var(--gt-gold);
+  background: var(--gt-gold-bg);
+}
+
+.gt-chip.active {
+  border-color: var(--gt-gold);
+  color: var(--gt-gold);
+  background: var(--gt-gold-bg);
+}
+
+.gt-chip i {
+  font-size: 0.875rem;
+}
+
+/* ---------- Grocery Stop Warning ---------- */
+.gt-grocery-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  background: var(--gt-warning-bg);
+  border-radius: var(--gt-radius-sm);
+  border: 1px solid rgba(183, 121, 31, 0.12);
+  margin-top: 0.75rem;
+  font-size: var(--gt-text-sm);
+  color: var(--gt-warning);
+  line-height: 1.4;
+}
+
+.gt-grocery-warning i {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ---------- Price Summary Receipt Card ---------- */
+.gt-receipt {
+  background: var(--gt-white);
+  border: 1.5px solid var(--gt-border);
+  border-radius: var(--gt-radius);
+  overflow: hidden;
+}
+
+.gt-receipt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: var(--gt-charcoal);
+  color: var(--gt-white);
+}
+
+.gt-receipt-title {
+  font-family: var(--gt-font-display);
+  font-size: var(--gt-text-lg);
+  font-weight: 600;
+}
+
+.gt-receipt-price {
+  font-family: var(--gt-font-display);
+  font-size: var(--gt-text-2xl);
+  font-weight: 700;
+  color: var(--gt-gold-light);
+}
+
+.gt-receipt-body {
+  padding: 1rem 1.25rem;
+}
+
+.gt-receipt-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--gt-border-light);
+  font-size: var(--gt-text-sm);
+  color: var(--gt-slate);
+}
+
+.gt-receipt-line:last-child {
+  border-bottom: none;
+}
+
+.gt-receipt-line i {
+  color: var(--gt-gold-muted);
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.gt-receipt-line strong {
+  color: var(--gt-charcoal);
+}
+
+/* ---------- Gratuity Pill Selectors ---------- */
+.gt-gratuity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.625rem;
+}
+
+@media (max-width: 400px) {
+  .gt-gratuity-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.gt-gratuity-option {
+  position: relative;
+}
+
+.gt-gratuity-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.gt-gratuity-option label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--gt-border);
+  border-radius: var(--gt-radius);
+  background: var(--gt-white);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--gt-text-base);
+  color: var(--gt-slate);
+  text-align: center;
+  min-height: 52px;
+  transition: all var(--gt-duration) var(--gt-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gt-gratuity-option label:hover {
+  border-color: var(--gt-gold-muted);
+  background: var(--gt-gold-bg);
+}
+
+.gt-gratuity-option input:checked + label {
+  border-color: var(--gt-gold);
+  background: var(--gt-gold-bg);
+  color: var(--gt-gold);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.12);
+}
+
+.gt-gratuity-option input:focus-visible + label {
+  outline: 2px solid var(--gt-gold);
+  outline-offset: 2px;
+}
+
+/* Gratuity display */
+.gt-gratuity-total {
+  background: var(--gt-success-bg);
+  border: 1px solid rgba(45, 134, 89, 0.12);
+  border-radius: var(--gt-radius-sm);
+  padding: 1rem 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.gt-gratuity-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--gt-text-base);
+  color: var(--gt-charcoal);
+}
+
+.gt-gratuity-row + .gt-gratuity-row {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(45, 134, 89, 0.12);
+}
+
+.gt-gratuity-row .amount {
+  font-weight: 700;
+  font-size: var(--gt-text-lg);
+  color: var(--gt-success);
+}
+
+/* Custom gratuity input */
+#custom_gratuity_wrap {
+  margin-top: 0.75rem;
+}
+
+#custom_gratuity_wrap .input-group {
+  max-width: 200px;
+}
+
+#custom_gratuity_wrap .form-control {
+  border-radius: var(--gt-radius-sm) 0 0 var(--gt-radius-sm);
+}
+
+#custom_gratuity_wrap .input-group-text {
+  background: var(--gt-cream);
+  border: 1.5px solid var(--gt-border);
+  border-left: none;
+  border-radius: 0 var(--gt-radius-sm) var(--gt-radius-sm) 0;
+  color: var(--gt-slate);
+  font-weight: 600;
+}
+
+/* Cash note */
+.gt-cash-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: var(--gt-gold-bg);
+  border-radius: var(--gt-radius-sm);
+  font-size: var(--gt-text-sm);
+  color: var(--gt-charcoal);
+  margin-top: 0.75rem;
+}
+
+.gt-cash-note i {
+  color: var(--gt-gold);
+}
+
+/* ---------- CTA Submit Button ---------- */
 .button_reservation {
   display: inline-flex;
-  width: auto;
-  padding: 0.75rem 1.75rem;
-  /* More height and width */
-  font-size: 16px;
-  /* Slightly larger text */
-  font-weight: 600;
-  gap: 10px;
-  border-radius: 9999px;
-  background-color: #0a1428;
-  color: #fff;
-  border: 3px solid #ffffff4d;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 420px;
+  padding: 1rem 2rem;
+  font-family: var(--gt-font-body);
+  font-size: var(--gt-text-lg);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gt-white);
+  background: var(--gt-charcoal);
+  border: 2px solid rgba(201, 162, 39, 0.3);
+  border-radius: var(--gt-radius-pill);
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  transition: transform 0.3s ease-in-out;
-  box-shadow: 0px 8px 18px rgba(0, 0, 0, 0.15);
+  transition: transform var(--gt-duration) var(--gt-ease),
+              box-shadow var(--gt-duration) var(--gt-ease),
+              border-color var(--gt-duration) var(--gt-ease);
+  box-shadow: var(--gt-shadow-md);
+  min-height: 56px;
+}
+
+.button_reservation:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--gt-shadow-lg);
+  border-color: var(--gt-gold);
+}
+
+.button_reservation:active {
+  transform: translateY(0);
+  box-shadow: var(--gt-shadow);
+}
+
+.button_reservation:focus-visible {
+  outline: 2px solid var(--gt-gold);
+  outline-offset: 3px;
 }
 
 .button_reservation .icon {
   width: 22px;
   height: 22px;
-  transition: transform 0.3s ease-in-out;
-}
-
-.button_reservation:hover {
-  transform: scale(1.05);
-  border-color: #fff9;
+  transition: transform var(--gt-duration) var(--gt-ease);
 }
 
 .button_reservation:hover .icon {
-  transform: translateX(4px);
+  transform: translateX(3px);
 }
 
+/* Shimmer effect */
 .button_reservation::before {
   content: '';
   position: absolute;
@@ -642,38 +1246,369 @@ body.page-booking {
   height: 100%;
   background-image: linear-gradient(
     120deg,
-    rgba(255, 255, 255, 0) 30%,
-    rgba(255, 255, 255, 0.8),
-    rgba(255, 255, 255, 0) 70%
+    rgba(201, 162, 39, 0) 30%,
+    rgba(201, 162, 39, 0.3),
+    rgba(201, 162, 39, 0) 70%
   );
   top: 0;
   left: -100px;
-  opacity: 0.6;
-  animation: shine 1.5s ease-out infinite;
+  opacity: 0.8;
+  animation: shimmer 3s ease-in-out infinite;
 }
 
-@keyframes shine {
-  0% {
-    left: -100px;
+@keyframes shimmer {
+  0%   { left: -100px; }
+  40%  { left: 100%; }
+  100% { left: 100%; }
+}
+
+/* Lock icon in CTA */
+.gt-lock-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--gt-text-xs);
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.gt-lock-icon i {
+  font-size: 0.75rem;
+}
+
+/* Submit area */
+.gt-submit-area {
+  text-align: center;
+  padding-top: 0.5rem;
+}
+
+.gt-submit-area .text-muted {
+  font-size: var(--gt-text-xs);
+  line-height: 1.5;
+  color: var(--gt-slate-light) !important;
+  max-width: 480px;
+  margin: 0.75rem auto 0;
+}
+
+.gt-submit-area a {
+  color: var(--gt-gold);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.gt-submit-area a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Trust Signals ---------- */
+.gt-trust-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.gt-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: var(--gt-text-xs);
+  color: var(--gt-slate);
+  font-weight: 500;
+}
+
+.gt-trust-item i {
+  color: var(--gt-gold);
+  font-size: 0.875rem;
+}
+
+/* ---------- Alerts (override Bootstrap) ---------- */
+.form-card .alert {
+  border: none;
+  border-radius: var(--gt-radius-sm);
+  font-size: var(--gt-text-sm);
+  padding: 0.75rem 1rem;
+}
+
+.form-card .alert-info {
+  background: var(--gt-info-bg);
+  color: var(--gt-info);
+  border-left: 3px solid var(--gt-info);
+}
+
+.form-card .alert-warning {
+  background: var(--gt-warning-bg);
+  color: var(--gt-warning);
+  border-left: 3px solid var(--gt-warning);
+}
+
+.form-card .alert-success {
+  background: var(--gt-success-bg);
+  color: var(--gt-success);
+}
+
+.form-card .alert-danger {
+  background: var(--gt-danger-bg);
+  color: var(--gt-danger);
+}
+
+/* ---------- Validation ---------- */
+.invalid-feedback {
+  color: var(--gt-danger);
+  font-size: var(--gt-text-xs);
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.invalid-feedback::before {
+  content: '\F33A'; /* bi-exclamation-circle */
+  font-family: 'bootstrap-icons';
+  font-size: 0.875rem;
+}
+
+.form-control.is-invalid {
+  border-color: var(--gt-danger) !important;
+  box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
+  background-image: none !important;
+}
+
+.highlight-error {
+  border-color: var(--gt-danger) !important;
+  box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.15) !important;
+  background-color: rgba(197, 48, 48, 0.03) !important;
+}
+
+.gt-client-error {
+  color: var(--gt-danger);
+  font-size: var(--gt-text-xs);
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  animation: gt-shake 0.3s ease-in-out;
+}
+
+@keyframes gt-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* ---------- Error alert styling ---------- */
+#pickup-time-error-leg1,
+#pickup-time-error-leg2 {
+  border-left: 4px solid var(--gt-warning);
+  animation: slideDown var(--gt-duration-slow) var(--gt-ease);
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Checkboxes / Radios (Bootstrap override) ---------- */
+.form-check-input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.5rem;
+  cursor: pointer;
+  border: 1.5px solid var(--gt-border);
+}
+
+.form-check-input:checked {
+  background-color: var(--gt-gold);
+  border-color: var(--gt-gold);
+}
+
+.form-check-input:focus {
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+  border-color: var(--gt-gold);
+}
+
+.form-check-label {
+  font-weight: 500;
+  cursor: pointer;
+  padding-left: 0.25rem;
+}
+
+/* ---------- Tooltips ---------- */
+.info-tooltip {
+  color: var(--gt-slate-light);
+  cursor: help;
+  font-size: 0.875rem;
+  transition: color var(--gt-duration) var(--gt-ease);
+}
+
+.info-tooltip:hover {
+  color: var(--gt-gold);
+}
+
+/* ---------- Route Visual (legacy compat) ---------- */
+.route-visual {
+  background-color: var(--gt-cream);
+  border-radius: var(--gt-radius);
+}
+
+.route-box {
+  background-color: var(--gt-white);
+  border-radius: var(--gt-radius);
+  box-shadow: var(--gt-shadow-sm);
+}
+
+/* ---------- Badges (Bootstrap override) ---------- */
+.badge {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- Non-field errors ---------- */
+.form-card.border-danger {
+  border-left-color: var(--gt-danger) !important;
+}
+
+/* ---------- Publix Modal Styling ---------- */
+.modal-content {
+  border: none;
+  border-radius: var(--gt-radius-lg);
+  overflow: hidden;
+}
+
+.modal-header {
+  background: var(--gt-gold-bg);
+  border-bottom: 1px solid var(--gt-border-light);
+  padding: 1rem 1.25rem;
+}
+
+.modal-title {
+  font-family: var(--gt-font-display);
+  font-weight: 600;
+  color: var(--gt-charcoal);
+}
+
+.modal-body {
+  padding: 1.25rem;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--gt-border-light);
+  padding: 0.75rem 1.25rem;
+}
+
+/* ---------- Free cancellation banner ---------- */
+.gt-free-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: var(--gt-success-bg);
+  border: 1px solid rgba(45, 134, 89, 0.12);
+  border-radius: var(--gt-radius-sm);
+  font-size: var(--gt-text-sm);
+  font-weight: 600;
+  color: var(--gt-success);
+  margin-bottom: 1rem;
+}
+
+.gt-free-cancel i {
+  font-size: 1rem;
+}
+
+/* ---------- Reviews badge ---------- */
+.gt-reviews {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: var(--gt-text-xs);
+  color: var(--gt-gold);
+  font-weight: 600;
+}
+
+.gt-reviews i {
+  font-size: 0.75rem;
+}
+
+/* ---------- Sticky progress responsive ---------- */
+
+/* ---------- Benefits list animation (reduced motion aware) ---------- */
+.benefits-list li {
+  opacity: 1;
+  transform: none;
+  animation: none;
+}
+
+/* ---------- Responsive Fine-Tuning ---------- */
+@media (max-width: 768px) {
+  .form-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 
-  60% {
-    left: 100%;
+  .form-card > .card-header {
+    padding: 0.875rem 1rem;
   }
 
-  100% {
-    left: 100%;
+  .form-card > .card-header h2 {
+    font-size: var(--gt-text-lg);
+  }
+
+  .form-card > .card-body {
+    padding: 1rem;
+  }
+
+  .gt-receipt-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .gt-gratuity-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .button_reservation {
+    max-width: 100%;
+  }
+
+  .gt-trust-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
   }
 }
 
+@media (min-width: 769px) and (max-width: 1024px) {
+  .form-container {
+    max-width: 720px;
+  }
+}
+
+/* ---------- Print ---------- */
+@media print {
+  .gt-progress-bar,
+  .button_reservation,
+  .gt-submit-area {
+    display: none !important;
+  }
+}
+
+/* ---------- Spin button removal (number inputs) ---------- */
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {
-  opacity: 1 !important;
+  -webkit-appearance: none;
+  margin: 0;
 }
 
-/* Remove the Bootstrap "!" icon from .is-invalid fields */
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* ---------- Remove Bootstrap "!" icon from .is-invalid ---------- */
 input.form-control.is-invalid {
   background-image: none !important;
   padding-right: 0.75rem;
-  /* optional: tighten padding */
 }

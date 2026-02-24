@@ -43,6 +43,17 @@
                      class="form-label fw-bold">{{ form.luggage_count.label }}</label>
               {{ form.luggage_count }}
               {% if form.luggage_count.errors %}<div class="invalid-feedback">{{ form.luggage_count.errors.0 }}</div>{% endif %}
+              <div class="mt-2">
+                <span class="form-label fw-bold">{{ form.luggage_type.label }}</span>
+                <div class="d-flex gap-3 mt-1">
+                  {% for radio in form.luggage_type %}
+                    <div class="form-check">
+                      {{ radio.tag }}
+                      <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -1,0 +1,960 @@
+/* ================================================
+   GRAYSON TOWNCAR - SEO LANDING PAGES
+   Shared styles for all SEO-optimized service pages
+   Extends the luxury design system
+   ================================================ */
+
+/* ── Font Imports ──────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@200;300;400;500;600&family=Outfit:wght@300;400;500;600&display=swap');
+
+/* ── CSS Variables ─────────────────────────────── */
+:root {
+    --lux-black: #0a0a0a;
+    --lux-charcoal: #1a1a1a;
+    --lux-dark-gray: #2d2d2d;
+    --lux-medium-gray: #6b6b6b;
+    --lux-light-gray: #a0a0a0;
+    --lux-off-white: #f8f7f5;
+    --lux-white: #ffffff;
+    --lux-gold: #b8956c;
+    --lux-gold-light: #d4b896;
+    --lux-gold-dark: #9a7a56;
+    --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Typography ────────────────────────────────── */
+.seo-page {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+.seo-page h1, .seo-page h2, .seo-page h3,
+.seo-page .lux-title, .seo-page .lux-section-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+/* ── Hero Section ──────────────────────────────── */
+.seo-hero {
+    min-height: 70vh;
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--lux-black);
+    overflow: hidden;
+}
+
+.seo-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(10,10,10,0.82) 0%, rgba(26,26,26,0.7) 100%);
+    z-index: 1;
+}
+
+.seo-hero-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+}
+
+.seo-hero-content {
+    position: relative;
+    z-index: 2;
+}
+
+.lux-eyebrow {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--lux-gold);
+    margin-bottom: 1.25rem;
+}
+
+.lux-title {
+    font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--lux-white);
+}
+
+.lux-divider {
+    width: 60px;
+    height: 1px;
+    background: var(--lux-gold);
+    margin: 1.5rem auto;
+}
+
+.seo-hero-subtitle {
+    font-size: clamp(1rem, 2vw, 1.15rem);
+    font-weight: 300;
+    line-height: 1.8;
+    opacity: 0.88;
+    max-width: 680px;
+    margin: 0 auto 2rem;
+    color: var(--lux-white);
+}
+
+.seo-trust-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.7);
+}
+
+.seo-trust-badges span {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.seo-trust-badges i {
+    color: var(--lux-gold);
+    font-size: 0.85rem;
+}
+
+/* ── Buttons ───────────────────────────────────── */
+.lux-btn {
+    padding: 1rem 2.25rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-radius: 0;
+    border: none;
+    transition: var(--transition);
+    display: inline-block;
+    text-decoration: none;
+}
+
+.lux-btn-primary {
+    background: var(--lux-gold);
+    color: var(--lux-white);
+}
+
+.lux-btn-primary:hover {
+    background: var(--lux-gold-light);
+    color: var(--lux-charcoal);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(184, 149, 108, 0.3);
+}
+
+.lux-btn-dark {
+    background: var(--lux-charcoal);
+    color: var(--lux-white);
+}
+
+.lux-btn-dark:hover {
+    background: var(--lux-black);
+    color: var(--lux-white);
+    transform: translateY(-2px);
+}
+
+.lux-btn-outline-light {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.4);
+    color: var(--lux-white);
+}
+
+.lux-btn-outline-light:hover {
+    background: var(--lux-white);
+    color: var(--lux-charcoal);
+}
+
+/* ── Breadcrumb ────────────────────────────────── */
+.seo-breadcrumb {
+    background: var(--lux-off-white);
+    padding: 0.85rem 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.seo-breadcrumb .breadcrumb {
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.seo-breadcrumb .breadcrumb-item a {
+    color: var(--lux-medium-gray);
+    text-decoration: none;
+    letter-spacing: 0.03em;
+    transition: color 0.2s;
+}
+
+.seo-breadcrumb .breadcrumb-item a:hover {
+    color: var(--lux-gold);
+}
+
+.seo-breadcrumb .breadcrumb-item.active {
+    color: var(--lux-charcoal);
+    font-weight: 500;
+}
+
+/* ── Section Base ──────────────────────────────── */
+.seo-section {
+    padding: 5rem 0;
+}
+
+.lux-section-title {
+    font-size: clamp(1.85rem, 3.5vw, 2.5rem);
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    color: var(--lux-charcoal);
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+
+.lux-section-subtitle {
+    font-size: 1rem;
+    font-weight: 300;
+    color: var(--lux-medium-gray);
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.7;
+}
+
+/* ── Highlight Box ─────────────────────────────── */
+.seo-highlight-box {
+    background: var(--lux-off-white);
+    border-left: 3px solid var(--lux-gold);
+    padding: 2rem 2.25rem;
+    margin-bottom: 2rem;
+}
+
+.seo-highlight-box h3,
+.seo-highlight-box h4 {
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    color: var(--lux-charcoal);
+    margin-bottom: 1rem;
+}
+
+.seo-highlight-box p {
+    font-weight: 300;
+    color: var(--lux-dark-gray);
+    line-height: 1.8;
+    margin-bottom: 0.75rem;
+}
+
+.seo-highlight-box p:last-child {
+    margin-bottom: 0;
+}
+
+/* ── Law Callout ───────────────────────────────── */
+.seo-law-callout {
+    background: var(--lux-charcoal);
+    color: var(--lux-white);
+    padding: 3rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.seo-law-callout::before {
+    content: '\f0e3';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    top: -20px;
+    right: 20px;
+    font-size: 8rem;
+    opacity: 0.04;
+    color: var(--lux-gold);
+}
+
+.seo-law-callout .law-ref {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--lux-gold);
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.seo-law-callout h3 {
+    font-weight: 300;
+    color: var(--lux-white);
+    margin-bottom: 1.25rem;
+    font-size: 1.75rem;
+}
+
+.seo-law-callout p {
+    font-weight: 300;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.8;
+    margin-bottom: 1rem;
+}
+
+.seo-law-callout .safety-pivot {
+    border-top: 1px solid rgba(184, 149, 108, 0.3);
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.seo-law-callout .safety-pivot p {
+    color: var(--lux-gold-light);
+    font-weight: 400;
+    font-size: 1.05rem;
+}
+
+/* ── Problem Cards ─────────────────────────────── */
+.seo-problem-card {
+    background: var(--lux-white);
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 2.5rem 2rem;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.seo-problem-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: #dc3545;
+    opacity: 0.6;
+}
+
+.seo-problem-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+}
+
+.seo-problem-card .problem-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    color: #dc3545;
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+}
+
+.seo-problem-card h4 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--lux-charcoal);
+    margin-bottom: 1rem;
+    letter-spacing: 0.01em;
+}
+
+.seo-problem-card p {
+    font-weight: 300;
+    font-size: 0.92rem;
+    color: var(--lux-medium-gray);
+    line-height: 1.7;
+    margin-bottom: 0;
+}
+
+.seo-problem-card ul {
+    padding-left: 0;
+    list-style: none;
+    margin-bottom: 0;
+}
+
+.seo-problem-card ul li {
+    font-weight: 300;
+    font-size: 0.92rem;
+    color: var(--lux-medium-gray);
+    line-height: 1.7;
+    padding: 0.3rem 0;
+    padding-left: 1.25rem;
+    position: relative;
+}
+
+.seo-problem-card ul li::before {
+    content: '\f00d';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    left: 0;
+    color: #dc3545;
+    font-size: 0.7rem;
+    top: 0.55rem;
+    opacity: 0.7;
+}
+
+/* ── Step Cards ────────────────────────────────── */
+.seo-step-card {
+    text-align: center;
+    padding: 2rem 1.5rem;
+    position: relative;
+    height: 100%;
+}
+
+.seo-step-number {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
+    border: 1px solid var(--lux-gold);
+    color: var(--lux-gold);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.4rem;
+    font-weight: 400;
+    transition: var(--transition);
+}
+
+.seo-step-card:hover .seo-step-number {
+    background: var(--lux-gold);
+    color: var(--lux-white);
+}
+
+.seo-step-card h4 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--lux-charcoal);
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.01em;
+}
+
+.seo-step-card p {
+    font-weight: 300;
+    font-size: 0.88rem;
+    color: var(--lux-medium-gray);
+    line-height: 1.65;
+    margin-bottom: 0;
+}
+
+/* Step connector line (desktop) */
+.seo-steps-row {
+    position: relative;
+}
+
+.seo-steps-row::before {
+    content: '';
+    position: absolute;
+    top: 26px;
+    left: 15%;
+    right: 15%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--lux-gold), var(--lux-gold), transparent);
+    opacity: 0.3;
+    z-index: 0;
+}
+
+.seo-steps-row > div {
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Comparison Table ──────────────────────────── */
+.seo-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.seo-comparison-table thead th {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--lux-charcoal);
+    padding: 1.25rem 1rem;
+    border-bottom: 2px solid var(--lux-charcoal);
+    text-align: center;
+    vertical-align: bottom;
+}
+
+.seo-comparison-table thead th:first-child {
+    text-align: left;
+}
+
+.seo-comparison-table thead th.highlight-col {
+    background: var(--lux-charcoal);
+    color: var(--lux-white);
+    position: relative;
+}
+
+.seo-comparison-table thead th.highlight-col::after {
+    content: 'Recommended';
+    display: block;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    color: var(--lux-gold);
+    margin-top: 0.35rem;
+    font-weight: 400;
+}
+
+.seo-comparison-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    text-align: center;
+    font-weight: 300;
+    color: var(--lux-dark-gray);
+    vertical-align: middle;
+}
+
+.seo-comparison-table tbody td:first-child {
+    text-align: left;
+    font-weight: 500;
+    color: var(--lux-charcoal);
+    font-size: 0.85rem;
+}
+
+.seo-comparison-table tbody td.highlight-col {
+    background: rgba(26, 26, 26, 0.03);
+    font-weight: 500;
+    color: var(--lux-charcoal);
+}
+
+.seo-comparison-table .check-yes {
+    color: var(--lux-gold);
+}
+
+.seo-comparison-table .check-no {
+    color: #dc3545;
+    opacity: 0.5;
+}
+
+.seo-comparison-table .check-maybe {
+    color: #ffc107;
+}
+
+/* ── FAQ Section ───────────────────────────────── */
+.seo-faq-section {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.seo-faq-item {
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+.seo-faq-item:last-child {
+    border-bottom: none;
+}
+
+.seo-faq-question {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    font-size: 1rem;
+    color: var(--lux-charcoal);
+    letter-spacing: 0.01em;
+    transition: color 0.2s;
+}
+
+.seo-faq-question:hover {
+    color: var(--lux-gold);
+}
+
+.seo-faq-question .faq-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--lux-gold);
+    color: var(--lux-gold);
+    font-size: 0.75rem;
+    margin-left: 1rem;
+    transition: var(--transition);
+}
+
+.seo-faq-item.active .seo-faq-question .faq-icon {
+    background: var(--lux-gold);
+    color: var(--lux-white);
+    transform: rotate(45deg);
+}
+
+.seo-faq-answer {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+}
+
+.seo-faq-item.active .seo-faq-answer {
+    max-height: 500px;
+    padding-bottom: 1.5rem;
+}
+
+.seo-faq-answer p {
+    font-weight: 300;
+    font-size: 0.92rem;
+    color: var(--lux-medium-gray);
+    line-height: 1.8;
+    margin-bottom: 0;
+}
+
+/* ── CTA Banner ────────────────────────────────── */
+.seo-cta-banner {
+    background: var(--lux-charcoal);
+    padding: 5rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.seo-cta-banner::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at center, rgba(184, 149, 108, 0.08) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.seo-cta-banner h2 {
+    font-weight: 300;
+    color: var(--lux-white);
+    margin-bottom: 1rem;
+    font-size: clamp(1.75rem, 3vw, 2.25rem);
+}
+
+.seo-cta-banner p {
+    font-weight: 300;
+    color: rgba(255,255,255,0.7);
+    font-size: 1rem;
+    margin-bottom: 0;
+    line-height: 1.7;
+}
+
+.seo-cta-banner .cta-phone {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 1.75rem;
+    font-weight: 400;
+    color: var(--lux-gold);
+    text-decoration: none;
+    letter-spacing: 0.02em;
+    transition: color 0.2s;
+}
+
+.seo-cta-banner .cta-phone:hover {
+    color: var(--lux-gold-light);
+}
+
+/* ── Seat Type Cards ───────────────────────────── */
+.seo-seat-card {
+    background: var(--lux-white);
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    transition: var(--transition);
+    height: 100%;
+}
+
+.seo-seat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.08);
+    border-color: var(--lux-gold);
+}
+
+.seo-seat-card .seat-icon {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
+    border: 1px solid var(--lux-gold);
+    color: var(--lux-gold);
+    font-size: 1.2rem;
+    transition: var(--transition);
+}
+
+.seo-seat-card:hover .seat-icon {
+    background: var(--lux-gold);
+    color: var(--lux-white);
+}
+
+.seo-seat-card h4 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--lux-charcoal);
+    margin-bottom: 0.5rem;
+}
+
+.seo-seat-card .seat-ages {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--lux-gold);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+}
+
+.seo-seat-card p {
+    font-weight: 300;
+    font-size: 0.88rem;
+    color: var(--lux-medium-gray);
+    line-height: 1.6;
+    margin-bottom: 0;
+}
+
+/* ── Internal Link Cards ───────────────────────── */
+.seo-link-card {
+    display: block;
+    background: var(--lux-white);
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 1.5rem;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.seo-link-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+    border-color: var(--lux-gold);
+}
+
+.seo-link-card h5 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--lux-charcoal);
+    margin-bottom: 0.35rem;
+    transition: color 0.2s;
+}
+
+.seo-link-card:hover h5 {
+    color: var(--lux-gold);
+}
+
+.seo-link-card p {
+    font-weight: 300;
+    font-size: 0.82rem;
+    color: var(--lux-medium-gray);
+    margin-bottom: 0;
+    line-height: 1.5;
+}
+
+/* ── Animations ────────────────────────────────── */
+@keyframes seoFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(25px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.seo-animate {
+    animation: seoFadeInUp 0.6s ease-out both;
+}
+
+/* ── Responsive ────────────────────────────────── */
+@media (max-width: 991px) {
+    .seo-hero {
+        min-height: 55vh;
+        padding: 3rem 0;
+    }
+
+    .seo-section {
+        padding: 3.5rem 0;
+    }
+
+    .seo-law-callout {
+        padding: 2.25rem;
+    }
+
+    .seo-cta-banner {
+        padding: 3.5rem 0;
+    }
+
+    .seo-steps-row::before {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .seo-hero {
+        min-height: 50vh;
+    }
+
+    .seo-section {
+        padding: 3rem 0;
+    }
+
+    .seo-trust-badges {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .seo-law-callout {
+        padding: 2rem 1.5rem;
+    }
+
+    .seo-law-callout::before {
+        font-size: 5rem;
+    }
+
+    .seo-comparison-table {
+        font-size: 0.8rem;
+    }
+
+    .seo-comparison-table thead th,
+    .seo-comparison-table tbody td {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .seo-cta-banner {
+        padding: 3rem 0;
+    }
+
+    .seo-cta-banner .cta-phone {
+        font-size: 1.4rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .seo-comparison-table {
+        font-size: 0.75rem;
+    }
+
+    .seo-comparison-table thead th.highlight-col::after {
+        display: none;
+    }
+}
+
+/* ── Resort Cards ─────────────────────────────── */
+.seo-resort-card {
+    background: var(--lux-white);
+    border: 1px solid rgba(0,0,0,0.08);
+    overflow: hidden;
+    transition: var(--transition);
+    height: 100%;
+}
+
+.seo-resort-card img {
+    object-fit: cover;
+    width: 100%;
+    height: 280px;
+}
+
+.seo-resort-card-body {
+    padding: 2.25rem;
+}
+
+.seo-resort-card h3 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--lux-charcoal);
+    margin-bottom: 1rem;
+}
+
+.seo-resort-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    column-count: 2;
+}
+
+.seo-resort-item {
+    font-weight: 300;
+    font-size: 0.88rem;
+    color: var(--lux-medium-gray);
+    padding: 0.25rem 0;
+    padding-left: 1.1rem;
+    position: relative;
+}
+
+.seo-resort-item i {
+    color: var(--lux-gold);
+    position: absolute;
+    left: 0;
+}
+
+/* ── Benefits Card (Gold variant of problem card) ── */
+.seo-benefits-card {
+    background: var(--lux-white);
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 2.5rem 2rem;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+}
+
+.seo-benefits-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+}
+
+.seo-benefits-card .problem-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--lux-gold);
+    color: var(--lux-gold);
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+}
+
+.seo-benefits-card h4 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--lux-gold);
+    margin-bottom: 1rem;
+    letter-spacing: 0.01em;
+}
+
+.seo-benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.seo-benefits-list li {
+    font-weight: 300;
+    font-size: 0.92rem;
+    color: var(--lux-medium-gray);
+    line-height: 1.7;
+    padding: 0.3rem 0;
+    padding-left: 1.25rem;
+    position: relative;
+}
+
+.seo-benefits-list li i {
+    position: absolute;
+    left: 0;
+    color: var(--lux-gold);
+    font-size: 0.85rem;
+    top: 0.5rem;
+}

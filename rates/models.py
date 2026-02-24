@@ -20,11 +20,39 @@ class Vehicle(models.Model):
     capacity = models.PositiveIntegerField()
     luggage_capacity = models.PositiveIntegerField()
     image = models.ImageField(upload_to="vehicles/", blank=True)
-    ff_carseats_max = models.PositiveIntegerField(default=1)
-    rf_carseats_max = models.PositiveIntegerField(default=1)
-    boosters_max = models.PositiveIntegerField(default=1)
-    carseats_capacity = models.PositiveIntegerField(default=1)
+    ff_carseats_max = models.PositiveIntegerField(
+        default=2,
+        help_text="Max forward-facing car seats that physically fit",
+    )
+    rf_carseats_max = models.PositiveIntegerField(
+        default=2,
+        help_text="Max rear-facing car seats that physically fit",
+    )
+    boosters_max = models.PositiveIntegerField(
+        default=2,
+        help_text="Max booster seats that physically fit",
+    )
+    carseats_capacity = models.PositiveIntegerField(
+        default=4,
+        help_text="Total child seats (FF + RF + boosters) that physically fit",
+    )
+    included_carseats = models.PositiveIntegerField(
+        default=2,
+        help_text="Car seats (FF + RF combined) included in base price — extras cost the fee below",
+    )
+    included_boosters = models.PositiveIntegerField(
+        default=2,
+        help_text="Booster seats included in base price — extras cost the fee below",
+    )
     carseats_display = models.CharField(max_length=100, blank=True)
+    extra_carseat_fee = models.DecimalField(
+        max_digits=6, decimal_places=2, default=30,
+        help_text="Fee per additional car seat beyond included limit",
+    )
+    extra_booster_fee = models.DecimalField(
+        max_digits=6, decimal_places=2, default=30,
+        help_text="Fee per additional booster seat beyond included limit",
+    )
 
     def __str__(self):
         """

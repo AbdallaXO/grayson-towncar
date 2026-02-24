@@ -557,6 +557,9 @@
                 <dt class="col-sm-4">Luggage</dt>
                 <dd class="col-sm-8 fw-semibold">
                   {{ reservation.luggage_count }} Suitcases
+                  <span class="badge {% if reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2">
+                    {{ reservation.get_luggage_type_display }}
+                  </span>
                 </dd>
 
                 <!-- Store Stop Information - Only show on first leg -->

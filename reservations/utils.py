@@ -474,26 +474,29 @@ def extra_charges(reservation):
                 f"Added ${total_extra} on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
             )
 
+    # Extra car seat / booster fees
+    extra_seat_fee = Decimal(0)
+    vehicle = reservation.vehicle
+    if vehicle and (reservation.extra_carseats or reservation.extra_boosters):
+        extra_seat_fee += Decimal(reservation.extra_carseats or 0) * vehicle.extra_carseat_fee
+        extra_seat_fee += Decimal(reservation.extra_boosters or 0) * vehicle.extra_booster_fee
+        total_extra += extra_seat_fee
+        logger.info(
+            f"Added ${extra_seat_fee} extra seat fee on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
+        )
+
     # Calculate gratuity if specified
     gratuity_amount = Decimal(0)
     if reservation.gratuity_percentage and reservation.gratuity_percentage > 0:
         gratuity_amount = (reservation.base_price * reservation.gratuity_percentage) / Decimal(100)
         reservation.gratuity_amount = gratuity_amount
-        
-        # Add gratuity note to special_requests (customer notes)
-        gratuity_note = f"Gratuity: {reservation.gratuity_percentage}% (${gratuity_amount:.2f}) included"
-        if reservation.special_requests:
-            reservation.special_requests += f"\n{gratuity_note}"
-        else:
-            reservation.special_requests = gratuity_note
-        
         logger.info(
             f"Added ${gratuity_amount} gratuity ({reservation.gratuity_percentage}%) on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
         )
 
     reservation.additional_charges = total_extra
     reservation.total_price = reservation.base_price + total_extra + gratuity_amount
-    reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount", "special_requests"])
+    reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount"])
 
     # For round-trips, split gratuity into each leg's private_notes
     if gratuity_amount > 0:
