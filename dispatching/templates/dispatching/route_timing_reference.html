@@ -210,7 +210,7 @@
     <div class="page-header text-center">
         <div class="container">
             <h1 class="fw-bold mb-2" style="font-size: 2rem;">Route Timing Reference</h1>
-            <p class="mb-1">Computed from completed leg timestamps (gate arrival, pickup, dropoff)</p>
+            <p class="mb-1">Computed from in-house driver leg timestamps (gate arrival, pickup, dropoff)</p>
             {% if use_live %}<span class="live-badge"><i class="bi bi-lightning-fill me-1"></i>Live — computed from filtered legs</span>{% endif %}
         </div>
     </div>
@@ -237,18 +237,22 @@
                 </div>
             </div>
         </div>
-        {% if skipped_incomplete or fallback_total_only or skipped_excluded %}
+        {% if skipped_incomplete or fallback_total_only or skipped_excluded or excluded_driver_count %}
         <div class="mb-3" style="font-size: 0.8rem; color: #6c757d;">
             <i class="bi bi-funnel me-1"></i>
+            {% if excluded_driver_count %}
+                {{ excluded_driver_count }} driver{{ excluded_driver_count|pluralize }} excluded from timing
+            {% endif %}
             {% if skipped_excluded %}
-                {{ skipped_excluded }} excluded
+                {% if excluded_driver_count %}<span class="mx-1">|</span>{% endif %}
+                {{ skipped_excluded }} leg{{ skipped_excluded|pluralize }} excluded
             {% endif %}
             {% if skipped_incomplete %}
-                {% if skipped_excluded %}<span class="mx-1">|</span>{% endif %}
+                {% if skipped_excluded or excluded_driver_count %}<span class="mx-1">|</span>{% endif %}
                 {{ skipped_incomplete }} skipped — incomplete status chain
             {% endif %}
             {% if fallback_total_only %}
-                {% if skipped_incomplete or skipped_excluded %}<span class="mx-1">|</span>{% endif %}
+                {% if skipped_incomplete or skipped_excluded or excluded_driver_count %}<span class="mx-1">|</span>{% endif %}
                 {{ fallback_total_only }} arrival{{ fallback_total_only|pluralize }} — gate→completed total only
             {% endif %}
         </div>
@@ -367,15 +371,8 @@
                     <select name="driver" class="form-select form-select-sm">
                         <option value="">All Drivers</option>
                         {% for d in inhouse_drivers %}
-                        <option value="{{ d.id }}" {% if driver_filter == d.id|stringformat:"d" %}selected{% endif %}>{{ d }}</option>
+                        <option value="{{ d.id }}" {% if driver_filter == d.id|stringformat:"d" %}selected{% endif %}>{{ d }}{% if d.exclude_from_timing %} (excluded){% endif %}</option>
                         {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label>Team</label>
-                    <select name="team" class="form-select form-select-sm">
-                        <option value="">All</option>
-                        <option value="inhouse" {% if team_filter == 'inhouse' %}selected{% endif %}>In-House Only</option>
                     </select>
                 </div>
                 <div class="col-md-2 col-lg-1">

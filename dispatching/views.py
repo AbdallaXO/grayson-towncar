@@ -6237,22 +6237,30 @@ def route_timing_reference(request):
     date_to = request.GET.get('date_to', '')
 
     # Show "Live" badge when filtering beyond defaults
-    use_live = bool(driver_filter or team_filter or date_from or date_to or trip_type_filter or pickup_filter or dropoff_filter)
+    use_live = bool(driver_filter or date_from or date_to or trip_type_filter or pickup_filter or dropoff_filter)
 
     # Get all inhouse drivers for filter dropdown
-    inhouse_drivers = Driver.objects.filter(driver_type='inhouse').select_related('profile').order_by('profile__first_name')
+    inhouse_drivers = list(Driver.objects.filter(driver_type='inhouse').select_related('profile').order_by('profile__first_name'))
+    excluded_driver_count = sum(1 for d in inhouse_drivers if d.exclude_from_timing)
 
     # Always compute from raw completed legs (all-time by default)
     # NOTE: don't filter exclude_from_analytics here — we track excluded IDs
     # separately so the modal can show them with an "Include" button.
-    legs_qs = Leg.objects.filter(status='completed').select_related(
+    # Always restrict to inhouse drivers, matching analytics.py filters.
+    legs_qs = Leg.objects.filter(
+        status='completed',
+        driver__driver_type='inhouse',
+    ).select_related(
         'driver', 'flight_information', 'reservation',
     ).prefetch_related('status_history')
 
     if driver_filter:
+        # When viewing a specific driver, bypass exclude_from_timing so
+        # dispatchers can inspect any individual driver's timing data.
         legs_qs = legs_qs.filter(driver_id=int(driver_filter))
-    if team_filter == 'inhouse':
-        legs_qs = legs_qs.filter(driver__driver_type='inhouse')
+    else:
+        # Aggregate view: respect driver-level timing exclusions
+        legs_qs = legs_qs.filter(driver__exclude_from_timing=False)
     if date_from:
         try:
             legs_qs = legs_qs.filter(pickup_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
@@ -6464,10 +6472,10 @@ def route_timing_reference(request):
         'dropoff_filter': dropoff_filter,
         'min_samples': min_samples,
         'driver_filter': driver_filter,
-        'team_filter': team_filter,
         'date_from': date_from,
         'date_to': date_to,
         'inhouse_drivers': inhouse_drivers,
+        'excluded_driver_count': excluded_driver_count,
         'total_routes': total_routes,
         'total_samples': total_samples,
         'high_confidence': high_confidence,
