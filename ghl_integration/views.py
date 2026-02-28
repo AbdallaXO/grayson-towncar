@@ -33,16 +33,14 @@ def ghl_webhook(request):
         payload = json.loads(request.body)
         logger.info(f"GHL Webhook received: {payload}")
         
-        # Extract event type
-        event_type = payload.get('type') or payload.get('event') or payload.get('eventType', '').lower()
-        
-        # Handle different event type formats
+        # Extract event type and normalize to lowercase
+        event_type = (payload.get('type') or payload.get('event') or payload.get('eventType', '')).lower()
+
+        # Only handle inbound (reply) messages — do NOT match outbound events
         is_inbound_message = (
             event_type == 'inboundmessage' or
             event_type == 'message.received' or
-            event_type == 'sms' or
-            'inbound' in event_type.lower() or
-            'message' in event_type.lower()
+            'inbound' in event_type
         )
         
         if not is_inbound_message:

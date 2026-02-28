@@ -589,7 +589,7 @@ class GoHighLevelService:
         
         try:
             # First, get current contact to see existing tags
-            url = f"{self.BASE_URL}/contacts/{contact_id}"
+            url = f"{self.base_url}/contacts/{contact_id}"
             headers = self._get_headers()
             
             # Get current contact
