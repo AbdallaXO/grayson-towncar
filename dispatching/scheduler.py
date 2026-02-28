@@ -171,7 +171,21 @@ def compute_leg_scarcity(legs, all_driver_vtypes: Dict[int, str], exclude_driver
 # ROUTE TIMING CACHE — avoids N+1 queries during scheduling
 # ============================================================================
 
-_timing_cache = None  # dict keyed by (pickup_cat, dropoff_cat) -> metric dict
+_timing_cache = None       # (pickup, dropoff, time_cat, day_cat) -> metric dict
+_timing_cache_agg = None   # (pickup, dropoff) -> metric dict (best-sample fallback)
+
+
+def _metric_dict(m):
+    return {
+        'sample_count': m.sample_count,
+        'median_drive_time': m.median_drive_time,
+        'p75_drive_time': m.p75_drive_time,
+        'avg_drive_time': m.avg_drive_time,
+        'median_airport_dwell_time': m.median_airport_dwell_time,
+        'p75_airport_dwell_time': m.p75_airport_dwell_time,
+        'avg_airport_dwell_time': m.avg_airport_dwell_time,
+        'trip_type': m.trip_type,
+    }
 
 
 def preload_timing_cache():
@@ -179,39 +193,56 @@ def preload_timing_cache():
     Load all RouteTimingMetric records into memory.
     Call this once before running scheduling functions to avoid
     hundreds of individual DB queries.
+
+    Stores two caches:
+    - _timing_cache: keyed by (pickup, dropoff, time_of_day, day_type) for precise lookups
+    - _timing_cache_agg: keyed by (pickup, dropoff) with highest-sample record as fallback
     """
-    global _timing_cache
+    global _timing_cache, _timing_cache_agg
     from reservations.models import RouteTimingMetric
 
     _timing_cache = {}
+    _timing_cache_agg = {}
     for m in RouteTimingMetric.objects.filter(sample_count__gte=1):
-        key = (m.pickup_location_category, m.dropoff_location_category)
-        existing = _timing_cache.get(key)
-        # Keep the one with more samples
+        # Specific key (time-of-day + day-type aware)
+        specific_key = (
+            m.pickup_location_category, m.dropoff_location_category,
+            m.time_of_day_category, m.day_type,
+        )
+        existing = _timing_cache.get(specific_key)
         if existing is None or m.sample_count > existing['sample_count']:
-            _timing_cache[key] = {
-                'sample_count': m.sample_count,
-                'median_drive_time': m.median_drive_time,
-                'p75_drive_time': m.p75_drive_time,
-                'avg_drive_time': m.avg_drive_time,
-                'median_airport_dwell_time': m.median_airport_dwell_time,
-                'p75_airport_dwell_time': m.p75_airport_dwell_time,
-                'avg_airport_dwell_time': m.avg_airport_dwell_time,
-                'trip_type': m.trip_type,
-            }
+            _timing_cache[specific_key] = _metric_dict(m)
+
+        # Aggregate key (route-only fallback, keep highest sample count)
+        agg_key = (m.pickup_location_category, m.dropoff_location_category)
+        agg_existing = _timing_cache_agg.get(agg_key)
+        if agg_existing is None or m.sample_count > agg_existing['sample_count']:
+            _timing_cache_agg[agg_key] = _metric_dict(m)
 
 
 def clear_timing_cache():
     """Clear the cache (e.g., after metrics are updated)."""
-    global _timing_cache
+    global _timing_cache, _timing_cache_agg
     _timing_cache = None
+    _timing_cache_agg = None
 
 
-def _get_cached_metric(pickup_cat, dropoff_cat):
-    """Look up a metric from cache, or return None if not cached / insufficient samples."""
+def _get_cached_metric(pickup_cat, dropoff_cat, time_cat=None, day_cat=None):
+    """
+    Look up a metric from cache, or return None if not cached / insufficient samples.
+    Tries specific (time/day) key first, falls back to aggregate (route-only).
+    """
     if _timing_cache is None:
         return None
-    metric = _timing_cache.get((pickup_cat, dropoff_cat))
+
+    # Try specific lookup when time/day context is available
+    if time_cat and day_cat:
+        metric = _timing_cache.get((pickup_cat, dropoff_cat, time_cat, day_cat))
+        if metric and metric['sample_count'] >= 5:
+            return metric
+
+    # Fall back to aggregate (best-sample for this route)
+    metric = _timing_cache_agg.get((pickup_cat, dropoff_cat))
     if metric and metric['sample_count'] >= 5:
         return metric
     return None
@@ -294,14 +325,18 @@ class BatchingOpportunity:
 # CORE FUNCTIONS
 # ============================================================================
 
-def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
+def get_drive_time(pickup_category: str, dropoff_category: str,
+                   time_cat: str = None, day_cat: str = None) -> int:
     """
     Get estimated drive time between two location categories in minutes.
     Prefers P75 from RouteTimingMetric, falls back to median then avg then hardcoded.
     Uses in-memory cache when available to avoid repeated DB queries.
+
+    When time_cat/day_cat are provided, tries a time-of-day specific metric first,
+    then falls back to the best aggregate for the route.
     """
     # Try cache first
-    cached = _get_cached_metric(pickup_category, dropoff_category)
+    cached = _get_cached_metric(pickup_category, dropoff_category, time_cat, day_cat)
     if cached:
         if cached['p75_drive_time']:
             return cached['p75_drive_time']
@@ -312,11 +347,22 @@ def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
     elif _timing_cache is None:
         # Cache not loaded — fall back to DB query (single-use calls)
         from reservations.models import RouteTimingMetric
-        metric = RouteTimingMetric.objects.filter(
-            pickup_location_category=pickup_category,
-            dropoff_location_category=dropoff_category,
-            sample_count__gte=5,
-        ).order_by('-sample_count').first()
+        filters = {
+            'pickup_location_category': pickup_category,
+            'dropoff_location_category': dropoff_category,
+            'sample_count__gte': 5,
+        }
+        if time_cat and day_cat:
+            filters['time_of_day_category'] = time_cat
+            filters['day_type'] = day_cat
+        metric = RouteTimingMetric.objects.filter(**filters).order_by('-sample_count').first()
+        # If specific time/day query returned nothing, try without
+        if metric is None and time_cat and day_cat:
+            metric = RouteTimingMetric.objects.filter(
+                pickup_location_category=pickup_category,
+                dropoff_location_category=dropoff_category,
+                sample_count__gte=5,
+            ).order_by('-sample_count').first()
         if metric:
             if metric.p75_drive_time:
                 return metric.p75_drive_time
@@ -331,14 +377,18 @@ def get_drive_time(pickup_category: str, dropoff_category: str) -> int:
     )
 
 
-def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
+def get_airport_dwell_time(pickup_category: str, dropoff_category: str,
+                           time_cat: str = None, day_cat: str = None) -> int:
     """
     Get estimated airport dwell time (gate arrival → pickup) in minutes.
     Only meaningful for arrival trips. Falls back to 45 min.
     Uses in-memory cache when available.
+
+    When time_cat/day_cat are provided, tries a time-of-day specific metric first,
+    then falls back to the best aggregate for the route.
     """
     # Try cache first
-    cached = _get_cached_metric(pickup_category, dropoff_category)
+    cached = _get_cached_metric(pickup_category, dropoff_category, time_cat, day_cat)
     if cached:
         if cached['p75_airport_dwell_time']:
             return cached['p75_airport_dwell_time']
@@ -349,8 +399,24 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str) -> int:
     elif _timing_cache is None:
         # Cache not loaded — fall back to DB query
         from reservations.models import RouteTimingMetric
-        metric = RouteTimingMetric.objects.filter(
-            pickup_location_category=pickup_category,
+        filters = {
+            'pickup_location_category': pickup_category,
+            'dropoff_location_category': dropoff_category,
+            'trip_type': 'arrival',
+            'sample_count__gte': 5,
+        }
+        if time_cat and day_cat:
+            filters['time_of_day_category'] = time_cat
+            filters['day_type'] = day_cat
+        metric = RouteTimingMetric.objects.filter(**filters).order_by('-sample_count').first()
+        if metric is None and time_cat and day_cat:
+            metric = RouteTimingMetric.objects.filter(
+                pickup_location_category=pickup_category,
+                dropoff_location_category=dropoff_category,
+                trip_type='arrival',
+                sample_count__gte=5,
+            ).order_by('-sample_count').first()
+        if metric:
             dropoff_location_category=dropoff_category,
             trip_type='arrival',
             sample_count__gte=5,
@@ -398,12 +464,16 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
     Estimate when a driver finishes this leg.
     For arrivals: flight_arrival (or pickup_time) + dwell + drive (+ Publix stop if applicable).
     For non-arrivals: pickup_time + drive.
+
+    Uses time-of-day and day-type aware metrics for more accurate estimates.
     """
-    from dispatching.analytics import categorize_location
+    from dispatching.analytics import categorize_location, categorize_time_of_day, categorize_day_type
 
     pickup_cat = categorize_location(leg.pickup_location)
     dropoff_cat = categorize_location(leg.dropoff_location)
-    drive_minutes = get_drive_time(pickup_cat, dropoff_cat)
+    time_cat = categorize_time_of_day(leg.pickup_time)
+    day_cat = categorize_day_type(target_date)
+    drive_minutes = get_drive_time(pickup_cat, dropoff_cat, time_cat, day_cat)
 
     pickup_dt = datetime.combine(target_date, leg.pickup_time)
 
@@ -414,7 +484,7 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
         # Normalize flight datetime to target_date to avoid date mismatches
         # in duration calculations (flight data may carry a different date)
         start_dt = datetime.combine(target_date, flight_dt.time()) if flight_dt else pickup_dt
-        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
+        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
         store_stop_minutes = 0
         if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
             store_stop_minutes = PUBLIX_STOP_MINUTES
@@ -422,7 +492,7 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
 
     # Cruise legs picking up from airport (MCO → Cruise Port) need dwell time too
     if trip_type == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
-        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat)
+        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
         return pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes)
 
     return pickup_dt + timedelta(minutes=drive_minutes)
