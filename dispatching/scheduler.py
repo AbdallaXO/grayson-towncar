@@ -417,11 +417,6 @@ def get_airport_dwell_time(pickup_category: str, dropoff_category: str,
                 sample_count__gte=5,
             ).order_by('-sample_count').first()
         if metric:
-            dropoff_location_category=dropoff_category,
-            trip_type='arrival',
-            sample_count__gte=5,
-        ).order_by('-sample_count').first()
-        if metric:
             if metric.p75_airport_dwell_time:
                 return metric.p75_airport_dwell_time
             if metric.median_airport_dwell_time:
