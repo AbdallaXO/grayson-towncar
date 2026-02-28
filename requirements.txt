@@ -35,7 +35,7 @@ django-storages
 dj-database-url
 django-ckeditor
 django-scheduler
-django-jazzmin
+django-jazzmin==3.0.2
 django-unfold
 simplejson
 delorean
