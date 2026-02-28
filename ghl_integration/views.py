@@ -33,8 +33,14 @@ def ghl_webhook(request):
         payload = json.loads(request.body)
         logger.info(f"GHL Webhook received: {payload}")
         
-        # Extract event type and normalize to lowercase
-        event_type = (payload.get('type') or payload.get('event') or payload.get('eventType', '')).lower()
+        # GHL workflow custom data is nested under 'customData' key
+        custom_data = payload.get('customData', {})
+
+        # Extract event type — check top-level then customData, normalize to lowercase
+        event_type = (
+            payload.get('type') or payload.get('event') or payload.get('eventType') or
+            custom_data.get('type') or custom_data.get('event') or custom_data.get('eventType') or ''
+        ).lower()
 
         # Only handle inbound (reply) messages — do NOT match outbound events
         is_inbound_message = (
@@ -42,36 +48,31 @@ def ghl_webhook(request):
             event_type == 'message.received' or
             'inbound' in event_type
         )
-        
+
         if not is_inbound_message:
             logger.info(f"Webhook event type '{event_type}' not handled, skipping")
             return JsonResponse({"status": "ignored", "reason": "event_type_not_handled"})
-        
-        # Extract contact ID and message body
-        # GHL webhook structure can vary, try multiple possible locations
+
+        # Extract contact ID — check top-level then customData
         contact_id = (
-            payload.get('contactId') or
+            payload.get('contactId') or payload.get('contact_id') or
             payload.get('contact', {}).get('id') or
-            payload.get('data', {}).get('contactId') or
-            payload.get('message', {}).get('contactId')
+            custom_data.get('contactId') or custom_data.get('contact_id')
         )
-        
+
+        # Extract message body — check top-level then customData
         message_body = (
-            payload.get('body') or
-            payload.get('message', {}).get('body') or
-            payload.get('text') or
-            payload.get('message', {}).get('text') or
-            payload.get('content') or
-            payload.get('message', {}).get('content')
+            payload.get('body') or payload.get('text') or payload.get('content') or
+            custom_data.get('body') or custom_data.get('text') or custom_data.get('content') or
+            payload.get('message', {}).get('body')
         )
         
         if not contact_id:
             logger.warning(f"No contactId found in webhook payload: {payload}")
             return JsonResponse({"status": "error", "reason": "missing_contact_id"}, status=400)
-        
+
         if not message_body:
-            logger.warning(f"No message body found in webhook payload: {payload}")
-            return JsonResponse({"status": "error", "reason": "missing_message_body"}, status=400)
+            logger.info("No message body in webhook payload — proceeding anyway")
         
         # Find Lead by GHL contact ID
         try:
@@ -124,7 +125,7 @@ Lead replied via SMS!
 
 Lead: {lead_name}
 Phone: {lead.phone or 'N/A'}
-Message: {message_body}
+Message: {message_body or '(not captured)'}
 
 Lead ID: #{lead.id}
 Priority: {lead.priority.title()}
