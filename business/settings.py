@@ -332,6 +332,7 @@ CKEDITOR_CONFIGS = {
 }
 
 JAZZMIN_SETTINGS = {
+    "default_theme_mode": "light",
     "changeform_format": "single",
     "show_ui_builder": True,
     "custom_css": "admin/admin_overrides.css",
@@ -367,7 +368,6 @@ JAZZMIN_UI_TWEAKS = {
     "sidebar_nav_legacy_style": False,
     "sidebar_nav_flat_style": False,
     "theme": "simplex",
-    "default_theme_mode": "light",
     "button_classes": {
         "primary": "btn-outline-primary",
         "secondary": "btn-outline-secondary",
