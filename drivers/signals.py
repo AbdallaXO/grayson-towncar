@@ -12,15 +12,21 @@ logger = logging.getLogger(__name__)
 @receiver(pre_save, sender=Leg)
 def leg_pre_save(sender, instance, **kwargs):
     """
-    Store the old status before saving to detect changes
+    Store the old status before saving to detect changes.
+    Skips the DB fetch when update_fields is specified and does not include 'status',
+    avoiding one extra SELECT per save on non-status field updates (e.g. confirmation_sms_sent_at).
     """
-    if instance.pk:
-        try:
-            old_instance = Leg.objects.get(pk=instance.pk)
-            instance._old_status = old_instance.status
-        except Leg.DoesNotExist:
-            instance._old_status = None
-    else:
+    if not instance.pk:
+        instance._old_status = None
+        return
+    update_fields = kwargs.get('update_fields')
+    if update_fields is not None and 'status' not in update_fields:
+        instance._old_status = None
+        return
+    try:
+        old_instance = Leg.objects.get(pk=instance.pk)
+        instance._old_status = old_instance.status
+    except Leg.DoesNotExist:
         instance._old_status = None
 
 

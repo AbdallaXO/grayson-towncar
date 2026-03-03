@@ -7,6 +7,7 @@ import logging
 import time
 import threading
 from reservations.models import Reservation, Customer
+from reservations.utils import _run_in_background
 from .models import Payment
 from users.emails import send_reservation_confirmation  # Added import
 from decimal import Decimal  # Added import
@@ -218,13 +219,9 @@ def handle_checkout_session(session):
                     payment.save()
                     reservation.save()
 
-                # Send confirmation email after successful payment (for both customer and dispatcher payments)
-                try:
-                    send_reservation_confirmation(reservation)
-                    logger.info(f"Confirmation email sent for reservation {reservation_id} (initiated by: {initiated_by})")
-                except Exception as e:
-                    logger.error(f"Error sending confirmation email for reservation {reservation_id}: {e}")
-                    # Don't fail payment processing if email fails
+                # Send confirmation email in background — must not block the 200 response to Stripe
+                _run_in_background(send_reservation_confirmation, reservation)
+                logger.info(f"Confirmation email queued for reservation {reservation_id} (initiated by: {initiated_by})")
                 
                 # Send purchase event to Meta in background thread to avoid blocking webhook response
                 event_id = f"{payment_intent}_{int(time.time())}" if payment_intent else None

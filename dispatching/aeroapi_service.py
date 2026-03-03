@@ -29,6 +29,9 @@ class AeroAPIService:
     def __init__(self):
         self.api_key = getattr(settings, 'AEROAPI_KEY', None)
         self.base_url = getattr(settings, 'AEROAPI_BASE_URL', 'https://aeroapi.flightaware.com/aeroapi')
+        self.session = requests.Session()
+        if self.api_key:
+            self.session.headers.update({'x-apikey': self.api_key})
 
     @staticmethod
     def _split_flight_ident(flight_ident: str) -> Tuple[Optional[str], Optional[int]]:
@@ -106,10 +109,9 @@ class AeroAPIService:
 
         try:
             url = f"{self.base_url}/schedules/{date_start}/{date_end}"
-            headers = {'x-apikey': self.api_key}
 
             logger.info(f"Fetching scheduled flight {airline}{flight_number} for {flight_date} from /schedules/")
-            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=10)
 
             if response.status_code == 429:
                 retry_after = int(response.headers.get('Retry-After', '60'))
@@ -284,18 +286,15 @@ class AeroAPIService:
         
         try:
             url = f"{self.base_url}/flights/{flight_ident}"
-            headers = {
-                'x-apikey': self.api_key
-            }
-            
+
             # Note: /flights/{ident} endpoint doesn't accept date parameter
             # It returns a list of flights, we'll filter by date in the response
             if flight_date:
                 logger.info(f"Fetching flight info for {flight_ident} (will filter for date {flight_date}) from AeroAPI")
             else:
                 logger.info(f"Fetching flight info for {flight_ident} from AeroAPI")
-            
-            response = requests.get(url, headers=headers, timeout=10)
+
+            response = self.session.get(url, timeout=10)
             
             logger.info(f"AeroAPI Response Status: {response.status_code}")
             

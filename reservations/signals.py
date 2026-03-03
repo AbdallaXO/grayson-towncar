@@ -577,16 +577,23 @@ def log_reservation_changes(sender, instance, created, **kwargs):
 
 @receiver(pre_save, sender=Leg)
 def store_leg_old_values(sender, instance, **kwargs):
-    """Store old values before save to compare in post_save"""
-    if instance.pk:
-        try:
-            old_instance = Leg.objects.get(pk=instance.pk)
-            _leg_old_values[instance.pk] = {
-                'driver_id': old_instance.driver_id if old_instance.driver else None,
-                'status': old_instance.status,
-            }
-        except:
-            pass
+    """Store old values before save to compare in post_save.
+    Skips the DB fetch when update_fields is specified and neither 'status' nor 'driver'
+    are being updated, avoiding one extra SELECT per save (e.g. confirmation_sms_sent_at saves).
+    """
+    if not instance.pk:
+        return
+    update_fields = kwargs.get('update_fields')
+    if update_fields is not None and 'status' not in update_fields and 'driver' not in update_fields:
+        return
+    try:
+        old_instance = Leg.objects.get(pk=instance.pk)
+        _leg_old_values[instance.pk] = {
+            'driver_id': old_instance.driver_id if old_instance.driver else None,
+            'status': old_instance.status,
+        }
+    except Exception:
+        pass
 
 
 @receiver(post_save, sender=Leg)
