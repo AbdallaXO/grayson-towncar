@@ -3,6 +3,10 @@ Middleware to store request in thread-local storage for audit logging.
 This allows signals to access the current request and user.
 """
 from threading import local
+import time
+import logging
+
+_perf_logger = logging.getLogger('perf')
 
 _thread_locals = local()
 
@@ -18,6 +22,28 @@ def get_current_user():
     if request and hasattr(request, 'user'):
         return request.user
     return None
+
+
+class SlowRequestMiddleware:
+    """Logs any request that takes longer than 500ms."""
+
+    THRESHOLD_MS = 500
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        t0 = time.perf_counter()
+        response = self.get_response(request)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        if elapsed_ms > self.THRESHOLD_MS:
+            _perf_logger.warning(
+                "SLOW %s %s — %.0fms",
+                request.method,
+                request.get_full_path(),
+                elapsed_ms,
+            )
+        return response
 
 
 class ThreadLocalMiddleware:

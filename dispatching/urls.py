@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from users.emails import send_reservation_confirmation_ajax
+from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
 
 urlpatterns = [
     path("", views.index, name="dashboard"),
@@ -68,6 +68,11 @@ urlpatterns = [
         "send_confirmation_email/",
         send_reservation_confirmation_ajax,
         name="send_confirmation_email",
+    ),
+    path(
+        "send_payment_reminder/",
+        send_payment_reminder_ajax,
+        name="send_payment_reminder",
     ),
     path(
         "update_private_notes/", views.update_private_notes, name="update_private_notes"

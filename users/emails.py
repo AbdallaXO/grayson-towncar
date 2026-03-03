@@ -164,6 +164,77 @@ def send_reservation_confirmation_custom_recipient(reservation, recipient_email,
         return False
 
 
+@login_required
+@require_POST
+def send_payment_reminder_ajax(request):
+    """
+    AJAX endpoint to send a payment reminder email with a checkout link.
+    Sends synchronously so failures are reported back to the caller.
+    """
+    try:
+        data = json.loads(request.body)
+        reservation_id = data.get("reservation_id")
+        reservation = get_object_or_404(Reservation, uuid=reservation_id)
+
+        if not request.user.is_staff:
+            return JsonResponse({"success": False, "error": "Permission denied"})
+
+        from django.urls import reverse
+        checkout_url = request.build_absolute_uri(
+            reverse("create_checkout_session", args=[str(reservation.uuid)])
+        )
+
+        context = {
+            "reservation": reservation,
+            "checkout_url": checkout_url,
+        }
+        subject = f"Action Required: Finalize Your Grayson Towncar Reservation #{reservation.id}"
+        from_email = "reservations@graysontowncar.com"
+        to = [reservation.customer.email]
+        html_content = render_to_string("users/payment_reminder_email.html", context)
+        msg = EmailMultiAlternatives(subject, "", from_email, to)
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
+
+        logger.info(f"Payment reminder sent for reservation {reservation.uuid} to {reservation.customer.email} by {request.user}")
+        return JsonResponse({"success": True, "email": reservation.customer.email})
+
+    except Exception as e:
+        logger.exception(f"Error sending payment reminder: {e}")
+        return JsonResponse({"success": False, "error": str(e)})
+
+
+def send_payment_reminder(reservation, checkout_url):
+    """
+    Send a payment reminder email to the customer with a checkout link.
+    """
+    logger.info(f"Preparing to send payment reminder for reservation {reservation.uuid}")
+
+    def _send_email():
+        try:
+            context = {
+                "reservation": reservation,
+                "checkout_url": checkout_url,
+            }
+
+            subject = f"Action Required: Finalize Your Grayson Towncar Reservation #{reservation.id}"
+            from_email = "reservations@graysontowncar.com"
+            to = [reservation.customer.email]
+            html_content = render_to_string("users/payment_reminder_email.html", context)
+
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+
+            logger.info(f"Payment reminder sent for reservation {reservation.uuid} to {reservation.customer.email}")
+
+        except Exception as e:
+            logger.exception(f"Error sending payment reminder for reservation {reservation.uuid}: {e}")
+            raise
+
+    _send_email_with_retry(_send_email, max_retries=3)
+
+
 def send_refund_request_notification(reservation):
     """
     Send email notification to admin when a refund is requested.

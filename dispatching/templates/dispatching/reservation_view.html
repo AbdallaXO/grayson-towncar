@@ -892,6 +892,13 @@
           <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
             <span class="fw-normal h6 mb-0">Payment Information</span>
             <div class="btn-group btn-group-sm" role="group">
+              {% if reservation.amount_owed > 0 %}
+                <button type="button" id="sendPaymentReminder"
+                        class="btn btn-outline-warning"
+                        title="Email customer a payment reminder with checkout link">
+                  <i class="bi bi-envelope-exclamation"></i> Send Payment Reminder
+                </button>
+              {% endif %}
               <a href="{% url 'dispatcher_payment_portal' reservation.uuid %}"
                  class="btn btn-outline-light">
                 <i class="bi bi-credit-card"></i> Process Payment
@@ -1149,6 +1156,48 @@
                       });
               }
           });
+
+          // Payment reminder button handler
+          const paymentReminderBtn = document.getElementById('sendPaymentReminder');
+          if (paymentReminderBtn) {
+              paymentReminderBtn.addEventListener('click', function() {
+                  if (confirm('Send a payment reminder email to {{ reservation.customer.email }}?\n\nThis will include a checkout link and ask them to finalize payment or the reservation may be cancelled.')) {
+                      paymentReminderBtn.disabled = true;
+                      paymentReminderBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Sending...';
+
+                      fetch('/dispatching/send_payment_reminder/', {
+                              method: 'POST',
+                              headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                              },
+                              body: JSON.stringify({ reservation_id: '{{ reservation.uuid }}' })
+                          })
+                          .then(response => response.json())
+                          .then(data => {
+                              paymentReminderBtn.disabled = false;
+                              paymentReminderBtn.innerHTML = '<i class="bi bi-envelope-exclamation"></i> Send Payment Reminder';
+                              if (data.success) {
+                                  paymentReminderBtn.innerHTML = '<i class="bi bi-check-lg"></i> Sent to ' + (data.email || '{{ reservation.customer.email }}');
+                                  paymentReminderBtn.classList.remove('btn-outline-warning');
+                                  paymentReminderBtn.classList.add('btn-outline-success');
+                                  setTimeout(() => {
+                                      paymentReminderBtn.innerHTML = '<i class="bi bi-envelope-exclamation"></i> Send Payment Reminder';
+                                      paymentReminderBtn.classList.remove('btn-outline-success');
+                                      paymentReminderBtn.classList.add('btn-outline-warning');
+                                  }, 5000);
+                              } else {
+                                  alert('Failed to send reminder: ' + (data.error || 'Unknown error'));
+                              }
+                          })
+                          .catch(error => {
+                              paymentReminderBtn.disabled = false;
+                              paymentReminderBtn.innerHTML = '<i class="bi bi-envelope-exclamation"></i> Send Payment Reminder';
+                              alert('Error: ' + error.message);
+                          });
+                  }
+              });
+          }
 
           // Private notes editing functionality
           const editPrivateNotesBtn = document.getElementById('editPrivateNotesBtn');
