@@ -133,23 +133,40 @@
                   <!-- Reservation Summary Box -->
                   <tr>
                     <td style="background-color:#f0f0f0; border-left:4px solid #C89B3C; padding:18px 20px; border-radius:4px;">
-                      <p style="margin:0 0 8px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:15px; font-weight:700; color:#333333; text-transform:uppercase; letter-spacing:0.5px;">Reservation Summary</p>
+                      <p style="margin:0 0 10px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:15px; font-weight:700; color:#333333; text-transform:uppercase; letter-spacing:0.5px;">Reservation Summary</p>
                       <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
                         <strong>Confirmation #:</strong> 50{{ reservation.id }}
                       </p>
-                      {% for leg in reservation.legs.all %}
+                      <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <strong>Vehicle:</strong> {{ reservation.vehicle.get_vehicle_type_display }}
+                      </p>
+                      <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <strong>Passengers:</strong> {{ reservation.passenger_count }}
+                      </p>
+                      {% if reservation.luggage_count %}
                         <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                          <strong>Suitcases:</strong> {{ reservation.luggage_count }}
+                        </p>
+                      {% endif %}
+                      {% if reservation.need_carseats %}
+                        <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                          <strong>Child Seats:</strong> {{ reservation.display_carseats }}
+                        </p>
+                      {% endif %}
+                      <p style="margin:10px 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:15px; font-weight:700; color:#333333; border-top:1px solid #dddddd; padding-top:10px;"></p>
+                      {% for leg in reservation.legs.all %}
+                        <p style="margin:0 0 4px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
                           <strong>{% if reservation.legs.count > 1 %}Leg {{ forloop.counter }} — {% endif %}Pickup:</strong>
                           {{ leg.pickup_date|date:"l, F j, Y" }} at {{ leg.pickup_time|time:"g:i A" }}
                         </p>
-                        <p style="margin:0 0 5px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <p style="margin:0 0 4px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
                           <strong>From:</strong> {{ leg.pickup_location }}
                         </p>
-                        <p style="margin:0 0 {% if not forloop.last %}14px{% else %}5px{% endif %} 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                        <p style="margin:0 0 {% if not forloop.last %}12px{% else %}4px{% endif %} 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
                           <strong>To:</strong> {{ leg.dropoff_location }}
                         </p>
                       {% endfor %}
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555;">
+                      <p style="margin:10px 0 0 0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; border-top:1px solid #dddddd; padding-top:10px;">
                         <strong>Balance Due:</strong>
                         <span style="color:#C0392B; font-weight:700;">${{ reservation.amount_owed }}</span>
                       </p>
@@ -176,11 +193,19 @@
                     <td height="36"></td>
                   </tr>
 
-                  <!-- Cancellation note -->
+                  <!-- Cancel action -->
                   <tr>
-                    <td style="border-top:1px solid #dddddd; padding-top:20px;">
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:14px; line-height:20px; color:#888888;">
-                        If you no longer need this reservation, no action is required — your booking will automatically be reviewed for cancellation prior to the trip. For refund eligibility, cancellations must be made at least <strong>48 hours</strong> before pickup.
+                    <td style="border-top:1px solid #dddddd; padding-top:24px;">
+                      <p style="margin:0 0 14px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:25px; color:#444444;">
+                        <strong>No longer need this trip?</strong> Just click below and we'll take care of the cancellation for you — no phone call needed.
+                      </p>
+                      <a href="mailto:reservations@graysontowncar.com?subject=Please%20Cancel%20My%20Reservation%20%2350{{ reservation.id }}&body=Hi%20Grayson%20Towncar%2C%0A%0APlease%20cancel%20my%20reservation%20%2350{{ reservation.id }}.%0A%0AThank%20you%2C%0A{{ reservation.customer.first_name }}"
+                         target="_blank"
+                         style="background-color:#ffffff; border:2px solid #cccccc; border-radius:6px; color:#666666; display:inline-block; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; font-weight:600; line-height:46px; text-align:center; text-decoration:none; padding:0 24px; -webkit-text-size-adjust:none;">
+                        Cancel My Reservation
+                      </a>
+                      <p style="margin:14px 0 0 0; font-family:'Fira Sans', Arial, sans-serif; font-size:13px; line-height:19px; color:#999999;">
+                        For a full refund, cancellations must be made at least <strong>48 hours</strong> before your pickup time.
                       </p>
                     </td>
                   </tr>
