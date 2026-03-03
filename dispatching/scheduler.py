@@ -269,6 +269,7 @@ class ScheduleSlot:
     has_flight: bool
     flight_info: Optional[str] = None
     revenue: Optional[Decimal] = None
+    vehicle_type: Optional[str] = None
     # Set by view for template positioning
     position_pct: float = 0
     width_pct: float = 0
@@ -621,6 +622,7 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
         except Exception:
             pass
 
+        leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
         slot = ScheduleSlot(
             leg_id=leg.id,
             pickup_time=leg.pickup_time,
@@ -636,6 +638,7 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             has_flight=has_flight,
             flight_info=flight_info,
             revenue=leg.revenue_share,
+            vehicle_type=str(leg_vtype) if leg_vtype else None,
         )
         schedules[leg.driver.id].slots.append(slot)
 
@@ -1584,6 +1587,7 @@ def _add_leg_to_schedule(schedule: DriverDaySchedule, leg, target_date: date):
     if leg.reservation and leg.reservation.customer:
         customer_name = leg.reservation.customer.get_full_name()
 
+    leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
     slot = ScheduleSlot(
         leg_id=leg.id,
         pickup_time=leg.pickup_time,
@@ -1598,6 +1602,7 @@ def _add_leg_to_schedule(schedule: DriverDaySchedule, leg, target_date: date):
         status=leg.status or 'in-progress',
         has_flight=False,
         revenue=leg.revenue_share,
+        vehicle_type=str(leg_vtype) if leg_vtype else None,
     )
     schedule.slots.append(slot)
     schedule.slots.sort(key=lambda s: s.pickup_time)

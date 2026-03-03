@@ -626,6 +626,7 @@
                              data-status="{{ slot.status }}"
                              data-flight="{{ slot.flight_info|default:'' }}"
                              data-revenue="{{ slot.revenue|default:'0' }}"
+                             data-vehicle="{{ slot.vehicle_type|default:'' }}"
                              data-res-id="{{ slot.reservation_id }}">
                             {{ slot.pickup_time|time:"g:i" }}
                         </div>
@@ -3118,6 +3119,11 @@
             html += '<div class="tl-popup-body">';
             html += '<div class="tl-popup-row"><span class="tl-label">Pickup</span><span class="tl-value">' + (el.dataset.pickup || '') + '</span></div>';
             html += '<div class="tl-popup-row"><span class="tl-label">Dropoff</span><span class="tl-value">' + (el.dataset.dropoff || '') + '</span></div>';
+            if (el.dataset.vehicle) {
+                const vtypeLabels = {towncar: 'Town Car', mini_van: 'Mini Van', suv: 'SUV', van: 'Van', 'Van(14 Pax)': 'Van (14 Pax)'};
+                const vtypeLabel = vtypeLabels[el.dataset.vehicle] || el.dataset.vehicle;
+                html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + vtypeLabel + '</span></div>';
+            }
             if (el.dataset.customer) {
                 html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">' + el.dataset.customer + '</span></div>';
             }
@@ -3125,9 +3131,6 @@
                 html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
             }
             html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
-            if (el.dataset.revenue && el.dataset.revenue !== '0') {
-                html += '<div class="tl-popup-row"><span class="tl-label">Revenue</span><span class="tl-value">$' + Math.round(parseFloat(el.dataset.revenue)) + '</span></div>';
-            }
             if (el.dataset.status) {
                 html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="text-transform:capitalize;">' + el.dataset.status + '</span></div>';
             }

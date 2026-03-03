@@ -25,6 +25,7 @@ class DriverPayRateInline(admin.TabularInline):
 
 @admin.register(Driver)
 class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
+    show_full_result_count = False  # Prevents Jazzmin from running a second COUNT(*) over the full annotated queryset
     list_display = [
         "driver_name",
         "email",
@@ -102,33 +103,10 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     ]
 
     def get_queryset(self, request):
-        from reservations.models import Leg as LegModel
-
         qs = super().get_queryset(request)
 
-        # Subquery: total unpaid amount for unpaid legs
-        unpaid_amount_subq = (
-            LegModel.objects.filter(driver=OuterRef('pk'), payment_status='unpaid')
-            .annotate(
-                pay=Case(
-                    When(
-                        driver_base_pay__isnull=False,
-                        then=(
-                            Coalesce(F('driver_base_pay'), Value(Decimal('0.00')))
-                            + Coalesce(F('driver_gratuity'), Value(Decimal('0.00')))
-                            + Coalesce(F('driver_additional'), Value(Decimal('0.00')))
-                        ),
-                    ),
-                    default=Coalesce(F('driver_pay_amount'), Value(Decimal('0.00'))),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
-            )
-            .values('driver')
-            .annotate(total=Sum('pay'))
-            .values('total')
-        )
-
-        # Subquery: total paid (sum of DriverPayment amounts)
+        # _total_paid joins on DriverPayment (different table from legs).
+        # Keeping it as a Subquery avoids a cartesian-product fan-out when legs is also JOINed below.
         total_paid_subq = (
             DriverPayment.objects.filter(driver=OuterRef('pk'))
             .values('driver')
@@ -136,27 +114,50 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             .values('total')
         )
 
-        # Subquery: total profit (sum of profit_estimate across all legs)
-        total_profit_subq = (
-            LegModel.objects.filter(driver=OuterRef('pk'), profit_estimate__isnull=False)
-            .values('driver')
-            .annotate(total=Sum('profit_estimate'))
-            .values('total')
-        )
-
+        # All leg-based metrics share a single LEFT JOIN on legs — no fan-out between them.
         return qs.select_related('profile').annotate(
             _unpaid_legs_count=Count('legs', filter=Q(legs__payment_status='unpaid'), distinct=True),
             _total_legs_count=Count('legs', distinct=True),
+            # Conditional SUM replaces the correlated unpaid_amount_subq (per-row subquery → GROUP BY)
             _unpaid_amount=Coalesce(
-                Subquery(unpaid_amount_subq, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                Sum(
+                    Case(
+                        When(
+                            legs__payment_status='unpaid',
+                            legs__driver_base_pay__isnull=False,
+                            then=(
+                                Coalesce(F('legs__driver_base_pay'), Value(Decimal('0.00')))
+                                + Coalesce(F('legs__driver_gratuity'), Value(Decimal('0.00')))
+                                + Coalesce(F('legs__driver_additional'), Value(Decimal('0.00')))
+                            ),
+                        ),
+                        When(
+                            legs__payment_status='unpaid',
+                            then=Coalesce(F('legs__driver_pay_amount'), Value(Decimal('0.00'))),
+                        ),
+                        default=Value(Decimal('0.00')),
+                        output_field=DecimalField(max_digits=10, decimal_places=2),
+                    ),
+                    filter=Q(legs__payment_status='unpaid'),
+                ),
                 Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
             ),
+            # SUM replaces the correlated total_profit_subq
+            _total_profit=Coalesce(
+                Sum('legs__profit_estimate', filter=Q(legs__profit_estimate__isnull=False)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            ),
+            _total_revenue=Coalesce(
+                Sum('legs__revenue_share', filter=Q(legs__revenue_share__isnull=False)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            ),
+            # DriverPayment kept as Subquery — joining both legs and driverpayment in one query
+            # would create a cartesian product that inflates all sums.
             _total_paid=Coalesce(
                 Subquery(total_paid_subq, output_field=DecimalField(max_digits=10, decimal_places=2)),
-                Value(Decimal('0.00')),
-            ),
-            _total_profit=Coalesce(
-                Subquery(total_profit_subq, output_field=DecimalField(max_digits=10, decimal_places=2)),
                 Value(Decimal('0.00')),
             ),
         )
@@ -283,17 +284,23 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     def profit_performance(self, obj):
         """Display driver's profit performance based on their assigned legs"""
         total_profit = obj._total_profit or Decimal('0.00')
+        total_revenue = obj._total_revenue or Decimal('0.00')
         if obj._total_legs_count == 0:
             return "N/A"
 
+        margin_str = ""
+        if total_revenue > 0:
+            margin = (total_profit / total_revenue) * 100
+            margin_str = f" ({margin:.1f}%)"
+
         if total_profit >= 0:
-            return format_html('<span style="color: green;">${0}</span>', total_profit)
+            return format_html('<span style="color: green;">${0}{1}</span>', total_profit, margin_str)
         else:
             return format_html(
-                '<span style="color: red;">${0}</span>', abs(total_profit)
+                '<span style="color: red;">-${0}{1}</span>', abs(total_profit), margin_str
             )
 
-    profit_performance.short_description = "Profit"
+    profit_performance.short_description = "Profit (Margin)"
 
     def profit_summary(self, obj):
         """Detailed profit information for this driver"""

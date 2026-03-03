@@ -32,6 +32,7 @@ from django.db.models import OuterRef, Subquery
 # App imports
 
 from reservations.models import Reservation, Leg, Customer, Flight, LegStatus
+from reservations.utils import _run_in_background
 from payment.models import Payment
 from reservations.forms import ReservationAdminForm, CustomerForm, LegForm
 from .confirmation_sms import leg_to_row
@@ -1871,22 +1872,14 @@ def dispatcher_payment_portal(request, reservation_id):
                                 reservation.save(update_fields=["status"])
                             payment.save()
 
-                        # Send confirmation email after successful payment
-                        try:
-                            send_reservation_confirmation(reservation)
-                            logger.info(f"Confirmation email sent for dispatcher payment on reservation {reservation.uuid}")
-                        except Exception as e:
-                            logger.error(f"Error sending confirmation email for dispatcher payment on reservation {reservation.uuid}: {e}")
-                            # Don't fail payment processing if email fails
+                        # Send confirmation email after successful payment (non-blocking)
+                        _run_in_background(send_reservation_confirmation, reservation)
+                        logger.info(f"Confirmation email queued for dispatcher payment on reservation {reservation.uuid}")
 
-                        # Send purchase event to Meta - use None to default to reservation.total_price (matches Google Analytics)
-                        # Generate event_id from payment intent for deduplication
-                        try:
-                            import time
-                            event_id = f"{payment_intent_id}_{int(time.time())}" if payment_intent_id else None
-                            send_purchase_event(reservation, value=None, event_id=event_id)
-                        except Exception as e:
-                            logger.warning(f"Error sending purchase event: {e}")
+                        # Send purchase event to Meta in background (matches webhook.py pattern)
+                        import time as _time
+                        event_id = f"{payment_intent_id}_{int(_time.time())}" if payment_intent_id else None
+                        _run_in_background(send_purchase_event, reservation, value=None, event_id=event_id)
 
                         messages.success(
                             request,
@@ -2658,21 +2651,13 @@ def confirmations_view(request):
                     x = x.strip()
                     if x.isdigit():
                         excluded_ids.add(int(x))
-            result = send_confirmations_for_date(target, skip_already_sent=True, excluded_leg_ids=excluded_ids)
-            sent, failed, skipped = result["sent"], result["failed"], result["skipped"]
-            if result["errors"]:
-                for leg_id, err in result["errors"][:5]:
-                    messages.warning(request, f"Leg {leg_id}: {err}")
-                if len(result["errors"]) > 5:
-                    messages.warning(request, f"... and {len(result['errors']) - 5} more errors.")
-            if sent:
-                messages.success(request, f"Sent {sent} confirmation text(s) for {target}.")
-            if failed:
-                messages.error(request, f"Failed to send {failed} message(s).")
-            if skipped:
-                messages.info(request, f"Skipped {skipped} leg(s) (already sent).")
-            if sent == 0 and failed == 0 and skipped == 0:
-                messages.info(request, f"No legs to send for {target}.")
+            _run_in_background(
+                send_confirmations_for_date,
+                target,
+                skip_already_sent=True,
+                excluded_leg_ids=excluded_ids,
+            )
+            messages.success(request, f"Sending confirmations for {target} in the background. Refresh in a moment to see updated statuses.")
             return redirect(reverse("confirmations") + f"?date={target}")
 
     legs = get_legs_for_confirmation(selected_date)
@@ -5439,15 +5424,30 @@ def capacity_planner(request):
         )
     )
 
-    # Build schedules from assigned legs
-    driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
+    # Heavy scheduling computation — cache for 60s keyed by date.
+    # LocMemCache (single worker) stores Python objects directly; no serialization needed.
+    # Suggestions reference leg IDs, not ORM instances, so cached results are safe to reuse.
+    _sched_cache_key = f"capacity_planner_{selected_date.isoformat()}"
+    _cached_sched = cache.get(_sched_cache_key)
+
+    _unassigned_legs = [leg for leg in legs_list if leg.driver is None]
+
+    if _cached_sched is not None:
+        driver_schedules, suggestions, batching, coverage = _cached_sched
+    else:
+        driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
+        _inhouse_for_suggestions = {did: s for did, s in driver_schedules.items() if s.driver_type == 'inhouse'}
+        suggestions = suggest_assignments(_unassigned_legs, _inhouse_for_suggestions, selected_date)
+        batching = find_batching_opportunities(legs_list, selected_date)
+        coverage = get_coverage_stats(legs_list)
+        cache.set(_sched_cache_key, (driver_schedules, suggestions, batching, coverage), 60)
 
     inhouse_schedules = {
         did: sched for did, sched in driver_schedules.items()
         if sched.driver_type == 'inhouse'
     }
 
-    # Annotate legs with estimated cleared time and duration
+    # Annotate legs with estimated cleared time and duration (runs every request — fast, prefetched)
     for leg in legs_list:
         try:
             end_dt = estimate_job_end_time(leg, selected_date)
@@ -5485,16 +5485,7 @@ def capacity_planner(request):
                             leg.actual_duration_display = f"{am} mins"
                     break
 
-    # Find unassigned legs and generate suggestions
-    unassigned_legs = [leg for leg in legs_list if leg.driver is None]
-    suggestions = suggest_assignments(unassigned_legs, inhouse_schedules, selected_date)
     suggestion_map = {s.leg_id: s for s in suggestions}
-
-    # Batching opportunities
-    batching = find_batching_opportunities(legs_list, selected_date)
-
-    # Coverage stats
-    coverage = get_coverage_stats(legs_list)
 
     # Group legs by hour
     legs_by_hour = {}
@@ -5588,7 +5579,7 @@ def capacity_planner(request):
         'is_past': selected_date < today,
         'legs': legs_list,
         'total_legs': len(legs_list),
-        'unassigned_legs': unassigned_legs,
+        'unassigned_legs': _unassigned_legs,
         'suggestion_map': suggestion_map,
         'inhouse_timeline': inhouse_timeline,
         'batching': batching,

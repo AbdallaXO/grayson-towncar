@@ -94,6 +94,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "business.middleware.SlowRequestMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -338,6 +339,7 @@ JAZZMIN_SETTINGS = {
     "changeform_format": "single",
     "show_ui_builder": True,
     "custom_css": "admin/admin_overrides.css",
+    "hide_models": ["reservations.Leg"],
     "custom_links": {
         "reservations": [
             {
@@ -379,4 +381,22 @@ JAZZMIN_UI_TWEAKS = {
         "success": "btn-success",
     },
     "actions_sticky_top": True,
+}
+
+# Slow-request logger — logs any request exceeding 500ms to Railway's console
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "perf": {
+            "handlers": ["console"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
 }
