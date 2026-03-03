@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from rates.models import Vehicle, Rate, Route, Location
 from datetime import datetime, timedelta, time
+from simple_history.models import HistoricalRecords
 
 
 class Customer(models.Model):
@@ -36,6 +37,8 @@ class Customer(models.Model):
     card_last4 = models.CharField(max_length=4, blank=True)
     card_exp_month = models.IntegerField(null=True, blank=True)
     card_exp_year = models.IntegerField(null=True, blank=True)
+
+    history = HistoricalRecords()
 
     class Meta:
         indexes = [
@@ -335,7 +338,28 @@ class Reservation(models.Model):
         """
         self.total_driver_payments = self.calculate_total_driver_payments()
         self.profit_estimate = self.calculate_profit()
-        self.save(update_fields=["total_driver_payments", "profit_estimate"])
+        Reservation.objects.filter(pk=self.pk).update(
+            total_driver_payments=self.total_driver_payments,
+            profit_estimate=self.profit_estimate,
+        )
+
+    def recalculate_leg_revenue_shares(self):
+        """
+        Recalculate revenue_share and profit_estimate for all legs in this reservation.
+        Call this whenever legs are added or removed so the split stays correct.
+        Uses bulk update for revenue_share (same for all legs) then per-leg update
+        for profit_estimate (varies by driver pay).
+        """
+        total_legs = self.legs.count()
+        if total_legs == 0 or not self.total_price:
+            return
+        share = (self.total_price / Decimal(total_legs)).quantize(Decimal("0.01"))
+        # Bulk-set revenue_share — avoids triggering save() signals on every leg
+        self.legs.update(revenue_share=share)
+        # Update profit_estimate per leg (driver pay differs per leg)
+        for leg in self.legs.all():
+            profit = leg.calculate_profit()
+            Leg.objects.filter(pk=leg.pk).update(profit_estimate=profit)
 
     @cached_property
     def all_payments(self):
@@ -510,7 +534,7 @@ class Reservation(models.Model):
         
         if all_completed:
             self.status = 'completed'
-            self.save(update_fields=['status'])
+            self.save()
             return True
             
         return False
@@ -525,6 +549,8 @@ class Reservation(models.Model):
             last_leg = completed_legs.first()
             return last_leg.pickup_date
         return None
+
+    history = HistoricalRecords()
 
     def __str__(self):
         """
@@ -849,6 +875,8 @@ class Leg(models.Model):
             self.profit_estimate = self.calculate_profit()
 
         super().save(*args, **kwargs)
+
+    history = HistoricalRecords()
 
     def __str__(self):
         """

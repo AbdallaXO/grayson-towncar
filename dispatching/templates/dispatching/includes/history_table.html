@@ -1,0 +1,48 @@
+{% load history_formatters %}
+{% if history_records %}
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped table-sm mb-0">
+      <thead>
+        <tr>
+          <th scope="col">Date/time</th>
+          <th scope="col">Type</th>
+          <th scope="col">Changed by</th>
+          <th scope="col">Changes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in history_records %}
+          <tr>
+            <td>{{ record.history_date|date:"n/j/Y g:i A" }}</td>
+            <td>{{ record.get_history_type_display }}</td>
+            <td>
+              {% if record.history_user %}
+                {{ record.history_user.get_full_name|default:record.history_user.username }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if record.history_delta_changes %}
+                <ul class="list-unstyled mb-0 small">
+                  {% for change in record.history_delta_changes %}
+                    <li>
+                      <strong>{{ change.field }}:</strong>
+                      {{ change.old|format_history_value }}
+                      &nbsp;&rarr;&nbsp;
+                      {{ change.new|format_history_value }}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p class="text-muted small mb-0">No history recorded.</p>
+{% endif %}

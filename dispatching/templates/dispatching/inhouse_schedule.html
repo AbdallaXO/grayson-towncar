@@ -1,0 +1,386 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}In-House Driver Schedules{% endblock %}
+
+{% block extra_css %}
+<style>
+  .driver-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    background: #fff;
+    margin-bottom: 0.55rem;
+    overflow: hidden;
+    transition: box-shadow .15s;
+  }
+  .driver-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+
+  .driver-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .driver-name-block { min-width: 155px; flex-shrink: 0; }
+  .driver-name  { font-weight: 600; font-size: 0.95rem; }
+  .driver-phone { font-size: 0.78rem; color: #6b7280; }
+
+  .day-strip { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+
+  .day-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 7px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.72rem;
+    min-width: 44px;
+    line-height: 1.3;
+    border: 1px solid transparent;
+  }
+  .day-pill.avail  { background:#ecfdf5; border-color:#6ee7b7; color:#065f46; }
+  .day-pill.avail .pill-label { font-weight: 700; }
+  .day-pill.avail .pill-hours { color: #059669; font-size: 0.65rem; }
+  .day-pill.off    { background:#f3f4f6; border-color:#d1d5db; color:#9ca3af; }
+  .day-pill.off .pill-label { font-weight: 600; }
+
+  .btn-edit-driver { margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+
+  /* Edit form */
+  .driver-edit-form {
+    display: none;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    padding: 0.85rem 1rem 0.75rem;
+  }
+  .driver-edit-form.open { display: block; }
+
+  .day-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #f0f0f0;
+    flex-wrap: wrap;
+  }
+  .day-edit-row:last-of-type { border-bottom: none; }
+
+  .day-label-col { width: 38px; font-weight: 600; font-size: 0.82rem; color: #374151; flex-shrink: 0; }
+
+  .avail-switch { min-width: 68px; }
+
+  .time-selects { display: flex; align-items: center; gap: 0.3rem; }
+  .time-selects select, .pref-col select {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 5px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+  }
+  .time-selects .sep { color: #9ca3af; font-size: 0.8rem; }
+
+  .day-edit-row.day-off .time-selects,
+  .day-edit-row.day-off .pref-col { opacity: .3; pointer-events: none; }
+
+  .edit-save-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-top: 0.6rem;
+    margin-top: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3" style="max-width:1060px;">
+
+  <!-- Header -->
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h4 class="mb-0 fw-bold">
+        <i class="bi bi-people me-2 text-primary"></i>In-House Driver Schedules
+      </h4>
+      <div class="text-muted small mt-1">
+        Weekly availability — days, hours, and trip preferences.
+        Vehicle assignments for a specific date are on the
+        <a href="{{ today_legs_url }}">Legs Dashboard</a>.
+      </div>
+    </div>
+    <a href="{{ today_legs_url }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list-check me-1"></i>Legs Dashboard
+    </a>
+  </div>
+
+  <div class="text-muted small mb-3">
+    <i class="bi bi-person-fill me-1"></i>
+    <strong>{{ driver_rows|length }}</strong>
+    in-house driver{{ driver_rows|length|pluralize }}
+    &mdash; click <strong>Edit</strong> on any row to update their schedule.
+  </div>
+
+  <!-- Driver cards -->
+  {% for row in driver_rows %}
+  <div class="driver-card" id="card-{{ row.driver.id }}">
+
+    <!-- Summary (always visible) -->
+    <div class="driver-summary">
+      <div class="driver-name-block">
+        <div class="driver-name">{{ row.driver }}</div>
+        {% if row.driver.phone_number %}
+          <div class="driver-phone">
+            <i class="bi bi-telephone me-1"></i>{{ row.driver.phone_number }}
+          </div>
+        {% endif %}
+        {% if row.driver.notes %}
+          <div class="driver-phone mt-1" style="color:#6b7280;font-style:italic;">
+            <i class="bi bi-sticky me-1"></i>{{ row.driver.notes|truncatechars:60 }}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="day-strip" id="strip-{{ row.driver.id }}">
+        {% for day in row.days %}
+          {% if day.is_available %}
+            <span class="day-pill avail">
+              <span class="pill-label">{{ day.day_name }}</span>
+              <span class="pill-hours">{{ day.pill_label }}</span>
+            </span>
+          {% else %}
+            <span class="day-pill off">
+              <span class="pill-label">{{ day.day_name }}</span>
+              <span class="pill-hours">Off</span>
+            </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <button class="btn btn-sm btn-outline-primary btn-edit-driver"
+              data-driver-id="{{ row.driver.id }}"
+              onclick="toggleEdit({{ row.driver.id }})">
+        <i class="bi bi-pencil me-1"></i>Edit
+      </button>
+    </div>
+
+    <!-- Inline edit form -->
+    <div class="driver-edit-form" id="edit-{{ row.driver.id }}">
+      <div class="fw-semibold small text-muted mb-2 text-uppercase"
+           style="letter-spacing:.5px;">
+        <i class="bi bi-calendar3 me-1"></i>Schedule for {{ row.driver }}
+      </div>
+
+      {% for day in row.days %}
+      <div class="day-edit-row {% if not day.is_available %}day-off{% endif %}"
+           id="erow-{{ row.driver.id }}-{{ day.day_idx }}">
+
+        <div class="day-label-col">{{ day.day_name }}</div>
+
+        <div class="avail-switch">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input"
+                   type="checkbox"
+                   id="avail-{{ row.driver.id }}-{{ day.day_idx }}"
+                   data-driver="{{ row.driver.id }}"
+                   data-day="{{ day.day_idx }}"
+                   onchange="onAvailChange(this)"
+                   {% if day.is_available %}checked{% endif %}>
+            <label class="form-check-label small"
+                   for="avail-{{ row.driver.id }}-{{ day.day_idx }}">
+              {% if day.is_available %}On{% else %}Off{% endif %}
+            </label>
+          </div>
+        </div>
+
+        <div class="time-selects">
+          <select id="start-{{ row.driver.id }}-{{ day.day_idx }}">
+            {% for hc in hour_choices %}
+              <option value="{{ hc.value }}"
+                      {% if hc.value == day.start_hour %}selected{% endif %}>
+                {{ hc.label }}
+              </option>
+            {% endfor %}
+          </select>
+          <span class="sep">to</span>
+          <select id="end-{{ row.driver.id }}-{{ day.day_idx }}">
+            {% for hc in hour_choices %}
+              <option value="{{ hc.value }}"
+                      {% if hc.value == day.end_hour %}selected{% endif %}>
+                {{ hc.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="pref-col">
+          <select id="pref-{{ row.driver.id }}-{{ day.day_idx }}">
+            <option value=""               {% if day.preference == "" %}selected{% endif %}>Any trips</option>
+            <option value="prefer_arrival" {% if day.preference == "prefer_arrival" %}selected{% endif %}>Prefer Arrivals</option>
+            <option value="prefer_return"  {% if day.preference == "prefer_return"  %}selected{% endif %}>Prefer Returns</option>
+            <option value="prefer_cruise"  {% if day.preference == "prefer_cruise"  %}selected{% endif %}>Prefer Cruises</option>
+            <option value="only_arrival"   {% if day.preference == "only_arrival"   %}selected{% endif %}>Arrivals Only</option>
+            <option value="only_return"    {% if day.preference == "only_return"    %}selected{% endif %}>Returns Only</option>
+            <option value="only_cruise"    {% if day.preference == "only_cruise"    %}selected{% endif %}>Cruises Only</option>
+          </select>
+        </div>
+
+      </div>
+      {% endfor %}
+
+      <!-- Notes -->
+      <div class="mt-3">
+        <label class="form-label small fw-semibold text-muted mb-1"
+               for="notes-{{ row.driver.id }}">
+          <i class="bi bi-sticky me-1"></i>Internal Notes
+        </label>
+        <textarea class="form-control form-control-sm"
+                  id="notes-{{ row.driver.id }}"
+                  rows="2"
+                  placeholder="e.g. Prefers airport runs, has a backup SUV, contact before 6 AM…">{{ row.driver.notes|default:"" }}</textarea>
+      </div>
+
+      <div class="edit-save-bar">
+        <button class="btn btn-sm btn-primary"
+                onclick="saveDriver({{ row.driver.id }})">
+          <i class="bi bi-check2 me-1"></i>Save
+        </button>
+        <button class="btn btn-sm btn-outline-secondary"
+                onclick="toggleEdit({{ row.driver.id }}, true)">
+          Cancel
+        </button>
+        <span class="small ms-1" id="status-{{ row.driver.id }}"></span>
+      </div>
+    </div>
+
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-people display-5 d-block mb-3 opacity-25"></i>
+    No in-house drivers found.
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}
+
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const CSRF     = '{{ csrf_token }}';
+  const SAVE_URL = '{% url "save_driver_weekly_schedules" %}';
+  const DAYS     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  function fmtHour(h) {
+    h = parseInt(h, 10);
+    if (h === 0)  return '12a';
+    if (h < 12)   return h + 'a';
+    if (h === 12) return '12p';
+    if (h === 23) return 'EOD';
+    return (h - 12) + 'p';
+  }
+
+  window.toggleEdit = function (driverId, forceClose) {
+    const form = document.getElementById('edit-' + driverId);
+    const btn  = document.querySelector('[data-driver-id="' + driverId + '"]');
+    const open = form.classList.contains('open');
+    if (forceClose || open) {
+      form.classList.remove('open');
+      btn.innerHTML = '<i class="bi bi-pencil me-1"></i>Edit';
+      btn.className = btn.className.replace('btn-primary', 'btn-outline-primary');
+    } else {
+      form.classList.add('open');
+      btn.innerHTML = '<i class="bi bi-x me-1"></i>Close';
+      btn.className = btn.className.replace('btn-outline-primary', 'btn-primary');
+    }
+  };
+
+  window.onAvailChange = function (cb) {
+    const row   = document.getElementById('erow-' + cb.dataset.driver + '-' + cb.dataset.day);
+    const label = cb.nextElementSibling;
+    if (cb.checked) { row.classList.remove('day-off'); label.textContent = 'On'; }
+    else            { row.classList.add('day-off');    label.textContent = 'Off'; }
+  };
+
+  window.saveDriver = function (driverId) {
+    const statusEl = document.getElementById('status-' + driverId);
+    statusEl.innerHTML = '<span class="text-muted">Saving&#8230;</span>';
+
+    const weekly = {};
+    for (let d = 0; d < 7; d++) {
+      const avail = document.getElementById('avail-' + driverId + '-' + d);
+      if (!avail) continue;
+      weekly[d] = {
+        is_available: avail.checked,
+        start_hour:   parseInt(document.getElementById('start-' + driverId + '-' + d).value, 10),
+        end_hour:     parseInt(document.getElementById('end-'   + driverId + '-' + d).value, 10),
+        preference:   document.getElementById('pref-'  + driverId + '-' + d).value,
+      };
+    }
+
+    const notesEl = document.getElementById('notes-' + driverId);
+    const notes = notesEl ? notesEl.value : '';
+
+    fetch(SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ drivers: [{ id: driverId, weekly: weekly, notes: notes }] }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Saved</span>';
+          refreshStrip(driverId, weekly, notes);
+          setTimeout(() => { statusEl.innerHTML = ''; toggleEdit(driverId, true); }, 1400);
+        } else {
+          statusEl.innerHTML = '<span class="text-danger">Error: ' + (data.error || 'Failed') + '</span>';
+        }
+      })
+      .catch(() => { statusEl.innerHTML = '<span class="text-danger">Network error</span>'; });
+  };
+
+  function refreshStrip(driverId, weekly, notes) {
+    const strip = document.getElementById('strip-' + driverId);
+    if (!strip) return;
+    // Update notes display in the summary
+    const card = document.getElementById('card-' + driverId);
+    if (card) {
+      let notesDiv = card.querySelector('.live-notes-display');
+      if (notes && notes.trim()) {
+        const short = notes.trim().length > 60 ? notes.trim().substring(0, 60) + '…' : notes.trim();
+        if (notesDiv) {
+          notesDiv.textContent = short;
+        } else {
+          const phoneDiv = card.querySelector('.driver-phone');
+          if (phoneDiv) {
+            const newDiv = document.createElement('div');
+            newDiv.className = 'driver-phone mt-1 live-notes-display';
+            newDiv.style.cssText = 'color:#6b7280;font-style:italic;';
+            newDiv.innerHTML = '<i class="bi bi-sticky me-1"></i>' + short;
+            phoneDiv.parentNode.insertBefore(newDiv, phoneDiv.nextSibling);
+          }
+        }
+      } else if (notesDiv) {
+        notesDiv.remove();
+      }
+    }
+    let html = '';
+    for (let d = 0; d < 7; d++) {
+      const w = weekly[d];
+      if (!w) continue;
+      if (w.is_available) {
+        const lbl = fmtHour(w.start_hour) + '-' + fmtHour(w.end_hour);
+        html += `<span class="day-pill avail"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">${lbl}</span></span>`;
+      } else {
+        html += `<span class="day-pill off"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">Off</span></span>`;
+      }
+    }
+    strip.innerHTML = html;
+  }
+})();
+</script>
+{% endblock %}

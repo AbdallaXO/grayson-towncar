@@ -1,0 +1,11 @@
+{% load history_formatters %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <p class="text-muted small mb-0">
+    <strong>{{ leg.pickup_location }}</strong> → <strong>{{ leg.dropoff_location }}</strong>
+    ({{ leg.pickup_date|date:"M j, Y" }} {{ leg.pickup_time|time:"g:i A" }})
+  </p>
+  <a href="{% url 'leg_history' leg.id %}" class="btn btn-sm btn-primary">Open full page</a>
+</div>
+{% with history_records=history_records %}
+  {% include "dispatching/includes/history_table.html" %}
+{% endwith %}

@@ -45,6 +45,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             "reservation__travel_agent__user",
             "driver",
             "driver__profile",
+            "driver_assigned_by",
             "flight_information",
             "cruise_information",
         ).prefetch_related(

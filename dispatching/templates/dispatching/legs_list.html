@@ -288,14 +288,14 @@
                 </div>
               </div>
               {% if can_view_revenue %}
-              <div class="col-4">
-                <div class="d-flex align-items-center justify-content-center">
-                  <div>
-                    <div class="fw-bold text-dark fs-5">${{ current_page_stats.total_revenue|floatformat:0 }}</div>
-                    <div class="small text-muted">Revenue</div>
+                <div class="col-4">
+                  <div class="d-flex align-items-center justify-content-center">
+                    <div>
+                      <div class="fw-bold text-dark fs-5">${{ current_page_stats.total_revenue|floatformat:0 }}</div>
+                      <div class="small text-muted">Revenue</div>
+                    </div>
                   </div>
                 </div>
-              </div>
               {% endif %}
             </div>
           </div>
@@ -322,368 +322,398 @@
           <tbody>
             {% for leg in legs %}
               {% with mismatch=leg.get_flight_time_mismatch_display %}
-              <tr class="align-middle {% if mismatch %}table-danger{% endif %}" {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
-                <!-- Customer dark -->
-                <td>
-                  <div class="d-flex align-items-center mb-1">
-                    <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
-                    <a href="{% url 'reservation_details' leg.reservation.uuid %}"
-                       class="badge bg-warning  text-dark ms-2 fs-6">#{{ leg.reservation.id }}</a>
-                  </div>
-                  <div class="text-muted small">
-                    <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
-                  </div>
-                  <div class="text-muted small">
-                    <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
-                  </div>
-                  {% if leg.reservation.travel_agent %}
-                    <div class="border-top my-2"></div>
-                    <div class="p-2 border border-dark rounded bg-light travel-agent-booking">
-                      <div class="badge bg-dark text-white mb-2 d-block">
-                        <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
-                      </div>
-                      <div class="small">
-                        <div class="fw-semibold text-dark">
-                          {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                <tr class="align-middle {% if mismatch %}table-danger{% endif %}"
+                    {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
+                  <!-- Customer dark -->
+                  <td>
+                    <div class="d-flex align-items-center mb-1">
+                      <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
+                      <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                         class="badge bg-warning  text-dark ms-2 fs-6">#{{ leg.reservation.id }}</a>
+                    </div>
+                    <div class="text-muted small">
+                      <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
+                    </div>
+                    <div class="text-muted small">
+                      <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
+                    </div>
+                    {% if leg.reservation.travel_agent %}
+                      <div class="border-top my-2"></div>
+                      <div class="p-2 border border-dark rounded bg-light travel-agent-booking">
+                        <div class="badge bg-dark text-white mb-2 d-block">
+                          <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
                         </div>
-                        {% if leg.reservation.travel_agent.agency_name %}
-                          <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
-                        {% endif %}
-                        {% if leg.reservation.travel_agent.phone %}
-                          <div class="text-muted">
-                            <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                        <div class="small">
+                          <div class="fw-semibold text-dark">
+                            {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                          </div>
+                          {% if leg.reservation.travel_agent.agency_name %}
+                            <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
+                          {% endif %}
+                          {% if leg.reservation.travel_agent.phone %}
+                            <div class="text-muted">
+                              <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% endif %}
+                  </td>
+
+                  <!-- Trip Details -->
+                  <td>
+                    {% if mismatch %}
+                      <div class="mb-1">
+                        <span class="badge bg-danger" title="{{ mismatch.label }}">
+                          <i class="bi bi-exclamation-triangle me-1"></i>{{ mismatch.label }}
+                        </span>
+                      </div>
+                    {% endif %}
+                    {% if leg.flight_information %}
+                      <div class="mb-2">
+                        <div class="text-primary mb-1">
+                          <i class="bi bi-airplane me-1"></i>
+                          {% if leg.flight_information.airline_display_name %}
+                            {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
+                          {% else %}
+                            {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                          {% endif %}
+                          {% if leg.flight_information.flight_iata %}
+                            <span class="text-muted small">({{ leg.flight_information.flight_iata }})</span>
+                          {% endif %}
+                        </div>
+                        {% if leg.flight_information.status %}
+                          <div class="small mb-1">
+                            <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{{ leg.flight_information.status }}</span>
                           </div>
                         {% endif %}
-                      </div>
-                    </div>
-                  {% endif %}
-                </td>
 
-                <!-- Trip Details -->
-                <td>
-                  {% if mismatch %}
-                    <div class="mb-1">
-                      <span class="badge bg-danger" title="{{ mismatch.label }}">
-                        <i class="bi bi-exclamation-triangle me-1"></i>{{ mismatch.label }}
-                      </span>
-                    </div>
-                  {% endif %}
-                  {% if leg.flight_information %}
-                    <div class="mb-2">
-                      <div class="text-primary mb-1">
-                        <i class="bi bi-airplane me-1"></i>
-                        {% if leg.flight_information.airline_display_name %}
-                          {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
-                        {% else %}
-                          {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
-                        {% endif %}
-                        {% if leg.flight_information.flight_iata %}
-                          <span class="text-muted small">({{ leg.flight_information.flight_iata }})</span>
-                        {% endif %}
-                      </div>
-                      {% if leg.flight_information.status %}
-                        <div class="small mb-1">
-                          <span class="badge {{ leg.flight_information.status|flight_status_color }} text-white">{{ leg.flight_information.status }}</span>
-                        </div>
-                      {% endif %}
-                      
-                      <!-- Collapsible Flight Details -->
-                      <div class="mb-1">
-                        <button 
-                          class="btn btn-sm btn-outline-secondary" 
-                          type="button" 
-                          data-bs-toggle="collapse" 
-                          data-bs-target="#flightDetails{{ leg.id }}" 
-                          aria-expanded="false" 
-                          aria-controls="flightDetails{{ leg.id }}"
-                          title="Show/Hide flight details">
-                          <i class="bi bi-chevron-down me-1"></i>Details
-                        </button>
-                        <button 
-                          class="btn btn-sm btn-outline-primary refresh-flight-btn" 
-                          data-leg-id="{{ leg.id }}"
-                          title="Refresh flight data from AeroAPI">
-                          <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                        {% if leg.get_trip_type == 'arrival' and leg.flight_information %}
-                        <button 
-                          class="btn btn-sm btn-outline-success match-flight-time-btn" 
-                          data-leg-id="{{ leg.id }}"
-                          title="Set leg pickup time to flight arrival time">
-                          <i class="bi bi-clock-history"></i> Match flight time
-                        </button>
-                        {% endif %}
-                      </div>
-                      
-                      <div class="collapse" id="flightDetails{{ leg.id }}">
-                        <div class="card card-body p-2 mt-1" style="background-color: #f8f9fa; border: 1px solid #dee2e6;">
-                          {% if leg.flight_information.origin or leg.flight_information.destination %}
-                            <div class="small text-muted mb-2">
-                              {% if leg.flight_information.origin %}
-                                <div><i class="bi bi-arrow-up-circle me-1"></i>{{ leg.flight_information.origin }}</div>
-                              {% endif %}
-                              {% if leg.flight_information.destination %}
-                                <div><i class="bi bi-arrow-down-circle me-1"></i>{{ leg.flight_information.destination }}</div>
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                          
-                          {% if leg.flight_information.gate or leg.flight_information.terminal %}
-                            <div class="small mb-2">
-                              {% if leg.flight_information.terminal %}
-                                <span class="badge bg-secondary">Terminal {{ leg.flight_information.terminal }}</span>
-                              {% endif %}
-                              {% if leg.flight_information.gate %}
-                                <span class="badge bg-primary">Gate {{ leg.flight_information.gate }}</span>
-                              {% endif %}
-                              {% if leg.flight_information.baggage_claim %}
-                                <span class="badge bg-warning text-dark">Baggage {{ leg.flight_information.baggage_claim }}</span>
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                          
-                          {% if leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_arrival_local %}
-                            <div class="small mb-2">
-                              {% if leg.get_trip_type == 'return' %}
-                                <div class="text-secondary fw-semibold mb-1">
-                                  <i class="bi bi-airplane-takeoff me-1"></i>Runway Departure:
-                                </div>
-                              {% else %}
-                                <div class="text-secondary fw-semibold mb-1">
-                                  <i class="bi bi-airplane-landing me-1"></i>Runway Landing:
-                                </div>
-                              {% endif %}
-                              {% if leg.flight_information.scheduled_arrival_local %}
-                                <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</div>
-                              {% endif %}
-                              {% if leg.flight_information.estimated_arrival_local %}
-                                <div class="fw-bold text-primary ms-3">Est: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</div>
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                          
-                          {% if leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
-                            <div class="small mb-2">
-                              {% if leg.get_trip_type == 'return' %}
-                                <div class="text-secondary fw-semibold mb-1">
-                                  <i class="bi bi-door-closed me-1"></i>Gate Departure:
-                                </div>
-                              {% else %}
-                                <div class="text-secondary fw-semibold mb-1">
-                                  <i class="bi bi-door-open me-1"></i>Gate Arrival:
-                                </div>
-                              {% endif %}
-                              {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</div>
-                              {% endif %}
-                              {% if leg.flight_information.estimated_gate_arrival_local %}
-                                <div class="fw-bold text-success ms-3">Est: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</div>
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                          
-                          {% if leg.flight_information.last_updated %}
-                            <div class="text-muted" style="font-size: 0.7rem;">
-                              <i class="bi bi-clock me-1"></i>Updated: {{ leg.flight_information.last_updated|localtime|date:"g:i A" }}
-                            </div>
+                        <!-- Collapsible Flight Details -->
+                        <div class="mb-1">
+                          <button class="btn btn-sm btn-outline-secondary"
+                                  type="button"
+                                  data-bs-toggle="collapse"
+                                  data-bs-target="#flightDetails{{ leg.id }}"
+                                  aria-expanded="false"
+                                  aria-controls="flightDetails{{ leg.id }}"
+                                  title="Show/Hide flight details">
+                            <i class="bi bi-chevron-down me-1"></i>Details
+                          </button>
+                          <button class="btn btn-sm btn-outline-primary refresh-flight-btn"
+                                  data-leg-id="{{ leg.id }}"
+                                  title="Refresh flight data from AeroAPI">
+                            <i class="bi bi-arrow-clockwise"></i>
+                          </button>
+                          {% if leg.get_trip_type == 'arrival' and leg.flight_information %}
+                            <button class="btn btn-sm btn-outline-success match-flight-time-btn"
+                                    data-leg-id="{{ leg.id }}"
+                                    title="Set leg pickup time to flight arrival time">
+                              <i class="bi bi-clock-history"></i> Match flight time
+                            </button>
                           {% endif %}
                         </div>
-                      </div>
-                    </div>
-                  {% endif %}
-                  
-                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
-                  <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
-                  {% if leg.cleared_time %}
-                    <div style="font-size: 0.88rem; color: #222; margin-top: 0.2rem; font-weight: 600;">
-                      <i class="bi bi-clock" style="font-size: 0.8rem;"></i>
-                      Clearing ~{{ leg.cleared_time }}
-                      {% if leg.duration_display %}
-                        <span style="color: #888; font-weight: 400;">({{ leg.duration_display }})</span>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-                  {% if leg.actual_cleared_time %}
-                    <div style="font-size: 0.88rem; color: #1b5e20; margin-top: 0.15rem; font-weight: 600;">
-                      <i class="bi bi-check-circle-fill" style="font-size: 0.8rem;"></i>
-                      Cleared {{ leg.actual_cleared_time }}
-                      {% if leg.actual_duration_display %}
-                        <span style="color: #888; font-weight: 400;">({{ leg.actual_duration_display }})</span>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-                </td>
 
-                <!-- Trip Type -->
-                <td>
-                  {% with trip_dark=leg.get_trip_type_display %}
-                    <div class="d-flex align-items-center">
-                      <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
-                      <div>
-                        <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
-                        <div class="small text-muted">{{ trip_dark.description }}</div>
-                      </div>
-                    </div>
-                  {% endwith %}
-                </td>
+                        <div class="collapse" id="flightDetails{{ leg.id }}">
+                          <div class="card card-body p-2 mt-1"
+                               style="background-color: #f8f9fa;
+                                      border: 1px solid #dee2e6">
+                            {% if leg.flight_information.origin or leg.flight_information.destination %}
+                              <div class="small text-muted mb-2">
+                                {% if leg.flight_information.origin %}
+                                  <div>
+                                    <i class="bi bi-arrow-up-circle me-1"></i>{{ leg.flight_information.origin }}
+                                  </div>
+                                {% endif %}
+                                {% if leg.flight_information.destination %}
+                                  <div>
+                                    <i class="bi bi-arrow-down-circle me-1"></i>{{ leg.flight_information.destination }}
+                                  </div>
+                                {% endif %}
+                              </div>
+                            {% endif %}
 
-                <!-- Locations -->
-                <td>
-                  <div class="small">
-                    <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
-                  </div>
-                  <div class="small">
-                    <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
-                  </div>
-                  {% if leg.cruise_information %}
-                    <div class="mt-2">
-                      <span class="badge bg-dark text-white">
-                        <i class="bi bi-ship me-1"></i>
-                        {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                          {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
-                        {% elif leg.cruise_information.cruise_line %}
-                          {{ leg.cruise_information.cruise_line }}
-                        {% elif leg.cruise_information.ship_name %}
-                          {{ leg.cruise_information.ship_name }}
+                            {% if leg.flight_information.gate or leg.flight_information.terminal %}
+                              <div class="small mb-2">
+                                {% if leg.flight_information.terminal %}
+                                  <span class="badge bg-secondary">Terminal {{ leg.flight_information.terminal }}</span>
+                                {% endif %}
+                                {% if leg.flight_information.gate %}
+                                  <span class="badge bg-primary">Gate {{ leg.flight_information.gate }}</span>
+                                {% endif %}
+                                {% if leg.flight_information.baggage_claim %}
+                                  <span class="badge bg-warning text-dark">Baggage {{ leg.flight_information.baggage_claim }}</span>
+                                {% endif %}
+                              </div>
+                            {% endif %}
+
+                            {% if leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_arrival_local %}
+                              <div class="small mb-2">
+                                {% if leg.get_trip_type == 'return' %}
+                                  <div class="text-secondary fw-semibold mb-1">
+                                    <i class="bi bi-airplane-takeoff me-1"></i>Runway Departure:
+                                  </div>
+                                {% else %}
+                                  <div class="text-secondary fw-semibold mb-1">
+                                    <i class="bi bi-airplane-landing me-1"></i>Runway Landing:
+                                  </div>
+                                {% endif %}
+                                {% if leg.flight_information.scheduled_arrival_local %}
+                                  <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}</div>
+                                {% endif %}
+                                {% if leg.flight_information.estimated_arrival_local %}
+                                  <div class="fw-bold text-primary ms-3">Est: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</div>
+                                {% endif %}
+                              </div>
+                            {% endif %}
+
+                            {% if leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
+                              <div class="small mb-2">
+                                {% if leg.get_trip_type == 'return' %}
+                                  <div class="text-secondary fw-semibold mb-1">
+                                    <i class="bi bi-door-closed me-1"></i>Gate Departure:
+                                  </div>
+                                {% else %}
+                                  <div class="text-secondary fw-semibold mb-1">
+                                    <i class="bi bi-door-open me-1"></i>Gate Arrival:
+                                  </div>
+                                {% endif %}
+                                {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                  <div class="text-muted ms-3">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</div>
+                                {% endif %}
+                                {% if leg.flight_information.estimated_gate_arrival_local %}
+                                  <div class="fw-bold text-success ms-3">
+                                    Est: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
+                                  </div>
+                                {% endif %}
+                              </div>
+                            {% endif %}
+
+                            {% if leg.flight_information.last_updated %}
+                              <div class="text-muted" style="font-size: 0.7rem;">
+                                <i class="bi bi-clock me-1"></i>Updated: {{ leg.flight_information.last_updated|localtime|date:"g:i A" }}
+                              </div>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </div>
+                    {% endif %}
+
+                    <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
+                    <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
+                    {% if leg.cleared_time %}
+                      <div style="font-size: 0.88rem;
+                                  color: #222;
+                                  margin-top: 0.2rem;
+                                  font-weight: 600">
+                        <i class="bi bi-clock" style="font-size: 0.8rem;"></i>
+                        Clearing ~{{ leg.cleared_time }}
+                        {% if leg.duration_display %}
+                          <span style="color: #888; font-weight: 400;">({{ leg.duration_display }})</span>
                         {% endif %}
-                      </span>
-                    </div>
-                  {% endif %}
-                </td>
+                      </div>
+                    {% endif %}
+                    {% if leg.actual_cleared_time %}
+                      <div style="font-size: 0.88rem;
+                                  color: #1b5e20;
+                                  margin-top: 0.15rem;
+                                  font-weight: 600">
+                        <i class="bi bi-check-circle-fill" style="font-size: 0.8rem;"></i>
+                        Cleared {{ leg.actual_cleared_time }}
+                        {% if leg.actual_duration_display %}
+                          <span style="color: #888; font-weight: 400;">({{ leg.actual_duration_display }})</span>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  </td>
 
-                <!-- Vehicle & Passengers -->
-                <td>
-                  <div class="d-flex">
-                    <div class="small">
-                      <div class="fw-bold mb-1">{{ leg.reservation.vehicle }}</div>
-                      <div class="d-flex align-items-center mb-1">
-                        <span>{{ leg.reservation.passenger_count }} Passengers</span>
-                      </div>
-                      <div class="d-flex align-items-center mb-1">
-                        <span>{{ leg.reservation.luggage_count }} Suitcases</span>
-                        <span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2" style="font-size: .65rem;">
-                          {{ leg.reservation.get_luggage_type_display }}
-                        </span>
-                      </div>
+                  <!-- Trip Type -->
+                  <td>
+                    {% with trip_dark=leg.get_trip_type_display %}
                       <div class="d-flex align-items-center">
-                        <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-
-                <!-- Payment Status -->
-                <td>
-                  <div class="d-flex align-items-center">
-                    {% with payment_info=leg.reservation.detailed_payment_status %}
-                      <i class="bi bi-cash-coin me-2 {% if payment_info.status == 'paid' %}text-success{% elif payment_info.status == 'card_saved' %}text-info{% elif payment_info.status == 'pending' or payment_info.status == 'unpaid' %}text-warning{% else %}text-danger{% endif %}"></i>
-                      <div>
-                        <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
-                        {% if payment_info.status == 'paid' %}
-                          <span class="badge bg-success">{{ payment_info.display }}</span>
-                        {% elif payment_info.status == 'card_saved' %}
-                          <span class="badge bg-dark">{{ payment_info.display }}</span>
-                        {% elif payment_info.status == 'pending' %}
-                          <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
-                        {% elif payment_info.status == 'unpaid' %}
-                          <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
-                        {% elif payment_info.status == 'failed' %}
-                          <span class="badge bg-danger">{{ payment_info.display }}</span>
-                        {% else %}
-                          <span class="badge bg-secondary">{{ payment_info.display }}</span>
-                        {% endif %}
+                        <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
+                        <div>
+                          <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
+                          <div class="small text-muted">{{ trip_dark.description }}</div>
+                        </div>
                       </div>
                     {% endwith %}
-                  </div>
-                </td>
+                  </td>
 
-                <!-- Notes -->
-                <td>
-                  <div class="small w-100">
-                    <div>
-                      <strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}
+                  <!-- Locations -->
+                  <td>
+                    <div class="small">
+                      <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
                     </div>
-                    <div>
-                      <strong>Private Notes:</strong> {{ leg.reservation.private_notes|default:"" }}
+                    <div class="small">
+                      <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
                     </div>
-                    <div>
-                      <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
-                    </div>
-                    {% if leg.get_trip_type != "return" %}
-                      {% if leg.reservation.store_stop %}
-                        <span class="badge bg-success text-white">
-                          <i class="bi bi-shop me-1"></i> Publix Stop
+                    {% if leg.cruise_information %}
+                      <div class="mt-2">
+                        <span class="badge bg-dark text-white">
+                          <i class="bi bi-ship me-1"></i>
+                          {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                            {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                          {% elif leg.cruise_information.cruise_line %}
+                            {{ leg.cruise_information.cruise_line }}
+                          {% elif leg.cruise_information.ship_name %}
+                            {{ leg.cruise_information.ship_name }}
+                          {% endif %}
                         </span>
-                      {% else %}
-                        <span class="badge bg-danger text-white">
-                          <i class="bi bi-shop me-1"></i>No Store
-                        </span>
-                      {% endif %}
-                    {% endif %}
-                  </div>
-                </td>
-
-                <!-- Status & Driver -->
-                <td>
-                  <form class="driver-form" data-leg-id="{{ leg.id }}">
-                    {% csrf_token %}
-                    <select class="form-select form-select-sm mb-1 driver-select"
-                            name="driver"
-                            data-leg-id="{{ leg.id }}">
-                      <option value="">Select Driver</option>
-                      {% for driver in drivers %}
-                        <option value="{{ driver.id }}"
-                                {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                          {{ driver.profile.username }}
-                        </option>
-                      {% endfor %}
-                    </select>
-                    <select class="form-select form-select-sm status-select"
-                            name="status"
-                            data-leg-id="{{ leg.id }}">
-                      <option value="in-progress"
-                              {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
-                      <option value="confirmed"
-                              {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                      <option value="on-the-way"
-                              {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
-                      <option value="on-location"
-                              {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
-                      <option value="picked-up"
-                              {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
-                      <option value="completed"
-                              {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
-                    </select>
-                    <div class="update-status mt-1"></div>
-                  </form>
-                  {% with last_update=leg.status_history.first %}
-                    {% if last_update %}
-                      <div class="mt-2 pt-2 border-top">
-                        <div class="small">
-                          <i class="bi bi-clock-history me-1"></i>
-                          <span class="fw-semibold">{{ last_update.get_status_display }}</span>
-                          <span class="text-muted"> at {{ last_update.timestamp|easy_time }}</span>
-                        </div>
-                        <div class="small text-muted">
-                          Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
-                        </div>
-                        <div class="small text-muted fst-italic">
-                          {{ last_update.timestamp|time_ago }}
-                        </div>
-                        {% if leg.status_history.all|length > 1 %}
-                          <button type="button"
-                                  class="btn btn-sm btn-link p-0 mt-1 text-decoration-none view-history-btn"
-                                  data-leg-id="{{ leg.id }}"
-                                  data-bs-toggle="modal"
-                                  data-bs-target="#statusHistoryModal">
-                            <i class="bi bi-clock-history me-1"></i>View Full History
-                          </button>
-                        {% endif %}
                       </div>
                     {% endif %}
-                  {% endwith %}
-                </td>
-              </tr>
+                  </td>
+
+                  <!-- Vehicle & Passengers -->
+                  <td>
+                    <div class="d-flex">
+                      <div class="small">
+                        <div class="fw-bold mb-1">{{ leg.reservation.vehicle }}</div>
+                        <div class="d-flex align-items-center mb-1">
+                          <span>{{ leg.reservation.passenger_count }} Passengers</span>
+                        </div>
+                        <div class="d-flex align-items-center mb-1">
+                          <span>{{ leg.reservation.luggage_count }} Suitcases</span>
+                          <span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2"
+                                style="font-size: .65rem">{{ leg.reservation.get_luggage_type_display }}</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                          <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Payment Status -->
+                  <td>
+                    <div class="d-flex align-items-center">
+                      {% with payment_info=leg.reservation.detailed_payment_status %}
+                        <i class="bi bi-cash-coin me-2 {% if payment_info.status == 'paid' %}text-success{% elif payment_info.status == 'card_saved' %}text-info{% elif payment_info.status == 'pending' or payment_info.status == 'unpaid' %}text-warning{% else %}text-danger{% endif %}"></i>
+                        <div>
+                          <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
+                          {% if payment_info.status == 'paid' %}
+                            <span class="badge bg-success">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'card_saved' %}
+                            <span class="badge bg-dark">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'unpaid' %}
+                            <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
+                          {% elif payment_info.status == 'failed' %}
+                            <span class="badge bg-danger">{{ payment_info.display }}</span>
+                          {% else %}
+                            <span class="badge bg-secondary">{{ payment_info.display }}</span>
+                          {% endif %}
+                        </div>
+                      {% endwith %}
+                    </div>
+                  </td>
+
+                  <!-- Notes -->
+                  <td>
+                    <div class="small w-100">
+                      <div>
+                        <strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}
+                      </div>
+                      <div>
+                        <strong>Private Notes:</strong> {{ leg.reservation.private_notes|default:"" }}
+                      </div>
+                      <div>
+                        <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
+                      </div>
+                      {% if leg.get_trip_type != "return" %}
+                        {% if leg.reservation.store_stop %}
+                          <span class="badge bg-success text-white">
+                            <i class="bi bi-shop me-1"></i> Publix Stop
+                          </span>
+                        {% else %}
+                          <span class="badge bg-danger text-white">
+                            <i class="bi bi-shop me-1"></i>No Store
+                          </span>
+                        {% endif %}
+                      {% endif %}
+                    </div>
+                  </td>
+
+                  <!-- Status & Driver -->
+                  <td>
+                    <form class="driver-form" data-leg-id="{{ leg.id }}">
+                      {% csrf_token %}
+                      <select class="form-select form-select-sm mb-1 driver-select"
+                              name="driver"
+                              data-leg-id="{{ leg.id }}">
+                        <option value="">Select Driver</option>
+                        {% for driver in drivers %}
+                          <option value="{{ driver.id }}"
+                                  {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                            {{ driver.profile.username }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                      {% if leg.driver and leg.driver_assigned_at %}
+                        <div class="small text-muted mb-1">
+                          <i class="bi bi-person-check me-1"></i>Assigned by {{ leg.driver_assigned_by.get_full_name|default:leg.driver_assigned_by.username|default:"—" }}
+                          <span class="d-block">{{ leg.driver_assigned_at|date:"n/j/Y g:i A" }}</span>
+                        </div>
+                      {% endif %}
+                      <select class="form-select form-select-sm status-select"
+                              name="status"
+                              data-leg-id="{{ leg.id }}">
+                        <option value="in-progress"
+                                {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                        <option value="confirmed"
+                                {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                        <option value="on-the-way"
+                                {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                        <option value="on-location"
+                                {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
+                        <option value="picked-up"
+                                {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                        <option value="completed"
+                                {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                      </select>
+                      <div class="update-status mt-1"></div>
+                    </form>
+                    {% with last_update=leg.status_history.first %}
+                      {% if last_update %}
+                        <div class="mt-2 pt-2 border-top">
+                          <div class="small">
+                            <i class="bi bi-clock-history me-1"></i>
+                            <span class="fw-semibold">{{ last_update.get_status_display }}</span>
+                            <span class="text-muted">at {{ last_update.timestamp|easy_time }}</span>
+                          </div>
+                          <div class="small text-muted">
+                            Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
+                          </div>
+                          <div class="small text-muted fst-italic">{{ last_update.timestamp|time_ago }}</div>
+                          {% if leg.status_history.all|length > 1 %}
+                            <button type="button"
+                                    class="btn btn-sm btn-link p-0 mt-1 text-decoration-none view-history-btn"
+                                    data-leg-id="{{ leg.id }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#statusHistoryModal">
+                              <i class="bi bi-clock-history me-1"></i>View Full History
+                            </button>
+                            <span class="mx-1">|</span>
+                          {% endif %}
+                          <button type="button"
+                                  class="btn btn-sm btn-link p-0 mt-1 text-decoration-none leg-history-btn"
+                                  data-leg-id="{{ leg.id }}"
+                                  data-bs-toggle="modal"
+                                  data-bs-target="#legHistoryModal">
+                            <i class="bi bi-journal-text me-1"></i>View Leg History
+                          </button>
+                        </div>
+                      {% else %}
+                        <div class="mt-2">
+                          <a href="{% url 'leg_history' leg.id %}"
+                             class="btn btn-sm btn-link p-0 text-decoration-none">
+                            <i class="bi bi-journal-text me-1"></i>View Leg History
+                          </a>
+                        </div>
+                      {% endif %}
+                    {% endwith %}
+                  </td>
+                </tr>
               {% endwith %}
             {% endfor %}
           </tbody>
@@ -696,109 +726,113 @@
           {% for leg in legs %}
             <div class="col-12">
               {% with mismatch=leg.get_flight_time_mismatch_display %}
-              <div class="card shadow-sm {% if mismatch %}border-danger{% endif %}">
-                <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% else %}bg-light p-2{% endif %}">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
-                    {% if mismatch %}
-                      <span class="badge bg-danger" title="{{ mismatch.label }}">{{ mismatch.label }}</span>
+                <div class="card shadow-sm {% if mismatch %}border-danger{% endif %}">
+                  <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% else %}bg-light p-2{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
+                      {% if mismatch %}<span class="badge bg-danger" title="{{ mismatch.label }}">{{ mismatch.label }}</span>{% endif %}
+                      <a href="{% url 'reservation_details' leg.reservation.uuid %}"
+                         class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
+                    </div>
+                    <div class="fw-semibold">
+                      <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
+                    </div>
+                    <div class="text-muted small">
+                      <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
+                    </div>
+                    {% if leg.reservation.travel_agent %}
+                      <div class="border-top my-2"></div>
+                      <div class="p-2 border border-dark rounded bg-light travel-agent-booking">
+                        <div class="badge bg-dark text-white mb-2 d-block">
+                          <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
+                        </div>
+                        <div class="small">
+                          <div class="fw-semibold text-dark">
+                            {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
+                          </div>
+                          {% if leg.reservation.travel_agent.agency_name %}
+                            <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
+                          {% endif %}
+                          {% if leg.reservation.travel_agent.phone %}
+                            <div class="text-muted">
+                              <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
                     {% endif %}
-                    <a href="{% url 'reservation_details' leg.reservation.uuid %}"
-                       class="badge bg-warning text-decoration-none">#{{ leg.reservation.id }}</a>
                   </div>
-                  <div class="fw-semibold">
-                    <i class="bi bi-envelope me-1"></i>{{ leg.reservation.customer.email }}
-                  </div>
-                  <div class="text-muted small">
-                    <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
-                  </div>
-                  {% if leg.reservation.travel_agent %}
-                    <div class="border-top my-2"></div>
-                    <div class="p-2 border border-dark rounded bg-light travel-agent-booking">
-                      <div class="badge bg-dark text-white mb-2 d-block">
-                        <i class="bi bi-briefcase me-1"></i>Travel Agent Booking
-                      </div>
-                      <div class="small">
-                        <div class="fw-semibold text-dark">
-                          {{ leg.reservation.travel_agent.agent_name|default:leg.reservation.travel_agent.user.get_full_name }}
-                        </div>
-                        {% if leg.reservation.travel_agent.agency_name %}
-                          <div class="text-muted">{{ leg.reservation.travel_agent.agency_name }}</div>
-                        {% endif %}
-                        {% if leg.reservation.travel_agent.phone %}
-                          <div class="text-muted">
-                            <i class="bi bi-telephone me-1"></i>{{ leg.reservation.travel_agent.phone }}
-                          </div>
-                        {% endif %}
-                      </div>
-                    </div>
-                  {% endif %}
-                </div>
 
-                <div class="card-body p-2">
-                  <div class="row g-2">
-                    <!-- Trip Details -->
-                    <div class="col-12">
-                      <div class="d-flex">
-                        <i class="bi bi-calendar-event text-primary me-2"></i>
-                        <div class="small">
-                          {% if leg.flight_information %}
-                            <div class="text-primary mb-1">
-                              <i class="bi bi-airplane me-1"></i>
-                              {% if leg.flight_information.airline_display_name %}
-                                {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
-                              {% else %}
-                                {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                          <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
-                          {% if leg.cleared_time %}
-                            <div style="font-size: 0.88rem; color: #222; margin-top: 0.15rem; font-weight: 600;">
-                              <i class="bi bi-clock" style="font-size: 0.8rem;"></i>
-                              Clearing ~{{ leg.cleared_time }}
-                              {% if leg.duration_display %}
-                                <span style="color: #888; font-weight: 400;">({{ leg.duration_display }})</span>
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                          {% if leg.actual_cleared_time %}
-                            <div style="font-size: 0.88rem; color: #1b5e20; margin-top: 0.1rem; font-weight: 600;">
-                              <i class="bi bi-check-circle-fill" style="font-size: 0.8rem;"></i>
-                              Cleared {{ leg.actual_cleared_time }}
-                              {% if leg.actual_duration_display %}
-                                <span style="color: #888; font-weight: 400;">({{ leg.actual_duration_display }})</span>
-                              {% endif %}
-                            </div>
-                          {% endif %}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Trip Type -->
-                    <div class="col-12">
-                      <div class="d-flex">
-                        {% with trip_dark=leg.get_trip_type_display %}
-                          <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
+                  <div class="card-body p-2">
+                    <div class="row g-2">
+                      <!-- Trip Details -->
+                      <div class="col-12">
+                        <div class="d-flex">
+                          <i class="bi bi-calendar-event text-primary me-2"></i>
                           <div class="small">
-                            <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
-                            <div class="text-muted">{{ trip_dark.description }}</div>
+                            {% if leg.flight_information %}
+                              <div class="text-primary mb-1">
+                                <i class="bi bi-airplane me-1"></i>
+                                {% if leg.flight_information.airline_display_name %}
+                                  {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
+                                {% else %}
+                                  {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                                {% endif %}
+                              </div>
+                            {% endif %}
+                            <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }} at {{ leg.pickup_time|date:"g:i A" }}</div>
+                            {% if leg.cleared_time %}
+                              <div style="font-size: 0.88rem;
+                                          color: #222;
+                                          margin-top: 0.15rem;
+                                          font-weight: 600">
+                                <i class="bi bi-clock" style="font-size: 0.8rem;"></i>
+                                Clearing ~{{ leg.cleared_time }}
+                                {% if leg.duration_display %}
+                                  <span style="color: #888; font-weight: 400;">({{ leg.duration_display }})</span>
+                                {% endif %}
+                              </div>
+                            {% endif %}
+                            {% if leg.actual_cleared_time %}
+                              <div style="font-size: 0.88rem;
+                                          color: #1b5e20;
+                                          margin-top: 0.1rem;
+                                          font-weight: 600">
+                                <i class="bi bi-check-circle-fill" style="font-size: 0.8rem;"></i>
+                                Cleared {{ leg.actual_cleared_time }}
+                                {% if leg.actual_duration_display %}
+                                  <span style="color: #888; font-weight: 400;">({{ leg.actual_duration_display }})</span>
+                                {% endif %}
+                              </div>
+                            {% endif %}
                           </div>
-                        {% endwith %}
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Locations -->
-                    <div class="col-12">
-                      <div class="d-flex">
-                        <i class="bi bi-geo-alt text-success me-2"></i>
-                        <div class="small">
-                          <div>
-                            <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
-                          </div>
-                          <div>
-                            <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
-                          </div>
+                      <!-- Trip Type -->
+                      <div class="col-12">
+                        <div class="d-flex">
+                          {% with trip_dark=leg.get_trip_type_display %}
+                            <i class="bi {{ trip_dark.icon }} text-{{ trip_dark.color }} me-2"></i>
+                            <div class="small">
+                              <span class="badge bg-{{ trip_dark.color }}">{{ trip_dark.label }}</span>
+                              <div class="text-muted">{{ trip_dark.description }}</div>
+                            </div>
+                          {% endwith %}
+                        </div>
+                      </div>
+
+                      <!-- Locations -->
+                      <div class="col-12">
+                        <div class="d-flex">
+                          <i class="bi bi-geo-alt text-success me-2"></i>
+                          <div class="small">
+                            <div>
+                              <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
+                            </div>
+                            <div>
+                              <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
+                            </div>
                             {% if leg.cruise_information %}
                               <div class="mt-2">
                                 <span class="badge bg-dark text-white">
@@ -813,143 +847,164 @@
                                 </span>
                               </div>
                             {% endif %}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Vehicle & Passengers -->
-                    <div class="col-12">
-                      <div class="d-flex">
-                        <i class="bi bi-people text-primary me-2"></i>
-                        <div class="small">
-                          <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
-                          <div class="d-flex align-items-center mb-1">
-                            <span>{{ leg.reservation.passenger_count }} Passengers</span>
-                          </div>
-                          <div class="d-flex align-items-center mb-1">
-                            <span>{{ leg.reservation.luggage_count }} Suitcases</span>
-                            <span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2" style="font-size: .65rem;">
-                              {{ leg.reservation.get_luggage_type_display }}
-                            </span>
-                          </div>
-                          <div class="d-flex align-items-center">
-                            <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <!-- Payment Status -->
-                    <div class="col-12">
-                      <div class="d-flex">
-                        {% with payment_info=leg.reservation.detailed_payment_status %}
-                          <i class="bi bi-cash-coin {% if payment_info.status == 'paid' %}text-success{% elif payment_info.status == 'card_saved' %}text-info{% elif payment_info.status == 'pending' or payment_info.status == 'unpaid' %}text-warning{% else %}text-danger{% endif %} me-2"></i>
+                      <!-- Vehicle & Passengers -->
+                      <div class="col-12">
+                        <div class="d-flex">
+                          <i class="bi bi-people text-primary me-2"></i>
                           <div class="small">
-                            <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
-                            {% if payment_info.status == 'paid' %}
-                              <span class="badge bg-success">{{ payment_info.display }}</span>
-                            {% elif payment_info.status == 'card_saved' %}
-                              <span class="badge bg-info">{{ payment_info.display }}</span>
-                            {% elif payment_info.status == 'pending' %}
-                              <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
-                            {% elif payment_info.status == 'unpaid' %}
-                              <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
-                            {% elif payment_info.status == 'failed' %}
-                              <span class="badge bg-danger">{{ payment_info.display }}</span>
-                            {% else %}
-                              <span class="badge bg-secondary">{{ payment_info.display }}</span>
+                            <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
+                            <div class="d-flex align-items-center mb-1">
+                              <span>{{ leg.reservation.passenger_count }} Passengers</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-1">
+                              <span>{{ leg.reservation.luggage_count }} Suitcases</span>
+                              <span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2"
+                                    style="font-size: .65rem">{{ leg.reservation.get_luggage_type_display }}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                              <span>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Payment Status -->
+                      <div class="col-12">
+                        <div class="d-flex">
+                          {% with payment_info=leg.reservation.detailed_payment_status %}
+                            <i class="bi bi-cash-coin {% if payment_info.status == 'paid' %}text-success{% elif payment_info.status == 'card_saved' %}text-info{% elif payment_info.status == 'pending' or payment_info.status == 'unpaid' %}text-warning{% else %}text-danger{% endif %} me-2"></i>
+                            <div class="small">
+                              <div class="fw-bold">${{ leg.reservation.total_price|floatformat:2 }}</div>
+                              {% if payment_info.status == 'paid' %}
+                                <span class="badge bg-success">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'card_saved' %}
+                                <span class="badge bg-info">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'pending' %}
+                                <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'unpaid' %}
+                                <span class="badge bg-warning text-dark">{{ payment_info.display }}</span>
+                              {% elif payment_info.status == 'failed' %}
+                                <span class="badge bg-danger">{{ payment_info.display }}</span>
+                              {% else %}
+                                <span class="badge bg-secondary">{{ payment_info.display }}</span>
+                              {% endif %}
+                            </div>
+                          {% endwith %}
+                        </div>
+                      </div>
+
+                      <!-- Notes -->
+                      <div class="col-12">
+                        <div class="d-flex">
+                          <i class="bi bi-journal-text text-primary me-2"></i>
+                          <div class="small w-100">
+                            <div>
+                              <strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}
+                            </div>
+                            <div>
+                              <strong>Res Notes:</strong> {{ leg.reservation.private_notes|default:"" }}
+                            </div>
+                            <div>
+                              <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
+                            </div>
+                            {% if leg.get_trip_type != "return" %}
+                              <span class="badge bg-dark text-dark">
+                                <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
+                              </span>
                             {% endif %}
                           </div>
+                        </div>
+                      </div>
+
+                      <!-- Status & Driver -->
+                      <div class="col-12">
+                        <form class="driver-form" data-leg-id="{{ leg.id }}">
+                          {% csrf_token %}
+                          <select class="form-select form-select-sm mb-1 driver-select"
+                                  name="driver"
+                                  data-leg-id="{{ leg.id }}">
+                            <option value="">Select Driver</option>
+                            {% for driver in drivers %}
+                              <option value="{{ driver.id }}"
+                                      {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                                {{ driver.profile.username }}
+                              </option>
+                            {% endfor %}
+                          </select>
+                          {% if leg.driver and leg.driver_assigned_at %}
+                            <div class="small text-muted mb-1">
+                              <i class="bi bi-person-check me-1"></i>Assigned by {{ leg.driver_assigned_by.get_full_name|default:leg.driver_assigned_by.username|default:"—" }}
+                              <span class="d-block">{{ leg.driver_assigned_at|date:"n/j/Y g:i A" }}</span>
+                            </div>
+                          {% endif %}
+                          <select class="form-select form-select-sm status-select"
+                                  name="status"
+                                  data-leg-id="{{ leg.id }}">
+                            <option value="in-progress"
+                                    {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
+                            <option value="confirmed"
+                                    {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
+                            <option value="on-the-way"
+                                    {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
+                            <option value="on-location"
+                                    {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
+                            <option value="picked-up"
+                                    {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
+                            <option value="completed"
+                                    {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
+                          </select>
+                          <div class="update-status mt-1"></div>
+                        </form>
+                        {% with last_update=leg.status_history.first %}
+                          {% if last_update %}
+                            <div class="mt-2 pt-2 border-top">
+                              <div class="small">
+                                <i class="bi bi-clock-history me-1"></i>
+                                <span class="fw-semibold">{{ last_update.get_status_display }}</span>
+                                <span class="text-muted">at {{ last_update.timestamp|easy_time }}</span>
+                              </div>
+                              <div class="small text-muted">
+                                Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
+                              </div>
+                              <div class="small text-muted fst-italic">{{ last_update.timestamp|time_ago }}</div>
+                              {% if leg.status_history.all|length > 1 %}
+                                <button type="button"
+                                        class="btn btn-sm btn-link p-0 mt-1 text-decoration-none view-history-btn"
+                                        data-leg-id="{{ leg.id }}"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#statusHistoryModal">
+                                  <i class="bi bi-clock-history me-1"></i>View Full History
+                                </button>
+                                <span class="mx-1">|</span>
+                              {% endif %}
+                              <button type="button"
+                                      class="btn btn-sm btn-link p-0 mt-1 text-decoration-none leg-history-btn"
+                                      data-leg-id="{{ leg.id }}"
+                                      data-bs-toggle="modal"
+                                      data-bs-target="#legHistoryModal">
+                                <i class="bi bi-journal-text me-1"></i>View Leg History
+                              </button>
+                            </div>
+                          {% else %}
+                            <div class="mt-2">
+                              <button type="button"
+                                      class="btn btn-sm btn-link p-0 text-decoration-none leg-history-btn"
+                                      data-leg-id="{{ leg.id }}"
+                                      data-bs-toggle="modal"
+                                      data-bs-target="#legHistoryModal">
+                                <i class="bi bi-journal-text me-1"></i>View Leg History
+                              </button>
+                            </div>
+                          {% endif %}
                         {% endwith %}
                       </div>
                     </div>
-
-                    <!-- Notes -->
-                    <div class="col-12">
-                      <div class="d-flex">
-                        <i class="bi bi-journal-text text-primary me-2"></i>
-                        <div class="small w-100">
-                          <div>
-                            <strong>Leg Notes:</strong> {{ leg.private_notes|default:"" }}
-                          </div>
-                          <div>
-                            <strong>Res Notes:</strong> {{ leg.reservation.private_notes|default:"" }}
-                          </div>
-                          <div>
-                            <strong>Customer Notes:</strong> {{ leg.reservation.special_requests|default:"" }}
-                          </div>
-                          {% if leg.get_trip_type != "return" %}
-                            <span class="badge bg-dark text-dark">
-                              <i class="bi bi-shop me-1"></i>{{ leg.reservation.store_stop }}
-                            </span>
-                          {% endif %}
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Status & Driver -->
-                    <div class="col-12">
-                      <form class="driver-form" data-leg-id="{{ leg.id }}">
-                        {% csrf_token %}
-                        <select class="form-select form-select-sm mb-1 driver-select"
-                                name="driver"
-                                data-leg-id="{{ leg.id }}">
-                          <option value="">Select Driver</option>
-                          {% for driver in drivers %}
-                            <option value="{{ driver.id }}"
-                                    {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                              {{ driver.profile.username }}
-                            </option>
-                          {% endfor %}
-                        </select>
-                        <select class="form-select form-select-sm status-select"
-                                name="status"
-                                data-leg-id="{{ leg.id }}">
-                          <option value="in-progress"
-                                  {% if leg.status == 'in-progress' %}selected{% endif %}>In Progress</option>
-                          <option value="confirmed"
-                                  {% if leg.status == 'confirmed' %}selected{% endif %}>Confirmed</option>
-                          <option value="on-the-way"
-                                  {% if leg.status == 'on-the-way' %}selected{% endif %}>On the Way</option>
-                          <option value="on-location"
-                                  {% if leg.status == 'on-location' %}selected{% endif %}>On Location</option>
-                          <option value="picked-up"
-                                  {% if leg.status == 'picked-up' %}selected{% endif %}>Picked Up</option>
-                          <option value="completed"
-                                  {% if leg.status == 'completed' %}selected{% endif %}>Completed</option>
-                        </select>
-                        <div class="update-status mt-1"></div>
-                      </form>
-                      {% with last_update=leg.status_history.first %}
-                        {% if last_update %}
-                          <div class="mt-2 pt-2 border-top">
-                            <div class="small">
-                              <i class="bi bi-clock-history me-1"></i>
-                              <span class="fw-semibold">{{ last_update.get_status_display }}</span>
-                              <span class="text-muted"> at {{ last_update.timestamp|easy_time }}</span>
-                            </div>
-                            <div class="small text-muted">
-                              Updated by: {{ last_update.updated_by.get_full_name|default:last_update.updated_by.username|default:"System" }}
-                            </div>
-                            <div class="small text-muted fst-italic">
-                              {{ last_update.timestamp|time_ago }}
-                            </div>
-                            {% if leg.status_history.all|length > 1 %}
-                              <button type="button"
-                                      class="btn btn-sm btn-link p-0 mt-1 text-decoration-none view-history-btn"
-                                      data-leg-id="{{ leg.id }}"
-                                      data-bs-toggle="modal"
-                                      data-bs-target="#statusHistoryModal">
-                                <i class="bi bi-clock-history me-1"></i>View Full History
-                              </button>
-                            {% endif %}
-                          </div>
-                        {% endif %}
-                      {% endwith %}
-                    </div>
                   </div>
                 </div>
-              </div>
               {% endwith %}
             </div>
           {% endfor %}
@@ -1127,58 +1182,58 @@
                   const legId = this.dataset.legId;
                   const btn = this;
                   const originalHtml = btn.innerHTML;
-                  
+
                   // Disable button and show loading
                   btn.disabled = true;
                   btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i> Refreshing...';
-                  
+
                   // Get CSRF token
-                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
-                                   document.cookie.match(/csrftoken=([^;]+)/)?.[1];
-                  
+                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                      document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+
                   fetch('/dispatching/refresh-flight-data/', {
-                      method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'X-CSRFToken': csrfToken
-                      },
-                      body: JSON.stringify({
-                          leg_id: legId
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId
+                          })
                       })
-                  })
-                  .then(response => {
-                      if (!response.ok) {
-                          return response.json().then(data => {
-                              throw new Error(data.error || 'Server error: ' + response.status);
-                          });
-                      }
-                      return response.json();
-                  })
-                  .then(data => {
-                      if (data.success) {
-                          btn.innerHTML = '<i class="bi bi-check-circle text-success"></i> Refreshed';
+                      .then(response => {
+                          if (!response.ok) {
+                              return response.json().then(data => {
+                                  throw new Error(data.error || 'Server error: ' + response.status);
+                              });
+                          }
+                          return response.json();
+                      })
+                      .then(data => {
+                          if (data.success) {
+                              btn.innerHTML = '<i class="bi bi-check-circle text-success"></i> Refreshed';
+                              btn.classList.remove('btn-outline-primary');
+                              btn.classList.add('btn-success');
+                              // Reload immediately so updated flight details are visible
+                              window.location.reload();
+                          } else {
+                              throw new Error(data.error || 'Unknown error');
+                          }
+                      })
+                      .catch(error => {
+                          btn.innerHTML = '<i class="bi bi-x-circle text-danger"></i> Error';
                           btn.classList.remove('btn-outline-primary');
-                          btn.classList.add('btn-success');
-                          // Reload immediately so updated flight details are visible
-                          window.location.reload();
-                      } else {
-                          throw new Error(data.error || 'Unknown error');
-                      }
-                  })
-                  .catch(error => {
-                      btn.innerHTML = '<i class="bi bi-x-circle text-danger"></i> Error';
-                      btn.classList.remove('btn-outline-primary');
-                      btn.classList.add('btn-danger');
-                      alert('Error refreshing flight data: ' + error.message);
-                      
-                      // Reset button after 3 seconds
-                      setTimeout(() => {
-                          btn.disabled = false;
-                          btn.innerHTML = originalHtml;
-                          btn.classList.remove('btn-danger');
-                          btn.classList.add('btn-outline-primary');
-                      }, 3000);
-                  });
+                          btn.classList.add('btn-danger');
+                          alert('Error refreshing flight data: ' + error.message);
+
+                          // Reset button after 3 seconds
+                          setTimeout(() => {
+                              btn.disabled = false;
+                              btn.innerHTML = originalHtml;
+                              btn.classList.remove('btn-danger');
+                              btn.classList.add('btn-outline-primary');
+                          }, 3000);
+                      });
               });
           });
 
@@ -1191,28 +1246,33 @@
                   el.disabled = true;
                   el.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
                   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-                                   document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+                      document.cookie.match(/csrftoken=([^;]+)/)?.[1];
                   fetch("{% url 'match_leg_time_to_flight' %}", {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                      body: JSON.stringify({ leg_id: legId })
-                  })
-                  .then(r => r.json())
-                  .then(data => {
-                      if (data.success) {
-                          el.innerHTML = '<i class="bi bi-check-circle text-success"></i> Updated';
-                          window.location.reload();
-                      } else {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'X-CSRFToken': csrfToken
+                          },
+                          body: JSON.stringify({
+                              leg_id: legId
+                          })
+                      })
+                      .then(r => r.json())
+                      .then(data => {
+                          if (data.success) {
+                              el.innerHTML = '<i class="bi bi-check-circle text-success"></i> Updated';
+                              window.location.reload();
+                          } else {
+                              el.disabled = false;
+                              el.innerHTML = originalHtml;
+                              alert(data.error || 'Could not update leg time');
+                          }
+                      })
+                      .catch(err => {
                           el.disabled = false;
                           el.innerHTML = originalHtml;
-                          alert(data.error || 'Could not update leg time');
-                      }
-                  })
-                  .catch(err => {
-                      el.disabled = false;
-                      el.innerHTML = originalHtml;
-                      alert('Error: ' + err.message);
-                  });
+                          alert('Error: ' + err.message);
+                      });
               });
           });
 
@@ -1228,6 +1288,42 @@
                   }
               });
           });
+
+          // Leg History Modal: store leg id on button click, then fetch partial when modal opens
+          document.querySelectorAll('.leg-history-btn').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                  var modal = document.getElementById('legHistoryModal');
+                  if (modal) modal.setAttribute('data-current-leg-id', this.getAttribute('data-leg-id') || '');
+              });
+          });
+          var legHistoryModal = document.getElementById('legHistoryModal');
+          var legHistoryModalBody = document.getElementById('legHistoryModalBody');
+          if (legHistoryModal && legHistoryModalBody) {
+              legHistoryModal.addEventListener('show.bs.modal', function(event) {
+                  const legId = legHistoryModal.getAttribute('data-current-leg-id') ||
+                      (event.relatedTarget && event.relatedTarget.getAttribute('data-leg-id'));
+                  if (!legId) return;
+                  legHistoryModalBody.innerHTML = '<div class="text-center py-4 text-muted">Loading…</div>';
+                  let url = "{% url 'leg_history_partial' 0 %}".replace(/\/0\//, '/' + legId + '/');
+                  if (url.indexOf('/') !== 0) url = '/' + url;
+                  fetch(url, {
+                          credentials: 'same-origin',
+                          headers: {
+                              'X-Requested-With': 'XMLHttpRequest'
+                          }
+                      })
+                      .then(function(r) {
+                          if (!r.ok) throw new Error('Request failed: ' + r.status);
+                          return r.text();
+                      })
+                      .then(function(html) {
+                          legHistoryModalBody.innerHTML = html;
+                      })
+                      .catch(function() {
+                          legHistoryModalBody.innerHTML = '<p class="text-danger">Failed to load history.</p>';
+                      });
+              });
+          }
       });
   </script>
 
@@ -1239,12 +1335,20 @@
           <div class="mb-3">
             <div class="row">
               <div class="col-md-6">
-                <p class="mb-1"><strong>Leg ID:</strong> #{{ leg.id }}</p>
-                <p class="mb-1"><strong>Route:</strong> {{ leg.pickup_location }} → {{ leg.dropoff_location }}</p>
+                <p class="mb-1">
+                  <strong>Leg ID:</strong> #{{ leg.id }}
+                </p>
+                <p class="mb-1">
+                  <strong>Route:</strong> {{ leg.pickup_location }} → {{ leg.dropoff_location }}
+                </p>
               </div>
               <div class="col-md-6">
-                <p class="mb-1"><strong>Date:</strong> {{ leg.pickup_date|date:"M d, Y" }}</p>
-                <p class="mb-1"><strong>Time:</strong> {{ leg.pickup_time|time:"g:i A" }}</p>
+                <p class="mb-1">
+                  <strong>Date:</strong> {{ leg.pickup_date|date:"M d, Y" }}
+                </p>
+                <p class="mb-1">
+                  <strong>Time:</strong> {{ leg.pickup_time|time:"g:i A" }}
+                </p>
               </div>
             </div>
           </div>
@@ -1288,14 +1392,21 @@
   {% endfor %}
 
   <!-- Status History Modal -->
-  <div class="modal fade" id="statusHistoryModal" tabindex="-1" aria-labelledby="statusHistoryModalLabel" aria-hidden="true">
+  <div class="modal fade"
+       id="statusHistoryModal"
+       tabindex="-1"
+       aria-labelledby="statusHistoryModalLabel"
+       aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header border-bottom">
           <h5 class="modal-title" id="statusHistoryModalLabel">
             <i class="bi bi-clock-history me-2"></i>Status History
           </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
         </div>
         <div class="modal-body" id="statusHistoryModalBody">
           <!-- Content will be populated by JavaScript -->
@@ -1307,13 +1418,43 @@
     </div>
   </div>
 
+  <!-- Leg History Modal (content loaded via fetch when opened) -->
+  <div class="modal fade"
+       id="legHistoryModal"
+       tabindex="-1"
+       aria-labelledby="legHistoryModalLabel"
+       aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title" id="legHistoryModalLabel">
+            <i class="bi bi-journal-text me-2"></i>Leg history
+          </h5>
+          <button type="button"
+                  class="btn-close btn-close-white"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"></button>
+        </div>
+        <div class="modal-body bg-light" id="legHistoryModalBody">
+          <div class="text-center py-4 text-muted">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <style>
       .spin {
           animation: spin 1s linear infinite;
       }
+
       @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          from {
+              transform: rotate(0deg);
+          }
+
+          to {
+              transform: rotate(360deg);
+          }
       }
 
       /* Status History Timeline Styles */

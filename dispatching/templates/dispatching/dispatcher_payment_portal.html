@@ -1,6 +1,9 @@
 {% extends "main.html" %}
 {% load static %}
 
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
 {% block extra_css %}
   <style>
       .field-hidden {
@@ -10,9 +13,9 @@
 {% endblock extra_css %}
 
 {% block content %}
-  <div class="container py-5">
+  <div class="container-fluid container-md py-3 py-md-5">
     <div class="row">
-      <div class="col-md-8 offset-md-2">
+      <div class="col-12 col-md-8 offset-md-2">
         <h2 class="mb-4">Dispatcher Payment Actions</h2>
         <div class="card">
           <div class="card-header">
@@ -58,7 +61,9 @@
                   </option>
                   {% if has_saved_cards %}
                     <option value="use_saved_card"
-                            {% if selected_action == 'use_saved_card' %}selected{% endif %}>Use Saved Payment Method</option>
+                            {% if selected_action == 'use_saved_card' %}selected{% endif %}>
+                      Use Saved Payment Method
+                    </option>
                   {% endif %}
                 </select>
               </div>

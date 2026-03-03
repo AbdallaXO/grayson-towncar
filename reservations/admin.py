@@ -19,6 +19,7 @@ from import_export.admin import ImportExportModelAdmin
 from .models import Customer, Reservation, Leg, Flight, Cruise, Lead, Quote, AuditLog, BlockedTimeSlot, LegStatus, ScheduleSnapshot, ScheduleSnapshotEntry
 from django.db import models
 from dispatching.admin_mixins import DispatcherAdminMixin
+from simple_history.admin import SimpleHistoryAdmin
 
 logger = logging.getLogger(__name__)
 
@@ -832,7 +833,7 @@ class ReservationCreatedAtFilter(SimpleListFilter):
 
 # ─── Admin classes ──────────────────────────────────────────────────────
 @admin.register(Customer)
-class CustomerAdmin(ImportExportModelAdmin):
+class CustomerAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
     resource_class = CustomerResource
     list_display = (
         "first_name",
@@ -881,7 +882,7 @@ class CustomerAdmin(ImportExportModelAdmin):
 
 
 @admin.register(Reservation)
-class ReservationAdmin(DispatcherAdminMixin, ImportExportModelAdmin):
+class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportModelAdmin):
     ordering = ("-id",)
     resource_class = ReservationResource
     inlines = [LegInline]
@@ -1267,7 +1268,7 @@ class ReservationAdmin(DispatcherAdminMixin, ImportExportModelAdmin):
 
 
 @admin.register(Leg)
-class LegAdmin(ImportExportModelAdmin):
+class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
     resource_class = LegResource
     form = LegAdminForm
     list_display = (

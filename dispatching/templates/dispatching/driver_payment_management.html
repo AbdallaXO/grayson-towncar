@@ -628,7 +628,7 @@
                                 <div>
                                   <label class="small text-muted mb-1 d-block">Base Pay:</label>
                                   <input type="number"
-                                         class="form-control form-control-sm"
+                                         class="form-control driver-pay-input"
                                          value="{% if leg.driver_base_pay %}{{ leg.driver_base_pay|floatformat:2 }}{% endif %}"
                                          data-leg-id="{{ leg.id }}"
                                          data-field="base_pay"
@@ -640,7 +640,7 @@
                                 <div>
                                   <label class="small text-muted mb-1 d-block">Gratuity:</label>
                                   <input type="number"
-                                         class="form-control form-control-sm"
+                                         class="form-control driver-pay-input"
                                          value="{% if leg.driver_gratuity %}{{ leg.driver_gratuity|floatformat:2 }}{% endif %}"
                                          data-leg-id="{{ leg.id }}"
                                          data-field="gratuity"
@@ -652,7 +652,7 @@
                                 <div>
                                   <label class="small text-muted mb-1 d-block">Additional:</label>
                                   <input type="number"
-                                         class="form-control form-control-sm"
+                                         class="form-control driver-pay-input"
                                          value="{% if leg.driver_additional %}{{ leg.driver_additional|floatformat:2 }}{% endif %}"
                                          data-leg-id="{{ leg.id }}"
                                          data-field="additional"
@@ -668,10 +668,10 @@
                                   </div>
                                   <div class="d-flex justify-content-end mt-2">
                                     <button type="button"
-                                            class="btn btn-sm btn-outline-success save-pay-btn"
+                                            class="btn btn-success w-100 save-pay-btn"
                                             data-leg-id="{{ leg.id }}"
                                             style="display: none">
-                                      <i class="bi bi-check"></i> Save
+                                      <i class="bi bi-check me-1"></i> Save Pay
                                     </button>
                                   </div>
                                   <div class="update-status mt-1" id="status-{{ leg.id }}"></div>

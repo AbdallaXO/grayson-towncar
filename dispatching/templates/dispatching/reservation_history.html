@@ -1,0 +1,42 @@
+{% extends "main.html" %}
+{% load static %}
+{% load history_formatters %}
+
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block content %}
+  {% block navbar %}
+  {% endblock navbar %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+  <div class="container py-4 history-page-content">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+      <h4 class="mb-0">
+        <i class="bi bi-clock-history me-2"></i>Reservation history
+      </h4>
+      <a href="{% url 'reservation_details' reservation.uuid %}"
+         class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to reservation
+      </a>
+    </div>
+    <p class="text-muted small mb-3">
+      Full audit log for <strong>{{ reservation }}</strong>. Created {{ reservation.created_at|date:"n/j/Y g:i A" }}
+      {% if reservation.created_by %}
+        by {{ reservation.created_by.get_full_name|default:reservation.created_by.username }}
+      {% endif %}
+      .
+    </p>
+
+    {% if history_records %}
+      {% include "dispatching/includes/history_table.html" %}
+    {% else %}
+      <p class="text-muted">No history recorded for this reservation.</p>
+    {% endif %}
+  </div>
+  <style>
+      .history-page-content {
+          padding-bottom: 5rem;
+          margin-bottom: 2rem;
+      }
+  </style>
+{% endblock content %}

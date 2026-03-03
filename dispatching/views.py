@@ -61,6 +61,10 @@ from .forms import (
     TripTypeForm,
 )
 
+# django-simple-history helpers for history views
+from simple_history.utils import get_history_manager_for_model
+from simple_history.template_utils import HistoricalRecordContextHelper
+
 # Configure logging and Stripe
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -160,6 +164,7 @@ def index(request):
     inhouse_drivers = (
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
+        .prefetch_related("weekly_schedule")
         .order_by("profile__first_name", "profile__last_name", "profile__username")
     )
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
@@ -168,11 +173,26 @@ def index(request):
     assignment_map = {
         assignment.driver_id: assignment for assignment in inhouse_assignments
     }
-    inhouse_driver_rows = [
-        {"driver": driver, "assignment": assignment_map.get(driver.id)}
-        for driver in inhouse_drivers
-    ]
+    _selected_dow = selected_date.weekday()  # 0=Mon … 6=Sun
+    inhouse_driver_rows = []
+    for _driver in inhouse_drivers:
+        _is_off = False
+        for _entry in _driver.weekly_schedule.all():
+            if _entry.day_of_week == _selected_dow:
+                _is_off = not _entry.is_available
+                break
+        _assignment = assignment_map.get(_driver.id)
+        # If driver has a vehicle assigned today, treat them as working regardless of schedule
+        if _is_off and _assignment and _assignment.vehicle_id:
+            _is_off = False
+        inhouse_driver_rows.append({
+            "driver": _driver,
+            "assignment": _assignment,
+            "is_off_today": _is_off,
+        })
     def _inhouse_vehicle_sort_key(row):
+        # Off-today drivers sink to bottom; within each group: assigned first, then by vehicle#/name
+        off_bucket = 2 if row.get("is_off_today") else 0
         assignment = row.get("assignment")
         vehicle_number = None
         if assignment and assignment.vehicle and assignment.vehicle.vehicle_number:
@@ -182,12 +202,25 @@ def index(request):
                 vehicle_number = int(vehicle_number)
             except ValueError:
                 pass
-            return (0, vehicle_number)
-        driver = row["driver"]
-        return (1, str(driver))
+            return (off_bucket, vehicle_number)
+        return (off_bucket + 1, str(row["driver"]))
 
     inhouse_driver_rows.sort(key=_inhouse_vehicle_sort_key)
 
+    # Count legs per inhouse driver on the selected date (independent of any driver filter)
+    _inhouse_driver_ids = [row["driver"].id for row in inhouse_driver_rows]
+    _leg_count_qs = (
+        Leg.objects.filter(pickup_date=selected_date, driver_id__in=_inhouse_driver_ids)
+        .values("driver_id")
+        .annotate(_cnt=Count("id"))
+    )
+    _inhouse_leg_counts = {r["driver_id"]: r["_cnt"] for r in _leg_count_qs}
+    for row in inhouse_driver_rows:
+        row["leg_count"] = _inhouse_leg_counts.get(row["driver"].id, 0)
+
+    inhouse_assigned_count = sum(
+        1 for row in inhouse_driver_rows if row["assignment"] and row["assignment"].vehicle
+    )
 
     for driver in drivers:
         display_name = str(driver)
@@ -303,6 +336,7 @@ def index(request):
         "drivers": drivers,
         "inhouse_driver_rows": inhouse_driver_rows,
         "inhouse_vehicles": inhouse_vehicles,
+        "inhouse_assigned_count": inhouse_assigned_count,
     }
 
     return render(request, "dispatching/legs_filter.html", context)
@@ -622,6 +656,115 @@ def reservation_details(request, id):
     }
 
     return render(request, "dispatching/reservation_view.html", context)
+
+
+def _build_history_with_deltas(model_class, historical_records, foreign_keys_are_objs=True):
+    """
+    Attach history_delta_changes to each historical record (except the first),
+    using the same logic as django-simple-history's SimpleHistoryAdmin.
+    historical_records should be ordered by -history_date (newest first).
+    """
+    previous = None
+    for current in historical_records:
+        if previous is None:
+            previous = current
+            continue
+        delta = previous.diff_against(current, foreign_keys_are_objs=foreign_keys_are_objs)
+        helper = HistoricalRecordContextHelper(model_class, previous)
+        previous.history_delta_changes = helper.context_for_delta_changes(delta)
+        previous = current
+    return list(historical_records)
+
+
+@login_required(login_url="login")
+def reservation_history(request, id):
+    """
+    Full audit log for a reservation (same data as admin History, in app view).
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    reservation = get_object_or_404(Reservation, uuid=id)
+    history_manager = get_history_manager_for_model(Reservation)
+
+    historical = list(
+        history_manager.filter(uuid=reservation.uuid)
+        .select_related("history_user")
+        .order_by("-history_date")
+    )
+    _build_history_with_deltas(Reservation, historical)
+
+    context = {
+        "reservation": reservation,
+        "history_records": historical,
+        "page_title": f"Reservation history — {reservation}",
+    }
+    return render(request, "dispatching/reservation_history.html", context)
+
+
+@login_required(login_url="login")
+def leg_history(request, id):
+    """
+    Full audit log for a leg (same data as admin History, in app view).
+    Used from reservation view and All Legs.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    leg = get_object_or_404(
+        Leg.objects.select_related("reservation"),
+        id=id,
+    )
+    history_manager = get_history_manager_for_model(Leg)
+    pk_attr = leg._meta.pk.attname
+    pk_value = getattr(leg, pk_attr)
+
+    historical = list(
+        history_manager.filter(**{pk_attr: pk_value})
+        .select_related("history_user")
+        .order_by("-history_date")
+    )
+    _build_history_with_deltas(Leg, historical)
+
+    context = {
+        "leg": leg,
+        "reservation": leg.reservation,
+        "history_records": historical,
+        "page_title": f"Leg history — {leg.pickup_location} → {leg.dropoff_location}",
+    }
+    return render(request, "dispatching/leg_history.html", context)
+
+
+@login_required(login_url="login")
+def leg_history_partial(request, id):
+    """
+    Returns only the history table HTML for use in a modal (AJAX).
+    Used by All Legs page.
+    """
+    if not request.user.is_staff:
+        return HttpResponse(status=403)
+
+    leg = get_object_or_404(
+        Leg.objects.select_related("reservation"),
+        id=id,
+    )
+    history_manager = get_history_manager_for_model(Leg)
+    pk_attr = leg._meta.pk.attname
+    pk_value = getattr(leg, pk_attr)
+
+    historical = list(
+        history_manager.filter(**{pk_attr: pk_value})
+        .select_related("history_user")
+        .order_by("-history_date")
+    )
+    _build_history_with_deltas(Leg, historical)
+
+    context = {
+        "leg": leg,
+        "reservation": leg.reservation,
+        "history_records": historical,
+    }
+    return render(request, "dispatching/leg_history_partial.html", context)
 
 
 @login_required(login_url="login")
@@ -2355,13 +2498,11 @@ def match_leg_time_to_flight(request):
             flight_dt = timezone.make_naive(
                 flight_dt, timezone.get_current_timezone()
             )
-        new_date = flight_dt.date()
         new_time = flight_dt.time()
-        Leg.objects.filter(id=leg.id).update(pickup_date=new_date, pickup_time=new_time)
+        Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
         return JsonResponse({
             "success": True,
             "message": "Leg pickup time updated to match flight arrival",
-            "pickup_date": new_date.isoformat(),
             "pickup_time": new_time.strftime("%H:%M"),
         })
     except json.JSONDecodeError:
@@ -2414,10 +2555,9 @@ def match_all_leg_times_to_flight(request):
                 flight_dt = timezone.make_naive(
                     flight_dt, timezone.get_current_timezone()
                 )
-            new_date = flight_dt.date()
             new_time = flight_dt.time()
-            if leg.pickup_date != new_date or leg.pickup_time != new_time:
-                Leg.objects.filter(id=leg.id).update(pickup_date=new_date, pickup_time=new_time)
+            if leg.pickup_time != new_time:
+                Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
                 updated += 1
         return JsonResponse({
             "success": True,
@@ -3755,7 +3895,12 @@ def create_dispatcher_reservation(booking_data):
                 private_notes=private_notes,
                 driver_pay_amount=driver_pay_amount
             )
-    
+
+        # Recalculate revenue_share for all legs now that the full count is known.
+        # Legs created earlier in the loop got revenue_share = total_price (count=1);
+        # this corrects them all to total_price / num_legs.
+        reservation.recalculate_leg_revenue_shares()
+
     return reservation
 
 
@@ -3894,9 +4039,8 @@ def add_leg_to_reservation(request):
             leg.flight_information = flight
             leg.save()
         
-        # Update reservation pricing if needed (recalculate revenue share for all legs)
-        for existing_leg in reservation.legs.all():
-            existing_leg.save()  # This will recalculate revenue share
+        # Recalculate revenue_share for all legs now that there is one more leg
+        reservation.recalculate_leg_revenue_shares()
         
         logger.info(f"Added new leg {leg.id} to reservation {reservation.id}")
         
@@ -4041,8 +4185,8 @@ def update_driver_pay_amount(request):
                 # Update total for backward compatibility
                 leg.driver_pay_amount = (base_pay + gratuity + additional).quantize(Decimal("0.01"))
                 
-                leg.save(update_fields=['driver_base_pay', 'driver_gratuity', 'driver_additional', 'driver_pay_amount'])
-                
+                leg.save(update_fields=['driver_base_pay', 'driver_gratuity', 'driver_additional', 'driver_pay_amount', 'profit_estimate'])
+
                 logger.info(f"Updated driver pay for leg {leg_id}: Base=${base_pay}, Gratuity=${gratuity}, Additional=${additional}, Total=${leg.driver_pay_amount}")
                 
                 return JsonResponse({
@@ -4068,8 +4212,8 @@ def update_driver_pay_amount(request):
                 
                 # Update the driver pay amount (legacy field)
                 leg.driver_pay_amount = amount_decimal
-                leg.save(update_fields=['driver_pay_amount'])
-                
+                leg.save(update_fields=['driver_pay_amount', 'profit_estimate'])
+
                 logger.info(f"Updated driver pay amount for leg {leg_id} to {amount_decimal}")
                 
                 return JsonResponse({
@@ -4564,8 +4708,14 @@ def delete_leg(request):
         
         # Delete the leg
         leg.delete()
-        
-        # Update reservation profit calculations
+
+        # Recalculate revenue_share for remaining legs (one fewer leg changes each share)
+        try:
+            reservation.recalculate_leg_revenue_shares()
+        except Exception as e:
+            logger.warning(f"Could not recalculate leg revenue shares after leg deletion: {e}")
+
+        # Update reservation-level profit calculations
         try:
             reservation.update_profit_calculations()
         except Exception as e:
@@ -7037,11 +7187,13 @@ def save_driver_weekly_schedules(request):
         except Driver.DoesNotExist:
             continue
 
-        # Update driver defaults
+        # Update driver defaults + notes
         driver.default_start_hour = int(d_data.get("default_start_hour", 6))
         driver.default_end_hour = int(d_data.get("default_end_hour", 23))
         driver.default_preference = d_data.get("default_preference", "")
-        driver.save(update_fields=["default_start_hour", "default_end_hour", "default_preference"])
+        if "notes" in d_data:
+            driver.notes = d_data["notes"].strip() or None
+        driver.save(update_fields=["default_start_hour", "default_end_hour", "default_preference", "notes"])
 
         # Update weekly entries
         weekly = d_data.get("weekly", {})
@@ -7060,3 +7212,73 @@ def save_driver_weekly_schedules(request):
         updated_count += 1
 
     return JsonResponse({"success": True, "message": f"Updated schedules for {updated_count} drivers"})
+
+
+@login_required(login_url="login")
+def inhouse_schedule(request):
+    """
+    In-house driver availability manager.
+    Shows each driver's weekly schedule (days + hours) and lets staff edit inline.
+    Vehicle assignments for a specific date are handled on the Legs Dashboard.
+    """
+    if not request.user.is_staff:
+        messages.error(request, "Permission denied.")
+        return redirect("legs_list")
+
+    DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    def _fmt_hour(h):
+        """Return a short human-readable hour label like 2a, 12p, EOD."""
+        if h == 0:  return "12a"
+        if h < 12:  return f"{h}a"
+        if h == 12: return "12p"
+        if h == 23: return "EOD"
+        return f"{h - 12}p"
+
+    def _fmt_hour_long(h):
+        """Return a full select-option label like '12 AM', '2 AM', '5 PM'."""
+        if h == 0:  return "12 AM"
+        if h < 12:  return f"{h} AM"
+        if h == 12: return "12 PM"
+        if h == 23: return "EOD (11 PM)"
+        return f"{h - 12} PM"
+
+    # All 24 hour choices for the time selects
+    hour_choices = [{"value": h, "label": _fmt_hour_long(h)} for h in range(24)]
+
+    inhouse_drivers = (
+        Driver.objects.filter(driver_type="inhouse")
+        .select_related("profile")
+        .prefetch_related("weekly_schedule")
+        .order_by("profile__first_name", "profile__last_name", "profile__username")
+    )
+
+    driver_rows = []
+    for driver in inhouse_drivers:
+        weekly_map = {entry.day_of_week: entry for entry in driver.weekly_schedule.all()}
+        days = []
+        for day_idx in range(7):
+            entry = weekly_map.get(day_idx)
+            sh = entry.start_hour if entry else driver.default_start_hour
+            eh = entry.end_hour   if entry else driver.default_end_hour
+            avail = entry.is_available if entry else True
+            pref  = entry.preference   if entry else driver.default_preference
+            days.append({
+                "day_idx":    day_idx,
+                "day_name":   DAY_NAMES[day_idx],
+                "is_available": avail,
+                "start_hour": sh,
+                "end_hour":   eh,
+                "preference": pref,
+                "pill_label": f"{_fmt_hour(sh)}-{_fmt_hour(eh)}" if avail else "Off",
+            })
+        driver_rows.append({"driver": driver, "days": days})
+
+    today = timezone.localdate()
+    context = {
+        "driver_rows": driver_rows,
+        "hour_choices": hour_choices,
+        "today": today,
+        "today_legs_url": f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
+    }
+    return render(request, "dispatching/inhouse_schedule.html", context)

@@ -28,13 +28,13 @@
                aria-expanded="false">Admin View</a>
             <ul class="dropdown-menu" aria-labelledby="adminDropdown">
               <li>
-                <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
+                <a class="dropdown-item" href="{% url 'dashboard' %}">Legs Dashboard</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'reservations_list' %}">All Reservations</a>
               </li>
               <li>
-                <a class="dropdown-item" href="{% url 'legs_list' %}">All Legs</a>
+                <a class="dropdown-item" href="{% url 'legs_list' %}">All Legs (List)</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'admin_agency_list' %}">Agency Management</a>
@@ -62,13 +62,16 @@
                aria-expanded="false">Dispatching</a>
             <ul class="dropdown-menu" aria-labelledby="dispatchingDropdown">
               <li>
-                <a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a>
+                <a class="dropdown-item" href="{% url 'dashboard' %}">Legs Dashboard</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'reservations_list' %}">All Reservations</a>
               </li>
               <li>
-                <a class="dropdown-item" href="{% url 'legs_list' %}">All Legs</a>
+                <a class="dropdown-item" href="{% url 'legs_list' %}">All Legs (List)</a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'inhouse_schedule' %}">In-House Schedule</a>
               </li>
               <li>
                 <a class="dropdown-item" href="{% url 'drivers_extend' %}">Drivers</a>

@@ -102,36 +102,62 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     ]
 
     def get_queryset(self, request):
+        from reservations.models import Leg as LegModel
+
         qs = super().get_queryset(request)
+
+        # Subquery: total unpaid amount for unpaid legs
+        unpaid_amount_subq = (
+            LegModel.objects.filter(driver=OuterRef('pk'), payment_status='unpaid')
+            .annotate(
+                pay=Case(
+                    When(
+                        driver_base_pay__isnull=False,
+                        then=(
+                            Coalesce(F('driver_base_pay'), Value(Decimal('0.00')))
+                            + Coalesce(F('driver_gratuity'), Value(Decimal('0.00')))
+                            + Coalesce(F('driver_additional'), Value(Decimal('0.00')))
+                        ),
+                    ),
+                    default=Coalesce(F('driver_pay_amount'), Value(Decimal('0.00'))),
+                    output_field=DecimalField(max_digits=10, decimal_places=2),
+                )
+            )
+            .values('driver')
+            .annotate(total=Sum('pay'))
+            .values('total')
+        )
+
+        # Subquery: total paid (sum of DriverPayment amounts)
+        total_paid_subq = (
+            DriverPayment.objects.filter(driver=OuterRef('pk'))
+            .values('driver')
+            .annotate(total=Sum('amount'))
+            .values('total')
+        )
+
+        # Subquery: total profit (sum of profit_estimate across all legs)
+        total_profit_subq = (
+            LegModel.objects.filter(driver=OuterRef('pk'), profit_estimate__isnull=False)
+            .values('driver')
+            .annotate(total=Sum('profit_estimate'))
+            .values('total')
+        )
+
         return qs.select_related('profile').annotate(
-            _unpaid_legs_count=Count(
-                'legs', filter=Q(legs__payment_status='unpaid')
+            _unpaid_legs_count=Count('legs', filter=Q(legs__payment_status='unpaid'), distinct=True),
+            _total_legs_count=Count('legs', distinct=True),
+            _unpaid_amount=Coalesce(
+                Subquery(unpaid_amount_subq, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                Value(Decimal('0.00')),
             ),
-            _total_legs_count=Count('legs'),
-            _unpaid_amount=Sum(
-                Case(
-                    When(
-                        legs__payment_status='unpaid',
-                        legs__driver_base_pay__isnull=False,
-                        then=Coalesce(F('legs__driver_base_pay'), Value(Decimal('0.00')))
-                             + Coalesce(F('legs__driver_gratuity'), Value(Decimal('0.00')))
-                             + Coalesce(F('legs__driver_additional'), Value(Decimal('0.00')))
-                    ),
-                    When(
-                        legs__payment_status='unpaid',
-                        then=Coalesce(F('legs__driver_pay_amount'), Value(Decimal('0.00')))
-                    ),
-                    default=Value(Decimal('0.00')),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
+            _total_paid=Coalesce(
+                Subquery(total_paid_subq, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                Value(Decimal('0.00')),
             ),
-            _total_paid=Coalesce(Sum('payments__amount'), Value(Decimal('0.00'))),
-            _total_profit=Sum(
-                Case(
-                    When(legs__profit_estimate__isnull=False, then=F('legs__profit_estimate')),
-                    default=Value(Decimal('0.00')),
-                    output_field=DecimalField(max_digits=10, decimal_places=2),
-                )
+            _total_profit=Coalesce(
+                Subquery(total_profit_subq, output_field=DecimalField(max_digits=10, decimal_places=2)),
+                Value(Decimal('0.00')),
             ),
         )
 
