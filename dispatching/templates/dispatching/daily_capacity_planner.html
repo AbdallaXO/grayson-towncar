@@ -748,39 +748,8 @@
             </div>
         </div>
 
-        <!-- Batching Opportunities -->
+        <!-- Coverage breakdown -->
         <div class="col-lg-5">
-            <div class="chart-container">
-                <div class="chart-title">
-                    <i class="bi bi-collection me-2" style="color: var(--gold);"></i>Batching Opportunities
-                    {% if batching %}<span class="badge bg-info ms-2">{{ batching|length }}</span>{% endif %}
-                </div>
-
-                {% if batching %}
-                {% for batch in batching %}
-                <div class="batch-card mb-3">
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <span class="badge bg-info">{{ batch.legs|length }} jobs</span>
-                        <strong style="font-size: 0.85rem; color: var(--dark);">{{ batch.location_category }}</strong>
-                    </div>
-                    <small class="text-muted">
-                        {{ batch.time_window_start|time:"g:i A" }} — {{ batch.time_window_end|time:"g:i A" }}
-                    </small>
-                    <div class="mt-2">
-                        {% for leg_info in batch.legs %}
-                        <div class="d-flex justify-content-between align-items-center py-1 {% if not forloop.first %}border-top{% endif %}" style="font-size: 0.8rem;">
-                            <span>{{ leg_info.pickup_time|time:"g:i A" }} &rarr; {{ leg_info.dropoff_location|truncatechars:25 }}</span>
-                            <span class="text-muted">{{ leg_info.driver_name }}</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
-                {% else %}
-                <p class="text-muted text-center py-3 mb-0">No batching opportunities for this date.</p>
-                {% endif %}
-            </div>
-
             <!-- Coverage breakdown -->
             <div class="chart-container">
                 <div class="chart-title">

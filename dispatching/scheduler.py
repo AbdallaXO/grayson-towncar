@@ -1317,7 +1317,7 @@ def build_smart_schedule(
     # Recalculate ALL timing details after schedule is fully built.
     # During greedy insertion, legs aren't added in chronological order,
     # so timing captured at insertion time references wrong preceding jobs.
-    slot_timing_details = _recalculate_timing_details(working, target_date)
+    slot_timing_details = _recalculate_timing_details(working, target_date, inter_job_buffer=cfg.inter_job_buffer)
 
     # Calculate utilization
     total_window_minutes = (end_hour - start_hour) * 60
@@ -1345,12 +1345,15 @@ def build_smart_schedule(
     }
 
 
-def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date) -> dict:
+def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date, inter_job_buffer: int = None) -> dict:
     """
     Recalculate timing details for ALL slots after the schedule is fully built.
     This ensures each slot references the correct preceding job, since greedy
     insertion doesn't add legs in chronological order.
     """
+    if inter_job_buffer is None:
+        inter_job_buffer = INTER_JOB_BUFFER
+
     details_map = {}
     sorted_slots = sorted(schedule.slots, key=lambda s: s.pickup_time)
 
@@ -1379,7 +1382,7 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date) 
             preceding = sorted_slots[i - 1]
             new_pickup_dt = datetime.combine(target_date, slot.pickup_time)
             repo_drive = get_drive_time(preceding.dropoff_category, pickup_cat)
-            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + INTER_JOB_BUFFER)
+            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + inter_job_buffer)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
 
             details['prev_job'] = {
@@ -1395,7 +1398,7 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date) 
                 f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
                 f"at {preceding.dropoff_category}. "
                 f"Reposition: {preceding.dropoff_category} \u2192 {pickup_cat} ({repo_drive} min) "
-                f"+ {INTER_JOB_BUFFER} min buffer = {buffer} min spare. "
+                f"+ {inter_job_buffer} min buffer = {buffer} min spare. "
                 f"Job drive: {pickup_cat} \u2192 {dropoff_cat} ({drive_time} min)"
             )
 
@@ -1404,13 +1407,16 @@ def _recalculate_timing_details(schedule: DriverDaySchedule, target_date: date) 
     return details_map
 
 
-def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: date) -> dict:
+def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: date, inter_job_buffer: int = None) -> dict:
     """
     Capture the timing reasoning for adding this leg to the schedule.
     Returns dict with drive time, buffer, and route info so the user can see
     why the algorithm chose this job and spot incorrect drive time estimates.
     """
     from dispatching.analytics import categorize_location
+
+    if inter_job_buffer is None:
+        inter_job_buffer = INTER_JOB_BUFFER
 
     new_pickup_cat = categorize_location(new_leg.pickup_location)
     new_dropoff_cat = categorize_location(new_leg.dropoff_location)
@@ -1441,7 +1447,7 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
 
         if preceding:
             repo_drive = get_drive_time(preceding.dropoff_category, new_pickup_cat)
-            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + INTER_JOB_BUFFER)
+            earliest = preceding.estimated_end_time + timedelta(minutes=repo_drive + inter_job_buffer)
             buffer = int((new_pickup_dt - earliest).total_seconds() / 60)
 
             details['prev_job'] = {
@@ -1457,7 +1463,7 @@ def _capture_timing_details(schedule: DriverDaySchedule, new_leg, target_date: d
                 f"Prev job ends ~{preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')} "
                 f"at {preceding.dropoff_category}. "
                 f"Reposition: {preceding.dropoff_category} → {new_pickup_cat} ({repo_drive} min) "
-                f"+ {INTER_JOB_BUFFER} min buffer = {buffer} min spare. "
+                f"+ {inter_job_buffer} min buffer = {buffer} min spare. "
                 f"Job drive: {new_pickup_cat} → {new_dropoff_cat} ({drive_time} min)"
             )
         else:

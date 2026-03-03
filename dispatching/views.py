@@ -1118,6 +1118,7 @@ def update_leg_assignment(request):
                     leg.driver_assigned_by = request.user
                     leg.driver_assigned_at = timezone.now()
                     leg.save()
+                    cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
                     logger.info(
                         f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
                     )
@@ -1147,6 +1148,7 @@ def update_leg_assignment(request):
                 leg.driver_assigned_at = timezone.now()
                 leg.save()
                 logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
+                cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
         elif field == "status":
             try:
                 # Update the LEG status, not the reservation status
@@ -1878,7 +1880,7 @@ def dispatcher_payment_portal(request, reservation_id):
 
                         # Send purchase event to Meta in background (matches webhook.py pattern)
                         import time as _time
-                        event_id = f"{payment_intent_id}_{int(_time.time())}" if payment_intent_id else None
+                        event_id = f"{payment_intent.id}_{int(_time.time())}"
                         _run_in_background(send_purchase_event, reservation, value=None, event_id=event_id)
 
                         messages.success(
@@ -5345,7 +5347,6 @@ def capacity_planner(request):
     from dispatching.scheduler import (
         build_driver_schedules,
         suggest_assignments,
-        find_batching_opportunities,
         get_coverage_stats,
         preload_timing_cache,
         clear_timing_cache,
@@ -5433,14 +5434,13 @@ def capacity_planner(request):
     _unassigned_legs = [leg for leg in legs_list if leg.driver is None]
 
     if _cached_sched is not None:
-        driver_schedules, suggestions, batching, coverage = _cached_sched
+        driver_schedules, suggestions, coverage = _cached_sched
     else:
         driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
         _inhouse_for_suggestions = {did: s for did, s in driver_schedules.items() if s.driver_type == 'inhouse'}
         suggestions = suggest_assignments(_unassigned_legs, _inhouse_for_suggestions, selected_date)
-        batching = find_batching_opportunities(legs_list, selected_date)
         coverage = get_coverage_stats(legs_list)
-        cache.set(_sched_cache_key, (driver_schedules, suggestions, batching, coverage), 60)
+        cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
 
     inhouse_schedules = {
         did: sched for did, sched in driver_schedules.items()
@@ -5582,7 +5582,6 @@ def capacity_planner(request):
         'unassigned_legs': _unassigned_legs,
         'suggestion_map': suggestion_map,
         'inhouse_timeline': inhouse_timeline,
-        'batching': batching,
         'coverage': coverage,
         'legs_by_hour': legs_by_hour,
         'timeline_hours': timeline_hours,
@@ -5767,6 +5766,7 @@ def auto_assign_drivers(request):
             except Exception:
                 continue
 
+        cache.delete(f"capacity_planner_{target_date.isoformat()}")
         return JsonResponse({
             "success": True,
             "assigned": saved,
@@ -6303,6 +6303,7 @@ def smart_schedule_builder(request):
         response['applied'] = True
         response['assigned_count'] = assigned
         response['message'] = f"Assigned {assigned} new legs to {driver}."
+        cache.delete(f"capacity_planner_{target_date.isoformat()}")
 
     return JsonResponse(response)
 
