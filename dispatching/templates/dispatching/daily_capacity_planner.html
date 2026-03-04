@@ -731,8 +731,17 @@
                             {% else %}
                             <div class="no-fit">
                                 <div style="color: #c62828;"><i class="bi bi-person-x"></i> No in-house fit</div>
-                                <small class="text-muted">Assign to affiliate</small>
+                                <div class="d-flex gap-2 mt-1 align-items-center">
+                                    <small class="text-muted">Assign to affiliate</small>
+                                    <button class="btn btn-sm py-0 px-2"
+                                            style="font-size:0.7rem; color:var(--gold); border:1px solid var(--gold); line-height:1.4;"
+                                            onclick="findSwaps({{ leg.id }})"
+                                            id="swapBtn-{{ leg.id }}">
+                                        <i class="bi bi-arrow-repeat me-1"></i>Find Swaps
+                                    </button>
+                                </div>
                             </div>
+                            <div id="swapResults-{{ leg.id }}" class="d-none mt-2"></div>
                             {% endif %}
                             {% endwith %}
                         </div>
@@ -1935,7 +1944,9 @@
                         html += '<option value="' + d.id + '">' + d.name + '</option>';
                     });
                     html += '</select>';
+                    html += '<button class="btn btn-sm py-0 px-1" style="font-size:0.65rem;color:var(--gold);border:1px solid var(--gold);line-height:1.4;" onclick="findSwaps(' + leg.leg_id + ')" id="swapBtn-' + leg.leg_id + '" title="Find swap chains"><i class="bi bi-arrow-repeat"></i></button>';
                     html += '</div>';
+                    html += '<div id="swapResults-' + leg.leg_id + '" class="d-none px-3 pb-2"></div>';
                 });
 
                 html += '</div>';
@@ -3307,6 +3318,152 @@
                 alert('Network error');
             });
         });
+    })();
+
+    // ── Swap Optimizer (capacity planner integration) ─────────────────
+    (function() {
+        const _csrfToken = '{{ csrf_token }}';
+
+        function _bufferClass(mins) {
+            if (mins >= 20) return 'color:#2e7d32;font-weight:600;';
+            if (mins >= 10) return 'color:#e65100;font-weight:600;';
+            return 'color:#c62828;font-weight:600;';
+        }
+
+        window.findSwaps = function(legId) {
+            const btn = document.getElementById('swapBtn-' + legId);
+            if (!btn) return;
+            const origText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Searching...';
+
+            const dateVal = document.getElementById('datePicker').value;
+
+            fetch('{% url "find_swap_suggestions" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken},
+                body: JSON.stringify({date: dateVal, leg_id: legId})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+                if (data.success) {
+                    _renderSwapResults(legId, data);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function(err) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+                alert('Request failed: ' + err.message);
+            });
+        };
+
+        function _renderSwapResults(legId, data) {
+            const panel = document.getElementById('swapResults-' + legId);
+            if (!panel) return;
+            panel.classList.remove('d-none');
+
+            let html = '';
+
+            // Stats
+            html += '<div style="font-size:0.7rem;color:#888;margin-bottom:0.3rem;">';
+            html += data.states_explored + ' states · ' + data.time_ms + 'ms';
+            if (data.hit_time_limit) html += ' · <span style="color:#e65100;">Timed out, partial results</span>';
+            html += '</div>';
+
+            if (!data.solutions || data.solutions.length === 0) {
+                html += '<div style="font-size:0.8rem;color:#c62828;margin-bottom:0.3rem;"><i class="bi bi-x-circle"></i> No swaps possible</div>';
+                if (data.diagnostic && data.diagnostic.length > 0) {
+                    html += '<div style="font-size:0.72rem;background:#fafafa;border:1px solid #e0e0e0;border-radius:6px;padding:0.5rem 0.6rem;max-height:260px;overflow-y:auto;">';
+                    html += '<div style="font-weight:600;margin-bottom:0.3rem;color:#555;">Why each driver can\'t take this job:</div>';
+                    data.diagnostic.forEach(function(d) {
+                        var icon, detail;
+                        if (d.skipped_reason === 'vehicle_incompatible') {
+                            icon = '<i class="bi bi-truck" style="color:#e65100;"></i>';
+                            detail = '<span style="color:#e65100;">Wrong vehicle</span> — has ' + (d.vehicle_type || 'none') + ', job needs bigger';
+                        } else if (d.skipped_reason === 'same_driver') {
+                            icon = '<i class="bi bi-dash-circle" style="color:#888;"></i>';
+                            detail = '<span style="color:#888;">Already on this driver</span>';
+                        } else if (d.direct_feasible) {
+                            icon = '<i class="bi bi-check-circle" style="color:#2e7d32;"></i>';
+                            detail = '<span style="color:#2e7d32;">Has room (' + d.direct_buffer + 'min buffer)</span>';
+                        } else {
+                            icon = '<i class="bi bi-x-circle" style="color:#c62828;"></i>';
+                            detail = '<span style="color:#c62828;">' + (d.direct_fail_reason || 'No room') + '</span>';
+                            if (d.displacements_detail && d.displacements_detail.length > 0) {
+                                var cantDisplace = d.displacements_detail.filter(function(dd) { return !dd.rehomed; });
+                                if (cantDisplace.length > 0) {
+                                    detail += '<div style="margin-left:1rem;margin-top:2px;color:#888;">';
+                                    cantDisplace.forEach(function(dd) {
+                                        detail += 'Could make room by moving their ' + dd.pickup_time + ' job, but nowhere to put it<br>';
+                                    });
+                                    detail += '</div>';
+                                }
+                            } else if (d.displacements_tried === 0 && !d.skipped_reason) {
+                                detail += '<div style="margin-left:1rem;color:#888;">Even removing a job wouldn\'t create enough time</div>';
+                            }
+                        }
+                        html += '<div style="padding:2px 0;border-bottom:1px solid #f0f0f0;">';
+                        html += icon + ' <strong>' + d.driver_name + '</strong> <span style="color:#888;">(' + (d.vehicle_type || '?') + ', ' + d.num_jobs + ' jobs)</span> — ' + detail;
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+                panel.innerHTML = html;
+                return;
+            }
+
+            data.solutions.forEach(function(sol, idx) {
+                html += '<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:0.5rem 0.75rem;margin-bottom:0.4rem;font-size:0.78rem;">';
+                html += '<div class="d-flex justify-content-between align-items-center mb-1">';
+                html += '<span><span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.65rem;">Score: '+sol.score+'</span> ';
+                html += sol.depth+' move'+(sol.depth>1?'s':'')+' → <strong>'+sol.target_driver+'</strong></span>';
+                html += '<button class="btn btn-sm px-2 py-0" style="font-size:0.65rem;background:var(--gold);color:var(--dark);font-weight:600;" ';
+                html += 'onclick=\'applySwapFromPlanner('+legId+','+JSON.stringify(sol.moves)+')\'>';
+                html += 'Apply</button></div>';
+
+                sol.moves.forEach(function(move) {
+                    var bufStyle = _bufferClass(move.buffer_minutes);
+                    html += '<div style="padding:0.2rem 0;border-bottom:1px solid #eee;font-size:0.75rem;">';
+                    if (move.from_driver) {
+                        html += '<i class="bi bi-arrow-right-circle" style="color:var(--gold);font-size:0.65rem;"></i> ';
+                        html += 'Give ' + move.from_driver + '\'s <strong>' + move.pickup_time + '</strong> job to ' + move.to_driver + ' ';
+                    } else {
+                        html += '<i class="bi bi-plus-circle" style="color:#2e7d32;font-size:0.65rem;"></i> ';
+                        html += 'Assign <strong>' + move.pickup_time + '</strong> to ' + move.to_driver + ' ';
+                    }
+                    html += '<span style="'+bufStyle+'">'+move.buffer_minutes+'min buffer</span>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            });
+
+            panel.innerHTML = html;
+        }
+
+        window.applySwapFromPlanner = function(legId, moves) {
+            if (!confirm('Apply this swap? Driver assignments will update immediately.')) return;
+            const dateVal = document.getElementById('datePicker').value;
+            const movesPayload = moves.map(function(m) { return {leg_id: m.leg_id, to_driver_id: m.to_driver_id}; });
+
+            fetch('{% url "execute_swap" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken},
+                body: JSON.stringify({date: dateVal, moves: movesPayload})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Swap failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(function(err) { alert('Request failed: ' + err.message); });
+        };
     })();
 </script>
 {% endblock %}

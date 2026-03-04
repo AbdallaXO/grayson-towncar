@@ -51,6 +51,14 @@
             </li>
           </ul>
         </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'capacity_planner' %}active{% endif %}"
+             href="{% url 'capacity_planner' %}"><i class="bi bi-calendar3-week me-1"></i>Planner</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'swap_tester' %}active{% endif %}"
+             href="{% url 'swap_tester' %}"><i class="bi bi-arrow-repeat me-1"></i>Swap Tester</a>
+        </li>
         {% if request.user.is_superuser %}
         <!-- Analytics dropdown -->
         <li class="nav-item dropdown">
@@ -75,10 +83,6 @@
                  href="{% url 'driver_performance' %}"><i class="bi bi-speedometer me-2"></i>Driver Performance</a>
             </li>
           </ul>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link text-white {% if request.resolver_match.url_name == 'capacity_planner' %}active{% endif %}"
-             href="{% url 'capacity_planner' %}"><i class="bi bi-calendar3-week me-1"></i>Planner</a>
         </li>
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active{% endif %}"

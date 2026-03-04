@@ -1,0 +1,631 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --gold: #C9A227;
+        --gold-light: #D4AF37;
+        --dark: #0d1117;
+        --dark-secondary: #161b22;
+    }
+    .swap-header {
+        background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
+        padding: 1.5rem 0;
+        margin-top: -1rem;
+        margin-bottom: 1.5rem;
+    }
+    .swap-header h1 { color: #fff; font-size: 1.5rem; margin: 0; }
+    .swap-header .lead { color: rgba(255,255,255,0.7); font-size: 0.9rem; }
+    .stat-pill {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    /* Timeline */
+    .timeline-container {
+        overflow-x: auto;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    .timeline-row {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #f0f0f0;
+        min-height: 38px;
+    }
+    .timeline-label {
+        min-width: 140px;
+        max-width: 140px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding-right: 0.5rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .timeline-bar-area {
+        flex: 1;
+        position: relative;
+        height: 30px;
+    }
+    .timeline-slot {
+        position: absolute;
+        height: 24px;
+        top: 3px;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        color: #fff;
+        padding: 0 4px;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        overflow: hidden;
+        white-space: nowrap;
+        opacity: 0.9;
+        transition: opacity 0.15s, box-shadow 0.15s;
+    }
+    .timeline-slot:hover { opacity: 1; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+    .timeline-slot.highlight-from { box-shadow: 0 0 0 2px #c62828; opacity: 1; }
+    .timeline-slot.highlight-to   { box-shadow: 0 0 0 2px #2e7d32; opacity: 1; }
+    .timeline-hour-markers {
+        display: flex;
+        margin-left: 140px;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 0.25rem;
+    }
+    .timeline-hour-mark {
+        font-size: 0.6rem;
+        color: #999;
+        text-align: center;
+    }
+
+    /* No-fit legs */
+    .nofit-card {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        transition: border-color 0.15s;
+    }
+    .nofit-card:hover { border-color: var(--gold); }
+
+    /* Swap results */
+    .swap-solution {
+        background: #f8f9fa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .swap-move {
+        padding: 0.4rem 0;
+        border-bottom: 1px solid #eee;
+        font-size: 0.82rem;
+    }
+    .swap-move:last-child { border-bottom: none; }
+    .buffer-green  { color: #2e7d32; font-weight: 600; }
+    .buffer-orange { color: #e65100; font-weight: 600; }
+    .buffer-red    { color: #c62828; font-weight: 600; }
+
+    /* Affiliate takeback */
+    .affiliate-card {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid #7b1fa2;
+        transition: border-color 0.15s;
+    }
+    .affiliate-card:hover { border-color: #7b1fa2; }
+    .affiliate-section-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #888;
+        margin: 0.75rem 0 0.35rem;
+    }
+
+    /* Stats */
+    .search-stats {
+        font-size: 0.75rem;
+        color: #888;
+        padding: 0.5rem 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+
+<div class="swap-header">
+    <div class="container-fluid px-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+                <h1><i class="bi bi-arrow-repeat me-2" style="color:var(--gold);"></i>Swap Tester</h1>
+                <p class="lead mb-0">Debug & test the swap optimizer — see what rearrangements are possible</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <a href="?date={{ selected_date|date:'Y-m-d' }}" class="btn btn-sm" style="background:var(--gold);color:var(--dark);font-weight:600;">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </a>
+                <a href="{% url 'capacity_planner' %}?date={{ selected_date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-light">
+                    <i class="bi bi-calendar-week"></i> Capacity Planner
+                </a>
+            </div>
+        </div>
+        <div class="d-flex gap-3 align-items-center">
+            <form class="d-flex gap-2 align-items-center" method="get">
+                <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:160px;" onchange="this.form.submit()">
+            </form>
+            <span class="stat-pill" style="background:rgba(255,255,255,0.1);color:#fff;">{{ total_legs }} legs</span>
+            <span class="stat-pill" style="background:rgba(46,125,50,0.2);color:#81c784;">{{ inhouse_count }} in-house</span>
+            {% if nofit_count > 0 %}
+            <span class="stat-pill" style="background:rgba(198,40,40,0.2);color:#ef9a9a;">{{ nofit_count }} no-fit</span>
+            {% endif %}
+            {% if unassigned_count > 0 %}
+            <span class="stat-pill" style="background:rgba(230,81,0,0.2);color:#ffb74d;">{{ unassigned_count }} unassigned</span>
+            {% endif %}
+            {% if affiliate_count > 0 %}
+            <span class="stat-pill" style="background:rgba(156,39,176,0.2);color:#ce93d8;">{{ affiliate_count }} affiliate</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid px-4">
+    <div class="row g-3">
+        <!-- Left: Timeline -->
+        <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 style="font-size:1rem;font-weight:700;"><i class="bi bi-bar-chart-steps me-1" style="color:var(--gold);"></i>Driver Schedules</h5>
+                <div class="d-flex gap-2" style="font-size:0.75rem;">
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#1565c0;border-radius:2px;"></span> Arrival</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#2e7d32;border-radius:2px;"></span> Return</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#e65100;border-radius:2px;"></span> Cruise</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#6a1b9a;border-radius:2px;"></span> Other</span>
+                </div>
+            </div>
+            <div class="timeline-container" id="timelineContainer">
+                <!-- Rendered by JS -->
+            </div>
+        </div>
+
+        <!-- Right: No-fit legs + swap results -->
+        <div class="col-lg-4">
+            <h5 style="font-size:1rem;font-weight:700;">
+                <i class="bi bi-person-x me-1" style="color:#c62828;"></i>No In-House Fit
+                {% if nofit_count > 0 %}
+                <span class="badge" style="background:#c62828;font-size:0.7rem;">{{ nofit_count }}</span>
+                {% endif %}
+            </h5>
+
+            <div id="nofitPanel">
+                <!-- Rendered by JS -->
+            </div>
+
+            <div id="swapResultsPanel" class="mt-3 d-none">
+                <h6 style="font-size:0.9rem;font-weight:700;">
+                    <i class="bi bi-arrow-repeat me-1" style="color:var(--gold);"></i>
+                    Swap Solutions <span id="swapResultsLegLabel"></span>
+                </h6>
+                <div id="swapResultsContent"></div>
+                <div id="swapSearchStats" class="search-stats"></div>
+            </div>
+
+            <!-- Affiliate Takeback -->
+            <div class="mt-4">
+                <h5 style="font-size:1rem;font-weight:700;">
+                    <i class="bi bi-arrow-down-left-circle me-1" style="color:#7b1fa2;"></i>Affiliate Takeback
+                    {% if affiliate_count > 0 %}
+                    <span class="badge" style="background:#7b1fa2;font-size:0.7rem;">{{ affiliate_count }}</span>
+                    {% endif %}
+                </h5>
+                <div id="affiliatePanel">
+                    <!-- Rendered by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const csrfToken = '{{ csrf_token }}';
+    const dateVal = '{{ selected_date|date:"Y-m-d" }}';
+    const nofitLegs = {{ nofit_legs|safe }};
+    const timelineDrivers = {{ timeline_drivers|safe }};
+    const affiliateLegs = {{ affiliate_takeback|safe }};
+    const tripColors = {arrival:'#1565c0', return:'#2e7d32', cruise:'#e65100', other:'#6a1b9a'};
+
+    // ── Timeline rendering ────────────────────────────────────
+    const TIMELINE_START = 5;   // 5 AM
+    const TIMELINE_END   = 24;  // midnight
+    const TOTAL_HOURS = TIMELINE_END - TIMELINE_START;
+
+    function minutesToPct(minutes) {
+        return ((minutes - TIMELINE_START * 60) / (TOTAL_HOURS * 60)) * 100;
+    }
+
+    function renderTimeline() {
+        const container = document.getElementById('timelineContainer');
+        let html = '';
+
+        // Hour markers
+        html += '<div class="timeline-hour-markers">';
+        for (let h = TIMELINE_START; h <= TIMELINE_END; h++) {
+            const w = 100 / TOTAL_HOURS;
+            const label = h === 0 ? '12a' : h === 12 ? '12p' : h > 12 ? (h-12)+'p' : h+'a';
+            html += '<div class="timeline-hour-mark" style="width:'+w+'%;">'+label+'</div>';
+        }
+        html += '</div>';
+
+        timelineDrivers.forEach(function(driver) {
+            html += '<div class="timeline-row">';
+            html += '<div class="timeline-label" title="'+driver.name+' ('+driver.vehicle_type+')">';
+            html += driver.name;
+            if (driver.vehicle_type) html += ' <span style="font-size:0.6rem;color:#888;">'+driver.vehicle_type+'</span>';
+            html += '</div>';
+            html += '<div class="timeline-bar-area" id="timeline-driver-'+driver.id+'">';
+
+            // Grid lines
+            for (let h = TIMELINE_START; h <= TIMELINE_END; h++) {
+                const left = minutesToPct(h * 60);
+                html += '<div style="position:absolute;left:'+left+'%;top:0;bottom:0;width:1px;background:#f0f0f0;"></div>';
+            }
+
+            driver.slots.forEach(function(slot) {
+                const left = minutesToPct(slot.pickup_minutes);
+                const width = minutesToPct(slot.end_minutes) - left;
+                const bg = tripColors[slot.trip_type] || '#666';
+                html += '<div class="timeline-slot" id="tslot-'+slot.leg_id+'" ';
+                html += 'style="left:'+Math.max(0,left)+'%;width:'+Math.max(1,width)+'%;background:'+bg+';" ';
+                html += 'title="Leg #'+slot.leg_id+' '+slot.pickup_time+' '+slot.pickup_location+' → '+slot.dropoff_location+' ($'+Math.round(slot.revenue)+')">';
+                html += slot.pickup_time;
+                html += '</div>';
+            });
+
+            html += '</div></div>';
+        });
+
+        container.innerHTML = html;
+    }
+
+    // ── No-fit legs panel ──────────────────────────────────────
+    function renderNofitPanel() {
+        const panel = document.getElementById('nofitPanel');
+        if (nofitLegs.length === 0) {
+            panel.innerHTML = '<div class="text-center py-3"><i class="bi bi-check-circle" style="color:#2e7d32;font-size:1.3rem;"></i><p class="text-muted mt-1 mb-0" style="font-size:0.85rem;">All legs have in-house assignments or suggestions.</p></div>';
+            return;
+        }
+        let html = '';
+        nofitLegs.forEach(function(leg) {
+            const c = tripColors[leg.trip_type] || '#666';
+            html += '<div class="nofit-card" id="nofit-card-'+leg.id+'">';
+            html += '<div class="d-flex justify-content-between align-items-start">';
+            html += '<div>';
+            html += '<strong style="font-size:0.9rem;">'+leg.pickup_time+'</strong> ';
+            html += '<span style="color:'+c+';font-size:0.7rem;font-weight:600;">'+leg.trip_type.charAt(0).toUpperCase()+leg.trip_type.slice(1)+'</span>';
+            if (leg.vehicle_type) html += ' <span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;">'+leg.vehicle_type+'</span>';
+            html += '<div style="font-size:0.78rem;color:#555;margin-top:2px;">'+leg.pickup_location.substring(0,35)+' → '+leg.dropoff_location.substring(0,35)+'</div>';
+            html += '<div style="font-size:0.75rem;color:#888;">'+leg.customer;
+            if (leg.revenue > 0) html += ' · $'+Math.round(leg.revenue);
+            html += '</div>';
+            html += '</div>';
+            html += '<button class="btn btn-sm px-2 py-1" style="font-size:0.75rem;color:var(--gold);border:1px solid var(--gold);white-space:nowrap;" ';
+            html += 'onclick="findSwaps('+leg.id+')" id="swapBtn-'+leg.id+'">';
+            html += '<i class="bi bi-arrow-repeat me-1"></i>Find Swaps</button>';
+            html += '</div>';
+            html += '</div>';
+        });
+        panel.innerHTML = html;
+    }
+
+    // ── Find swaps ─────────────────────────────────────────────
+    let activeSwapLegId = null;
+
+    window.findSwaps = function(legId) {
+        const btn = document.getElementById('swapBtn-'+legId);
+        if (!btn) return;
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Searching...';
+
+        // Clear timeline highlights
+        clearHighlights();
+        activeSwapLegId = legId;
+
+        fetch('{% url "find_swap_suggestions" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({date: dateVal, leg_id: legId})
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            if (data.success) {
+                renderSwapResults(legId, data);
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            alert('Request failed: ' + err.message);
+        });
+    };
+
+    function bufferClass(mins) {
+        if (mins >= 20) return 'buffer-green';
+        if (mins >= 10) return 'buffer-orange';
+        return 'buffer-red';
+    }
+
+    function renderSwapResults(legId, data) {
+        const panel = document.getElementById('swapResultsPanel');
+        const content = document.getElementById('swapResultsContent');
+        const stats = document.getElementById('swapSearchStats');
+        const label = document.getElementById('swapResultsLegLabel');
+
+        panel.classList.remove('d-none');
+        const legInfo = nofitLegs.find(l => l.id === legId);
+        label.innerHTML = legInfo ? ' — Leg #'+legId+' ('+legInfo.pickup_time+')' : ' — Leg #'+legId;
+
+        // Stats
+        let statsHtml = data.states_explored + ' states explored · ' + data.time_ms + 'ms';
+        if (data.hit_time_limit) statsHtml += ' · <span style="color:#e65100;">Search timed out, partial results shown</span>';
+        if (data.hit_depth_limit) statsHtml += ' · <span style="color:#888;">Max depth reached</span>';
+        stats.innerHTML = statsHtml;
+
+        if (!data.solutions || data.solutions.length === 0) {
+            let failHtml = '<div class="py-2" style="color:#c62828;font-size:0.85rem;"><i class="bi bi-x-circle" style="font-size:1rem;"></i> No swaps possible</div>';
+            if (data.diagnostic && data.diagnostic.length > 0) {
+                failHtml += '<div style="font-size:0.75rem;max-height:320px;overflow-y:auto;">';
+                failHtml += '<div style="font-weight:600;margin-bottom:0.3rem;color:#555;">Why each driver can\'t take this job:</div>';
+                data.diagnostic.forEach(function(d) {
+                    var icon, detail;
+                    if (d.skipped_reason === 'vehicle_incompatible') {
+                        icon = '<i class="bi bi-truck" style="color:#e65100;"></i>';
+                        detail = '<span style="color:#e65100;">Wrong vehicle</span> — has ' + (d.vehicle_type || 'none') + ', job needs bigger';
+                    } else if (d.skipped_reason === 'same_driver') {
+                        icon = '<i class="bi bi-dash-circle" style="color:#888;"></i>';
+                        detail = '<span style="color:#888;">Already on this driver</span>';
+                    } else if (d.direct_feasible) {
+                        icon = '<i class="bi bi-check-circle" style="color:#2e7d32;"></i>';
+                        detail = '<span style="color:#2e7d32;">Has room (' + d.direct_buffer + 'min buffer)</span>';
+                    } else {
+                        icon = '<i class="bi bi-x-circle" style="color:#c62828;"></i>';
+                        detail = '<span style="color:#c62828;">' + (d.direct_fail_reason || 'No room') + '</span>';
+                        if (d.displacements_detail && d.displacements_detail.length > 0) {
+                            var cantDisplace = d.displacements_detail.filter(function(dd) { return !dd.rehomed; });
+                            if (cantDisplace.length > 0) {
+                                detail += '<div style="margin-left:1rem;margin-top:2px;color:#888;">';
+                                cantDisplace.forEach(function(dd) {
+                                    detail += 'Could make room by moving their ' + dd.pickup_time + ' job, but nowhere to put it<br>';
+                                });
+                                detail += '</div>';
+                            }
+                        } else if (d.displacements_tried === 0 && !d.skipped_reason) {
+                            detail += '<div style="margin-left:1rem;color:#888;">Even removing a job wouldn\'t create enough time</div>';
+                        }
+                    }
+                    failHtml += '<div style="padding:3px 0;border-bottom:1px solid #f0f0f0;">';
+                    failHtml += icon + ' <strong>' + d.driver_name + '</strong> <span style="color:#888;">(' + (d.vehicle_type || '?') + ', ' + d.num_jobs + ' jobs)</span> — ' + detail;
+                    failHtml += '</div>';
+                });
+                failHtml += '</div>';
+            }
+            content.innerHTML = failHtml;
+            return;
+        }
+
+        let html = '';
+        data.solutions.forEach(function(sol, idx) {
+            html += '<div class="swap-solution" onmouseenter="highlightSolution('+idx+')" onmouseleave="clearHighlights()">';
+            html += '<div class="d-flex justify-content-between align-items-center mb-1">';
+            html += '<div>';
+            html += '<span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.7rem;">Score: '+sol.score+'</span> ';
+            html += '<span style="font-size:0.75rem;color:#555;">'+sol.depth+' move'+(sol.depth>1?'s':'')+' → '+sol.target_driver+'</span>';
+            html += '</div>';
+            html += '<button class="btn btn-sm px-2 py-0" style="font-size:0.7rem;background:var(--gold);color:var(--dark);font-weight:600;" ';
+            html += 'onclick="applySwap('+legId+','+idx+')">Apply Swap</button>';
+            html += '</div>';
+
+            sol.moves.forEach(function(move) {
+                const bc = bufferClass(move.buffer_minutes);
+                html += '<div class="swap-move">';
+                if (move.from_driver) {
+                    html += '<i class="bi bi-arrow-right-circle me-1" style="color:var(--gold);"></i>';
+                    html += 'Give '+move.from_driver+'\'s <strong>'+move.pickup_time+'</strong> job to '+move.to_driver+' ';
+                } else {
+                    html += '<i class="bi bi-plus-circle me-1" style="color:#2e7d32;"></i>';
+                    html += 'Assign <strong>'+move.pickup_time+'</strong> to '+move.to_driver+' ';
+                }
+                html += '<span class="'+bc+'">('+move.buffer_minutes+'min buffer)</span>';
+                html += '</div>';
+            });
+            html += '</div>';
+        });
+
+        content.innerHTML = html;
+        // Store solutions for highlighting and applying
+        window._swapSolutions = data.solutions;
+    }
+
+    // ── Timeline highlighting ──────────────────────────────────
+    window._swapSolutions = [];
+
+    window.highlightSolution = function(idx) {
+        clearHighlights();
+        const sol = window._swapSolutions[idx];
+        if (!sol) return;
+        sol.moves.forEach(function(move) {
+            const el = document.getElementById('tslot-'+move.leg_id);
+            if (el) {
+                if (move.from_driver) {
+                    el.classList.add('highlight-from');
+                } else {
+                    el.classList.add('highlight-to');
+                }
+            }
+        });
+    };
+
+    window.clearHighlights = function() {
+        document.querySelectorAll('.highlight-from, .highlight-to').forEach(function(el) {
+            el.classList.remove('highlight-from', 'highlight-to');
+        });
+    };
+
+    // ── Apply swap ─────────────────────────────────────────────
+    window.applySwap = function(legId, solutionIdx) {
+        const sol = window._swapSolutions[solutionIdx];
+        if (!sol) return;
+
+        if (!confirm('Apply this swap? Assignments will update immediately.\n\n' +
+            sol.moves.map(function(m) {
+                return (m.from_driver ? 'Move' : 'Assign') + ' Leg #' + m.leg_id +
+                    (m.from_driver ? ' from ' + m.from_driver : '') + ' → ' + m.to_driver;
+            }).join('\n'))) {
+            return;
+        }
+
+        const moves = sol.moves.map(function(m) {
+            return {leg_id: m.leg_id, to_driver_id: m.to_driver_id};
+        });
+
+        fetch('{% url "execute_swap" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({date: dateVal, moves: moves})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Swap failed: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Request failed: ' + err.message));
+    };
+
+    // ── Affiliate takeback panel ────────────────────────────────
+    function renderAffiliatePanel() {
+        const panel = document.getElementById('affiliatePanel');
+        if (!panel) return;
+        if (affiliateLegs.length === 0) {
+            panel.innerHTML = '<div class="text-center py-3"><i class="bi bi-check-circle" style="color:#2e7d32;font-size:1.3rem;"></i><p class="text-muted mt-1 mb-0" style="font-size:0.85rem;">No affiliate assignments for this date.</p></div>';
+            return;
+        }
+
+        var directLegs = affiliateLegs.filter(function(l) { return l.direct_takeback; });
+        var swapLegs = affiliateLegs.filter(function(l) { return !l.direct_takeback; });
+        var html = '';
+
+        if (directLegs.length > 0) {
+            html += '<div class="affiliate-section-label"><i class="bi bi-check2-circle me-1"></i>Direct Takeback (' + directLegs.length + ')</div>';
+            directLegs.forEach(function(leg) {
+                var c = tripColors[leg.trip_type] || '#666';
+                var bc = bufferClass(leg.direct_takeback.buffer);
+                html += '<div class="affiliate-card">';
+                html += '<div class="d-flex justify-content-between align-items-start">';
+                html += '<div>';
+                html += '<strong style="font-size:0.9rem;">' + leg.pickup_time + '</strong> ';
+                html += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + leg.trip_type.charAt(0).toUpperCase() + leg.trip_type.slice(1) + '</span>';
+                if (leg.vehicle_type) html += ' <span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;">' + leg.vehicle_type + '</span>';
+                html += '<div style="font-size:0.78rem;color:#555;margin-top:2px;">' + leg.pickup_location.substring(0, 35) + ' &rarr; ' + leg.dropoff_location.substring(0, 35) + '</div>';
+                html += '<div style="font-size:0.75rem;color:#888;">' + leg.customer;
+                if (leg.revenue > 0) html += ' &middot; $' + Math.round(leg.revenue);
+                html += ' &middot; <span style="color:#7b1fa2;">Currently: ' + leg.current_driver + '</span>';
+                html += '</div>';
+                html += '</div>';
+                html += '<div class="text-end">';
+                html += '<button class="btn btn-sm px-2 py-1" style="font-size:0.72rem;background:#7b1fa2;color:#fff;white-space:nowrap;" ';
+                html += 'onclick="executeTakeback(' + leg.id + ',' + leg.direct_takeback.driver_id + ')" id="takebackBtn-' + leg.id + '">';
+                html += '<i class="bi bi-arrow-down-left me-1"></i>Take Back &rarr; ' + leg.direct_takeback.driver_name + '</button>';
+                html += '<div class="' + bc + '" style="font-size:0.65rem;margin-top:2px;">' + leg.direct_takeback.buffer + 'min buffer</div>';
+                html += '</div>';
+                html += '</div>';
+                html += '</div>';
+            });
+        }
+
+        if (swapLegs.length > 0) {
+            html += '<div class="affiliate-section-label"><i class="bi bi-arrow-repeat me-1"></i>Needs Swap (' + swapLegs.length + ')</div>';
+            swapLegs.forEach(function(leg) {
+                var c = tripColors[leg.trip_type] || '#666';
+                html += '<div class="affiliate-card">';
+                html += '<div class="d-flex justify-content-between align-items-start">';
+                html += '<div>';
+                html += '<strong style="font-size:0.9rem;">' + leg.pickup_time + '</strong> ';
+                html += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + leg.trip_type.charAt(0).toUpperCase() + leg.trip_type.slice(1) + '</span>';
+                if (leg.vehicle_type) html += ' <span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;">' + leg.vehicle_type + '</span>';
+                html += '<div style="font-size:0.78rem;color:#555;margin-top:2px;">' + leg.pickup_location.substring(0, 35) + ' &rarr; ' + leg.dropoff_location.substring(0, 35) + '</div>';
+                html += '<div style="font-size:0.75rem;color:#888;">' + leg.customer;
+                if (leg.revenue > 0) html += ' &middot; $' + Math.round(leg.revenue);
+                html += ' &middot; <span style="color:#7b1fa2;">Currently: ' + leg.current_driver + '</span>';
+                html += '</div>';
+                html += '</div>';
+                html += '<button class="btn btn-sm px-2 py-1" style="font-size:0.75rem;color:var(--gold);border:1px solid var(--gold);white-space:nowrap;" ';
+                html += 'onclick="findSwaps(' + leg.id + ')" id="swapBtn-' + leg.id + '">';
+                html += '<i class="bi bi-arrow-repeat me-1"></i>Find Swaps</button>';
+                html += '</div>';
+                html += '</div>';
+            });
+        }
+
+        panel.innerHTML = html;
+    }
+
+    // ── Execute takeback ────────────────────────────────────────
+    window.executeTakeback = function(legId, driverId) {
+        if (!confirm('Take back this job from the affiliate and assign to the in-house driver?')) return;
+        var btn = document.getElementById('takebackBtn-' + legId);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Applying...';
+        }
+        fetch('{% url "execute_takeback" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({date: dateVal, leg_id: legId, driver_id: driverId})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Takeback failed: ' + (data.error || 'Unknown error'));
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-down-left me-1"></i>Take Back'; }
+            }
+        })
+        .catch(function(err) {
+            alert('Request failed: ' + err.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-down-left me-1"></i>Take Back'; }
+        });
+    };
+
+    // ── Init ───────────────────────────────────────────────────
+    renderTimeline();
+    renderNofitPanel();
+    renderAffiliatePanel();
+})();
+</script>
+{% endblock %}

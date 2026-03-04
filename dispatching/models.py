@@ -91,6 +91,15 @@ class SchedulerSettings(models.Model):
     revenue_divisor = models.IntegerField(default=10, help_text="Revenue / this = bonus points")
     revenue_cap = models.IntegerField(default=20, help_text="Max revenue bonus points")
 
+    # ── Swap Optimizer ─────────────────────────────────────────────
+    swap_max_depth = models.IntegerField(default=5, help_text="Max chain length for swap search")
+    swap_time_limit_ms = models.IntegerField(default=5000, help_text="Time budget in ms for swap search")
+    swap_max_iterations = models.IntegerField(default=5000, help_text="Max states to explore per search")
+    swap_depth_penalty = models.IntegerField(default=150, help_text="Score penalty per swap depth level")
+    swap_buffer_weight = models.IntegerField(default=2, help_text="Score multiplier for min buffer minutes")
+    swap_revenue_weight = models.IntegerField(default=10, help_text="Score weight for normalized revenue (revenue/divisor, capped)")
+    swap_tier_bonus = models.IntegerField(default=20, help_text="Score bonus for exact vehicle tier match in swap")
+
     @classmethod
     def get_settings(cls):
         """Return the singleton settings row, cached in memory.

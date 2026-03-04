@@ -654,6 +654,7 @@ def suggest_assignments(
     target_date: date,
     driver_hours: Dict[int, tuple] = None,
     driver_preferences: Dict[int, str] = None,
+    driver_vtypes: Dict[int, str] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -676,7 +677,8 @@ def suggest_assignments(
     sorted_legs = sorted(unassigned_legs, key=_assignment_sort_key)
 
     # Pre-load vehicle assignments for all drivers on this date (single query)
-    driver_vtypes = load_all_driver_vtypes(target_date)
+    if driver_vtypes is None:
+        driver_vtypes = load_all_driver_vtypes(target_date)
 
     # Work on copies so we can simulate assignments
     working = {}

@@ -23,6 +23,7 @@ INHOUSE_DRIVERS = {
     "carlos medina",
     "michael olmo",
     "david encarnacion",
+    "david encarancion",
     "yovanny suarez",
     "angel almanzar",
     "julio bonilla",
@@ -32,6 +33,11 @@ INHOUSE_DRIVERS = {
     "alex",
     "runer",
     "junaid baidr",
+    "abdalla",
+    "babu",
+    "hany",
+    "oualid",
+    "wael",
 }
 
 # Map CSV vehicle types to model vehicle_type choices
@@ -238,10 +244,24 @@ class Command(BaseCommand):
         if driver_name in cache:
             return cache[driver_name]
 
-        # Check if driver already exists by username
+        parts = driver_name.split(" ", 1)
+        first_name = parts[0].strip().title()
+        last_name = parts[1].strip().title() if len(parts) > 1 else ""
+
+        # Try to match existing driver by first_name (case-insensitive)
+        user_qs = User.objects.filter(first_name__iexact=first_name)
+        if last_name:
+            user_qs = user_qs.filter(last_name__iexact=last_name)
+        for user in user_qs:
+            driver = Driver.objects.filter(profile=user).first()
+            if driver:
+                self.stdout.write(f"  Matched driver '{driver_name}' -> existing #{driver.id} (user={user.username})")
+                cache[driver_name] = driver
+                return driver
+
+        # Fallback: check by username
         username = driver_name.lower().replace(" ", "_")
         user = User.objects.filter(username=username).first()
-
         if user:
             driver = Driver.objects.filter(profile=user).first()
             if driver:
@@ -250,11 +270,10 @@ class Command(BaseCommand):
 
         # Create new user + driver
         if not user:
-            parts = driver_name.split(" ", 1)
             user = User.objects.create_user(
                 username=username,
-                first_name=parts[0].title(),
-                last_name=parts[1].title() if len(parts) > 1 else "",
+                first_name=first_name,
+                last_name=last_name,
                 password="testpass123",
             )
 
@@ -263,6 +282,7 @@ class Command(BaseCommand):
             profile=user,
             driver_type=driver_type,
         )
+        self.stdout.write(f"  Created new driver '{driver_name}' #{driver.id} ({driver_type})")
 
         cache[driver_name] = driver
         return driver

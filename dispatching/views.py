@@ -5942,6 +5942,9 @@ def reset_schedule(request):
     count = legs.count()
     legs.update(driver=None, driver_assigned_by=None, driver_assigned_at=None)
 
+    # Invalidate capacity planner cache so it rebuilds with fresh data
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
+
     msg = f"Unassigned {count} legs for {date_str}."
     if snapshot:
         msg += f" Snapshot saved ({snapshot.assigned_count} assignments) — you can restore anytime."
@@ -6080,6 +6083,9 @@ def restore_schedule_snapshot(request):
             leg.driver_assigned_at = None
             leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
             cleared += 1
+
+    # Invalidate capacity planner cache so it rebuilds with fresh data
+    cache.delete(f"capacity_planner_{snapshot.schedule_date.isoformat()}")
 
     return JsonResponse({
         "success": True,
@@ -7274,3 +7280,394 @@ def inhouse_schedule(request):
         "today_legs_url": f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
     }
     return render(request, "dispatching/inhouse_schedule.html", context)
+
+
+# ── Swap Optimizer Endpoints ─────────────────────────────────────────
+
+@login_required
+def find_swap_suggestions(request):
+    """Find swap chains to make room for an unplaceable leg."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    leg_id = data.get("leg_id")
+    if not date_str or not leg_id:
+        return JsonResponse({"success": False, "error": "date and leg_id required"}, status=400)
+
+    from dispatching.scheduler import (
+        build_driver_schedules, load_all_driver_vtypes, preload_timing_cache,
+    )
+    from dispatching.swap_optimizer import find_swaps
+    from reservations.models import Leg
+
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
+
+    # Load target leg
+    target_leg = (
+        Leg.objects.filter(id=leg_id)
+        .select_related(
+            "reservation", "reservation__customer",
+            "reservation__vehicle",
+            "driver", "driver__profile", "flight_information",
+        )
+        .first()
+    )
+    if not target_leg:
+        return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
+
+    # Preload timing cache
+    preload_timing_cache()
+
+    # Get eligible in-house drivers (with vehicle assignments for this date)
+    eligible_driver_ids = set(
+        DriverVehicleAssignment.objects.filter(
+            date=target_date, driver__driver_type="inhouse"
+        ).values_list("driver_id", flat=True)
+    )
+    inhouse_drivers = list(
+        Driver.objects.filter(driver_type="inhouse", id__in=eligible_driver_ids)
+        .select_related("profile")
+    )
+
+    # Load all legs for this date (assigned to in-house drivers)
+    all_legs = list(
+        Leg.objects.filter(pickup_date=target_date, driver__isnull=False, driver__driver_type="inhouse")
+        .exclude(reservation__status="cancelled")
+        .select_related(
+            "reservation", "reservation__customer",
+            "reservation__vehicle",
+            "driver", "driver__profile", "flight_information",
+        )
+    )
+
+    # Build current schedules
+    schedules = build_driver_schedules(all_legs, inhouse_drivers, target_date)
+    driver_vtypes = load_all_driver_vtypes(target_date)
+    all_legs_by_id = {leg.id: leg for leg in all_legs}
+
+    # Run swap search
+    result = find_swaps(
+        target_leg=target_leg,
+        inhouse_schedules=schedules,
+        all_legs_by_id=all_legs_by_id,
+        driver_vtypes=driver_vtypes,
+        target_date=target_date,
+    )
+
+    # Serialize solutions
+    solutions_data = []
+    for sol in result.solutions:
+        moves_data = []
+        for move in sol.moves:
+            moves_data.append({
+                "leg_id": move.leg_id,
+                "pickup_time": move.leg_pickup_time,
+                "route": move.leg_route,
+                "from_driver_id": move.from_driver_id,
+                "from_driver": move.from_driver_name,
+                "to_driver_id": move.to_driver_id,
+                "to_driver": move.to_driver_name,
+                "buffer_minutes": move.buffer_minutes,
+            })
+        solutions_data.append({
+            "score": sol.score,
+            "depth": sol.depth,
+            "target_driver": sol.target_driver_name,
+            "target_driver_id": sol.target_driver_id,
+            "target_buffer": sol.target_buffer_minutes,
+            "moves": moves_data,
+        })
+
+    # Serialize diagnostic report (only present when no solutions found)
+    diagnostic_data = []
+    for d in result.diagnostic:
+        diagnostic_data.append({
+            "driver_name": d.driver_name,
+            "vehicle_type": d.vehicle_type,
+            "num_jobs": d.num_jobs,
+            "skipped_reason": d.skipped_reason,
+            "direct_feasible": d.direct_feasible,
+            "direct_buffer": d.direct_buffer,
+            "direct_fail_reason": d.direct_fail_reason,
+            "displacements_tried": d.displacements_tried,
+            "displacements_detail": d.displacements_detail,
+        })
+
+    return JsonResponse({
+        "success": True,
+        "solutions": solutions_data,
+        "states_explored": result.states_explored,
+        "time_ms": result.time_ms,
+        "hit_time_limit": result.hit_time_limit,
+        "hit_depth_limit": result.hit_depth_limit,
+        "diagnostic": diagnostic_data,
+    })
+
+
+@login_required
+def execute_swap(request):
+    """Execute an approved swap — update leg driver assignments in a transaction."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    date_str = data.get("date")
+    moves = data.get("moves", [])
+    if not date_str or not moves:
+        return JsonResponse({"success": False, "error": "date and moves required"}, status=400)
+
+    from reservations.models import Leg
+
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
+
+    try:
+        with transaction.atomic():
+            for move in moves:
+                leg_id = move.get("leg_id")
+                to_driver_id = move.get("to_driver_id")
+                if not leg_id or not to_driver_id:
+                    continue
+                leg = Leg.objects.select_for_update().get(id=leg_id)
+                driver = Driver.objects.get(id=to_driver_id)
+                leg.driver = driver
+                leg.driver_assigned_by = request.user
+                leg.driver_assigned_at = timezone.now()
+                leg.save()
+    except Leg.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
+    except Driver.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
+    return JsonResponse({"success": True, "applied": len(moves)})
+
+
+@login_required
+def execute_takeback(request):
+    """Reassign a single affiliate leg to an inhouse driver."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    leg_id = data.get("leg_id")
+    driver_id = data.get("driver_id")
+    date_str = data.get("date")
+    if not leg_id or not driver_id or not date_str:
+        return JsonResponse({"success": False, "error": "leg_id, driver_id, and date required"}, status=400)
+
+    from reservations.models import Leg
+
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
+
+    try:
+        with transaction.atomic():
+            leg = Leg.objects.select_for_update().get(id=leg_id)
+            driver = Driver.objects.get(id=driver_id)
+            leg.driver = driver
+            leg.driver_assigned_by = request.user
+            leg.driver_assigned_at = timezone.now()
+            leg.save()
+    except Leg.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
+    except Driver.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    cache.delete(f"capacity_planner_{target_date.isoformat()}")
+    return JsonResponse({"success": True})
+
+
+@login_required
+def swap_tester(request):
+    """Standalone swap tester / debugger page."""
+    if not request.user.is_staff:
+        return redirect("dashboard")
+
+    from dispatching.scheduler import (
+        build_driver_schedules, suggest_assignments,
+        preload_timing_cache, load_all_driver_vtypes,
+        check_feasibility, get_compatible_vehicle_types,
+    )
+    from dispatching.models import SchedulerSettings
+    from reservations.models import Leg
+
+    preload_timing_cache()
+
+    selected_date_str = request.GET.get("date")
+    try:
+        selected_date = (
+            datetime.strptime(selected_date_str, "%Y-%m-%d").date()
+            if selected_date_str
+            else timezone.localdate()
+        )
+    except (ValueError, TypeError):
+        selected_date = timezone.localdate()
+
+    # All legs for the date
+    legs = list(
+        Leg.objects.filter(pickup_date=selected_date)
+        .exclude(reservation__status="cancelled")
+        .select_related(
+            "reservation", "reservation__customer",
+            "reservation__vehicle",
+            "driver", "driver__profile", "flight_information",
+        )
+        .order_by("pickup_time")
+    )
+
+    # Single DVA query → builds both eligible_driver_ids and driver_vtypes
+    driver_vtypes = load_all_driver_vtypes(selected_date)
+    inhouse_drivers = list(
+        Driver.objects.filter(driver_type="inhouse", id__in=driver_vtypes.keys())
+        .select_related("profile")
+        .order_by("profile__first_name")
+    )
+
+    # Build schedules and suggestions (pass driver_vtypes to avoid re-query)
+    schedules = build_driver_schedules(legs, inhouse_drivers, selected_date)
+    unassigned_legs = [l for l in legs if not l.driver]
+    suggestions = suggest_assignments(
+        unassigned_legs, schedules, selected_date, driver_vtypes=driver_vtypes
+    ) if unassigned_legs else []
+    suggestion_map = {s.leg_id: s for s in suggestions}
+
+    # Build no-fit legs (unassigned legs where suggestion has no driver)
+    nofit_legs = []
+    for leg in unassigned_legs:
+        s = suggestion_map.get(leg.id)
+        if s and s.suggested_driver_id:
+            continue  # has a suggestion, not no-fit
+        trip_type = leg.get_trip_type()
+        vtype = getattr(getattr(getattr(leg, "reservation", None), "vehicle", None), "vehicle_type", None)
+        customer = ""
+        if leg.reservation and leg.reservation.customer:
+            customer = leg.reservation.customer.get_full_name()
+        nofit_legs.append({
+            "id": leg.id,
+            "pickup_time": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
+            "pickup_location": leg.pickup_location,
+            "dropoff_location": leg.dropoff_location,
+            "trip_type": trip_type,
+            "vehicle_type": str(vtype) if vtype else "",
+            "customer": customer,
+            "revenue": float(leg.revenue_share or 0),
+        })
+
+    # ── Affiliate takeback analysis ──────────────────────────
+    cfg = SchedulerSettings.get_settings()
+    affiliate_legs_list = [l for l in legs if l.driver and l.driver.driver_type == "affiliate"]
+    affiliate_takeback = []
+    for leg in affiliate_legs_list:
+        trip_type = leg.get_trip_type()
+        vtype = getattr(getattr(getattr(leg, "reservation", None), "vehicle", None), "vehicle_type", None)
+        vtype_str = str(vtype) if vtype else None
+        customer = ""
+        if leg.reservation and leg.reservation.customer:
+            customer = leg.reservation.customer.get_full_name()
+
+        # Check direct feasibility against every inhouse driver
+        best_direct = None
+        for driver in inhouse_drivers:
+            dvtype = driver_vtypes.get(driver.id)
+            # Driver's vehicle must be able to handle the leg's required type
+            if vtype_str and vtype_str not in get_compatible_vehicle_types(dvtype or ""):
+                continue
+            sched = schedules.get(driver.id)
+            if not sched:
+                continue
+            feas = check_feasibility(sched, leg, selected_date, cfg.inter_job_buffer)
+            if feas.feasible:
+                if best_direct is None or feas.buffer_minutes > best_direct["buffer"]:
+                    best_direct = {
+                        "driver_id": driver.id,
+                        "driver_name": str(driver),
+                        "buffer": feas.buffer_minutes,
+                    }
+
+        affiliate_takeback.append({
+            "id": leg.id,
+            "pickup_time": leg.pickup_time.strftime("%I:%M %p").lstrip("0") if leg.pickup_time else "",
+            "pickup_location": leg.pickup_location,
+            "dropoff_location": leg.dropoff_location,
+            "trip_type": trip_type,
+            "vehicle_type": vtype_str or "",
+            "customer": customer,
+            "revenue": float(leg.revenue_share or 0),
+            "current_driver": str(leg.driver),
+            "direct_takeback": best_direct,
+        })
+
+    # Build timeline data for each driver (driver_vtypes already loaded above)
+    timeline_drivers = []
+    for driver in inhouse_drivers:
+        sched = schedules.get(driver.id)
+        if not sched:
+            continue
+        slots_data = []
+        for slot in sched.slots:
+            slots_data.append({
+                "leg_id": slot.leg_id,
+                "pickup_time": slot.pickup_time.strftime("%I:%M %p").lstrip("0"),
+                "pickup_minutes": slot.pickup_time.hour * 60 + slot.pickup_time.minute,
+                "end_time": slot.estimated_end_time.strftime("%I:%M %p").lstrip("0") if slot.estimated_end_time else "",
+                "end_minutes": int(slot.estimated_end_time.hour * 60 + slot.estimated_end_time.minute) if slot.estimated_end_time else 0,
+                "pickup_location": slot.pickup_location[:35],
+                "dropoff_location": slot.dropoff_location[:35],
+                "trip_type": slot.trip_type,
+                "customer_name": slot.customer_name,
+                "revenue": float(slot.revenue or 0),
+                "vehicle_type": slot.vehicle_type or "",
+            })
+        vtype = driver_vtypes.get(driver.id, "")
+        timeline_drivers.append({
+            "id": driver.id,
+            "name": str(driver),
+            "vehicle_type": vtype,
+            "slots": slots_data,
+            "total_legs": len(slots_data),
+        })
+
+    context = {
+        "selected_date": selected_date,
+        "nofit_legs": json.dumps(nofit_legs),
+        "timeline_drivers": json.dumps(timeline_drivers),
+        "affiliate_takeback": json.dumps(affiliate_takeback),
+        "nofit_count": len(nofit_legs),
+        "total_legs": len(legs),
+        "inhouse_count": sum(1 for l in legs if l.driver and l.driver.driver_type == "inhouse"),
+        "unassigned_count": len(unassigned_legs),
+        "affiliate_count": len(affiliate_takeback),
+    }
+    return render(request, "dispatching/swap_tester.html", context)
