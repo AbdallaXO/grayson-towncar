@@ -53,7 +53,7 @@ def orlando_airport_transportation(request):
         "description": "Premium MCO airport transfers to Disney World, Universal Studios & Orlando hotels. Free car seats, flight tracking, meet & greet service.",
         "provider": {
             "@type": "LocalBusiness",
-            "name": "Grayson Town Car",
+            "name": "Grayson Towncar",
             "telephone": "407-212-7190",
             "address": {
                 "@type": "PostalAddress",
@@ -62,7 +62,7 @@ def orlando_airport_transportation(request):
                 "addressCountry": "US",
             },
         },
-        "areaServed": {"@type": "City", "name": "Orlando"},
+        "areaServed": {"@type": "Airport", "name": "Orlando International Airport (MCO)", "iataCode": "MCO"},
         "serviceType": "Airport Transportation",
         "url": "https://www.graysontowncar.com/services/orlando-airport-transportation/",
     }

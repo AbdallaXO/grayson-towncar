@@ -1,38 +1,37 @@
 {% extends "main.html" %}
 {% load static %}
+
+{% block head_extra %}
+  <link rel="canonical" href="https://www.graysontowncar.com/blog/post/{{ post.slug }}/" />
+{% endblock head_extra %}
+
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static "css/blog_post.css" %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{% static 'css/blog_post.css' %}" />
 {% endblock extra_css %}
+
 {% block title %}
   {{ post.title }} | Grayson Towncar Blog
 {% endblock title %}
 
 {% block meta_description %}
   <meta name="description" content="{{ post.get_clean_preview }}" />
-
-  <!-- Open Graph Meta Tags -->
   <meta property="og:title" content="{{ post.title }} | Grayson Towncar Blog" />
   <meta property="og:description" content="{{ post.get_clean_preview }}" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="{{ request.build_absolute_uri }}" />
   {% if post.image %}
-    <meta property="og:image"
-          content="{{ request.build_absolute_uri }}{{ post.image.url }}" />
+    <meta property="og:image" content="{{ request.build_absolute_uri }}{{ post.image.url }}" />
   {% endif %}
-  <meta property="article:published_time"
-        content="{{ post.created|date:'c' }}" />
-
-  <!-- Twitter Card data -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title"
-        content="{{ post.title }} | Grayson Towncar Blog">
-  <meta name="twitter:description" content="{{ post.get_clean_preview }}">
+  <meta property="article:published_time" content="{{ post.created|date:'c' }}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ post.title }} | Grayson Towncar Blog" />
+  <meta name="twitter:description" content="{{ post.get_clean_preview }}" />
   {% if post.image %}
-    <meta name="twitter:image"
-          content="{{ request.build_absolute_uri }}{{ post.image.url }}">
+    <meta name="twitter:image" content="{{ request.build_absolute_uri }}{{ post.image.url }}" />
   {% endif %}
-
-  <!-- Article Structured Data -->
   <script type="application/ld+json">
       {
           "@context": "https://schema.org",
@@ -50,246 +49,238 @@
               "name": "Grayson Towncar",
               "logo": {
                   "@type": "ImageObject",
-                  "url": "{{ request.build_absolute_uri }}{% static 'images/logo.png' %}"
+                  "url": "https://www.graysontowncar.com{% static 'images/logo.png' %}"
               }
           },
           "description": "{{ post.get_clean_preview }}"
       }
   </script>
 {% endblock meta_description %}
+
 {% block content %}
+<div class="blogpost-page">
   <!-- Reading Progress Bar -->
   <div class="reading-progress-container">
     <div class="reading-progress-bar" id="reading-progress-bar"></div>
   </div>
 
-  <!-- Back to Top Button -->
-  <div class="back-to-top" id="back-to-top">
+  <!-- Back to Top -->
+  <div class="back-to-top" id="back-to-top" aria-label="Back to top">
     <i class="bi bi-arrow-up"></i>
   </div>
 
-  <section class="py-5">
+  <!-- ========== POST HERO ========== -->
+  <section class="blogpost-hero">
     <div class="container px-4 px-lg-5">
       <div class="row">
-        <!-- Main Content Column -->
         <div class="col-lg-10 offset-lg-1">
-          <article class="blog-post-container">
-            <!-- Navigation Buttons -->
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <div class="navigation-buttons">
-                <a href="{% url 'blog-list' %}" class="btn btn-outline-secondary me-2">
-                  <i class="bi bi-arrow-left me-1"></i> Back to Blog
-                </a>
-              </div>
 
-              <!-- Horizontal Social Share Buttons -->
-              <div class="d-flex align-items-center">
-                <span class="text-muted me-2 d-none d-sm-inline">Share:</span>
-                <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}"
-                   target="_blank"
-                   class="share-btn facebook text-white"
-                   aria-label="Share on Facebook">
-                  <i class="bi bi-facebook"></i>
-                </a>
-                <a href="https://twitter.com/intent/tweet?url={{ request.build_absolute_uri }}&text={{ post.title }}"
-                   target="_blank"
-                   class="share-btn twitter text-white"
-                   aria-label="Share on Twitter">
-                  <i class="bi bi-twitter-x"></i>
-                </a>
-                <button id="copy-link"
-                        class="share-btn share-btn-link text-white"
-                        data-url="{{ request.build_absolute_uri }}"
-                        aria-label="Copy link">
-                  <i class="bi bi-link-45deg"></i>
-                </button>
+          <!-- Top bar: back + share -->
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <a href="{% url 'blog-list' %}" class="blogpost-hero__back">
+              <i class="bi bi-arrow-left"></i> Back to Journal
+            </a>
+            <div class="blogpost-hero__share">
+              <span class="blogpost-hero__share-label d-none d-sm-inline">Share</span>
+              <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}"
+                 target="_blank" rel="noopener"
+                 class="share-btn" aria-label="Share on Facebook">
+                <i class="bi bi-facebook"></i>
+              </a>
+              <a href="https://twitter.com/intent/tweet?url={{ request.build_absolute_uri }}&text={{ post.title }}"
+                 target="_blank" rel="noopener"
+                 class="share-btn" aria-label="Share on X">
+                <i class="bi bi-twitter-x"></i>
+              </a>
+              <button id="copy-link"
+                      class="share-btn"
+                      data-url="{{ request.build_absolute_uri }}"
+                      aria-label="Copy link">
+                <i class="bi bi-link-45deg"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Author / date -->
+          <div class="blogpost-hero__meta">
+            <img src="{% static 'images/default-profile.png' %}" alt="{{ post.user.first_name }}" width="44" height="44" class="blogpost-hero__avatar" />
+            <div>
+              <div class="blogpost-hero__author-name">{{ post.user.first_name }}</div>
+              <div class="blogpost-hero__date-line">
+                <time datetime="{{ post.created|date:'Y-m-d' }}">{{ post.created|date:'F j, Y' }}</time>
+                {% if estimated_read_time %}
+                  <span>&middot;</span>
+                  <span><i class="bi bi-clock"></i> {{ estimated_read_time }} min read</span>
+                {% endif %}
               </div>
             </div>
+          </div>
 
-            <!-- Post Header -->
-            <header class="blog-post-header text-center">
-              <h1 class="fw-bold mb-4 display-5">{{ post.title|title }}</h1>
+          <!-- Title -->
+          <h1 class="blogpost-hero__title">{{ post.title|title }}</h1>
 
-              <!-- Author & Date Info -->
-              <div class="blog-post-meta justify-content-center mb-4">
-                <img src="{% static 'images/default-profile.png' %}"
-                     alt="{{ post.user.first_name }}"
-                     class="blog-author-avatar">
-                <div>
-                  <div class="fw-bold fs-5">{{ post.user.first_name }}</div>
-                  <div class="d-flex align-items-center">
-                    <time datetime="{{ post.created|date:'Y-m-d' }}">{{ post.created|date:'F j, Y' }}</time>
-                    {% if estimated_read_time %}
-                      <span class="mx-2">•</span>
-                      <span><i class="bi bi-clock me-1"></i>{{ estimated_read_time }} min read</span>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-              <!-- Featured Image -->
-              <div class="blog-featured-image">
-                <img src="{{ post.image.url }}" alt="{{ post.title }}" class="img-fluid">
-              </div>
-            </header>
+  <!-- ========== FEATURED IMAGE ========== -->
+  <section class="blogpost-image">
+    <div class="container px-4 px-lg-5">
+      <div class="row">
+        <div class="col-lg-10 offset-lg-1">
+          <div class="blogpost-image__frame reveal-up">
+            <img src="{{ post.image.url }}" alt="{{ post.title }}" width="900" height="500" loading="eager" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-            <!-- Post Content -->
-            <div class="blog-post-content">{{ post.content|safe }}</div>
+  <!-- ========== POST CONTENT ========== -->
+  <section class="blogpost-content-section">
+    <div class="container px-4 px-lg-5">
+      <div class="row">
+        <div class="col-lg-10 offset-lg-1">
+          <div class="blogpost-content">{{ post.content|safe }}</div>
 
-            <!-- Author Bio (simplified, without social links) -->
-            <div class="blog-author-card">
-              <div class="d-flex align-items-center">
-                <img src="{% static 'images/default-profile.png' %}"
-                     alt="{{ post.user.first_name }}"
-                     class="blog-author-avatar">
-                <div class="ms-3">
-                  <h4 class="h5 fw-bold mb-1">{{ post.user.get_full_name }}</h4>
-                  <p class="text-muted mb-0">Transportation expert at Grayson Towncar</p>
-                </div>
-              </div>
+          <!-- Author bio -->
+          <div class="blogpost-author reveal-up">
+            <img src="{% static 'images/default-profile.png' %}" alt="{{ post.user.first_name }}" width="56" height="56" class="blogpost-author__avatar" />
+            <div>
+              <div class="blogpost-author__name">{{ post.user.get_full_name }}</div>
+              <div class="blogpost-author__role">Transportation expert at Grayson Towncar</div>
             </div>
+          </div>
 
-            <!-- Enhanced Call to Action -->
-            <div class="cta-container">
-              <div class="cta-content">
-                <h3 class="cta-title">Need Transportation in Orlando?</h3>
-                <p class="cta-text">
-                  Experience professional, reliable, and luxurious transportation with Grayson Towncar. We'll take you anywhere in Orlando in style and comfort.
-                </p>
-                <div class="d-flex flex-wrap gap-3">
-                  <a href="{% url 'rates' %}" class="cta-button primary">
-                    <i class="bi bi-calendar-check me-2"></i>Book Now
-                  </a>
-                  <a href="tel:4072127190" class="cta-button outline">
-                    <i class="bi bi-telephone me-2"></i>Call Us
-                  </a>
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <!-- Related Posts -->
-          {% if related_posts %}
-            <section class="mt-5 blog-post-container">
-              <h2 class="fw-bold mb-4">You May Also Like</h2>
-              <div class="row g-4">
-                {% for related_post in related_posts %}
-                  <div class="col-md-4">
-                    <div class="card related-post-card h-100 shadow-sm">
-                      <img src="{{ related_post.image.url }}"
-                           class="card-img-top related-post-img"
-                           alt="{{ related_post.title }}">
-                      <div class="card-body">
-                        <h5 class="card-title h6 fw-bold">{{ related_post.title|truncatewords:7 }}</h5>
-                        <div class="small text-muted mb-2">
-                          <time datetime="{{ related_post.created|date:'Y-m-d' }}">{{ related_post.created|date:'F j, Y' }}</time>
-                        </div>
-                        <p class="card-text small text-muted mb-3 d-none d-lg-block">{{ related_post.get_clean_preview|truncatewords:12 }}</p>
-                        <a href="{% url 'blog-post' related_post.slug %}" class="stretched-link"></a>
-                      </div>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-            </section>
-          {% endif %}
-
-          <!-- Contact Information -->
-          <div class="blog-post-container mt-5">
-            <div class="card border-0 shadow-sm mb-4 rounded-3">
-              <div class="card-body p-4 text-center">
-                <h4 class="h5 fw-bold mb-3">Contact Us</h4>
-                <div class="mb-3">
-                  <a href="mailto:reservations@graysontowncar.com"
-                     class="text-decoration-none d-inline-block mb-2 mx-3">
-                    <i class="bi bi-envelope me-2"></i>
-                    <span>reservations@graysontowncar.com</span>
-                  </a>
-                  <a href="tel:4072127190"
-                     class="text-decoration-none d-inline-block mx-3">
-                    <i class="bi bi-telephone me-2"></i>
-                    <span>(407) 212-7190</span>
-                  </a>
-                </div>
-              </div>
+          <!-- CTA -->
+          <div class="blogpost-cta reveal-up">
+            <h3 class="blogpost-cta__title">Need Transportation in Orlando?</h3>
+            <p class="blogpost-cta__text">Experience professional, reliable, and luxurious ground transportation with Grayson Towncar.</p>
+            <div class="blogpost-cta__buttons">
+              <a href="{% url 'rates' %}" class="blogpost-cta__btn blogpost-cta__btn--gold">
+                <i class="bi bi-calendar-check"></i> Book Now
+              </a>
+              <a href="tel:4072127190" class="blogpost-cta__btn blogpost-cta__btn--outline">
+                <i class="bi bi-telephone"></i> Call Us
+              </a>
             </div>
           </div>
         </div>
       </div>
     </div>
   </section>
+
+  <!-- ========== RELATED POSTS ========== -->
+  {% if related_posts %}
+  <section class="blogpost-related">
+    <div class="container px-4 px-lg-5">
+      <div class="row">
+        <div class="col-lg-10 offset-lg-1">
+          <div class="blogpost-related__header">
+            <h2 class="blogpost-related__title">You May Also Like</h2>
+            <div class="blogpost-related__line"></div>
+          </div>
+          <div class="blogpost-related__grid">
+            {% for related_post in related_posts %}
+            <a href="{% url 'blog-post' related_post.slug %}" class="related-card reveal-up">
+              <div class="related-card__image">
+                <img src="{{ related_post.image.url }}" alt="{{ related_post.title }}" width="400" height="250" loading="lazy" />
+              </div>
+              <div class="related-card__body">
+                <h3 class="related-card__title">{{ related_post.title|truncatewords:7 }}</h3>
+                <time class="related-card__date" datetime="{{ related_post.created|date:'Y-m-d' }}">{{ related_post.created|date:'F j, Y' }}</time>
+                <p class="related-card__excerpt">{{ related_post.get_clean_preview|truncatewords:12 }}</p>
+              </div>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- ========== CONTACT STRIP ========== -->
+  <section class="blogpost-contact">
+    <div class="container px-4 px-lg-5">
+      <div class="blogpost-contact__inner">
+        <a href="mailto:reservations@graysontowncar.com" class="blogpost-contact__link">
+          <i class="bi bi-envelope"></i> reservations@graysontowncar.com
+        </a>
+        <a href="tel:4072127190" class="blogpost-contact__link">
+          <i class="bi bi-telephone"></i> (407) 212-7190
+        </a>
+      </div>
+    </div>
+  </section>
+</div>
 {% endblock content %}
 
 {% block extra_js %}
-  <script>
-      // Copy Link Functionality
-      document.addEventListener('DOMContentLoaded', function() {
-          const copyButton = document.getElementById('copy-link');
-          if (copyButton) {
-              copyButton.addEventListener('click', function() {
-                  const url = this.getAttribute('data-url');
-                  navigator.clipboard.writeText(url).then(function() {
-                      // Visual feedback
-                      const originalText = copyButton.innerHTML;
-                      copyButton.innerHTML = '<i class="bi bi-check2"></i>';
-                      setTimeout(function() {
-                          copyButton.innerHTML = originalText;
-                      }, 2000);
-                  });
-              });
-          }
-
-          // Reading Progress Bar
-          const progressBar = document.getElementById('reading-progress-bar');
-          if (progressBar) {
-              window.addEventListener('scroll', function() {
-                  const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-                  const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-                  const scrolled = (winScroll / height) * 100;
-                  progressBar.style.width = scrolled + '%';
-              });
-          }
-
-          // Back to Top Button
-          const backToTopButton = document.getElementById('back-to-top');
-          if (backToTopButton) {
-              window.addEventListener('scroll', function() {
-                  if (window.pageYOffset > 300) {
-                      backToTopButton.classList.add('show');
-                  } else {
-                      backToTopButton.classList.remove('show');
-                  }
-              });
-
-              backToTopButton.addEventListener('click', function() {
-                  window.scrollTo({
-                      top: 0,
-                      behavior: 'smooth'
-                  });
-              });
-          }
-
-          // Add smooth anchor link scrolling
-          document.querySelectorAll('.blog-post-content a[href^="#"]').forEach(anchor => {
-              anchor.addEventListener('click', function(e) {
-                  e.preventDefault();
-                  const target = document.querySelector(this.getAttribute('href'));
-                  if (target) {
-                      window.scrollTo({
-                          top: target.offsetTop - 100,
-                          behavior: 'smooth'
-                      });
-                  }
-              });
-          });
-
-          // Add target="_blank" to external links
-          document.querySelectorAll('.blog-post-content a').forEach(link => {
-              if (link.hostname !== window.location.hostname && !link.hasAttribute('target')) {
-                  link.setAttribute('target', '_blank');
-                  link.setAttribute('rel', 'noopener noreferrer');
-              }
-          });
+<script>
+(function() {
+  // Copy link
+  var copyBtn = document.getElementById('copy-link');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      var url = this.getAttribute('data-url');
+      navigator.clipboard.writeText(url).then(function() {
+        var orig = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="bi bi-check2"></i>';
+        setTimeout(function() { copyBtn.innerHTML = orig; }, 2000);
       });
-  </script>
+    });
+  }
+
+  // Reading progress bar
+  var bar = document.getElementById('reading-progress-bar');
+  if (bar) {
+    window.addEventListener('scroll', function() {
+      var h = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      bar.style.width = ((document.documentElement.scrollTop / h) * 100) + '%';
+    });
+  }
+
+  // Back to top
+  var btt = document.getElementById('back-to-top');
+  if (btt) {
+    window.addEventListener('scroll', function() {
+      btt.classList.toggle('show', window.pageYOffset > 300);
+    });
+    btt.addEventListener('click', function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  // Smooth anchor scrolling
+  document.querySelectorAll('.blogpost-content a[href^="#"]').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      var t = document.querySelector(this.getAttribute('href'));
+      if (t) window.scrollTo({ top: t.offsetTop - 100, behavior: 'smooth' });
+    });
+  });
+
+  // External links in new tab
+  document.querySelectorAll('.blogpost-content a').forEach(function(a) {
+    if (a.hostname !== window.location.hostname && !a.hasAttribute('target')) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
+  // Scroll reveal
+  var obs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('is-visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -30px 0px' });
+
+  document.querySelectorAll('.reveal-up').forEach(function(el) { obs.observe(el); });
+})();
+</script>
 {% endblock extra_js %}

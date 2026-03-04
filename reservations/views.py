@@ -258,11 +258,11 @@ def faqs(request):
 
 
 def tos(request):
-    return render(request, "reservations/tos.html")
+    return render(request, "reservations/tos_wrapper.html")
 
 
 def privacy(request):
-    return render(request, "reservations/privacy.html")
+    return render(request, "reservations/privacy_wrapper.html")
 
 
 @method_decorator(csrf_exempt, name="dispatch")

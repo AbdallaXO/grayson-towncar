@@ -20,50 +20,6 @@
         })(window, document, 'script', 'dataLayer', 'GTM-PQC5M3M3')
     </script>
     <!-- End Google Tag Manager -->
-    <!-- UTM Parameter Capture Script -->
-    <script>
-        (function() {
-            const params = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
-
-            // Function to set cookie
-            function setCookie(name, value, days = 30) {
-                const expires = new Date();
-                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-                document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
-            }
-
-            // Function to get cookie value
-            function getCookie(name) {
-                const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]+)'));
-                return match ? decodeURIComponent(match[2]) : null;
-            }
-
-            // Capture UTM parameters and fbclid from URL and store in cookies
-            params.forEach(function(param) {
-                const value = new URLSearchParams(window.location.search).get(param);
-                if (value) {
-                    setCookie(param, value);
-                    console.log('Stored parameter in cookie:', param, '=', value);
-                }
-            });
-
-            // Auto-detect Meta/Facebook traffic if fbclid is present but no utm_source
-            const fbclid = new URLSearchParams(window.location.search).get('fbclid');
-            const hasFbpCookie = document.cookie.includes('_fbp=');
-            if ((fbclid || hasFbpCookie) && !getCookie('utm_source')) {
-                // Auto-set utm_source to 'facebook' if coming from Meta but no UTM params
-                if (!getCookie('utm_source')) {
-                    setCookie('utm_source', 'facebook');
-                    setCookie('utm_medium', 'cpc');
-                    console.log('Auto-detected Facebook/Meta traffic');
-                }
-            }
-
-            // Make getCookie function globally available for purchase event
-            window.getCookie = getCookie;
-        })();
-    </script>
-    <!-- End UTM Parameter Capture Script -->
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-E999VVT9CE"></script>
     <script>
@@ -76,32 +32,6 @@
 
         gtag('config', 'G-E999VVT9CE')
     </script>
-    <script>
-        !(function(f, b, e, v, n, t, s) {
-            if (f.fbq) return
-            n = f.fbq = function() {
-                n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments)
-            }
-            if (!f._fbq) f._fbq = n
-            n.push = n
-            n.loaded = !0
-            n.version = '2.0'
-            n.queue = []
-            t = b.createElement(e)
-            t.async = !0
-            t.src = v
-            s = b.getElementsByTagName(e)[0]
-            s.parentNode.insertBefore(t, s)
-        })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js')
-        fbq('init', '1261740178962298')
-        fbq('track', 'PageView')
-    </script>
-    <noscript>
-      <img height="1"
-           width="1"
-           style="display:none"
-           src="https://www.facebook.com/tr?id=1261740178962298&ev=PageView&noscript=1" />
-    </noscript>
     <meta charset="utf-8" />
     <meta name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no" />
@@ -166,5 +96,49 @@
     {% endblock %}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/alerts.js' %}"></script>
+    <!-- UTM Parameter Capture Script (deferred to end of body) -->
+    <script>
+        (function() {
+            const params = ['gclid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+            function setCookie(name, value, days) {
+                days = days || 30;
+                const expires = new Date();
+                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+                document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
+            }
+            function getCookie(name) {
+                const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]+)'));
+                return match ? decodeURIComponent(match[2]) : null;
+            }
+            params.forEach(function(param) {
+                const value = new URLSearchParams(window.location.search).get(param);
+                if (value) { setCookie(param, value); }
+            });
+            var fbclid = new URLSearchParams(window.location.search).get('fbclid');
+            var hasFbpCookie = document.cookie.includes('_fbp=');
+            if ((fbclid || hasFbpCookie) && !getCookie('utm_source')) {
+                setCookie('utm_source', 'facebook');
+                setCookie('utm_medium', 'cpc');
+            }
+            window.getCookie = getCookie;
+        })();
+    </script>
+    <!-- Facebook Pixel (deferred to end of body) -->
+    <script>
+        !(function(f, b, e, v, n, t, s) {
+            if (f.fbq) return;
+            n = f.fbq = function() { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments) };
+            if (!f._fbq) f._fbq = n;
+            n.push = n; n.loaded = !0; n.version = '2.0'; n.queue = [];
+            t = b.createElement(e); t.async = !0; t.src = v;
+            s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+        })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '1261740178962298');
+        fbq('track', 'PageView');
+    </script>
+    <noscript>
+      <img height="1" width="1" style="display:none"
+           src="https://www.facebook.com/tr?id=1261740178962298&ev=PageView&noscript=1" />
+    </noscript>
   </body>
 </html>

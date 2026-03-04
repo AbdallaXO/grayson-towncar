@@ -18,42 +18,36 @@ def get_base_structured_data(request, additional_data=None):
             "addressLocality": "Orlando",
             "addressRegion": "FL",
             "postalCode": "32827",
+            "addressCountry": "US",
         },
         "description": (
             "Premier private airport transportation service in Orlando, offering luxury "
             "MCO airport transfers, Disney resort shuttles, Universal Studios transportation, "
             "and Port Canaveral cruise transfers with exceptional customer service and flexibility."
         ),
-        "image": "https://www.graysontowncar.com/logo.jpg",
-        "url": request.build_absolute_uri(),
+        "image": "https://www.graysontowncar.com/static/images/logo.png",
+        "logo": "https://www.graysontowncar.com/static/images/logo.png",
+        "url": "https://www.graysontowncar.com/",
         "telephone": "+1-407-212-7190",
         "priceRange": "$$",
-        "award": [
-            "Top-Rated Orlando Airport Transportation Service",
-            "Customer Choice Award for Orlando Private Transportation",
-            "Family-Friendly Disney Resort Transportation Service of the Year",
-        ],
-        "areaServed": {
-            "@type": "Place",
-            "name": "Orlando Metropolitan Area",
-            "geo": {
-                "@type": "GeoCircle",
-                "geoMidpoint": {
-                    "@type": "GeoCoordinates",
-                    "latitude": 28.5383,
-                    "longitude": -81.3792,
-                },
-                "geoRadius": "100 mi",
-            },
+        "paymentAccepted": ["Credit Card", "Debit Card"],
+        "openingHoursSpecification": {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+                "Monday", "Tuesday", "Wednesday", "Thursday",
+                "Friday", "Saturday", "Sunday",
+            ],
+            "opens": "00:00",
+            "closes": "23:59",
         },
-        "additionalType": [
-            "Airport Shuttle",
-            "Disney Resort Transportation",
-            "Corporate Transportation",
-            "Wedding Transportation",
-            "Port Canaveral Cruise Transfer",
-            "Group Transportation",
+        "areaServed": [
+            {"@type": "City", "name": "Orlando"},
+            {"@type": "Airport", "name": "Orlando International Airport (MCO)", "iataCode": "MCO"},
+            {"@type": "Place", "name": "Walt Disney World Resort"},
+            {"@type": "Place", "name": "Universal Orlando Resort"},
+            {"@type": "Place", "name": "Port Canaveral"},
         ],
+        "hasMap": "https://maps.google.com/?q=Grayson+Towncar+Orlando+FL",
         "hasOfferCatalog": {
             "@type": "OfferCatalog",
             "name": "Orlando Transportation Vehicle Options",
@@ -113,8 +107,8 @@ def get_base_structured_data(request, additional_data=None):
             "@type": "ReserveAction",
             "target": {
                 "@type": "EntryPoint",
-                "urlTemplate": f"{request.scheme}://{request.get_host()}/rates-booking/",
-                "inLanguage": ["en-US", "ar-SA"],
+                "urlTemplate": "https://www.graysontowncar.com/rates-booking/",
+                "inLanguage": "en-US",
             },
         },
         "knowsAbout": [
@@ -126,33 +120,7 @@ def get_base_structured_data(request, additional_data=None):
             "Luxury Airport Shuttle",
             "Private Transportation Orlando",
             "Corporate Event Transportation",
-            "Wedding Transportation",
             "Family-Friendly Orlando Transportation",
-        ],
-        "parentOrganization": {
-            "@type": "Organization",
-            "name": "Grayson Towncar",
-            "description": (
-                "Providing premium Orlando airport transportation and luxury shuttle "
-                "solutions in Central Florida"
-            ),
-        },
-        "keywords": [
-            "Orlando airport transfers",
-            "MCO transportation service",
-            "Disney World transportation",
-            "Universal Studios transportation",
-            "Port Canaveral cruise transfer",
-            "MCO airport to disney world",
-            "Port Canaveral transportation",
-            "mco transportation to port canaveral",
-            "Orlando chauffeur service",
-            "Family-friendly transportation Orlando",
-            "Disney World transportation",
-            "Orlando transportation with car seats",
-            "MCO transportation,",
-            "Orlando airport transportation",
-            "Orlando Airport Car Service",
         ],
     }
 
@@ -170,8 +138,16 @@ def structured_data(context, page_type="home", additional_data=None):
     request = context["request"]
     data = get_base_structured_data(request, additional_data)
 
-    # Add page-specific enhancements here if needed
+    scripts = f'<script type="application/ld+json">\n{json.dumps(data, indent=2)}\n</script>'
 
-    return mark_safe(f"""
-    <script type=\"application/ld+json\">\n{json.dumps(data, indent=2)}\n    </script>
-    """)
+    # Add WebSite schema on the homepage
+    if request.path == "/":
+        website_data = {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "Grayson Towncar",
+            "url": "https://www.graysontowncar.com",
+        }
+        scripts += f'\n<script type="application/ld+json">\n{json.dumps(website_data, indent=2)}\n</script>'
+
+    return mark_safe(scripts)

@@ -21,7 +21,7 @@
                   "addressRegion": "FL"
               }
           },
-          "areaServed": ["Orlando", "Port Canaveral", "Disney World", "Universal Studios"],
+          "areaServed": {"@type": "Place", "name": "Port Canaveral, Cape Canaveral, FL"},
           "hasOfferCatalog": {
               "@type": "OfferCatalog",
               "name": "Port Canaveral Transportation Services",
@@ -236,7 +236,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
           <div class="row g-4">
             <div class="col-lg-6">
               <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/disney_wish.webp' %}" width="100%" height="400" class="lux-card-img" alt="Disney Wish cruise ship docked at Port Canaveral" />
+                <img src="{% static 'images/disney_wish.webp' %}" width="100%" height="400" class="lux-card-img" loading="lazy" alt="Disney Wish cruise ship docked at Port Canaveral" />
                 <div class="card-body p-5">
                   <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Disney Wish</h4>
                   <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">The newest addition to the Disney fleet at Port Canaveral, featuring innovative entertainment and immersive Disney, Marvel, and Star Wars experiences.</p>
@@ -251,7 +251,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
             </div>
             <div class="col-lg-6">
               <div class="lux-card h-100 shadow-sm">
-                <img src="{% static 'images/disney_fantasy.webp' %}" width="100%" height="400" class="lux-card-img" alt="Disney Fantasy cruise ship at Port Canaveral terminal" />
+                <img src="{% static 'images/disney_fantasy.webp' %}" width="100%" height="400" class="lux-card-img" loading="lazy" alt="Disney Fantasy cruise ship at Port Canaveral terminal" />
                 <div class="card-body p-5">
                   <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Disney Fantasy</h4>
                   <p style="font-weight: 300; color: var(--lux-dark-gray); line-height: 1.7; margin-bottom: 1.5rem;">A classic Disney cruise experience with beloved characters and family-friendly activities, departing regularly from Port Canaveral.</p>
@@ -282,7 +282,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
           <div class="lux-card shadow-sm">
             <div class="row g-0">
               <div class="col-lg-5">
-                <img src="{% static 'images/royal_carribean.webp' %}" width="100%" height="100%" class="h-100 object-fit-cover" alt="Royal Caribbean cruise ship at Port Canaveral terminal" />
+                <img src="{% static 'images/royal_carribean.webp' %}" width="100%" height="100%" class="h-100 object-fit-cover" loading="lazy" alt="Royal Caribbean cruise ship at Port Canaveral terminal" />
               </div>
               <div class="col-lg-7">
                 <div class="card-body p-5">
@@ -393,7 +393,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                   <ul class="list-unstyled mb-0">
                     <li class="mb-4 d-flex">
                       <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" alt="Check" />
+                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
                       </div>
                       <div>
                         <h5 class="h5 mb-2">Professional Drivers</h5>
@@ -402,7 +402,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                     </li>
                     <li class="mb-4 d-flex">
                       <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" alt="Check" />
+                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
                       </div>
                       <div>
                         <h5 class="h5 mb-2">Luxury Vehicles</h5>
@@ -411,7 +411,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                     </li>
                     <li class="mb-4 d-flex">
                       <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" alt="Check" />
+                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
                       </div>
                       <div>
                         <h5 class="h5 mb-2">Complimentary Car Seats</h5>
@@ -424,7 +424,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                   <ul class="list-unstyled mb-0">
                     <li class="mb-4 d-flex">
                       <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" alt="Check" />
+                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
                       </div>
                       <div>
                         <h5 class="h5 mb-2">Luggage Handling</h5>
@@ -433,7 +433,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                     </li>
                     <li class="mb-4 d-flex">
                       <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" alt="Check" />
+                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
                       </div>
                       <div>
                         <h5 class="h5 mb-2">Flight Tracking</h5>
@@ -442,7 +442,7 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                     </li>
                     <li class="mb-4 d-flex">
                       <div class="me-3">
-                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" alt="Check" />
+                        <img src="{% static 'images/check.webp' %}" width="24" height="24" class="text-dark" loading="lazy" alt="Check" />
                       </div>
                       <div>
                         <h5 class="h5 mb-2">Terminal Knowledge</h5>
@@ -525,19 +525,19 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                   <h4 class="h4 mb-3">Port Canaveral Cruise Terminals</h4>
                   <ul class="list-unstyled fs-5">
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Cruise Terminal 6: Royal Caribbean
                     </li>
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Cruise Terminal 8: Disney Cruise Line
                     </li>
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Cruise Terminal 10: Norwegian Cruise Line
                     </li>
                     <li>
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Cruise Terminal 1: Royal Caribbean
                     </li>
                   </ul>
@@ -546,19 +546,19 @@ Port Canaveral Transportation | Orlando Cruise Transfer Service{% endblock %}
                   <h4 class="h4 mb-3">Popular Cruise Destinations</h4>
                   <ul class="list-unstyled fs-5">
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Bahamas (Nassau, Freeport, CocoCay)
                     </li>
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Eastern Caribbean (St. Thomas, St. Maarten)
                     </li>
                     <li class="mb-2">
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Western Caribbean (Cozumel, Grand Cayman)
                     </li>
                     <li>
-                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" alt="Check" />
+                      <img src="{% static 'images/check.webp' %}" width="16" height="16" class="text-dark me-2" loading="lazy" alt="Check" />
                       Disney's Private Island: Castaway Cay
                     </li>
                   </ul>

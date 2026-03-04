@@ -1,16 +1,20 @@
-{% extends 'main.html' %}
+{% extends "main.html" %}
 {% load static %}
 
 {% block title %}
   Orlando Transportation Tips | Travel Guides & Airport Advice
-{% endblock %}
+{% endblock title %}
+
 {% block head_extra %}
   <link rel="canonical" href="https://www.graysontowncar.com/blog/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{% static 'css/blog.css' %}" />
-{% endblock %}
+{% endblock head_extra %}
+
 {% block meta_description %}
   <meta name="description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
-  <!-- Additional SEO Meta Tags -->
   <meta property="og:title" content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
   <meta property="og:description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
   <meta property="og:type" content="website" />
@@ -18,7 +22,6 @@
   {% if latest_post and latest_post.image %}
     <meta property="og:image" content="{{ request.build_absolute_uri }}{{ latest_post.image.url }}" />
   {% endif %}
-  <!-- Twitter Card data -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Orlando Travel Tips & Transportation Guides | Grayson Towncar Blog" />
   <meta name="twitter:description" content="Expert travel tips and guides for Orlando visitors. Learn about transportation options, theme park planning, and making the most of your Orlando vacation." />
@@ -37,232 +40,176 @@
               "name": "Grayson Towncar",
               "logo": {
                   "@type": "ImageObject",
-                  "url": "{{ request.build_absolute_uri }}{% static 'images/logo.png' %}"
+                  "url": "https://www.graysontowncar.com{% static 'images/logo.png' %}"
               }
           }
       }
   </script>
-{% endblock %}
-{% block content %}
-  <!-- Hero Section (Enhanced) -->
-  <section class="py-5 blog-hero">
-    <div class="container px-4 px-lg-5">
-      <div class="row justify-content-center">
-        <div class="col-lg-10">
-          <header class="text-center mb-5">
-            <h1 class="fw-bolder display-4 mb-4 blog-title">Grayson Towncar Blog</h1>
-            <p class="lead text-muted mb-4">Expert travel tips, transportation guides, and insider advice for making the most of your Orlando vacation.</p>
+{% endblock meta_description %}
 
-            <!-- Blog Search -->
-            <div class="blog-search">
-              <form action="{% url 'blog-list' %}" method="get">
-                <div class="position-relative">
-                  <input type="text" name="search" class="form-control" placeholder="Search for travel tips, guides and more..." aria-label="Search blog" />
-                  <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
-                </div>
-              </form>
-            </div>
-          </header>
+{% block content %}
+<div class="blog-page-wrapper">
+  <!-- ========== HERO ========== -->
+  <section class="blog-hero">
+    <div class="container px-4 px-lg-5">
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="blog-hero__label">Journal</div>
+          <h1 class="blog-hero__title">Travel Tips &amp; <em>Insider</em> Guides</h1>
+          <p class="blog-hero__subtitle">Expert insights on Orlando transportation, theme park logistics, and luxury travel — from the team that drives it every day.</p>
+          <div class="blog-search">
+            <form action="{% url 'blog-list' %}" method="get">
+              <input type="text" name="search" placeholder="Search articles..." aria-label="Search blog"{% if search_query %} value="{{ search_query }}"{% endif %} />
+              <button type="submit" aria-label="Search"><i class="bi bi-search"></i></button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Featured Post Section (Enhanced) -->
-  <section class="py-5">
+  <!-- ========== FEATURED POST ========== -->
+  {% if latest_post %}
+  <section class="blog-featured">
     <div class="container px-4 px-lg-5">
-      {% if latest_post %}
-        <div class="mb-5">
-          <div class="featured-post-card border-0">
-            <div class="row g-0">
-              <div class="col-lg-6 featured-post-image">
-                <img src="{{ latest_post.image.url }}" alt="{{ latest_post.title }}" class="img-fluid w-100" loading="lazy" />
-                <span class="latest-badge">Latest Post</span>
-              </div>
-              <div class="col-lg-6">
-                <div class="card-body p-4 p-lg-5">
-                  <h2 class="card-title h3 fw-bold">{{ latest_post.title|title }}</h2>
-
-                  <div class="d-flex align-items-center mb-3">
-                    <img src="{% static 'images/default-profile.png' %}" alt="{{ latest_post.user.first_name }}" class="me-2 author-avatar" />
-                    <div class="small">
-                      <span class="fw-bold">{{ latest_post.user.first_name }}</span>
-                      <span class="text-muted mx-2">•</span>
-                      <time datetime="{{ latest_post.created|date:'Y-m-d' }}">{{ latest_post.created|date:'F j, Y' }}</time>
-                      {% if latest_post.estimated_read_time %}
-                        <span class="ms-2 read-time"><i class="bi bi-clock"></i> {{ latest_post.estimated_read_time }}min</span>
-                      {% endif %}
-                    </div>
-                  </div>
-
-                  <p class="card-text">{{ latest_post.get_clean_preview }}</p>
-
-                  <a href="{% url 'blog-post' latest_post.slug %}" class="read-more-link text-decoration-none" aria-label="Continue reading: {{ latest_post.title }}">Continue Reading <i class="bi bi-arrow-right"></i></a>
-                </div>
-              </div>
+      <a href="{% url 'blog-post' latest_post.slug %}" class="blog-featured__card reveal-up" aria-label="Read: {{ latest_post.title }}">
+        <div class="blog-featured__image">
+          <img src="{{ latest_post.image.url }}" alt="{{ latest_post.title }}" width="640" height="420" loading="eager" />
+          <span class="blog-featured__badge">Latest</span>
+        </div>
+        <div class="blog-featured__body">
+          <div class="blog-featured__meta">
+            <img src="{% static 'images/default-profile.png' %}" alt="{{ latest_post.user.first_name }}" width="36" height="36" class="blog-featured__avatar" />
+            <div>
+              <div class="blog-featured__author">{{ latest_post.user.first_name }}</div>
+              <time class="blog-featured__date" datetime="{{ latest_post.created|date:'Y-m-d' }}">{{ latest_post.created|date:'F j, Y' }}</time>
             </div>
           </div>
+          <h2 class="blog-featured__title">{{ latest_post.title|title }}</h2>
+          <p class="blog-featured__excerpt">{{ latest_post.get_clean_preview }}</p>
+          <span class="blog-featured__link">
+            Continue Reading <i class="bi bi-arrow-right"></i>
+          </span>
         </div>
-      {% endif %}
+      </a>
     </div>
   </section>
+  {% endif %}
 
-  <!-- Blog Posts Grid (Enhanced) -->
-  <section class="py-5" style="background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%)">
+  <!-- ========== BLOG GRID ========== -->
+  <section class="blog-grid-section">
     <div class="container px-4 px-lg-5">
-      <h2 class="fw-bolder mb-4">Featured Stories</h2>
+      <div class="blog-grid-section__header">
+        <h2 class="blog-grid-section__title">All Stories</h2>
+        <div class="blog-grid-section__line"></div>
+      </div>
 
-      <div class="row gx-4 gy-4">
+      <div class="blog-grid">
         {% for blog in blogs %}
-          <div class="col-lg-4 col-md-6" style="--card-index: {{ forloop.counter }}">
-            <div class="card blog-card h-100 border-0 shadow-sm">
-              <div class="card-img-wrapper">
-                <img src="{{ blog.image.url }}" alt="{{ blog.title }}" class="card-img-top" loading="lazy" />
+        <a href="{% url 'blog-post' blog.slug %}" class="blog-card" aria-label="Read: {{ blog.title }}">
+          <div class="blog-card__image">
+            <img src="{{ blog.image.url }}" alt="{{ blog.title }}" width="400" height="267" loading="lazy" />
+            <span class="blog-card__tag">Travel</span>
+          </div>
+          <div class="blog-card__body">
+            <div class="blog-card__meta">
+              <div class="blog-card__author-group">
+                <img src="{% static 'images/default-profile.png' %}" alt="{{ blog.user.first_name }}" width="28" height="28" class="blog-card__avatar" />
+                <span class="blog-card__author">{{ blog.user.first_name }}</span>
               </div>
-              <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                  <div class="d-flex align-items-center">
-                    <img src="{% static 'images/default-profile.png' %}" alt="{{ blog.user.first_name }}" class="me-2 author-avatar" />
-                    <div class="small">
-                      <span class="fw-bold">{{ blog.user.first_name }}</span>
-                    </div>
-                  </div>
-                  <div class="small text-muted">
-                    <time datetime="{{ blog.created|date:'Y-m-d' }}">{{ blog.created|date:'F j, Y' }}</time>
-                  </div>
-                </div>
-
-                <h3 class="card-title h5">{{ blog.title }}</h3>
-                <p class="card-text">{{ blog.get_clean_preview }}</p>
-
-                <div class="d-flex justify-content-between align-items-center">
-                  <a href="{% url 'blog-post' blog.slug %}" class="read-more-link text-decoration-none" aria-label="Read more about: {{ blog.title }}">Read More <i class="bi bi-arrow-right"></i></a>
-
-                  {% if blog.estimated_read_time %}
-                    <span class="read-time"><i class="bi bi-clock"></i> {{ blog.estimated_read_time }}min</span>
-                  {% endif %}
-                </div>
-              </div>
+              <time class="blog-card__date" datetime="{{ blog.created|date:'Y-m-d' }}">{{ blog.created|date:'M j, Y' }}</time>
+            </div>
+            <h3 class="blog-card__title">{{ blog.title }}</h3>
+            <p class="blog-card__excerpt">{{ blog.get_clean_preview }}</p>
+            <div class="blog-card__footer">
+              <span class="blog-card__read-more">
+                Read Article <i class="bi bi-arrow-right"></i>
+              </span>
+              {% if blog.estimated_read_time %}
+              <span class="blog-card__read-time"><i class="bi bi-clock"></i> {{ blog.estimated_read_time }}m</span>
+              {% endif %}
             </div>
           </div>
+        </a>
         {% endfor %}
       </div>
-      <!-- Pagination (Enhanced) -->
+
+      <!-- Pagination -->
       {% if blogs.has_other_pages %}
-        <div class="mt-5 d-flex justify-content-center">
-          <nav aria-label="Blog pagination">
-            <ul class="pagination blog-pagination">
-              {% if blogs.has_previous %}
-                <li class="page-item">
-                  <a class="page-link"
-                    href="?{% if search_query %}
-                            search={{ search_query }}&
-                    {% endif %}page={{ blogs.previous_page_number }}"
-                    aria-label="Previous">
-                    <span aria-hidden="true">&laquo;</span>
-                  </a>
-                </li>
-              {% else %}
-                <li class="page-item disabled">
-                  <span class="page-link" aria-hidden="true">&laquo;</span>
-                </li>
-              {% endif %}
+      <nav class="blog-pagination-wrapper" aria-label="Blog pagination">
+        <ul class="blog-pagination">
+          {% if blogs.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ blogs.previous_page_number }}" aria-label="Previous">«</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">«</span></li>
+          {% endif %}
 
-              {% for num in blogs.paginator.page_range %}
-                {% if blogs.number == num %}
-                  <li class="page-item active" aria-current="page">
-                    <span class="page-link">{{ num }}</span>
-                  </li>
-                {% elif num > blogs.number|add:'-3' and num < blogs.number|add:'3' %}
-                  <li class="page-item">
-                    <a class="page-link"
-                      href="?{% if search_query %}
-                              search={{ search_query }}&
-                      {% endif %}page={{ num }}">
-                      {{ num }}
-                    </a>
-                  </li>
-                {% endif %}
-              {% endfor %}
+          {% for num in blogs.paginator.page_range %}
+            {% if blogs.number == num %}
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+            {% elif num > blogs.number|add:'-3' and num < blogs.number|add:'3' %}
+            <li class="page-item">
+              <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+          {% endfor %}
 
-              {% if blogs.has_next %}
-                <li class="page-item">
-                  <a class="page-link"
-                    href="?{% if search_query %}
-                            search={{ search_query }}&
-                    {% endif %}page={{ blogs.next_page_number }}"
-                    aria-label="Next">
-                    <span aria-hidden="true">&raquo;</span>
-                  </a>
-                </li>
-              {% else %}
-                <li class="page-item disabled">
-                  <span class="page-link" aria-hidden="true">&raquo;</span>
-                </li>
-              {% endif %}
-            </ul>
-          </nav>
-        </div>
+          {% if blogs.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ blogs.next_page_number }}" aria-label="Next">»</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">»</span></li>
+          {% endif %}
+        </ul>
+      </nav>
       {% endif %}
     </div>
   </section>
 
-  <!-- Contact Section (Enhanced) -->
-  <section class="py-5">
+  <!-- ========== CTA / CONTACT ========== -->
+  <section class="blog-cta">
     <div class="container px-4 px-lg-5">
-      <div class="card contact-card border-0 shadow-sm">
-        <div class="card-body p-4 p-lg-5">
-          <div class="row justify-content-center">
-            <div class="col-lg-8 text-center">
-              <h3 class="fw-bold mb-3">Need Transportation in Orlando?</h3>
-              <p class="text-muted mb-4">Let Grayson Towncar provide you with reliable, comfortable, and professional transportation services during your Orlando visit.</p>
-
-              <div class="mb-4">
-                <a href="mailto:reservations@graysontowncar.com" class="btn btn-outline-primary me-2 mb-2 mb-md-0" aria-label="Email us"><i class="bi bi-envelope me-2"></i>reservations@graysontowncar.com</a>
-                <a href="tel:4072127190" class="btn btn-outline-primary" aria-label="Call us"><i class="bi bi-telephone me-2"></i>(407) 212-7190</a>
-              </div>
-
-              <!-- Social Media Links -->
-              <div class="social-icons-wrapper d-flex justify-content-center gap-3">
-                <a href="https://x.com/GraysonTowncar" target="_blank" class="social-icon twitter" aria-label="Follow us on Twitter"><i class="bi bi-twitter-x"></i></a>
-                <a href="https://www.facebook.com/profile.php?id=61574468855996" target="_blank" class="social-icon facebook" aria-label="Follow us on Facebook"><i class="bi bi-facebook"></i></a>
-                <a href="https://www.instagram.com/graysontowncar" target="_blank" class="social-icon instagram" aria-label="Follow us on Instagram"><i class="bi bi-instagram"></i></a>
-              </div>
-            </div>
-          </div>
+      <div class="blog-cta__card reveal-up">
+        <h3 class="blog-cta__title">Need Transportation in Orlando?</h3>
+        <p class="blog-cta__subtitle">Professional, comfortable, and always on time. Let Grayson Towncar handle your Orlando ground transportation.</p>
+        <div class="blog-cta__buttons">
+          <a href="mailto:reservations@graysontowncar.com" class="blog-cta__btn blog-cta__btn--primary">
+            <i class="bi bi-envelope"></i> reservations@graysontowncar.com
+          </a>
+          <a href="tel:4072127190" class="blog-cta__btn blog-cta__btn--outline">
+            <i class="bi bi-telephone"></i> (407) 212-7190
+          </a>
+        </div>
+        <div class="blog-cta__socials">
+          <a href="https://x.com/GraysonTowncar" target="_blank" rel="noopener" class="blog-cta__social" aria-label="Follow us on X"><i class="bi bi-twitter-x"></i></a>
+          <a href="https://www.facebook.com/profile.php?id=61574468855996" target="_blank" rel="noopener" class="blog-cta__social" aria-label="Follow us on Facebook"><i class="bi bi-facebook"></i></a>
+          <a href="https://www.instagram.com/graysontowncar" target="_blank" rel="noopener" class="blog-cta__social" aria-label="Follow us on Instagram"><i class="bi bi-instagram"></i></a>
         </div>
       </div>
     </div>
   </section>
-{% endblock %}
+</div>
+{% endblock content %}
 
 {% block extra_js %}
-  <script>
-      // Add lazy loading to images for better performance
-      document.addEventListener('DOMContentLoaded', function() {
-          // Set staggered animation delay for blog cards
-          const blogCards = document.querySelectorAll('.blog-card');
-          blogCards.forEach((card, index) => {
-              card.style.setProperty('--card-index', index);
-          });
+<script>
+(function() {
+  // Scroll-triggered reveal animations
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
 
-          // Enhance image loading
-          const lazyImages = document.querySelectorAll('img[loading="lazy"]');
-          if ('IntersectionObserver' in window) {
-              const imageObserver = new IntersectionObserver((entries, observer) => {
-                  entries.forEach(entry => {
-                      if (entry.isIntersecting) {
-                          const img = entry.target;
-                          img.src = img.dataset.src || img.src;
-                          imageObserver.unobserve(img);
-                      }
-                  });
-              });
-
-              lazyImages.forEach(img => {
-                  imageObserver.observe(img);
-              });
-          }
-      });
-  </script>
-{% endblock %}
+  document.querySelectorAll('.blog-card, .reveal-up').forEach(function(el) {
+    observer.observe(el);
+  });
+})();
+</script>
+{% endblock extra_js %}

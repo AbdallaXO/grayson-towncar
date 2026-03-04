@@ -5,9 +5,29 @@
 {% block head_extra %}
   <link rel="canonical"
         href="https://www.graysontowncar.com/services/corporate-transportation/" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "name": "Corporate Transportation Orlando",
+      "serviceType": "Corporate Transportation",
+      "description": "Premium corporate transportation in Orlando for business travel, corporate events, and executive transfers. Professional chauffeurs, luxury vehicles, and reliable service.",
+      "provider": {
+        "@type": "LocalBusiness",
+        "name": "Grayson Towncar",
+        "image": "{% static 'images/logo.png' %}",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Orlando",
+          "addressRegion": "FL"
+        }
+      },
+      "areaServed": {"@type": "Place", "name": "Orlando Metro Area, FL"}
+    }
+  </script>
 {% endblock head_extra %}
 
-{% block title %}Corporate Transportation Orlando | Business Travel & Events | Grayson Towncar{% endblock %}
+{% block title %}Corporate Transportation Orlando | Grayson Towncar{% endblock %}
 
 {% block meta_description %}
   <meta name="description"

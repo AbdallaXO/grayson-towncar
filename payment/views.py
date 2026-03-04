@@ -55,7 +55,7 @@ def create_checkout_session(request, reservation_id):
                             "price_data": {
                                 "currency": "usd",
                                 "product_data": {
-                                    "name": f"Grayson Town Car {reservation.trip_type.replace('_', ' ').title()} Booking",
+                                    "name": f"Grayson Towncar {reservation.trip_type.replace('_', ' ').title()} Booking",
                                     "description": (f"{reservation.rate.route}"),
                                 },
                                 "unit_amount": int(reservation.total_price * 100),

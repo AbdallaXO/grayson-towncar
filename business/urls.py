@@ -18,9 +18,22 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.sitemaps.views import sitemap
 from django.urls import path, include
+from django.views.generic import TemplateView
+
+from content.sitemaps import StaticPagesSitemap, ServicePagesSitemap, BlogPostSitemap
+
+sitemaps = {
+    "static": StaticPagesSitemap,
+    "services": ServicePagesSitemap,
+    "blog": BlogPostSitemap,
+}
 
 urlpatterns = [
+    path("robots.txt", TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
+    path("llms.txt", TemplateView.as_view(template_name="llms.txt", content_type="text/plain")),
+    path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="django.contrib.sitemaps.views.sitemap"),
     path("admin/", admin.site.urls),
     path("", include("reservations.urls")),
     path("users/", include("users.urls")),

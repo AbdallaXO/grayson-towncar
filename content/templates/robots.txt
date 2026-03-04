@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /dispatching/
+Disallow: /payment/
+Disallow: /drivers/
+
+Sitemap: https://www.graysontowncar.com/sitemap.xml

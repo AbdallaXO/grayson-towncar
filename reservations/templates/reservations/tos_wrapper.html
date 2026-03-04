@@ -1,0 +1,11 @@
+{% extends 'main.html' %}
+{% block head_extra %}
+  <link rel="canonical" href="https://www.graysontowncar.com/tos/" />
+  <meta name="robots" content="noindex, follow">
+{% endblock %}
+{% block title %}Terms of Service | Grayson Towncar{% endblock %}
+{% block content %}
+  <div class="container py-5">
+    {% include 'reservations/tos.html' %}
+  </div>
+{% endblock %}

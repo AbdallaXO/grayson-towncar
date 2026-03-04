@@ -22,7 +22,7 @@
                   "addressRegion": "FL"
               }
           },
-          "areaServed": ["Orlando", "Disney World", "MCO", "SFB"],
+          "areaServed": {"@type": "Place", "name": "Walt Disney World Resort, Lake Buena Vista, FL"},
           "hasOfferCatalog": {
               "@type": "OfferCatalog",
               "name": "Disney World Transportation Services",
@@ -43,7 +43,7 @@
       }
   </script>
 {% endblock %}
-{% block title %}Disney World Car Service | Free Car Seats - Grayson Town Car{% endblock %}
+{% block title %}Disney World Car Service | Free Car Seats | Grayson Towncar{% endblock %}
 {% block meta_description %}
   <meta name="description"
         content="Family-friendly Disney World transportation with complimentary car seats and grocery stops. Professional Orlando car service serving all Disney resorts. Book today!" />
@@ -426,6 +426,7 @@
                      width="100%"
                      height="400"
                      class="lux-card-img"
+                     loading="lazy"
                      alt="Disney Deluxe Resort" />
                 <div class="card-body p-5">
                   <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Deluxe Resorts</h4>
@@ -459,6 +460,7 @@
                      width="100%"
                      height="400"
                      class="lux-card-img"
+                     loading="lazy"
                      alt="Disney Moderate Resort" />
                 <div class="card-body p-5">
                   <h4 style="font-weight: 300; letter-spacing: 0.02em; color: var(--lux-charcoal); margin-bottom: 1.5rem; font-size: 1.5rem;">Moderate & Value Resorts</h4>
