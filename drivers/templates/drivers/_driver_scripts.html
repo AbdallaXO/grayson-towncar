@@ -26,6 +26,15 @@
   </div>
 </div>
 
+<!-- Theme init (runs before paint to prevent flash) -->
+<script>
+(function() {
+    var saved = localStorage.getItem('gt-theme');
+    if (!saved) saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', saved);
+})();
+</script>
+
 <!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -288,6 +297,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ── Drive time refresh ──
+    document.querySelectorAll('.gt-drive-refresh').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const container = btn.closest('.gt-drive-estimate');
+            const legId = container.getAttribute('data-leg-id');
+            if (!legId) return;
+            btn.classList.add('spinning');
+            btn.disabled = true;
+            fetch("{% url 'refresh_drive_time' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ leg_id: legId })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    container.querySelector('.gt-drive-time').textContent = data.duration_text;
+                    container.querySelector('.gt-drive-distance').textContent = data.distance_text;
+                    showToast('Drive time updated', 'success');
+                } else {
+                    showToast(data.error || 'Could not refresh', 'danger');
+                }
+            })
+            .catch(() => showToast('Could not refresh drive time', 'danger'))
+            .finally(() => {
+                btn.classList.remove('spinning');
+                btn.disabled = false;
+            });
+        });
+    });
+
     // ── Driver notes modal ──
     function openNotesModal(legId, currentNotes) {
         currentLegId = legId;
@@ -360,6 +400,34 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('save-driver-notes-modal').addEventListener('click', saveNotes);
+
+    // ── Dark mode toggle ──
+    function updateThemeIcons(theme) {
+        var iconClass = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        ['gt-theme-icon', 'gt-theme-icon-mobile'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.className = iconClass;
+        });
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', theme === 'dark' ? '#111318' : '#1a1d21');
+    }
+
+    function toggleTheme() {
+        var current = document.documentElement.getAttribute('data-theme') || 'light';
+        var next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('gt-theme', next);
+        updateThemeIcons(next);
+    }
+
+    // Set icons on load
+    updateThemeIcons(document.documentElement.getAttribute('data-theme') || 'light');
+
+    // Bind both toggle buttons
+    ['gt-theme-toggle', 'gt-theme-toggle-mobile'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', toggleTheme);
+    });
 
     // Register service worker for PWA
     if ('serviceWorker' in navigator) {

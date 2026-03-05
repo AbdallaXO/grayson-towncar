@@ -40,6 +40,58 @@
         --gt-shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
     }
 
+    /* ─── Dark Mode ─── */
+    [data-theme="dark"] {
+        --gt-bg: #111318;
+        --gt-surface: #1a1d23;
+        --gt-dark: #1a1d21;
+        --gt-dark-soft: #2d3138;
+        --gt-text: #e5e7eb;
+        --gt-text-secondary: #9ca3af;
+        --gt-border: #2d3138;
+        --gt-border-light: #23272e;
+        --gt-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        --gt-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    [data-theme="dark"] .gt-chip-in-progress { background: rgba(245,158,11,0.2); color: #fbbf24; }
+    [data-theme="dark"] .gt-chip-confirmed { background: rgba(124,58,237,0.2); color: #a78bfa; }
+    [data-theme="dark"] .gt-chip-on-the-way { background: rgba(249,115,22,0.2); color: #fb923c; }
+    [data-theme="dark"] .gt-chip-on-location { background: rgba(6,182,212,0.2); color: #22d3ee; }
+    [data-theme="dark"] .gt-chip-picked-up { background: rgba(59,130,246,0.2); color: #60a5fa; }
+    [data-theme="dark"] .gt-chip-completed { background: rgba(16,185,129,0.2); color: #34d399; }
+    [data-theme="dark"] .gt-flight-card {
+        background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(124,58,237,0.08) 100%);
+        border-color: rgba(59,130,246,0.2);
+    }
+    [data-theme="dark"] .gt-review-reminder {
+        background: linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(245,158,11,0.05) 100%);
+        border-color: rgba(245,158,11,0.3);
+    }
+    [data-theme="dark"] .gt-review-reminder-active {
+        background: linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(245,158,11,0.05) 50%, rgba(59,130,246,0.1) 100%);
+    }
+    [data-theme="dark"] .gt-contact-call { background: rgba(239,68,68,0.15); color: #f87171; }
+    [data-theme="dark"] .gt-contact-text { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    [data-theme="dark"] .gt-store-stop { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.25); }
+    [data-theme="dark"] .gt-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    [data-theme="dark"] .gt-table thead th { background: #0d0f12; }
+    [data-theme="dark"] .gt-empty-icon { background: #23272e; }
+    [data-theme="dark"] .form-control,
+    [data-theme="dark"] .gt-input,
+    [data-theme="dark"] .gt-select {
+        background-color: var(--gt-surface);
+        color: var(--gt-text);
+        border-color: var(--gt-border);
+    }
+    [data-theme="dark"] .modal-content { background: var(--gt-surface); color: var(--gt-text); }
+    [data-theme="dark"] .btn-close { filter: invert(1); }
+    [data-theme="dark"] .gt-btn-dark { background: #3b4049; color: #fff; }
+    [data-theme="dark"] .gt-btn-dark:hover { background: #4b5563; }
+    [data-theme="dark"] .gt-btn-outline { border-color: #4b5563; color: var(--gt-text); }
+    [data-theme="dark"] .gt-btn-ghost { background: var(--gt-surface); border-color: var(--gt-border); color: var(--gt-text); }
+    [data-theme="dark"] .gt-card-header { background: #0d0f12; }
+    [data-theme="dark"] .gt-next-trip { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+
     /* ─── Base ─── */
     * { -webkit-tap-highlight-color: transparent; }
 
@@ -394,6 +446,108 @@
         padding: 8px 12px;
         font-size: 0.8125rem;
     }
+
+    /* ─── Drive Time Estimate ─── */
+    .gt-drive-estimate {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--gt-surface);
+        border-radius: 6px;
+        font-size: 0.75rem;
+        color: var(--gt-text-secondary);
+    }
+    .gt-drive-time {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--gt-text);
+        letter-spacing: -0.01em;
+    }
+    .gt-drive-sep {
+        opacity: 0.3;
+    }
+    .gt-drive-distance {
+        font-size: 0.7rem;
+    }
+    .gt-drive-traffic {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.625rem;
+        color: var(--gt-green);
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    .gt-drive-traffic::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--gt-green);
+        animation: gt-pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes gt-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+    .gt-drive-refresh {
+        background: var(--gt-bg);
+        border: 1px solid var(--gt-border);
+        padding: 3px 6px;
+        margin-left: auto;
+        color: var(--gt-text-secondary);
+        cursor: pointer;
+        font-size: 0.7rem;
+        line-height: 1;
+        border-radius: 4px;
+        transition: all 0.15s;
+    }
+    .gt-drive-refresh:hover { background: var(--gt-border); color: var(--gt-text); }
+    .gt-drive-refresh.spinning i {
+        animation: gt-spin 0.6s linear infinite;
+    }
+    @keyframes gt-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* ─── Alerts & Conflict Strips ─── */
+    .gt-alert {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: var(--gt-radius-sm);
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+    .gt-alert-danger {
+        background: rgba(239,68,68,0.1);
+        color: var(--gt-red);
+        border: 1px solid rgba(239,68,68,0.2);
+    }
+    .gt-alert-warning {
+        background: rgba(245,158,11,0.1);
+        color: #b45309;
+        border: 1px solid rgba(245,158,11,0.2);
+    }
+    [data-theme="dark"] .gt-alert-warning { color: #fbbf24; }
+    [data-theme="dark"] .gt-flight-delay { color: inherit; }
+    .gt-conflict-strip {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 6px 12px;
+        margin: -4px 0;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--gt-orange);
+        background: rgba(249,115,22,0.08);
+        border-radius: var(--gt-radius-sm);
+    }
+    [data-theme="dark"] .gt-conflict-strip { background: rgba(249,115,22,0.12); }
 
     /* ─── Desktop Table ─── */
     .gt-table {

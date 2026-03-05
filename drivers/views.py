@@ -13,6 +13,7 @@ import os
 from django.conf import settings
 from django.contrib import messages
 from django.db.models import Q, Prefetch, Count
+from drivers.utils import get_drive_time
 
 
 @login_required(login_url="login")
@@ -45,16 +46,64 @@ def index(request):
         .order_by("pickup_time")
     )
 
-    # Add is_first_leg property using prefetched data (no extra queries)
-    for leg in legs:
+    # Add is_first_leg property and ETA using prefetched data (no extra queries)
+    from datetime import datetime as _dt
+
+    now = timezone.localtime()
+    today = timezone.localdate()
+    legs_list = list(legs)
+
+    for leg in legs_list:
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
 
-    is_today = selected_date == timezone.localdate()
+        # Compute ETA for each leg
+        pickup_dt = timezone.make_aware(_dt.combine(leg.pickup_date, leg.pickup_time))
+        diff = pickup_dt - now
+        total_mins = int(diff.total_seconds() / 60)
+        days_away = (leg.pickup_date - today).days
+
+        if total_mins < 0:
+            leg.eta = "Now"
+        elif total_mins < 60:
+            leg.eta = f"In {total_mins} min{'s' if total_mins != 1 else ''}"
+        elif days_away == 0:
+            hours = total_mins // 60
+            leg.eta = f"Today in {hours} hr{'s' if hours != 1 else ''}"
+        elif days_away == 1:
+            leg.eta = "Tomorrow"
+        else:
+            leg.eta = f"In {days_away} days"
+
+    # ── Flight delay alerts ──
+    for leg in legs_list:
+        if leg.flight_information and leg.get_trip_type() == 'arrival':
+            delay = leg.get_flight_time_mismatch_display(30)
+            if delay:
+                leg.flight_delay = delay
+
+    # ── Conflict warnings (< 30 min gap between consecutive trips) ──
+    for i in range(len(legs_list) - 1):
+        curr = legs_list[i]
+        nxt = legs_list[i + 1]
+        if curr.pickup_date == nxt.pickup_date:
+            curr_dt = _dt.combine(curr.pickup_date, curr.pickup_time)
+            nxt_dt = _dt.combine(nxt.pickup_date, nxt.pickup_time)
+            gap_mins = int((nxt_dt - curr_dt).total_seconds() / 60)
+            if 0 <= gap_mins < 30:
+                curr.conflict_next = True
+                curr.conflict_gap_mins = gap_mins
+
+    # ── Route preview (drive time) ──
+    if settings.GOOGLE_MAPS_API_KEY:
+        for leg in legs_list:
+            leg.drive_info = get_drive_time(leg.pickup_location, leg.dropoff_location)
+
+    is_today = selected_date == today
 
     return render(
         request, "drivers/index.html", {
-            "legs": legs,
+            "legs": legs_list,
             "selected_date": selected_date,
             "is_today": is_today,
         }
@@ -118,6 +167,31 @@ def schedule(request):
     for leg in legs_list:
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
+
+    # ── Flight delay alerts ──
+    from datetime import datetime as _dt
+    for leg in legs_list:
+        if leg.flight_information and leg.get_trip_type() == 'arrival':
+            delay = leg.get_flight_time_mismatch_display(30)
+            if delay:
+                leg.flight_delay = delay
+
+    # ── Conflict warnings (< 30 min gap between consecutive trips) ──
+    for i in range(len(legs_list) - 1):
+        curr = legs_list[i]
+        nxt = legs_list[i + 1]
+        if curr.pickup_date == nxt.pickup_date:
+            curr_dt = _dt.combine(curr.pickup_date, curr.pickup_time)
+            nxt_dt = _dt.combine(nxt.pickup_date, nxt.pickup_time)
+            gap_mins = int((nxt_dt - curr_dt).total_seconds() / 60)
+            if 0 <= gap_mins < 30:
+                curr.conflict_next = True
+                curr.conflict_gap_mins = gap_mins
+
+    # ── Route preview (drive time) ──
+    if settings.GOOGLE_MAPS_API_KEY:
+        for leg in legs_list:
+            leg.drive_info = get_drive_time(leg.pickup_location, leg.dropoff_location)
 
     next_leg = legs_list[0] if legs_list else None
 
@@ -517,6 +591,28 @@ def toggle_timing_exclude(request, driver_id):
 
 @login_required
 @require_POST
+@login_required(login_url="login")
+@require_POST
+def refresh_drive_time(request):
+    """Bust cache and return fresh drive time for a leg."""
+    try:
+        data = json.loads(request.body)
+        leg_id = int(data.get("leg_id", 0))
+    except (TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid leg ID"}, status=400)
+
+    driver = get_object_or_404(Driver, profile=request.user)
+    leg = get_object_or_404(Leg, id=leg_id, driver=driver)
+
+    if not leg.pickup_location or not leg.dropoff_location:
+        return JsonResponse({"success": False, "error": "Missing addresses"}, status=400)
+
+    result = get_drive_time(leg.pickup_location, leg.dropoff_location, force_refresh=True)
+    if result:
+        return JsonResponse({"success": True, **result})
+    return JsonResponse({"success": False, "error": "Could not fetch drive time"}, status=500)
+
+
 def refresh_flight_data(request):
     """
     Refresh flight data for a leg assigned to the current driver.

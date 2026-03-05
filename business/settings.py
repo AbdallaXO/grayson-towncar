@@ -196,6 +196,9 @@ NTFY_ENABLED = os.environ.get("NTFY_ENABLED", "True").lower() == "true"
 AEROAPI_KEY = os.environ.get("AEROAPI_KEY", "")
 AEROAPI_BASE_URL = "https://aeroapi.flightaware.com/aeroapi"
 
+# Google Maps (Distance Matrix API for driver route preview)
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+
 # Twilio (next-day confirmation SMS)
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
