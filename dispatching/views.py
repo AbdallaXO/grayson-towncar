@@ -5171,9 +5171,7 @@ def process_refund(request):
             rr.save()
 
         # Sync flat fields on Reservation
-        # Only mark as 'completed' for full cancellation; partial/price adj keep previous status
-        if rr.refund_type == 'full_cancellation':
-            reservation.refund_status = 'completed'
+        reservation.refund_status = 'completed'
         reservation.refund_processed_by = request.user
         reservation.refund_processed_at = timezone.now()
         reservation.refund_notes = refund_notes
