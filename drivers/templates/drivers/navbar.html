@@ -1,19 +1,71 @@
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="{% url 'schedule' %}">Grayson Towncar</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav">
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'drivers_dashboard' %}">Search Trips By Date</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'schedule' %}">Assigned Trips</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="{% url 'completed_trips' %}">Completed Trips</a>
-        </li>
-      </ul>
+<nav style="background:var(--gt-dark);position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,0.2);">
+  <div class="container-fluid px-3">
+    <div class="d-flex align-items-center justify-content-between" style="height:56px;">
+
+      <!-- Brand -->
+      <a href="{% url 'schedule' %}" class="text-decoration-none">
+        <span class="fw-bold text-white" style="font-size:1.0625rem;letter-spacing:-0.01em;">Grayson Towncar</span>
+      </a>
+
+      <!-- Nav Links (desktop) -->
+      <div class="d-none d-md-flex align-items-center gap-1">
+        <a href="{% url 'schedule' %}" class="gt-nav-link">
+          <i class="bi bi-calendar-week me-1"></i>Schedule
+        </a>
+        <a href="{% url 'drivers_dashboard' %}" class="gt-nav-link">
+          <i class="bi bi-search me-1"></i>Search
+        </a>
+        <a href="{% url 'completed_trips' %}" class="gt-nav-link">
+          <i class="bi bi-check2-circle me-1"></i>Completed
+        </a>
+      </div>
+
+      <!-- Mobile hamburger -->
+      <button class="d-md-none" style="background:none;border:none;color:#fff;font-size:1.5rem;padding:4px;"
+              onclick="document.getElementById('gt-mobile-nav').classList.toggle('d-none')">
+        <i class="bi bi-list"></i>
+      </button>
+    </div>
+
+    <!-- Mobile dropdown -->
+    <div id="gt-mobile-nav" class="d-none d-md-none pb-3">
+      <div class="d-flex flex-column gap-1">
+        <a href="{% url 'schedule' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-calendar-week me-2"></i>Assigned Trips
+        </a>
+        <a href="{% url 'drivers_dashboard' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-search me-2"></i>Search By Date
+        </a>
+        <a href="{% url 'completed_trips' %}" class="gt-nav-link-mobile">
+          <i class="bi bi-check2-circle me-2"></i>Completed Trips
+        </a>
+      </div>
     </div>
   </div>
+
+  <style>
+    .gt-nav-link {
+      color: rgba(255,255,255,0.65);
+      text-decoration: none;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+    }
+    .gt-nav-link:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .gt-nav-link-mobile {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      padding: 10px 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+    }
+    .gt-nav-link-mobile:hover { color: #fff; background: rgba(255,255,255,0.06); }
+  </style>
 </nav>

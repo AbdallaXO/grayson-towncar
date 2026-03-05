@@ -1,0 +1,485 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1a1d21">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GT Driver">
+<link rel="manifest" href="/static/drivers/manifest.json">
+
+<!-- Fonts & Bootstrap -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..700;1,9..40,300..700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+<style>
+    /* ─── Design Tokens ─── */
+    :root {
+        --gt-bg: #f4f5f7;
+        --gt-surface: #ffffff;
+        --gt-dark: #1a1d21;
+        --gt-dark-soft: #2d3138;
+        --gt-text: #1a1d21;
+        --gt-text-secondary: #6b7280;
+        --gt-border: #e5e7eb;
+        --gt-border-light: #f0f1f3;
+
+        /* Status palette */
+        --gt-yellow: #f59e0b;
+        --gt-purple: #7c3aed;
+        --gt-orange: #f97316;
+        --gt-cyan: #06b6d4;
+        --gt-blue: #3b82f6;
+        --gt-green: #10b981;
+        --gt-red: #ef4444;
+
+        --gt-radius: 12px;
+        --gt-radius-sm: 8px;
+        --gt-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+        --gt-shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    /* ─── Base ─── */
+    * { -webkit-tap-highlight-color: transparent; }
+
+    body {
+        font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        background-color: var(--gt-bg);
+        color: var(--gt-text);
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
+    }
+
+    /* ─── Typography ─── */
+    .gt-time {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+    }
+
+    .gt-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--gt-text-secondary);
+    }
+
+    /* ─── Card System ─── */
+    .gt-card {
+        background: var(--gt-surface);
+        border: 1px solid var(--gt-border);
+        border-radius: var(--gt-radius);
+        box-shadow: var(--gt-shadow);
+        overflow: hidden;
+    }
+
+    .gt-card-header {
+        background: var(--gt-dark);
+        color: #fff;
+        padding: 14px 16px;
+    }
+
+    /* Status accent stripe (top border) */
+    .gt-status-in-progress { border-top: 3px solid var(--gt-yellow); }
+    .gt-status-confirmed { border-top: 3px solid var(--gt-purple); }
+    .gt-status-on-the-way { border-top: 3px solid var(--gt-orange); }
+    .gt-status-on-location { border-top: 3px solid var(--gt-cyan); }
+    .gt-status-picked-up { border-top: 3px solid var(--gt-blue); }
+    .gt-status-completed { border-top: 3px solid var(--gt-green); }
+
+    /* ─── Status Chip ─── */
+    .gt-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .gt-chip-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .gt-chip-in-progress { background: rgba(245,158,11,0.12); color: #b45309; }
+    .gt-chip-in-progress .gt-chip-dot { background: var(--gt-yellow); }
+    .gt-chip-confirmed { background: rgba(124,58,237,0.1); color: #6d28d9; }
+    .gt-chip-confirmed .gt-chip-dot { background: var(--gt-purple); }
+    .gt-chip-on-the-way { background: rgba(249,115,22,0.1); color: #c2410c; }
+    .gt-chip-on-the-way .gt-chip-dot { background: var(--gt-orange); }
+    .gt-chip-on-location { background: rgba(6,182,212,0.1); color: #0e7490; }
+    .gt-chip-on-location .gt-chip-dot { background: var(--gt-cyan); }
+    .gt-chip-picked-up { background: rgba(59,130,246,0.1); color: #1d4ed8; }
+    .gt-chip-picked-up .gt-chip-dot { background: var(--gt-blue); }
+    .gt-chip-completed { background: rgba(16,185,129,0.1); color: #047857; }
+    .gt-chip-completed .gt-chip-dot { background: var(--gt-green); }
+
+    /* ─── Action Buttons ─── */
+    .gt-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 600;
+        font-size: 0.8125rem;
+        padding: 10px 16px;
+        border-radius: var(--gt-radius-sm);
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        text-decoration: none;
+        white-space: nowrap;
+        min-height: 44px;
+    }
+    .gt-btn:active { transform: scale(0.97); }
+
+    .gt-btn-primary { background: var(--gt-blue); color: #fff; }
+    .gt-btn-primary:hover { background: #2563eb; color: #fff; }
+    .gt-btn-success { background: var(--gt-green); color: #fff; }
+    .gt-btn-success:hover { background: #059669; color: #fff; }
+    .gt-btn-dark { background: var(--gt-dark); color: #fff; }
+    .gt-btn-dark:hover { background: var(--gt-dark-soft); color: #fff; }
+    .gt-btn-warning { background: var(--gt-yellow); color: #fff; }
+    .gt-btn-warning:hover { background: #d97706; color: #fff; }
+    .gt-btn-purple { background: var(--gt-purple); color: #fff; }
+    .gt-btn-purple:hover { background: #6d28d9; color: #fff; }
+
+    .gt-btn-outline {
+        background: transparent;
+        border: 1.5px solid var(--gt-border);
+        color: var(--gt-text);
+    }
+    .gt-btn-outline:hover { border-color: var(--gt-text-secondary); color: var(--gt-text); }
+    .gt-btn-ghost {
+        background: var(--gt-bg);
+        border: 1px solid var(--gt-border);
+        color: var(--gt-text-secondary);
+        padding: 8px 10px;
+        min-height: auto;
+    }
+    .gt-btn-ghost:hover { color: var(--gt-text); background: var(--gt-border-light); }
+
+    .gt-btn-sm { padding: 6px 12px; font-size: 0.75rem; min-height: 36px; }
+    .gt-btn-block { width: 100%; }
+    .gt-btn-icon { padding: 8px; min-height: auto; border-radius: 8px; }
+
+    /* Contact pill buttons */
+    .gt-contact {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.15s ease;
+        min-height: 36px;
+    }
+    .gt-contact:active { transform: scale(0.96); }
+    .gt-contact-call { background: rgba(239,68,68,0.1); color: var(--gt-red); }
+    .gt-contact-call:hover { background: rgba(239,68,68,0.18); color: var(--gt-red); }
+    .gt-contact-text { background: rgba(245,158,11,0.1); color: #b45309; }
+    .gt-contact-text:hover { background: rgba(245,158,11,0.18); color: #b45309; }
+
+    /* Navigate button */
+    .gt-nav-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        background: var(--gt-bg);
+        color: var(--gt-text-secondary);
+        border: 1px solid var(--gt-border);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .gt-nav-btn:hover { background: var(--gt-dark); color: #fff; border-color: var(--gt-dark); }
+
+    /* ─── Route Display ─── */
+    .gt-route {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        position: relative;
+        padding-left: 20px;
+    }
+    .gt-route::before {
+        content: '';
+        position: absolute;
+        left: 5px;
+        top: 10px;
+        bottom: 10px;
+        width: 2px;
+        background: repeating-linear-gradient(
+            to bottom,
+            var(--gt-border) 0px,
+            var(--gt-border) 4px,
+            transparent 4px,
+            transparent 8px
+        );
+    }
+    .gt-route-point {
+        position: relative;
+        padding: 6px 0;
+    }
+    .gt-route-point::before {
+        content: '';
+        position: absolute;
+        left: -20px;
+        top: 12px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2.5px solid;
+    }
+    .gt-route-pickup::before {
+        border-color: var(--gt-green);
+        background: rgba(16,185,129,0.15);
+    }
+    .gt-route-dropoff::before {
+        border-color: var(--gt-red);
+        background: rgba(239,68,68,0.15);
+    }
+    .gt-route-label {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 2px;
+    }
+    .gt-route-pickup .gt-route-label { color: var(--gt-green); }
+    .gt-route-dropoff .gt-route-label { color: var(--gt-red); }
+    .gt-route-address {
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: var(--gt-text);
+        line-height: 1.3;
+    }
+
+    /* ─── Info Grid ─── */
+    .gt-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 2px;
+        background: var(--gt-border-light);
+        border-radius: var(--gt-radius-sm);
+        overflow: hidden;
+    }
+    .gt-info-cell {
+        background: var(--gt-surface);
+        padding: 10px 12px;
+        text-align: center;
+    }
+    .gt-info-value {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--gt-text);
+    }
+    .gt-info-label {
+        font-size: 0.6875rem;
+        color: var(--gt-text-secondary);
+        margin-top: 1px;
+    }
+
+    /* ─── Flight Tracker ─── */
+    .gt-flight-card {
+        background: linear-gradient(135deg, #f0f7ff 0%, #f5f3ff 100%);
+        border: 1px solid rgba(59,130,246,0.15);
+        border-radius: var(--gt-radius-sm);
+        padding: 12px;
+    }
+    .gt-flight-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .gt-flight-number {
+        font-family: 'JetBrains Mono', monospace;
+        font-weight: 500;
+        font-size: 0.9375rem;
+    }
+
+    .flight-landing, .flight-gate-arrival {
+        font-weight: 700;
+    }
+
+    /* ─── Review Reminder ─── */
+    .gt-review-reminder {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 1.5px solid rgba(245,158,11,0.3);
+        border-radius: var(--gt-radius-sm);
+        padding: 14px;
+        text-align: center;
+    }
+    .gt-review-reminder-active {
+        background: linear-gradient(135deg, #eff6ff 0%, #fefce8 50%, #eff6ff 100%);
+        border: 2px solid var(--gt-blue);
+        box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
+        animation: gt-pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes gt-pulse {
+        0%, 100% { box-shadow: 0 0 0 4px rgba(59,130,246,0.1); }
+        50% { box-shadow: 0 0 0 8px rgba(59,130,246,0.06); }
+    }
+    .gt-review-stars { color: var(--gt-yellow); font-size: 1.25rem; letter-spacing: 2px; }
+
+    /* ─── Section Dividers ─── */
+    .gt-divider {
+        height: 1px;
+        background: var(--gt-border-light);
+        margin: 12px 0;
+    }
+
+    /* ─── Notes ─── */
+    .gt-note {
+        background: var(--gt-bg);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 0.875rem;
+        color: var(--gt-text);
+        border-left: 3px solid var(--gt-border);
+    }
+    .gt-note-guest { border-left-color: var(--gt-yellow); }
+    .gt-note-private { border-left-color: var(--gt-purple); }
+    .gt-note-leg { border-left-color: var(--gt-cyan); }
+    .gt-note-driver { border-left-color: var(--gt-blue); }
+
+    /* ─── Next Trip Banner ─── */
+    .gt-next-trip {
+        background: var(--gt-dark);
+        color: #fff;
+        border-radius: var(--gt-radius);
+        padding: 16px;
+        box-shadow: var(--gt-shadow-md);
+    }
+    .gt-next-trip .gt-label { color: rgba(255,255,255,0.5); }
+
+    /* ─── Empty State ─── */
+    .gt-empty {
+        padding: 4rem 1rem;
+        text-align: center;
+    }
+    .gt-empty-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: var(--gt-border-light);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+        font-size: 1.5rem;
+        color: var(--gt-text-secondary);
+    }
+
+    /* ─── Store Stop ─── */
+    .gt-store-stop {
+        background: rgba(16,185,129,0.08);
+        border: 1px solid rgba(16,185,129,0.2);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 0.8125rem;
+    }
+
+    /* ─── Desktop Table ─── */
+    .gt-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    .gt-table thead th {
+        background: var(--gt-dark);
+        color: rgba(255,255,255,0.85);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 12px 16px;
+        border: none;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .gt-table thead th:first-child { border-radius: 0; }
+    .gt-table thead th:last-child { border-radius: 0; }
+    .gt-table tbody td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--gt-border-light);
+        vertical-align: top;
+        font-size: 0.875rem;
+    }
+    .gt-table tbody tr:hover td { background: rgba(0,0,0,0.015); }
+    .gt-table tbody tr:last-child td { border-bottom: none; }
+
+    /* ─── Form Controls ─── */
+    .gt-select {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        padding: 8px 12px;
+        border: 1.5px solid var(--gt-border);
+        border-radius: var(--gt-radius-sm);
+        background-color: var(--gt-surface);
+        color: var(--gt-text);
+        transition: border-color 0.15s ease;
+    }
+    .gt-select:focus {
+        border-color: var(--gt-blue);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        outline: none;
+    }
+
+    .gt-input {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 0.875rem;
+        padding: 10px 14px;
+        border: 1.5px solid var(--gt-border);
+        border-radius: var(--gt-radius-sm);
+        background: var(--gt-surface);
+        transition: border-color 0.15s ease;
+    }
+    .gt-input:focus {
+        border-color: var(--gt-blue);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        outline: none;
+    }
+
+    /* ─── Toast ─── */
+    #toast-container { z-index: 9999; }
+
+    /* ─── Scrollbar ─── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--gt-border); border-radius: 3px; }
+
+    /* ─── Mobile Helpers ─── */
+    @media (max-width: 767.98px) {
+        body { font-size: 15px; }
+        .gt-card-header { padding: 12px 14px; }
+    }
+
+    /* Bootstrap overrides for legacy class compat */
+    .bg-purple { background-color: var(--gt-purple) !important; }
+    .bg-orange { background-color: var(--gt-orange) !important; }
+    .status-select, .form-select { font-family: 'DM Sans', sans-serif; }
+
+    /* ─── Progression button (full-width on mobile) ─── */
+    .gt-progression {
+        min-height: 48px;
+        font-size: 0.9375rem;
+    }
+</style>

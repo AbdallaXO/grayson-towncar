@@ -6,8 +6,11 @@ from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods, require_POST
+from django.http import FileResponse
 from dispatching.aeroapi_service import AeroAPIService
 import json
+import os
+from django.conf import settings
 from django.contrib import messages
 from django.db.models import Q, Prefetch, Count
 
@@ -47,8 +50,14 @@ def index(request):
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
 
+    is_today = selected_date == timezone.localdate()
+
     return render(
-        request, "drivers/index.html", {"legs": legs, "selected_date": selected_date}
+        request, "drivers/index.html", {
+            "legs": legs,
+            "selected_date": selected_date,
+            "is_today": is_today,
+        }
     )
 
 
@@ -88,11 +97,13 @@ def schedule(request):
     next_week = today + timezone.timedelta(days=60)
 
     # Use select_related to fetch related data efficiently
-    legs = (
+    # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
+    legs_list = list(
         Leg.objects.select_related(
             "reservation", "reservation__customer", "reservation__vehicle",
             "flight_information", "cruise_information"
         )
+        .prefetch_related("reservation__legs")
         .filter(
             driver=driver,
             pickup_date__gte=today,
@@ -103,15 +114,43 @@ def schedule(request):
         .order_by("pickup_date", "pickup_time")
     )
 
-    # Add is_first_leg property to each leg
-    for leg in legs:
-        first_leg = leg.reservation.legs.order_by('id').first()
-        leg.is_first_leg = leg.id == first_leg.id
+    # Add is_first_leg property using prefetched data (no extra queries)
+    for leg in legs_list:
+        first_id = min(l.id for l in leg.reservation.legs.all())
+        leg.is_first_leg = leg.id == first_id
+
+    next_leg = legs_list[0] if legs_list else None
+
+    # Build a human-friendly ETA string for the next trip banner
+    next_leg_eta = ""
+    if next_leg:
+        from datetime import datetime as _dt
+
+        now = timezone.localtime()
+        pickup_dt = timezone.make_aware(
+            _dt.combine(next_leg.pickup_date, next_leg.pickup_time)
+        )
+        diff = pickup_dt - now
+        total_mins = int(diff.total_seconds() / 60)
+
+        days_away = (next_leg.pickup_date - today).days
+
+        if total_mins < 0:
+            next_leg_eta = "Now"
+        elif total_mins < 60:
+            next_leg_eta = f"In {total_mins} min{'s' if total_mins != 1 else ''}"
+        elif days_away == 0:
+            hours = total_mins // 60
+            next_leg_eta = f"Today in {hours} hour{'s' if hours != 1 else ''}"
+        elif days_away == 1:
+            next_leg_eta = "Tomorrow"
+        else:
+            next_leg_eta = f"In {days_away} days"
 
     return render(
         request,
         "drivers/weekly_schedule.html",
-        {"legs": legs, "today": today, "next_week": next_week},
+        {"legs": legs_list, "today": today, "next_week": next_week, "next_leg": next_leg, "next_leg_eta": next_leg_eta},
     )
 
 
@@ -232,6 +271,16 @@ def update_driver_notes(request, leg_id):
 
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+def service_worker(request):
+    """Serve sw.js from /drivers/sw.js so the service worker scope covers /drivers/."""
+    sw_path = os.path.join(settings.BASE_DIR, "content", "static", "drivers", "sw.js")
+    return FileResponse(
+        open(sw_path, "rb"),
+        content_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/drivers/"},
+    )
 
 
 @login_required(login_url="login")

@@ -1,0 +1,363 @@
+<!-- Toast Container -->
+<div class="position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
+<!-- Driver Notes Modal -->
+<div class="modal fade" id="driverNotesModal" tabindex="-1" aria-labelledby="driverNotesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:var(--gt-radius);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+      <div class="modal-header" style="background:var(--gt-dark);border:none;padding:16px 20px;">
+        <h5 class="modal-title" id="driverNotesModalLabel" style="font-family:'DM Sans',sans-serif;font-weight:600;font-size:1rem;color:#fff;">
+          <i class="bi bi-pencil-square me-2" style="opacity:0.6;"></i>Edit My Notes
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" style="padding:20px;">
+        <textarea class="form-control" id="driver-notes-textarea-modal" rows="4"
+                  placeholder="Add your notes about this trip..."
+                  style="font-family:'DM Sans',sans-serif;border-radius:var(--gt-radius-sm);border:1.5px solid var(--gt-border);font-size:0.9375rem;resize:vertical;"></textarea>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--gt-border-light);padding:12px 20px;">
+        <button type="button" class="gt-btn gt-btn-outline gt-btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="gt-btn gt-btn-primary gt-btn-sm" id="save-driver-notes-modal">
+          <i class="bi bi-check2"></i> Save Notes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const csrfToken = "{{ csrf_token }}";
+    let currentLegId = null;
+
+    // ── Toast helper ──
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const bgColor = type === 'success' ? 'var(--gt-green)'
+                      : type === 'danger' ? 'var(--gt-red)'
+                      : 'var(--gt-dark)';
+        toast.style.cssText = `background:${bgColor};color:#fff;padding:12px 18px;border-radius:var(--gt-radius-sm);box-shadow:var(--gt-shadow-md);font-family:'DM Sans',sans-serif;font-size:0.875rem;font-weight:500;margin-top:8px;display:flex;align-items:center;gap:8px;animation:gt-toast-in 0.25s ease;`;
+        toast.innerHTML = `<span>${message}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;padding:0 0 0 8px;font-size:1.1rem;">&times;</button>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(20px)';
+            toast.style.transition = 'all 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Add toast animation
+    if (!document.getElementById('gt-toast-style')) {
+        const style = document.createElement('style');
+        style.id = 'gt-toast-style';
+        style.textContent = '@keyframes gt-toast-in{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}';
+        document.head.appendChild(style);
+    }
+
+    // ── Maps navigation helper ──
+    window.getNavUrl = function(address) {
+        const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        return ios
+            ? 'https://maps.apple.com/?daddr=' + encodeURIComponent(address)
+            : 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
+    };
+
+    // Wire up all navigate buttons
+    document.querySelectorAll('.navigate-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const address = btn.dataset.address;
+            if (address) window.open(getNavUrl(address), '_blank');
+        });
+    });
+
+    // ── Flight status badge coloring ──
+    function setFlightStatusBadge(badge, statusText) {
+        if (!badge) return;
+        const status = (statusText || '').toLowerCase();
+        badge.classList.remove('bg-secondary','bg-danger','bg-success','bg-warning','bg-info','bg-primary');
+
+        if (status.includes('cancel') || status.includes('canceled') || status.includes('delayed') || status.includes('divert')) {
+            badge.classList.add('bg-danger');
+        } else if (status.includes('arrived') || status.includes('arrival') || status.includes('landed') || status.includes('completed')) {
+            badge.classList.add('bg-success');
+        } else if (status.includes('en route') || status.includes('airborne') || status.includes('in air') || status.includes('departed')) {
+            badge.classList.add('bg-success');
+        } else if (status.includes('boarding') || status.includes('gate') || status.includes('taxi')) {
+            badge.classList.add('bg-warning');
+        } else if (status.includes('scheduled') || status.includes('on time') || status.includes('on-time') || status.includes('active')) {
+            badge.classList.add('bg-primary');
+        } else {
+            badge.classList.add('bg-secondary');
+        }
+    }
+
+    document.querySelectorAll('.flight-status').forEach(badge => {
+        setFlightStatusBadge(badge, badge.dataset.flightStatus || badge.textContent);
+    });
+
+    // ── Status select change handler ──
+    document.querySelectorAll('.status-select:not([disabled])').forEach(select => {
+        select.addEventListener('change', (event) => {
+            const legId = event.target.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
+            const newStatus = event.target.value;
+
+            fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ status: newStatus })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Status updated to ${newStatus.replace(/-/g, ' ')}`, 'success');
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+                    window.location.reload();
+                }
+            })
+            .catch(() => {
+                showToast('Error updating status', 'danger');
+                setTimeout(() => window.location.reload(), 1000);
+            });
+        });
+    });
+
+    // ── Progression button handler ──
+    document.querySelectorAll('.progression-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const btn = event.currentTarget;
+            const legId = btn.dataset.legId;
+            const nextStatus = btn.dataset.nextStatus;
+
+            if (nextStatus === 'completed') {
+                if (!confirm('Are you sure you want to mark this trip as completed?')) return;
+            }
+
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+
+            fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ status: nextStatus })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Status updated to ${nextStatus.replace(/-/g, ' ')}`, 'success');
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                showToast('Error updating status. Please try again.', 'danger');
+            });
+        });
+    });
+
+    // ── Accept job handler ──
+    document.querySelectorAll('.accept-job-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const btn = event.target.closest('.accept-job-btn');
+            const legId = btn.dataset.legId;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Accepting...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+
+            fetch(`${window.location.origin}/drivers/accept_job/${legId}/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.querySelectorAll(`.accept-job-btn[data-leg-id="${legId}"]`).forEach(b => b.style.display = 'none');
+                    document.querySelectorAll(`[id$="statusSelect-${legId}"], [id$="statusSelectMobile-${legId}"]`).forEach(s => s.value = 'confirmed');
+                    showToast('Job accepted!', 'success');
+                    setTimeout(() => window.location.reload(), 800);
+                } else {
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
+                }
+            })
+            .catch(error => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                showToast('Error accepting job. Please try again.', 'danger');
+            });
+        });
+    });
+
+    // ── Flight data refresh ──
+    function updateFlightUI(legId, flightData) {
+        document.querySelectorAll(`.flight-tracker[data-leg-id="${legId}"]`).forEach(container => {
+            const statusEl = container.querySelector('.flight-status');
+            const landingEl = container.querySelector('.flight-landing');
+            const gateArrivalEl = container.querySelector('.flight-gate-arrival');
+            const updatedEl = container.querySelector('.flight-updated');
+
+            if (statusEl) {
+                statusEl.textContent = flightData.status || 'Unknown';
+                setFlightStatusBadge(statusEl, flightData.status || '');
+            }
+            if (landingEl) {
+                const val = flightData.actual_arrival_local || flightData.estimated_arrival_local || flightData.scheduled_arrival_local;
+                if (val) {
+                    landingEl.textContent = `Landing: ${val.split(' ').slice(1).join(' ')}`;
+                    landingEl.style.display = '';
+                } else {
+                    landingEl.style.display = 'none';
+                }
+            }
+            if (gateArrivalEl) {
+                const val = flightData.actual_gate_arrival_local || flightData.estimated_gate_arrival_local || flightData.scheduled_gate_arrival_local;
+                if (val) {
+                    gateArrivalEl.textContent = `Gate: ${val.split(' ').slice(1).join(' ')}`;
+                    gateArrivalEl.style.display = '';
+                } else {
+                    gateArrivalEl.style.display = 'none';
+                }
+            }
+            if (updatedEl) {
+                if (flightData.last_updated) {
+                    updatedEl.textContent = `Updated ${flightData.last_updated.split(' ').slice(1).join(' ')}`;
+                    updatedEl.style.display = '';
+                } else {
+                    updatedEl.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    document.querySelectorAll('.refresh-flight-data').forEach(button => {
+        button.addEventListener('click', () => {
+            const legId = button.getAttribute('data-leg-id');
+            if (!legId) return;
+            button.disabled = true;
+            const origHtml = button.innerHTML;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+            fetch("{% url 'driver_refresh_flight_data' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ leg_id: legId })
+            })
+            .then(response => response.json().then(data => ({ response, data })))
+            .then(({ response, data }) => {
+                if (data.success && data.flight_data) {
+                    updateFlightUI(legId, data.flight_data);
+                    showToast('Flight data refreshed', 'success');
+                } else if (!response.ok && data.error) {
+                    showToast(data.error, 'danger');
+                }
+            })
+            .catch(err => {
+                showToast('Could not refresh flight. Please try again.', 'danger');
+            })
+            .finally(() => {
+                button.disabled = false;
+                button.innerHTML = origHtml;
+            });
+        });
+    });
+
+    // ── Driver notes modal ──
+    function openNotesModal(legId, currentNotes) {
+        currentLegId = legId;
+        const textarea = document.getElementById('driver-notes-textarea-modal');
+        const displayDiv = document.getElementById(`driver-notes-display-${legId}`);
+        let latestNotes = currentNotes || '';
+
+        if (displayDiv) {
+            const noteContent = displayDiv.querySelector('.gt-note-driver');
+            if (noteContent) latestNotes = noteContent.textContent.trim();
+        }
+
+        textarea.value = latestNotes;
+        const modal = new bootstrap.Modal(document.getElementById('driverNotesModal'));
+        modal.show();
+    }
+
+    function saveNotes() {
+        if (!currentLegId) return;
+        const textarea = document.getElementById('driver-notes-textarea-modal');
+        const notes = textarea.value;
+        const saveButton = document.getElementById('save-driver-notes-modal');
+        const originalText = saveButton.innerHTML;
+        saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+        saveButton.disabled = true;
+
+        fetch(`${window.location.origin}/drivers/update_driver_notes/${currentLegId}/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ driver_notes: notes })
+        })
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                document.querySelectorAll(`[id="driver-notes-display-${currentLegId}"]`).forEach(div => {
+                    div.innerHTML = notes.trim()
+                        ? `<div class="gt-note gt-note-driver">${notes}</div>`
+                        : '';
+                });
+
+                const editButton = document.querySelector(`.edit-driver-notes[data-leg-id="${currentLegId}"]`);
+                if (editButton) editButton.dataset.currentNotes = notes;
+
+                const modal = bootstrap.Modal.getInstance(document.getElementById('driverNotesModal'));
+                modal.hide();
+                saveButton.innerHTML = originalText;
+                saveButton.disabled = false;
+
+                showToast('Notes saved', 'success');
+            } else {
+                throw new Error(data.error || 'Failed to save notes');
+            }
+        })
+        .catch(error => {
+            saveButton.innerHTML = originalText;
+            saveButton.disabled = false;
+            showToast('Error saving notes', 'danger');
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.edit-driver-notes')) {
+            e.preventDefault();
+            const button = e.target.closest('.edit-driver-notes');
+            openNotesModal(button.dataset.legId, button.dataset.currentNotes || '');
+        }
+    });
+
+    document.getElementById('save-driver-notes-modal').addEventListener('click', saveNotes);
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/drivers/sw.js', { scope: '/drivers/' })
+            .catch(err => console.warn('SW registration failed:', err));
+    }
+});
+</script>

@@ -3,6 +3,7 @@ from . import views
 
 
 urlpatterns = [
+    path("sw.js", views.service_worker, name="driver_service_worker"),
     path("", views.index, name="drivers_dashboard"),
     path("extend/", views.extend, name="drivers_extend"),
     path(

@@ -2,1104 +2,590 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Driver Dashboard</title>
-
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
-          rel="stylesheet">
-
-    <style>
-        /* Only keeping the status indicator since Bootstrap doesn't have a perfect equivalent */
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
-        }
-        .flight-secondary {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-
-        .bg-purple {
-            background-color: #6f42c1 !important;
-        }
-
-        .bg-orange {
-            background-color: #fd7e14 !important;
-        }
-
-        .border-purple {
-            border-color: #6f42c1 !important;
-        }
-
-        .border-orange {
-            border-color: #fd7e14 !important;
-        }
-
-        /* Review reminder: shiny when picked-up to remind driver */
-        .review-reminder-picked-up {
-            background: linear-gradient(135deg, #e8f4ff 0%, #fff8e8 50%, #e8f4ff 100%);
-            border: 2px solid #0d6efd;
-            box-shadow: 0 0 12px rgba(13, 110, 253, 0.35);
-            animation: review-pulse 2s ease-in-out infinite;
-        }
-        @keyframes review-pulse {
-            0%, 100% { box-shadow: 0 0 12px rgba(13, 110, 253, 0.35); }
-            50% { box-shadow: 0 0 20px rgba(13, 110, 253, 0.5); }
-        }
-    </style>
+    {% include "drivers/_driver_head.html" %}
+    <title>My Trips — Grayson Towncar</title>
   </head>
 
-  <body class="bg-light">
+  <body>
     {% include "drivers/navbar.html" %}
 
-    <div class="container-fluid py-3">
-      <!-- Header Card -->
-      <div class="card mb-3 rounded-3 shadow-sm">
-        <div class="card-header bg-dark text-white py-3">
-          <div class="d-flex justify-content-between align-items-center">
-            <h1 class="h3 mb-0">My Assigned Trips</h1>
-          </div>
-        </div>
-        <div class="card-body py-2">
-          <div class="row align-items-center">
-            <div class="col-md-6 mb-2 mb-md-0">
-              <div class="alert alert-light d-flex align-items-center border p-2 mb-0">
-                <strong class="me-1">Logged in as:</strong>
-                <span>{{ request.user|title }}</span>
+    <div class="container-fluid" style="max-width:1200px; padding:16px 12px;">
+
+      <!-- ═══ Next Trip Banner ═══ -->
+      {% if next_leg %}
+        <div class="gt-next-trip mb-3">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="gt-label mb-1">Next Trip</div>
+              <div class="gt-time" style="font-size:1.5rem;color:#fff;">
+                {{ next_leg.pickup_time|date:"g:i A" }}
+              </div>
+              <div style="color:rgba(255,255,255,0.6);font-size:0.875rem;margin-top:2px;">
+                {{ next_leg.pickup_date|date:"l, M j" }}
+                {% if next_leg_eta %}<span style="color:var(--gt-green);font-weight:600;margin-left:6px;">{{ next_leg_eta }}</span>{% endif %}
+              </div>
+              <div style="color:rgba(255,255,255,0.8);font-size:0.875rem;margin-top:6px;">
+                <i class="bi bi-person-fill me-1" style="opacity:0.5;"></i>{{ next_leg.reservation.customer.get_full_name }}
+              </div>
+              <div style="color:rgba(255,255,255,0.55);font-size:0.8125rem;margin-top:2px;">
+                <i class="bi bi-geo-alt me-1" style="opacity:0.5;"></i>{{ next_leg.pickup_location }}
               </div>
             </div>
-            <div class="col-md-6 text-md-end">
-              <div class="input-group input-group-sm d-inline-flex"
-                   style="max-width: 200px">
-                <span class="input-group-text bg-dark text-white"># Trips</span>
-                <input type="text" class="form-control" value="{{ legs.count }}" readonly>
-              </div>
+            <div class="d-flex flex-column gap-2">
+              <a href="tel:{{ next_leg.reservation.customer.phone_number }}"
+                 class="gt-btn gt-btn-sm" style="background:rgba(255,255,255,0.12);color:#fff;">
+                <i class="bi bi-telephone-fill"></i> Call
+              </a>
+              <a href="sms:{{ next_leg.reservation.customer.phone_number }}"
+                 class="gt-btn gt-btn-sm" style="background:rgba(255,255,255,0.10);color:rgba(255,255,255,0.9);">
+                <i class="bi bi-chat-dots-fill"></i> Text
+              </a>
+              <button class="gt-btn gt-btn-sm navigate-btn" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.8);"
+                      data-address="{{ next_leg.pickup_location }}">
+                <i class="bi bi-cursor-fill"></i> Navigate
+              </button>
             </div>
           </div>
         </div>
+      {% endif %}
+
+      <!-- ═══ Page Header ═══ -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h1 style="font-size:1.375rem;font-weight:700;margin:0;letter-spacing:-0.02em;">Assigned Trips</h1>
+        </div>
+        {% if legs %}
+          <span class="gt-chip" style="background:var(--gt-bg);border:1px solid var(--gt-border);">
+            {{ legs|length }} trip{{ legs|length|pluralize }}
+          </span>
+        {% endif %}
       </div>
 
       {% if legs %}
-        <!-- Desktop Table Card -->
-        <div class="card rounded-3 shadow-sm d-none d-md-block mb-3">
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-sm table-striped table-hover align-middle mb-0">
-                <thead class="table-dark sticky-top">
-                  <tr>
-                    <th scope="col">Reservation Info</th>
-                    <th scope="col">Pickup</th>
-                    <th scope="col">Locations</th>
-                    <th scope="col">Vehicle & Passengers</th>
-                    <th scope="col">Notes</th>
-                    <th scope="col">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for leg in legs %}
-                    <tr data-leg-id="{{ leg.id }}">
-                      <td class="align-middle">
-                        <div class="fw-bold mb-1">Res ID: GT0{{ leg.id }}</div>
-                        <div class="mb-1">{{ leg.reservation.customer.get_full_name }}</div>
-                        <div class="mb-2 text-secondary">
-                          <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
-                        </div>
-                        <div class="d-flex">
-                          <a href="tel:{{ leg.reservation.customer.phone_number }}"
-                             class="btn btn-sm btn-outline-primary me-1 rounded-pill">
-                            <i class="bi bi-telephone"></i> Call
-                          </a>
-                          <a href="sms:{{ leg.reservation.customer.phone_number }}"
-                             class="btn btn-sm btn-outline-success rounded-pill">
-                            <i class="bi bi-chat"></i> Text
-                          </a>
-                        </div>
-                      </td>
-                      <td class="align-middle">
-                        <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
-                        <div>{{ leg.pickup_time|date:"g:i A" }}</div>
-                      </td>
-                      <td class="align-middle">
-                        <div class="mb-1">
-                          <strong>P/U:</strong> {{ leg.pickup_location }}
-                        </div>
-                        <div>
-                          <strong>D/O:</strong> {{ leg.dropoff_location }}
-                        </div>
 
-                        <!-- Store Stop - show for arrivals/other (never for return/airport drop-off) -->
-                        {% if leg.get_trip_type != "return" %}
-                          <div class="mt-2">
-                            {% if leg.reservation.store_stop %}
-                              <span class="badge bg-success text-white">
-                                <i class="bi bi-shop me-1"></i>Store Stop: Yes
-                              </span>
-                              <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
-                            {% else %}
-                              <span class="badge bg-secondary text-white">
-                                <i class="bi bi-shop me-1"></i>Store Stop: No
-                              </span>
-                            {% endif %}
+        <!-- ═══ Desktop Table ═══ -->
+        <div class="gt-card d-none d-md-block mb-3">
+          <div class="table-responsive">
+            <table class="gt-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Pickup</th>
+                  <th>Route</th>
+                  <th>Details</th>
+                  <th>Notes</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for leg in legs %}
+                  <tr data-leg-id="{{ leg.id }}">
+                    <!-- Customer -->
+                    <td>
+                      <div class="fw-semibold mb-1">{{ leg.reservation.customer.get_full_name }}</div>
+                      <div class="d-flex gap-1">
+                        <a href="tel:{{ leg.reservation.customer.phone_number }}"
+                           class="gt-contact gt-contact-call" style="padding:3px 10px;font-size:0.75rem;min-height:auto;">
+                          <i class="bi bi-telephone-fill"></i> Call
+                        </a>
+                        <a href="sms:{{ leg.reservation.customer.phone_number }}"
+                           class="gt-contact gt-contact-text" style="padding:3px 10px;font-size:0.75rem;min-height:auto;">
+                          <i class="bi bi-chat-fill"></i> Text
+                        </a>
+                      </div>
+                    </td>
+                    <!-- Pickup Time -->
+                    <td>
+                      <div class="gt-time" style="font-size:1rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
+                      <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">{{ leg.pickup_date|date:"l, M j" }}</div>
+                    </td>
+                    <!-- Route -->
+                    <td>
+                      <div class="gt-route">
+                        <div class="gt-route-point gt-route-pickup">
+                          <div class="gt-route-label">Pickup</div>
+                          <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="gt-route-address">{{ leg.pickup_location }}</span>
+                            <button class="gt-nav-btn navigate-btn" data-address="{{ leg.pickup_location }}">
+                              <i class="bi bi-cursor-fill"></i> Go
+                            </button>
                           </div>
-                        {% endif %}
+                        </div>
+                        <div class="gt-route-point gt-route-dropoff">
+                          <div class="gt-route-label">Dropoff</div>
+                          <div class="d-flex align-items-center gap-1 flex-wrap">
+                            <span class="gt-route-address">{{ leg.dropoff_location }}</span>
+                            <button class="gt-nav-btn navigate-btn" data-address="{{ leg.dropoff_location }}">
+                              <i class="bi bi-cursor-fill"></i> Go
+                            </button>
+                          </div>
+                        </div>
+                      </div>
 
-                        {% if leg.flight_information %}
-                          <div class="mt-1">
-                            <strong>Flight:</strong> {{ leg.flight_information|default:"N/A" }}
+                      {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
+                        <div class="gt-store-stop mt-2">
+                          <i class="bi bi-shop me-1" style="color:var(--gt-green);"></i>
+                          <strong>Store Stop</strong> — Publix @9930 Universal Blvd
+                        </div>
+                      {% endif %}
+
+                      {% if leg.flight_information %}
+                        <div class="gt-flight-card mt-2">
+                          <div class="gt-flight-row mb-1">
+                            <span class="gt-flight-number">
+                              <i class="bi bi-airplane me-1{% if leg.get_trip_type != 'arrival' %}" style="transform:rotate(45deg);display:inline-block;{% endif %}"></i>{{ leg.flight_information.airline_display_name|default:leg.flight_information.airline }} #{{ leg.flight_information.flight_number }}
+                            </span>
+                            {% if leg.get_trip_type != "arrival" %}<span class="gt-chip" style="background:var(--gt-orange);color:#fff;font-size:0.625rem;font-weight:700;letter-spacing:0.03em;">DEPARTURE</span>{% endif %}
                             {% if leg.flight_information.terminal %}
-                              <span class="badge bg-dark text-white ms-2">
+                              <span class="gt-chip" style="background:var(--gt-dark);color:#fff;font-size:0.6875rem;">
                                 Terminal - {{ leg.flight_information.terminal }}
                               </span>
                             {% endif %}
                           </div>
                           {% if leg.get_trip_type == "arrival" %}
-                          <div class="flight-tracker mt-2" data-leg-id="{{ leg.id }}">
-                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                              <button type="button"
-                                      class="btn btn-outline-primary btn-sm py-1 px-2 refresh-flight-data"
-                                      data-leg-id="{{ leg.id }}">
-                                <i class="bi bi-arrow-repeat me-1"></i>Refresh
-                              </button>
-                              <span class="badge bg-secondary flight-status"
+                          <div class="flight-tracker" data-leg-id="{{ leg.id }}">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                              <span class="badge rounded-pill flight-status" style="font-size:0.75rem;"
                                     data-flight-status="{{ leg.flight_information.status|default:'Unknown' }}">
                                 {{ leg.flight_information.status|default:"Unknown" }}
                               </span>
+                              <span class="flight-landing" style="font-size:0.8125rem;">
+                                {% if leg.flight_information.actual_arrival_local %}
+                                  Landing: {{ leg.flight_information.actual_arrival_local|date:"g:i A" }}
+                                {% elif leg.flight_information.estimated_arrival_local %}
+                                  Landing: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}
+                                {% elif leg.flight_information.scheduled_arrival_local %}
+                                  Landing: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}
+                                {% endif %}
+                              </span>
+                              <span class="flight-gate-arrival" style="font-size:0.8125rem;">
+                                {% if leg.flight_information.actual_gate_arrival_local %}
+                                  Gate: {{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}
+                                {% elif leg.flight_information.estimated_gate_arrival_local %}
+                                  Gate: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
+                                {% elif leg.flight_information.scheduled_gate_arrival_local %}
+                                  Gate: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}
+                                {% endif %}
+                              </span>
                             </div>
-                            <div class="fw-semibold">
-                              <div class="d-flex flex-wrap align-items-center gap-2">
-                                <span class="flight-landing">
-                                  {% if leg.flight_information.actual_arrival_local %}
-                                    Landing: {{ leg.flight_information.actual_arrival_local|date:"g:i A" }}
-                                  {% elif leg.flight_information.estimated_arrival_local %}
-                                    Landing: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}
-                                  {% elif leg.flight_information.scheduled_arrival_local %}
-                                    Landing: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}
-                                  {% endif %}
+                            <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                              {% if leg.flight_information.baggage_claim %}
+                                <span style="font-size:0.8125rem;"><i class="bi bi-suitcase me-1"></i>{{ leg.flight_information.baggage_claim }}</span>
+                              {% endif %}
+                              <button type="button" class="gt-btn gt-btn-ghost gt-btn-sm refresh-flight-data" data-leg-id="{{ leg.id }}" style="font-size:0.75rem;">
+                                <i class="bi bi-arrow-repeat"></i> Refresh
+                              </button>
+                              {% if leg.flight_information.last_updated %}
+                                <span class="flight-updated" style="font-size:0.75rem;color:var(--gt-text-secondary);">
+                                  Updated {{ leg.flight_information.last_updated|date:"g:i A" }}
                                 </span>
-                                <span class="flight-gate-arrival">
-                                  {% if leg.flight_information.actual_gate_arrival_local %}
-                                    Gate Arrival: {{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}
-                                  {% elif leg.flight_information.estimated_gate_arrival_local %}
-                                    Gate Arrival: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
-                                  {% elif leg.flight_information.scheduled_gate_arrival_local %}
-                                    Gate Arrival: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}
-                                  {% endif %}
-                                </span>
-                              </div>
-                              <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
-                                {% if leg.flight_information.baggage_claim %}
-                                  <span class="badge bg-warning text-dark flight-secondary">
-                                    <i class="bi bi-suitcase me-1" style="font-size: 0.8rem;"></i>{{ leg.flight_information.baggage_claim }}
-                                  </span>
-                                {% endif %}
-                                {% if leg.flight_information.last_updated %}
-                                  <span class="text-muted flight-updated flight-secondary">
-                                    Last check {{ leg.flight_information.last_updated|date:"g:i A" }}
-                                  </span>
-                                {% endif %}
-                              </div>
+                              {% endif %}
                             </div>
                           </div>
                           {% endif %}
-                          <hr class="my-2">
-                        {% endif %}
-                        {% if leg.cruise_information %}
-                          <div class="mt-1">
-                            <strong>Cruise:</strong> 
-                            <i class="bi bi-ship me-1"></i>
-                            {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                              {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
-                            {% elif leg.cruise_information.cruise_line %}
-                              {{ leg.cruise_information.cruise_line }}
-                            {% elif leg.cruise_information.ship_name %}
-                              {{ leg.cruise_information.ship_name }}
-                            {% endif %}
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td class="align-middle">
-                        <div class="mb-1">
-                          <strong>Vehicle:</strong> {{ leg.reservation.vehicle.get_vehicle_type_display }}
                         </div>
-                        <div class="mb-1">
-                          <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
-                        </div>
-                        <div class="mb-1">
-                          <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:"0" }}
-                        </div>
-                        <div class="mb-1">
-                          <strong>Luggage:</strong> {{ leg.reservation.luggage_count }}
-                          {% if leg.reservation.luggage_type %}<span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-1" style="font-size:.65rem">{{ leg.reservation.get_luggage_type_display }}</span>{% endif %}
-                        </div>
-
-                        <!-- Progression Buttons - Show based on current status -->
-                        {% if leg.status == "in-progress" %}
-                          <button class="btn btn-success btn-sm progression-btn mt-2"
-                                  data-leg-id="{{ leg.id }}"
-                                  data-next-status="confirmed">
-                            <i class="bi bi-check-circle"></i> Confirm Job
-                          </button>
-                        {% elif leg.status == "confirmed" %}
-                          <button class="btn btn-dark btn-sm progression-btn mt-2" 
-                                  data-leg-id="{{ leg.id }}"
-                                  data-next-status="on-the-way">
-                            <i class="bi bi-arrow-right-circle"></i> On the Way
-                          </button>
-                        {% elif leg.status == "on-the-way" %}
-                          <button class="btn btn-warning btn-sm progression-btn mt-2" 
-                                  data-leg-id="{{ leg.id }}"
-                                  data-next-status="on-location">
-                            <i class="bi bi-geo-alt"></i> On Location
-                          </button>
-                        {% elif leg.status == "on-location" %}
-                          <button class="btn btn-primary btn-sm progression-btn mt-2" 
-                                  data-leg-id="{{ leg.id }}"
-                                  data-next-status="picked-up">
-                            <i class="bi bi-person-check"></i> Picked Up
-                          </button>
-                        {% elif leg.status == "picked-up" %}
-                          <hr class="my-2">
-                          <div class="mt-2 rounded p-2 review-reminder-picked-up">
-                            <div class="mb-2 text-center">
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                            </div>
-                            <div class="small fw-bold text-primary mb-2">
-                              <i class="bi bi-info-circle me-1"></i>Reminder: Request a review before completing the trip. Please click the button below to send the review request.
-                            </div>
-                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
-                                   class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                                  <i class="bi bi-chat-heart-fill me-1"></i>Request Review
-                            </a>
-                          </div>
-                          <button class="btn btn-success btn-sm progression-btn mt-2" 
-                                  data-leg-id="{{ leg.id }}"
-                                  data-next-status="completed">
-                            <i class="bi bi-flag-checkered"></i> Complete Trip
-                          </button>
-                        {% endif %}
-
-                        <hr class="my-2">
-                        <!-- Review request: below button & passenger/luggage; only when not picked-up -->
-                        {% if leg.status != "picked-up" %}
-                          <div class="mt-2 rounded p-2 border bg-light">
-                            <div class="mb-2 text-center">
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                              <i class="bi bi-star-fill text-warning fs-4"></i>
-                            </div>
-                            <div class="small text-muted mb-2">
-                              <i class="bi bi-info-circle me-1"></i>Request a review after your trip. Please click the button below to send the review request.
-                            </div>
-                            <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! I hope the ride was smooth and comfortable. If you have a quick moment, I’d truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
-                                   class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                              <i class="bi bi-chat-heart-fill me-1"></i>Request Review
-                            </a>
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td class="align-middle">
-                        {% if leg.reservation.special_requests %}
-                          <div class="mb-2">
-                            <div class="text-muted small fw-bold">Guest Notes:</div>
-                            <div>{{ leg.reservation.special_requests }}</div>
-                          </div>
-                        {% endif %}
-
-                        <div class="mb-2">
-                          <div class="text-muted small fw-bold">Private Notes:</div>
-                          <div>{{ leg.reservation.private_notes|default:"" }}</div>
-                        </div>
-
-                        <div>
-                          <div class="text-muted small fw-bold">Leg Notes:</div>
-                          <div>{{ leg.private_notes|default:"" }}</div>
-                        </div>
-                      </td>
-                      <td class="align-middle">
-                        <div class="d-flex align-items-center mb-2">
-                          <span class="badge rounded-pill me-2 {% if leg.status == 'in-progress' %}bg-warning text-dark{% elif leg.status == 'confirmed' %}bg-purple text-white{% elif leg.status == 'on-the-way' %}bg-orange text-white{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% else %}bg-dark {% endif %} ">{{ leg.get_status_display }}</span>
-                        </div>
-                        
-                        <select id="statusSelect-{{ leg.id }}"
-                                class="form-select form-select-sm status-select">
-                          <option value="in-progress"
-                                  {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
-                          <option value="confirmed"
-                                  {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
-                          <option value="on-the-way"
-                                  {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
-                          <option value="on-location"
-                                  {% if leg.status == "on-location" %}selected{% endif %}>On-Location</option>
-                          <option value="picked-up"
-                                  {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
-                          <option value="completed"
-                                  {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
-                        </select>
-
-                        <!-- Driver Notes Section -->
-                        <div class="mt-3">
-                          <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div>
-                              <span class="text-muted small fw-bold">My Notes:</span>
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary edit-driver-notes"
-                                    data-leg-id="{{ leg.id }}"
-                                    data-current-notes="{{ leg.driver_notes|default:'' }}">
-                              <i class="bi bi-pencil"></i> Edit
-                            </button>
-                          </div>
-                          <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                            {% if leg.driver_notes %}
-                              <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-                            {% else %}
-                              <div class="text-muted small">No notes added yet</div>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Mobile Card View -->
-          <div class="d-md-none">
-            {% for leg in legs %}
-              <div class="card mb-3 rounded-3 shadow-sm {% if leg.status == 'in-progress' %}border-start border-warning border-2{% elif leg.status == 'confirmed' %}border-start border-purple border-2{% elif leg.status == 'on-the-way' %}border-start border-orange border-2{% elif leg.status == 'on-location' %}border-start border-info border-2{% elif leg.status == 'picked-up' %}border-start border-primary border-2{% elif leg.status == 'completed' %}border-start border-success border-2{% endif %}" data-leg-id="{{ leg.id }}">
-                <div class="card-header bg-dark text-white">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <div class="fw-bold">{{ leg.pickup_time|date:"g:i A" }}</div>
-                      <div class="fw-bold">{{ leg.pickup_date|date:"l, F j" }}</div>
-                    </div>
-                    <div class="d-flex align-items-center">
-                      <span class="status-indicator {% if leg.status == 'in-progress' %}bg-warning{% elif leg.status == 'confirmed' %}bg-purple{% elif leg.status == 'on-the-way' %}bg-orange{% elif leg.status == 'on-location' %}bg-info{% elif leg.status == 'picked-up' %}bg-primary{% elif leg.status == 'completed' %}bg-success{% endif %}"></span>
-                      <span class="text-capitalize">{{ leg.get_status_display }}</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="card-body">
-                  <div class="mb-3 pb-3 border-bottom">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                      <div>
-                        <h5 class="mb-0">{{ leg.reservation.customer.get_full_name }}</h5>
-                        <div class="mt-1 text-dark fw-semibold">
-                          <i class="bi bi-telephone me-1"></i>{{ leg.reservation.customer.phone_number }}
-                        </div>
-                      </div>
-                      <div>
-                        <a href="tel:{{ leg.reservation.customer.phone_number }}"
-                           class="btn btn-sm btn-danger rounded-pill"><i class="bi bi-telephone-fill"></i> Call</a>
-                        <a href="sms:{{ leg.reservation.customer.phone_number }}"
-                           class="btn btn-sm btn-warning rounded-pill"><i class="bi bi-chat-fill"></i> Text</a>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="mb-3 pb-3 border-bottom">
-                    {% if leg.flight_information %}
-                      <div class="mb-1">
-                        <strong>Flight: {{ leg.flight_information |default:"N/A" }}  ✈️</strong>
-                        {% if leg.flight_information.terminal %}
-                          <span class="badge bg-dark text-white ms-2">
-                            Terminal - {{ leg.flight_information.terminal }}
-                          </span>
-                        {% endif %}
-                      </div>
-                      {% if leg.get_trip_type == "arrival" %}
-                      <div class="flight-tracker mt-2" data-leg-id="{{ leg.id }}">
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                          <button type="button"
-                                  class="btn btn-outline-primary btn-sm py-1 px-2 refresh-flight-data"
-                                  data-leg-id="{{ leg.id }}">
-                            <i class="bi bi-arrow-repeat me-1"></i>Refresh
-                          </button>
-                          <span class="badge bg-secondary flight-status"
-                                data-flight-status="{{ leg.flight_information.status|default:'Unknown' }}">
-                            {{ leg.flight_information.status|default:"Unknown" }}
-                          </span>
-                        </div>
-                        <div class="fw-semibold">
-                          <div class="d-flex flex-wrap align-items-center gap-2">
-                          <span class="flight-landing">
-                            {% if leg.flight_information.actual_arrival_local %}
-                              Landing: {{ leg.flight_information.actual_arrival_local|date:"g:i A" }}
-                            {% elif leg.flight_information.estimated_arrival_local %}
-                              Landing: {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}
-                            {% elif leg.flight_information.scheduled_arrival_local %}
-                              Landing: {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}
-                            {% endif %}
-                          </span>
-                          <span class="flight-gate-arrival">
-                            {% if leg.flight_information.actual_gate_arrival_local %}
-                              Gate Arrival: {{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}
-                            {% elif leg.flight_information.estimated_gate_arrival_local %}
-                              Gate Arrival: {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
-                            {% elif leg.flight_information.scheduled_gate_arrival_local %}
-                              Gate Arrival: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}
-                            {% endif %}
-                          </span>
-                        </div>
-                          <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
-                            {% if leg.flight_information.baggage_claim %}
-                              <span class="badge bg-warning text-dark flight-secondary">
-                                <i class="bi bi-suitcase me-1" style="font-size: 0.8rem;"></i>{{ leg.flight_information.baggage_claim }}
-                              </span>
-                            {% endif %}
-                            {% if leg.flight_information.last_updated %}
-                              <span class="text-muted flight-updated flight-secondary">
-                                Last check {{ leg.flight_information.last_updated|date:"g:i A" }}
-                              </span>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </div>
                       {% endif %}
-                      <hr class="my-2">
-                    {% endif %}
-                    {% if leg.cruise_information %}
-                      <div class="mb-1">
-                        <strong>Cruise: 
-                          <i class="bi bi-ship me-1"></i>
+
+                      {% if leg.cruise_information %}
+                        <div class="mt-2" style="font-size:0.8125rem;">
+                          <i class="bi bi-water me-1" style="color:var(--gt-cyan);"></i>
+                          <strong>Cruise:</strong>
                           {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                            {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                            {{ leg.cruise_information.cruise_line }} — {{ leg.cruise_information.ship_name }}
                           {% elif leg.cruise_information.cruise_line %}
                             {{ leg.cruise_information.cruise_line }}
                           {% elif leg.cruise_information.ship_name %}
                             {{ leg.cruise_information.ship_name }}
                           {% endif %}
-                        </strong>
+                        </div>
+                      {% endif %}
+                    </td>
+                    <!-- Details -->
+                    <td style="min-width:140px;">
+                      <div style="font-size:0.8125rem;" class="mb-1">
+                        <span class="text-secondary">Vehicle</span><br>
+                        <strong>{{ leg.reservation.vehicle.get_vehicle_type_display }}</strong>
                       </div>
-                    {% endif %}
-                    <div class="mb-1">
-                      <strong>P/U Date & Time: {{ leg.pickup_date|date:"l, F j" }} {{ leg.pickup_time|date:"g:i A" }}</strong>
-                    </div>
-                    <div class="mb-1">
-                      <strong>Pick-Up Location: {{ leg.pickup_location }}</strong>
-                    </div>
-                    <div>
-                      <strong>Drop-Off Location: {{ leg.dropoff_location }}</strong>
-                    </div>
-
-                    <!-- Store Stop - show for arrivals/other (never for return/airport drop-off) -->
-                    {% if leg.get_trip_type != "return" %}
-                      <div class="mt-2">
-                        {% if leg.reservation.store_stop %}
-                          <span class="badge bg-success text-white">
-                            <i class="bi bi-shop me-1"></i>Store Stop: Yes
-                          </span>
-                          <div class="mt-1 text-success fw-bold">Publix Stop @9930 Universal Blvd</div>
-                        {% else %}
-                          <span class="badge bg-secondary text-white">
-                            <i class="bi bi-shop me-1"></i>Store Stop: No
-                          </span>
+                      <div class="d-flex gap-3" style="font-size:0.8125rem;">
+                        <div><span class="text-secondary">PAX</span> <strong>{{ leg.reservation.passenger_count }}</strong></div>
+                        <div><span class="text-secondary">Bags</span> <strong>{{ leg.reservation.luggage_count }}</strong></div>
+                        {% if leg.reservation.display_carseats and leg.reservation.display_carseats != "0" %}
+                          <div><span class="text-secondary">Seats</span> <strong>{{ leg.reservation.display_carseats }}</strong></div>
                         {% endif %}
                       </div>
-                    {% endif %}
-                  </div>
 
-                  <div class="mb-3 pb-3 border-bottom">
-                    <div class="mb-1">
-                      <strong>Vehicle: {{ leg.reservation.vehicle.get_vehicle_type_display }}</strong>
-                    </div>
-                    <div class="mb-1">
-                      <strong>Passengers: {{ leg.reservation.passenger_count }}</strong>
-                    </div>
-                    <div class="mb-1">
-                      <strong>Car Seats: {{ leg.reservation.display_carseats|default:"0" }}</strong>
-                    </div>
-                    <div class="mb-1">
-                      <strong>Luggage: {{ leg.reservation.luggage_count }}</strong>
-                      {% if leg.reservation.luggage_type %}<span class="badge {% if leg.reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-1" style="font-size:.65rem">{{ leg.reservation.get_luggage_type_display }}</span>{% endif %}
-                    </div>
-
-                    <!-- Progression Buttons - Show based on current status -->
-                    {% if leg.status == "in-progress" %}
-                      <button class="btn btn-success btn-sm progression-btn mt-2 w-100" 
-                              data-leg-id="{{ leg.id }}"
-                              data-next-status="confirmed">
-                        <i class="bi bi-check-circle"></i> Confirm Job
-                      </button>
-                    {% elif leg.status == "confirmed" %}
-                      <button class="btn btn-dark btn-sm progression-btn mt-2 w-100" 
-                              data-leg-id="{{ leg.id }}"
-                              data-next-status="on-the-way">
-                        <i class="bi bi-arrow-right-circle"></i> On the Way
-                      </button>
-                    {% elif leg.status == "on-the-way" %}
-                      <button class="btn btn-dark btn-sm progression-btn mt-2 w-100" 
-                              data-leg-id="{{ leg.id }}"
-                              data-next-status="on-location">
-                        <i class="bi bi-geo-alt"></i> On Location 📍
-                      </button>
-                    {% elif leg.status == "on-location" %}
-                      <button class="btn btn-warning btn-sm progression-btn mt-2 w-100" 
-                              data-leg-id="{{ leg.id }}"
-                              data-next-status="picked-up">
-                        <i class="bi bi-person-check"></i> Picked Up
-                      </button>
-                    {% elif leg.status == "picked-up" %}
-                      <hr class="my-2">
-                      <div class="mt-2 rounded p-2 review-reminder-picked-up">
-                        <div class="mb-2 text-center">
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
+                      <!-- Progression -->
+                      {% if leg.status == "in-progress" %}
+                        <button class="gt-btn gt-btn-success gt-btn-sm progression-btn mt-2" data-leg-id="{{ leg.id }}" data-next-status="confirmed">
+                          <i class="bi bi-check-circle"></i> Confirm Job
+                        </button>
+                      {% elif leg.status == "confirmed" %}
+                        <button class="gt-btn gt-btn-dark gt-btn-sm progression-btn mt-2" data-leg-id="{{ leg.id }}" data-next-status="on-the-way">
+                          <i class="bi bi-arrow-right-circle"></i> On the Way
+                        </button>
+                      {% elif leg.status == "on-the-way" %}
+                        <button class="gt-btn gt-btn-warning gt-btn-sm progression-btn mt-2" data-leg-id="{{ leg.id }}" data-next-status="on-location">
+                          <i class="bi bi-geo-alt"></i> On Location
+                        </button>
+                      {% elif leg.status == "on-location" %}
+                        <button class="gt-btn gt-btn-primary gt-btn-sm progression-btn mt-2" data-leg-id="{{ leg.id }}" data-next-status="picked-up">
+                          <i class="bi bi-person-check"></i> Picked Up
+                        </button>
+                      {% elif leg.status == "picked-up" %}
+                        <div class="gt-review-reminder gt-review-reminder-active mt-2" style="padding:10px;">
+                          <div class="gt-review-stars mb-1">
+                            <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+                          </div>
+                          <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! If you have a quick moment, I'd truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
+                             class="gt-btn gt-btn-primary gt-btn-sm gt-btn-block">
+                            <i class="bi bi-chat-heart-fill"></i> Request Review
+                          </a>
                         </div>
-                        <div class="small fw-bold text-primary mb-2">
-                          <i class="bi bi-info-circle me-1"></i>Reminder: Request a review before completing the trip. Please click the button below to send the review request.
-                        </div>
-                        <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
-                           class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                          <i class="bi bi-chat-heart-fill me-1"></i>Review Request
-                        </a>
-                      </div>
-                      <button class="btn btn-success btn-sm progression-btn mt-2 w-100" 
-                              data-leg-id="{{ leg.id }}"
-                              data-next-status="completed">
-                        <i class="bi bi-flag-checkered"></i> Complete Trip
-                      </button>
-                    {% endif %}
-
-                    <hr class="my-2">
-                    <!-- Review request: below button & passenger/luggage; only when not picked-up -->
-                    {% if leg.status != "picked-up" %}
-                      <div class="mt-2 rounded p-2 border bg-light">
-                        <div class="mb-2 text-center">
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                          <i class="bi bi-star-fill text-warning fs-4"></i>
-                        </div>
-                        <div class="small text-muted mb-2">
-                          <i class="bi bi-info-circle me-1"></i>Request a review after your trip. Please click the button below to send the review request.
-                        </div>
-                        <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
-                           class="btn btn-primary btn-sm w-100 rounded-pill fw-bold">
-                          <i class="bi bi-chat-heart-fill me-1"></i>Review Request
-                        </a>
-                      </div>
-                    {% endif %}
-                  </div>
-
-                  {% if leg.reservation.special_requests %}
-                    <div class="mb-3 pb-3 border-bottom">
-                      <div class="mb-2">
-                        <div class="text-muted small fw-bold">Guest Notes:</div>
-                        <div>{{ leg.reservation.special_requests }}</div>
-                      </div>
-                    </div>
-                  {% endif %}
-
-                  <div class="mb-3 pb-3 border-bottom">
-                    <div class="mb-2">
-                      <div class="text-muted small fw-bold">Private Notes:</div>
-                      <hr>
-                      <div>{{ leg.reservation.private_notes|default:"" }}</div>
-                    </div>
-                    <div>
-                      <div class="text-muted small fw-bold">Leg Notes:</div>
-                      <div>{{ leg.private_notes|default:"" }}</div>
-                    </div>
-                  </div>
-
-                  <!-- Driver Notes Section -->
-                  <div class="mt-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                      <div>
-                        <span class="text-muted small fw-bold">My Notes:</span>
-
-                      </div>
-                      <button class="btn btn-sm btn-outline-primary edit-driver-notes"
-                              data-leg-id="{{ leg.id }}"
-                              data-current-notes="{{ leg.driver_notes|default:'' }}">
-                        <i class="bi bi-pencil"></i> Edit
-                      </button>
-                    </div>
-                    <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                      {% if leg.driver_notes %}
-                        <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-              
+                        <button class="gt-btn gt-btn-success gt-btn-sm progression-btn mt-2" data-leg-id="{{ leg.id }}" data-next-status="completed">
+                          <i class="bi bi-flag-fill"></i> Complete Trip
+                        </button>
                       {% endif %}
-                    </div>
-                  </div>
-                  <hr>
 
+                      {% if leg.status != "picked-up" %}
+                        <div class="mt-2">
+                          <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name }}, it was a pleasure driving you today! If you have a quick moment, I'd truly appreciate a quick review.%0A%0AThanks again for choosing us!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review "
+                             class="gt-btn gt-btn-outline gt-btn-sm" style="font-size:0.75rem;">
+                            <i class="bi bi-star-fill" style="color:var(--gt-yellow);"></i> Review
+                          </a>
+                        </div>
+                      {% endif %}
+                    </td>
+                    <!-- Notes -->
+                    <td style="min-width:160px;">
+                      {% if leg.reservation.special_requests %}
+                        <div class="gt-note gt-note-guest mb-2">
+                          <div class="gt-label mb-1">Guest Notes</div>
+                          {{ leg.reservation.special_requests }}
+                        </div>
+                      {% endif %}
+                      {% if leg.reservation.private_notes %}
+                        <div class="gt-note gt-note-private mb-2">
+                          <div class="gt-label mb-1">Private</div>
+                          {{ leg.reservation.private_notes }}
+                        </div>
+                      {% endif %}
+                      {% if leg.private_notes %}
+                        <div class="gt-note gt-note-leg mb-2">
+                          <div class="gt-label mb-1">Leg Notes</div>
+                          {{ leg.private_notes }}
+                        </div>
+                      {% endif %}
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="gt-label">My Notes</span>
+                        <button class="gt-btn gt-btn-ghost edit-driver-notes" style="padding:2px 6px;font-size:0.75rem;"
+                                data-leg-id="{{ leg.id }}" data-current-notes="{{ leg.driver_notes|default:'' }}">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                      </div>
+                      <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
+                        {% if leg.driver_notes %}
+                          <div class="gt-note gt-note-driver">{{ leg.driver_notes }}</div>
+                        {% else %}
+                          <span style="font-size:0.8125rem;color:var(--gt-text-secondary);">—</span>
+                        {% endif %}
+                      </div>
+                    </td>
+                    <!-- Status -->
+                    <td style="min-width:150px;">
+                      <div class="gt-chip gt-chip-{{ leg.status }} mb-2">
+                        <span class="gt-chip-dot"></span>
+                        {{ leg.get_status_display }}
+                      </div>
+                      <select id="statusSelect-{{ leg.id }}" class="gt-select w-100 status-select" style="font-size:0.8125rem;">
+                        <option value="in-progress" {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                        <option value="confirmed" {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                        <option value="on-the-way" {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
+                        <option value="on-location" {% if leg.status == "on-location" %}selected{% endif %}>On-Location</option>
+                        <option value="picked-up" {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
+                        <option value="completed" {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
+                      </select>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══ Mobile Cards ═══ -->
+        <div class="d-md-none d-flex flex-column gap-3">
+          {% for leg in legs %}
+            <div class="gt-card gt-status-{{ leg.status }}" data-leg-id="{{ leg.id }}">
+
+              <!-- Card Header: Time + Status -->
+              <div class="gt-card-header">
+                <div class="d-flex justify-content-between align-items-center">
                   <div>
-                    <label class="form-label fw-bold">Update Status:</label>
-                    <select id="statusSelectMobile-{{ leg.id }}"
-                            class="form-select status-select">
-                      <option value="in-progress"
-                              {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
-                      <option value="confirmed"
-                              {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
-                      <option value="on-the-way"
-                              {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
-                      <option value="on-location"
-                              {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
-                      <option value="picked-up"
-                              {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
-                      <option value="completed"
-                              {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
-                    </select>
-
+                    <div class="gt-time" style="font-size:1.375rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
+                    <div style="font-size:0.8125rem;color:rgba(255,255,255,0.5);">{{ leg.pickup_date|date:"l, M j" }}</div>
+                  </div>
+                  <div class="gt-chip gt-chip-{{ leg.status }}" style="background:rgba(255,255,255,0.1);color:#fff;">
+                    <span class="gt-chip-dot"></span>
+                    {{ leg.get_status_display }}
                   </div>
                 </div>
               </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <div class="alert alert-danger">No trips scheduled for This Week</div>
-        {% endif %}
-      </div>
 
-      <!-- Driver Notes Modal -->
-      <div class="modal fade"
-           id="driverNotesModal"
-           tabindex="-1"
-           aria-labelledby="driverNotesModalLabel"
-           aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="driverNotesModalLabel">Edit Driver Notes</h5>
-              <button type="button"
-                      class="btn-close"
-                      data-bs-dismiss="modal"
-                      aria-label="Close"></button>
+              <div style="padding:14px;">
+
+                <!-- Customer + Contact -->
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                  <div>
+                    <div style="font-size:1.0625rem;font-weight:600;">{{ leg.reservation.customer.get_full_name }}</div>
+                    <div style="font-size:0.8125rem;color:var(--gt-text-secondary);margin-top:2px;">
+                      {{ leg.reservation.customer.phone_number }}
+                    </div>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <a href="tel:{{ leg.reservation.customer.phone_number }}" class="gt-contact gt-contact-call">
+                      <i class="bi bi-telephone-fill"></i> Call
+                    </a>
+                    <a href="sms:{{ leg.reservation.customer.phone_number }}" class="gt-contact gt-contact-text">
+                      <i class="bi bi-chat-fill"></i> Text
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Flight / Cruise -->
+                {% if leg.flight_information %}
+                  <div class="gt-flight-card mb-3">
+                    <div class="gt-flight-row">
+                      <span class="gt-flight-number">
+                        <i class="bi bi-airplane me-1{% if leg.get_trip_type != 'arrival' %}" style="transform:rotate(45deg);display:inline-block;{% endif %}"></i>{{ leg.flight_information.airline_display_name|default:leg.flight_information.airline }} #{{ leg.flight_information.flight_number }}
+                      </span>
+                      {% if leg.get_trip_type != "arrival" %}<span class="gt-chip" style="background:var(--gt-orange);color:#fff;font-size:0.625rem;font-weight:700;letter-spacing:0.03em;">DEPARTURE</span>{% endif %}
+                      {% if leg.flight_information.terminal %}
+                        <span class="gt-chip" style="background:var(--gt-dark);color:#fff;font-size:0.6875rem;">
+                          Terminal - {{ leg.flight_information.terminal }}
+                        </span>
+                      {% endif %}
+                    </div>
+                    {% if leg.get_trip_type == "arrival" %}
+                    <div class="flight-tracker" data-leg-id="{{ leg.id }}">
+                      <div class="d-flex flex-wrap align-items-center gap-2 mt-2" style="font-size:0.8125rem;">
+                        <span class="badge rounded-pill flight-status"
+                              data-flight-status="{{ leg.flight_information.status|default:'Unknown' }}">
+                          {{ leg.flight_information.status|default:"Unknown" }}
+                        </span>
+                        <span class="flight-landing">
+                          {% if leg.flight_information.actual_arrival_local %}
+                            Landing {{ leg.flight_information.actual_arrival_local|date:"g:i A" }}
+                          {% elif leg.flight_information.estimated_arrival_local %}
+                            Landing {{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}
+                          {% elif leg.flight_information.scheduled_arrival_local %}
+                            Landing {{ leg.flight_information.scheduled_arrival_local|date:"g:i A" }}
+                          {% endif %}
+                        </span>
+                        <span class="flight-gate-arrival">
+                          {% if leg.flight_information.actual_gate_arrival_local %}
+                            Gate {{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}
+                          {% elif leg.flight_information.estimated_gate_arrival_local %}
+                            Gate {{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}
+                          {% elif leg.flight_information.scheduled_gate_arrival_local %}
+                            Gate {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}
+                          {% endif %}
+                        </span>
+                      </div>
+                      <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+                        {% if leg.flight_information.baggage_claim %}
+                          <span style="font-size:0.8125rem;font-weight:600;">
+                            <i class="bi bi-suitcase me-1"></i>{{ leg.flight_information.baggage_claim }}
+                          </span>
+                        {% endif %}
+                        <button type="button" class="gt-btn gt-btn-ghost gt-btn-sm refresh-flight-data"
+                                data-leg-id="{{ leg.id }}" style="font-size:0.75rem;min-height:28px;">
+                          <i class="bi bi-arrow-repeat"></i> Refresh
+                        </button>
+                        {% if leg.flight_information.last_updated %}
+                          <span class="flight-updated" style="font-size:0.6875rem;color:var(--gt-text-secondary);">
+                            Updated {{ leg.flight_information.last_updated|date:"g:i A" }}
+                          </span>
+                        {% endif %}
+                      </div>
+                    </div>
+                    {% endif %}
+                  </div>
+                {% endif %}
+
+                {% if leg.cruise_information %}
+                  <div class="mb-3" style="font-size:0.875rem;">
+                    <i class="bi bi-water me-1" style="color:var(--gt-cyan);"></i>
+                    <strong>
+                      {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                        {{ leg.cruise_information.cruise_line }} — {{ leg.cruise_information.ship_name }}
+                      {% elif leg.cruise_information.cruise_line %}
+                        {{ leg.cruise_information.cruise_line }}
+                      {% elif leg.cruise_information.ship_name %}
+                        {{ leg.cruise_information.ship_name }}
+                      {% endif %}
+                    </strong>
+                  </div>
+                {% endif %}
+
+                <!-- Route -->
+                <div class="gt-route mb-3">
+                  <div class="gt-route-point gt-route-pickup">
+                    <div class="gt-route-label">Pickup</div>
+                    <div class="gt-route-address">{{ leg.pickup_location }}</div>
+                    <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ leg.pickup_location }}">
+                      <i class="bi bi-cursor-fill"></i> Navigate
+                    </button>
+                  </div>
+                  <div class="gt-route-point gt-route-dropoff">
+                    <div class="gt-route-label">Dropoff</div>
+                    <div class="gt-route-address">{{ leg.dropoff_location }}</div>
+                    <button class="gt-nav-btn mt-1 navigate-btn" data-address="{{ leg.dropoff_location }}">
+                      <i class="bi bi-cursor-fill"></i> Navigate
+                    </button>
+                  </div>
+                </div>
+
+                {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
+                  <div class="gt-store-stop mb-3">
+                    <i class="bi bi-shop me-1" style="color:var(--gt-green);"></i>
+                    <strong>Store Stop</strong> — Publix @9930 Universal Blvd
+                  </div>
+                {% endif %}
+
+                <!-- Trip Details -->
+                <div class="gt-card mb-3" style="border:1px solid var(--gt-border-light);box-shadow:none;">
+                  <div style="padding:10px 14px;">
+                    <div class="d-flex flex-wrap gap-0 mb-1" style="font-size:0.875rem;">
+                      <div style="padding-right:12px;margin-right:12px;border-right:1px solid var(--gt-border);"><span class="gt-label">Vehicle</span><br><strong>{{ leg.reservation.vehicle.get_vehicle_type_display }}</strong></div>
+                      <div style="padding-right:12px;margin-right:12px;border-right:1px solid var(--gt-border);"><span class="gt-label">Passengers</span><br><strong>{{ leg.reservation.passenger_count }}</strong></div>
+                      <div><span class="gt-label">Luggage</span><br><strong>{{ leg.reservation.luggage_count }}</strong>{% if leg.reservation.luggage_type %}<br><span style="font-size:0.75rem;color:var(--gt-text-secondary);">{{ leg.reservation.get_luggage_type_display|cut:" / Not Sure" }}</span>{% endif %}</div>
+                    </div>
+                    {% if leg.reservation.display_carseats and leg.reservation.display_carseats != "0" %}
+                      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--gt-border-light);">
+                        <span class="gt-label" style="font-size:0.75rem;">Car Seats</span><br>
+                        <strong style="font-size:1.0625rem;font-weight:800;color:var(--gt-orange);">{{ leg.reservation.display_carseats }}</strong>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <!-- Progression Button -->
+                {% if leg.status == "in-progress" %}
+                  <button class="gt-btn gt-btn-success gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="confirmed">
+                    <i class="bi bi-check-circle-fill"></i> Confirm Job
+                  </button>
+                {% elif leg.status == "confirmed" %}
+                  <button class="gt-btn gt-btn-dark gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="on-the-way">
+                    <i class="bi bi-arrow-right-circle-fill"></i> On the Way
+                  </button>
+                {% elif leg.status == "on-the-way" %}
+                  <button class="gt-btn gt-btn-warning gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="on-location">
+                    <i class="bi bi-geo-alt-fill"></i> On Location
+                  </button>
+                {% elif leg.status == "on-location" %}
+                  <button class="gt-btn gt-btn-primary gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="picked-up">
+                    <i class="bi bi-person-check-fill"></i> Picked Up
+                  </button>
+                {% elif leg.status == "picked-up" %}
+                  <div class="gt-review-reminder gt-review-reminder-active mb-2">
+                    <div class="gt-review-stars mb-2">
+                      <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+                    </div>
+                    <div style="font-size:0.8125rem;font-weight:600;color:var(--gt-blue);margin-bottom:8px;">
+                      Send a review request before completing
+                    </div>
+                    <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                       class="gt-btn gt-btn-primary gt-btn-block">
+                      <i class="bi bi-chat-heart-fill"></i> Request Review
+                    </a>
+                  </div>
+                  <button class="gt-btn gt-btn-success gt-btn-block gt-progression progression-btn"
+                          data-leg-id="{{ leg.id }}" data-next-status="completed">
+                    <i class="bi bi-flag-fill"></i> Complete Trip
+                  </button>
+                {% endif %}
+
+                {% if leg.status != "picked-up" %}
+                  <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
+                     class="gt-btn gt-btn-outline gt-btn-sm mt-2" style="font-size:0.8125rem;">
+                    <i class="bi bi-star-fill" style="color:var(--gt-yellow);"></i> Request Review
+                  </a>
+                {% endif %}
+
+                <!-- Notes -->
+                {% if leg.reservation.special_requests %}
+                  <div class="gt-divider"></div>
+                  <div class="gt-note gt-note-guest">
+                    <div class="gt-label mb-1">Guest Notes</div>
+                    {{ leg.reservation.special_requests }}
+                  </div>
+                {% endif %}
+
+                {% if leg.reservation.private_notes %}
+                  <div class="gt-divider"></div>
+                  <div class="gt-note gt-note-private">
+                    <div class="gt-label mb-1">Private Notes</div>
+                    {{ leg.reservation.private_notes }}
+                  </div>
+                {% endif %}
+
+                {% if leg.private_notes %}
+                  <div class="gt-divider"></div>
+                  <div class="gt-note gt-note-leg">
+                    <div class="gt-label mb-1">Leg Notes</div>
+                    {{ leg.private_notes }}
+                  </div>
+                {% endif %}
+
+                <!-- Driver Notes -->
+                <div class="gt-divider"></div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="gt-label">My Notes</span>
+                  <button class="gt-btn gt-btn-ghost gt-btn-sm edit-driver-notes"
+                          data-leg-id="{{ leg.id }}" data-current-notes="{{ leg.driver_notes|default:'' }}">
+                    <i class="bi bi-pencil"></i> Edit
+                  </button>
+                </div>
+                <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display mt-1">
+                  {% if leg.driver_notes %}
+                    <div class="gt-note gt-note-driver">{{ leg.driver_notes }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Status Override -->
+                <div class="gt-divider"></div>
+                <div class="gt-label mb-1">Update Status</div>
+                <select id="statusSelectMobile-{{ leg.id }}" class="gt-select w-100 status-select">
+                  <option value="in-progress" {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
+                  <option value="confirmed" {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+                  <option value="on-the-way" {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
+                  <option value="on-location" {% if leg.status == "on-location" %}selected{% endif %}>On-Location</option>
+                  <option value="picked-up" {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
+                  <option value="completed" {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
+                </select>
+
+              </div>
             </div>
-            <div class="modal-body">
-              <textarea class="form-control"
-                        id="driver-notes-textarea-modal"
-                        rows="4"
-                        placeholder="Add any notes here for dispatchers or self to see if you need..."></textarea>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="button" class="btn btn-primary" id="save-driver-notes-modal">Save Notes</button>
-            </div>
-          </div>
+          {% endfor %}
         </div>
-      </div>
 
+      {% else %}
+        <!-- Empty State -->
+        <div class="gt-empty">
+          <div class="gt-empty-icon">
+            <i class="bi bi-calendar-x"></i>
+          </div>
+          <h4 style="font-weight:600;margin-bottom:4px;">No trips scheduled</h4>
+          <p style="color:var(--gt-text-secondary);margin:0;">You don't have any assigned trips for the next 60 days.</p>
+        </div>
+      {% endif %}
 
+    </div>
 
-      <!-- Bootstrap JS -->
-      <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-      <script>
-          document.addEventListener('DOMContentLoaded', () => {
-              const csrfToken = "{{ csrf_token }}";
-              let currentLegId = null;
-
-              function setFlightStatusBadge(badge, statusText) {
-                  if (!badge) return;
-                  const status = (statusText || '').toLowerCase();
-                  badge.classList.remove(
-                      'bg-secondary',
-                      'bg-danger',
-                      'bg-success',
-                      'bg-warning',
-                      'bg-info',
-                      'bg-primary'
-                  );
-
-                  if (
-                      status.includes('cancel')
-                      || status.includes('canceled')
-                      || status.includes('delayed')
-                      || status.includes('divert')
-                  ) {
-                      badge.classList.add('bg-danger');
-                  } else if (
-                      status.includes('arrived')
-                      || status.includes('arrival')
-                      || status.includes('landed')
-                      || status.includes('completed')
-                  ) {
-                      badge.classList.add('bg-success');
-                  } else if (
-                      status.includes('en route')
-                      || status.includes('airborne')
-                      || status.includes('in air')
-                      || status.includes('departed')
-                  ) {
-                      badge.classList.add('bg-success');
-                  } else if (
-                      status.includes('boarding')
-                      || status.includes('gate')
-                      || status.includes('taxi')
-                  ) {
-                      badge.classList.add('bg-warning');
-                  } else if (
-                      status.includes('scheduled')
-                      || status.includes('on time')
-                      || status.includes('on-time')
-                      || status.includes('active')
-                  ) {
-                      badge.classList.add('bg-primary');
-                  } else {
-                      badge.classList.add('bg-secondary');
-                  }
-              }
-
-              document.querySelectorAll('.flight-status').forEach((badge) => {
-                  setFlightStatusBadge(badge, badge.dataset.flightStatus || badge.textContent);
-              });
-
-              // Status update functionality
-              document.querySelectorAll('.status-select').forEach(select => {
-                  select.addEventListener('change', (event) => {
-                      const legId = event.target.id.split('-')[1];
-                      const newStatus = event.target.value;
-
-                      fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
-                              method: 'POST',
-                              headers: {
-                                  'Content-Type': 'application/json',
-                                  'X-CSRFToken': csrfToken
-                              },
-                              body: JSON.stringify({
-                                  status: newStatus
-                              })
-                          })
-                          .then(res => res.json())
-                          .then(data => window.location.reload())
-                          .catch(() => window.location.reload());
-                  });
-              });
-
-              // Progression button functionality
-              document.querySelectorAll('.progression-btn').forEach(button => {
-                  button.addEventListener('click', (event) => {
-                      const buttonElement = event.currentTarget;
-                      const legId = buttonElement.dataset.legId;
-                      const nextStatus = buttonElement.dataset.nextStatus;
-                      
-                      // Add confirmation for completed status
-                      if (nextStatus === 'completed') {
-                          const confirmed = confirm('Are you sure you want to mark this trip as completed?');
-                          if (!confirmed) {
-                              return;
-                          }
-                      }
-                      
-                      // Show loading state
-                      const originalText = buttonElement.innerHTML;
-                      buttonElement.innerHTML = '<i class="bi bi-hourglass-split"></i> Updating...';
-                      buttonElement.disabled = true;
-
-                      fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
-                              method: 'POST',
-                              headers: {
-                                  'Content-Type': 'application/json',
-                                  'X-CSRFToken': csrfToken
-                              },
-                              body: JSON.stringify({
-                                  status: nextStatus
-                              })
-                          })
-                          .then(res => res.json())
-                          .then(data => {
-                              if (data.success) {
-                                  // Refresh the page to show updated status
-                                  window.location.reload();
-                              } else {
-                                  // Reset button state on error
-                                  buttonElement.innerHTML = originalText;
-                                  buttonElement.disabled = false;
-                                  alert('Error updating status: ' + (data.error || 'Unknown error'));
-                              }
-                          })
-                          .catch(error => {
-                              console.error('Error updating status:', error);
-                              // Reset button state on error
-                              buttonElement.innerHTML = originalText;
-                              buttonElement.disabled = false;
-                              alert('Error updating status. Please try again.');
-                          });
-                  });
-              });
-
-              function updateFlightUI(legId, flightData) {
-                  const container = document.querySelector(`.flight-tracker[data-leg-id="${legId}"]`);
-                  if (!container) return;
-
-                  const statusEl = container.querySelector('.flight-status');
-                  const baggageEl = container.querySelector('.flight-baggage');
-                  const terminalEl = container.querySelector('.flight-terminal');
-                  const landingEl = container.querySelector('.flight-landing');
-                  const gateArrivalEl = container.querySelector('.flight-gate-arrival');
-                  const updatedEl = container.querySelector('.flight-updated');
-
-                  if (statusEl) {
-                      statusEl.textContent = flightData.status || 'Unknown';
-                      setFlightStatusBadge(statusEl, flightData.status || '');
-                  }
-                  if (terminalEl) {
-                      if (flightData.terminal) {
-                          terminalEl.textContent = `Terminal ${flightData.terminal}`;
-                          terminalEl.style.display = '';
-                      } else {
-                          terminalEl.style.display = 'none';
-                      }
-                  }
-
-                  if (baggageEl) {
-                      if (flightData.baggage_claim) {
-                          baggageEl.textContent = `Baggage ${flightData.baggage_claim}`;
-                          baggageEl.style.display = '';
-                      } else {
-                          baggageEl.style.display = 'none';
-                      }
-                  }
-
-                  if (landingEl) {
-                      if (flightData.actual_arrival_local) {
-                          landingEl.textContent = `Landing: ${flightData.actual_arrival_local.split(' ').slice(1).join(' ')}`;
-                          landingEl.style.display = '';
-                      } else if (flightData.estimated_arrival_local) {
-                          landingEl.textContent = `Landing: ${flightData.estimated_arrival_local.split(' ').slice(1).join(' ')}`;
-                          landingEl.style.display = '';
-                      } else if (flightData.scheduled_arrival_local) {
-                          landingEl.textContent = `Landing: ${flightData.scheduled_arrival_local.split(' ').slice(1).join(' ')}`;
-                          landingEl.style.display = '';
-                      } else {
-                          landingEl.textContent = '';
-                          landingEl.style.display = 'none';
-                      }
-                  }
-
-                  if (gateArrivalEl) {
-                      if (flightData.actual_gate_arrival_local) {
-                          gateArrivalEl.textContent = `Gate Arrival: ${flightData.actual_gate_arrival_local.split(' ').slice(1).join(' ')}`;
-                          gateArrivalEl.style.display = '';
-                      } else if (flightData.estimated_gate_arrival_local) {
-                          gateArrivalEl.textContent = `Gate Arrival: ${flightData.estimated_gate_arrival_local.split(' ').slice(1).join(' ')}`;
-                          gateArrivalEl.style.display = '';
-                      } else if (flightData.scheduled_gate_arrival_local) {
-                          gateArrivalEl.textContent = `Gate Arrival: ${flightData.scheduled_gate_arrival_local.split(' ').slice(1).join(' ')}`;
-                          gateArrivalEl.style.display = '';
-                      } else {
-                          gateArrivalEl.textContent = '';
-                          gateArrivalEl.style.display = 'none';
-                      }
-                  }
-
-                  if (updatedEl) {
-                      if (flightData.last_updated) {
-                          updatedEl.textContent = `Updated ${flightData.last_updated.split(' ').slice(1).join(' ')}`;
-                          updatedEl.style.display = '';
-                      } else {
-                          updatedEl.style.display = 'none';
-                      }
-                  }
-              }
-
-              document.querySelectorAll('.refresh-flight-data').forEach(button => {
-                  button.addEventListener('click', () => {
-                      const legId = button.getAttribute('data-leg-id');
-                      if (!legId) return;
-                      button.disabled = true;
-                      button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing';
-                      fetch("{% url 'driver_refresh_flight_data' %}", {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken
-                          },
-                          body: JSON.stringify({ leg_id: legId })
-                      })
-                      .then(response => response.json().then(data => ({ response, data })))
-                      .then(({ response, data }) => {
-                          if (data.success && data.flight_data) {
-                              updateFlightUI(legId, data.flight_data);
-                              setTimeout(() => window.location.reload(), 300);
-                          } else if (!response.ok && data.error) {
-                              alert(data.error);
-                          }
-                      })
-                      .catch(err => {
-                          console.error('Refresh flight error:', err);
-                          alert('Could not refresh flight. Please try again.');
-                      })
-                      .finally(() => {
-                          button.disabled = false;
-                          button.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Refresh';
-                      });
-                  });
-              });
-
-              // Clean modal-based driver notes functionality
-              function openNotesModal(legId, currentNotes = '') {
-                  currentLegId = legId;
-                  const textarea = document.getElementById('driver-notes-textarea-modal');
-
-                  // Get the most up-to-date notes from the display div
-                  const displayDiv = document.getElementById(`driver-notes-display-${legId}`);
-                  let latestNotes = currentNotes;
-
-                  if (displayDiv) {
-                      const noteContent = displayDiv.querySelector('.border.rounded.p-2.bg-light');
-                      if (noteContent) {
-                          latestNotes = noteContent.textContent.trim();
-                      }
-                  }
-
-                  textarea.value = latestNotes;
-                  console.log('Opening modal with notes:', latestNotes);
-
-                  const modal = new bootstrap.Modal(document.getElementById('driverNotesModal'));
-                  modal.show();
-              }
-
-              function saveNotes() {
-                  if (!currentLegId) return;
-
-                  const textarea = document.getElementById('driver-notes-textarea-modal');
-                  const notes = textarea.value;
-
-                  console.log('Saving notes for leg:', currentLegId);
-                  console.log('Notes content:', notes);
-
-                  // Show loading state
-                  const saveButton = document.getElementById('save-driver-notes-modal');
-                  const originalText = saveButton.innerHTML;
-                  saveButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
-                  saveButton.disabled = true;
-
-                  fetch(`${window.location.origin}/drivers/update_driver_notes/${currentLegId}/`, {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken
-                          },
-                          body: JSON.stringify({
-                              driver_notes: notes
-                          })
-                      })
-                      .then(res => {
-                          if (!res.ok) {
-                              throw new Error(`HTTP error! status: ${res.status}`);
-                          }
-                          return res.json();
-                      })
-                      .then(data => {
-                          if (data.success) {
-                              console.log('Server response success, updating display...');
-
-                              // Update the display immediately
-                              const displayDiv = document.getElementById(`driver-notes-display-${currentLegId}`);
-                              console.log('Found display div:', displayDiv);
-                              console.log('Display div ID:', `driver-notes-display-${currentLegId}`);
-
-                              // Check if there are multiple elements with the same ID
-                              const allDisplayDivs = document.querySelectorAll(`[id="driver-notes-display-${currentLegId}"]`);
-                              console.log('Total display divs found:', allDisplayDivs.length);
-
-                              // Update ALL display divs (desktop and mobile)
-                              allDisplayDivs.forEach((div, index) => {
-                                  console.log(`Updating display div ${index + 1}:`, div);
-
-                                  const newContent = notes.trim() ?
-                                      `<div class="border rounded p-2 bg-light">${notes}</div>` :
-                                      `<div class="text-muted small">No notes added yet</div>`;
-
-                                  // Force a complete re-render
-                                  div.style.display = 'none';
-                                  div.innerHTML = newContent;
-                                  div.style.display = 'block';
-
-                                  // Add a visual indicator that it updated
-                                  div.style.border = '2px solid #28a745';
-                                  div.style.backgroundColor = '#d4edda';
-                                  setTimeout(() => {
-                                      div.style.border = '';
-                                      div.style.backgroundColor = '';
-                                  }, 1000);
-
-                                  console.log(`Display div ${index + 1} updated successfully`);
-                              });
-
-                              if (allDisplayDivs.length === 0) {
-                                  console.error('Could not find any display divs for leg:', currentLegId);
-                              }
-
-                              // Update the button's data attribute
-                              const editButton = document.querySelector(`.edit-driver-notes[data-leg-id="${currentLegId}"]`);
-                              console.log('Found edit button:', editButton);
-                              if (editButton) {
-                                  editButton.dataset.currentNotes = notes;
-                                  console.log('Updated button data attribute');
-                              }
-
-                              // Close modal
-                              const modal = bootstrap.Modal.getInstance(document.getElementById('driverNotesModal'));
-                              console.log('Modal instance:', modal);
-                              modal.hide();
-                              console.log('Modal hide() called');
-
-                              // Add a small delay to ensure the modal is fully closed
-                              setTimeout(() => {
-                                  console.log('Modal should be closed now');
-                                  // Force focus back to the page
-                                  document.body.focus();
-                              }, 100);
-
-                              // Reset button state
-                              saveButton.innerHTML = originalText;
-                              saveButton.disabled = false;
-
-                              console.log('Notes saved and display updated successfully');
-                          } else {
-                              throw new Error(data.error || 'Failed to save notes');
-                          }
-                      })
-                      .catch(error => {
-                          console.error('Error saving notes:', error);
-
-                          // Reset button state
-                          saveButton.innerHTML = originalText;
-                          saveButton.disabled = false;
-
-                          // Fallback: auto-refresh the page to ensure display is updated
-                          alert('Notes saved successfully! Refreshing page to update display...');
-                          window.location.reload();
-                      });
-              }
-
-              // Event listeners for driver notes
-              document.addEventListener('click', (e) => {
-                  if (e.target.closest('.edit-driver-notes')) {
-                      e.preventDefault();
-                      const button = e.target.closest('.edit-driver-notes');
-                      const legId = button.dataset.legId;
-                      const currentNotes = button.dataset.currentNotes || '';
-                      openNotesModal(legId, currentNotes);
-                  }
-              });
-
-              // Save button in modal
-              document.getElementById('save-driver-notes-modal').addEventListener('click', saveNotes);
-          });
-      </script>
-    </body>
-  </html>
+    {% include "drivers/_driver_scripts.html" %}
+  </body>
+</html>

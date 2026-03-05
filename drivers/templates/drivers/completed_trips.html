@@ -1,614 +1,262 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Completed Trips</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-          rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
-          rel="stylesheet" />
-
-    <style>
-        :root {
-            --primary-dark: #343a40;
-            --text-muted: #6c757d;
-            --completed-color: #198754;
-        }
-
-        body {
-            background-color: #f8f9fa;
-        }
-
-        .sticky-top {
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-
-        .card {
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-            margin-bottom: 20px;
-        }
-
-        .card-header-dark {
-            background-color: var(--primary-dark);
-            color: white;
-            padding: 15px;
-        }
-
-        .table th {
-            font-weight: 600;
-        }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 12px;
-            border-radius: 50px;
-            font-weight: 500;
-            background-color: rgba(25, 135, 84, 0.1);
-            color: var(--completed-color);
-        }
-
-        .status-badge i {
-            margin-right: 5px;
-        }
-
-        .trip-card-mobile {
-            border-left: 5px solid var(--completed-color);
-        }
-
-        .mobile-section {
-            margin-bottom: 12px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .mobile-section:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-
-        @media (max-width: 768px) {
-            .table {
-                font-size: 14px;
-            }
-
-            td {
-                padding: 8px;
-            }
-        }
-
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 5px;
-        }
-
-        .status-in-progress {
-            background-color: #ffc107;
-        }
-
-        .status-on-location {
-            background-color: #17a2b8;
-        }
-
-        .status-picked-up {
-            background-color: #0d6efd;
-        }
-
-        .status-completed {
-            background-color: #198754;
-        }
-
-        .status-confirmed {
-            background-color: #6f42c1;
-        }
-
-        .status-on-the-way {
-            background-color: #fd7e14;
-        }
-
-        .card-border-in-progress {
-            border-left: 5px solid #ffc107 !important;
-        }
-
-        .card-border-on-location {
-            border-left: 5px solid #17a2b8 !important;
-        }
-
-        .card-border-picked-up {
-            border-left: 5px solid #0d6efd !important;
-        }
-
-        .card-border-completed {
-            border-left: 5px solid #198754 !important;
-        }
-    </style>
+    {% include "drivers/_driver_head.html" %}
+    <title>Completed Trips — Grayson Towncar</title>
   </head>
 
   <body>
-    {% include 'drivers/navbar.html' %}
+    {% include "drivers/navbar.html" %}
 
-    <div class="container-fluid py-3">
-      <div class="card mb-4">
-        <div class="card-header card-header-dark d-flex justify-content-between align-items-center">
-          <h1 class="h3 mb-0">Completed Trips</h1>
+    <div class="container-fluid" style="max-width:1200px; padding:16px 12px;">
+
+      <!-- ═══ Page Header ═══ -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h1 style="font-size:1.375rem;font-weight:700;margin:0;letter-spacing:-0.02em;">Completed Trips</h1>
         </div>
-        <div class="card-body py-3">
-          <div class="row align-items-center">
-            <div class="col-md-6">
-              <div class="alert alert-light d-flex align-items-center border p-2 w-100 mx-auto mb-0"
-                   style="max-width:450px">
-                <strong class="me-1">Logged in as:</strong>
-                <span>{{ request.user|title }}</span>
-              </div>
-            </div>
-            <div class="col-auto ms-auto text-center">
-              <div class="input-group" style="max-width: 200px;">
-                <span class="input-group-text bg-dark text-white small py-1 px-2"># Completed Trips</span>
-                <input type="text"
-                       class="form-control form-control-sm py-1"
-                       value="{{ legs.count }}"
-                       readonly />
-              </div>
-            </div>
-          </div>
-        </div>
+        {% if legs %}
+          <span class="gt-chip" style="background:var(--gt-bg);border:1px solid var(--gt-border);">
+            {{ legs|length }} trip{{ legs|length|pluralize }}
+          </span>
+        {% endif %}
       </div>
 
       {% if legs %}
-        <!-- Desktop Table Card -->
-        <div class="card d-none d-md-block">
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-striped table-hover align-middle border mb-0">
-                <thead class="table-dark sticky-top">
+
+        <!-- ═══ Desktop Table ═══ -->
+        <div class="gt-card d-none d-md-block mb-3">
+          <div class="table-responsive">
+            <table class="gt-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Route</th>
+                  <th>Details</th>
+                  <th>Notes</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for leg in legs %}
                   <tr>
-                    <th>Reservation Info</th>
-                    <th>Pickup</th>
-                    <th>Locations</th>
-                    <th>Vehicle & Passengers</th>
-                    <th>Notes</th>
-                    <th>Status</th>
+                    <td>
+                      <div class="gt-time" style="font-size:1rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
+                      <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">{{ leg.pickup_date|date:"l, M j" }}</div>
+                    </td>
+                    <td>
+                      <div class="gt-route">
+                        <div class="gt-route-point gt-route-pickup">
+                          <div class="gt-route-label">Pickup</div>
+                          <span class="gt-route-address">{{ leg.pickup_location }}</span>
+                        </div>
+                        <div class="gt-route-point gt-route-dropoff">
+                          <div class="gt-route-label">Dropoff</div>
+                          <span class="gt-route-address">{{ leg.dropoff_location }}</span>
+                        </div>
+                      </div>
+                      {% if leg.flight_information %}
+                        <div class="mt-2" style="font-size:0.8125rem;">
+                          <i class="bi bi-airplane me-1" style="opacity:0.5;"></i>{{ leg.flight_information }}
+                        </div>
+                      {% endif %}
+                      {% if leg.cruise_information %}
+                        <div class="mt-1" style="font-size:0.8125rem;">
+                          <i class="bi bi-water me-1" style="color:var(--gt-cyan);"></i>
+                          {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                            {{ leg.cruise_information.cruise_line }} — {{ leg.cruise_information.ship_name }}
+                          {% elif leg.cruise_information.cruise_line %}
+                            {{ leg.cruise_information.cruise_line }}
+                          {% elif leg.cruise_information.ship_name %}
+                            {{ leg.cruise_information.ship_name }}
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if leg.reservation.special_requests %}
+                        <div class="gt-note gt-note-guest mb-2">
+                          <div class="gt-label mb-1">Guest Notes</div>
+                          {{ leg.reservation.special_requests }}
+                        </div>
+                      {% endif %}
+                      {% if leg.reservation.private_notes %}
+                        <div class="gt-note gt-note-private mb-2">
+                          <div class="gt-label mb-1">Company</div>
+                          {{ leg.reservation.private_notes }}
+                        </div>
+                      {% endif %}
+                      {% if leg.private_notes %}
+                        <div class="gt-note gt-note-leg mb-2">
+                          <div class="gt-label mb-1">Leg Notes</div>
+                          {{ leg.private_notes }}
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td style="min-width:160px;">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="gt-label">My Notes</span>
+                        <button class="gt-btn gt-btn-ghost edit-driver-notes" style="padding:2px 6px;font-size:0.75rem;"
+                                data-leg-id="{{ leg.id }}" data-current-notes="{{ leg.driver_notes|default:'' }}">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                      </div>
+                      <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
+                        {% if leg.driver_notes %}
+                          <div class="gt-note gt-note-driver">{{ leg.driver_notes }}</div>
+                        {% else %}
+                          <span style="font-size:0.8125rem;color:var(--gt-text-secondary);">—</span>
+                        {% endif %}
+                      </div>
+                    </td>
+                    <td>
+                      <div class="gt-chip gt-chip-completed">
+                        <span class="gt-chip-dot"></span>
+                        Completed
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {% for leg in legs %}
-                    <tr>
-                      <td>
-                        <div class="mb-1 text-muted">Trip completed</div>
-                      </td>
-                      <td>
-                        <div class="fw-bold">{{ leg.pickup_date|date:'l, F j' }}</div>
-                        <div>{{ leg.pickup_time|date:'g:i A' }}</div>
-                      </td>
-                      <td>
-                        <div class="mb-1">
-                          <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
-                        </div>
-                        <div>
-                          <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
-                        </div>
-                        {% if leg.flight_information %}
-                          <div class="mt-1">
-                            <span class="fw-bold">Flight:</span> {{ leg.flight_information }}
-                          </div>
-                        {% endif %}
-                        {% if leg.cruise_information %}
-                          <div class="mt-1">
-                            <span class="fw-bold">Cruise:</span> 
-                            <i class="bi bi-ship me-1"></i>
-                            {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                              {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
-                            {% elif leg.cruise_information.cruise_line %}
-                              {{ leg.cruise_information.cruise_line }}
-                            {% elif leg.cruise_information.ship_name %}
-                              {{ leg.cruise_information.ship_name }}
-                            {% endif %}
-                          </div>
-                        {% endif %}
-                      </td>
-                      <td>
-                        {% if leg.reservation.special_requests %}
-                          <div class="mb-2">
-                            <span class="text-muted small fw-bold">Guest Notes:</span>
-                            <div>{{ leg.reservation.special_requests }}</div>
-                          </div>
-                        {% endif %}
-                        {% if leg.reservation.private_notes %}
-                          <div>
-                            <span class="text-muted small fw-bold">Company Notes:</span>
-                            <div>{{ leg.reservation.private_notes }}</div>
-                          </div>
-                        {% endif %}
-
-                        {% if leg.private_notes %}
-                          <div class="mt-2">
-                            <span class="text-muted small fw-bold">Leg Notes:</span>
-                            <div>{{ leg.private_notes }}</div>
-                          </div>
-                        {% endif %}
-
-                        <!-- Driver Notes Section -->
-                        <div class="mt-3">
-                          <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div>
-                              <span class="text-muted small fw-bold">My Notes:</span>
-                              <span class="badge bg-warning text-dark ms-2" style="font-size: 0.7em;">
-                                <i class="bi bi-shield-lock"></i> For Dispatchers/Admin Only
-                              </span>
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary edit-driver-notes"
-                                    data-leg-id="{{ leg.id }}"
-                                    data-current-notes="{{ leg.driver_notes|default:'' }}">
-                              <i class="bi bi-pencil"></i> Edit
-                            </button>
-                          </div>
-                          <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                            {% if leg.driver_notes %}
-                              <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-                            {% else %}
-                              <div class="text-muted small">No notes added yet</div>
-                            {% endif %}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div class="status-badge">
-                          <i class="bi bi-check-circle-fill"></i> Completed
-                        </div>
-                        <!-- Update Status Dropdown -->
-                        <select id="statusSelect-{{ leg.id }}"
-                                class="form-select form-select-sm status-select"
-                                disabled>
-                          <option value="in-progress"
-                                  {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
-                          <option value="confirmed"
-                                  {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
-                          <option value="on-the-way"
-                                  {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
-                          <option value="on-location"
-                                  {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
-                          <option value="picked-up"
-                                  {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
-                          <option value="completed"
-                                  {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
-                        </select>
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <!-- Mobile Card View - Enhanced -->
-        <div class="d-md-none">
+        <!-- ═══ Mobile Cards ═══ -->
+        <div class="d-md-none d-flex flex-column gap-3">
           {% for leg in legs %}
-            <div class="card trip-card-mobile card-border-{{ leg.status }}">
-              <div class="card-header card-header-dark">
+            <div class="gt-card gt-status-completed">
+              <div class="gt-card-header">
                 <div class="d-flex justify-content-between align-items-center">
                   <div>
-                    <div class="fw-bold">{{ leg.pickup_time|date:'g:i A' }}</div>
-                    <div>{{ leg.pickup_date|date:'l, F j' }}</div>
+                    <div class="gt-time" style="font-size:1.25rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
+                    <div style="font-size:0.8125rem;color:rgba(255,255,255,0.5);">{{ leg.pickup_date|date:"l, M j" }}</div>
                   </div>
-                  <div class="d-flex align-items-center">
-                    <span class="status-indicator status-{{ leg.status }}"></span>
-                    <span class="text-capitalize">{{ leg.get_status_display }}</span>
+                  <div class="gt-chip gt-chip-completed" style="background:rgba(255,255,255,0.1);color:#fff;">
+                    <span class="gt-chip-dot"></span>
+                    Completed
                   </div>
                 </div>
               </div>
-              <div class="card-body">
-                <div class="mobile-section">
-                  <div class="mb-1">
-                    <strong>Pickup:</strong> {{ leg.pickup_location }}
+
+              <div style="padding:14px;">
+                <!-- Route -->
+                <div class="gt-route mb-3">
+                  <div class="gt-route-point gt-route-pickup">
+                    <div class="gt-route-label">Pickup</div>
+                    <div class="gt-route-address">{{ leg.pickup_location }}</div>
                   </div>
-                  <div>
-                    <strong>Dropoff:</strong> {{ leg.dropoff_location }}
+                  <div class="gt-route-point gt-route-dropoff">
+                    <div class="gt-route-label">Dropoff</div>
+                    <div class="gt-route-address">{{ leg.dropoff_location }}</div>
                   </div>
-                  {% if leg.flight_information %}
-                    <div class="mt-1">
-                      <strong>Flight:</strong> {{ leg.flight_information }}
-                    </div>
-                  {% endif %}
-                  {% if leg.cruise_information %}
-                    <div class="mt-1">
-                      <strong>Cruise:</strong> 
-                      <i class="bi bi-ship me-1"></i>
-                      {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
-                        {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
-                      {% elif leg.cruise_information.cruise_line %}
-                        {{ leg.cruise_information.cruise_line }}
-                      {% elif leg.cruise_information.ship_name %}
-                        {{ leg.cruise_information.ship_name }}
-                      {% endif %}
-                    </div>
-                  {% endif %}
                 </div>
 
-                <div class="mobile-section">
-                  <div class="mb-1">
-                    <strong>Payment Status:</strong> {{ leg.payment_status |title }} - 
-                    {% if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None %}
-                      Base: ${{ leg.driver_base_pay|default:"0.00"|floatformat:2 }}, Gratuity: ${{ leg.driver_gratuity|default:"0.00"|floatformat:2 }}, Additional: ${{ leg.driver_additional|default:"0.00"|floatformat:2 }} (Total: ${{ leg.total_driver_pay|floatformat:2 }})
-                    {% else %}
+                {% if leg.flight_information %}
+                  <div class="mb-2" style="font-size:0.875rem;">
+                    <i class="bi bi-airplane me-1" style="opacity:0.5;"></i>{{ leg.flight_information }}
+                  </div>
+                {% endif %}
+                {% if leg.cruise_information %}
+                  <div class="mb-2" style="font-size:0.875rem;">
+                    <i class="bi bi-water me-1" style="color:var(--gt-cyan);"></i>
+                    {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                      {{ leg.cruise_information.cruise_line }} — {{ leg.cruise_information.ship_name }}
+                    {% elif leg.cruise_information.cruise_line %}
+                      {{ leg.cruise_information.cruise_line }}
+                    {% elif leg.cruise_information.ship_name %}
+                      {{ leg.cruise_information.ship_name }}
+                    {% endif %}
+                  </div>
+                {% endif %}
+
+                <!-- Payment + Vehicle Info -->
+                <div class="gt-info-grid mb-3">
+                  <div class="gt-info-cell">
+                    <div class="gt-info-value">{{ leg.reservation.vehicle }}</div>
+                    <div class="gt-info-label">Vehicle</div>
+                  </div>
+                  <div class="gt-info-cell">
+                    <div class="gt-info-value">{{ leg.reservation.passenger_count }}</div>
+                    <div class="gt-info-label">PAX</div>
+                  </div>
+                  <div class="gt-info-cell">
+                    <div class="gt-info-value">{{ leg.reservation.display_carseats|default:"0" }}</div>
+                    <div class="gt-info-label">Car Seats</div>
+                  </div>
+                </div>
+
+                <!-- Pay breakdown -->
+                <div class="gt-note mb-3" style="border-left-color:var(--gt-green);">
+                  <div class="gt-label mb-1">Payment — {{ leg.payment_status|title }}</div>
+                  {% if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None %}
+                    <div style="font-size:0.875rem;">
+                      Base: ${{ leg.driver_base_pay|default:"0.00"|floatformat:2 }} &middot;
+                      Tip: ${{ leg.driver_gratuity|default:"0.00"|floatformat:2 }} &middot;
+                      Add'l: ${{ leg.driver_additional|default:"0.00"|floatformat:2 }}
+                    </div>
+                    <div style="font-size:1rem;font-weight:700;margin-top:4px;">
+                      Total: ${{ leg.total_driver_pay|floatformat:2 }}
+                    </div>
+                  {% else %}
+                    <div style="font-size:1rem;font-weight:700;">
                       ${{ leg.total_driver_pay|floatformat:2 }}
-                    {% endif %}
-                  </div>
-                  <div class="mb-1">
-                    <strong>Vehicle:</strong> {{ leg.reservation.vehicle }}
-                  </div>
-                  <div class="d-flex">
-                    <div class="me-3">
-                      <strong>Passengers:</strong> {{ leg.reservation.passenger_count }}
                     </div>
-                    <div>
-                      <strong>Car Seats:</strong> {{ leg.reservation.display_carseats|default:'0' }}
-                    </div>
-                    <br>
-                  </div>
+                  {% endif %}
                 </div>
 
-                {% if leg.reservation.special_requests or leg.reservation.private_notes %}
-                  <div class="mobile-section">
-                    {% if leg.reservation.special_requests %}
-                      <div class="mb-2">
-                        <div class="text-muted small fw-bold">Guest Notes:</div>
-                        <div>{{ leg.reservation.special_requests }}</div>
-                      </div>
-                    {% endif %}
+                <!-- Notes -->
+                {% if leg.reservation.special_requests %}
+                  <div class="gt-note gt-note-guest mb-2">
+                    <div class="gt-label mb-1">Guest Notes</div>
+                    {{ leg.reservation.special_requests }}
+                  </div>
+                {% endif %}
 
-                    {% if leg.reservation.private_notes %}
-                      <div>
-                        <div class="text-muted small fw-bold">Company Notes:</div>
-                        <div>{{ leg.reservation.private_notes }}</div>
-                      </div>
-                    {% endif %}
+                {% if leg.reservation.private_notes %}
+                  <div class="gt-note gt-note-private mb-2">
+                    <div class="gt-label mb-1">Company Notes</div>
+                    {{ leg.reservation.private_notes }}
                   </div>
                 {% endif %}
 
                 {% if leg.private_notes %}
-                  <div class="mt-2">
-                    <span class="text-muted small fw-bold">Leg Notes:</span>
-                    <div>{{ leg.private_notes }}</div>
+                  <div class="gt-note gt-note-leg mb-2">
+                    <div class="gt-label mb-1">Leg Notes</div>
+                    {{ leg.private_notes }}
                   </div>
                 {% endif %}
 
-                <!-- Driver Notes Section -->
-                <div class="mt-3">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div>
-                      <span class="text-muted small fw-bold">My Notes:</span>
-
-                    </div>
-                    <button class="btn btn-sm btn-outline-primary edit-driver-notes"
-                            data-leg-id="{{ leg.id }}"
-                            data-current-notes="{{ leg.driver_notes|default:'' }}">
-                      <i class="bi bi-pencil"></i> Edit
-                    </button>
-                  </div>
-                  <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display">
-                    {% if leg.driver_notes %}
-                      <div class="border rounded p-2 bg-light">{{ leg.driver_notes }}</div>
-                    {% else %}
-                      <div class="text-muted small">No notes added yet</div>
-                    {% endif %}
-                  </div>
+                <div class="gt-divider"></div>
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="gt-label">My Notes</span>
+                  <button class="gt-btn gt-btn-ghost gt-btn-sm edit-driver-notes"
+                          data-leg-id="{{ leg.id }}" data-current-notes="{{ leg.driver_notes|default:'' }}">
+                    <i class="bi bi-pencil"></i> Edit
+                  </button>
                 </div>
-
-                <!-- Mobile Status Dropdown -->
-                <div class="mobile-section">
-                  <label for="statusSelectMobile-{{ leg.id }}" class="form-label fw-bold">Update Status:</label>
-                  <select id="statusSelectMobile-{{ leg.id }}"
-                          class="form-select status-select"
-                          disabled>
-                    <option value="in-progress"
-                            {% if leg.status == "in-progress" %}selected{% endif %}>In-Progress</option>
-                    <option value="confirmed"
-                            {% if leg.status == "confirmed" %}selected{% endif %}>Confirmed</option>
-                    <option value="on-the-way"
-                            {% if leg.status == "on-the-way" %}selected{% endif %}>On the Way</option>
-                    <option value="on-location"
-                            {% if leg.status == "on-location" %}selected{% endif %}>On Location</option>
-                    <option value="picked-up"
-                            {% if leg.status == "picked-up" %}selected{% endif %}>Picked-Up</option>
-                    <option value="completed"
-                            {% if leg.status == "completed" %}selected{% endif %}>Completed</option>
-                  </select>
+                <div id="driver-notes-display-{{ leg.id }}" class="driver-notes-display mt-1">
+                  {% if leg.driver_notes %}
+                    <div class="gt-note gt-note-driver">{{ leg.driver_notes }}</div>
+                  {% endif %}
                 </div>
               </div>
             </div>
           {% endfor %}
         </div>
+
       {% else %}
-        <div class="alert alert-info">No completed trips found.</div>
-      {% endif %}
-    </div>
-
-    <!-- Driver Notes Modal -->
-    <div class="modal fade"
-         id="driverNotesModal"
-         tabindex="-1"
-         aria-labelledby="driverNotesModalLabel"
-         aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="driverNotesModalLabel">Edit Driver Notes</h5>
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="modal"
-                    aria-label="Close"></button>
+        <div class="gt-empty">
+          <div class="gt-empty-icon">
+            <i class="bi bi-check2-circle"></i>
           </div>
-          <div class="modal-body">
-            <textarea class="form-control"
-                      id="driver-notes-textarea-modal"
-                      rows="4"
-                      placeholder="Add your notes about this trip..."></textarea>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" class="btn btn-primary" id="save-driver-notes-modal">Save Notes</button>
-          </div>
+          <h4 style="font-weight:600;margin-bottom:4px;">No completed trips yet</h4>
+          <p style="color:var(--gt-text-secondary);margin:0;">Your completed trips will appear here.</p>
         </div>
-      </div>
+      {% endif %}
+
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const csrfToken = "{{ csrf_token }}";
-            let currentLegId = null;
-
-            // Status update functionality
-            document.querySelectorAll('.status-select').forEach(select => {
-                select.addEventListener('change', (event) => {
-                    const legId = event.target.id.split('-')[1];
-                    const newStatus = event.target.value;
-
-                    fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': csrfToken
-                            },
-                            body: JSON.stringify({
-                                status: newStatus
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(data => window.location.reload())
-                        .catch(() => window.location.reload());
-                });
-            });
-
-            // Clean modal-based driver notes functionality
-            function openNotesModal(legId, currentNotes = '') {
-                currentLegId = legId;
-                const textarea = document.getElementById('driver-notes-textarea-modal');
-
-                // Get the most up-to-date notes from the display div
-                const displayDiv = document.getElementById(`driver-notes-display-${legId}`);
-                let latestNotes = currentNotes;
-
-                if (displayDiv) {
-                    const noteContent = displayDiv.querySelector('.border.rounded.p-2.bg-light');
-                    if (noteContent) {
-                        latestNotes = noteContent.textContent.trim();
-                    }
-                }
-
-                textarea.value = latestNotes;
-                console.log('Opening modal with notes:', latestNotes);
-
-                const modal = new bootstrap.Modal(document.getElementById('driverNotesModal'));
-                modal.show();
-            }
-
-            function saveNotes() {
-                if (!currentLegId) return;
-
-                const textarea = document.getElementById('driver-notes-textarea-modal');
-                const notes = textarea.value;
-
-                // Show loading state
-                const saveButton = document.getElementById('save-driver-notes-modal');
-                const originalText = saveButton.innerHTML;
-                saveButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
-                saveButton.disabled = true;
-
-                fetch(`${window.location.origin}/drivers/update_driver_notes/${currentLegId}/`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken
-                        },
-                        body: JSON.stringify({
-                            driver_notes: notes
-                        })
-                    })
-                    .then(res => {
-                        if (!res.ok) {
-                            throw new Error(`HTTP error! status: ${res.status}`);
-                        }
-                        return res.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            // Update the display immediately
-                            const displayDiv = document.getElementById(`driver-notes-display-${currentLegId}`);
-
-                            // Check if there are multiple elements with the same ID (desktop + mobile)
-                            const allDisplayDivs = document.querySelectorAll(`[id="driver-notes-display-${currentLegId}"]`);
-
-                            // Update ALL display divs (desktop and mobile)
-                            allDisplayDivs.forEach((div, index) => {
-                                const newContent = notes.trim() ?
-                                    `<div class="border rounded p-2 bg-light">${notes}</div>` :
-                                    `<div class="text-muted small">No notes added yet</div>`;
-
-                                div.innerHTML = newContent;
-                            });
-
-                            if (allDisplayDivs.length === 0) {
-                                console.error('Could not find any display divs for leg:', currentLegId);
-                            }
-
-                            // Update the button's data attribute
-                            const editButton = document.querySelector(`.edit-driver-notes[data-leg-id="${currentLegId}"]`);
-                            if (editButton) {
-                                editButton.dataset.currentNotes = notes;
-                            }
-
-                            // Close modal
-                            const modal = bootstrap.Modal.getInstance(document.getElementById('driverNotesModal'));
-                            modal.hide();
-
-                            // Reset button state
-                            saveButton.innerHTML = originalText;
-                            saveButton.disabled = false;
-
-                            console.log('Notes saved and display updated successfully');
-                        } else {
-                            throw new Error(data.error || 'Failed to save notes');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error saving notes:', error);
-
-                        // Reset button state
-                        saveButton.innerHTML = originalText;
-                        saveButton.disabled = false;
-
-                        // Fallback: auto-refresh the page to ensure display is updated
-                        alert('Notes saved successfully! Refreshing page to update display...');
-                        window.location.reload();
-                    });
-            }
-
-            // Event listeners for driver notes
-            document.addEventListener('click', (e) => {
-                if (e.target.closest('.edit-driver-notes')) {
-                    e.preventDefault();
-                    const button = e.target.closest('.edit-driver-notes');
-                    const legId = button.dataset.legId;
-                    const currentNotes = button.dataset.currentNotes || '';
-                    openNotesModal(legId, currentNotes);
-                }
-            });
-
-            // Save button in modal
-            document.getElementById('save-driver-notes-modal').addEventListener('click', saveNotes);
-        });
-    </script>
+    {% include "drivers/_driver_scripts.html" %}
   </body>
 </html>
