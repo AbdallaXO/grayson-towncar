@@ -235,30 +235,53 @@ def send_payment_reminder(reservation, checkout_url):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
-def send_refund_request_notification(reservation):
+def send_refund_request_notification(refund_request_or_reservation):
     """
     Send email notification to admin when a refund is requested.
+    Accepts either a RefundRequest object (new system) or a Reservation (legacy compat).
     """
+    # Support both RefundRequest and Reservation objects
+    from reservations.models import RefundRequest
+    if isinstance(refund_request_or_reservation, RefundRequest):
+        rr = refund_request_or_reservation
+        reservation = rr.reservation
+        requested_by = rr.requested_by.get_full_name() if rr.requested_by else "Unknown"
+        requested_at = rr.requested_at
+        refund_reason = rr.reason
+        refund_amount = rr.amount
+        refund_type = rr.get_refund_type_display()
+        suggested_amount = rr.suggested_amount
+    else:
+        reservation = refund_request_or_reservation
+        requested_by = reservation.refund_requested_by.get_full_name() if reservation.refund_requested_by else "Unknown"
+        requested_at = reservation.refund_requested_at
+        refund_reason = reservation.refund_reason
+        refund_amount = reservation.refund_amount
+        refund_type = "Full Cancellation"
+        suggested_amount = None
+
     logger.info(f"Preparing to send refund request notification for reservation {reservation.id}")
 
     def _send_email():
         try:
             context = {
                 "reservation": reservation,
-                "requested_by": reservation.refund_requested_by.get_full_name() if reservation.refund_requested_by else "Unknown",
-                "requested_at": reservation.refund_requested_at,
-                "refund_reason": reservation.refund_reason,
-                "refund_amount": reservation.refund_amount,
+                "requested_by": requested_by,
+                "requested_at": requested_at,
+                "refund_reason": refund_reason,
+                "refund_amount": refund_amount,
+                "refund_type": refund_type,
+                "suggested_amount": suggested_amount,
                 "total_paid": reservation.total_paid,
-                "admin_url": f"https://www.graysontowncar.com/dispatching/refund-management/",
+                "admin_url": "https://www.graysontowncar.com/dispatching/refund-management/",
             }
 
-            subject = f"Refund Requested - Reservation #{reservation.id}"
+            subject = f"Refund Requested - Reservation #{reservation.id} ({refund_type})"
             from_email = "reservations@graysontowncar.com"
             to = ["admin@graysontowncar.com"]
-            
+
             html_content = render_to_string("users/refund_request_email.html", context)
-            
+
             msg = EmailMultiAlternatives(subject, "", from_email, to)
             msg.attach_alternative(html_content, "text/html")
             msg.send()

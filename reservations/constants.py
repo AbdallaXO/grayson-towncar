@@ -13,7 +13,7 @@ FLIGHT_TYPE_CHOICES = [
 ]
 RESERVTION_STATUS = [
     ("pending", "Pending"),
-    ("canceled", "Canceled"),
+    ("cancelled", "Cancelled"),
     ("confirmed", "Confirmed"),
     ("completed", "Completed"),
 ]
@@ -25,4 +25,5 @@ DRIVER_STATUS = [
     ("on-location", "On-Location"),
     ("picked-up", "Picked-Up"),
     ("completed", "Completed"),
+    ("cancelled", "Cancelled"),
 ]

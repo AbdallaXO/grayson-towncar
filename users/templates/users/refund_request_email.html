@@ -95,12 +95,26 @@
             <span class="label">Requested At:</span>
             <span class="value">{{ requested_at|date:"F d, Y g:i A" }}</span>
         </div>
-        
+
+        {% if refund_type %}
+        <div class="info-row">
+            <span class="label">Refund Type:</span>
+            <span class="value"><strong>{{ refund_type }}</strong></span>
+        </div>
+        {% endif %}
+
         <div class="info-row">
             <span class="label">Refund Amount:</span>
             <span class="value"><strong>${{ refund_amount|floatformat:2 }}</strong></span>
         </div>
-        
+
+        {% if suggested_amount %}
+        <div class="info-row">
+            <span class="label">Policy Suggested:</span>
+            <span class="value">${{ suggested_amount|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+
         <div class="info-row">
             <span class="label">Total Paid:</span>
             <span class="value">${{ total_paid|floatformat:2 }}</span>

@@ -101,6 +101,7 @@ def get_legs_for_confirmation(target_date):
     return (
         Leg.objects.filter(pickup_date=target_date)
         .exclude(reservation__status="cancelled")
+        .exclude(status="cancelled")
         .select_related(
             "reservation",
             "reservation__customer",

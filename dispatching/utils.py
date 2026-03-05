@@ -54,8 +54,8 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
             Prefetch("status_history", queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')),
         )
     
-    # Exclude cancelled reservations (full refunds) - they should be hidden from normal operations
-    legs_query = legs_query.exclude(reservation__status='cancelled')
+    # Exclude cancelled reservations and cancelled legs - they should be hidden from normal operations
+    legs_query = legs_query.exclude(reservation__status='cancelled').exclude(status='cancelled')
     
     # Apply date filters
     if date_from and date_to:
@@ -206,16 +206,17 @@ def calculate_status_statistics(legs):
         Dictionary with status counts
     """
     status_stats = {
-        "completed": 0, 
-        "in-progress": 0, 
+        "completed": 0,
+        "in-progress": 0,
         "confirmed": 0,
         "on-the-way": 0,
-        "picked-up": 0, 
-        "on-location": 0
+        "picked-up": 0,
+        "on-location": 0,
+        "cancelled": 0,
     }
-    
+
     for leg in legs:
-        if leg.status:
+        if leg.status and leg.status in status_stats:
             status_stats[leg.status] += 1
     
     return status_stats
@@ -557,14 +558,17 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
         Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
     )
     
+    # Exclude cancelled reservations and cancelled legs
+    legs_query = legs_query.exclude(reservation__status='cancelled').exclude(status='cancelled')
+
     # Apply date filters
     if date_from and date_to:
         legs_query = legs_query.filter(pickup_date__range=[date_from, date_to])
-    
+
     # Apply status filter
     if status_filter:
         legs_query = legs_query.filter(status=status_filter)
-    
+
     # Apply driver filter
     if driver_filter:
         legs_query = legs_query.filter(driver_id=driver_filter)
@@ -604,8 +608,8 @@ def detect_leg_flags(leg, now: datetime) -> list:
     """
     flags = []
 
-    # Only flag assigned, non-completed legs
-    if not leg.driver or leg.status == 'completed':
+    # Only flag assigned, non-completed, non-cancelled legs
+    if not leg.driver or leg.status in ('completed', 'cancelled'):
         return flags
 
     if not leg.pickup_time:

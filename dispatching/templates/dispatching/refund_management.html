@@ -5,7 +5,7 @@
   {% block navbar %}
   {% endblock navbar %}
   {% include "dispatching/dispatcher_navbar.html" %}
-  
+
   <div class="container-fluid py-4">
     <!-- Header -->
     <div class="row mb-4">
@@ -28,37 +28,37 @@
       <div class="col-12">
         <ul class="nav nav-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if not status_filter %}active{% endif %}" 
+            <a class="nav-link {% if not status_filter %}active{% endif %}"
                href="{% url 'refund_management' %}">
               All ({{ status_counts.requested|add:status_counts.processing|add:status_counts.approved }})
             </a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if status_filter == 'requested' %}active{% endif %}" 
+            <a class="nav-link {% if status_filter == 'requested' %}active{% endif %}"
                href="{% url 'refund_management' %}?status=requested">
               Requested <span class="badge bg-warning text-dark">{{ status_counts.requested }}</span>
             </a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if status_filter == 'processing' %}active{% endif %}" 
+            <a class="nav-link {% if status_filter == 'processing' %}active{% endif %}"
                href="{% url 'refund_management' %}?status=processing">
               Processing <span class="badge bg-dark text-white">{{ status_counts.processing }}</span>
             </a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if status_filter == 'approved' %}active{% endif %}" 
+            <a class="nav-link {% if status_filter == 'approved' %}active{% endif %}"
                href="{% url 'refund_management' %}?status=approved">
               Approved <span class="badge bg-dark text-white">{{ status_counts.approved }}</span>
             </a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if status_filter == 'completed' %}active{% endif %}" 
+            <a class="nav-link {% if status_filter == 'completed' %}active{% endif %}"
                href="{% url 'refund_management' %}?status=completed">
               Completed <span class="badge bg-success">{{ status_counts.completed }}</span>
             </a>
           </li>
           <li class="nav-item" role="presentation">
-            <a class="nav-link {% if status_filter == 'rejected' %}active{% endif %}" 
+            <a class="nav-link {% if status_filter == 'rejected' %}active{% endif %}"
                href="{% url 'refund_management' %}?status=rejected">
               Rejected <span class="badge bg-secondary">{{ status_counts.rejected }}</span>
             </a>
@@ -79,84 +79,110 @@
                   <tr>
                     <th>Reservation</th>
                     <th>Customer</th>
+                    <th>Type</th>
+                    <th>Legs</th>
                     <th>Requested By</th>
                     <th>Requested At</th>
                     <th>Amount</th>
+                    <th>Suggested</th>
                     <th>Reason</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for req in refund_requests %}
+                  {% for rr in refund_requests %}
                   <tr>
                     <td>
-                      <a href="{% url 'reservation_details' req.uuid %}" class="fw-bold">
-                        #{{ req.id }}
+                      <a href="{% url 'reservation_details' rr.reservation.uuid %}" class="fw-bold">
+                        #{{ rr.reservation.id }}
                       </a>
                       <br>
-                      <small class="text-muted">{{ req.created_at|date:"M d, Y" }}</small>
+                      <small class="text-muted">{{ rr.reservation.created_at|date:"M d, Y" }}</small>
                     </td>
                     <td>
-                      <div class="fw-semibold">{{ req.customer.get_full_name }}</div>
-                      <small class="text-muted">{{ req.customer.email }}</small>
+                      <div class="fw-semibold">{{ rr.reservation.customer.get_full_name }}</div>
+                      <small class="text-muted">{{ rr.reservation.customer.email }}</small>
                     </td>
                     <td>
-                      <div class="fw-semibold">{{ req.refund_requested_by.get_full_name|default:req.refund_requested_by.username }}</div>
-                      {% if req.refund_requested_by.email %}
-                        <small class="text-muted">{{ req.refund_requested_by.email }}</small>
+                      {% if rr.refund_type == 'price_adjustment' %}
+                        <span class="badge bg-info text-dark">Price Adj.</span>
+                      {% elif rr.refund_type == 'partial_cancellation' %}
+                        <span class="badge bg-warning text-dark">Partial Cancel</span>
+                      {% elif rr.refund_type == 'full_cancellation' %}
+                        <span class="badge bg-danger">Full Cancel</span>
                       {% endif %}
                     </td>
                     <td>
-                      {{ req.refund_requested_at|date:"M d, Y" }}<br>
-                      <small class="text-muted">{{ req.refund_requested_at|time:"g:i A" }}</small>
+                      {% with leg_list=rr.legs.all %}
+                        {% if leg_list %}
+                          {% for leg in leg_list %}
+                            <small>{{ leg.pickup_location|truncatewords:3 }} → {{ leg.dropoff_location|truncatewords:3 }}</small>{% if not forloop.last %}<br>{% endif %}
+                          {% endfor %}
+                        {% else %}
+                          <small class="text-muted">All legs</small>
+                        {% endif %}
+                      {% endwith %}
                     </td>
                     <td>
-                      <span class="fw-bold">${{ req.refund_amount|floatformat:2 }}</span>
+                      <div class="fw-semibold">{{ rr.requested_by.get_full_name|default:rr.requested_by.username|default:"System" }}</div>
+                    </td>
+                    <td>
+                      {{ rr.requested_at|date:"M d, Y" }}<br>
+                      <small class="text-muted">{{ rr.requested_at|time:"g:i A" }}</small>
+                    </td>
+                    <td>
+                      <span class="fw-bold">${{ rr.amount|floatformat:2 }}</span>
                       <br>
-                      <small class="text-muted">Paid: ${{ req.total_paid|floatformat:2 }}</small>
+                      <small class="text-muted">Paid: ${{ rr.reservation.total_paid|floatformat:2 }}</small>
                     </td>
                     <td>
-                      <div class="text-truncate" style="max-width: 200px;" title="{{ req.refund_reason }}">
-                        {{ req.refund_reason|truncatewords:10 }}
+                      {% if rr.suggested_amount %}
+                        ${{ rr.suggested_amount|floatformat:2 }}
+                        {% if rr.policy_override %}
+                          <br><small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Override</small>
+                        {% endif %}
+                      {% else %}
+                        <small class="text-muted">N/A</small>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="text-truncate" style="max-width: 200px;" title="{{ rr.reason }}">
+                        {{ rr.reason|truncatewords:10 }}
                       </div>
                     </td>
                     <td>
-                      {% if req.refund_status == 'requested' %}
+                      {% if rr.status == 'requested' %}
                         <span class="badge bg-warning text-dark">Requested</span>
-                      {% elif req.refund_status == 'processing' %}
+                      {% elif rr.status == 'processing' %}
                         <span class="badge bg-dark text-white">Processing</span>
-                      {% elif req.refund_status == 'approved' %}
+                      {% elif rr.status == 'approved' %}
                         <span class="badge bg-dark text-white">Approved</span>
-                      {% elif req.refund_status == 'completed' %}
+                      {% elif rr.status == 'completed' %}
                         <span class="badge bg-success">Completed</span>
-                      {% elif req.refund_status == 'rejected' %}
+                      {% elif rr.status == 'rejected' %}
                         <span class="badge bg-secondary">Rejected</span>
                       {% endif %}
                     </td>
                     <td>
                       <div class="btn-group btn-group-sm" role="group">
-                        <a href="{% url 'reservation_details' req.uuid %}" 
-                           class="btn btn-outline-dark" 
+                        <a href="{% url 'reservation_details' rr.reservation.uuid %}"
+                           class="btn btn-outline-dark"
                            title="View Reservation">
                           <i class="bi bi-eye"></i>
                         </a>
-                        {% if req.refund_status == 'requested' %}
-                          <button class="btn btn-outline-success approve-refund-btn" 
-                                  data-reservation-uuid="{{ req.uuid }}"
+                        {% if rr.status == 'requested' %}
+                          <button class="btn btn-outline-success approve-refund-btn"
+                                  data-refund-request-id="{{ rr.id }}"
+                                  data-reservation-uuid="{{ rr.reservation.uuid }}"
                                   title="Approve">
                             <i class="bi bi-check-circle"></i>
                           </button>
-                          <button class="btn btn-outline-danger reject-refund-btn" 
-                                  data-reservation-uuid="{{ req.uuid }}"
+                          <button class="btn btn-outline-danger reject-refund-btn"
+                                  data-refund-request-id="{{ rr.id }}"
+                                  data-reservation-uuid="{{ rr.reservation.uuid }}"
                                   title="Reject">
                             <i class="bi bi-x-circle"></i>
-                          </button>
-                        {% elif req.refund_status == 'approved' %}
-                          <button class="btn btn-outline-dark process-refund-btn" 
-                                  data-reservation-uuid="{{ req.uuid }}"
-                                  title="Process Refund">
-                            <i class="bi bi-currency-dollar"></i>
                           </button>
                         {% endif %}
                       </div>
@@ -182,7 +208,7 @@
     {% endif %}
   </div>
 
-  <!-- Process/Approve/Reject Refund Modal -->
+  <!-- Approve/Reject Refund Modal -->
   <div class="modal fade" id="refundActionModal" tabindex="-1" aria-labelledby="refundActionModalLabel" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">
@@ -195,10 +221,10 @@
             <div id="refundActionAlert" class="alert" role="alert"></div>
             <div class="mb-3">
               <label for="refundActionNotes" class="form-label">Admin Notes (Optional)</label>
-              <textarea class="form-control" 
-                        id="refundActionNotes" 
-                        name="refund_notes" 
-                        rows="3" 
+              <textarea class="form-control"
+                        id="refundActionNotes"
+                        name="refund_notes"
+                        rows="3"
                         placeholder="Add any notes about this refund action..."></textarea>
             </div>
           </div>
@@ -217,14 +243,16 @@
       document.addEventListener('DOMContentLoaded', function() {
           const refundActionModal = new bootstrap.Modal(document.getElementById('refundActionModal'));
           let currentAction = '';
+          let currentRefundRequestId = '';
           let currentReservationUuid = '';
 
           // Approve refund
           document.querySelectorAll('.approve-refund-btn').forEach(btn => {
               btn.addEventListener('click', function() {
                   currentAction = 'approve';
+                  currentRefundRequestId = this.dataset.refundRequestId;
                   currentReservationUuid = this.dataset.reservationUuid;
-                  showRefundActionModal('Approve Refund', 'dark', 'Are you sure you want to approve this refund request?');
+                  showRefundActionModal('Approve Refund', 'dark', 'Are you sure you want to approve this refund? This will process the Stripe refund immediately.');
               });
           });
 
@@ -232,17 +260,9 @@
           document.querySelectorAll('.reject-refund-btn').forEach(btn => {
               btn.addEventListener('click', function() {
                   currentAction = 'reject';
+                  currentRefundRequestId = this.dataset.refundRequestId;
                   currentReservationUuid = this.dataset.reservationUuid;
                   showRefundActionModal('Reject Refund', 'danger', 'Are you sure you want to reject this refund request?');
-              });
-          });
-
-          // Process refund
-          document.querySelectorAll('.process-refund-btn').forEach(btn => {
-              btn.addEventListener('click', function() {
-                  currentAction = 'process';
-                  currentReservationUuid = this.dataset.reservationUuid;
-                  showRefundActionModal('Process Refund', 'success', 'This will process the refund through Stripe. Are you sure?');
               });
           });
 
@@ -260,14 +280,14 @@
           // Submit refund action
           document.getElementById('refundActionForm').addEventListener('submit', function(e) {
               e.preventDefault();
-              
+
               const refundNotes = document.getElementById('refundActionNotes').value.trim();
               const submitBtn = document.getElementById('refundActionSubmitBtn');
               const originalText = submitBtn.innerHTML;
-              
+
               submitBtn.disabled = true;
               submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-              
+
               fetch('/dispatching/process-refund/', {
                       method: 'POST',
                       headers: {
@@ -275,6 +295,7 @@
                           'X-CSRFToken': '{{ csrf_token }}'
                       },
                       body: JSON.stringify({
+                          refund_request_id: currentRefundRequestId,
                           reservation_uuid: currentReservationUuid,
                           action: currentAction,
                           refund_notes: refundNotes

@@ -522,15 +522,16 @@ class Reservation(models.Model):
         if self.status in ['completed', 'cancelled']:
             return False
             
-        # Get all legs for this reservation
+        # Get all legs for this reservation, excluding cancelled ones
         legs = self.legs.all()
-        
-        # If no legs exist, don't auto-complete
-        if not legs.exists():
+        active_legs = [leg for leg in legs if leg.status != 'cancelled']
+
+        # If no active legs exist, don't auto-complete
+        if not active_legs:
             return False
-            
-        # Check if all legs are completed
-        all_completed = all(leg.status == 'completed' for leg in legs)
+
+        # Check if all active legs are completed
+        all_completed = all(leg.status == 'completed' for leg in active_legs)
         
         if all_completed:
             self.status = 'completed'
@@ -558,6 +559,106 @@ class Reservation(models.Model):
         and its customer for clarity.
         """
         return f"Reservation #{self.id} - {self.customer.get_full_name()}"
+
+
+class RefundRequest(models.Model):
+    """
+    Tracks a refund request against a reservation, with optional per-leg granularity.
+    Supports three refund types: price adjustment, partial cancellation, full cancellation.
+    """
+    REFUND_TYPE_CHOICES = [
+        ('price_adjustment', 'Price Adjustment'),
+        ('partial_cancellation', 'Partial Cancellation'),
+        ('full_cancellation', 'Full Cancellation'),
+    ]
+    STATUS_CHOICES = [
+        ('requested', 'Requested'),
+        ('processing', 'Processing'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Completed'),
+    ]
+
+    reservation = models.ForeignKey(
+        Reservation,
+        on_delete=models.CASCADE,
+        related_name='refund_requests',
+    )
+    legs = models.ManyToManyField(
+        'Leg',
+        blank=True,
+        related_name='refund_requests',
+        help_text='Specific legs included in this refund (empty = all legs for full cancellation)',
+    )
+    refund_type = models.CharField(
+        max_length=30,
+        choices=REFUND_TYPE_CHOICES,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='requested',
+    )
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Final approved refund amount',
+    )
+    suggested_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='Policy-calculated suggested refund amount',
+    )
+    policy_override = models.BooleanField(
+        default=False,
+        help_text='True if admin overrode the policy-suggested amount',
+    )
+    reason = models.TextField(
+        help_text='Reason for refund request',
+    )
+    notes = models.TextField(
+        null=True,
+        blank=True,
+        help_text='Admin notes about processing',
+    )
+
+    # Audit fields
+    requested_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='refund_requests_created',
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    processed_by = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='refund_requests_processed',
+    )
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    # Stripe tracking
+    stripe_refund_ids = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='List of Stripe refund IDs created for this request',
+    )
+
+    class Meta:
+        ordering = ['-requested_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['reservation', 'status']),
+        ]
+
+    def __str__(self):
+        return f"RefundRequest #{self.pk} - {self.get_refund_type_display()} ({self.get_status_display()})"
 
 
 class Leg(models.Model):

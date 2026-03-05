@@ -216,4 +216,9 @@ urlpatterns = [
         views.process_refund,
         name="process_refund",
     ),
+    path(
+        "refund-suggestion/",
+        views.refund_suggestion,
+        name="refund_suggestion",
+    ),
 ]

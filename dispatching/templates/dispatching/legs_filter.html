@@ -843,6 +843,13 @@
                             {% endif %}
                           </div>
                         {% endwith %}
+                        {% if leg.has_pending_refund %}
+                          <div class="mt-1">
+                            <span class="badge bg-warning text-dark">
+                              <i class="bi bi-exclamation-triangle me-1"></i>Pending Refund
+                            </span>
+                          </div>
+                        {% endif %}
                       </div>
                     </td>
 
@@ -1157,6 +1164,13 @@
                                 {% endif %}
                               </div>
                             {% endwith %}
+                            {% if leg.has_pending_refund %}
+                              <div class="mt-1">
+                                <span class="badge bg-warning text-dark">
+                                  <i class="bi bi-exclamation-triangle me-1"></i>Pending Refund
+                                </span>
+                              </div>
+                            {% endif %}
                           </div>
                         </div>
 
