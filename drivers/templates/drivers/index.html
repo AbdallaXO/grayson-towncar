@@ -198,7 +198,7 @@
                       {% endif %}
                       {% if leg.reservation.private_notes %}
                         <div class="gt-note gt-note-private mb-2">
-                          <div class="gt-label mb-1">Company</div>
+                          <div class="gt-label mb-1">Private Notes</div>
                           {{ leg.reservation.private_notes }}
                         </div>
                       {% endif %}
@@ -396,15 +396,27 @@
                   </div>
                 </div>
 
-                <!-- Accept + Status -->
+                <!-- Progression Button -->
                 {% if leg.status == "in-progress" %}
                   <button class="gt-btn gt-btn-success gt-btn-block gt-progression accept-job-btn mb-2" data-leg-id="{{ leg.id }}">
                     <i class="bi bi-check-circle-fill"></i> Accept Job
                   </button>
-                {% endif %}
-
-                <!-- Review -->
-                {% if leg.status == "picked-up" %}
+                {% elif leg.status == "confirmed" %}
+                  <button class="gt-btn gt-btn-dark gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="on-the-way">
+                    <i class="bi bi-arrow-right-circle-fill"></i> On the Way
+                  </button>
+                {% elif leg.status == "on-the-way" %}
+                  <button class="gt-btn gt-btn-warning gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="on-location">
+                    <i class="bi bi-geo-alt-fill"></i> On Location
+                  </button>
+                {% elif leg.status == "on-location" %}
+                  <button class="gt-btn gt-btn-primary gt-btn-block gt-progression progression-btn mb-2"
+                          data-leg-id="{{ leg.id }}" data-next-status="picked-up">
+                    <i class="bi bi-person-check-fill"></i> Picked Up
+                  </button>
+                {% elif leg.status == "picked-up" %}
                   <div class="gt-review-reminder gt-review-reminder-active mb-2">
                     <div class="gt-review-stars mb-2">
                       <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
@@ -417,9 +429,15 @@
                       <i class="bi bi-chat-heart-fill"></i> Request Review
                     </a>
                   </div>
-                {% else %}
+                  <button class="gt-btn gt-btn-success gt-btn-block gt-progression progression-btn"
+                          data-leg-id="{{ leg.id }}" data-next-status="completed">
+                    <i class="bi bi-flag-fill"></i> Complete Trip
+                  </button>
+                {% endif %}
+
+                {% if leg.status != "picked-up" %}
                   <a href="sms:{{ leg.reservation.customer.phone_number }}?body=Hi {{ leg.reservation.customer.first_name|title }}, It was a pleasure being at your service today! If you have a moment, leaving a review would be greatly appreciated.%0A%0AThank you!%0A%0Ahttps://g.page/r/CRWIXii71sLGEBM/review"
-                     class="gt-btn gt-btn-outline gt-btn-sm mb-2" style="font-size:0.8125rem;">
+                     class="gt-btn gt-btn-outline gt-btn-sm mt-2" style="font-size:0.8125rem;">
                     <i class="bi bi-star-fill" style="color:var(--gt-yellow);"></i> Request Review
                   </a>
                 {% endif %}
@@ -436,7 +454,7 @@
                 {% if leg.reservation.private_notes %}
                   <div class="gt-divider"></div>
                   <div class="gt-note gt-note-private">
-                    <div class="gt-label mb-1">Company Notes</div>
+                    <div class="gt-label mb-1">Private Notes</div>
                     {{ leg.reservation.private_notes }}
                   </div>
                 {% endif %}
