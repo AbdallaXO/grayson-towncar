@@ -68,12 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
     };
 
-    // Wire up all navigate buttons
+    // Wire up all navigate buttons (use anchor click to avoid iOS Safari blank page)
     document.querySelectorAll('.navigate-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             const address = btn.dataset.address;
-            if (address) window.open(getNavUrl(address), '_blank');
+            if (!address) return;
+            const a = document.createElement('a');
+            a.href = getNavUrl(address);
+            a.target = '_blank';
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
         });
     });
 
