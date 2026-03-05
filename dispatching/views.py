@@ -5079,6 +5079,12 @@ def process_refund(request):
 
         reservation = rr.reservation
 
+        # Allow admin to override refund_type before processing
+        new_refund_type = data.get("refund_type")
+        if new_refund_type and new_refund_type in ('price_adjustment', 'partial_cancellation', 'full_cancellation'):
+            rr.refund_type = new_refund_type
+            rr.save(update_fields=['refund_type'])
+
         # ── REJECT ──
         if action == 'reject':
             rr.status = 'rejected'

@@ -175,6 +175,7 @@
                           <button class="btn btn-outline-success approve-refund-btn"
                                   data-refund-request-id="{{ rr.id }}"
                                   data-reservation-uuid="{{ rr.reservation.uuid }}"
+                                  data-refund-type="{{ rr.refund_type }}"
                                   title="Approve">
                             <i class="bi bi-check-circle"></i>
                           </button>
@@ -219,6 +220,15 @@
         <form id="refundActionForm">
           <div class="modal-body">
             <div id="refundActionAlert" class="alert" role="alert"></div>
+            <div class="mb-3" id="refundTypeOverrideGroup" style="display:none;">
+              <label for="refundTypeOverride" class="form-label fw-bold">Refund Type</label>
+              <select class="form-select" id="refundTypeOverride">
+                <option value="price_adjustment">Price Adjustment (refund only, no cancellations)</option>
+                <option value="partial_cancellation">Partial Cancellation (refund + cancel selected legs)</option>
+                <option value="full_cancellation">Full Cancellation (refund + cancel all legs + reservation)</option>
+              </select>
+              <div class="form-text text-warning" id="refundTypeWarning"></div>
+            </div>
             <div class="mb-3">
               <label for="refundActionNotes" class="form-label">Admin Notes (Optional)</label>
               <textarea class="form-control"
@@ -252,9 +262,29 @@
                   currentAction = 'approve';
                   currentRefundRequestId = this.dataset.refundRequestId;
                   currentReservationUuid = this.dataset.reservationUuid;
+                  // Show type selector and set current value
+                  const typeGroup = document.getElementById('refundTypeOverrideGroup');
+                  const typeSelect = document.getElementById('refundTypeOverride');
+                  const typeWarning = document.getElementById('refundTypeWarning');
+                  typeGroup.style.display = 'block';
+                  typeSelect.value = this.dataset.refundType || 'full_cancellation';
+                  updateTypeWarning();
+                  typeSelect.addEventListener('change', updateTypeWarning);
                   showRefundActionModal('Approve Refund', 'dark', 'Are you sure you want to approve this refund? This will process the Stripe refund immediately.');
               });
           });
+
+          function updateTypeWarning() {
+              const val = document.getElementById('refundTypeOverride').value;
+              const w = document.getElementById('refundTypeWarning');
+              if (val === 'full_cancellation') {
+                  w.textContent = 'This will cancel ALL legs and the entire reservation.';
+              } else if (val === 'partial_cancellation') {
+                  w.textContent = 'This will cancel selected legs only.';
+              } else {
+                  w.textContent = 'Refund only — no legs or reservation will be cancelled.';
+              }
+          }
 
           // Reject refund
           document.querySelectorAll('.reject-refund-btn').forEach(btn => {
@@ -262,6 +292,7 @@
                   currentAction = 'reject';
                   currentRefundRequestId = this.dataset.refundRequestId;
                   currentReservationUuid = this.dataset.reservationUuid;
+                  document.getElementById('refundTypeOverrideGroup').style.display = 'none';
                   showRefundActionModal('Reject Refund', 'danger', 'Are you sure you want to reject this refund request?');
               });
           });
@@ -298,7 +329,8 @@
                           refund_request_id: currentRefundRequestId,
                           reservation_uuid: currentReservationUuid,
                           action: currentAction,
-                          refund_notes: refundNotes
+                          refund_notes: refundNotes,
+                          refund_type: currentAction === 'approve' ? document.getElementById('refundTypeOverride').value : undefined
                       })
                   })
                   .then(response => response.json())
