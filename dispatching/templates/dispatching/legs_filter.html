@@ -9,6 +9,10 @@
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
       }
+      @keyframes gt-bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+      }
       /* Disable animations for travel agent booking section */
       .travel-agent-booking {
           animation: none !important;
@@ -953,14 +957,19 @@
                           {% endif %}
                         {% endwith %}
                         {% if leg.live_eta_minutes %}
-                          <div class="mt-2 d-flex align-items-center gap-1" id="live-eta-{{ leg.id }}">
-                            <span class="badge bg-info d-flex align-items-center gap-1" style="font-size:0.75rem;">
-                              <i class="bi bi-broadcast" style="animation:pulse 2s infinite;"></i>
-                              ~{{ leg.live_eta_minutes }} min
-                              {% if leg.live_eta_status == 'on-the-way' %}to pickup{% elif leg.live_eta_status == 'picked-up' %}to dropoff{% endif %}
-                            </span>
-                            {% if leg.live_eta_age_mins %}
-                              <span class="text-muted" style="font-size:0.6875rem;">{{ leg.live_eta_age_mins }}m ago</span>
+                          <div class="mt-2" id="live-eta-{{ leg.id }}">
+                            <div class="d-flex align-items-center gap-2">
+                              <span class="badge d-flex align-items-center gap-1" style="font-size:0.8rem;background:#1a1d21;color:#fff;padding:6px 10px;">
+                                <span style="animation:gt-bounce 1.5s ease infinite;display:inline-block;">📍</span>
+                                ~{{ leg.live_eta_minutes }} min
+                                {% if leg.live_eta_status == 'on-the-way' or leg.live_eta_status == 'on-location' %}to pickup{% elif leg.live_eta_status == 'picked-up' %}to dropoff{% endif %}
+                              </span>
+                              <span class="text-muted" style="font-size:0.6875rem;">{% if leg.live_eta_age_mins %}updated {{ leg.live_eta_age_mins }}m ago{% else %}just now{% endif %}</span>
+                            </div>
+                            {% if leg.live_eta_arrival %}
+                              <div style="font-size:0.75rem;color:#6c757d;margin-top:2px;padding-left:2px;">
+                                <i class="bi bi-clock me-1"></i>ETA: {{ leg.live_eta_arrival }}
+                              </div>
                             {% endif %}
                           </div>
                         {% endif %}
@@ -1274,14 +1283,19 @@
                             {% endif %}
                           {% endwith %}
                           {% if leg.live_eta_minutes %}
-                            <div class="mt-2 d-flex align-items-center gap-1" id="live-eta-alt-{{ leg.id }}">
-                              <span class="badge bg-info d-flex align-items-center gap-1" style="font-size:0.75rem;">
-                                <i class="bi bi-broadcast" style="animation:pulse 2s infinite;"></i>
-                                ~{{ leg.live_eta_minutes }} min
-                                {% if leg.live_eta_status == 'on-the-way' %}to pickup{% elif leg.live_eta_status == 'picked-up' %}to dropoff{% endif %}
-                              </span>
-                              {% if leg.live_eta_age_mins %}
-                                <span class="text-muted" style="font-size:0.6875rem;">{{ leg.live_eta_age_mins }}m ago</span>
+                            <div class="mt-2" id="live-eta-alt-{{ leg.id }}">
+                              <div class="d-flex align-items-center gap-2">
+                                <span class="badge d-flex align-items-center gap-1" style="font-size:0.8rem;background:#1a1d21;color:#fff;padding:6px 10px;">
+                                  <span style="animation:gt-bounce 1.5s ease infinite;display:inline-block;">📍</span>
+                                  ~{{ leg.live_eta_minutes }} min
+                                  {% if leg.live_eta_status == 'on-the-way' or leg.live_eta_status == 'on-location' %}to pickup{% elif leg.live_eta_status == 'picked-up' %}to dropoff{% endif %}
+                                </span>
+                                <span class="text-muted" style="font-size:0.6875rem;">{% if leg.live_eta_age_mins %}updated {{ leg.live_eta_age_mins }}m ago{% else %}just now{% endif %}</span>
+                              </div>
+                              {% if leg.live_eta_arrival %}
+                                <div style="font-size:0.75rem;color:#6c757d;margin-top:2px;padding-left:2px;">
+                                  <i class="bi bi-clock me-1"></i>ETA: {{ leg.live_eta_arrival }}
+                                </div>
                               {% endif %}
                             </div>
                           {% endif %}

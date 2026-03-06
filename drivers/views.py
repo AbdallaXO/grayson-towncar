@@ -142,6 +142,9 @@ def _annotate_legs_with_live_eta(legs_list):
                 leg.live_eta_status = loc.status
                 age = (timezone.now() - loc.timestamp).total_seconds()
                 leg.live_eta_age_mins = int(age / 60)
+                # Compute estimated arrival time: snapshot time + eta
+                arrival_dt = loc.timestamp + timedelta(minutes=loc.eta_minutes)
+                leg.live_eta_arrival = timezone.localtime(arrival_dt).strftime('%I:%M %p').lstrip('0')
     except Exception:
         return
 
@@ -353,9 +356,9 @@ def update_leg_status(request, leg_id):
             )
 
             # Compute ETA in background via Google Maps
-            if settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "picked-up"):
-                # on-the-way → ETA to pickup, picked-up → ETA to dropoff
-                dest = leg.pickup_location if new_status == "on-the-way" else leg.dropoff_location
+            if settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "on-location", "picked-up"):
+                # on-the-way/on-location → ETA to pickup, picked-up → ETA to dropoff
+                dest = leg.dropoff_location if new_status == "picked-up" else leg.pickup_location
                 _run_in_background(_compute_location_eta, location.id, dest)
 
         # Check if reservation should be auto-completed
@@ -470,8 +473,8 @@ def report_location(request):
         )
 
         # Compute ETA in background
-        if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "picked-up"):
-            dest = leg.pickup_location if leg.status == "on-the-way" else leg.dropoff_location
+        if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "on-location", "picked-up"):
+            dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
             _run_in_background(_compute_location_eta, location.id, dest)
 
         return JsonResponse({"success": True})
