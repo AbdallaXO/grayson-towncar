@@ -118,20 +118,54 @@ document.addEventListener('DOMContentLoaded', () => {
         setFlightStatusBadge(badge, badge.dataset.flightStatus || badge.textContent);
     });
 
+    // ── GPS-aware status update helper ──
+    const GPS_STATUSES = ['on-the-way', 'on-location', 'picked-up'];
+
+    function sendStatusUpdate(legId, newStatus, extraData = {}) {
+        return fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ status: newStatus, ...extraData })
+        }).then(res => res.json());
+    }
+
+    function sendStatusWithGPS(legId, newStatus) {
+        return new Promise((resolve) => {
+            if (!GPS_STATUSES.includes(newStatus) || !navigator.geolocation) {
+                sendStatusUpdate(legId, newStatus).then(resolve);
+                return;
+            }
+            // Try to capture GPS (5s timeout), send with or without it
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    sendStatusUpdate(legId, newStatus, {
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy,
+                        heading: pos.coords.heading,
+                        speed: pos.coords.speed,
+                    }).then(resolve);
+                },
+                () => {
+                    // GPS denied or failed — send without coordinates
+                    sendStatusUpdate(legId, newStatus).then(resolve);
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+            );
+        });
+    }
+
     // ── Status select change handler ──
     document.querySelectorAll('.status-select:not([disabled])').forEach(select => {
         select.addEventListener('change', (event) => {
             const legId = event.target.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
             const newStatus = event.target.value;
 
-            fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ status: newStatus })
-            })
-            .then(res => res.json())
+            sendStatusWithGPS(legId, newStatus)
             .then(data => {
                 if (data.success) {
+                    // Start or stop GPS tracking based on new status
+                    if (GPS_STATUSES.includes(newStatus)) { startTracking(legId, false); } else { stopTracking(legId); }
                     showToast(`Status updated to ${newStatus.replace(/-/g, ' ')}`, 'success');
                     setTimeout(() => window.location.reload(), 800);
                 } else {
@@ -162,14 +196,10 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = true;
             btn.style.opacity = '0.7';
 
-            fetch(`${window.location.origin}/drivers/update_leg_status/${legId}/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ status: nextStatus })
-            })
-            .then(res => res.json())
+            sendStatusWithGPS(legId, nextStatus)
             .then(data => {
                 if (data.success) {
+                    if (GPS_STATUSES.includes(nextStatus)) { startTracking(legId); } else { stopTracking(legId); }
                     showToast(`Status updated to ${nextStatus.replace(/-/g, ' ')}`, 'success');
                     setTimeout(() => window.location.reload(), 800);
                 } else {
@@ -187,6 +217,90 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
+
+    // ── Periodic GPS tracking while en route ──
+    const TRACKING_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+    let trackingIntervals = {}; // legId -> intervalId
+    let wakeLock = null;
+
+    function sendLocationForLeg(legId) {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                fetch("{% url 'driver_report_location' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({
+                        leg_id: legId,
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy,
+                        heading: pos.coords.heading,
+                        speed: pos.coords.speed,
+                    })
+                }).catch(() => {});
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+    }
+
+    function startTracking(legId, sendNow) {
+        if (trackingIntervals[legId]) return;
+        if (!navigator.geolocation) return;
+
+        // Send immediately if reopening the app (not after a fresh status change)
+        if (sendNow) sendLocationForLeg(legId);
+
+        trackingIntervals[legId] = setInterval(() => sendLocationForLeg(legId), TRACKING_INTERVAL_MS);
+        acquireWakeLock();
+    }
+
+    function stopTracking(legId) {
+        if (trackingIntervals[legId]) {
+            clearInterval(trackingIntervals[legId]);
+            delete trackingIntervals[legId];
+        }
+        // Release wake lock if nothing is being tracked
+        if (Object.keys(trackingIntervals).length === 0) releaseWakeLock();
+    }
+
+    // ── Wake Lock: keep screen on while en route ──
+    async function acquireWakeLock() {
+        if (wakeLock || !('wakeLock' in navigator)) return;
+        try { wakeLock = await navigator.wakeLock.request('screen'); }
+        catch (e) { /* device doesn't support or denied */ }
+    }
+    function releaseWakeLock() {
+        if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    }
+
+    // ── Re-acquire wake lock + send fresh GPS when tab comes back to foreground ──
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        const activeLegs = Object.keys(trackingIntervals);
+        if (activeLegs.length > 0) {
+            acquireWakeLock();
+            activeLegs.forEach(legId => sendLocationForLeg(legId));
+        }
+    });
+
+    // Auto-start tracking for any legs already en route on page load
+    // sendNow=true so reopening the app immediately updates ETA
+    function collectEnRouteLegIds() {
+        const ids = new Set();
+        document.querySelectorAll('.progression-btn').forEach(btn => {
+            const legId = btn.dataset.legId;
+            const card = btn.closest('[data-leg-status]') || btn.closest('.gt-trip-card');
+            if (card && GPS_STATUSES.includes(card.dataset.legStatus)) ids.add(legId);
+        });
+        document.querySelectorAll('.status-select').forEach(select => {
+            const legId = select.id.replace('statusSelect-', '').replace('statusSelectMobile-', '');
+            if (GPS_STATUSES.includes(select.value)) ids.add(legId);
+        });
+        return ids;
+    }
+    collectEnRouteLegIds().forEach(legId => startTracking(legId, true));
 
     // ── Accept job handler ──
     document.querySelectorAll('.accept-job-btn').forEach(button => {

@@ -1134,9 +1134,54 @@
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          // Driver and status selection handlers
+          // Helper: submit leg assignment update
+          function submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement) {
+              fetch('/dispatching/update-leg-assignment/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': csrfToken
+                      },
+                      body: JSON.stringify({
+                          leg_id: legId,
+                          field: selectName,
+                          value: selectValue
+                      })
+                  })
+                  .then(response => {
+                      if (!response.ok) {
+                          return response.json().then(data => {
+                              throw new Error(data.error || 'Server error: ' + response.status);
+                          });
+                      }
+                      return response.json();
+                  })
+                  .then(data => {
+                      if (data.success) {
+                          if (statusElement) {
+                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                              setTimeout(() => {
+                                  statusElement.innerHTML = '';
+                              }, 3000);
+                          }
+                      } else if (statusElement) {
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                      } else {
+                          alert('Update failed: ' + (data.error || 'Unknown error'));
+                      }
+                  })
+                  .catch(error => {
+                      if (statusElement) {
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                      } else {
+                          alert('Error: ' + error.message);
+                      }
+                  });
+          }
+
+          // Driver and status selection handlers with feasibility check
           document.querySelectorAll('.driver-select, .status-select').forEach(select => {
-              select.addEventListener('change', function() {
+              select.addEventListener('change', async function() {
                   const legId = this.dataset.legId;
                   const selectName = this.name;
                   const selectValue = this.value;
@@ -1144,48 +1189,39 @@
                   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
                   const statusElement = form.querySelector('.update-status');
 
-                  // Send the update to the server via AJAX
-                  fetch('/dispatching/update-leg-assignment/', {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken
-                          },
-                          body: JSON.stringify({
-                              leg_id: legId,
-                              field: selectName,
-                              value: selectValue
-                          })
-                      })
-                      .then(response => {
-                          if (!response.ok) {
-                              return response.json().then(data => {
-                                  throw new Error(data.error || 'Server error: ' + response.status);
-                              });
-                          }
-                          return response.json();
-                      })
-                      .then(data => {
-                          if (data.success) {
-                              if (statusElement) {
-                                  statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                                  setTimeout(() => {
-                                      statusElement.innerHTML = '';
-                                  }, 3000);
+                  // Feasibility check for driver assignments
+                  if (selectName === 'driver' && selectValue) {
+                      try {
+                          if (statusElement) statusElement.innerHTML = '<div class="text-muted small py-1">Checking schedule...</div>';
+                          const resp = await fetch(`/dispatching/check-feasibility/?leg_id=${legId}&driver_id=${selectValue}`);
+                          const feas = await resp.json();
+
+                          if (!feas.feasible) {
+                              const proceed = confirm(`⚠️ Schedule Conflict\n\n${feas.reason}\n\nAssign anyway?`);
+                              if (!proceed) {
+                                  if (statusElement) {
+                                      statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0">Assignment cancelled</div>';
+                                      setTimeout(() => { statusElement.innerHTML = ''; }, 3000);
+                                  }
+                                  return;
                               }
+                          } else if (feas.warnings && feas.warnings.length > 0 && statusElement) {
+                              statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0">' +
+                                  feas.warnings.join(', ') +
+                                  (feas.estimated_end ? ' · Done ~' + feas.estimated_end : '') + '</div>';
                           } else if (statusElement) {
-                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
-                          } else {
-                              alert('Update failed: ' + (data.error || 'Unknown error'));
+                              const infoText = feas.existing_trips > 0
+                                  ? `✓ Fits (${feas.buffer_minutes} min buffer` +
+                                    (feas.estimated_end ? `, done ~${feas.estimated_end}` : '') + ')'
+                                  : '✓ No other trips';
+                              statusElement.innerHTML = '<div class="text-success small py-1">' + infoText + '</div>';
                           }
-                      })
-                      .catch(error => {
-                          if (statusElement) {
-                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
-                          } else {
-                              alert('Error: ' + error.message);
-                          }
-                      });
+                      } catch (e) {
+                          console.warn('Feasibility check failed, proceeding:', e);
+                      }
+                  }
+
+                  submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement);
               });
           });
 

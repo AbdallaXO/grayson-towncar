@@ -13,7 +13,137 @@ import os
 from django.conf import settings
 from django.contrib import messages
 from django.db.models import Q, Prefetch, Count
-from drivers.utils import get_drive_time
+from drivers.utils import get_drive_time as google_drive_time
+from dispatching.scheduler import (
+    estimate_job_end_time,
+    get_drive_time as scheduler_drive_time,
+    preload_timing_cache,
+    INTER_JOB_BUFFER,
+)
+from dispatching.analytics import categorize_location
+
+
+def _compute_eta_string(pickup_date, pickup_time, now, today):
+    """Compute a human-friendly ETA string for a leg."""
+    from datetime import datetime as _dt
+    pickup_dt = timezone.make_aware(_dt.combine(pickup_date, pickup_time))
+    diff = pickup_dt - now
+    total_mins = int(diff.total_seconds() / 60)
+    days_away = (pickup_date - today).days
+
+    if total_mins < 0:
+        return "Now"
+    elif total_mins < 60:
+        return f"In {total_mins} min{'s' if total_mins != 1 else ''}"
+    elif days_away == 0:
+        hours = total_mins // 60
+        return f"Today in {hours} hr{'s' if hours != 1 else ''}"
+    elif days_away == 1:
+        return "Tomorrow"
+    else:
+        return f"In {days_away} days"
+
+
+def _annotate_legs_with_scheduling(legs_list, target_date):
+    """
+    Enrich legs with estimated end times and smart conflict detection
+    that accounts for drive time, dwell time, and repositioning.
+    """
+    from datetime import datetime as _dt
+
+    preload_timing_cache()
+
+    # Compute estimated end time for each leg
+    for leg in legs_list:
+        try:
+            leg.estimated_end = estimate_job_end_time(leg, target_date)
+        except Exception:
+            leg.estimated_end = None
+
+    # Smart conflict detection between consecutive same-day trips
+    for i in range(len(legs_list) - 1):
+        curr = legs_list[i]
+        nxt = legs_list[i + 1]
+        if curr.pickup_date != nxt.pickup_date:
+            continue
+        if not curr.estimated_end:
+            continue
+
+        # Compute repositioning time from current dropoff to next pickup
+        curr_dropoff_cat = categorize_location(curr.dropoff_location)
+        nxt_pickup_cat = categorize_location(nxt.pickup_location)
+        reposition_mins = scheduler_drive_time(curr_dropoff_cat, nxt_pickup_cat)
+
+        nxt_pickup_dt = _dt.combine(nxt.pickup_date, nxt.pickup_time)
+        # Buffer = time between earliest availability and next pickup
+        earliest_available = curr.estimated_end + timedelta(minutes=reposition_mins + INTER_JOB_BUFFER)
+        buffer_mins = int((nxt_pickup_dt - earliest_available).total_seconds() / 60)
+
+        curr.reposition_mins = reposition_mins
+        curr.buffer_to_next = buffer_mins
+
+        if buffer_mins < 0:
+            curr.conflict_next = True
+            curr.conflict_severity = "overlap"
+            curr.conflict_gap_mins = abs(buffer_mins)
+        elif buffer_mins < 15:
+            curr.conflict_next = True
+            curr.conflict_severity = "tight"
+            curr.conflict_gap_mins = buffer_mins
+        elif buffer_mins < 30:
+            curr.conflict_next = True
+            curr.conflict_severity = "close"
+            curr.conflict_gap_mins = buffer_mins
+        else:
+            # Comfortable buffer — show as green info strip
+            curr.buffer_ok = True
+
+
+def _annotate_legs_with_live_eta(legs_list):
+    """
+    For legs that are on-the-way or picked-up, fetch the latest GPS snapshot
+    and attach live_eta_minutes to the leg.
+    Gracefully handles missing table (pre-migration deployment).
+    """
+    from reservations.models import DriverLocation
+
+    en_route_ids = [
+        leg.id for leg in legs_list
+        if leg.status in ("on-the-way", "picked-up", "on-location")
+    ]
+    if not en_route_ids:
+        return
+
+    try:
+        # Fetch latest location per leg in one query
+        from django.db.models import Max
+        latest_timestamps = (
+            DriverLocation.objects
+            .filter(leg_id__in=en_route_ids)
+            .values("leg_id")
+            .annotate(latest=Max("timestamp"))
+        )
+        ts_map = {row["leg_id"]: row["latest"] for row in latest_timestamps}
+
+        if not ts_map:
+            return
+
+        # Fetch the actual location records
+        locations = DriverLocation.objects.filter(
+            leg_id__in=ts_map.keys(),
+            timestamp__in=ts_map.values(),
+        )
+        loc_map = {loc.leg_id: loc for loc in locations}
+
+        for leg in legs_list:
+            loc = loc_map.get(leg.id)
+            if loc and loc.eta_minutes is not None:
+                leg.live_eta_minutes = loc.eta_minutes
+                leg.live_eta_status = loc.status
+                age = (timezone.now() - loc.timestamp).total_seconds()
+                leg.live_eta_age_mins = int(age / 60)
+    except Exception:
+        return
 
 
 @login_required(login_url="login")
@@ -46,9 +176,6 @@ def index(request):
         .order_by("pickup_time")
     )
 
-    # Add is_first_leg property and ETA using prefetched data (no extra queries)
-    from datetime import datetime as _dt
-
     now = timezone.localtime()
     today = timezone.localdate()
     legs_list = list(legs)
@@ -56,24 +183,7 @@ def index(request):
     for leg in legs_list:
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
-
-        # Compute ETA for each leg
-        pickup_dt = timezone.make_aware(_dt.combine(leg.pickup_date, leg.pickup_time))
-        diff = pickup_dt - now
-        total_mins = int(diff.total_seconds() / 60)
-        days_away = (leg.pickup_date - today).days
-
-        if total_mins < 0:
-            leg.eta = "Now"
-        elif total_mins < 60:
-            leg.eta = f"In {total_mins} min{'s' if total_mins != 1 else ''}"
-        elif days_away == 0:
-            hours = total_mins // 60
-            leg.eta = f"Today in {hours} hr{'s' if hours != 1 else ''}"
-        elif days_away == 1:
-            leg.eta = "Tomorrow"
-        else:
-            leg.eta = f"In {days_away} days"
+        leg.eta = _compute_eta_string(leg.pickup_date, leg.pickup_time, now, today)
 
     # ── Flight delay alerts ──
     for leg in legs_list:
@@ -82,22 +192,16 @@ def index(request):
             if delay:
                 leg.flight_delay = delay
 
-    # ── Conflict warnings (< 30 min gap between consecutive trips) ──
-    for i in range(len(legs_list) - 1):
-        curr = legs_list[i]
-        nxt = legs_list[i + 1]
-        if curr.pickup_date == nxt.pickup_date:
-            curr_dt = _dt.combine(curr.pickup_date, curr.pickup_time)
-            nxt_dt = _dt.combine(nxt.pickup_date, nxt.pickup_time)
-            gap_mins = int((nxt_dt - curr_dt).total_seconds() / 60)
-            if 0 <= gap_mins < 30:
-                curr.conflict_next = True
-                curr.conflict_gap_mins = gap_mins
+    # ── Smart conflict detection (accounts for drive time + job duration) ──
+    _annotate_legs_with_scheduling(legs_list, selected_date)
 
     # ── Route preview (drive time) ──
     if settings.GOOGLE_MAPS_API_KEY:
         for leg in legs_list:
-            leg.drive_info = get_drive_time(leg.pickup_location, leg.dropoff_location)
+            leg.drive_info = google_drive_time(leg.pickup_location, leg.dropoff_location)
+
+    # ── Live GPS ETA for en-route legs ──
+    _annotate_legs_with_live_eta(legs_list)
 
     is_today = selected_date == today
 
@@ -163,63 +267,35 @@ def schedule(request):
         .order_by("pickup_date", "pickup_time")
     )
 
+    now = timezone.localtime()
+
     # Add is_first_leg property using prefetched data (no extra queries)
     for leg in legs_list:
         first_id = min(l.id for l in leg.reservation.legs.all())
         leg.is_first_leg = leg.id == first_id
 
     # ── Flight delay alerts ──
-    from datetime import datetime as _dt
     for leg in legs_list:
         if leg.flight_information and leg.get_trip_type() == 'arrival':
             delay = leg.get_flight_time_mismatch_display(30)
             if delay:
                 leg.flight_delay = delay
 
-    # ── Conflict warnings (< 30 min gap between consecutive trips) ──
-    for i in range(len(legs_list) - 1):
-        curr = legs_list[i]
-        nxt = legs_list[i + 1]
-        if curr.pickup_date == nxt.pickup_date:
-            curr_dt = _dt.combine(curr.pickup_date, curr.pickup_time)
-            nxt_dt = _dt.combine(nxt.pickup_date, nxt.pickup_time)
-            gap_mins = int((nxt_dt - curr_dt).total_seconds() / 60)
-            if 0 <= gap_mins < 30:
-                curr.conflict_next = True
-                curr.conflict_gap_mins = gap_mins
+    # ── Smart conflict detection (accounts for drive time + job duration) ──
+    _annotate_legs_with_scheduling(legs_list, today)
 
     # ── Route preview (drive time) ──
     if settings.GOOGLE_MAPS_API_KEY:
         for leg in legs_list:
-            leg.drive_info = get_drive_time(leg.pickup_location, leg.dropoff_location)
+            leg.drive_info = google_drive_time(leg.pickup_location, leg.dropoff_location)
+
+    # ── Live GPS ETA for en-route legs ──
+    _annotate_legs_with_live_eta(legs_list)
 
     next_leg = legs_list[0] if legs_list else None
-
-    # Build a human-friendly ETA string for the next trip banner
     next_leg_eta = ""
     if next_leg:
-        from datetime import datetime as _dt
-
-        now = timezone.localtime()
-        pickup_dt = timezone.make_aware(
-            _dt.combine(next_leg.pickup_date, next_leg.pickup_time)
-        )
-        diff = pickup_dt - now
-        total_mins = int(diff.total_seconds() / 60)
-
-        days_away = (next_leg.pickup_date - today).days
-
-        if total_mins < 0:
-            next_leg_eta = "Now"
-        elif total_mins < 60:
-            next_leg_eta = f"In {total_mins} min{'s' if total_mins != 1 else ''}"
-        elif days_away == 0:
-            hours = total_mins // 60
-            next_leg_eta = f"Today in {hours} hour{'s' if hours != 1 else ''}"
-        elif days_away == 1:
-            next_leg_eta = "Tomorrow"
-        else:
-            next_leg_eta = f"In {days_away} days"
+        next_leg_eta = _compute_eta_string(next_leg.pickup_date, next_leg.pickup_time, now, today)
 
     return render(
         request,
@@ -258,11 +334,34 @@ def update_leg_status(request, leg_id):
             timestamp=timezone.now()
         )
 
+        # Save GPS snapshot if coordinates provided
+        lat = data.get("latitude")
+        lng = data.get("longitude")
+        if lat is not None and lng is not None:
+            from reservations.models import DriverLocation
+            from reservations.utils import _run_in_background
+
+            location = DriverLocation.objects.create(
+                leg=leg,
+                driver=leg.driver,
+                status=new_status,
+                latitude=lat,
+                longitude=lng,
+                accuracy_meters=data.get("accuracy"),
+                heading=data.get("heading"),
+                speed_mps=data.get("speed"),
+            )
+
+            # Compute ETA in background via Google Maps
+            if settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "picked-up"):
+                # on-the-way → ETA to pickup, picked-up → ETA to dropoff
+                dest = leg.pickup_location if new_status == "on-the-way" else leg.dropoff_location
+                _run_in_background(_compute_location_eta, location.id, dest)
+
         # Check if reservation should be auto-completed
         if new_status == "completed":
             reservation_updated = leg.reservation.check_and_update_completion_status()
             if reservation_updated:
-                # Log for debugging
                 print(f"Auto-completed reservation {leg.reservation.id} - all legs completed")
 
         return JsonResponse(
@@ -276,6 +375,109 @@ def update_leg_status(request, leg_id):
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
 
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+def _compute_location_eta(location_id, destination_address):
+    """Background: compute ETA from GPS snapshot to destination via Google Maps."""
+    try:
+        from reservations.models import DriverLocation
+        loc = DriverLocation.objects.get(id=location_id)
+        origin = f"{loc.latitude},{loc.longitude}"
+        result = google_drive_time(origin, destination_address)
+        if result and result.get("duration_text"):
+            # Parse "25 mins" or "1 hour 10 mins" into minutes
+            text = result["duration_text"].lower()
+            minutes = 0
+            if "hour" in text:
+                parts = text.split("hour")
+                minutes += int(parts[0].strip()) * 60
+                text = parts[1] if len(parts) > 1 else ""
+            if "min" in text:
+                import re
+                nums = re.findall(r'\d+', text)
+                if nums:
+                    minutes += int(nums[0])
+            if minutes > 0:
+                loc.eta_minutes = minutes
+                loc.eta_destination = destination_address
+                loc.save(update_fields=["eta_minutes", "eta_destination"])
+    except Exception:
+        pass  # Non-critical — ETA just won't be available
+
+
+@login_required
+@require_http_methods(["GET"])
+def get_driver_eta(request, leg_id):
+    """Return the latest GPS snapshot + ETA for a leg (staff or assigned driver)."""
+    from reservations.models import DriverLocation
+
+    leg = get_object_or_404(Leg, id=leg_id)
+
+    # Allow staff or the assigned driver
+    if not request.user.is_staff and (not leg.driver or leg.driver.profile != request.user):
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    latest = DriverLocation.objects.filter(leg=leg).first()
+    if not latest:
+        return JsonResponse({"has_location": False})
+
+    age_seconds = (timezone.now() - latest.timestamp).total_seconds()
+
+    return JsonResponse({
+        "has_location": True,
+        "latitude": float(latest.latitude),
+        "longitude": float(latest.longitude),
+        "eta_minutes": latest.eta_minutes,
+        "status": latest.status,
+        "timestamp": latest.timestamp.isoformat(),
+        "age_seconds": int(age_seconds),
+    })
+
+
+@login_required
+@require_POST
+def report_location(request):
+    """Periodic GPS update from driver while en route. Called every 3 minutes by JS."""
+    try:
+        data = json.loads(request.body)
+        leg_id = data.get("leg_id")
+        lat = data.get("latitude")
+        lng = data.get("longitude")
+
+        if not leg_id or lat is None or lng is None:
+            return JsonResponse({"success": False, "error": "Missing fields"}, status=400)
+
+        leg = get_object_or_404(Leg, id=leg_id, driver__profile=request.user)
+
+        # Only accept updates for en-route statuses
+        if leg.status not in ("on-the-way", "on-location", "picked-up"):
+            return JsonResponse({"success": False, "error": "Not en route"}, status=400)
+
+        from reservations.models import DriverLocation
+        from reservations.utils import _run_in_background
+
+        location = DriverLocation.objects.create(
+            leg=leg,
+            driver=leg.driver,
+            status=leg.status,
+            latitude=lat,
+            longitude=lng,
+            accuracy_meters=data.get("accuracy"),
+            heading=data.get("heading"),
+            speed_mps=data.get("speed"),
+        )
+
+        # Compute ETA in background
+        if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "picked-up"):
+            dest = leg.pickup_location if leg.status == "on-the-way" else leg.dropoff_location
+            _run_in_background(_compute_location_eta, location.id, dest)
+
+        return JsonResponse({"success": True})
+
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
@@ -413,6 +615,17 @@ def extend(request):
     # Order by driver type (inhouse first), then by name
     drivers = drivers.order_by("-driver_type", "profile__first_name", "profile__last_name")
     
+    # Prefetch today's active legs for mini-schedule display
+    today_legs_prefetch = Prefetch(
+        'legs',
+        queryset=Leg.objects.filter(
+            pickup_date=today,
+            status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"],
+        ).select_related("reservation__customer").order_by("pickup_time"),
+        to_attr='todays_legs',
+    )
+    drivers = drivers.prefetch_related(today_legs_prefetch)
+
     # Evaluate queryset once as a list to avoid repeated DB hits
     drivers_list = list(drivers)
     available_count = 0
@@ -427,6 +640,15 @@ def extend(request):
             available_count += 1
         if driver.driver_type == "inhouse":
             inhouse_count += 1
+
+        # Build mini-schedule summary for today
+        if driver.todays_legs:
+            next_leg = driver.todays_legs[0]
+            driver.next_trip_time = next_leg.pickup_time
+            driver.next_trip_pickup = next_leg.pickup_location
+            driver.next_trip_dropoff = next_leg.dropoff_location
+            driver.next_trip_status = next_leg.status
+            driver.today_trip_count = len(driver.todays_legs)
 
     context = {
         "drivers": drivers_list,
@@ -607,7 +829,7 @@ def refresh_drive_time(request):
     if not leg.pickup_location or not leg.dropoff_location:
         return JsonResponse({"success": False, "error": "Missing addresses"}, status=400)
 
-    result = get_drive_time(leg.pickup_location, leg.dropoff_location, force_refresh=True)
+    result = google_drive_time(leg.pickup_location, leg.dropoff_location, force_refresh=True)
     if result:
         return JsonResponse({"success": True, **result})
     return JsonResponse({"success": False, "error": "Could not fetch drive time"}, status=500)
@@ -752,7 +974,7 @@ def refresh_flight_data(request):
                     "terminal": flight.terminal or "",
                     "gate": flight.gate or "",
                     "baggage_claim": flight.baggage_claim or "",
-                    "last_updated": flight.last_updated.strftime("%Y-%m-%d %I:%M %p")
+                    "last_updated": timezone.localtime(flight.last_updated).strftime("%Y-%m-%d %I:%M %p")
                     if flight.last_updated
                     else "",
                 },

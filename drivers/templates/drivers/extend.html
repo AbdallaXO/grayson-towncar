@@ -155,6 +155,7 @@
                 <th>Email</th>
                 <th>Vehicle</th>
                 <th>Schedule</th>
+                <th>Today</th>
                 <th>Notes</th>
                 <th>Actions</th>
               </tr>
@@ -211,6 +212,24 @@
                       <span class="schedule-text">{{ driver.get_schedule_display }}</span>
                     {% else %}
                       <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if driver.today_trip_count %}
+                      <div style="font-size:0.8125rem;">
+                        <span class="badge bg-primary">{{ driver.today_trip_count }} trip{{ driver.today_trip_count|pluralize }}</span>
+                        <div class="mt-1" style="font-size:0.75rem;">
+                          <span class="badge bg-{{ driver.next_trip_status|default:'secondary' }}" style="font-size:0.6875rem;{% if driver.next_trip_status == 'on-the-way' %}background:#f97316!important{% elif driver.next_trip_status == 'confirmed' %}background:#7c3aed!important{% elif driver.next_trip_status == 'picked-up' %}background:#3b82f6!important{% endif %}">
+                            {{ driver.next_trip_status }}
+                          </span>
+                          {{ driver.next_trip_time|date:"g:i A" }}
+                        </div>
+                        <div class="text-muted" style="font-size:0.6875rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ driver.next_trip_pickup }} → {{ driver.next_trip_dropoff }}">
+                          {{ driver.next_trip_pickup|truncatechars:25 }} → {{ driver.next_trip_dropoff|truncatechars:25 }}
+                        </div>
+                      </div>
+                    {% else %}
+                      <span class="text-muted" style="font-size:0.8125rem;">No trips</span>
                     {% endif %}
                   </td>
                   <td class="text-center">

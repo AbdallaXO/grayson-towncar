@@ -1,6 +1,7 @@
 import requests
 import logging
 from django.conf import settings
+from django.utils import timezone as django_tz
 from typing import Dict, Optional, Any
 from datetime import datetime, timedelta
 
@@ -136,7 +137,7 @@ class FlightTracker:
                     'delay': flight_data.get('arrival', {}).get('delay', 0)
                 },
                 'status_text': flight_data.get('status', 'Unknown'),
-                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'last_updated': django_tz.localtime(django_tz.now()).strftime('%Y-%m-%d %H:%M:%S'),
                 'data_type': 'scheduled'
             }
             
@@ -191,7 +192,7 @@ class FlightTracker:
                     'delay': 0
                 },
                 'status_text': flight_data.get('status', 'Unknown'),
-                'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'last_updated': django_tz.localtime(django_tz.now()).strftime('%Y-%m-%d %H:%M:%S'),
                 'data_type': 'live_tracking',
                 'live_data': {
                     'latitude': flight_data.get('lat'),
@@ -427,5 +428,5 @@ class AviationEdgeTracker:
                 'delay': flight_data.get('arrival', {}).get('delay', 0)
             },
             'status_text': flight_data.get('status', 'Unknown'),
-            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            'last_updated': django_tz.localtime(django_tz.now()).strftime('%Y-%m-%d %H:%M:%S')
         }

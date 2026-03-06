@@ -53,4 +53,14 @@ urlpatterns = [
         views.toggle_timing_exclude,
         name="toggle_timing_exclude",
     ),
+    path(
+        "driver-eta/<int:leg_id>/",
+        views.get_driver_eta,
+        name="get_driver_eta",
+    ),
+    path(
+        "report-location/",
+        views.report_location,
+        name="driver_report_location",
+    ),
 ]

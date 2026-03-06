@@ -1,9 +1,9 @@
-const CACHE = 'gt-driver-v1';
+const CACHE = 'gt-driver-v2';
 const OFFLINE_URL = '/static/drivers/offline.html';
 
 self.addEventListener('install', (e) => {
     e.waitUntil(
-        caches.open(CACHE).then((c) => c.add(OFFLINE_URL))
+        caches.open(CACHE).then((c) => c.add(OFFLINE_URL).catch(() => {}))
     );
     self.skipWaiting();
 });

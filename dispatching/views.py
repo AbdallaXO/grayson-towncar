@@ -333,6 +333,11 @@ def index(request):
                             leg.actual_duration_display = f"{am} mins"
                     break
 
+    # Annotate en-route legs with live GPS ETA for dispatchers
+    if selected_date == today:
+        from drivers.views import _annotate_legs_with_live_eta
+        _annotate_legs_with_live_eta(list(legs) if not isinstance(legs, list) else legs)
+
     context = {
         "legs": legs,
         "selected_date": selected_date,
@@ -1036,6 +1041,13 @@ def legs_list(request):
                             leg.actual_duration_display = f"{am} mins"
                     break
 
+    # Annotate en-route legs with live GPS ETA
+    try:
+        from drivers.views import _annotate_legs_with_live_eta
+        _annotate_legs_with_live_eta(list(page_obj))
+    except Exception:
+        pass
+
     context = {
         "legs": page_obj,
         "filter_date": date_filter,
@@ -1249,6 +1261,82 @@ def update_leg_assignment(request):
         return JsonResponse(
             {"success": False, "error": f"Server error: {str(e)}"}, status=500
         )
+
+
+@login_required
+@require_http_methods(["GET"])
+def check_driver_feasibility(request):
+    """
+    AJAX endpoint: Check if assigning a driver to a leg creates scheduling conflicts.
+    Uses the scheduler's check_feasibility() for accurate gap/overlap detection.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"error": "Permission denied"}, status=403)
+
+    leg_id = request.GET.get("leg_id")
+    driver_id = request.GET.get("driver_id")
+
+    if not leg_id or not driver_id:
+        return JsonResponse({"error": "leg_id and driver_id required"}, status=400)
+
+    try:
+        from dispatching.scheduler import (
+            build_driver_schedules, check_feasibility, preload_timing_cache,
+            estimate_job_end_time,
+        )
+        from drivers.models import Driver
+
+        leg = Leg.objects.select_related(
+            "reservation", "flight_information", "cruise_information"
+        ).get(id=leg_id)
+        driver = Driver.objects.get(id=driver_id)
+        target_date = leg.pickup_date
+
+        preload_timing_cache()
+
+        # Build driver's current schedule (excluding this leg in case of reassignment)
+        existing_legs = list(
+            Leg.objects.select_related(
+                "reservation", "flight_information", "cruise_information"
+            ).filter(
+                driver=driver,
+                pickup_date=target_date,
+                status__in=["confirmed", "in-progress", "on-the-way", "picked-up", "on-location"],
+            ).exclude(id=leg.id).order_by("pickup_time")
+        )
+
+        schedules = build_driver_schedules(existing_legs, [driver], target_date)
+        driver_schedule = schedules.get(driver.id)
+
+        if not driver_schedule:
+            # No existing schedule — always feasible
+            end_time = estimate_job_end_time(leg, target_date)
+            return JsonResponse({
+                "feasible": True,
+                "buffer_minutes": 999,
+                "warnings": [],
+                "reason": "No other trips — fully available",
+                "estimated_end": end_time.strftime("%I:%M %p").lstrip("0") if end_time else None,
+                "existing_trips": 0,
+            })
+
+        result = check_feasibility(driver_schedule, leg, target_date)
+        end_time = estimate_job_end_time(leg, target_date)
+
+        return JsonResponse({
+            "feasible": result.feasible,
+            "buffer_minutes": result.buffer_minutes,
+            "warnings": result.warnings,
+            "reason": result.reason,
+            "estimated_end": end_time.strftime("%I:%M %p").lstrip("0") if end_time else None,
+            "existing_trips": len(driver_schedule.slots),
+        })
+
+    except Leg.DoesNotExist:
+        return JsonResponse({"error": "Leg not found"}, status=404)
+    except Exception as e:
+        logger.error(f"Feasibility check error: {str(e)}")
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @login_required
@@ -2447,7 +2535,7 @@ def refresh_flight_data(request):
                 "terminal": flight.terminal or "",
                 "gate": flight.gate or "",
                 "baggage_claim": flight.baggage_claim or "",
-                "last_updated": flight.last_updated.strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
+                "last_updated": timezone.localtime(flight.last_updated).strftime('%Y-%m-%d %I:%M %p') if flight.last_updated else "",
             }
         })
 
@@ -2859,7 +2947,7 @@ def _refresh_single_flight(leg):
                 "terminal": flight.terminal or "",
                 "gate": flight.gate or "",
                 "baggage_claim": flight.baggage_claim or "",
-                "last_updated": flight.last_updated.strftime("%Y-%m-%d %I:%M %p")
+                "last_updated": timezone.localtime(flight.last_updated).strftime("%Y-%m-%d %I:%M %p")
                 if flight.last_updated
                 else "",
             },

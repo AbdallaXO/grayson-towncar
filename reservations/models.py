@@ -1834,6 +1834,48 @@ class LegStatus(models.Model):
         return f"Leg #{self.leg.id} - {self.get_status_display()} at {self.timestamp}"
 
 
+class DriverLocation(models.Model):
+    """
+    GPS snapshot captured when a driver changes status (on-the-way, on-location, picked-up).
+    Used to compute live ETA from the driver's position to pickup/dropoff.
+    """
+    leg = models.ForeignKey(
+        'Leg', on_delete=models.CASCADE, related_name='driver_locations',
+    )
+    driver = models.ForeignKey(
+        'drivers.Driver', on_delete=models.CASCADE, related_name='location_history',
+    )
+    status = models.CharField(
+        max_length=30, blank=True,
+        help_text="The status when this location was captured",
+    )
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    accuracy_meters = models.FloatField(null=True, blank=True)
+    heading = models.FloatField(null=True, blank=True)
+    speed_mps = models.FloatField(null=True, blank=True, help_text="Speed in meters/second")
+    timestamp = models.DateTimeField(default=timezone.now, db_index=True)
+    # ETA computed server-side via Google Maps Distance Matrix
+    eta_minutes = models.IntegerField(
+        null=True, blank=True,
+        help_text="Estimated minutes to destination (computed via Google Maps)",
+    )
+    eta_destination = models.CharField(
+        max_length=255, blank=True,
+        help_text="The destination address used for ETA calculation",
+    )
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['leg', '-timestamp']),
+            models.Index(fields=['driver', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"Driver {self.driver_id} @ ({self.latitude},{self.longitude}) - {self.status} - {self.timestamp}"
+
+
 class ScheduleSnapshot(models.Model):
     """A saved snapshot of driver assignments for a specific date."""
     TRIGGER_CHOICES = [

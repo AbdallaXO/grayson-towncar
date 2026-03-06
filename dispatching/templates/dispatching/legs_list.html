@@ -5,6 +5,10 @@
 
 {% block extra_css %}
   <style>
+      @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+      }
       .status-col {
           width: 180px;
       }
@@ -719,6 +723,18 @@
                         </div>
                       {% endif %}
                     {% endwith %}
+                    {% if leg.live_eta_minutes %}
+                      <div class="mt-2 d-flex align-items-center gap-1">
+                        <span class="badge bg-info d-flex align-items-center gap-1" style="font-size:0.75rem;">
+                          <i class="bi bi-broadcast" style="animation:pulse 2s infinite;"></i>
+                          ~{{ leg.live_eta_minutes }} min
+                          {% if leg.live_eta_status == 'on-the-way' %}to pickup{% elif leg.live_eta_status == 'picked-up' %}to dropoff{% endif %}
+                        </span>
+                        {% if leg.live_eta_age_mins %}
+                          <span class="text-muted" style="font-size:0.6875rem;">{{ leg.live_eta_age_mins }}m ago</span>
+                        {% endif %}
+                      </div>
+                    {% endif %}
                   </td>
                 </tr>
               {% endwith %}
@@ -1143,9 +1159,46 @@
               }
           });
 
-          // --- AJAX for driver/status update ---
+          // Helper: submit leg assignment update
+          function submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement) {
+              fetch('/dispatching/update-leg-assignment/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': csrfToken
+                      },
+                      body: JSON.stringify({
+                          leg_id: legId,
+                          field: selectName,
+                          value: selectValue
+                      })
+                  })
+                  .then(response => {
+                      if (!response.ok) {
+                          return response.json().then(data => {
+                              throw new Error(data.error || 'Server error: ' + response.status);
+                          });
+                      }
+                      return response.json();
+                  })
+                  .then(data => {
+                      if (data.success) {
+                          statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
+                          setTimeout(() => {
+                              statusElement.innerHTML = '';
+                          }, 3000);
+                      } else {
+                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                      }
+                  })
+                  .catch(error => {
+                      statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
+                  });
+          }
+
+          // --- AJAX for driver/status update with feasibility check ---
           document.querySelectorAll('.driver-select, .status-select').forEach(select => {
-              select.addEventListener('change', function() {
+              select.addEventListener('change', async function() {
                   const legId = this.dataset.legId;
                   const selectName = this.name;
                   const selectValue = this.value;
@@ -1153,40 +1206,40 @@
                   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
                   const statusElement = form.querySelector('.update-status');
 
-                  // Send the update to the server via AJAX
-                  fetch('/dispatching/update-leg-assignment/', {
-                          method: 'POST',
-                          headers: {
-                              'Content-Type': 'application/json',
-                              'X-CSRFToken': csrfToken
-                          },
-                          body: JSON.stringify({
-                              leg_id: legId,
-                              field: selectName,
-                              value: selectValue
-                          })
-                      })
-                      .then(response => {
-                          if (!response.ok) {
-                              return response.json().then(data => {
-                                  throw new Error(data.error || 'Server error: ' + response.status);
-                              });
-                          }
-                          return response.json();
-                      })
-                      .then(data => {
-                          if (data.success) {
-                              statusElement.innerHTML = '<div class="alert alert-success py-1 px-2 mb-0">Updated!</div>';
-                              setTimeout(() => {
-                                  statusElement.innerHTML = '';
-                              }, 3000);
+                  // Feasibility check for driver assignments
+                  if (selectName === 'driver' && selectValue) {
+                      try {
+                          statusElement.innerHTML = '<div class="text-muted small py-1">Checking schedule...</div>';
+                          const resp = await fetch(`/dispatching/check-feasibility/?leg_id=${legId}&driver_id=${selectValue}`);
+                          const feas = await resp.json();
+
+                          if (!feas.feasible) {
+                              const proceed = confirm(
+                                  `⚠️ Schedule Conflict\n\n${feas.reason}\n\nAssign anyway?`
+                              );
+                              if (!proceed) {
+                                  statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0">Assignment cancelled</div>';
+                                  setTimeout(() => { statusElement.innerHTML = ''; }, 3000);
+                                  return;
+                              }
+                          } else if (feas.warnings && feas.warnings.length > 0) {
+                              statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0">' +
+                                  feas.warnings.join(', ') +
+                                  (feas.estimated_end ? ' · Done ~' + feas.estimated_end : '') +
+                                  '</div>';
                           } else {
-                              statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Failed: ' + data.error + '</div>';
+                              const infoText = feas.existing_trips > 0
+                                  ? `✓ Fits schedule (${feas.buffer_minutes} min buffer` +
+                                    (feas.estimated_end ? `, done ~${feas.estimated_end}` : '') + ')'
+                                  : '✓ No other trips';
+                              statusElement.innerHTML = '<div class="text-success small py-1">' + infoText + '</div>';
                           }
-                      })
-                      .catch(error => {
-                          statusElement.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0">Error: ' + error.message + '</div>';
-                      });
+                      } catch (e) {
+                          console.warn('Feasibility check failed, proceeding anyway:', e);
+                      }
+                  }
+
+                  submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement);
               });
           });
 
