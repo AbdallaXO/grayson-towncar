@@ -1,0 +1,22 @@
+{
+  "name": "Grayson Towncar Driver",
+  "short_name": "GT Driver",
+  "description": "Driver portal for Grayson Towncar",
+  "start_url": "/drivers/weekly-schedule/",
+  "display": "standalone",
+  "background_color": "#343a40",
+  "theme_color": "#343a40",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/drivers/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/drivers/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
