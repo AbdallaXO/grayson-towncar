@@ -457,19 +457,33 @@
 
     /* ─── Drive Time Estimate ─── */
     .gt-drive-estimate {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
+        gap: 8px;
+        padding: 7px 10px;
         background: var(--gt-surface);
-        border-radius: 6px;
+        border: 1px solid var(--gt-border-light);
+        border-radius: 8px;
         font-size: 0.75rem;
         color: var(--gt-text-secondary);
+    }
+    .gt-drive-icon {
+        font-size: 0.875rem;
+        line-height: 1;
+    }
+    .gt-drive-main {
+        flex: 1;
+        min-width: 0;
+    }
+    .gt-drive-stats {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
     }
     .gt-drive-time {
         font-family: 'JetBrains Mono', monospace;
         font-weight: 600;
-        font-size: 0.75rem;
+        font-size: 0.8125rem;
         color: var(--gt-text);
         letter-spacing: -0.01em;
     }
@@ -477,7 +491,24 @@
         opacity: 0.3;
     }
     .gt-drive-distance {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
+        color: var(--gt-text-secondary);
+    }
+    .gt-drive-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 2px;
+    }
+    .gt-drive-label {
+        font-size: 0.6875rem;
+        color: var(--gt-text-secondary);
+        font-weight: 500;
+    }
+    .gt-drive-done {
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--gt-blue);
     }
     .gt-drive-traffic {
         display: inline-flex;
@@ -490,8 +521,8 @@
     }
     .gt-drive-traffic::before {
         content: '';
-        width: 6px;
-        height: 6px;
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
         background: var(--gt-green);
         animation: gt-pulse 1.5s ease-in-out infinite;
@@ -503,13 +534,12 @@
     .gt-drive-refresh {
         background: var(--gt-bg);
         border: 1px solid var(--gt-border);
-        padding: 3px 6px;
-        margin-left: auto;
+        padding: 5px 8px;
         color: var(--gt-text-secondary);
         cursor: pointer;
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         line-height: 1;
-        border-radius: 4px;
+        border-radius: 6px;
         transition: all 0.15s;
     }
     .gt-drive-refresh:hover { background: var(--gt-border); color: var(--gt-text); }

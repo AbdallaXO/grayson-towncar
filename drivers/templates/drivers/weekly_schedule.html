@@ -98,9 +98,6 @@
                     <td>
                       <div class="gt-time" style="font-size:1rem;">{{ leg.pickup_time|date:"g:i A" }}</div>
                       <div style="font-size:0.8125rem;color:var(--gt-text-secondary);">{{ leg.pickup_date|date:"l, M j" }}</div>
-                      {% if leg.estimated_end %}
-                        <div class="gt-est-end-inline">Done ~{{ leg.estimated_end|date:"g:i A" }}</div>
-                      {% endif %}
                     </td>
                     <!-- Route -->
                     <td>
@@ -128,10 +125,18 @@
                       {% if leg.drive_info %}
                         <hr class="mt-1 mb-2" style="border-color:var(--gt-border);opacity:0.4;">
                         <div class="gt-drive-estimate" data-leg-id="{{ leg.id }}">
-                          📍
-                          <span class="gt-drive-time">{{ leg.drive_info.duration_text }}</span>
-                          <span class="gt-drive-distance">{{ leg.drive_info.distance_text }}</span>
-                          <span class="gt-drive-traffic">live traffic</span>
+                          <span class="gt-drive-icon">🚗</span>
+                          <div class="gt-drive-main">
+                            <div class="gt-drive-stats">
+                              <span class="gt-drive-time">{{ leg.drive_info.duration_text }}</span>
+                              <span class="gt-drive-distance">· {{ leg.drive_info.distance_text }}</span>
+                              <span class="gt-drive-traffic">live traffic</span>
+                            </div>
+                            <div class="gt-drive-meta">
+                              <span class="gt-drive-label">Pickup → Dropoff</span>
+                              {% if leg.estimated_done %}<span class="gt-drive-done">Cleared ~{{ leg.estimated_done }}</span>{% endif %}
+                            </div>
+                          </div>
                           <button class="gt-drive-refresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
                         </div>
                       {% endif %}
@@ -356,9 +361,6 @@
                 <div class="d-flex justify-content-between align-items-start mb-3">
                   <div>
                     <div style="font-size:1.0625rem;font-weight:600;">{{ leg.reservation.customer.get_full_name }}</div>
-                    <div style="font-size:0.8125rem;color:var(--gt-text-secondary);margin-top:2px;">
-                      {{ leg.reservation.customer.phone_number }}
-                    </div>
                   </div>
                   <div class="d-flex gap-2">
                     <a href="tel:{{ leg.reservation.customer.phone_number }}" class="gt-contact gt-contact-call">
@@ -472,26 +474,30 @@
                 {% if leg.drive_info %}
                   <hr class="mt-1 mb-2" style="border-color:var(--gt-border);opacity:0.4;">
                   <div class="gt-drive-estimate mb-3" data-leg-id="{{ leg.id }}">
-                    📍
-                    <span class="gt-drive-time">{{ leg.drive_info.duration_text }}</span>
-                    <span class="gt-drive-distance">{{ leg.drive_info.distance_text }}</span>
-                    <span class="gt-drive-traffic">live traffic</span>
+                    <span class="gt-drive-icon">🚗</span>
+                    <div class="gt-drive-main">
+                      <div class="gt-drive-stats">
+                        <span class="gt-drive-time">{{ leg.drive_info.duration_text }}</span>
+                        <span class="gt-drive-distance">· {{ leg.drive_info.distance_text }}</span>
+                        <span class="gt-drive-traffic">live traffic</span>
+                      </div>
+                      <div class="gt-drive-meta">
+                        <span class="gt-drive-label">Pickup → Dropoff</span>
+                        {% if leg.estimated_done %}<span class="gt-drive-done">Cleared ~{{ leg.estimated_done }}</span>{% endif %}
+                      </div>
+                    </div>
                     <button class="gt-drive-refresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
                   </div>
                 {% endif %}
 
-                {% if leg.estimated_end %}
-                  <div class="gt-est-end mb-3">
-                    <i class="bi bi-flag-fill me-1"></i>
-                    Est. done <strong>~{{ leg.estimated_end|date:"g:i A" }}</strong>
-                  </div>
-                {% endif %}
+
+
 
                 {% if leg.live_eta_minutes %}
                   <div class="gt-live-eta mb-3">
                     <i class="bi bi-broadcast me-1"></i>
                     <strong>~{{ leg.live_eta_minutes }} min</strong>
-                    {% if leg.live_eta_status == "on-the-way" %}to pickup{% elif leg.live_eta_status == "picked-up" %}to dropoff{% endif %}
+                    {% if leg.live_eta_status == "on-the-way" or leg.live_eta_status == "on-location" %}drive to pickup{% elif leg.live_eta_status == "picked-up" %}drive to dropoff{% endif %}
                     {% if leg.live_eta_age_mins > 0 %}<span class="gt-live-eta-age">({{ leg.live_eta_age_mins }}m ago)</span>{% endif %}
                   </div>
                 {% endif %}
@@ -621,26 +627,6 @@
 
               </div>
             </div>
-            {% if leg.conflict_next %}
-              <div class="gt-conflict-strip gt-conflict-{{ leg.conflict_severity }}">
-                <i class="bi bi-exclamation-triangle-fill"></i>
-                {% if leg.conflict_severity == "overlap" %}
-                  OVERLAP &mdash; {{ leg.conflict_gap_mins }} min short
-                  {% if leg.reposition_mins %}<span class="gt-conflict-detail">({{ leg.reposition_mins }} min reposition + 5 min buffer needed)</span>{% endif %}
-                {% elif leg.conflict_severity == "tight" %}
-                  Tight &mdash; {{ leg.conflict_gap_mins }} min buffer
-                  {% if leg.reposition_mins %}<span class="gt-conflict-detail">(incl. {{ leg.reposition_mins }} min drive to next)</span>{% endif %}
-                {% else %}
-                  {{ leg.conflict_gap_mins }} min buffer to next trip
-                {% endif %}
-              </div>
-            {% elif leg.buffer_ok %}
-              <div class="gt-conflict-strip gt-buffer-ok">
-                <i class="bi bi-clock"></i>
-                {{ leg.buffer_to_next }} min buffer
-                {% if leg.reposition_mins %}<span class="gt-conflict-detail">({{ leg.reposition_mins }} min drive)</span>{% endif %}
-              </div>
-            {% endif %}
           {% endfor %}
         </div>
 

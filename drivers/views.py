@@ -198,10 +198,15 @@ def index(request):
     # ── Smart conflict detection (accounts for drive time + job duration) ──
     _annotate_legs_with_scheduling(legs_list, selected_date)
 
-    # ── Route preview (drive time) ──
+    # ── Route preview (drive time) + estimated done ──
     if settings.GOOGLE_MAPS_API_KEY:
         for leg in legs_list:
             leg.drive_info = google_drive_time(leg.pickup_location, leg.dropoff_location)
+            if leg.drive_info and leg.drive_info.get('duration_seconds') and leg.pickup_time:
+                from datetime import datetime as _dt2, timedelta
+                pickup_dt = _dt2.combine(selected_date, leg.pickup_time)
+                done_dt = pickup_dt + timedelta(seconds=leg.drive_info['duration_seconds']) + timedelta(minutes=2)
+                leg.estimated_done = timezone.localtime(timezone.make_aware(done_dt)).strftime('%I:%M %p').lstrip('0')
 
     # ── Live GPS ETA for en-route legs ──
     _annotate_legs_with_live_eta(legs_list)
@@ -287,10 +292,15 @@ def schedule(request):
     # ── Smart conflict detection (accounts for drive time + job duration) ──
     _annotate_legs_with_scheduling(legs_list, today)
 
-    # ── Route preview (drive time) ──
+    # ── Route preview (drive time) + estimated done ──
     if settings.GOOGLE_MAPS_API_KEY:
         for leg in legs_list:
             leg.drive_info = google_drive_time(leg.pickup_location, leg.dropoff_location)
+            if leg.drive_info and leg.drive_info.get('duration_seconds') and leg.pickup_time:
+                from datetime import datetime as _dt2, timedelta
+                pickup_dt = _dt2.combine(leg.pickup_date, leg.pickup_time)
+                done_dt = pickup_dt + timedelta(seconds=leg.drive_info['duration_seconds']) + timedelta(minutes=2)
+                leg.estimated_done = timezone.localtime(timezone.make_aware(done_dt)).strftime('%I:%M %p').lstrip('0')
 
     # ── Live GPS ETA for en-route legs ──
     _annotate_legs_with_live_eta(legs_list)

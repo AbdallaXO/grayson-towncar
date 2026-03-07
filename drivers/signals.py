@@ -39,11 +39,11 @@ def leg_status_changed(sender, instance, created, **kwargs):
     if created or not instance.driver:
         return
 
-    # Check if status actually changed
+    # Check if status actually changed (old_status is None when pre_save skipped fetch or new leg)
     old_status = getattr(instance, '_old_status', None)
     new_status = instance.status
 
-    if old_status != new_status and new_status:
+    if old_status is not None and old_status != new_status and new_status:
         try:
             logger.info(
                 f"Leg {instance.id} status changed from '{old_status}' to '{new_status}'"

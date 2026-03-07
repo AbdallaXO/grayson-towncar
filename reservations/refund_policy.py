@@ -11,21 +11,13 @@ from django.utils import timezone
 from datetime import datetime
 
 
-def calculate_leg_refund_suggestion(leg):
+def _calculate_leg_refund(leg, revenue_per_leg):
     """
     Calculate the suggested refund amount for a single leg based on time until pickup.
 
-    Returns:
-        dict: {
-            'leg_id': int,
-            'revenue_share': Decimal,
-            'refund_percentage': int (0, 50, or 100),
-            'suggested_amount': Decimal,
-            'tier': str ('48h+', '24-48h', '<24h'),
-            'pickup_datetime': datetime,
-            'pickup_location': str,
-            'dropoff_location': str,
-        }
+    Args:
+        leg: Leg instance
+        revenue_per_leg: Pre-calculated revenue share (total_price / active leg count)
     """
     now = timezone.now()
 
@@ -48,13 +40,11 @@ def calculate_leg_refund_suggestion(leg):
         pct = 0
         tier = '<24h'
 
-    revenue = leg.revenue_share or leg.calculate_revenue_share()
-
     return {
         'leg_id': leg.id,
-        'revenue_share': revenue,
+        'revenue_share': revenue_per_leg,
         'refund_percentage': pct,
-        'suggested_amount': (revenue * Decimal(pct) / Decimal(100)).quantize(Decimal('0.01')),
+        'suggested_amount': (revenue_per_leg * Decimal(pct) / Decimal(100)).quantize(Decimal('0.01')),
         'tier': tier,
         'pickup_datetime': pickup_dt,
         'pickup_location': leg.pickup_location,
@@ -66,26 +56,41 @@ def calculate_refund_suggestion(reservation, leg_ids=None):
     """
     Calculate the total suggested refund for a reservation, optionally for specific legs.
 
-    Args:
-        reservation: Reservation instance (with prefetched legs ideally)
-        leg_ids: Optional list of specific leg IDs. If None, all non-cancelled legs.
+    Always derives revenue per leg fresh from the reservation's current total_price
+    divided by its active (non-cancelled) leg count, so stale stored values can't
+    produce inflated suggestions.
 
-    Returns:
-        dict: {
-            'total_suggested': Decimal,
-            'leg_details': list of per-leg dicts,
-            'has_zero_refund_legs': bool (True if any leg gets 0%),
-        }
+    The total is capped at total_paid (or total_price if nothing paid yet) so the
+    suggestion never exceeds what was actually collected.
     """
-    legs = reservation.legs.all()
-    if leg_ids:
-        legs = [leg for leg in legs if leg.id in leg_ids]
-    else:
-        # Exclude already-cancelled legs
-        legs = [leg for leg in legs if leg.status != 'cancelled']
+    all_legs = list(reservation.legs.all())
 
-    details = [calculate_leg_refund_suggestion(leg) for leg in legs]
+    if leg_ids:
+        legs = [leg for leg in all_legs if leg.id in leg_ids]
+    else:
+        legs = [leg for leg in all_legs if leg.status != 'cancelled']
+
+    if not legs:
+        return {
+            'total_suggested': Decimal('0.00'),
+            'leg_details': [],
+            'has_zero_refund_legs': False,
+        }
+
+    # Fresh revenue split: total_price / number of active legs
+    active_leg_count = len([l for l in all_legs if l.status != 'cancelled'])
+    if active_leg_count == 0:
+        active_leg_count = len(all_legs) or 1
+    total_price = reservation.total_price or Decimal('0.00')
+    revenue_per_leg = (total_price / Decimal(active_leg_count)).quantize(Decimal('0.01'))
+
+    details = [_calculate_leg_refund(leg, revenue_per_leg) for leg in legs]
     total = sum(d['suggested_amount'] for d in details)
+
+    # Cap at what was actually paid (never suggest more than collected)
+    max_refundable = reservation.total_paid if reservation.total_paid > 0 else total_price
+    if total > max_refundable:
+        total = max_refundable
 
     return {
         'total_suggested': total,

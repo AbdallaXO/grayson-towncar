@@ -54,6 +54,7 @@ def get_drive_time(origin, destination, force_refresh=False):
 
         result = {
             "duration_text": duration["text"],
+            "duration_seconds": duration["value"],
             "distance_text": element["distance"]["text"],
         }
         _cache.set(cache_key, result, CACHE_TTL)

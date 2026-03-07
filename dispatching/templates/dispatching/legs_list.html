@@ -733,7 +733,7 @@
                           <span class="badge d-flex align-items-center gap-1" style="font-size:0.8rem;background:#1a1d21;color:#fff;padding:6px 10px;">
                             <span style="animation:gt-bounce 1.5s ease infinite;display:inline-block;">📍</span>
                             ~{{ leg.live_eta_minutes }} min
-                            {% if leg.live_eta_status == 'on-the-way' or leg.live_eta_status == 'on-location' %}to pickup{% elif leg.live_eta_status == 'picked-up' %}to dropoff{% endif %}
+                            {% if leg.live_eta_status == 'on-the-way' or leg.live_eta_status == 'on-location' %}drive to pickup{% elif leg.live_eta_status == 'picked-up' %}drive to dropoff{% endif %}
                           </span>
                           <span class="text-muted" style="font-size:0.6875rem;">{% if leg.live_eta_age_mins %}updated {{ leg.live_eta_age_mins }}m ago{% else %}just now{% endif %}</span>
                         </div>
@@ -1205,7 +1205,7 @@
                   });
           }
 
-          // --- AJAX for driver/status update with feasibility check ---
+          // --- AJAX for driver/status update ---
           document.querySelectorAll('.driver-select, .status-select').forEach(select => {
               select.addEventListener('change', async function() {
                   const legId = this.dataset.legId;
@@ -1214,39 +1214,6 @@
                   const form = this.closest('form');
                   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
                   const statusElement = form.querySelector('.update-status');
-
-                  // Feasibility check for driver assignments
-                  if (selectName === 'driver' && selectValue) {
-                      try {
-                          statusElement.innerHTML = '<div class="text-muted small py-1">Checking schedule...</div>';
-                          const resp = await fetch(`/dispatching/check-feasibility/?leg_id=${legId}&driver_id=${selectValue}`);
-                          const feas = await resp.json();
-
-                          if (!feas.feasible) {
-                              const proceed = confirm(
-                                  `⚠️ Schedule Conflict\n\n${feas.reason}\n\nAssign anyway?`
-                              );
-                              if (!proceed) {
-                                  statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0">Assignment cancelled</div>';
-                                  setTimeout(() => { statusElement.innerHTML = ''; }, 3000);
-                                  return;
-                              }
-                          } else if (feas.warnings && feas.warnings.length > 0) {
-                              statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0">' +
-                                  feas.warnings.join(', ') +
-                                  (feas.estimated_end ? ' · Done ~' + feas.estimated_end : '') +
-                                  '</div>';
-                          } else {
-                              const infoText = feas.existing_trips > 0
-                                  ? `✓ Fits schedule (${feas.buffer_minutes} min buffer` +
-                                    (feas.estimated_end ? `, done ~${feas.estimated_end}` : '') + ')'
-                                  : '✓ No other trips';
-                              statusElement.innerHTML = '<div class="text-success small py-1">' + infoText + '</div>';
-                          }
-                      } catch (e) {
-                          console.warn('Feasibility check failed, proceeding anyway:', e);
-                      }
-                  }
 
                   submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement);
               });

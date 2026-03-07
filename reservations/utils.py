@@ -508,20 +508,29 @@ def extra_charges(reservation):
 
     reservation.additional_charges = total_extra
     reservation.total_price = reservation.base_price + total_extra + gratuity_amount
-    reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount"])
 
-    # For round-trips, split gratuity into each leg's private_notes
+    # Always add gratuity note to reservation special_requests
+    if gratuity_amount > 0:
+        gratuity_note = f"{int(reservation.gratuity_percentage)}% Gratuity Included (${gratuity_amount:.2f})"
+        if reservation.special_requests:
+            reservation.special_requests += f"\n{gratuity_note}"
+        else:
+            reservation.special_requests = gratuity_note
+
+    reservation.save(update_fields=["additional_charges", "total_price", "gratuity_amount", "special_requests"])
+
+    # Always add per-leg gratuity to private_notes (split for multi-leg)
     if gratuity_amount > 0:
         legs = list(reservation.legs.all())
-        if len(legs) > 1:
-            gratuity_per_leg = (gratuity_amount / Decimal(len(legs))).quantize(Decimal("0.01"))
-            for leg in legs:
-                note = f"${gratuity_per_leg:.2f} Gratuity Included"
-                if leg.private_notes:
-                    leg.private_notes = f"{leg.private_notes}\n{note}"
-                else:
-                    leg.private_notes = note
-                leg.save(update_fields=["private_notes"])
+        leg_count = len(legs)
+        gratuity_per_leg = (gratuity_amount / Decimal(leg_count)).quantize(Decimal("0.01")) if leg_count > 1 else gratuity_amount
+        for leg in legs:
+            note = f"${gratuity_per_leg:.2f} Gratuity Included"
+            if leg.private_notes:
+                leg.private_notes = f"{leg.private_notes}\n{note}"
+            else:
+                leg.private_notes = note
+            leg.save(update_fields=["private_notes"])
 
     return total_extra
 

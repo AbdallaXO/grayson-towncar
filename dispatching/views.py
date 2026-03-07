@@ -4950,10 +4950,10 @@ def request_refund(request):
         # Calculate policy suggestion
         from reservations.refund_policy import calculate_refund_suggestion
         suggestion = calculate_refund_suggestion(reservation, leg_ids if leg_ids else None)
-        suggested_amount = suggestion['total_suggested']
 
-        # Validate refund amount
+        # Validate refund amount — cap suggestion at what was actually paid
         max_refund = reservation.total_paid if reservation.total_paid > 0 else reservation.total_price
+        suggested_amount = min(suggestion['total_suggested'], max_refund)
         if refund_amount:
             try:
                 refund_amount = Decimal(str(refund_amount))
@@ -5307,9 +5307,13 @@ def refund_suggestion(request):
         from reservations.refund_policy import calculate_refund_suggestion
         suggestion = calculate_refund_suggestion(reservation, leg_ids)
 
+        # Cap suggested amount at what was actually paid
+        max_refundable = reservation.total_paid if reservation.total_paid > 0 else reservation.total_price
+        capped_total = min(suggestion['total_suggested'], max_refundable)
+
         return JsonResponse({
             'success': True,
-            'total_suggested': str(suggestion['total_suggested']),
+            'total_suggested': str(capped_total),
             'has_zero_refund_legs': suggestion['has_zero_refund_legs'],
             'leg_details': [
                 {
