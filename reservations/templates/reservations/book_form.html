@@ -343,7 +343,8 @@
                       {% endif %}
                     </div>
 
-                    <!-- Grocery Stop — Toggle Card -->
+                    <!-- Grocery Stop — Toggle Card (Orlando Airport routes only, excludes Port Canaveral & Sea World) -->
+                    {% if route.origin.name == "Orlando International Airport" and route.destination.name != "Port Canaveral" and route.destination.name != "Sea World" %}
                     <div class="col-12 col-md-6">
                       <label class="gt-toggle-card" id="grocery-toggle" for="{{ reservation_form.store_stop.id_for_label }}">
                         <div class="gt-toggle-icon">
@@ -372,6 +373,7 @@
                         </div>
                       {% endif %}
                     </div>
+                    {% endif %}
 
                     <!-- Car Seats Section (shown when children toggle is on) -->
                     <div class="col-12" id="car-seats-section" style="display: none;">

@@ -875,7 +875,21 @@ class Leg(models.Model):
         if self.route:
             return
 
-        # 1. Try to get route from reservation's rate (customer chose this at booking)
+        # 1. Try text matching from actual pickup/dropoff locations (most accurate)
+        if self.pickup_location and self.dropoff_location:
+            locations = list(Location.objects.all())
+            origin = self._match_location(self.pickup_location, locations)
+            destination = self._match_location(self.dropoff_location, locations)
+            if origin and destination:
+                route = Route.objects.filter(origin=origin, destination=destination).first()
+                if not route:
+                    # Check reverse direction (return trips match origin↔destination)
+                    route = Route.objects.filter(origin=destination, destination=origin).first()
+                if route:
+                    self.route = route
+                    return
+
+        # 2. Fall back to reservation's rate route (may be a default from booking)
         if self.reservation_id:
             try:
                 res = self.reservation
@@ -884,20 +898,6 @@ class Leg(models.Model):
                     return
             except Exception:
                 pass
-
-        # 2. Fall back to text matching from pickup/dropoff locations
-        if not self.pickup_location or not self.dropoff_location:
-            return
-        locations = list(Location.objects.all())
-        origin = self._match_location(self.pickup_location, locations)
-        destination = self._match_location(self.dropoff_location, locations)
-        if origin and destination:
-            route = Route.objects.filter(origin=origin, destination=destination).first()
-            if not route:
-                # Check reverse direction (return trips match origin↔destination)
-                route = Route.objects.filter(origin=destination, destination=origin).first()
-            if route:
-                self.route = route
 
     def save(self, *args, **kwargs):
         # Attempt to match a route from pickup/dropoff when not set

@@ -3841,6 +3841,54 @@ def dispatcher_booking_review(request):
     return render(request, 'dispatching/booking/step_review.html', context)
 
 
+def _match_rate_from_legs(vehicle, legs_data):
+    """Find the best Rate for a vehicle by matching the first leg's locations.
+
+    Uses the same alias-based substring matching as Leg._match_location()
+    to identify the route from pickup/dropoff text, then returns the
+    Rate for that vehicle+route.  Falls back to any Rate for the vehicle
+    if no location match is found.
+    """
+    from rates.models import Location, Route, Rate
+
+    first_leg = legs_data[0] if legs_data else {}
+    pickup = first_leg.get('pickup_location', '')
+    dropoff = first_leg.get('dropoff_location', '')
+
+    if pickup and dropoff:
+        locations = list(Location.objects.all())
+
+        def _match(text):
+            text_lower = text.lower()
+            best, best_len = None, 0
+            for loc in locations:
+                candidates = []
+                if loc.name:
+                    candidates.append(loc.name)
+                if loc.aliases:
+                    candidates.extend(a.strip() for a in loc.aliases.split(",") if a.strip())
+                for c in candidates:
+                    cl = c.lower()
+                    if cl in text_lower and len(cl) > best_len:
+                        best, best_len = loc, len(cl)
+            return best
+
+        origin = _match(pickup)
+        destination = _match(dropoff)
+
+        if origin and destination:
+            route = Route.objects.filter(origin=origin, destination=destination).first()
+            if not route:
+                route = Route.objects.filter(origin=destination, destination=origin).first()
+            if route:
+                rate = Rate.objects.filter(vehicle=vehicle, route=route).first()
+                if rate:
+                    return rate
+
+    # Fallback: any rate for this vehicle
+    return Rate.objects.filter(vehicle=vehicle).first()
+
+
 def create_dispatcher_reservation(booking_data):
     """
     Helper function to create reservation from session data
@@ -3871,8 +3919,8 @@ def create_dispatcher_reservation(booking_data):
     except Vehicle.DoesNotExist:
         raise ValueError(f"Vehicle with ID {reservation_data['manual_vehicle']} not found")
     
-    # Try to find an existing rate for this vehicle (for system compatibility)
-    rate = Rate.objects.filter(vehicle=vehicle).first()
+    # Try to find a matching rate for this vehicle based on actual leg locations
+    rate = _match_rate_from_legs(vehicle, legs_data)
     
     # Get the current user from thread-local storage (set by middleware)
     from reservations.middleware import get_current_user

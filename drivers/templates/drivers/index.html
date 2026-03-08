@@ -421,17 +421,21 @@
                 {% endif %}
 
                 <!-- Trip Details -->
-                <div class="gt-card mb-3" style="border:1px solid var(--gt-border-light);box-shadow:none;">
-                  <div style="padding:10px 14px;">
-                    <div class="d-flex flex-wrap gap-0 mb-1" style="font-size:0.875rem;">
-                      <div style="padding-right:12px;margin-right:12px;border-right:1px solid var(--gt-border);"><span class="gt-label">Vehicle</span><br><strong>{{ leg.reservation.vehicle }}</strong></div>
-                      <div style="padding-right:12px;margin-right:12px;border-right:1px solid var(--gt-border);"><span class="gt-label">Passengers</span><br><strong>{{ leg.reservation.passenger_count }}</strong></div>
-                      <div><span class="gt-label">Luggage</span><br><strong>{{ leg.reservation.luggage_count }}</strong>{% if leg.reservation.luggage_type %}<br><span style="font-size:0.75rem;color:var(--gt-text-secondary);">{{ leg.reservation.get_luggage_type_display|cut:" / Not Sure" }}</span>{% endif %}</div>
+                <div class="gt-card gt-trip-details-card mb-3">
+                  <div style="padding:12px 14px;">
+                    <div class="d-flex flex-wrap gap-2 mb-1 align-items-center">
+                      <span class="gt-chip gt-chip-vehicle" style="font-size:0.8125rem;font-weight:700;padding:5px 12px;">
+                        <i class="bi bi-car-front-fill me-1"></i>{{ leg.reservation.vehicle }}
+                      </span>
+                      <span class="gt-chip gt-chip-pax" style="font-size:0.8125rem;font-weight:700;padding:5px 12px;">
+                        <i class="bi bi-people-fill me-1"></i>{{ leg.reservation.passenger_count }} Passengers
+                      </span>
+                      <span style="font-size:0.8125rem;"><i class="bi bi-briefcase-fill me-1" style="color:var(--gt-text-secondary);"></i><strong>{{ leg.reservation.luggage_count }}</strong> Bags{% if leg.reservation.luggage_type %} <span style="font-size:0.75rem;color:var(--gt-text-secondary);">· {{ leg.reservation.get_luggage_type_display|cut:" / Not Sure" }}</span>{% endif %}</span>
                     </div>
                     {% if leg.reservation.display_carseats and leg.reservation.display_carseats != "0" %}
-                      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--gt-border-light);">
-                        <span class="gt-label" style="font-size:0.75rem;">Car Seats</span><br>
-                        <strong style="font-size:1.0625rem;font-weight:800;color:var(--gt-orange);">{{ leg.reservation.display_carseats }}</strong>
+                      <div class="gt-carseat-badge mt-2" style="font-size:1.0625rem;">
+                        <i class="bi bi-shield-check me-1" style="font-size:1.125rem;"></i>
+                        <strong>Car Seats: {{ leg.reservation.display_carseats }}</strong>
                       </div>
                     {% endif %}
                   </div>
