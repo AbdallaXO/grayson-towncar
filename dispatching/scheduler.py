@@ -607,7 +607,8 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
 
         pickup_cat = categorize_location(leg.pickup_location)
         dropoff_cat = categorize_location(leg.dropoff_location)
-        end_time = estimate_job_end_time(leg, target_date)
+        # Reuse pre-computed end time if available (avoids redundant recalculation)
+        end_time = getattr(leg, '_estimated_end_dt', None) or estimate_job_end_time(leg, target_date)
 
         customer_name = ""
         if leg.reservation and leg.reservation.customer:

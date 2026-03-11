@@ -103,6 +103,8 @@ def index(request):
     if not request.user.is_staff:
         return redirect("home")
 
+    import time as _time; _t0 = _time.monotonic()
+
     selected_date = request.GET.get("date")
     driver_filter = request.GET.get("driver")
     trip_type_filter = request.GET.get("trip_type")
@@ -192,19 +194,19 @@ def index(request):
     ]
     vehicle_type_counts.sort(key=lambda x: -x['count'])
 
-    # Get all drivers for assignment dropdown
-    drivers = list(Driver.objects.select_related("profile").all())
-
-    # Inhouse vehicle assignments for the selected date
-    inhouse_drivers = (
-        Driver.objects.filter(driver_type="inhouse")
-        .select_related("profile")
+    # Get all drivers (single query) for assignment dropdown + inhouse vehicle cards
+    drivers = list(
+        Driver.objects.select_related("profile")
         .prefetch_related("weekly_schedule")
-        .order_by("profile__first_name", "profile__last_name", "profile__username")
+        .all()
+    )
+    inhouse_drivers = sorted(
+        [d for d in drivers if d.driver_type == "inhouse"],
+        key=lambda d: (d.profile.first_name, d.profile.last_name, d.profile.username),
     )
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
         date=selected_date, driver__in=inhouse_drivers
-    ).select_related("driver", "driver__profile", "vehicle", "vehicle__vehicle_type")
+    ).select_related("vehicle", "vehicle__vehicle_type")
     assignment_map = {
         assignment.driver_id: assignment for assignment in inhouse_assignments
     }
@@ -242,31 +244,17 @@ def index(request):
 
     inhouse_driver_rows.sort(key=_inhouse_vehicle_sort_key)
 
-    # Count legs per inhouse driver on the selected date (independent of any driver filter)
-    _inhouse_driver_ids = [row["driver"].id for row in inhouse_driver_rows]
-    _leg_count_qs = (
-        Leg.objects.filter(pickup_date=selected_date, driver_id__in=_inhouse_driver_ids)
-        .exclude(reservation__status='cancelled').exclude(status='cancelled')
-        .values("driver_id")
-        .annotate(_cnt=Count("id"))
-    )
-    _inhouse_leg_counts = {r["driver_id"]: r["_cnt"] for r in _leg_count_qs}
+    # Count legs per driver on the selected date (from already-fetched legs, no extra query)
+    _all_leg_counts = {}
+    for _leg in _all_day_legs:
+        if _leg.driver_id:
+            _all_leg_counts[_leg.driver_id] = _all_leg_counts.get(_leg.driver_id, 0) + 1
     for row in inhouse_driver_rows:
-        row["leg_count"] = _inhouse_leg_counts.get(row["driver"].id, 0)
+        row["leg_count"] = _all_leg_counts.get(row["driver"].id, 0)
 
     inhouse_assigned_count = sum(
         1 for row in inhouse_driver_rows if row["assignment"] and row["assignment"].vehicle
     )
-
-    # Count legs per driver on the selected date (for all drivers, used in dropdown)
-    _all_driver_ids = [d.id for d in drivers]
-    _all_leg_count_qs = (
-        Leg.objects.filter(pickup_date=selected_date, driver_id__in=_all_driver_ids)
-        .exclude(reservation__status='cancelled').exclude(status='cancelled')
-        .values("driver_id")
-        .annotate(_cnt=Count("id"))
-    )
-    _all_leg_counts = {r["driver_id"]: r["_cnt"] for r in _all_leg_count_qs}
 
     inhouse_drivers_list = []
     affiliate_drivers_list = []
@@ -286,7 +274,8 @@ def index(request):
 
     # Calculate total revenue from legs on this day (only for admins)
     # Use per-leg revenue share (reservation price / number of legs) for accuracy
-    if can_view_revenue(request.user):
+    _can_view_rev = can_view_revenue(request.user)
+    if _can_view_rev:
         total_revenue = sum(
             leg.revenue_share or leg.calculate_revenue_share()
             for leg in legs
@@ -338,12 +327,21 @@ def index(request):
             leg.dispatch_flags = []
             leg.dispatch_flag_level = ''
 
-    # Annotate each leg with estimated cleared time and duration
-    from dispatching.scheduler import estimate_job_end_time
-    for leg in legs:
+    # Pre-load timing cache BEFORE any estimate_job_end_time calls (avoids per-leg DB hits)
+    from dispatching.scheduler import estimate_job_end_time, build_driver_schedules, preload_timing_cache as _preload_cache
+    _preload_cache()
+
+    # Pre-compute _estimated_end_dt for ALL legs (reused by build_driver_schedules)
+    for leg in _all_day_legs:
         try:
-            end_dt = estimate_job_end_time(leg, selected_date)
-            leg._estimated_end_dt = end_dt
+            leg._estimated_end_dt = estimate_job_end_time(leg, selected_date)
+        except Exception:
+            leg._estimated_end_dt = None
+
+    # Annotate displayed legs with cleared time + duration strings
+    for leg in legs:
+        end_dt = leg._estimated_end_dt
+        if end_dt:
             pickup_dt = datetime.combine(selected_date, leg.pickup_time)
             dur_mins = int((end_dt - pickup_dt).total_seconds() // 60)
             leg.cleared_time = end_dt.strftime('%I:%M %p').lstrip('0')
@@ -354,8 +352,7 @@ def index(request):
                 leg.duration_display = f"{hrs} hr"
             else:
                 leg.duration_display = f"{mins} mins"
-        except Exception:
-            leg._estimated_end_dt = None
+        else:
             leg.cleared_time = None
             leg.duration_display = None
 
@@ -363,6 +360,7 @@ def index(request):
         leg.actual_cleared_time = None
         leg.actual_duration_display = None
         if leg.status == 'completed':
+            pickup_dt = datetime.combine(selected_date, leg.pickup_time)
             for sh in leg.status_history.all():
                 if sh.status == 'completed':
                     actual_dt = timezone.localtime(sh.timestamp)
@@ -407,8 +405,6 @@ def index(request):
 
     # Build compact driver timeline for in-house drivers with assignments
     # Reuse _all_day_legs (already fetched with all select_related + prefetch) — no extra query
-    from dispatching.scheduler import build_driver_schedules, preload_timing_cache as _preload_cache
-    _preload_cache()
     _all_legs_for_timeline = _all_day_legs
     _all_inhouse = [row["driver"] for row in inhouse_driver_rows if not row.get("is_off_today")]
     _driver_schedules = build_driver_schedules(_all_legs_for_timeline, _all_inhouse, selected_date)
@@ -564,7 +560,7 @@ def index(request):
         "total_legs": len(legs),
         "total_revenue": total_revenue,
         "driver_coverage": driver_coverage,
-        "can_view_revenue": can_view_revenue(request.user),
+        "can_view_revenue": _can_view_rev,
         "drivers": drivers,
         "inhouse_drivers_list": inhouse_drivers_list,
         "affiliate_drivers_list": affiliate_drivers_list,
@@ -575,7 +571,11 @@ def index(request):
         "timeline_hours": timeline_hours,
     }
 
-    return render(request, "dispatching/legs_filter.html", context)
+    _t1 = _time.monotonic()
+    _response = render(request, "dispatching/legs_filter.html", context)
+    _t2 = _time.monotonic()
+    print(f"\n⏱ Dashboard: view={(_t1-_t0)*1000:.0f}ms  template={(_t2-_t1)*1000:.0f}ms  total={(_t2-_t0)*1000:.0f}ms\n")
+    return _response
 
 
 @login_required(login_url="login")
