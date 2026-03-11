@@ -1,0 +1,124 @@
+{% load flight_filters %}
+{# Compact driver timeline for the Legs Dashboard #}
+{# Expects: inhouse_timeline, timeline_hours from context #}
+
+{% if inhouse_timeline %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header py-2" style="background:#1a2332;">
+    <div class="d-flex justify-content-between align-items-center">
+      <span class="fw-bold text-white" style="font-size:0.95rem;">
+        <i class="bi bi-bar-chart-steps me-2"></i>Driver Timeline
+      </span>
+      <button class="btn btn-sm btn-light btn-outline-light text-dark"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#driverTimelineCollapse"
+              aria-expanded="false"
+              id="timelineToggleBtn"
+              style="font-size:0.78rem;">
+        <i class="bi bi-chevron-down me-1"></i><span class="timeline-toggle-text">Show</span>
+      </button>
+    </div>
+  </div>
+  <div class="collapse" id="driverTimelineCollapse">
+    <div class="card-body py-2 px-3">
+      <!-- Hour markers -->
+      <div class="timeline-hour-markers">
+        {% for hour in timeline_hours %}
+          <span>{% if hour == 0 %}12a{% elif hour < 12 %}{{ hour }}a{% elif hour == 12 %}12p{% else %}{{ hour|add:"-12" }}p{% endif %}</span>
+        {% endfor %}
+      </div>
+
+      <div class="timeline-grid-wrapper">
+        <!-- Vertical hour lines -->
+        <div class="timeline-grid-lines">
+          {% for hour in timeline_hours %}
+            {% if not forloop.first %}
+              <div class="timeline-grid-line" style="left:{% widthratio forloop.counter0 timeline_hours|length 100 %}%;"></div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <div class="timeline-rows">
+          {% for data in inhouse_timeline %}
+            <div class="driver-timeline-row">
+              <div class="driver-name-col">
+                <strong>{{ data.driver }}</strong>
+                <small class="text-muted">{% if data.vehicle_number %}<span style="color:#0d6efd;font-weight:600;">#{{ data.vehicle_number }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}</small>
+              </div>
+              <div class="timeline-bar">
+                {% for slot in data.schedule.slots %}
+                  <div class="timeline-slot {{ slot.trip_type }}" data-tl-popup
+                       data-leg-id="{{ slot.leg_id }}"
+                       style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
+                       data-trip="{{ slot.trip_type }}"
+                       data-time="{{ slot.pickup_time|time:'g:i A' }}"
+                       data-cleared="{{ slot.end_time_display }}"
+                       data-pickup="{{ slot.pickup_location }}"
+                       data-dropoff="{{ slot.dropoff_location }}"
+                       data-customer="{{ slot.customer_name }}"
+                       data-status="{{ slot.status }}"
+                       data-status-label="{{ slot.status_label }}"
+                       data-status-time="{{ slot.status_time }}"
+                       data-status-ago="{{ slot.status_ago }}"
+                       data-flight="{{ slot.flight_info|default:'' }}"
+                       data-vehicle="{{ slot.vehicle_type|default:'' }}"
+                       onclick="document.getElementById('leg-row-{{ slot.leg_id }}')?.scrollIntoView({behavior:'smooth', block:'center'})">
+                    {{ slot.pickup_time|time:"g:i" }}
+                  </div>
+                {% endfor %}
+                {% for gap in data.gaps %}
+                  {% if gap.is_big %}
+                    <div class="timeline-gap gap-big" data-tl-gap-popup
+                         style="left: {{ gap.position_pct }}%; width: {{ gap.width_pct }}%;"
+                         title="{{ gap.gap_display }} gap — {% if gap.fitting_unassigned %}{{ gap.fitting_unassigned|length }} job{{ gap.fitting_unassigned|length|pluralize }} could fit{% else %}open{% endif %}"
+                         data-gap-duration="{{ gap.gap_display }}"
+                         data-gap-fitting="{{ gap.fitting_unassigned|length }}"
+                         data-driver-id="{{ data.driver.id }}"
+                         data-driver-name="{{ data.driver }}"
+                         {% for ul in gap.fitting_unassigned %}
+                         data-fit-{{ forloop.counter0 }}-id="{{ ul.leg_id }}"
+                         data-fit-{{ forloop.counter0 }}-time="{{ ul.pickup_display }}"
+                         data-fit-{{ forloop.counter0 }}-customer="{{ ul.customer }}"
+                         data-fit-{{ forloop.counter0 }}-pickup="{{ ul.pickup_location }}"
+                         data-fit-{{ forloop.counter0 }}-trip="{{ ul.trip_type }}"
+                         data-fit-{{ forloop.counter0 }}-source="{{ ul.source }}"
+                         data-fit-{{ forloop.counter0 }}-driver="{{ ul.driver_name }}"
+                         data-fit-{{ forloop.counter0 }}-vehicle="{{ ul.vehicle_type }}"
+                         data-fit-{{ forloop.counter0 }}-dropoff="{{ ul.dropoff_location }}"
+                         data-fit-{{ forloop.counter0 }}-flight="{{ ul.flight_info }}"
+                         data-fit-{{ forloop.counter0 }}-pax="{{ ul.passengers }}"
+                         data-fit-{{ forloop.counter0 }}-status="{{ ul.status }}"
+                         {% endfor %}>
+                      <span>{{ gap.gap_display }}</span>
+                      {% if gap.fitting_unassigned %}
+                        <i class="bi bi-plus-circle-fill" style="font-size:0.55rem;margin-left:2px;"></i>
+                      {% endif %}
+                    </div>
+                  {% elif gap.is_tight or gap.is_critical %}
+                    <div class="timeline-gap {% if gap.is_critical %}gap-critical{% else %}gap-tight{% endif %}"
+                         style="left: {{ gap.position_pct }}%; width: {{ gap.width_pct }}%;"
+                         title="{{ gap.gap_display }} gap">
+                      <span>{{ gap.gap_display }}</span>
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="d-flex gap-3 mt-2 flex-wrap align-items-center">
+        <small><span style="display:inline-block;width:10px;height:10px;background:#1565c0;border-radius:2px;"></span> Arrival</small>
+        <small><span style="display:inline-block;width:10px;height:10px;background:#2e7d32;border-radius:2px;"></span> Return</small>
+        <small><span style="display:inline-block;width:10px;height:10px;background:#e65100;border-radius:2px;"></span> Cruise</small>
+        <small><span style="display:inline-block;width:10px;height:10px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
+        <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #dc3545;border-radius:2px;"></span> Tight gap</small>
+        <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #0d6efd;border-radius:2px;background:rgba(13,110,253,0.08);"></span> Open gap</small>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

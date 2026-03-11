@@ -13,6 +13,164 @@
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-3px); }
       }
+
+      /* ── Driver Timeline ── */
+      .driver-timeline-row {
+          display: flex;
+          align-items: center;
+          padding: 0.5rem 0;
+          border-bottom: 1px solid #f0f0f0;
+      }
+      .driver-timeline-row:last-child { border-bottom: none; }
+      .driver-name-col {
+          min-width: 120px;
+          max-width: 120px;
+          padding-right: 0.5rem;
+      }
+      .driver-name-col strong {
+          font-size: 0.8rem;
+          color: var(--dark, #333);
+          display: block;
+      }
+      .driver-name-col small { font-size: 0.65rem; }
+      .timeline-bar {
+          flex: 1;
+          height: 32px;
+          background: #f8f9fa;
+          border-radius: 4px;
+          position: relative;
+          overflow: visible;
+      }
+      .timeline-grid-wrapper { position: relative; }
+      .timeline-grid-lines {
+          position: absolute;
+          top: 0; bottom: 0;
+          left: 120px; right: 0;
+          pointer-events: none;
+          z-index: 2;
+      }
+      .timeline-grid-line {
+          position: absolute;
+          top: 0; bottom: 0;
+          width: 0;
+          border-left: 1px solid #e4e4e4;
+      }
+      .timeline-rows { position: relative; }
+      .timeline-slot {
+          position: absolute;
+          top: 2px;
+          height: 28px;
+          border-radius: 3px;
+          display: flex;
+          align-items: center;
+          padding: 0 5px;
+          font-size: 0.6rem;
+          font-weight: 600;
+          color: #fff;
+          overflow: hidden;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: opacity 0.15s;
+          z-index: 3;
+      }
+      .timeline-slot:hover { opacity: 0.85; }
+      .timeline-slot.arrival { background: #1565c0; }
+      .timeline-slot.return { background: #2e7d32; }
+      .timeline-slot.cruise { background: #e65100; }
+      .timeline-slot.other { background: #6a1b9a; }
+      .timeline-hour-markers {
+          display: flex;
+          padding-left: 120px;
+      }
+      .timeline-hour-markers span {
+          flex: 1;
+          font-size: 0.6rem;
+          color: #999;
+          text-align: left;
+          padding-left: 2px;
+      }
+      .timeline-gap {
+          position: absolute;
+          top: 4px;
+          height: 24px;
+          border: 2px dashed #ffc107;
+          border-radius: 3px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.55rem;
+          font-weight: 600;
+          color: #856404;
+          z-index: 4;
+          pointer-events: none;
+      }
+      .timeline-gap.gap-critical {
+          border-color: #dc3545;
+          color: #dc3545;
+      }
+      .timeline-gap.gap-big {
+          border-color: #0d6efd;
+          color: #0d6efd;
+          background: rgba(13, 110, 253, 0.06);
+          pointer-events: auto;
+          cursor: pointer;
+      }
+      .timeline-gap.gap-big:hover {
+          background: rgba(13, 110, 253, 0.15);
+      }
+      .tl-popup.tl-gap-popup {
+          pointer-events: auto;
+          z-index: 10001;
+          max-width: 360px;
+      }
+      .tl-gap-popup .gap-job-row:last-child {
+          border-bottom: none !important;
+      }
+      .tl-gap-popup .gap-assign-btn:hover {
+          transform: scale(1.05);
+      }
+      /* Timeline hover popup */
+      .tl-popup {
+          position: fixed;
+          z-index: 9999;
+          background: #fff;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+          padding: 0;
+          min-width: 220px;
+          max-width: 280px;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.12s;
+          font-size: 0.78rem;
+          overflow: hidden;
+      }
+      .tl-popup.visible { opacity: 1; }
+      .tl-popup-header {
+          padding: 0.4rem 0.6rem;
+          color: #fff;
+          font-weight: 600;
+          font-size: 0.75rem;
+      }
+      .tl-popup-header.arrival { background: #1565c0; }
+      .tl-popup-header.return { background: #2e7d32; }
+      .tl-popup-header.cruise { background: #e65100; }
+      .tl-popup-header.other { background: #6a1b9a; }
+      .tl-popup-body { padding: 0.4rem 0.6rem; }
+      .tl-popup-row {
+          display: flex;
+          gap: 0.3rem;
+          padding: 0.15rem 0;
+          font-size: 0.7rem;
+          line-height: 1.3;
+      }
+      .tl-popup-row .tl-label {
+          color: #999;
+          min-width: 50px;
+          flex-shrink: 0;
+      }
+      .tl-popup-row .tl-value { color: #333; }
       /* Disable animations for travel agent booking section */
       .travel-agent-booking {
           animation: none !important;
@@ -96,15 +254,21 @@
             </h5>
           </div>
           <div class="card-body">
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 align-items-center">
+              <a href="?date={{ prev_date|date:'Y-m-d' }}" class="btn btn-outline-secondary btn-sm" title="{{ prev_date|date:'D, M j' }}">
+                <i class="bi bi-chevron-left"></i>
+              </a>
               <div class="flex-grow-1">
                 <input type="date"
                        class="form-control"
                        id="dateFilter"
                        value="{{ selected_date|date:'Y-m-d' }}" />
               </div>
+              <a href="?date={{ next_date|date:'Y-m-d' }}" class="btn btn-outline-secondary btn-sm" title="{{ next_date|date:'D, M j' }}">
+                <i class="bi bi-chevron-right"></i>
+              </a>
               <button class="btn btn-dark" id="submitDateFilter">Apply</button>
-              <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">
+              <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary" title="Today">
                 <i class="bi bi-arrow-counterclockwise"></i>
               </a>
             </div>
@@ -129,12 +293,26 @@
                     <option value="">All Drivers</option>
                     <option value="unassigned"
                             {% if driver_filter == "unassigned" %}selected{% endif %}>Unassigned</option>
-                    {% for driver in drivers %}
-                      <option value="{{ driver.id }}"
-                              {% if driver_filter == driver.id|stringformat:"s" %}selected{% endif %}>
-                        {{ driver }}
-                      </option>
-                    {% endfor %}
+                    {% if inhouse_drivers_list %}
+                      <optgroup label="In-House">
+                        {% for driver in inhouse_drivers_list %}
+                          <option value="{{ driver.id }}"
+                                  {% if driver_filter == driver.id|stringformat:"s" %}selected{% endif %}>
+                            {{ driver }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }}){% endif %}
+                          </option>
+                        {% endfor %}
+                      </optgroup>
+                    {% endif %}
+                    {% if affiliate_drivers_list %}
+                      <optgroup label="Affiliate">
+                        {% for driver in affiliate_drivers_list %}
+                          <option value="{{ driver.id }}"
+                                  {% if driver_filter == driver.id|stringformat:"s" %}selected{% endif %}>
+                            {{ driver }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }}){% endif %}
+                          </option>
+                        {% endfor %}
+                      </optgroup>
+                    {% endif %}
                   </select>
                 </div>
                 <button type="submit" class="btn btn-dark">Apply</button>
@@ -166,14 +344,20 @@
               </div>
               <div class="col-md-3 border-end">
                 <div class="d-flex flex-column">
-                  <div class="text-secondary">Logged in as:</div>
-                  <div class="fw-bold">{{ request.user|title }}</div>
+                  <div class="text-secondary">Total Legs:</div>
+                  <div class="fw-bold fs-5">{{ total_legs }}</div>
                 </div>
               </div>
               <div class="col-md-3 border-end">
                 <div class="d-flex flex-column">
-                  <div class="text-secondary">Total Legs:</div>
-                  <div class="fw-bold fs-5">{{ total_legs }}</div>
+                  <div class="text-secondary">Unassigned:</div>
+                  <div class="fw-bold fs-5">
+                    {% if driver_coverage.unassigned > 0 %}
+                      <span class="text-danger">{{ driver_coverage.unassigned }}</span>
+                    {% else %}
+                      <span class="text-success">0 <i class="bi bi-check-circle"></i></span>
+                    {% endif %}
+                  </div>
                 </div>
               </div>
               {% if can_view_revenue %}
@@ -238,23 +422,40 @@
     <div class="card border-0 shadow-sm mb-3">
       <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-2 align-items-center">
-          <span class="text-muted small fw-semibold me-2">Quick Filters:</span>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}&trip_type=arrival"
+          <span class="text-muted small fw-semibold me-2">Trip:</span>
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=arrival"
              class="badge {% if trip_type_filter == 'arrival' %}bg-primary text-white{% else %}bg-light border border-primary text-primary{% endif %} text-decoration-none">
-            ✈️ Arrivals
+            Arrivals
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}&trip_type=return"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=return"
              class="badge {% if trip_type_filter == 'return' %}bg-success text-white{% else %}bg-light border border-success text-success{% endif %} text-decoration-none">
-            🛬 Returns
+            Returns
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}&trip_type=cruise"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}&trip_type=cruise"
              class="badge {% if trip_type_filter == 'cruise' %}bg-info text-white{% else %}bg-light border border-info text-info{% endif %} text-decoration-none">
-            🚢 Cruise Transfer
+            Cruise
           </a>
-          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}"
+          <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if vehicle_filter %}&vehicle={{ vehicle_filter }}{% endif %}"
              class="badge {% if not trip_type_filter %}bg-dark text-white{% else %}bg-secondary text-white{% endif %} text-decoration-none">
-            All Trips
+            All
           </a>
+          {% if vehicle_type_counts %}
+          <span class="text-muted mx-1">|</span>
+          <span class="text-muted small fw-semibold me-1">Vehicle:</span>
+          {% for vc in vehicle_type_counts %}
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}&vehicle={{ vc.type }}"
+               class="badge text-decoration-none {% if vehicle_filter == vc.type %}text-white{% else %}bg-light border text-dark{% endif %}"
+               style="{% if vehicle_filter == vc.type %}background:#495057;{% endif %}font-size:0.72rem;">
+              {{ vc.label }} <span style="opacity:0.75;">{{ vc.count }}</span>
+            </a>
+          {% endfor %}
+          {% if vehicle_filter %}
+            <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+               class="badge bg-secondary text-white text-decoration-none" style="font-size:0.72rem;">
+              All
+            </a>
+          {% endif %}
+          {% endif %}
         </div>
       </div>
     </div>
@@ -402,6 +603,9 @@
       </div>
     </div>
 
+    <!-- Driver Timeline -->
+    {% include 'dispatching/includes/driver_timeline.html' %}
+
     <!-- Legs Table Section -->
     <div class="card border-0 shadow-sm mb-4">
       <div class="card-header bg-light py-2 px-3">
@@ -410,51 +614,88 @@
             <i class="bi bi-list-check me-2"></i>Trip Legs
           </h5>
           <div class="d-flex align-items-center gap-2 flex-wrap">
-            <button id="expandAllFlightsBtn"
-                    class="btn btn-sm btn-outline-secondary"
-                    title="Expand all flight details">
-              <i class="bi bi-chevron-down me-1"></i>Expand All
-            </button>
-            <button id="collapseAllFlightsBtn"
-                    class="btn btn-sm btn-outline-secondary"
-                    title="Collapse all flight details">
-              <i class="bi bi-chevron-up me-1"></i>Collapse All
-            </button>
+            <!-- Primary actions: always visible -->
             <button id="refreshAllFlightsBtn"
                     class="btn btn-sm btn-primary"
                     title="Refresh all arrival flight data for {{ selected_date|date:'l, F j, Y' }} (Returns are not refreshed)">
-              <i class="bi bi-arrow-clockwise me-1"></i>Refresh Arrival Flights
+              <i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-md-inline">Refresh Arrival Flights</span><span class="d-md-none">Refresh</span>
             </button>
             <button id="matchAllFlightTimesBtn"
                     class="btn btn-sm btn-success"
                     data-date="{{ selected_date|date:'Y-m-d' }}"
                     title="Set pickup time to scheduled flight arrival for all arrival legs on this date">
-              <i class="bi bi-clock-history me-1"></i>Match All Flight Times
+              <i class="bi bi-clock-history me-1"></i><span class="d-none d-md-inline">Match All Flight Times</span><span class="d-md-none">Match</span>
             </button>
-            <a href="{% url 'legs_dashboard_export_csv' %}?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
-               class="btn btn-sm btn-outline-dark"
-               title="Export legs for {{ selected_date|date:'l, F j, Y' }} to CSV">
-              <i class="bi bi-download me-1"></i>Export CSV
-            </a>
             <a href="{% url 'confirmations' %}?date={{ selected_date|date:'Y-m-d' }}"
                class="btn btn-sm btn-info text-white"
-               title="Export CSV or send confirmation texts for {{ selected_date|date:'l, F j, Y' }} (no saving page or scripts needed)">
-              <i class="bi bi-chat-text me-1"></i>Send confirmations for this date
+               title="Send confirmation texts for {{ selected_date|date:'l, F j, Y' }}">
+              <i class="bi bi-chat-text me-1"></i><span class="d-none d-lg-inline">Send confirmations</span><span class="d-lg-none">Confirm</span>
             </a>
+            <!-- Secondary actions: expand/collapse + export in dropdown on smaller screens -->
+            <div class="d-none d-xl-flex gap-2">
+              <button id="expandAllFlightsBtn"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Expand all flight details">
+                <i class="bi bi-chevron-down me-1"></i>Expand All
+              </button>
+              <button id="collapseAllFlightsBtn"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Collapse all flight details">
+                <i class="bi bi-chevron-up me-1"></i>Collapse All
+              </button>
+              <a href="{% url 'legs_dashboard_export_csv' %}?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}"
+                 class="btn btn-sm btn-outline-dark"
+                 title="Export legs to CSV">
+                <i class="bi bi-download me-1"></i>Export CSV
+              </a>
+            </div>
+            <div class="dropdown d-xl-none">
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-three-dots"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><button class="dropdown-item expand-all-flights-dropdown" type="button"><i class="bi bi-chevron-down me-2"></i>Expand All Flights</button></li>
+                <li><button class="dropdown-item collapse-all-flights-dropdown" type="button"><i class="bi bi-chevron-up me-2"></i>Collapse All Flights</button></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <a class="dropdown-item" href="{% url 'legs_dashboard_export_csv' %}?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}">
+                    <i class="bi bi-download me-2"></i>Export CSV
+                  </a>
+                </li>
+              </ul>
+            </div>
             <div class="badge bg-dark d-none d-md-inline">{{ selected_date|date:'l, F j, Y' }}</div>
           </div>
         </div>
       </div>
       <div class="card-body p-0">
         <!-- Desktop View of Legs Table -->
+        <!-- Bulk Actions Bar (hidden until checkboxes selected) -->
+        <div id="bulkActionsBar" class="d-none mb-2 p-2 bg-light border rounded align-items-center gap-2 flex-wrap">
+          <span class="small fw-bold"><span id="bulkSelectedCount">0</span> selected</span>
+          <select id="bulkStatusSelect" class="form-select form-select-sm" style="width:auto;">
+            <option value="">Set Status...</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="in-progress">In Progress</option>
+            <option value="on-the-way">On the Way</option>
+            <option value="on-location">On Location</option>
+            <option value="picked-up">Picked Up</option>
+            <option value="completed">Completed</option>
+          </select>
+          <button id="bulkApplyBtn" class="btn btn-sm btn-dark" disabled>Apply</button>
+          <button id="bulkClearBtn" class="btn btn-sm btn-outline-secondary">Clear</button>
+        </div>
         <div class="table-responsive d-none d-lg-block">
           <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
             <thead class="table-dark">
               <tr>
-                <th style="width: 15%;">Customer</th>
+                <th style="width: 3%;" class="text-center">
+                  <input type="checkbox" id="selectAllLegs" class="form-check-input" title="Select all">
+                </th>
+                <th style="width: 14%;">Customer</th>
                 <th style="width: 10%;">Pickup Time</th>
-                <th style="width: 20%;">Locations</th>
-                <th style="width: 15%;">Vehicle & Passengers</th>
+                <th style="width: 19%;">Locations</th>
+                <th style="width: 14%;">Vehicle & Passengers</th>
                 <th style="width: 10%;">Payment</th>
                 <th style="width: 15%;">Notes</th>
                 <th class="text-center" style="width: 15%;">Status & Driver</th>
@@ -464,7 +705,12 @@
               {% for leg in legs %}
                 {% with mismatch=leg.get_flight_time_mismatch_display %}
                   <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %}"
+                      id="leg-row-{{ leg.id }}"
                       {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
+                    <!-- Checkbox -->
+                    <td class="text-center">
+                      <input type="checkbox" class="form-check-input leg-checkbox" value="{{ leg.id }}">
+                    </td>
                     <!-- Customer -->
                     <td>
                       <div class="d-flex flex-column">
@@ -865,14 +1111,30 @@
                     <td>
                       <div class="d-flex">
                         <i class="bi bi-sticky me-2 mt-1 text-secondary"></i>
-                        <div>
-                          <div class="fw-bold small">
-                            Leg Notes:
-                            {% if leg.private_notes %}
-                              {{ leg.private_notes }}
-                            {% else %}
-                              <span class="text-muted fst-italic">None</span>
-                            {% endif %}
+                        <div class="flex-grow-1">
+                          <div class="fw-bold small leg-notes-display" data-leg-id="{{ leg.id }}">
+                            <span class="d-flex align-items-start justify-content-between">
+                              <span>
+                                Leg Notes:
+                                <span class="leg-notes-text">{% if leg.private_notes %}{{ leg.private_notes }}{% else %}<span class="text-muted fst-italic">None</span>{% endif %}</span>
+                              </span>
+                              <button class="btn btn-link btn-sm p-0 ms-1 text-secondary edit-notes-btn"
+                                      data-leg-id="{{ leg.id }}"
+                                      title="Edit notes"
+                                      style="font-size:0.75rem;line-height:1;">
+                                <i class="bi bi-pencil"></i>
+                              </button>
+                            </span>
+                            <div class="leg-notes-edit d-none mt-1">
+                              <textarea class="form-control form-control-sm leg-notes-input"
+                                        rows="2"
+                                        style="font-size:0.8rem;"
+                                        data-leg-id="{{ leg.id }}">{{ leg.private_notes|default:"" }}</textarea>
+                              <div class="d-flex gap-1 mt-1">
+                                <button class="btn btn-sm btn-success py-0 px-2 save-notes-btn" data-leg-id="{{ leg.id }}" style="font-size:0.7rem;">Save</button>
+                                <button class="btn btn-sm btn-outline-secondary py-0 px-2 cancel-notes-btn" data-leg-id="{{ leg.id }}" style="font-size:0.7rem;">Cancel</button>
+                              </div>
+                            </div>
                           </div>
                           <div class="border-top my-1"></div>
                           <div class="small">
@@ -902,13 +1164,39 @@
                                 name="driver"
                                 data-leg-id="{{ leg.id }}">
                           <option value="">Select Driver</option>
-                          {% for driver in drivers %}
-                            <option value="{{ driver.id }}"
-                                    {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                              {{ driver.dashboard_display_name }}
-                            </option>
-                          {% endfor %}
+                          {% if inhouse_drivers_list %}
+                            <optgroup label="In-House">
+                              {% for driver in inhouse_drivers_list %}
+                                <option value="{{ driver.id }}"
+                                        {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                                  {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
+                                </option>
+                              {% endfor %}
+                            </optgroup>
+                          {% endif %}
+                          {% if affiliate_drivers_list %}
+                            <optgroup label="Affiliate">
+                              {% for driver in affiliate_drivers_list %}
+                                <option value="{{ driver.id }}"
+                                        {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                                  {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
+                                </option>
+                              {% endfor %}
+                            </optgroup>
+                          {% endif %}
                         </select>
+                        {% if leg.driver %}
+                          <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-warning text-dark{% endif %} mt-1" style="font-size:0.65rem;">
+                            {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
+                          </span>
+                        {% endif %}
+                        {% if leg.turnaround_warning %}
+                          <div class="mt-1">
+                            <span class="badge {% if 'Critical' in leg.turnaround_warning or 'Overlap' in leg.turnaround_warning %}bg-danger{% else %}bg-warning text-dark{% endif %}" style="font-size:0.65rem;">
+                              <i class="bi bi-exclamation-triangle me-1"></i>{{ leg.turnaround_warning }}
+                            </span>
+                          </div>
+                        {% endif %}
                         <select class="form-select form-select-sm status-select"
                                 name="status"
                                 data-leg-id="{{ leg.id }}">
@@ -1227,13 +1515,39 @@
                                     name="driver"
                                     data-leg-id="{{ leg.id }}">
                               <option value="">Select Driver</option>
-                              {% for driver in drivers %}
-                                <option value="{{ driver.id }}"
-                                        {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
-                                  {{ driver.dashboard_display_name }}
-                                </option>
-                              {% endfor %}
+                              {% if inhouse_drivers_list %}
+                                <optgroup label="In-House">
+                                  {% for driver in inhouse_drivers_list %}
+                                    <option value="{{ driver.id }}"
+                                            {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                                      {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
+                                    </option>
+                                  {% endfor %}
+                                </optgroup>
+                              {% endif %}
+                              {% if affiliate_drivers_list %}
+                                <optgroup label="Affiliate">
+                                  {% for driver in affiliate_drivers_list %}
+                                    <option value="{{ driver.id }}"
+                                            {% if leg.driver and leg.driver.id|stringformat:"s" == driver.id|stringformat:"s" %}selected{% endif %}>
+                                      {{ driver.dashboard_display_name }}{% if driver.day_leg_count > 0 %} ({{ driver.day_leg_count }} leg{{ driver.day_leg_count|pluralize }}){% endif %}
+                                    </option>
+                                  {% endfor %}
+                                </optgroup>
+                              {% endif %}
                             </select>
+                            {% if leg.driver %}
+                              <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-warning text-dark{% endif %} mt-1" style="font-size:0.65rem;">
+                                {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
+                              </span>
+                            {% endif %}
+                            {% if leg.turnaround_warning %}
+                              <div class="mt-1">
+                                <span class="badge {% if 'Critical' in leg.turnaround_warning or 'Overlap' in leg.turnaround_warning %}bg-danger{% else %}bg-warning text-dark{% endif %}" style="font-size:0.65rem;">
+                                  <i class="bi bi-exclamation-triangle me-1"></i>{{ leg.turnaround_warning }}
+                                </span>
+                              </div>
+                            {% endif %}
                             <select class="form-select form-select-sm status-select"
                                     name="status"
                                     data-leg-id="{{ leg.id }}">
@@ -1462,9 +1776,88 @@
                   const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
                   const statusElement = form.querySelector('.update-status');
 
-                  console.log('Updating', selectName, 'to', selectValue, 'for leg:', legId);
+                  // Feasibility check for driver assignments
+                  if (selectName === 'driver' && selectValue) {
+                      statusElement.innerHTML = '<div class="text-muted small py-1"><i class="bi bi-hourglass-split me-1"></i>Checking schedule...</div>';
+                      try {
+                          const resp = await fetch(`/dispatching/check-feasibility/?leg_id=${legId}&driver_id=${selectValue}`);
+                          const fData = await resp.json();
+                          if (resp.ok && !fData.feasible) {
+                              // Not feasible — show confirm dialog
+                              let msg = `Schedule Conflict\n\n${fData.reason}\n\nDriver has ${fData.existing_trips} existing trip(s).`;
+                              if (fData.vehicle_mismatch_detail) {
+                                  msg += `\n\nVehicle: ${fData.vehicle_mismatch_detail}`;
+                              }
+                              msg += '\n\nAssign anyway?';
+                              const proceed = confirm(msg);
+                              if (!proceed) {
+                                  statusElement.innerHTML = '<div class="alert alert-secondary py-1 px-2 mb-0 small">Assignment cancelled</div>';
+                                  setTimeout(() => { statusElement.innerHTML = ''; }, 2000);
+                                  return;
+                              }
+                          } else if (resp.ok && fData.feasible && fData.warnings && fData.warnings.length > 0) {
+                              // Feasible but with warnings — show brief toast
+                              statusElement.innerHTML = '<div class="alert alert-warning py-1 px-2 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i>' + fData.warnings.join('; ') + '</div>';
+                          }
+                      } catch (e) {
+                          // If feasibility check fails, proceed anyway (don't block assignment)
+                          console.warn('Feasibility check failed:', e);
+                      }
+                  }
 
                   submitLegAssignment(legId, selectName, selectValue, csrfToken, statusElement);
+              });
+          });
+
+          // Inline notes editing
+          document.querySelectorAll('.edit-notes-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const container = this.closest('.leg-notes-display');
+                  container.querySelector('.leg-notes-edit').classList.remove('d-none');
+                  container.querySelector('.leg-notes-input').focus();
+              });
+          });
+          document.querySelectorAll('.cancel-notes-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const container = this.closest('.leg-notes-display');
+                  container.querySelector('.leg-notes-edit').classList.add('d-none');
+              });
+          });
+          document.querySelectorAll('.save-notes-btn').forEach(btn => {
+              btn.addEventListener('click', function() {
+                  const legId = this.dataset.legId;
+                  const container = this.closest('.leg-notes-display');
+                  const textarea = container.querySelector('.leg-notes-input');
+                  const newNotes = textarea.value.trim();
+                  const saveBtn = this;
+                  saveBtn.disabled = true;
+                  saveBtn.textContent = 'Saving...';
+                  fetch('/dispatching/update-leg-assignment/', {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRFToken': '{{ csrf_token }}'
+                      },
+                      body: JSON.stringify({ leg_id: legId, field: 'private_notes', value: newNotes })
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                      if (data.success) {
+                          const textSpan = container.querySelector('.leg-notes-text');
+                          textSpan.innerHTML = newNotes || '<span class="text-muted fst-italic">None</span>';
+                          container.querySelector('.leg-notes-edit').classList.add('d-none');
+                      } else {
+                          alert('Error saving notes: ' + (data.error || 'Unknown error'));
+                      }
+                      saveBtn.disabled = false;
+                      saveBtn.textContent = 'Save';
+                  })
+                  .catch(err => {
+                      alert('Error: ' + err.message);
+                      saveBtn.disabled = false;
+                      saveBtn.textContent = 'Save';
+                  });
               });
           });
 
@@ -1800,8 +2193,15 @@
                       .then(data => {
                           if (data.success) {
                               this.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
-                              // Reload so updated flight details and mismatch badges are visible
-                              window.location.reload();
+                              // Update flight UI in-place without page reload
+                              if (data.flight_data) {
+                                  updateFlightUI(legId, data.flight_data);
+                              }
+                              // Re-enable button after a short delay
+                              setTimeout(() => {
+                                  this.disabled = false;
+                                  this.innerHTML = originalHTML;
+                              }, 2000);
                           } else {
                               alert('Error refreshing flight data: ' + (data.error || 'Unknown error'));
                               this.disabled = false;
@@ -1854,6 +2254,112 @@
               });
           });
 
+          // Bulk status update
+          const bulkBar = document.getElementById('bulkActionsBar');
+          const bulkCount = document.getElementById('bulkSelectedCount');
+          const bulkSelect = document.getElementById('bulkStatusSelect');
+          const bulkApply = document.getElementById('bulkApplyBtn');
+          const bulkClear = document.getElementById('bulkClearBtn');
+          const selectAll = document.getElementById('selectAllLegs');
+
+          function updateBulkBar() {
+              const checked = document.querySelectorAll('.leg-checkbox:checked');
+              const count = checked.length;
+              bulkCount.textContent = count;
+              if (count > 0) {
+                  bulkBar.classList.remove('d-none');
+                  bulkBar.classList.add('d-flex');
+              } else {
+                  bulkBar.classList.add('d-none');
+                  bulkBar.classList.remove('d-flex');
+              }
+              bulkApply.disabled = !bulkSelect.value || count === 0;
+          }
+
+          document.querySelectorAll('.leg-checkbox').forEach(cb => {
+              cb.addEventListener('change', updateBulkBar);
+          });
+
+          if (selectAll) {
+              selectAll.addEventListener('change', function() {
+                  document.querySelectorAll('.leg-checkbox').forEach(cb => {
+                      cb.checked = selectAll.checked;
+                  });
+                  updateBulkBar();
+              });
+          }
+
+          if (bulkSelect) {
+              bulkSelect.addEventListener('change', updateBulkBar);
+          }
+
+          if (bulkClear) {
+              bulkClear.addEventListener('click', function() {
+                  document.querySelectorAll('.leg-checkbox').forEach(cb => { cb.checked = false; });
+                  if (selectAll) selectAll.checked = false;
+                  updateBulkBar();
+              });
+          }
+
+          if (bulkApply) {
+              bulkApply.addEventListener('click', async function() {
+                  const status = bulkSelect.value;
+                  if (!status) return;
+                  const checked = document.querySelectorAll('.leg-checkbox:checked');
+                  if (checked.length === 0) return;
+
+                  const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+                  bulkApply.disabled = true;
+                  bulkApply.textContent = `Updating 0/${checked.length}...`;
+
+                  let success = 0;
+                  let failed = 0;
+                  for (const cb of checked) {
+                      try {
+                          const resp = await fetch('/dispatching/update-leg-assignment/', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                              body: JSON.stringify({ leg_id: cb.value, field: 'status', value: status })
+                          });
+                          const data = await resp.json();
+                          if (data.success) {
+                              success++;
+                              // Update the status dropdown in the row
+                              const row = document.getElementById(`leg-row-${cb.value}`);
+                              if (row) {
+                                  const statusSelect = row.querySelector('.status-select');
+                                  if (statusSelect) statusSelect.value = status;
+                              }
+                          } else {
+                              failed++;
+                          }
+                      } catch (e) {
+                          failed++;
+                      }
+                      bulkApply.textContent = `Updating ${success + failed}/${checked.length}...`;
+                  }
+
+                  bulkApply.textContent = 'Apply';
+                  bulkApply.disabled = false;
+
+                  // Show result
+                  const resultMsg = failed > 0
+                      ? `Updated ${success} legs, ${failed} failed`
+                      : `Updated ${success} legs`;
+                  bulkBar.insertAdjacentHTML('beforeend',
+                      `<span class="badge ${failed > 0 ? 'bg-warning text-dark' : 'bg-success'} ms-2 bulk-result">${resultMsg}</span>`
+                  );
+                  setTimeout(() => {
+                      document.querySelectorAll('.bulk-result').forEach(el => el.remove());
+                  }, 3000);
+
+                  // Uncheck all
+                  document.querySelectorAll('.leg-checkbox').forEach(cb => { cb.checked = false; });
+                  if (selectAll) selectAll.checked = false;
+                  updateBulkBar();
+              });
+          }
+
           // Expand All / Collapse All functionality
           const expandAllBtn = document.getElementById('expandAllFlightsBtn');
           const collapseAllBtn = document.getElementById('collapseAllFlightsBtn');
@@ -1903,6 +2409,14 @@
                   });
               });
           }
+
+          // Dropdown menu expand/collapse handlers (for tablet/mobile)
+          document.querySelectorAll('.expand-all-flights-dropdown').forEach(btn => {
+              btn.addEventListener('click', () => expandAllBtn && expandAllBtn.click());
+          });
+          document.querySelectorAll('.collapse-all-flights-dropdown').forEach(btn => {
+              btn.addEventListener('click', () => collapseAllBtn && collapseAllBtn.click());
+          });
 
           // Update toggle button icons when individual collapses are toggled
           document.querySelectorAll('.flight-details-toggle').forEach(btn => {
@@ -2551,6 +3065,319 @@
                   });
           });
       }
+      // Shared flag: when gap popup is open, suppress the slot hover popup
+      window._gapPopupActive = false;
+
+      // ============ Timeline Hover Popup ============
+      (function() {
+          const popup = document.createElement('div');
+          popup.className = 'tl-popup';
+          document.body.appendChild(popup);
+
+          const tripLabels = {arrival: 'Arrival', return: 'Return', cruise: 'Cruise', other: 'Other'};
+
+          function showPopup(el, e) {
+              if (window._gapPopupActive) return;
+              const trip = el.dataset.trip || 'other';
+              const label = tripLabels[trip] || 'Trip';
+              let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
+              html += '<div class="tl-popup-body">';
+              html += '<div class="tl-popup-row"><span class="tl-label">Pickup</span><span class="tl-value">' + (el.dataset.pickup || '') + '</span></div>';
+              html += '<div class="tl-popup-row"><span class="tl-label">Dropoff</span><span class="tl-value">' + (el.dataset.dropoff || '') + '</span></div>';
+              if (el.dataset.vehicle) {
+                  const vtypeLabels = {towncar: 'Town Car', mini_van: 'Mini Van', suv: 'SUV', van: 'Van', 'Van(14 Pax)': 'Van (14 Pax)'};
+                  html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + (vtypeLabels[el.dataset.vehicle] || el.dataset.vehicle) + '</span></div>';
+              }
+              if (el.dataset.customer) {
+                  html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">' + el.dataset.customer + '</span></div>';
+              }
+              if (el.dataset.flight) {
+                  html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
+              }
+              html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
+              if (el.dataset.statusLabel) {
+                  let statusHtml = '<span style="text-transform:capitalize;">' + el.dataset.statusLabel;
+                  if (el.dataset.statusTime) {
+                      statusHtml += ' ' + el.dataset.statusTime;
+                      if (el.dataset.statusAgo) {
+                          statusHtml += ' <span style="color:#888;font-size:0.75rem;">(' + el.dataset.statusAgo + ')</span>';
+                      }
+                  }
+                  statusHtml += '</span>';
+                  html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value">' + statusHtml + '</span></div>';
+              } else if (el.dataset.status) {
+                  html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="text-transform:capitalize;">' + el.dataset.status + '</span></div>';
+              }
+              html += '</div>';
+              popup.innerHTML = html;
+              const px = e.clientX + 12;
+              const py = e.clientY + 12;
+              popup.style.left = px + 'px';
+              popup.style.top = py + 'px';
+              popup.classList.add('visible');
+              requestAnimationFrame(function() {
+                  const rect = popup.getBoundingClientRect();
+                  if (rect.right > window.innerWidth - 8) popup.style.left = (e.clientX - rect.width - 12) + 'px';
+                  if (rect.bottom > window.innerHeight - 8) popup.style.top = (e.clientY - rect.height - 12) + 'px';
+              });
+          }
+
+          document.addEventListener('mouseover', function(e) {
+              if (window._gapPopupActive) { popup.classList.remove('visible'); return; }
+              const slot = e.target.closest('[data-tl-popup]');
+              if (slot) showPopup(slot, e);
+          });
+          document.addEventListener('mousemove', function(e) {
+              if (!popup.classList.contains('visible')) return;
+              const slot = e.target.closest('[data-tl-popup]');
+              if (slot) {
+                  popup.style.left = (e.clientX + 12) + 'px';
+                  popup.style.top = (e.clientY + 12) + 'px';
+                  requestAnimationFrame(function() {
+                      const rect = popup.getBoundingClientRect();
+                      if (rect.right > window.innerWidth - 8) popup.style.left = (e.clientX - rect.width - 12) + 'px';
+                      if (rect.bottom > window.innerHeight - 8) popup.style.top = (e.clientY - rect.height - 12) + 'px';
+                  });
+              }
+          });
+          document.addEventListener('mouseout', function(e) {
+              const slot = e.target.closest('[data-tl-popup]');
+              if (slot && !slot.contains(e.relatedTarget)) {
+                  popup.classList.remove('visible');
+              }
+          });
+      })();
+
+      // ============ Gap Popup (big gaps with assign-from-gap) ============
+      (function() {
+          const gapPopup = document.createElement('div');
+          gapPopup.className = 'tl-popup tl-gap-popup';
+          document.body.appendChild(gapPopup);
+          let hideTimer = null;
+          let activeGapEl = null;
+          let pinned = false;  // click-to-pin mode
+
+          function keepOpen() { if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; } }
+          function scheduleHide() {
+              if (pinned) return;
+              keepOpen();
+              hideTimer = setTimeout(function() {
+                  gapPopup.classList.remove('visible');
+                  activeGapEl = null;
+                  window._gapPopupActive = false;
+              }, 450);
+          }
+          function forceHide() {
+              keepOpen();
+              pinned = false;
+              gapPopup.classList.remove('visible');
+              activeGapEl = null;
+              window._gapPopupActive = false;
+          }
+
+          function assignLeg(legId, driverId, btn) {
+              if (!legId || !driverId) {
+                  console.error('Gap assign: missing legId=' + legId + ' driverId=' + driverId);
+                  btn.innerHTML = '<i class="bi bi-x-lg"></i> Missing data';
+                  btn.classList.add('btn-danger');
+                  return;
+              }
+              btn.disabled = true;
+              btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Assigning...';
+              fetch('/dispatching/update-leg-assignment/', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                  body: JSON.stringify({ leg_id: parseInt(legId, 10), field: 'driver', value: parseInt(driverId, 10) })
+              })
+              .then(function(r) {
+                  if (!r.ok) {
+                      return r.json().then(function(d) { throw new Error(d.error || 'Server error ' + r.status); });
+                  }
+                  return r.json();
+              })
+              .then(function(data) {
+                  if (data.success) {
+                      btn.innerHTML = '<i class="bi bi-check-lg"></i> Done';
+                      btn.classList.remove('btn-primary');
+                      btn.classList.add('btn-success');
+                      setTimeout(function() { window.location.reload(); }, 600);
+                  } else {
+                      btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + (data.error || 'Failed');
+                      btn.classList.remove('btn-primary');
+                      btn.classList.add('btn-danger');
+                      btn.disabled = false;
+                  }
+              })
+              .catch(function(err) {
+                  console.error('Gap assign error:', err);
+                  btn.innerHTML = '<i class="bi bi-x-lg"></i> ' + (err.message || 'Error');
+                  btn.classList.remove('btn-primary');
+                  btn.classList.add('btn-danger');
+                  btn.disabled = false;
+              });
+          }
+
+          function showGapPopup(el, fromClick) {
+              keepOpen();
+              if (activeGapEl === el && !fromClick) return;
+              activeGapEl = el;
+              window._gapPopupActive = true;
+              if (fromClick) pinned = true;
+              const dur = el.dataset.gapDuration || '';
+              const fitCount = parseInt(el.dataset.gapFitting || '0', 10);
+              const driverId = el.getAttribute('data-driver-id') || '';
+              const driverName = el.getAttribute('data-driver-name') || '';
+              let html = '<div class="tl-popup-header" style="background:#0d6efd;">'
+                  + '<i class="bi bi-clock me-1"></i>' + dur + ' Open Gap'
+                  + '<span style="float:right;font-weight:400;font-size:0.7rem;opacity:0.85;">Assign to ' + driverName + '</span></div>';
+              html += '<div class="tl-popup-body" style="min-width:260px;">';
+              if (fitCount > 0) {
+                  const vtypeLabels = {towncar:'Town Car', mini_van:'Mini Van', suv:'SUV', van:'Van', 'Van(14 Pax)':'Van (14 Pax)'};
+                  const tripColors = {arrival:'#1565c0', return:'#2e7d32', cruise:'#e65100', other:'#6a1b9a'};
+                  const tripLabels = {arrival:'Arrival', return:'Return', cruise:'Cruise', other:'Other'};
+                  for (let i = 0; i < fitCount; i++) {
+                      const id = el.getAttribute('data-fit-' + i + '-id') || '';
+                      const time = el.getAttribute('data-fit-' + i + '-time') || '';
+                      const cust = el.getAttribute('data-fit-' + i + '-customer') || '';
+                      const pickup = el.getAttribute('data-fit-' + i + '-pickup') || '';
+                      const dropoff = el.getAttribute('data-fit-' + i + '-dropoff') || '';
+                      const trip = el.getAttribute('data-fit-' + i + '-trip') || '';
+                      const source = el.getAttribute('data-fit-' + i + '-source') || 'unassigned';
+                      const affDriver = el.getAttribute('data-fit-' + i + '-driver') || '';
+                      const vehicle = el.getAttribute('data-fit-' + i + '-vehicle') || '';
+                      const flight = el.getAttribute('data-fit-' + i + '-flight') || '';
+                      const pax = el.getAttribute('data-fit-' + i + '-pax') || '';
+                      const status = el.getAttribute('data-fit-' + i + '-status') || '';
+                      const dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (tripColors[trip] || '#999') + ';margin-right:4px;"></span>';
+                      const badge = source === 'affiliate'
+                          ? '<span style="font-size:0.6rem;background:#f0ad4e;color:#fff;padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:600;">AF</span>'
+                          : '<span style="font-size:0.6rem;background:#dc3545;color:#fff;padding:1px 3px;border-radius:3px;margin-left:3px;font-weight:600;">OPEN</span>';
+                      const vBadge = vehicle
+                          ? ' <span style="font-size:0.6rem;background:#6c757d;color:#fff;padding:1px 3px;border-radius:3px;margin-left:2px;">' + (vtypeLabels[vehicle] || vehicle) + '</span>'
+                          : '';
+                      html += '<div class="gap-job-row" style="padding:5px 0;border-bottom:1px solid #f0f0f0;">';
+                      html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+                      html += '<div style="flex:1;min-width:0;">';
+                      html += '<div style="font-size:0.8rem;font-weight:600;">' + dot + time + ' — ' + cust + badge + vBadge + '</div>';
+                      html += '</div>';
+                      html += '<button class="btn btn-primary btn-sm gap-assign-btn" data-leg-id="' + id + '" data-driver-id="' + driverId + '" style="font-size:0.7rem;padding:2px 8px;margin-left:8px;white-space:nowrap;">';
+                      html += '<i class="bi bi-arrow-right-circle me-1"></i>Assign</button>';
+                      html += '</div>';
+                      // Detail rows (always visible)
+                      html += '<div class="gap-job-details" style="padding-left:14px;font-size:0.7rem;color:#555;margin-top:2px;">';
+                      if (source === 'affiliate' && affDriver) {
+                          html += '<div style="color:#e68a00;"><i class="bi bi-person-fill" style="font-size:0.6rem;"></i> ' + affDriver + '</div>';
+                      }
+                      html += '<div><span style="color:#999;width:50px;display:inline-block;">Pickup</span> ' + (pickup || '—') + '</div>';
+                      html += '<div><span style="color:#999;width:50px;display:inline-block;">Drop</span> ' + (dropoff || '—') + '</div>';
+                      if (flight) {
+                          html += '<div><span style="color:#999;width:50px;display:inline-block;">Flight</span> ' + flight + '</div>';
+                      }
+                      const details = [];
+                      if (pax) details.push(pax + ' pax');
+                      if (trip) details.push(tripLabels[trip] || trip);
+                      if (status) details.push('<span style="text-transform:capitalize;">' + status + '</span>');
+                      if (details.length) {
+                          html += '<div>' + details.join(' &middot; ') + '</div>';
+                      }
+                      html += '</div>';
+                      html += '</div>';
+                  }
+              } else {
+                  html += '<div style="font-size:0.78rem;color:#666;padding:4px 0;">No available jobs in this window</div>';
+              }
+              html += '</div>';
+              gapPopup.innerHTML = html;
+
+              // Wire up assign buttons
+              gapPopup.querySelectorAll('.gap-assign-btn').forEach(function(btn) {
+                  btn.addEventListener('click', function(ev) {
+                      ev.stopPropagation();
+                      assignLeg(btn.dataset.legId, btn.dataset.driverId, btn);
+                  });
+              });
+
+              // Position anchored directly below the gap bar element (no physical gap to cross)
+              const barRect = el.getBoundingClientRect();
+              gapPopup.style.left = barRect.left + 'px';
+              gapPopup.style.top = (barRect.bottom - 1) + 'px';  // overlap by 1px so no dead zone
+              gapPopup.classList.add('visible');
+              requestAnimationFrame(function() {
+                  const rect = gapPopup.getBoundingClientRect();
+                  // If popup overflows right edge, align to right side of gap bar
+                  if (rect.right > window.innerWidth - 8) {
+                      gapPopup.style.left = Math.max(8, barRect.right - rect.width) + 'px';
+                  }
+                  // If popup overflows bottom, show above the gap bar instead
+                  if (rect.bottom > window.innerHeight - 8) {
+                      gapPopup.style.top = (barRect.top - rect.height + 1) + 'px';
+                  }
+              });
+          }
+
+          // Show on hover over gap bar
+          document.addEventListener('mouseover', function(e) {
+              const gap = e.target.closest('[data-tl-gap-popup]');
+              if (gap) { keepOpen(); showGapPopup(gap, false); }
+          });
+
+          // Click on gap bar pins the popup open
+          document.addEventListener('click', function(e) {
+              const gap = e.target.closest('[data-tl-gap-popup]');
+              if (gap) {
+                  e.stopPropagation();
+                  showGapPopup(gap, true);
+                  return;
+              }
+              // Click outside closes
+              if (!gapPopup.contains(e.target)) {
+                  forceHide();
+              }
+          });
+
+          // Keep open when mouse enters popup
+          gapPopup.addEventListener('mouseenter', keepOpen);
+          gapPopup.addEventListener('mouseleave', scheduleHide);
+
+          // Hide when leaving gap bar (with delay so user can move to popup)
+          document.addEventListener('mouseout', function(e) {
+              const gap = e.target.closest('[data-tl-gap-popup]');
+              if (gap && !gap.contains(e.relatedTarget) && e.relatedTarget !== gapPopup && !gapPopup.contains(e.relatedTarget)) {
+                  scheduleHide();
+              }
+          });
+
+          // Escape key closes
+          document.addEventListener('keydown', function(e) {
+              if (e.key === 'Escape') forceHide();
+          });
+      })();
+
+      // ============ Timeline Toggle with localStorage ============
+      (function() {
+          const tlToggle = document.getElementById('timelineToggleBtn');
+          const tlCollapse = document.getElementById('driverTimelineCollapse');
+          if (!tlToggle || !tlCollapse) return;
+
+          // Restore state from localStorage
+          if (localStorage.getItem('dashboardTimelineOpen') === 'true') {
+              new bootstrap.Collapse(tlCollapse, { toggle: false }).show();
+              tlToggle.querySelector('.timeline-toggle-text').textContent = 'Hide';
+              tlToggle.querySelector('i').classList.replace('bi-chevron-down', 'bi-chevron-up');
+          }
+
+          tlCollapse.addEventListener('shown.bs.collapse', function() {
+              localStorage.setItem('dashboardTimelineOpen', 'true');
+              tlToggle.querySelector('.timeline-toggle-text').textContent = 'Hide';
+              tlToggle.querySelector('i').classList.replace('bi-chevron-down', 'bi-chevron-up');
+          });
+          tlCollapse.addEventListener('hidden.bs.collapse', function() {
+              localStorage.setItem('dashboardTimelineOpen', 'false');
+              tlToggle.querySelector('.timeline-toggle-text').textContent = 'Show';
+              tlToggle.querySelector('i').classList.replace('bi-chevron-up', 'bi-chevron-down');
+          });
+      })();
+
   </script>
 
   <!-- Hidden status history data for each leg -->

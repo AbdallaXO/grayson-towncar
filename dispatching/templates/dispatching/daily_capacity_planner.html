@@ -624,6 +624,9 @@
                              data-dropoff="{{ slot.dropoff_location }}"
                              data-customer="{{ slot.customer_name }}"
                              data-status="{{ slot.status }}"
+                             data-status-label="{{ slot.status_label }}"
+                             data-status-time="{{ slot.status_time }}"
+                             data-status-ago="{{ slot.status_ago }}"
                              data-flight="{{ slot.flight_info|default:'' }}"
                              data-revenue="{{ slot.revenue|default:'0' }}"
                              data-vehicle="{{ slot.vehicle_type|default:'' }}"
@@ -3111,7 +3114,17 @@
                 html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
             }
             html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
-            if (el.dataset.status) {
+            if (el.dataset.statusLabel) {
+                let statusHtml = '<span style="text-transform:capitalize;">' + el.dataset.statusLabel;
+                if (el.dataset.statusTime) {
+                    statusHtml += ' ' + el.dataset.statusTime;
+                    if (el.dataset.statusAgo) {
+                        statusHtml += ' <span style="color:#888;font-size:0.75rem;">(' + el.dataset.statusAgo + ')</span>';
+                    }
+                }
+                statusHtml += '</span>';
+                html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value">' + statusHtml + '</span></div>';
+            } else if (el.dataset.status) {
                 html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="text-transform:capitalize;">' + el.dataset.status + '</span></div>';
             }
             html += '</div>';
