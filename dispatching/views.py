@@ -117,22 +117,10 @@ def index(request):
     except ValueError:
         selected_date = timezone.localdate()
 
-    # Get all legs for the selected date, excluding refunded reservations
-    legs_query = Leg.objects.filter(pickup_date=selected_date).exclude(reservation__status='cancelled').exclude(status='cancelled')
-
-    # Apply driver filter if specified
-    if driver_filter:
-        if driver_filter == "unassigned":
-            legs_query = legs_query.filter(driver__isnull=True)
-        else:
-            legs_query = legs_query.filter(driver_id=driver_filter)
-
-    # Apply vehicle type filter
-    if vehicle_filter:
-        legs_query = legs_query.filter(reservation__vehicle__vehicle_type=vehicle_filter)
-
-    legs = (
-        legs_query
+    # Base queryset: all legs for the selected date (shared by dashboard + timeline)
+    _base_legs_qs = (
+        Leg.objects.filter(pickup_date=selected_date)
+        .exclude(reservation__status='cancelled').exclude(status='cancelled')
         .select_related(
             "reservation",
             "reservation__customer",
@@ -162,6 +150,23 @@ def index(request):
         )
         .order_by("pickup_time")
     )
+
+    # Evaluate once — all legs for the day (used by timeline + gap suggestions + vehicle counts)
+    _all_day_legs = list(_base_legs_qs)
+
+    # Apply filters in Python to avoid a second DB query
+    legs = _all_day_legs
+    if driver_filter:
+        if driver_filter == "unassigned":
+            legs = [l for l in legs if not l.driver]
+        else:
+            try:
+                _df = int(driver_filter)
+                legs = [l for l in legs if l.driver_id == _df]
+            except (ValueError, TypeError):
+                pass
+    if vehicle_filter:
+        legs = [l for l in legs if l.reservation and l.reservation.vehicle and getattr(l.reservation.vehicle, 'vehicle_type', None) == vehicle_filter]
     
     # Apply trip type filter if specified (filter in Python since it's a computed property)
     if trip_type_filter:
@@ -171,27 +176,20 @@ def index(request):
                 filtered_legs.append(leg)
         legs = filtered_legs
 
-    # Vehicle type counts for the day (unfiltered by trip_type/vehicle so counts stay stable)
-    _vtype_counts_qs = (
-        Leg.objects.filter(pickup_date=selected_date)
-        .exclude(reservation__status='cancelled').exclude(status='cancelled')
-        .filter(reservation__vehicle__isnull=False)
-        .values('reservation__vehicle__vehicle_type')
-        .annotate(count=Count('id'))
-    )
-    vehicle_type_counts = []
+    # Vehicle type counts for the day (from already-fetched legs, no extra query)
+    _vtype_counter = {}
     _vtype_labels = {
         'towncar': 'Town Car', 'mini_van': 'Mini Van', 'suv': 'SUV',
         'van': 'Van', 'Van(14 Pax)': 'Van 14',
     }
-    for _vc in _vtype_counts_qs:
-        _vt = _vc['reservation__vehicle__vehicle_type']
+    for _leg in _all_day_legs:
+        _vt = getattr(_leg.reservation.vehicle, 'vehicle_type', None) if _leg.reservation and _leg.reservation.vehicle else None
         if _vt:
-            vehicle_type_counts.append({
-                'type': _vt,
-                'label': _vtype_labels.get(_vt, _vt),
-                'count': _vc['count'],
-            })
+            _vtype_counter[_vt] = _vtype_counter.get(_vt, 0) + 1
+    vehicle_type_counts = [
+        {'type': vt, 'label': _vtype_labels.get(vt, vt), 'count': cnt}
+        for vt, cnt in _vtype_counter.items()
+    ]
     vehicle_type_counts.sort(key=lambda x: -x['count'])
 
     # Get all drivers for assignment dropdown
@@ -206,7 +204,7 @@ def index(request):
     )
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
         date=selected_date, driver__in=inhouse_drivers
-    ).select_related("driver", "driver__profile", "vehicle")
+    ).select_related("driver", "driver__profile", "vehicle", "vehicle__vehicle_type")
     assignment_map = {
         assignment.driver_id: assignment for assignment in inhouse_assignments
     }
@@ -319,7 +317,7 @@ def index(request):
         return (2, "")
 
     inhouse_vehicles = sorted(
-        FleetVehicle.objects.all(), key=_vehicle_sort_key
+        FleetVehicle.objects.select_related("vehicle_type").all(), key=_vehicle_sort_key
     )
 
     # Compute real-time dispatch flags for today's legs
@@ -408,20 +406,10 @@ def index(request):
                     cur_leg.turnaround_warning = f"Tight turnaround: {gap_min} min gap"
 
     # Build compact driver timeline for in-house drivers with assignments
+    # Reuse _all_day_legs (already fetched with all select_related + prefetch) — no extra query
     from dispatching.scheduler import build_driver_schedules, preload_timing_cache as _preload_cache
     _preload_cache()
-    _all_legs_for_timeline = list(
-        Leg.objects.filter(pickup_date=selected_date)
-        .exclude(reservation__status='cancelled').exclude(status='cancelled')
-        .select_related("reservation", "reservation__vehicle", "driver", "driver__profile",
-                         "flight_information", "cruise_information")
-        .prefetch_related(
-            Prefetch(
-                "status_history",
-                queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
-            ),
-        )
-    )
+    _all_legs_for_timeline = _all_day_legs
     _all_inhouse = [row["driver"] for row in inhouse_driver_rows if not row.get("is_off_today")]
     _driver_schedules = build_driver_schedules(_all_legs_for_timeline, _all_inhouse, selected_date)
 

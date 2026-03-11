@@ -670,35 +670,17 @@
       </div>
       <div class="card-body p-0">
         <!-- Desktop View of Legs Table -->
-        <!-- Bulk Actions Bar (hidden until checkboxes selected) -->
-        <div id="bulkActionsBar" class="d-none mb-2 p-2 bg-light border rounded align-items-center gap-2 flex-wrap">
-          <span class="small fw-bold"><span id="bulkSelectedCount">0</span> selected</span>
-          <select id="bulkStatusSelect" class="form-select form-select-sm" style="width:auto;">
-            <option value="">Set Status...</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="in-progress">In Progress</option>
-            <option value="on-the-way">On the Way</option>
-            <option value="on-location">On Location</option>
-            <option value="picked-up">Picked Up</option>
-            <option value="completed">Completed</option>
-          </select>
-          <button id="bulkApplyBtn" class="btn btn-sm btn-dark" disabled>Apply</button>
-          <button id="bulkClearBtn" class="btn btn-sm btn-outline-secondary">Clear</button>
-        </div>
         <div class="table-responsive d-none d-lg-block">
           <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
             <thead class="table-dark">
               <tr>
-                <th style="width: 3%;" class="text-center">
-                  <input type="checkbox" id="selectAllLegs" class="form-check-input" title="Select all">
-                </th>
-                <th style="width: 14%;">Customer</th>
+                <th style="width: 15%;">Customer</th>
                 <th style="width: 10%;">Pickup Time</th>
-                <th style="width: 19%;">Locations</th>
+                <th style="width: 20%;">Locations</th>
                 <th style="width: 14%;">Vehicle & Passengers</th>
                 <th style="width: 10%;">Payment</th>
                 <th style="width: 15%;">Notes</th>
-                <th class="text-center" style="width: 15%;">Status & Driver</th>
+                <th class="text-center" style="width: 16%;">Driver & Status</th>
               </tr>
             </thead>
             <tbody>
@@ -707,10 +689,6 @@
                   <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
-                    <!-- Checkbox -->
-                    <td class="text-center">
-                      <input type="checkbox" class="form-check-input leg-checkbox" value="{{ leg.id }}">
-                    </td>
                     <!-- Customer -->
                     <td>
                       <div class="d-flex flex-column">
@@ -1156,11 +1134,16 @@
                       </div>
                     </td>
 
-                    <!-- Driver Assignment & Status -->
+                    <!-- Driver & Status -->
                     <td>
                       <form class="driver-form" data-leg-id="{{ leg.id }}">
                         {% csrf_token %}
-                        <select class="form-select form-select-sm mb-2 driver-select"
+                        {% if leg.driver %}
+                          <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-warning text-dark{% endif %} mb-1" style="font-size:0.65rem;">
+                            {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
+                          </span>
+                        {% endif %}
+                        <select class="form-select form-select-sm mb-1 driver-select"
                                 name="driver"
                                 data-leg-id="{{ leg.id }}">
                           <option value="">Select Driver</option>
@@ -1185,18 +1168,6 @@
                             </optgroup>
                           {% endif %}
                         </select>
-                        {% if leg.driver %}
-                          <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-warning text-dark{% endif %} mt-1" style="font-size:0.65rem;">
-                            {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
-                          </span>
-                        {% endif %}
-                        {% if leg.turnaround_warning %}
-                          <div class="mt-1">
-                            <span class="badge {% if 'Critical' in leg.turnaround_warning or 'Overlap' in leg.turnaround_warning %}bg-danger{% else %}bg-warning text-dark{% endif %}" style="font-size:0.65rem;">
-                              <i class="bi bi-exclamation-triangle me-1"></i>{{ leg.turnaround_warning }}
-                            </span>
-                          </div>
-                        {% endif %}
                         <select class="form-select form-select-sm status-select"
                                 name="status"
                                 data-leg-id="{{ leg.id }}">
@@ -1261,29 +1232,16 @@
                             {% endif %}
                           </div>
                         {% endif %}
-                        {% if leg.dispatch_flags %}
-                          <div class="mt-2">
-                            {% for flag in leg.dispatch_flags %}
-                              <div class="alert alert-{{ flag.level }} py-1 px-2 mb-1 d-flex align-items-center"
-                                   style="font-size: 0.75rem">
-                                <i class="bi {{ flag.icon }} me-1"></i>
-                                <span>{{ flag.text }}</span>
-                              </div>
-                            {% endfor %}
-                          </div>
-                        {% endif %}
-                        <div class="mt-1">
+                        <div class="mt-1 d-flex gap-2">
                           <button type="button"
                                   class="btn btn-sm btn-link p-0 text-decoration-none leg-history-btn"
                                   data-leg-id="{{ leg.id }}"
                                   data-bs-toggle="modal"
                                   data-bs-target="#legHistoryModal">
-                            <i class="bi bi-journal-text me-1"></i>View Leg History
+                            <i class="bi bi-journal-text me-1"></i>History
                           </button>
-                        </div>
-                        <div class="mt-2">
                           <a href="{% url 'reservation_details' leg.reservation.uuid %}"
-                             class="btn btn-sm btn-outline-primary w-100">
+                             class="btn btn-sm btn-link p-0 text-decoration-none">
                             <i class="bi bi-eye me-1"></i>View
                           </a>
                         </div>
@@ -1511,7 +1469,12 @@
                         <div class="col-12 mt-2">
                           <form class="driver-form" data-leg-id="{{ leg.id }}">
                             {% csrf_token %}
-                            <select class="form-select form-select-sm mb-2 driver-select"
+                            {% if leg.driver %}
+                              <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-warning text-dark{% endif %} mb-1" style="font-size:0.65rem;">
+                                {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
+                              </span>
+                            {% endif %}
+                            <select class="form-select form-select-sm mb-1 driver-select"
                                     name="driver"
                                     data-leg-id="{{ leg.id }}">
                               <option value="">Select Driver</option>
@@ -1536,18 +1499,6 @@
                                 </optgroup>
                               {% endif %}
                             </select>
-                            {% if leg.driver %}
-                              <span class="badge {% if leg.driver.driver_type == 'inhouse' %}bg-success{% else %}bg-warning text-dark{% endif %} mt-1" style="font-size:0.65rem;">
-                                {% if leg.driver.driver_type == 'inhouse' %}IN-HOUSE{% else %}AFFILIATE{% endif %}
-                              </span>
-                            {% endif %}
-                            {% if leg.turnaround_warning %}
-                              <div class="mt-1">
-                                <span class="badge {% if 'Critical' in leg.turnaround_warning or 'Overlap' in leg.turnaround_warning %}bg-danger{% else %}bg-warning text-dark{% endif %}" style="font-size:0.65rem;">
-                                  <i class="bi bi-exclamation-triangle me-1"></i>{{ leg.turnaround_warning }}
-                                </span>
-                              </div>
-                            {% endif %}
                             <select class="form-select form-select-sm status-select"
                                     name="status"
                                     data-leg-id="{{ leg.id }}">
@@ -1611,17 +1562,6 @@
                                   <i class="bi bi-clock me-1"></i>ETA: {{ leg.live_eta_arrival }}
                                 </div>
                               {% endif %}
-                            </div>
-                          {% endif %}
-                          {% if leg.dispatch_flags %}
-                            <div class="mt-2">
-                              {% for flag in leg.dispatch_flags %}
-                                <div class="alert alert-{{ flag.level }} py-1 px-2 mb-1 d-flex align-items-center"
-                                     style="font-size: 0.75rem">
-                                  <i class="bi {{ flag.icon }} me-1"></i>
-                                  <span>{{ flag.text }}</span>
-                                </div>
-                              {% endfor %}
                             </div>
                           {% endif %}
                           <div class="mt-1">
@@ -2253,112 +2193,6 @@
                       });
               });
           });
-
-          // Bulk status update
-          const bulkBar = document.getElementById('bulkActionsBar');
-          const bulkCount = document.getElementById('bulkSelectedCount');
-          const bulkSelect = document.getElementById('bulkStatusSelect');
-          const bulkApply = document.getElementById('bulkApplyBtn');
-          const bulkClear = document.getElementById('bulkClearBtn');
-          const selectAll = document.getElementById('selectAllLegs');
-
-          function updateBulkBar() {
-              const checked = document.querySelectorAll('.leg-checkbox:checked');
-              const count = checked.length;
-              bulkCount.textContent = count;
-              if (count > 0) {
-                  bulkBar.classList.remove('d-none');
-                  bulkBar.classList.add('d-flex');
-              } else {
-                  bulkBar.classList.add('d-none');
-                  bulkBar.classList.remove('d-flex');
-              }
-              bulkApply.disabled = !bulkSelect.value || count === 0;
-          }
-
-          document.querySelectorAll('.leg-checkbox').forEach(cb => {
-              cb.addEventListener('change', updateBulkBar);
-          });
-
-          if (selectAll) {
-              selectAll.addEventListener('change', function() {
-                  document.querySelectorAll('.leg-checkbox').forEach(cb => {
-                      cb.checked = selectAll.checked;
-                  });
-                  updateBulkBar();
-              });
-          }
-
-          if (bulkSelect) {
-              bulkSelect.addEventListener('change', updateBulkBar);
-          }
-
-          if (bulkClear) {
-              bulkClear.addEventListener('click', function() {
-                  document.querySelectorAll('.leg-checkbox').forEach(cb => { cb.checked = false; });
-                  if (selectAll) selectAll.checked = false;
-                  updateBulkBar();
-              });
-          }
-
-          if (bulkApply) {
-              bulkApply.addEventListener('click', async function() {
-                  const status = bulkSelect.value;
-                  if (!status) return;
-                  const checked = document.querySelectorAll('.leg-checkbox:checked');
-                  if (checked.length === 0) return;
-
-                  const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
-                  bulkApply.disabled = true;
-                  bulkApply.textContent = `Updating 0/${checked.length}...`;
-
-                  let success = 0;
-                  let failed = 0;
-                  for (const cb of checked) {
-                      try {
-                          const resp = await fetch('/dispatching/update-leg-assignment/', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                              body: JSON.stringify({ leg_id: cb.value, field: 'status', value: status })
-                          });
-                          const data = await resp.json();
-                          if (data.success) {
-                              success++;
-                              // Update the status dropdown in the row
-                              const row = document.getElementById(`leg-row-${cb.value}`);
-                              if (row) {
-                                  const statusSelect = row.querySelector('.status-select');
-                                  if (statusSelect) statusSelect.value = status;
-                              }
-                          } else {
-                              failed++;
-                          }
-                      } catch (e) {
-                          failed++;
-                      }
-                      bulkApply.textContent = `Updating ${success + failed}/${checked.length}...`;
-                  }
-
-                  bulkApply.textContent = 'Apply';
-                  bulkApply.disabled = false;
-
-                  // Show result
-                  const resultMsg = failed > 0
-                      ? `Updated ${success} legs, ${failed} failed`
-                      : `Updated ${success} legs`;
-                  bulkBar.insertAdjacentHTML('beforeend',
-                      `<span class="badge ${failed > 0 ? 'bg-warning text-dark' : 'bg-success'} ms-2 bulk-result">${resultMsg}</span>`
-                  );
-                  setTimeout(() => {
-                      document.querySelectorAll('.bulk-result').forEach(el => el.remove());
-                  }, 3000);
-
-                  // Uncheck all
-                  document.querySelectorAll('.leg-checkbox').forEach(cb => { cb.checked = false; });
-                  if (selectAll) selectAll.checked = false;
-                  updateBulkBar();
-              });
-          }
 
           // Expand All / Collapse All functionality
           const expandAllBtn = document.getElementById('expandAllFlightsBtn');
