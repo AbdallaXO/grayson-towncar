@@ -31,6 +31,10 @@
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'confirmations' %}active{% endif %}"
              href="{% url 'confirmations' %}"><i class="bi bi-chat-text me-1"></i>Confirmations</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link text-white"
+             href="{% url 'admin:reservations_lead_changelist' %}"><i class="bi bi-funnel me-1"></i>Leads</a>
+        </li>
         <!-- Drivers dropdown -->
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'drivers_extend' or request.resolver_match.url_name == 'driver_payment_management' or request.resolver_match.url_name == 'driver_pay_rates' %}active{% endif %}"
@@ -83,6 +87,10 @@
                  href="{% url 'driver_performance' %}"><i class="bi bi-speedometer me-2"></i>Driver Performance</a>
             </li>
           </ul>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'lead_analytics' %}active{% endif %}"
+             href="{% url 'lead_analytics' %}"><i class="bi bi-funnel me-1"></i>Lead Analytics</a>
         </li>
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active{% endif %}"

@@ -446,7 +446,7 @@
             <a href="?date={{ selected_date|date:'Y-m-d' }}{% if driver_filter %}&driver={{ driver_filter }}{% endif %}{% if trip_type_filter %}&trip_type={{ trip_type_filter }}{% endif %}&vehicle={{ vc.type }}"
                class="badge text-decoration-none {% if vehicle_filter == vc.type %}text-white{% else %}bg-light border text-dark{% endif %}"
                style="{% if vehicle_filter == vc.type %}background:#495057;{% endif %}font-size:0.72rem;">
-              {{ vc.label }} <span style="opacity:0.75;">{{ vc.count }}</span>
+              {{ vc.label }} <span style="opacity:0.75;">({{ vc.count }})</span>
             </a>
           {% endfor %}
           {% if vehicle_filter %}
