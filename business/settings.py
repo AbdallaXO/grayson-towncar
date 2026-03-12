@@ -86,6 +86,7 @@ OUR_APPS = [
     "drivers",
     "dispatching",
     "ghl_integration",
+    "ops.apps.OpsConfig",
 ]
 
 # After DEbuyg toolbar
@@ -103,6 +104,7 @@ MIDDLEWARE = [
     "simple_history.middleware.HistoryRequestMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "ops.middleware.StaffActivityMiddleware",
 ]
 
 if DEBUG:
@@ -120,6 +122,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "ops.context_processors.pending_task_count",
             ],
         },
     },

@@ -124,6 +124,11 @@
                       {% else %}
                         <span class="badge bg-secondary">Not sent</span>
                       {% endif %}
+                      {% if row.flight_unverified %}
+                        <span class="badge bg-warning text-dark" title="An open flight verification task exists for this leg. Flight time may have changed.">
+                          <i class="bi bi-exclamation-triangle me-1"></i>Flight not verified
+                        </span>
+                      {% endif %}
                     </td>
                     <td class="text-end">
                       <div class="btn-group btn-group-sm">

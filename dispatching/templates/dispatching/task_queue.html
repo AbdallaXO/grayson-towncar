@@ -1,0 +1,424 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+{% load ops_filters %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-3">
+      <div class="col">
+        <h1 class="fs-2 fw-bold mb-1">
+          <i class="bi bi-list-check me-2"></i>Task Queue
+        </h1>
+        <p class="text-muted mb-0">Operational tasks sorted by priority. Claim, complete, or snooze tasks.</p>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+          <i class="bi bi-plus-lg me-1"></i>New Task
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="row g-2 mb-4">
+      <div class="col-auto">
+        <div class="badge bg-dark fs-6 px-3 py-2">
+          All: <strong>{{ total_open }}</strong>
+        </div>
+      </div>
+      {% for type_value, type_label in task_types %}
+        {% with count=type_counts|default_if_none:"" %}
+        <div class="col-auto">
+          <a href="?type={{ type_value }}"
+             class="badge text-decoration-none fs-6 px-3 py-2 {% if type_filter == type_value %}bg-primary{% else %}bg-secondary{% endif %}">
+            {{ type_label }}: <strong>{{ type_counts|get_item:type_value|default:"0" }}</strong>
+          </a>
+        </div>
+        {% endwith %}
+      {% endfor %}
+      {% if overdue_count %}
+      <div class="col-auto">
+        <a href="?overdue=1" class="badge bg-danger text-decoration-none fs-6 px-3 py-2">
+          Overdue: <strong>{{ overdue_count }}</strong>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Filters row -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center">
+          <div class="col-auto">
+            <select name="type" class="form-select form-select-sm">
+              <option value="">All Types</option>
+              {% for type_value, type_label in task_types %}
+              <option value="{{ type_value }}" {% if type_filter == type_value %}selected{% endif %}>{{ type_label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <select name="assignee" class="form-select form-select-sm">
+              <option value="">All Staff</option>
+              <option value="me" {% if assignee_filter == 'me' %}selected{% endif %}>My Tasks</option>
+              <option value="unassigned" {% if assignee_filter == 'unassigned' %}selected{% endif %}>Unassigned</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <div class="form-check form-check-inline mb-0">
+              <input class="form-check-input" type="checkbox" name="overdue" value="1" id="overdueCheck" {% if overdue_only %}checked{% endif %}>
+              <label class="form-check-label small" for="overdueCheck">Overdue only</label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Filter</button>
+            <a href="{% url 'task_queue' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Task table -->
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 40px;"></th>
+              <th>Type</th>
+              <th>Task</th>
+              <th>Related</th>
+              <th>Due</th>
+              <th>Attempts</th>
+              <th>Assigned</th>
+              <th style="width: 260px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in tasks %}
+            <tr id="task-row-{{ task.id }}" class="{% if task.priority == 1 %}table-danger{% elif task.priority == 2 %}table-warning{% elif task.status == 'snoozed' %}table-secondary{% endif %}">
+              <td>
+                <i class="{{ task.type_icon }}" style="color: {{ task.type_color }}; font-size: 1.1rem;" title="{{ task.get_task_type_display }}"></i>
+              </td>
+              <td>
+                <span class="badge" style="background-color: {{ task.type_color }};">{{ task.get_task_type_display }}</span>
+              </td>
+              <td>
+                <div class="fw-semibold">
+                  <a href="{% url 'task_detail' task.id %}" class="text-decoration-none text-dark">{{ task.title }}</a>
+                </div>
+                {% if task.description %}<small class="text-muted">{{ task.description|truncatewords:15 }}</small>{% endif %}
+                {% if task.blocked_by and task.blocked_by.is_open %}
+                <div><small class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Depends on: {{ task.blocked_by.title|truncatewords:8 }}</small></div>
+                {% endif %}
+                {% if task.status == 'snoozed' %}
+                <div><small class="text-info"><i class="bi bi-clock me-1"></i>Snoozed until {{ task.snoozed_until|date:"M j g:i A" }}</small></div>
+                {% endif %}
+                {% if task.status == 'escalated' %}
+                <div><small class="text-danger fw-bold"><i class="bi bi-arrow-up-circle me-1"></i>ESCALATED</small></div>
+                {% endif %}
+              </td>
+              <td>
+                {% if task.leg %}
+                  <a href="{% url 'reservation_details' task.leg.reservation.id %}" class="text-decoration-none">
+                    {{ task.leg.reservation.customer.get_full_name|truncatewords:3 }}
+                  </a>
+                  <div><small class="text-muted">Leg #{{ task.leg.id }} — {{ task.leg.pickup_date|date:"M j" }}</small></div>
+                {% elif task.reservation %}
+                  <a href="{% url 'reservation_details' task.reservation.id %}" class="text-decoration-none">
+                    {{ task.reservation.customer.get_full_name|truncatewords:3 }}
+                  </a>
+                  <div><small class="text-muted">Res #{{ task.reservation.id }}</small></div>
+                {% elif task.lead %}
+                  <span>{{ task.lead.first_name }} {{ task.lead.last_name }}</span>
+                  <div><small class="text-muted">Lead #{{ task.lead.id }}</small></div>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if task.is_overdue %}
+                  <span class="text-danger fw-bold" title="{{ task.due_at|date:'M j, Y g:i A' }}">
+                    {{ task.due_at|timesince }} ago
+                  </span>
+                {% else %}
+                  <span title="{{ task.due_at|date:'M j, Y g:i A' }}">
+                    {{ task.due_at|date:"M j g:i A" }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge bg-light text-dark">{{ task.attempts }}</span>
+              </td>
+              <td>
+                {% if task.assigned_to %}
+                  <span class="badge bg-info text-dark">{{ task.assigned_to.first_name|default:task.assigned_to.username }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  {% if not task.assigned_to or task.assigned_to != request.user %}
+                  <button class="btn btn-outline-primary btn-task-action" data-action="claim" data-task-id="{{ task.id }}" title="Claim this task">
+                    <i class="bi bi-person-check"></i>
+                  </button>
+                  {% endif %}
+                  <button class="btn btn-outline-success btn-task-action" data-action="complete" data-task-id="{{ task.id }}" title="Mark complete">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                  <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="Snooze">
+                      <i class="bi bi-clock"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                      <li><a class="dropdown-item btn-task-action" href="#" data-action="snooze" data-task-id="{{ task.id }}" data-duration="1h">Snooze 1 hour</a></li>
+                      <li><a class="dropdown-item btn-task-action" href="#" data-action="snooze" data-task-id="{{ task.id }}" data-duration="4h">Snooze 4 hours</a></li>
+                      <li><a class="dropdown-item btn-task-action" href="#" data-action="snooze" data-task-id="{{ task.id }}" data-duration="tomorrow">Snooze until tomorrow</a></li>
+                    </ul>
+                  </div>
+                  <button class="btn btn-outline-info btn-log-comm" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}" title="Log communication">
+                    <i class="bi bi-telephone"></i>
+                  </button>
+                  <button class="btn btn-outline-danger btn-task-action" data-action="cancel" data-task-id="{{ task.id }}" title="Cancel task">
+                    <i class="bi bi-x-lg"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-5">
+                <i class="bi bi-check-circle fs-1 d-block mb-2"></i>
+                No open tasks. All caught up!
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Communication Modal -->
+  <div class="modal fade" id="logCommModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-telephone me-2"></i>Log Communication</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted mb-3" id="commTaskTitle"></p>
+          <input type="hidden" id="commTaskId">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Channel</label>
+            <select id="commChannel" class="form-select">
+              <option value="call">Phone Call</option>
+              <option value="sms">SMS</option>
+              <option value="email">Email</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Outcome</label>
+            <select id="commOutcome" class="form-select">
+              <option value="answered">Answered</option>
+              <option value="voicemail">Voicemail</option>
+              <option value="no_answer">No Answer</option>
+              <option value="busy">Busy</option>
+              <option value="sent">Sent</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div class="mb-3" id="commDurationGroup">
+            <label class="form-label fw-bold">Call Duration (seconds)</label>
+            <input type="number" id="commDuration" class="form-control" placeholder="Optional">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Contact (phone/email)</label>
+            <input type="text" id="commContactValue" class="form-control" placeholder="Optional">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Notes</label>
+            <textarea id="commNotes" class="form-control" rows="2" placeholder="Optional"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnSubmitComm">
+            <i class="bi bi-check me-1"></i>Log Communication
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Manual Task Modal -->
+  <div class="modal fade" id="createTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-plus-lg me-2"></i>Create Task</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Title</label>
+            <input type="text" id="newTaskTitle" class="form-control" placeholder="What needs to be done?">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Priority</label>
+            <select id="newTaskPriority" class="form-select">
+              <option value="1">Critical</option>
+              <option value="2">High</option>
+              <option value="3" selected>Medium</option>
+              <option value="4">Low</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Description</label>
+            <textarea id="newTaskDescription" class="form-control" rows="2" placeholder="Optional details"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btnCreateTask">
+            <i class="bi bi-plus me-1"></i>Create
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+
+function taskAction(action, taskId, extra = {}) {
+  const urls = {
+    claim: '{% url "task_claim" %}',
+    complete: '{% url "task_complete" %}',
+    snooze: '{% url "task_snooze" %}',
+    cancel: '{% url "task_cancel" %}',
+  };
+  fetch(urls[action], {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({task_id: taskId, ...extra}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      // Fade out the row and reload
+      const row = document.getElementById('task-row-' + taskId);
+      if (row) {
+        row.style.transition = 'opacity 0.3s';
+        row.style.opacity = '0';
+        setTimeout(() => location.reload(), 350);
+      } else {
+        location.reload();
+      }
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error'));
+    }
+  })
+  .catch(err => alert('Network error: ' + err));
+}
+
+// Task action buttons
+document.querySelectorAll('.btn-task-action').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    const action = this.dataset.action;
+    const taskId = this.dataset.taskId;
+    const extra = {};
+
+    if (action === 'snooze') {
+      extra.duration = this.dataset.duration;
+    }
+    if (action === 'cancel') {
+      if (!confirm('Cancel this task?')) return;
+    }
+    if (action === 'complete') {
+      extra.notes = prompt('Resolution notes (optional):') || '';
+    }
+
+    taskAction(action, taskId, extra);
+  });
+});
+
+// Log Communication modal
+document.querySelectorAll('.btn-log-comm').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.getElementById('commTaskId').value = this.dataset.taskId;
+    document.getElementById('commTaskTitle').textContent = this.dataset.taskTitle;
+    new bootstrap.Modal(document.getElementById('logCommModal')).show();
+  });
+});
+
+// Toggle duration field based on channel
+document.getElementById('commChannel').addEventListener('change', function() {
+  document.getElementById('commDurationGroup').style.display =
+    this.value === 'call' ? 'block' : 'none';
+});
+
+// Submit communication log
+document.getElementById('btnSubmitComm').addEventListener('click', function() {
+  const data = {
+    task_id: parseInt(document.getElementById('commTaskId').value),
+    channel: document.getElementById('commChannel').value,
+    outcome: document.getElementById('commOutcome').value,
+    notes: document.getElementById('commNotes').value,
+    contact_value: document.getElementById('commContactValue').value,
+    duration_seconds: document.getElementById('commDuration').value || null,
+  };
+  fetch('{% url "task_log_comm" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify(data),
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      bootstrap.Modal.getInstance(document.getElementById('logCommModal')).hide();
+      location.reload();
+    } else {
+      alert('Error: ' + (result.error || 'Unknown'));
+    }
+  })
+  .catch(err => alert('Network error: ' + err));
+});
+
+// Create manual task
+document.getElementById('btnCreateTask').addEventListener('click', function() {
+  const data = {
+    title: document.getElementById('newTaskTitle').value,
+    priority: parseInt(document.getElementById('newTaskPriority').value),
+    description: document.getElementById('newTaskDescription').value,
+  };
+  if (!data.title.trim()) { alert('Title is required'); return; }
+
+  fetch('{% url "task_create_manual" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify(data),
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      bootstrap.Modal.getInstance(document.getElementById('createTaskModal')).hide();
+      location.reload();
+    } else {
+      alert('Error: ' + (result.error || 'Unknown'));
+    }
+  })
+  .catch(err => alert('Network error: ' + err));
+});
+</script>
+{% endblock %}

@@ -1,0 +1,372 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'task_queue' %}">Task Queue</a></li>
+        <li class="breadcrumb-item active">Task #{{ task.id }}</li>
+      </ol>
+    </nav>
+
+    <div class="row">
+      <!-- Main content -->
+      <div class="col-lg-8">
+        <!-- Task header -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between">
+              <div>
+                <h2 class="mb-1">
+                  <i class="{{ task.type_icon }} me-2" style="color: {{ task.type_color }};"></i>
+                  {{ task.title }}
+                </h2>
+                <div class="d-flex gap-2 mb-2">
+                  <span class="badge" style="background-color: {{ task.type_color }};">{{ task.get_task_type_display }}</span>
+                  <span class="badge" style="background-color: {{ task.priority_color }};">{{ task.get_priority_display }}</span>
+                  <span class="badge bg-{% if task.status == 'completed' %}success{% elif task.status == 'escalated' %}danger{% elif task.status == 'snoozed' %}secondary{% elif task.status == 'cancelled' %}dark{% else %}primary{% endif %}">
+                    {{ task.get_status_display }}
+                  </span>
+                  {% if task.is_overdue %}<span class="badge bg-danger">OVERDUE</span>{% endif %}
+                </div>
+                {% if task.description %}
+                <p class="text-muted mb-0">{{ task.description }}</p>
+                {% endif %}
+              </div>
+              {% if task.is_open %}
+              <div class="btn-group">
+                <button class="btn btn-sm btn-success btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
+                  <i class="bi bi-check-lg me-1"></i>Complete
+                </button>
+                <button class="btn btn-sm btn-outline-secondary btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="1h">
+                  <i class="bi bi-clock me-1"></i>Snooze 1h
+                </button>
+              </div>
+              {% endif %}
+            </div>
+
+            {% if task.blocked_by and task.blocked_by.is_open %}
+            <div class="alert alert-warning mt-3 mb-0 py-2">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              <strong>Soft dependency:</strong> {{ task.blocked_by.title }}
+              <a href="{% url 'task_detail' task.blocked_by.id %}" class="ms-2">View</a>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Communication History -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Communication History ({{ comm_attempts|length }})</h5>
+          </div>
+          <div class="card-body">
+            {% if comm_attempts %}
+            <div class="list-group list-group-flush">
+              {% for attempt in comm_attempts %}
+              <div class="list-group-item px-0">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <span class="badge bg-{% if attempt.channel == 'call' %}primary{% elif attempt.channel == 'sms' %}info{% else %}secondary{% endif %} me-2">
+                      {% if attempt.channel == 'call' %}<i class="bi bi-telephone"></i>{% elif attempt.channel == 'sms' %}<i class="bi bi-chat"></i>{% else %}<i class="bi bi-envelope"></i>{% endif %}
+                      {{ attempt.get_channel_display }}
+                    </span>
+                    <span class="badge bg-{% if attempt.outcome == 'answered' or attempt.outcome == 'delivered' or attempt.outcome == 'sent' %}success{% elif attempt.outcome == 'failed' or attempt.outcome == 'bounced' %}danger{% else %}warning{% endif %}">
+                      {{ attempt.get_outcome_display }}
+                    </span>
+                    {% if attempt.contact_value %}
+                    <small class="text-muted ms-2">{{ attempt.contact_value }}</small>
+                    {% endif %}
+                    {% if attempt.duration_seconds %}
+                    <small class="text-muted ms-2">({{ attempt.duration_seconds }}s)</small>
+                    {% endif %}
+                  </div>
+                  <small class="text-muted">
+                    {{ attempt.staff_user.first_name|default:attempt.staff_user.username }} — {{ attempt.created_at|date:"M j g:i A" }}
+                  </small>
+                </div>
+                {% if attempt.notes %}
+                <p class="mt-1 mb-0 small text-muted">{{ attempt.notes }}</p>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-center mb-0">No communication attempts logged yet.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Log Communication Form -->
+        {% if task.is_open %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Log Communication</h5>
+          </div>
+          <div class="card-body">
+            <form id="commForm">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Channel</label>
+                  <select id="detailCommChannel" class="form-select">
+                    {% for value, label in channels %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-bold">Outcome</label>
+                  <select id="detailCommOutcome" class="form-select">
+                    {% for value, label in outcomes %}
+                    <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4" id="detailDurationGroup">
+                  <label class="form-label fw-bold">Duration (seconds)</label>
+                  <input type="number" id="detailCommDuration" class="form-control" placeholder="Optional">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Contact (phone/email)</label>
+                  <input type="text" id="detailCommContact" class="form-control" placeholder="Optional">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold">Notes</label>
+                  <input type="text" id="detailCommNotes" class="form-control" placeholder="Optional">
+                </div>
+                <div class="col-12">
+                  <button type="button" class="btn btn-primary" id="btnDetailSubmitComm">
+                    <i class="bi bi-check me-1"></i>Log Communication
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Sidebar -->
+      <div class="col-lg-4">
+        <!-- Task details card -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">Details</h6>
+          </div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Created</span>
+              <span>{{ task.created_at|date:"M j, Y g:i A" }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Due</span>
+              <span class="{% if task.is_overdue %}text-danger fw-bold{% endif %}">{{ task.due_at|date:"M j, Y g:i A" }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Assigned to</span>
+              <span>{{ task.assigned_to.first_name|default:task.assigned_to.username|default:"Unassigned" }}</span>
+            </li>
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Attempts</span>
+              <span>{{ task.attempts }} / {{ task.max_attempts }}</span>
+            </li>
+            {% if task.last_attempt_at %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Last attempt</span>
+              <span>{{ task.last_attempt_at|date:"M j g:i A" }}</span>
+            </li>
+            {% endif %}
+            {% if task.escalate_at %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Escalates at</span>
+              <span>{{ task.escalate_at|date:"M j g:i A" }}</span>
+            </li>
+            {% endif %}
+            {% if task.resolved_at %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Resolved</span>
+              <span>{{ task.resolved_at|date:"M j g:i A" }}</span>
+            </li>
+            {% if task.resolved_by %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Resolved by</span>
+              <span>{{ task.resolved_by.first_name|default:task.resolved_by.username }}</span>
+            </li>
+            {% endif %}
+            {% if task.resolution_notes %}
+            <li class="list-group-item">
+              <span class="text-muted d-block">Resolution</span>
+              <span>{{ task.resolution_notes }}</span>
+            </li>
+            {% endif %}
+            {% endif %}
+          </ul>
+        </div>
+
+        <!-- Related object card -->
+        {% if task.customer %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">Guest Info</h6>
+          </div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <strong>{{ task.customer.get_full_name }}</strong>
+            </li>
+            {% if task.customer.phone_number %}
+            <li class="list-group-item">
+              <i class="bi bi-telephone me-2 text-muted"></i>
+              <a href="tel:{{ task.customer.phone_number }}">{{ task.customer.phone_number }}</a>
+            </li>
+            {% endif %}
+            {% if task.customer.email %}
+            <li class="list-group-item">
+              <i class="bi bi-envelope me-2 text-muted"></i>
+              <a href="mailto:{{ task.customer.email }}">{{ task.customer.email }}</a>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+        {% elif task.lead %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">Lead Info</h6>
+          </div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <strong>{{ task.lead.first_name }} {{ task.lead.last_name }}</strong>
+            </li>
+            {% if task.lead.phone %}
+            <li class="list-group-item">
+              <i class="bi bi-telephone me-2 text-muted"></i>
+              <a href="tel:{{ task.lead.phone }}">{{ task.lead.phone }}</a>
+            </li>
+            {% endif %}
+            {% if task.lead.email %}
+            <li class="list-group-item">
+              <i class="bi bi-envelope me-2 text-muted"></i>
+              <a href="mailto:{{ task.lead.email }}">{{ task.lead.email }}</a>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+        {% endif %}
+
+        <!-- Flight info (if flight_verify task) -->
+        {% if task.leg and task.leg.flight_information %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0"><i class="bi bi-airplane me-2"></i>Flight Info</h6>
+          </div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Flight</span>
+              <span>{{ task.leg.flight_information.airline_display_name|default:task.leg.flight_information.airline }} {{ task.leg.flight_information.flight_number }}</span>
+            </li>
+            {% if task.leg.flight_information.scheduled_gate_arrival_local %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Scheduled arrival</span>
+              <span>{{ task.leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+            </li>
+            {% endif %}
+            {% if task.leg.flight_information.estimated_gate_arrival_local %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Estimated arrival</span>
+              <span>{{ task.leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
+            </li>
+            {% endif %}
+            <li class="list-group-item d-flex justify-content-between">
+              <span class="text-muted">Booked pickup</span>
+              <span>{{ task.leg.pickup_time|date:"g:i A" }}</span>
+            </li>
+          </ul>
+        </div>
+        {% endif %}
+
+        <!-- Activity log -->
+        {% if activities %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0">Activity</h6>
+          </div>
+          <div class="card-body p-2">
+            {% for activity in activities %}
+            <div class="small py-1 {% if not forloop.last %}border-bottom{% endif %}">
+              <span class="text-muted">{{ activity.created_at|date:"M j g:i A" }}</span>
+              — {{ activity.user.first_name|default:activity.user.username }}
+              {{ activity.get_action_type_display|lower }}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const TASK_ID = {{ task.id }};
+
+// Task actions
+document.querySelectorAll('.btn-task-action').forEach(btn => {
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    const action = this.dataset.action;
+    const urls = {
+      complete: '{% url "task_complete" %}',
+      snooze: '{% url "task_snooze" %}',
+    };
+    const extra = {};
+    if (action === 'complete') {
+      extra.notes = prompt('Resolution notes (optional):') || '';
+    }
+    if (action === 'snooze') {
+      extra.duration = this.dataset.duration;
+    }
+    fetch(urls[action], {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({task_id: TASK_ID, ...extra}),
+    })
+    .then(r => r.json())
+    .then(data => { if (data.success) location.reload(); else alert(data.error); })
+    .catch(err => alert('Error: ' + err));
+  });
+});
+
+// Channel toggle for duration field
+document.getElementById('detailCommChannel')?.addEventListener('change', function() {
+  document.getElementById('detailDurationGroup').style.display =
+    this.value === 'call' ? 'block' : 'none';
+});
+
+// Submit communication
+document.getElementById('btnDetailSubmitComm')?.addEventListener('click', function() {
+  const data = {
+    task_id: TASK_ID,
+    channel: document.getElementById('detailCommChannel').value,
+    outcome: document.getElementById('detailCommOutcome').value,
+    notes: document.getElementById('detailCommNotes').value,
+    contact_value: document.getElementById('detailCommContact').value,
+    duration_seconds: document.getElementById('detailCommDuration').value || null,
+  };
+  fetch('{% url "task_log_comm" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify(data),
+  })
+  .then(r => r.json())
+  .then(result => { if (result.success) location.reload(); else alert(result.error); })
+  .catch(err => alert('Error: ' + err));
+});
+</script>
+{% endblock %}

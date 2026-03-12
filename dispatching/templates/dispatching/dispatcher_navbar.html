@@ -32,6 +32,10 @@
              href="{% url 'confirmations' %}"><i class="bi bi-chat-text me-1"></i>Confirmations</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'task_queue' %}active{% endif %}"
+             href="{% url 'task_queue' %}"><i class="bi bi-list-check me-1"></i>Tasks{% if ops_pending_count %} <span class="badge bg-danger rounded-pill" style="font-size: 0.65rem;">{{ ops_pending_count }}</span>{% endif %}</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link text-white"
              href="{% url 'admin:reservations_lead_changelist' %}"><i class="bi bi-funnel me-1"></i>Leads</a>
         </li>
@@ -95,6 +99,10 @@
         <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active{% endif %}"
              href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'staff_metrics' %}active{% endif %}"
+             href="{% url 'staff_metrics' %}"><i class="bi bi-activity me-1"></i>Staff Metrics</a>
         </li>
         {% endif %}
         <!-- User dropdown -->

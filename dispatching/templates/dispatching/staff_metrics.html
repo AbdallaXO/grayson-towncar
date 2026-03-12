@@ -1,0 +1,347 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1 class="mb-1 fw-bold"><i class="bi bi-activity me-2"></i>Staff Metrics</h1>
+        <p class="text-muted mb-0">Operational productivity and queue health</p>
+      </div>
+      <div class="btn-group btn-group-sm">
+        <a href="?range=1" class="btn {% if range_days == 1 %}btn-dark{% else %}btn-outline-dark{% endif %}">Today</a>
+        <a href="?range=7" class="btn {% if range_days == 7 %}btn-dark{% else %}btn-outline-dark{% endif %}">7 days</a>
+        <a href="?range=14" class="btn {% if range_days == 14 %}btn-dark{% else %}btn-outline-dark{% endif %}">14 days</a>
+        <a href="?range=30" class="btn {% if range_days == 30 %}btn-dark{% else %}btn-outline-dark{% endif %}">30 days</a>
+        <a href="?range=90" class="btn {% if range_days == 90 %}btn-dark{% else %}btn-outline-dark{% endif %}">90 days</a>
+      </div>
+    </div>
+
+    <!-- Queue Health KPIs -->
+    <div class="row g-3 mb-4">
+      <div class="col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <div class="display-5 fw-bold text-primary">{{ total_open }}</div>
+            <div class="text-muted small">Open Tasks</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <div class="display-5 fw-bold {% if overdue_count > 0 %}text-danger{% else %}text-success{% endif %}">{{ overdue_count }}</div>
+            <div class="text-muted small">Overdue</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <div class="display-5 fw-bold {% if escalated_count > 0 %}text-warning{% else %}text-success{% endif %}">{{ escalated_count }}</div>
+            <div class="text-muted small">Escalated</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center">
+            <div class="display-5 fw-bold text-info">
+              {% if avg_response_min != None %}{{ avg_response_min }}m{% else %}&mdash;{% endif %}
+            </div>
+            <div class="text-muted small">Avg Lead Response</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Open Tasks by Type -->
+    <div class="row g-3 mb-4">
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white"><h6 class="mb-0">Open Tasks by Type</h6></div>
+          <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr><th>Type</th><th class="text-end">Count</th></tr>
+              </thead>
+              <tbody>
+                {% for type_code, label in task_type_labels.items %}
+                  {% with count=queue_by_type|default_if_none:"" %}
+                  <tr>
+                    <td>{{ label }}</td>
+                    <td class="text-end fw-bold">
+                      {% if type_code in queue_by_type %}{{ queue_by_type|dictsort:type_code }}{% endif %}
+                      {% for k, v in queue_by_type.items %}{% if k == type_code %}{{ v }}{% endif %}{% endfor %}
+                    </td>
+                  </tr>
+                  {% endwith %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white"><h6 class="mb-0">Open Tasks by Priority</h6></div>
+          <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr><th>Priority</th><th class="text-end">Count</th></tr>
+              </thead>
+              <tbody>
+                {% for pri_val, pri_label in priority_labels.items %}
+                <tr>
+                  <td>
+                    <span class="badge {% if pri_val == 1 %}bg-danger{% elif pri_val == 2 %}bg-warning text-dark{% elif pri_val == 3 %}bg-primary{% else %}bg-secondary{% endif %}">
+                      {{ pri_label }}
+                    </span>
+                  </td>
+                  <td class="text-end fw-bold">
+                    {% for k, v in queue_by_priority.items %}{% if k == pri_val %}{{ v }}{% endif %}{% endfor %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white"><h6 class="mb-0">Task Trend ({{ range_days }} days)</h6></div>
+      <div class="card-body">
+        <canvas id="trendChart" height="80"></canvas>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <!-- Staff Completions -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white"><h6 class="mb-0">Tasks Completed by Staff ({{ range_days }}d)</h6></div>
+          <div class="card-body p-0">
+            {% if staff_completions %}
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr><th>Staff</th><th class="text-end">Completed</th></tr>
+              </thead>
+              <tbody>
+                {% for s in staff_completions %}
+                <tr>
+                  <td>{{ s.name }}</td>
+                  <td class="text-end fw-bold">{{ s.count }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="table-light">
+                  <td class="text-muted"><em>Auto-closed (system)</em></td>
+                  <td class="text-end">{{ auto_closed_count }}</td>
+                </tr>
+              </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-3 mb-0">No tasks completed in this period.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Communication Volume -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white"><h6 class="mb-0">Communication Volume ({{ range_days }}d)</h6></div>
+          <div class="card-body p-0">
+            {% if staff_comms %}
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr><th>Staff</th><th class="text-end">Calls</th><th class="text-end">SMS</th><th class="text-end">Emails</th><th class="text-end">Total</th></tr>
+              </thead>
+              <tbody>
+                {% for s in staff_comms %}
+                <tr>
+                  <td>{{ s.name }}</td>
+                  <td class="text-end">{{ s.calls }}</td>
+                  <td class="text-end">{{ s.sms }}</td>
+                  <td class="text-end">{{ s.emails }}</td>
+                  <td class="text-end fw-bold">{{ s.total }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-3 mb-0">No communications logged in this period.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <!-- Task Type Performance -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white"><h6 class="mb-0">Completed by Task Type ({{ range_days }}d)</h6></div>
+          <div class="card-body p-0">
+            {% if type_performance %}
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr><th>Type</th><th class="text-end">Completed</th><th class="text-end">Avg Attempts</th></tr>
+              </thead>
+              <tbody>
+                {% for tp in type_performance %}
+                <tr>
+                  <td>
+                    {% for k, v in task_type_labels.items %}{% if k == tp.task_type %}{{ v }}{% endif %}{% endfor %}
+                  </td>
+                  <td class="text-end">{{ tp.count }}</td>
+                  <td class="text-end">{{ tp.avg_attempts|floatformat:1 }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted text-center py-3 mb-0">No data for this period.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Lead Response Times -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white"><h6 class="mb-0">Lead Response Times ({{ range_days }}d)</h6></div>
+          <div class="card-body">
+            {% if avg_response_min != None %}
+            <div class="row text-center">
+              <div class="col-4">
+                <div class="fs-3 fw-bold text-primary">{{ avg_response_min }}m</div>
+                <div class="text-muted small">Average</div>
+              </div>
+              <div class="col-4">
+                <div class="fs-3 fw-bold text-info">{{ median_response_min }}m</div>
+                <div class="text-muted small">Median</div>
+              </div>
+              <div class="col-4">
+                <div class="fs-3 fw-bold">{{ response_count }}</div>
+                <div class="text-muted small">Leads Contacted</div>
+              </div>
+            </div>
+            {% else %}
+            <p class="text-muted text-center mb-0">No lead response data in this period.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Today's Activity Timeline -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white"><h6 class="mb-0">Today's Activity</h6></div>
+      <div class="card-body">
+        {% if today_activities %}
+        <div class="list-group list-group-flush">
+          {% for act in today_activities %}
+          <div class="list-group-item px-0 py-2 d-flex justify-content-between align-items-start">
+            <div>
+              <strong>{{ act.user.first_name|default:act.user.username }}</strong>
+              <span class="text-muted">{{ act.get_action_type_display|lower }}</span>
+              {% if act.task %}
+                <a href="{% url 'task_detail' act.task.id %}" class="text-decoration-none">{{ act.task.title|truncatewords:8 }}</a>
+              {% endif %}
+            </div>
+            <small class="text-muted">{{ act.created_at|date:"g:i A" }}</small>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted text-center mb-0">No staff activity today yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Page Views Today -->
+    {% if page_views_today %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white"><h6 class="mb-0">Page Views Today (dispatching)</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr><th>Staff</th><th class="text-end">Page Views</th></tr>
+          </thead>
+          <tbody>
+            {% for pv in page_views_today %}
+            <tr>
+              <td>{{ pv.name }}</td>
+              <td class="text-end">{{ pv.views }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const raw = '{{ trend_json|escapejs }}';
+  if (!raw) return;
+  const data = JSON.parse(raw);
+  if (!data.length) return;
+
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => {
+        const dt = new Date(d.day + 'T00:00:00');
+        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }),
+      datasets: [
+        {
+          label: 'Created',
+          data: data.map(d => d.created),
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,0.06)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+        {
+          label: 'Completed',
+          data: data.map(d => d.completed),
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.06)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+      },
+    },
+  });
+});
+</script>
+{% endblock %}

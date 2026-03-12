@@ -3042,12 +3042,28 @@ def confirmations_view(request):
             return redirect(reverse("confirmations") + f"?date={target}")
 
     legs = get_legs_for_confirmation(selected_date)
+
+    # Soft flight verification warning — find legs with open flight_verify tasks
+    flight_unverified_leg_ids = set()
+    try:
+        from ops.models import OperationalTask
+        flight_unverified_leg_ids = set(
+            OperationalTask.objects.filter(
+                task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                status__in=list(OperationalTask.OPEN_STATUSES),
+                leg_id__in=[l.id for l in legs],
+            ).values_list("leg_id", flat=True)
+        )
+    except Exception:
+        pass
+
     rows = []
     for leg in legs:
         row = leg_to_row(leg)
         row["message_preview"] = get_confirmation_message(leg, row)
         row["leg"] = leg
         row["already_sent"] = bool(getattr(leg, "confirmation_sms_sent_at", None))
+        row["flight_unverified"] = leg.id in flight_unverified_leg_ids
         rows.append(row)
 
     legs_filter_url = reverse("dashboard") + f"?date={selected_date.isoformat()}"

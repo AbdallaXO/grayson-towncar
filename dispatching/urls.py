@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from users.emails import send_reservation_confirmation_ajax, send_payment_reminder_ajax
+from ops import views as ops_views
 
 urlpatterns = [
     path("", views.index, name="dashboard"),
@@ -223,4 +224,14 @@ urlpatterns = [
         views.refund_suggestion,
         name="refund_suggestion",
     ),
+    # ── Ops Task Queue ──
+    path("task-queue/", ops_views.task_queue_view, name="task_queue"),
+    path("task-queue/claim/", ops_views.task_claim, name="task_claim"),
+    path("task-queue/complete/", ops_views.task_complete, name="task_complete"),
+    path("task-queue/snooze/", ops_views.task_snooze, name="task_snooze"),
+    path("task-queue/cancel/", ops_views.task_cancel, name="task_cancel"),
+    path("task-queue/log-comm/", ops_views.task_log_comm, name="task_log_comm"),
+    path("task-queue/create/", ops_views.task_create_manual, name="task_create_manual"),
+    path("task-queue/<int:task_id>/", ops_views.task_detail_view, name="task_detail"),
+    path("staff-metrics/", ops_views.staff_metrics_view, name="staff_metrics"),
 ]

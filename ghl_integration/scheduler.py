@@ -97,6 +97,24 @@ def _run_batch_tasks():
         except Exception as e:
             logger.error(f"alert_dead_letter_syncs error: {e}", exc_info=True)
 
+    # 6. Ops task generation — scan for flight mismatches, confirmations,
+    #    unassigned legs, unpaid reservations, auto-close, snooze expiry
+    try:
+        from ops.tasks import generate_ops_tasks
+        result = generate_ops_tasks()
+        if result:
+            parts = []
+            if result.get("created"):
+                parts.append(f"{result['created']} created")
+            if result.get("closed"):
+                parts.append(f"{result['closed']} closed")
+            if result.get("reopened"):
+                parts.append(f"{result['reopened']} reopened")
+            if parts:
+                logger.info(f"Ops tasks: {', '.join(parts)}")
+    except Exception as e:
+        logger.error(f"generate_ops_tasks error: {e}", exc_info=True)
+
 
 def start_scheduler():
     """

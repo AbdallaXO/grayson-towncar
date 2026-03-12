@@ -197,6 +197,28 @@ def send_payment_reminder_ajax(request):
         msg.send()
 
         logger.info(f"Payment reminder sent for reservation {reservation.uuid} to {reservation.customer.email} by {request.user}")
+
+        # Log communication attempt against any open payment_chase task
+        try:
+            from ops.models import OperationalTask
+            from ops.services import log_communication
+            payment_task = OperationalTask.objects.filter(
+                task_type=OperationalTask.TaskType.PAYMENT_CHASE,
+                reservation=reservation,
+                status__in=list(OperationalTask.OPEN_STATUSES),
+            ).first()
+            if payment_task:
+                log_communication(
+                    task=payment_task,
+                    channel="email",
+                    outcome="sent",
+                    user=request.user,
+                    contact_value=reservation.customer.email,
+                    notes=f"Payment reminder email sent (${reservation.amount_owed} owed)",
+                )
+        except Exception as e:
+            logger.warning(f"Failed to log comm for payment reminder: {e}")
+
         return JsonResponse({"success": True, "email": reservation.customer.email})
 
     except Exception as e:
