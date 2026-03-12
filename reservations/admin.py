@@ -1592,6 +1592,25 @@ class QuoteInline(admin.TabularInline):
     ordering = ("-created_at",)
 
 
+try:
+    from ghl_integration.models import FollowUpTask as _FollowUpTaskModel
+
+    class FollowUpTaskInline(admin.TabularInline):
+        model = _FollowUpTaskModel
+        extra = 0
+        readonly_fields = ("step_number", "segment", "status", "scheduled_at", "sent_at", "cancel_reason", "attempts")
+        fields = ("step_number", "segment", "status", "scheduled_at", "sent_at", "cancel_reason", "attempts")
+        ordering = ("step_number",)
+        can_delete = False
+
+        def has_add_permission(self, request, obj=None):
+            return False
+
+    _FOLLOWUP_INLINE_AVAILABLE = True
+except ImportError:
+    _FOLLOWUP_INLINE_AVAILABLE = False
+
+
 @admin.register(Lead)
 class LeadAdmin(admin.ModelAdmin):
     """
@@ -1603,7 +1622,7 @@ class LeadAdmin(admin.ModelAdmin):
     - Bulk actions for lead management
     - Conversion tracking and analytics
     """
-    inlines = [QuoteInline]
+    inlines = [QuoteInline] + ([FollowUpTaskInline] if _FOLLOWUP_INLINE_AVAILABLE else [])
     list_display = (
         "full_name",
         "contact_info",
@@ -1617,6 +1636,8 @@ class LeadAdmin(admin.ModelAdmin):
         "quote_requests_count",
         "initial_sms_sent",
         "has_replied",
+        "sequence_active",
+        "needs_human_follow_up",
         "ghl_synced",
         "created_at",
     )
@@ -1627,6 +1648,9 @@ class LeadAdmin(admin.ModelAdmin):
         "converted",
         "initial_sms_sent",
         "has_replied",
+        "segment",
+        "sequence_active",
+        "needs_human_follow_up",
         LeadSourceFilter,  # Custom filter for Meta/Google/Direct
         "utm_source",
         "utm_medium",
@@ -1709,7 +1733,7 @@ class LeadAdmin(admin.ModelAdmin):
     
     actions = [
         "mark_contacted",
-        "mark_interested", 
+        "mark_interested",
         "mark_converted",
         "check_auto_conversion",
         "mark_lost",
@@ -1720,6 +1744,8 @@ class LeadAdmin(admin.ModelAdmin):
         "schedule_follow_up_week",
         "send_sms_to_selected",
         "sync_to_ghl_without_sms",
+        "start_follow_up_sequence_action",
+        "cancel_follow_up_sequence_action",
     ]
 
     def get_list_display(self, request):
@@ -2513,51 +2539,73 @@ class LeadAdmin(admin.ModelAdmin):
         Skips leads without phone numbers.
         """
         from ghl_integration.tasks import sync_lead_to_ghl_without_sms
-        from threading import Thread
-        
+        from ghl_integration.runner import run_in_background
+
         queued_count = 0
-        processed_count = 0
         skipped_no_phone = 0
-        
+
         for lead in queryset:
             # Skip if no phone number
             if not lead.phone:
                 skipped_no_phone += 1
                 continue
-            
-            # Try to queue with Celery, fallback to thread if Celery unavailable
-            try:
-                sync_lead_to_ghl_without_sms.delay(lead.id)
-                queued_count += 1
-            except Exception as e:
-                # Celery not available, run in background thread
-                logger.warning(f"Could not queue Celery task for lead {lead.id}: {e}. Running in thread instead.")
-                def run_task():
-                    try:
-                        sync_lead_to_ghl_without_sms(lead.id)
-                    except Exception as task_error:
-                        logger.error(f"Error syncing lead {lead.id} in thread: {task_error}")
-                
-                thread = Thread(target=run_task, daemon=True)
-                thread.start()
-                processed_count += 1
-        
+
+            run_in_background(sync_lead_to_ghl_without_sms, lead.id)
+            queued_count += 1
+
         # Build success message
         message_parts = []
-        total_processed = queued_count + processed_count
-        if total_processed > 0:
-            if queued_count > 0:
-                message_parts.append(f"Queued {queued_count} lead{'s' if queued_count != 1 else ''} for GHL sync")
-            if processed_count > 0:
-                message_parts.append(f"Processing {processed_count} lead{'s' if processed_count != 1 else ''} in background")
+        if queued_count > 0:
+            message_parts.append(f"Queued {queued_count} lead{'s' if queued_count != 1 else ''} for GHL sync")
         if skipped_no_phone > 0:
             message_parts.append(f"{skipped_no_phone} skipped (no phone number)")
-        
-        if total_processed > 0:
+
+        if queued_count > 0:
             self.message_user(request, ". ".join(message_parts) + ".", messages.SUCCESS)
         else:
             self.message_user(request, "No leads were queued. " + ". ".join(message_parts) + ".", messages.WARNING)
 
+    def start_follow_up_sequence_action(self, request, queryset):
+        """Start follow-up sequence for selected leads."""
+        from ghl_integration.runner import run_in_background
+        from ghl_integration.tasks import start_follow_up_sequence
+
+        queued = 0
+        skipped = 0
+        for lead in queryset:
+            if lead.sequence_active or lead.converted or not lead.phone or not lead.initial_sms_sent:
+                skipped += 1
+                continue
+            try:
+                run_in_background(start_follow_up_sequence, lead.id)
+                queued += 1
+            except Exception:
+                skipped += 1
+        self.message_user(
+            request,
+            f"Queued {queued} follow-up sequence(s). Skipped {skipped} (already active, converted, no phone, or no initial SMS).",
+            messages.SUCCESS if queued > 0 else messages.WARNING,
+        )
+    start_follow_up_sequence_action.short_description = "Start follow-up sequence"
+
+    def cancel_follow_up_sequence_action(self, request, queryset):
+        """Cancel follow-up sequence for selected leads."""
+        from ghl_integration.runner import run_in_background
+        from ghl_integration.tasks import cancel_lead_sequence
+
+        cancelled = 0
+        for lead in queryset.filter(sequence_active=True):
+            try:
+                run_in_background(cancel_lead_sequence, lead.id, reason="manual")
+                cancelled += 1
+            except Exception:
+                pass
+        self.message_user(
+            request,
+            f"Cancelled follow-up sequence for {cancelled} lead(s).",
+            messages.SUCCESS if cancelled > 0 else messages.WARNING,
+        )
+    cancel_follow_up_sequence_action.short_description = "Cancel follow-up sequence"
 
 
 @admin.register(Quote)

@@ -1398,6 +1398,16 @@ class Lead(models.Model):
         FUTURE_CONTACT = "future_contact", "Future Contact"
         CONVERTED = "converted", "Converted"
         LOST = "lost", "Lost"
+        COLD = "cold", "Cold"
+
+    class SegmentChoices(models.TextChoices):
+        GENERAL = "general", "General"
+        AIRPORT_TRANSFER = "airport_transfer", "Airport Transfer"
+        CRUISE_TRANSFER = "cruise_transfer", "Cruise Transfer"
+        THEME_PARK = "theme_park", "Theme Park"
+        LARGE_GROUP = "large_group", "Large Group"
+        REPEAT_CUSTOMER = "repeat_customer", "Repeat Customer"
+        ABANDONED_QUOTE = "abandoned_quote", "Abandoned Quote"
 
     class PriorityChoices(models.TextChoices):
         LOW = "low", "Low"
@@ -1486,6 +1496,23 @@ class Lead(models.Model):
     utm_content = models.CharField(
         max_length=100, blank=True, null=True, help_text="UTM content parameter"
     )
+
+    # Follow-Up Automation Fields
+    segment = models.CharField(
+        max_length=30, choices=SegmentChoices.choices, default=SegmentChoices.GENERAL, blank=True
+    )
+    sequence_active = models.BooleanField(default=False, help_text="Whether follow-up automation is running")
+    sequence_completed_at = models.DateTimeField(null=True, blank=True)
+    needs_human_follow_up = models.BooleanField(default=False, help_text="Flagged for human closer after lead replied")
+
+    # Revenue Attribution
+    converted_reservation = models.ForeignKey(
+        'Reservation', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='converted_leads', help_text="Reservation created from this lead"
+    )
+
+    # GHL Pipeline
+    ghl_opportunity_id = models.CharField(max_length=100, blank=True, null=True, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]

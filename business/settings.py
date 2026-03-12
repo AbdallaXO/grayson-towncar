@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get(
 # STORAGE_PATH = CONTENT_DIR
 
 
-DEBUG = False
+DEBUG = True
 
 
 ALLOWED_HOSTS = [
@@ -58,6 +58,7 @@ NATIVE_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sitemaps",
+    "django.contrib.humanize",
 ]
 
 THIRD_PARTY_APPS = [
@@ -208,15 +209,9 @@ TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
 GHL_API_KEY = os.environ.get("GHL_API_KEY", "")
 GHL_LOCATION_ID = os.environ.get("GHL_LOCATION_ID", "")
 
-# Celery Beat Schedule
-from celery.schedules import crontab
-
-CELERY_BEAT_SCHEDULE = {
-    'batch-send-lead-sms': {
-        'task': 'ghl_integration.tasks.batch_send_unsent_leads',
-        'schedule': crontab(minute=0),  # Every hour
-    },
-}
+# Scheduled tasks are handled by ghl_integration.scheduler (background thread).
+# No Celery required — the scheduler runs batch_send_unsent_leads and
+# process_follow_up_batch every 30 minutes automatically.
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

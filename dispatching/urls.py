@@ -23,6 +23,7 @@ urlpatterns = [
     path("leg/<int:id>/history/partial/", views.leg_history_partial, name="leg_history_partial"),
     path("statistics/", views.statistics_page, name="statistics_page"),
     path("analytics/", views.analytics_dashboard, name="analytics_dashboard"),
+    path("lead-analytics/", views.lead_analytics, name="lead_analytics"),
     path("route-timing/", views.route_timing_reference, name="route_timing_reference"),
     path("driver-performance/", views.driver_performance, name="driver_performance"),
     path("route-timing/legs/", views.route_timing_leg_details, name="route_timing_leg_details"),

@@ -187,43 +187,104 @@ def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
     """
     Automatically convert leads to 'converted' status when a reservation is created.
     This matches leads by email or phone number to find the corresponding lead.
+    Phone matching uses last 10 digits to handle format differences
+    (e.g. "(407) 555-1234" vs "4075551234" vs "+14075551234").
     """
     if created:  # Only run when a new reservation is created
         customer = instance.customer
-        
+
         # Try to find a matching lead by email first, then by phone
         matching_lead = None
-        
+
         if customer.email:
             matching_lead = Lead.objects.filter(
                 email__iexact=customer.email,
                 status__in=['new', 'contacted', 'interested', 'future_contact']
             ).first()
-        
-        # If no match by email, try by phone
+
+        # If no match by email, try by phone (digits-only comparison)
         if not matching_lead and customer.phone_number:
+            # First try exact match (fast, handles most cases)
             matching_lead = Lead.objects.filter(
                 phone__iexact=customer.phone_number,
                 status__in=['new', 'contacted', 'interested', 'future_contact']
             ).first()
+
+            # If no exact match, normalize to digits and narrow with DB filter
+            if not matching_lead:
+                customer_digits = ''.join(filter(str.isdigit, customer.phone_number))
+                if len(customer_digits) >= 10:
+                    customer_last10 = customer_digits[-10:]
+                    # Use last 4 digits as a fast DB contains filter (very selective)
+                    last4 = customer_last10[-4:]
+                    candidates = Lead.objects.filter(
+                        status__in=['new', 'contacted', 'interested', 'future_contact'],
+                        phone__contains=last4,
+                    ).exclude(phone__isnull=True).exclude(phone='')
+                    for candidate in candidates:
+                        cand_digits = ''.join(filter(str.isdigit, candidate.phone))
+                        if len(cand_digits) >= 10 and cand_digits[-10:] == customer_last10:
+                            matching_lead = candidate
+                            break
         
         # If we found a matching lead, convert it
         if matching_lead:
             matching_lead.status = 'converted'
             matching_lead.converted = True
             matching_lead.converted_at = timezone.now()
-            
+            matching_lead.converted_reservation = instance
+
             # Add a note about the conversion
             conversion_note = f"Auto-converted on {timezone.now().strftime('%Y-%m-%d %H:%M')} - Reservation #{instance.id} created"
             if matching_lead.notes:
                 matching_lead.notes += f"\n\n{conversion_note}"
             else:
                 matching_lead.notes = conversion_note
-            
+
             matching_lead.save()
-            
-            # Log the conversion for debugging
-            print(f"Auto-converted lead {matching_lead.id} ({matching_lead.first_name} {matching_lead.last_name}) to converted status")
+
+            # Cancel any active follow-up sequence
+            if matching_lead.sequence_active:
+                try:
+                    from ghl_integration.runner import run_in_background
+                    from ghl_integration.tasks import cancel_lead_sequence
+                    run_in_background(cancel_lead_sequence, matching_lead.id, reason="converted")
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"Failed to queue sequence cancellation for lead #{matching_lead.id}"
+                    )
+
+            # Apply lifecycle tags for conversion (best-effort, background)
+            if matching_lead.ghl_contact_id:
+                try:
+                    from ghl_integration.runner import run_in_background
+
+                    def _apply_converted_tags(cid=matching_lead.ghl_contact_id, lid=matching_lead.id):
+                        from ghl_integration.services import GoHighLevelService
+                        from reservations.models import Lead as _Lead
+                        fresh = _Lead.objects.get(id=lid)
+                        GoHighLevelService().apply_lifecycle_tags(cid, fresh, "converted")
+
+                    run_in_background(_apply_converted_tags)
+                except Exception:
+                    logging.getLogger(__name__).warning(
+                        f"Failed to queue conversion tags for lead #{matching_lead.id}"
+                    )
+
+            # Log activity for conversion
+            try:
+                from ghl_integration.models import LeadActivity
+                LeadActivity.objects.create(
+                    lead=matching_lead,
+                    activity_type=LeadActivity.ActivityType.CONVERTED,
+                    description=f"Auto-converted: Reservation #{instance.id} created by {instance.customer.get_full_name()}",
+                    metadata={"reservation_id": str(instance.id)},
+                )
+            except Exception:
+                pass
+
+            logger.info(f"Auto-converted lead {matching_lead.id} ({matching_lead.first_name} {matching_lead.last_name}) to converted status")
 
 
 @receiver(post_save, sender=Lead)
@@ -248,49 +309,56 @@ def sync_lead_to_ghl_on_create(sender, instance, created, **kwargs):
         
         # Always run in background thread to avoid blocking the request
         from threading import Thread
-        
+
         def sync_ghl_in_background():
             """Sync lead to GHL in background thread"""
             local_logger = logging.getLogger(__name__)
-            
+            contact_id = None
+
             try:
-                # Try Celery first (non-blocking)
                 from ghl_integration.tasks import sync_lead_to_ghl_without_sms
-                sync_lead_to_ghl_without_sms.delay(instance.id)
-                local_logger.info(f"Queued Lead #{instance.id} for GHL sync (Celery)")
+                result = sync_lead_to_ghl_without_sms(instance.id)
+                if result and result.get("status") == "success":
+                    contact_id = result.get("ghl_contact_id")
+                local_logger.info(f"Synced Lead #{instance.id} to GHL")
             except Exception as e:
-                # If Celery fails, do direct sync in thread (still non-blocking for main request)
-                local_logger.warning(f"Could not queue GHL sync task for Lead #{instance.id}: {e}. Syncing directly in thread.")
+                local_logger.warning(f"GHL sync task failed for Lead #{instance.id}: {e}. Trying direct sync.")
                 try:
                     from ghl_integration.services import GoHighLevelService
-                    
+
                     service = GoHighLevelService()
                     contact_id = service.create_or_update_contact(instance)
-                    
+
                     if contact_id:
                         # Update the lead with GHL contact ID (use update to avoid signal recursion)
                         Lead.objects.filter(id=instance.id).update(
                             ghl_contact_id=contact_id,
                             ghl_synced_at=timezone.now()
                         )
-                        # Also sync status to GHL for newly created contact
-                        # This ensures status is synced even if it was set before contact was created
                         try:
                             service.update_contact_status_fields(
                                 contact_id=contact_id,
                                 status=instance.status
                             )
-                            local_logger.debug(f"Synced status '{instance.status}' to GHL for newly created Lead #{instance.id}")
                         except Exception as status_error:
                             local_logger.warning(f"Failed to sync status to GHL for Lead #{instance.id}: {status_error}")
-                        
+
                         local_logger.info(f"Successfully synced Lead #{instance.id} to GHL (contact_id: {contact_id})")
                     else:
                         local_logger.warning(f"Failed to sync Lead #{instance.id} to GHL - no contact ID returned")
                 except Exception as sync_error:
-                    # Don't break lead creation if GHL sync fails
                     local_logger.error(f"Error syncing Lead #{instance.id} to GHL: {sync_error}", exc_info=True)
-        
+
+            # Apply lifecycle tags for new lead (best-effort)
+            if contact_id:
+                try:
+                    from ghl_integration.services import GoHighLevelService
+                    # Refresh lead to get latest data
+                    fresh_lead = Lead.objects.get(id=instance.id)
+                    GoHighLevelService().apply_lifecycle_tags(contact_id, fresh_lead, "created")
+                except Exception as tag_err:
+                    local_logger.warning(f"Failed to apply created tags for Lead #{instance.id}: {tag_err}")
+
         # Start background thread (non-blocking)
         thread = Thread(target=sync_ghl_in_background, daemon=True)
         thread.start()

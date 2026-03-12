@@ -8212,3 +8212,247 @@ def swap_tester(request):
         "affiliate_count": len(affiliate_takeback),
     }
     return render(request, "dispatching/swap_tester.html", context)
+
+
+@login_required(login_url="login")
+def lead_analytics(request):
+    """
+    Lead analytics dashboard showing conversion funnel, follow-up
+    effectiveness, revenue attribution, and pipeline health.
+    Restricted to superusers only — dispatchers should not see revenue data.
+    """
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+    from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField
+    from reservations.models import Lead
+    from ghl_integration.models import FollowUpTask, LeadActivity
+
+    # ── Date range ──
+    days_back = int(request.GET.get("days", 30))
+    end_date = timezone.now()
+    start_date = end_date - timedelta(days=days_back)
+
+    # ── Base queryset ──
+    leads_qs = Lead.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+    all_leads = leads_qs.count()
+
+    # ── Status funnel ──
+    status_counts = dict(
+        leads_qs.values_list("status").annotate(c=Count("id")).values_list("status", "c")
+    )
+    new_count = status_counts.get("new", 0)
+    contacted_count = status_counts.get("contacted", 0)
+    interested_count = status_counts.get("interested", 0)
+    converted_count = status_counts.get("converted", 0)
+    lost_count = status_counts.get("lost", 0)
+    cold_count = status_counts.get("cold", 0)
+    future_count = status_counts.get("future_contact", 0)
+
+    conversion_rate = round(converted_count / all_leads * 100, 1) if all_leads else 0
+    reply_rate_val = leads_qs.filter(has_replied=True).count()
+    reply_rate = round(reply_rate_val / all_leads * 100, 1) if all_leads else 0
+
+    # ── Segment breakdown ──
+    segment_data = list(
+        leads_qs.values("segment")
+        .annotate(
+            total=Count("id"),
+            replied=Count("id", filter=Q(has_replied=True)),
+            converted=Count("id", filter=Q(converted=True)),
+        )
+        .order_by("-total")
+    )
+    for seg in segment_data:
+        seg["reply_pct"] = round(seg["replied"] / seg["total"] * 100, 1) if seg["total"] else 0
+        seg["conv_pct"] = round(seg["converted"] / seg["total"] * 100, 1) if seg["total"] else 0
+        seg["label"] = dict(Lead.SegmentChoices.choices).get(seg["segment"], seg["segment"])
+
+    # ── Priority breakdown ──
+    priority_counts = dict(
+        leads_qs.values_list("priority").annotate(c=Count("id")).values_list("priority", "c")
+    )
+
+    # ── Source attribution (UTM) ──
+    source_data = list(
+        leads_qs.exclude(utm_source__isnull=True)
+        .exclude(utm_source="")
+        .values("utm_source")
+        .annotate(
+            total=Count("id"),
+            converted=Count("id", filter=Q(converted=True)),
+        )
+        .order_by("-total")[:10]
+    )
+    for src in source_data:
+        src["conv_pct"] = round(src["converted"] / src["total"] * 100, 1) if src["total"] else 0
+
+    # Ad click attribution
+    gclid_leads = leads_qs.exclude(gclid__isnull=True).exclude(gclid="").count()
+    fbclid_leads = leads_qs.exclude(fbclid__isnull=True).exclude(fbclid="").count()
+    direct_leads = all_leads - gclid_leads - fbclid_leads
+
+    # ── Revenue attribution ──
+    revenue_data = (
+        leads_qs.filter(converted=True, converted_reservation__isnull=False)
+        .aggregate(
+            total_revenue=Sum("converted_reservation__total_price"),
+            avg_revenue=Avg("converted_reservation__total_price"),
+            count=Count("id"),
+        )
+    )
+    total_lead_revenue = revenue_data["total_revenue"] or Decimal("0.00")
+    avg_lead_revenue = revenue_data["avg_revenue"] or Decimal("0.00")
+
+    # Revenue by source
+    revenue_by_source = list(
+        leads_qs.filter(converted=True, converted_reservation__isnull=False)
+        .exclude(utm_source__isnull=True)
+        .exclude(utm_source="")
+        .values("utm_source")
+        .annotate(revenue=Sum("converted_reservation__total_price"), count=Count("id"))
+        .order_by("-revenue")[:10]
+    )
+
+    # ── Follow-up engine metrics ──
+    tasks_qs = FollowUpTask.objects.filter(created_at__gte=start_date)
+    task_status_counts = dict(
+        tasks_qs.values_list("status").annotate(c=Count("id")).values_list("status", "c")
+    )
+    tasks_sent = task_status_counts.get("sent", 0)
+    tasks_pending = task_status_counts.get("pending", 0)
+    tasks_cancelled = task_status_counts.get("cancelled", 0)
+    tasks_failed = task_status_counts.get("failed", 0)
+    tasks_skipped = task_status_counts.get("skipped", 0)
+    tasks_total = sum(task_status_counts.values())
+
+    # Step-by-step effectiveness
+    step_data = list(
+        tasks_qs.filter(status="sent")
+        .values("step_number")
+        .annotate(
+            sent_count=Count("id"),
+        )
+        .order_by("step_number")
+    )
+
+    # Cancellation reasons
+    cancel_reasons = list(
+        tasks_qs.filter(status="cancelled")
+        .values("cancel_reason")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+
+    # ── Sequence stats ──
+    sequences_active = leads_qs.filter(sequence_active=True).count()
+    sequences_completed = leads_qs.filter(sequence_completed_at__isnull=False).count()
+    needs_follow_up = leads_qs.filter(needs_human_follow_up=True).count()
+
+    # ── Response time (lead created → first reply) ──
+    replied_leads = leads_qs.filter(has_replied=True, last_reply_at__isnull=False)
+    avg_response_time = None
+    if replied_leads.exists():
+        response_times = replied_leads.annotate(
+            response_delta=ExpressionWrapper(
+                F("last_reply_at") - F("initial_sms_sent_at"),
+                output_field=DurationField(),
+            )
+        ).filter(response_delta__isnull=False, response_delta__gt=timedelta(0))
+        if response_times.exists():
+            avg_td = response_times.aggregate(avg=Avg("response_delta"))["avg"]
+            if avg_td:
+                avg_response_hours = avg_td.total_seconds() / 3600
+                avg_response_time = round(avg_response_hours, 1)
+
+    # ── Daily trend (last 14 days) ──
+    trend_start = end_date - timedelta(days=13)
+    from django.db.models.functions import TruncDate
+    daily_trend = list(
+        Lead.objects.filter(created_at__gte=trend_start)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(
+            created=Count("id"),
+            converted=Count("id", filter=Q(converted=True)),
+            replied=Count("id", filter=Q(has_replied=True)),
+        )
+        .order_by("day")
+    )
+
+    # ── Pipeline health (leads needing attention) ──
+    stale_leads = leads_qs.filter(
+        status__in=["new", "contacted"],
+        sequence_active=False,
+        converted=False,
+        has_replied=False,
+    ).count()
+
+    failed_syncs = leads_qs.filter(
+        ghl_contact_id__isnull=True,
+        phone__isnull=False,
+    ).exclude(phone="").count()
+
+    # ── Recent activity ──
+    recent_activity = list(
+        LeadActivity.objects.filter(created_at__gte=start_date)
+        .select_related("lead")
+        .order_by("-created_at")[:20]
+    )
+
+    context = {
+        "days_back": days_back,
+        "start_date": start_date,
+        "end_date": end_date,
+        # Top-line metrics
+        "all_leads": all_leads,
+        "conversion_rate": conversion_rate,
+        "reply_rate": reply_rate,
+        "reply_count": reply_rate_val,
+        "converted_count": converted_count,
+        "total_lead_revenue": total_lead_revenue,
+        "avg_lead_revenue": avg_lead_revenue,
+        "avg_response_time": avg_response_time,
+        # Funnel
+        "new_count": new_count,
+        "contacted_count": contacted_count,
+        "interested_count": interested_count,
+        "converted_count": converted_count,
+        "lost_count": lost_count,
+        "cold_count": cold_count,
+        "future_count": future_count,
+        # Segments
+        "segment_data": segment_data,
+        # Priority
+        "priority_counts": priority_counts,
+        # Source
+        "source_data": source_data,
+        "gclid_leads": gclid_leads,
+        "fbclid_leads": fbclid_leads,
+        "direct_leads": direct_leads,
+        "revenue_by_source": revenue_by_source,
+        # Follow-up engine
+        "tasks_sent": tasks_sent,
+        "tasks_pending": tasks_pending,
+        "tasks_cancelled": tasks_cancelled,
+        "tasks_failed": tasks_failed,
+        "tasks_skipped": tasks_skipped,
+        "tasks_total": tasks_total,
+        "step_data": step_data,
+        "cancel_reasons": cancel_reasons,
+        # Sequences
+        "sequences_active": sequences_active,
+        "sequences_completed": sequences_completed,
+        "needs_follow_up": needs_follow_up,
+        # Trend
+        "daily_trend": daily_trend,
+        "daily_trend_json": json.dumps(
+            [{"day": str(d["day"]), "created": d["created"], "converted": d["converted"], "replied": d["replied"]}
+             for d in daily_trend]
+        ),
+        # Pipeline health
+        "stale_leads": stale_leads,
+        "failed_syncs": failed_syncs,
+        # Activity
+        "recent_activity": recent_activity,
+    }
+    return render(request, "dispatching/lead_analytics.html", context)

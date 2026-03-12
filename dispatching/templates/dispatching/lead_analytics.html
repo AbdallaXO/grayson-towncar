@@ -1,0 +1,691 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block navbar %}{% endblock %}
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block head_extra %}
+<style>
+    :root {
+        --la-bg: #f8f9fb;
+        --la-surface: #ffffff;
+        --la-surface-alt: #f1f3f9;
+        --la-border: #e2e5ec;
+        --la-text: #1a1d23;
+        --la-text-secondary: #64748b;
+        --la-accent: #6366f1;
+        --la-accent-light: rgba(99,102,241,0.08);
+        --la-green: #10b981;
+        --la-green-light: rgba(16,185,129,0.08);
+        --la-amber: #f59e0b;
+        --la-amber-light: rgba(245,158,11,0.08);
+        --la-red: #ef4444;
+        --la-red-light: rgba(239,68,68,0.08);
+        --la-blue: #3b82f6;
+        --la-blue-light: rgba(59,130,246,0.08);
+        --la-radius: 16px;
+        --la-radius-sm: 10px;
+        --la-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 24px rgba(0,0,0,0.03);
+    }
+
+    .la-page { background: var(--la-bg); min-height: 100vh; padding-bottom: 3rem; }
+
+    /* ── Header ── */
+    .la-header {
+        background: var(--la-surface);
+        border-bottom: 1px solid var(--la-border);
+        padding: 1.75rem 0 1.25rem;
+        margin-bottom: 1.75rem;
+    }
+    .la-header h1 { font-size: 1.75rem; font-weight: 800; color: var(--la-text); letter-spacing: -0.02em; }
+    .la-header p { color: var(--la-text-secondary); font-size: 0.9rem; margin-bottom: 0; }
+    .la-tabs { display: flex; gap: 0.25rem; margin-top: 1.25rem; }
+    .la-tab {
+        padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+        color: var(--la-text-secondary); text-decoration: none;
+        transition: all 0.15s ease; border: 1px solid transparent;
+    }
+    .la-tab:hover { background: var(--la-surface-alt); color: var(--la-text); }
+    .la-tab.active { background: var(--la-accent); color: #fff; }
+
+    /* ── Cards ── */
+    .la-card {
+        background: var(--la-surface); border-radius: var(--la-radius);
+        box-shadow: var(--la-shadow); border: 1px solid var(--la-border);
+        padding: 1.5rem; margin-bottom: 1.25rem;
+    }
+    .la-card-header {
+        display: flex; align-items: center; gap: 0.5rem;
+        margin-bottom: 1.25rem; padding-bottom: 1rem;
+        border-bottom: 1px solid var(--la-border);
+    }
+    .la-card-header h3 {
+        font-size: 0.95rem; font-weight: 700; color: var(--la-text);
+        margin: 0; letter-spacing: -0.01em;
+    }
+    .la-card-header .la-icon {
+        width: 32px; height: 32px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.95rem; flex-shrink: 0;
+    }
+
+    /* ── KPI Tiles ── */
+    .la-kpi {
+        background: var(--la-surface); border-radius: var(--la-radius);
+        box-shadow: var(--la-shadow); border: 1px solid var(--la-border);
+        padding: 1.25rem 1.5rem; display: flex; flex-direction: column;
+        justify-content: space-between; height: 100%;
+        transition: transform 0.15s ease;
+    }
+    .la-kpi:hover { transform: translateY(-1px); }
+    .la-kpi-value { font-size: 2rem; font-weight: 800; line-height: 1; color: var(--la-text); letter-spacing: -0.03em; }
+    .la-kpi-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--la-text-secondary); margin-top: 0.4rem; }
+    .la-kpi-sub { font-size: 0.78rem; color: var(--la-text-secondary); margin-top: 0.25rem; }
+    .la-kpi-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 0.35rem; }
+
+    /* ── Funnel ── */
+    .la-funnel-row {
+        display: flex; align-items: center; gap: 0.75rem; padding: 0.45rem 0;
+    }
+    .la-funnel-label {
+        font-size: 0.82rem; font-weight: 600; color: var(--la-text);
+        min-width: 90px; flex-shrink: 0;
+    }
+    .la-funnel-track {
+        flex: 1; height: 28px; background: var(--la-surface-alt);
+        border-radius: 6px; overflow: hidden; position: relative;
+    }
+    .la-funnel-fill {
+        height: 100%; border-radius: 6px; display: flex; align-items: center;
+        padding-left: 0.75rem; font-size: 0.78rem; font-weight: 700; color: #fff;
+        transition: width 0.6s cubic-bezier(0.4,0,0.2,1); min-width: 28px;
+    }
+    .la-funnel-pct {
+        font-size: 0.78rem; color: var(--la-text-secondary); min-width: 45px;
+        text-align: right; font-weight: 500;
+    }
+
+    /* ── Table ── */
+    .la-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+    .la-table th {
+        font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.05em; color: var(--la-text-secondary);
+        padding: 0.6rem 0.75rem; border-bottom: 2px solid var(--la-border);
+    }
+    .la-table td {
+        font-size: 0.85rem; padding: 0.7rem 0.75rem;
+        border-bottom: 1px solid var(--la-surface-alt); color: var(--la-text);
+    }
+    .la-table tbody tr:hover { background: var(--la-surface-alt); }
+    .la-table .la-badge {
+        display: inline-block; padding: 0.2rem 0.55rem; border-radius: 6px;
+        font-size: 0.75rem; font-weight: 700;
+    }
+
+    /* ── Steps progress ── */
+    .la-step-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.65rem; }
+    .la-step-label { font-size: 0.82rem; font-weight: 600; min-width: 60px; color: var(--la-text); }
+    .la-step-track { flex: 1; height: 10px; background: var(--la-surface-alt); border-radius: 6px; overflow: hidden; }
+    .la-step-fill { height: 100%; border-radius: 6px; background: var(--la-accent); transition: width 0.4s ease; }
+    .la-step-count { font-size: 0.82rem; font-weight: 600; min-width: 35px; text-align: right; color: var(--la-text-secondary); }
+
+    /* ── Health indicators ── */
+    .la-health-item {
+        display: flex; align-items: center; gap: 0.75rem;
+        padding: 0.85rem 1rem; border-radius: var(--la-radius-sm);
+        margin-bottom: 0.5rem;
+    }
+    .la-health-icon { font-size: 1.25rem; flex-shrink: 0; }
+    .la-health-count { font-size: 1.35rem; font-weight: 800; line-height: 1; }
+    .la-health-label { font-size: 0.8rem; color: var(--la-text-secondary); }
+
+    /* ── Activity feed ── */
+    .la-feed-item { display: flex; gap: 0.65rem; padding: 0.55rem 0; }
+    .la-feed-item + .la-feed-item { border-top: 1px solid var(--la-surface-alt); }
+    .la-feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .la-feed-text { font-size: 0.82rem; color: var(--la-text); line-height: 1.4; }
+    .la-feed-name { font-weight: 700; }
+    .la-feed-time { font-size: 0.72rem; color: var(--la-text-secondary); }
+
+    /* ── Attribution bar ── */
+    .la-attr-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.65rem; }
+    .la-attr-icon { font-size: 1.1rem; width: 24px; text-align: center; }
+    .la-attr-label { flex: 1; font-size: 0.85rem; color: var(--la-text); }
+    .la-attr-count { font-weight: 700; font-size: 0.9rem; color: var(--la-text); }
+
+    .la-stacked-bar {
+        display: flex; height: 10px; border-radius: 6px;
+        overflow: hidden; margin-top: 0.75rem;
+    }
+
+    /* ── Chart ── */
+    #trendChart { max-height: 240px; }
+
+    /* ── Engine stat grid ── */
+    .la-engine-grid {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;
+    }
+    .la-engine-stat {
+        text-align: center; padding: 0.75rem; background: var(--la-surface-alt);
+        border-radius: var(--la-radius-sm);
+    }
+    .la-engine-num { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+    .la-engine-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.3rem; }
+
+    @media (max-width: 768px) {
+        .la-engine-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "dispatching/dispatcher_navbar.html" %}
+
+<div class="la-page">
+
+    <!-- ═══ HEADER ═══ -->
+    <div class="la-header">
+        <div class="container-fluid px-4">
+            <h1>Lead Analytics</h1>
+            <p>Pipeline, follow-up automation & revenue attribution</p>
+            <div class="la-tabs">
+                <a href="?days=7" class="la-tab {% if days_back == 7 %}active{% endif %}">7d</a>
+                <a href="?days=14" class="la-tab {% if days_back == 14 %}active{% endif %}">14d</a>
+                <a href="?days=30" class="la-tab {% if days_back == 30 %}active{% endif %}">30d</a>
+                <a href="?days=60" class="la-tab {% if days_back == 60 %}active{% endif %}">60d</a>
+                <a href="?days=90" class="la-tab {% if days_back == 90 %}active{% endif %}">90d</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid px-4">
+
+        <!-- ═══ KPI ROW ═══ -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="la-kpi">
+                    <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-accent);"></span>Total Leads</div>
+                    <div class="la-kpi-value">{{ all_leads }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="la-kpi">
+                    <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-green);"></span>Conversion Rate</div>
+                    <div class="la-kpi-value">{{ conversion_rate }}%</div>
+                    <div class="la-kpi-sub">{{ converted_count }} converted</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="la-kpi">
+                    <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-amber);"></span>Reply Rate</div>
+                    <div class="la-kpi-value">{{ reply_rate }}%</div>
+                    <div class="la-kpi-sub">{{ reply_count }} replied</div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="la-kpi">
+                    <div class="la-kpi-label"><span class="la-kpi-dot" style="background: var(--la-blue);"></span>Lead Revenue</div>
+                    <div class="la-kpi-value">${{ total_lead_revenue|floatformat:0|intcomma }}</div>
+                    <div class="la-kpi-sub">~${{ avg_lead_revenue|floatformat:0|intcomma }} per conversion</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+
+            <!-- ═══ MAIN COLUMN ═══ -->
+            <div class="col-lg-8">
+
+                <!-- Conversion Funnel -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-funnel-fill"></i></div>
+                        <h3>Conversion Funnel</h3>
+                    </div>
+                    {% with max=all_leads %}
+                    {% if max %}
+                    <div class="la-funnel-row">
+                        <div class="la-funnel-label">New</div>
+                        <div class="la-funnel-track">
+                            <div class="la-funnel-fill" style="width: {% widthratio new_count max 100 %}%; background: #94a3b8;">{{ new_count }}</div>
+                        </div>
+                        <div class="la-funnel-pct">{% widthratio new_count max 100 %}%</div>
+                    </div>
+                    <div class="la-funnel-row">
+                        <div class="la-funnel-label">Contacted</div>
+                        <div class="la-funnel-track">
+                            <div class="la-funnel-fill" style="width: {% widthratio contacted_count max 100 %}%; background: var(--la-blue);">{{ contacted_count }}</div>
+                        </div>
+                        <div class="la-funnel-pct">{% widthratio contacted_count max 100 %}%</div>
+                    </div>
+                    <div class="la-funnel-row">
+                        <div class="la-funnel-label">Interested</div>
+                        <div class="la-funnel-track">
+                            <div class="la-funnel-fill" style="width: {% widthratio interested_count max 100 %}%; background: var(--la-amber);">{{ interested_count }}</div>
+                        </div>
+                        <div class="la-funnel-pct">{% widthratio interested_count max 100 %}%</div>
+                    </div>
+                    <div class="la-funnel-row">
+                        <div class="la-funnel-label">Converted</div>
+                        <div class="la-funnel-track">
+                            <div class="la-funnel-fill" style="width: {% widthratio converted_count max 100 %}%; background: var(--la-green);">{{ converted_count }}</div>
+                        </div>
+                        <div class="la-funnel-pct">{% widthratio converted_count max 100 %}%</div>
+                    </div>
+                    <div class="la-funnel-row">
+                        <div class="la-funnel-label">Lost</div>
+                        <div class="la-funnel-track">
+                            <div class="la-funnel-fill" style="width: {% widthratio lost_count max 100 %}%; background: var(--la-red);">{{ lost_count }}</div>
+                        </div>
+                        <div class="la-funnel-pct">{% widthratio lost_count max 100 %}%</div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No leads in this period.</p>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+
+                <!-- Daily Trend -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-green-light); color: var(--la-green);"><i class="bi bi-graph-up-arrow"></i></div>
+                        <h3>Daily Trend <span style="font-weight: 400; color: var(--la-text-secondary); font-size: 0.82rem;">&mdash; 14 days</span></h3>
+                    </div>
+                    <div style="height: 240px; position: relative;">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Segment Performance -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-amber-light); color: var(--la-amber);"><i class="bi bi-pie-chart-fill"></i></div>
+                        <h3>Segment Performance</h3>
+                    </div>
+                    {% if segment_data %}
+                    <div class="table-responsive">
+                        <table class="la-table">
+                            <thead>
+                                <tr>
+                                    <th>Segment</th>
+                                    <th style="text-align:center">Leads</th>
+                                    <th style="text-align:center">Replied</th>
+                                    <th style="text-align:center">Reply %</th>
+                                    <th style="text-align:center">Converted</th>
+                                    <th style="text-align:center">Conv %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for seg in segment_data %}
+                                <tr>
+                                    <td><strong>{{ seg.label }}</strong></td>
+                                    <td style="text-align:center">{{ seg.total }}</td>
+                                    <td style="text-align:center">{{ seg.replied }}</td>
+                                    <td style="text-align:center">
+                                        <span class="la-badge" style="{% if seg.reply_pct >= 20 %}background: var(--la-green-light); color: var(--la-green);{% elif seg.reply_pct >= 10 %}background: var(--la-amber-light); color: var(--la-amber);{% else %}background: var(--la-surface-alt); color: var(--la-text-secondary);{% endif %}">{{ seg.reply_pct }}%</span>
+                                    </td>
+                                    <td style="text-align:center">{{ seg.converted }}</td>
+                                    <td style="text-align:center">
+                                        <span class="la-badge" style="{% if seg.conv_pct >= 20 %}background: var(--la-green-light); color: var(--la-green);{% elif seg.conv_pct >= 10 %}background: var(--la-amber-light); color: var(--la-amber);{% else %}background: var(--la-surface-alt); color: var(--la-text-secondary);{% endif %}">{{ seg.conv_pct }}%</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No segment data yet.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Follow-Up Engine -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-send-fill"></i></div>
+                        <h3>Follow-Up Engine</h3>
+                    </div>
+
+                    <div class="la-engine-grid mb-4">
+                        <div class="la-engine-stat">
+                            <div class="la-engine-num" style="color: var(--la-green);">{{ tasks_sent }}</div>
+                            <div class="la-engine-label">Sent</div>
+                        </div>
+                        <div class="la-engine-stat">
+                            <div class="la-engine-num" style="color: var(--la-blue);">{{ tasks_pending }}</div>
+                            <div class="la-engine-label">Pending</div>
+                        </div>
+                        <div class="la-engine-stat">
+                            <div class="la-engine-num" style="color: var(--la-text-secondary);">{{ tasks_cancelled }}</div>
+                            <div class="la-engine-label">Cancelled</div>
+                        </div>
+                        <div class="la-engine-stat">
+                            <div class="la-engine-num" style="color: var(--la-red);">{{ tasks_failed }}</div>
+                            <div class="la-engine-label">Failed</div>
+                        </div>
+                        <div class="la-engine-stat">
+                            <div class="la-engine-num" style="color: var(--la-text-secondary);">{{ tasks_skipped }}</div>
+                            <div class="la-engine-label">Skipped</div>
+                        </div>
+                        <div class="la-engine-stat">
+                            <div class="la-engine-num">{{ tasks_total }}</div>
+                            <div class="la-engine-label">Total</div>
+                        </div>
+                    </div>
+
+                    {% if step_data %}
+                    <h6 style="font-size: 0.82rem; font-weight: 700; color: var(--la-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem;">Messages Sent by Step</h6>
+                    {% for step in step_data %}
+                    <div class="la-step-row">
+                        <div class="la-step-label">Step {{ step.step_number }}</div>
+                        <div class="la-step-track">
+                            <div class="la-step-fill" style="width: {% widthratio step.sent_count tasks_sent 100 %}%;"></div>
+                        </div>
+                        <div class="la-step-count">{{ step.sent_count }}</div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if cancel_reasons %}
+                    <h6 style="font-size: 0.82rem; font-weight: 700; color: var(--la-text-secondary); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 1.5rem; margin-bottom: 0.75rem;">Cancellation Reasons</h6>
+                    {% for cr in cancel_reasons %}
+                    <div class="d-flex justify-content-between" style="padding: 0.4rem 0; border-bottom: 1px solid var(--la-surface-alt);">
+                        <span style="font-size: 0.85rem; text-transform: capitalize;">{{ cr.cancel_reason|default:"Unknown" }}</span>
+                        <span style="font-size: 0.85rem; font-weight: 700;">{{ cr.count }}</span>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <!-- Source Attribution -->
+                {% if source_data %}
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-blue-light); color: var(--la-blue);"><i class="bi bi-signpost-split-fill"></i></div>
+                        <h3>Lead Sources</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="la-table">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th style="text-align:center">Leads</th>
+                                    <th style="text-align:center">Converted</th>
+                                    <th style="text-align:center">Conv %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for src in source_data %}
+                                <tr>
+                                    <td><strong>{{ src.utm_source }}</strong></td>
+                                    <td style="text-align:center">{{ src.total }}</td>
+                                    <td style="text-align:center">{{ src.converted }}</td>
+                                    <td style="text-align:center">
+                                        <span class="la-badge" style="background: var(--la-green-light); color: var(--la-green);">{{ src.conv_pct }}%</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Revenue by Source -->
+                {% if revenue_by_source %}
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-green-light); color: var(--la-green);"><i class="bi bi-cash-coin"></i></div>
+                        <h3>Revenue by Source</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="la-table">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th style="text-align:center">Conversions</th>
+                                    <th style="text-align:right">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for rs in revenue_by_source %}
+                                <tr>
+                                    <td><strong>{{ rs.utm_source }}</strong></td>
+                                    <td style="text-align:center">{{ rs.count }}</td>
+                                    <td style="text-align:right; font-weight: 700;">${{ rs.revenue|floatformat:0|intcomma }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+            </div>
+
+            <!-- ═══ SIDEBAR ═══ -->
+            <div class="col-lg-4">
+
+                <!-- Pipeline Health -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-red-light); color: var(--la-red);"><i class="bi bi-heart-pulse-fill"></i></div>
+                        <h3>Pipeline Health</h3>
+                    </div>
+
+                    {% if needs_follow_up > 0 %}
+                    <div class="la-health-item" style="background: var(--la-amber-light);">
+                        <div class="la-health-icon" style="color: var(--la-amber);"><i class="bi bi-person-raised-hand"></i></div>
+                        <div>
+                            <div class="la-health-count" style="color: var(--la-amber);">{{ needs_follow_up }}</div>
+                            <div class="la-health-label">Need human follow-up</div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if stale_leads > 0 %}
+                    <div class="la-health-item" style="background: var(--la-red-light);">
+                        <div class="la-health-icon" style="color: var(--la-red);"><i class="bi bi-exclamation-octagon-fill"></i></div>
+                        <div>
+                            <div class="la-health-count" style="color: var(--la-red);">{{ stale_leads }}</div>
+                            <div class="la-health-label">Stale leads (no sequence, no reply)</div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if failed_syncs > 0 %}
+                    <div class="la-health-item" style="background: var(--la-red-light);">
+                        <div class="la-health-icon" style="color: var(--la-red);"><i class="bi bi-cloud-slash-fill"></i></div>
+                        <div>
+                            <div class="la-health-count" style="color: var(--la-red);">{{ failed_syncs }}</div>
+                            <div class="la-health-label">Failed GHL syncs</div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if needs_follow_up == 0 and stale_leads == 0 and failed_syncs == 0 %}
+                    <div class="la-health-item" style="background: var(--la-green-light);">
+                        <div class="la-health-icon" style="color: var(--la-green);"><i class="bi bi-check-circle-fill"></i></div>
+                        <div>
+                            <div class="la-health-label" style="font-weight: 600; color: var(--la-green);">All clear &mdash; pipeline is healthy</div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Automation Status -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-accent-light); color: var(--la-accent);"><i class="bi bi-robot"></i></div>
+                        <h3>Automation</h3>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0; border-bottom: 1px solid var(--la-surface-alt);">
+                        <span style="font-size: 0.85rem;">Active sequences</span>
+                        <span style="font-size: 1rem; font-weight: 800; color: var(--la-blue);">{{ sequences_active }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0; border-bottom: 1px solid var(--la-surface-alt);">
+                        <span style="font-size: 0.85rem;">Completed sequences</span>
+                        <span style="font-size: 1rem; font-weight: 800; color: var(--la-green);">{{ sequences_completed }}</span>
+                    </div>
+                    {% if avg_response_time %}
+                    <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0;">
+                        <span style="font-size: 0.85rem;">Avg reply time</span>
+                        <span style="font-size: 1rem; font-weight: 800;">{{ avg_response_time }}h</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Ad Attribution -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-blue-light); color: var(--la-blue);"><i class="bi bi-megaphone-fill"></i></div>
+                        <h3>Ad Attribution</h3>
+                    </div>
+                    <div class="la-attr-row">
+                        <div class="la-attr-icon" style="color: #4285F4;"><i class="bi bi-google"></i></div>
+                        <div class="la-attr-label">Google Ads</div>
+                        <div class="la-attr-count">{{ gclid_leads }}</div>
+                    </div>
+                    <div class="la-attr-row">
+                        <div class="la-attr-icon" style="color: #1877F2;"><i class="bi bi-meta"></i></div>
+                        <div class="la-attr-label">Meta Ads</div>
+                        <div class="la-attr-count">{{ fbclid_leads }}</div>
+                    </div>
+                    <div class="la-attr-row">
+                        <div class="la-attr-icon" style="color: var(--la-text-secondary);"><i class="bi bi-globe2"></i></div>
+                        <div class="la-attr-label">Direct / Organic</div>
+                        <div class="la-attr-count">{{ direct_leads }}</div>
+                    </div>
+                    {% if all_leads > 0 %}
+                    <div class="la-stacked-bar">
+                        <div style="width: {% widthratio gclid_leads all_leads 100 %}%; background: #4285F4;"></div>
+                        <div style="width: {% widthratio fbclid_leads all_leads 100 %}%; background: #1877F2;"></div>
+                        <div style="width: {% widthratio direct_leads all_leads 100 %}%; background: var(--la-border);"></div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="la-card">
+                    <div class="la-card-header">
+                        <div class="la-icon" style="background: var(--la-surface-alt); color: var(--la-text-secondary);"><i class="bi bi-clock-history"></i></div>
+                        <h3>Recent Activity</h3>
+                    </div>
+                    {% if recent_activity %}
+                    <div style="max-height: 420px; overflow-y: auto;">
+                        {% for act in recent_activity %}
+                        <div class="la-feed-item">
+                            <div class="la-feed-dot" style="background: {% if act.activity_type == 'sms_sent' %}var(--la-green){% elif act.activity_type == 'sms_failed' %}var(--la-red){% elif act.activity_type == 'reply_received' %}var(--la-amber){% elif act.activity_type == 'converted' %}var(--la-blue){% elif act.activity_type == 'sequence_started' %}var(--la-accent){% elif act.activity_type == 'sequence_stopped' %}var(--la-amber){% elif act.activity_type == 'sequence_completed' %}var(--la-green){% else %}var(--la-text-secondary){% endif %};"></div>
+                            <div>
+                                <div class="la-feed-text">
+                                    <span class="la-feed-name">{{ act.lead.first_name }} {{ act.lead.last_name }}</span>
+                                    &mdash; {{ act.description|truncatewords:10 }}
+                                </div>
+                                <div class="la-feed-time">{{ act.created_at|timesince }} ago</div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p style="color: var(--la-text-secondary); font-size: 0.85rem; margin: 0;">No activity yet.</p>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const raw = '{{ daily_trend_json|escapejs }}';
+    if (!raw) return;
+    const trendData = JSON.parse(raw);
+    if (!trendData.length) return;
+
+    const ctx = document.getElementById('trendChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: trendData.map(d => {
+                const dt = new Date(d.day + 'T00:00:00');
+                return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }),
+            datasets: [
+                {
+                    label: 'Created',
+                    data: trendData.map(d => d.created),
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99,102,241,0.06)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#6366f1',
+                },
+                {
+                    label: 'Replied',
+                    data: trendData.map(d => d.replied),
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245,158,11,0.06)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#f59e0b',
+                },
+                {
+                    label: 'Converted',
+                    data: trendData.map(d => d.converted),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16,185,129,0.06)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2.5,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#10b981',
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, font: { size: 12, weight: '600' } },
+                },
+                tooltip: {
+                    backgroundColor: '#1a1d23',
+                    titleFont: { weight: '700' },
+                    bodyFont: { size: 13 },
+                    padding: 12,
+                    cornerRadius: 10,
+                    displayColors: true,
+                    usePointStyle: true,
+                },
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, precision: 0, font: { size: 11 } },
+                    grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
+                    border: { display: false },
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 } },
+                    border: { display: false },
+                },
+            },
+        },
+    });
+});
+</script>
+{% endblock %}

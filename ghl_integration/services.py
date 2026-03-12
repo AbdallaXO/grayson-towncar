@@ -8,12 +8,61 @@ including contact management, SMS sending, and tag management.
 import requests
 import re
 import logging
-from typing import Optional, Dict, Any
+from datetime import timedelta
+from typing import Optional, Dict, Any, List, Tuple
 from django.conf import settings
 from django.utils import timezone
 from reservations.models import Lead
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Sync Logging Helpers
+# ---------------------------------------------------------------------------
+
+def log_sync_start(lead, action, request_payload=None):
+    """Create a PENDING GHLSyncLog entry before an API call. Returns the log instance."""
+    from .models import GHLSyncLog
+    return GHLSyncLog.objects.create(
+        lead=lead,
+        action=action,
+        status=GHLSyncLog.StatusChoices.PENDING,
+        request_payload=request_payload,
+    )
+
+
+def log_sync_success(sync_log, response_payload=None):
+    """Mark a sync log entry as SUCCESS."""
+    sync_log.status = "success"
+    sync_log.last_attempt_at = timezone.now()
+    sync_log.attempts += 1
+    sync_log.resolved_at = timezone.now()
+    if response_payload:
+        sync_log.response_payload = response_payload
+    sync_log.save(update_fields=[
+        "status", "last_attempt_at", "attempts", "resolved_at", "response_payload",
+    ])
+
+
+def log_sync_failure(sync_log, error_message, response_payload=None):
+    """Mark a sync log entry as FAILED with retry scheduling."""
+    sync_log.status = "failed"
+    sync_log.last_attempt_at = timezone.now()
+    sync_log.attempts += 1
+    sync_log.error_message = str(error_message)[:2000]
+    if response_payload:
+        sync_log.response_payload = response_payload
+    # Exponential backoff: 5min, 15min, 45min, 2h, 6h
+    backoff_minutes = 5 * (3 ** (sync_log.attempts - 1))
+    sync_log.next_retry_at = timezone.now() + timedelta(minutes=min(backoff_minutes, 360))
+    # If max attempts reached, move to dead letter
+    if sync_log.attempts >= sync_log.max_attempts:
+        sync_log.status = "dead_letter"
+    sync_log.save(update_fields=[
+        "status", "last_attempt_at", "attempts", "error_message",
+        "response_payload", "next_retry_at",
+    ])
 
 
 class GoHighLevelService:
@@ -721,6 +770,79 @@ class GoHighLevelService:
         except requests.exceptions.RequestException as e:
             logger.error(f"Exception removing tag: {str(e)}")
             return False
+
+
+    def apply_lifecycle_tags(self, contact_id: str, lead: Lead, event: str) -> None:
+        """
+        Apply/remove GHL tags based on a lifecycle event.
+
+        Events: 'created', 'sms_sent', 'replied', 'converted', 'lost',
+                'interested', 'sequence_completed'
+
+        Runs best-effort — failures are logged but do not raise.
+        """
+        tags_to_add, tags_to_remove = _determine_tags_for_event(lead, event)
+
+        for tag in tags_to_add:
+            try:
+                self.add_tag(contact_id, tag)
+            except Exception as e:
+                logger.warning(f"Failed to add tag '{tag}' to contact {contact_id}: {e}")
+
+        for tag in tags_to_remove:
+            try:
+                self.remove_tag(contact_id, tag)
+            except Exception as e:
+                logger.warning(f"Failed to remove tag '{tag}' from contact {contact_id}: {e}")
+
+
+def _determine_tags_for_event(lead: Lead, event: str) -> Tuple[List[str], List[str]]:
+    """
+    Determine which tags to add and remove for a given lifecycle event.
+    Returns (tags_to_add, tags_to_remove).
+    """
+    add = []
+    remove = []
+
+    if event == "created":
+        add.append("new-lead")
+        # Source tags based on UTM / click IDs
+        if getattr(lead, 'gclid', None):
+            add.append("google-ads")
+        if getattr(lead, 'fbclid', None):
+            add.append("meta-ads")
+        utm_source = getattr(lead, 'utm_source', None)
+        if utm_source:
+            add.append(f"source-{utm_source.lower()}")
+        # Urgency tag
+        if lead.pickup_date:
+            days_out = (lead.pickup_date - timezone.now().date()).days
+            if days_out <= 7:
+                add.append("urgent-trip")
+
+    elif event == "sms_sent":
+        add.append("sms-sent")
+
+    elif event == "replied":
+        add.extend(["replied", "hot-lead"])
+        remove.append("new-lead")
+
+    elif event == "interested":
+        add.append("interested")
+        remove.append("new-lead")
+
+    elif event == "converted":
+        add.extend(["converted", "customer"])
+        remove.extend(["new-lead", "hot-lead", "interested"])
+
+    elif event == "lost":
+        add.append("lost")
+        remove.extend(["hot-lead", "interested"])
+
+    elif event == "sequence_completed":
+        add.append("sequence-complete")
+
+    return add, remove
 
 
 def get_sms_template(lead: Lead) -> str:

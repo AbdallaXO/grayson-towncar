@@ -110,12 +110,48 @@ def ghl_webhook(request):
                 lead.status = Lead.StatusChoices.INTERESTED
                 logger.info(f"Updated lead #{lead.id} status to 'interested'")
             
+            lead.needs_human_follow_up = True
             lead.save(update_fields=[
                 'has_replied',
                 'last_reply_at',
                 'priority',
-                'status'
+                'status',
+                'needs_human_follow_up',
             ])
+
+        # Cancel any active follow-up sequence
+        if lead.sequence_active:
+            try:
+                from ghl_integration.runner import run_in_background
+                from ghl_integration.tasks import cancel_lead_sequence
+                run_in_background(cancel_lead_sequence, lead.id, reason="replied")
+            except Exception:
+                logger.warning(f"Failed to queue sequence cancellation for lead #{lead.id}")
+
+        # Apply lifecycle tags for reply event (best-effort, background)
+        if lead.ghl_contact_id:
+            try:
+                from ghl_integration.runner import run_in_background as _run_bg
+                from ghl_integration.services import GoHighLevelService as _GHL
+
+                def _apply_reply_tags():
+                    _GHL().apply_lifecycle_tags(lead.ghl_contact_id, lead, "replied")
+
+                _run_bg(_apply_reply_tags)
+            except Exception:
+                logger.warning(f"Failed to queue reply tags for lead #{lead.id}")
+
+        # Log activity for the reply
+        try:
+            from ghl_integration.models import LeadActivity
+            LeadActivity.objects.create(
+                lead=lead,
+                activity_type=LeadActivity.ActivityType.REPLY_RECEIVED,
+                description=f"SMS reply received: {(message_body or '')[:100]}",
+                metadata={"contact_id": contact_id, "message_preview": (message_body or "")[:200]},
+            )
+        except Exception:
+            logger.warning(f"Failed to create reply activity for lead #{lead.id}")
         
         # Send notification
         lead_name = lead.get_full_name
