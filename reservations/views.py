@@ -30,7 +30,7 @@ from .conversions import send_lead_event, send_initiate_checkout_event
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q
-from .models import Lead, Quote
+from .models import Lead, Quote, Reservation
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,29 @@ def reservation_form(
             trip_type,
         )
         if forms_valid:
+            # Clean up recent unpaid duplicates from the same person + route + date
+            # so only the latest (most accurate) submission survives.
+            # Matches on last_name + pickup_date (not time, since that may be the fix)
+            # to avoid collisions when a travel agent books different clients back-to-back.
+            email = customer_form.cleaned_data.get("email", "").strip().lower()
+            last_name = customer_form.cleaned_data.get("last_name", "").strip()
+            pickup_date = leg1_form.cleaned_data.get("pickup_date")
+            cutoff = timezone.now() - timedelta(minutes=10)
+            stale_dupes = Reservation.objects.filter(
+                customer__email__iexact=email,
+                customer__last_name__iexact=last_name,
+                rate=rate,
+                legs__pickup_date=pickup_date,
+                status="confirmed",
+                created_at__gte=cutoff,
+            ).exclude(payments__status="paid")
+            if stale_dupes.exists():
+                count = stale_dupes.count()
+                stale_dupes.delete()
+                logger.info(
+                    f"Cleaned up {count} unpaid duplicate reservation(s) for {email}"
+                )
+
             customer = customer_form.save()
             reservation = reservation_form.save(
                 customer=customer,

@@ -4491,6 +4491,8 @@ def driver_payment_management(request):
         return redirect("home")
 
     selected_driver_id = request.GET.get("driver")
+    date_from = request.GET.get("date_from", "")
+    date_to = request.GET.get("date_to", "")
     selected_driver = None
     legs = []
     total_pay = 0
@@ -4505,9 +4507,9 @@ def driver_payment_management(request):
     if selected_driver_id:
         try:
             selected_driver = get_object_or_404(Driver.objects.select_related('profile'), id=selected_driver_id)
-            
+
             # Get only unpaid legs for the driver with optimized queries
-            legs = (
+            legs_qs = (
                     Leg.objects
                     .select_related(
                         "reservation",
@@ -4522,16 +4524,39 @@ def driver_payment_management(request):
                         Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
                     )
                     .filter(driver=selected_driver, payment_status='unpaid')
-                    .order_by("pickup_date", "pickup_time")
                 )
-            
+
+            # Apply date range filter if provided
+            if date_from:
+                legs_qs = legs_qs.filter(pickup_date__gte=date_from)
+            if date_to:
+                legs_qs = legs_qs.filter(pickup_date__lte=date_to)
+
+            legs = legs_qs.order_by("pickup_date", "pickup_time")
+
             # Calculate total pay amounts (use new fields if available)
             total_pay = sum(leg.total_driver_pay for leg in legs)
             # Calculate total pay for completed legs only
             completed_legs = [leg for leg in legs if leg.status == 'completed']
             total_pay_completed = sum(leg.total_driver_pay for leg in completed_legs)
             completed_leg_count = len(completed_legs)
-            
+
+            # Flag legs that need rate review
+            SANFORD_KEYWORDS = ["sfb", "sanford", "orlando sanford"]
+            CRUISE_PORT_KEYWORDS = ["port canaveral", "canaveral", "cruise port", "cruise terminal", "cruise ship"]
+            zero_pay_count = 0
+            review_count = 0
+            for leg in legs:
+                loc = f"{leg.pickup_location} {leg.dropoff_location}".lower()
+                leg.is_cruise = bool(leg.cruise_information_id) or any(kw in loc for kw in CRUISE_PORT_KEYWORDS)
+                leg.is_sanford = any(kw in loc for kw in SANFORD_KEYWORDS)
+                leg.is_zero_pay = not leg.driver_base_pay or leg.driver_base_pay == 0
+                leg.needs_review = leg.is_zero_pay or leg.is_cruise or leg.is_sanford
+                if leg.is_zero_pay:
+                    zero_pay_count += 1
+                if leg.needs_review:
+                    review_count += 1
+
         except (ValueError, Driver.DoesNotExist):
             messages.error(request, "Invalid driver selected")
             selected_driver = None
@@ -4540,11 +4565,15 @@ def driver_payment_management(request):
         "drivers": drivers,
         "selected_driver": selected_driver,
         "selected_driver_id": selected_driver_id,
+        "date_from": date_from,
+        "date_to": date_to,
         "legs": legs,
         "total_pay": total_pay,
         "total_pay_completed": total_pay_completed,
         "leg_count": len(legs),
         "completed_leg_count": completed_leg_count,
+        "zero_pay_count": zero_pay_count if selected_driver_id else 0,
+        "review_count": review_count if selected_driver_id else 0,
     }
 
     return render(request, "dispatching/driver_payment_management.html", context)
@@ -4697,7 +4726,15 @@ def process_driver_payment(request):
             payment_status='unpaid',
             status='completed'  # Only process completed legs
         )
-        
+
+        # Apply date range filter if provided
+        date_from = data.get("date_from")
+        date_to = data.get("date_to")
+        if date_from:
+            unpaid_legs = unpaid_legs.filter(pickup_date__gte=date_from)
+        if date_to:
+            unpaid_legs = unpaid_legs.filter(pickup_date__lte=date_to)
+
         # If specific leg IDs provided, filter to those
         if leg_ids:
             unpaid_legs = unpaid_legs.filter(id__in=leg_ids)
@@ -8228,12 +8265,20 @@ def lead_analytics(request):
     from ghl_integration.models import FollowUpTask, LeadActivity
 
     # ── Date range ──
-    days_back = int(request.GET.get("days", 30))
+    days_param = request.GET.get("days", "30")
     end_date = timezone.now()
-    start_date = end_date - timedelta(days=days_back)
+    if days_param == "all":
+        days_back = "all"
+        start_date = None
+    else:
+        days_back = int(days_param)
+        start_date = end_date - timedelta(days=days_back)
 
     # ── Base queryset ──
-    leads_qs = Lead.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+    if start_date:
+        leads_qs = Lead.objects.filter(created_at__gte=start_date, created_at__lte=end_date)
+    else:
+        leads_qs = Lead.objects.all()
     all_leads = leads_qs.count()
 
     # ── Status funnel ──
@@ -8314,7 +8359,7 @@ def lead_analytics(request):
     )
 
     # ── Follow-up engine metrics ──
-    tasks_qs = FollowUpTask.objects.filter(created_at__gte=start_date)
+    tasks_qs = FollowUpTask.objects.filter(created_at__gte=start_date) if start_date else FollowUpTask.objects.all()
     task_status_counts = dict(
         tasks_qs.values_list("status").annotate(c=Count("id")).values_list("status", "c")
     )
@@ -8393,11 +8438,10 @@ def lead_analytics(request):
     ).exclude(phone="").count()
 
     # ── Recent activity ──
-    recent_activity = list(
-        LeadActivity.objects.filter(created_at__gte=start_date)
-        .select_related("lead")
-        .order_by("-created_at")[:20]
-    )
+    activity_qs = LeadActivity.objects.select_related("lead").order_by("-created_at")
+    if start_date:
+        activity_qs = activity_qs.filter(created_at__gte=start_date)
+    recent_activity = list(activity_qs[:20])
 
     context = {
         "days_back": days_back,

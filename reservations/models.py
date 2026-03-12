@@ -1463,6 +1463,8 @@ class Lead(models.Model):
     ghl_synced_at = models.DateTimeField(null=True, blank=True)
     initial_sms_sent = models.BooleanField(default=False)
     initial_sms_sent_at = models.DateTimeField(null=True, blank=True)
+    initial_email_sent = models.BooleanField(default=False, help_text="Fallback email sent when SMS failed")
+    initial_email_sent_at = models.DateTimeField(null=True, blank=True)
     last_reply_at = models.DateTimeField(null=True, blank=True)
     has_replied = models.BooleanField(default=False)
 

@@ -36,15 +36,17 @@
             color: #666666;
         }
 
+        .section-heading {
+            margin: 24px 0 8px 0;
+            font-size: 16px;
+            color: #1a1a2e;
+        }
+
         .summary {
             margin: 20px 0;
             padding: 16px;
             background-color: #f8f9fa;
             border-radius: 8px;
-        }
-
-        .summary p {
-            margin: 8px 0;
         }
 
         .summary-row {
@@ -128,6 +130,57 @@
             border-top: 2px solid #1a1a2e;
         }
 
+        .non-comm {
+            color: #888888;
+            font-size: 11px;
+        }
+
+        .breakdown-box {
+            margin: 20px 0;
+            padding: 16px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 3px solid #C9A227;
+        }
+
+        .breakdown-title {
+            font-weight: bold;
+            font-size: 14px;
+            color: #1a1a2e;
+            margin-bottom: 12px;
+        }
+
+        .breakdown-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 13px;
+        }
+
+        .breakdown-row.indent {
+            padding-left: 16px;
+            color: #888888;
+        }
+
+        .breakdown-row.total {
+            border-top: 1px solid #cccccc;
+            margin-top: 6px;
+            padding-top: 10px;
+            font-weight: bold;
+        }
+
+        .badge-nc {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            background-color: #f0f0f0;
+            color: #888888;
+            vertical-align: middle;
+            letter-spacing: 0.3px;
+        }
+
         .footer {
             margin-top: 32px;
             padding-top: 16px;
@@ -140,19 +193,6 @@
             margin: 4px 0;
         }
 
-        .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .badge-paid {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
         @media (prefers-color-scheme: dark) {
             body {
                 background-color: #1a1a1a;
@@ -163,8 +203,29 @@
                 background-color: #1a1a1a;
             }
 
-            .summary {
+            .header h1, .section-heading, .breakdown-title {
+                color: #e0e0e0;
+            }
+
+            .header .subtitle {
+                color: #aaaaaa;
+            }
+
+            .summary, .breakdown-box {
                 background-color: #2a2a2a;
+                border-color: #C9A227;
+            }
+
+            .summary-row {
+                border-bottom-color: #444444;
+            }
+
+            .summary-label {
+                color: #aaaaaa;
+            }
+
+            .summary-value {
+                color: #e0e0e0;
             }
 
             th {
@@ -182,6 +243,20 @@
 
             .total-row td {
                 border-top-color: #e0e0e0;
+            }
+
+            .breakdown-row.total {
+                border-top-color: #555555;
+            }
+
+            .badge-nc {
+                background-color: #333333;
+                color: #999999;
+            }
+
+            .footer {
+                border-top-color: #444444;
+                color: #aaaaaa;
             }
         }
     </style>
@@ -227,15 +302,51 @@
         <div class="total-amount">${{ payout.total_amount|floatformat:2 }}</div>
       </div>
 
-      <h3 style="margin: 24px 0 8px 0; font-size: 16px; color: #1a1a2e;">Reservation Details</h3>
+      <!-- Price Breakdown Summary -->
+      <div class="breakdown-box">
+        <div class="breakdown-title">How Your Commission Is Calculated</div>
+        <div class="breakdown-row">
+          <span>Base Price (Commissionable)</span>
+          <span><strong>${{ total_base_price|floatformat:2 }}</strong></span>
+        </div>
+        <div class="breakdown-row indent">
+          <span>x {{ agent.commission_rate }}% commission rate</span>
+          <span>= <strong>${{ payout.total_amount|floatformat:2 }}</strong></span>
+        </div>
+        {% if total_gratuity or total_additional %}
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #cccccc;"></div>
+        <div class="breakdown-row" style="color: #888888;">
+          <span>Non-Commissionable Charges:</span>
+          <span></span>
+        </div>
+        {% if total_gratuity %}
+        <div class="breakdown-row indent">
+          <span>Gratuity</span>
+          <span>${{ total_gratuity|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+        {% if total_additional %}
+        <div class="breakdown-row indent">
+          <span>Additional Charges</span>
+          <span>${{ total_additional|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+        {% endif %}
+        <div class="breakdown-row total">
+          <span>Total Customer Charges</span>
+          <span>${{ total_charged|floatformat:2 }}</span>
+        </div>
+      </div>
+
+      <h3 class="section-heading">Reservation Details</h3>
 
       <table>
         <thead>
           <tr>
             <th>Date</th>
             <th>Customer</th>
-            <th>Trip Type</th>
-            <th class="text-right">Base Price</th>
+            <th class="text-right">Total Charged</th>
+            <th class="text-right">Commissionable</th>
             <th class="text-right">Commission</th>
           </tr>
         </thead>
@@ -244,7 +355,18 @@
             <tr>
               <td>{{ reservation.created_at|date:"m/d/Y" }}</td>
               <td>{{ reservation.customer.get_full_name|default:"N/A" }}</td>
-              <td>{{ reservation.get_trip_type_display }}</td>
+              <td class="text-right">
+                ${{ reservation.total_price|floatformat:2 }}
+                {% if reservation.gratuity_amount or reservation.additional_charges %}
+                <br>
+                <span class="non-comm">
+                  {% if reservation.gratuity_amount %}Grat: ${{ reservation.gratuity_amount|floatformat:2 }}{% endif %}
+                  {% if reservation.gratuity_amount and reservation.additional_charges %} | {% endif %}
+                  {% if reservation.additional_charges %}Addl: ${{ reservation.additional_charges|floatformat:2 }}{% endif %}
+                  <span class="badge-nc">N/C</span>
+                </span>
+                {% endif %}
+              </td>
               <td class="text-right">${{ reservation.base_price|floatformat:2 }}</td>
               <td class="text-right">${{ reservation.commission_amount|floatformat:2 }}</td>
             </tr>
@@ -254,12 +376,17 @@
             </tr>
           {% endfor %}
           <tr class="total-row">
-            <td colspan="3"><strong>Total ({{ reservations|length }} reservation{{ reservations|length|pluralize }})</strong></td>
+            <td colspan="2"><strong>Total ({{ reservations|length }} reservation{{ reservations|length|pluralize }})</strong></td>
+            <td class="text-right"><strong>${{ total_charged|floatformat:2 }}</strong></td>
             <td class="text-right"><strong>${{ total_base_price|floatformat:2 }}</strong></td>
             <td class="text-right"><strong>${{ payout.total_amount|floatformat:2 }}</strong></td>
           </tr>
         </tbody>
       </table>
+
+      <p style="margin-top: 8px; font-size: 11px; color: #999999;">
+        <span class="badge-nc">N/C</span> = Non-Commissionable &mdash; Gratuity and additional charges are not included in commission calculations.
+      </p>
 
       {% if payout.notes %}
       <div style="margin-top: 20px; padding: 12px; background-color: #fff3cd; border-radius: 6px; font-size: 13px;">

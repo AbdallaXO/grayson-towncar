@@ -15,6 +15,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 import logging
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,13 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
     """
     from reservations.models import Lead
     from .services import GoHighLevelService, get_sms_template
-    
+    from .timing import is_within_send_window
+
+    # Double-check send window — don't text people at night
+    if not is_within_send_window():
+        logger.info(f"Lead #{lead_id}: outside send window, will retry next batch")
+        return {"status": "outside_window", "lead_id": lead_id}
+
     try:
         # Atomically claim this lead to prevent duplicate SMS.
         # Two threads/workers can both call this for the same lead; the first
@@ -48,13 +55,20 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
         with transaction.atomic():
             lead = Lead.objects.select_for_update().get(id=lead_id)
 
-            if lead.initial_sms_sent:
-                logger.info(f"Lead #{lead_id} already has SMS sent, skipping")
+            if lead.initial_sms_sent or lead.initial_email_sent:
+                logger.info(f"Lead #{lead_id} already contacted, skipping")
                 return {"status": "skipped", "reason": "already_sent", "lead_id": lead_id}
 
             if not lead.phone:
-                logger.warning(f"Lead #{lead_id} has no phone number")
-                return {"status": "skipped", "reason": "no_phone", "lead_id": lead_id}
+                # No phone number — go straight to email fallback
+                logger.info(f"Lead #{lead_id} has no phone number, trying email fallback")
+                email_sent = _try_email_fallback(lead)
+                if not email_sent:
+                    _mark_lead_lost(lead, "No phone number and email failed")
+                return {
+                    "status": "email_fallback" if email_sent else "lost",
+                    "lead_id": lead_id,
+                }
 
             # Claim: mark as sent NOW so no other thread picks it up
             lead.initial_sms_sent = True
@@ -80,14 +94,22 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
         sms_log = log_sync_start(lead, "send_sms", {"message": message, "contact_id": contact_id})
         sms_sent = service.send_sms(contact_id, message)
 
-        # If SMS failed, unclaim the lead so it can be retried later
         if not sms_sent:
             log_sync_failure(sms_log, "send_sms returned False")
-            logger.error(f"Failed to send SMS to contact {contact_id} for lead #{lead_id}")
-            Lead.objects.filter(id=lead_id).update(
-                initial_sms_sent=False, initial_sms_sent_at=None
-            )
-            raise Exception("Failed to send SMS")
+            logger.warning(f"SMS failed for lead #{lead_id}, trying email fallback")
+            # SMS failed (bad number, UK number, etc.) — try email instead
+            email_sent = _try_email_fallback(lead)
+            if email_sent:
+                return {
+                    "status": "email_fallback",
+                    "lead_id": lead_id,
+                    "ghl_contact_id": contact_id,
+                }
+            else:
+                # Both SMS and email failed — mark as lost
+                _mark_lead_lost(lead, "Both SMS and email failed")
+                return {"status": "lost", "lead_id": lead_id}
+
         log_sync_success(sms_log)
 
         # Step 3: Update Django lead (already claimed initial_sms_sent above)
@@ -105,7 +127,7 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
                 'contact_attempts',
                 'last_contact_date'
             ])
-        
+
         logger.info(f"Successfully synced Lead #{lead_id} to GHL, sent SMS, and marked as CONTACTED (contact_id: {contact_id})")
 
         # Apply lifecycle tags (best-effort)
@@ -128,7 +150,7 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
             "ghl_contact_id": contact_id,
             "sms_sent": sms_sent
         }
-        
+
     except Lead.DoesNotExist:
         logger.error(f"Lead #{lead_id} not found")
         return {"status": "error", "reason": "lead_not_found", "lead_id": lead_id}
@@ -139,37 +161,97 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
             logger.info(f"Retrying Lead #{lead_id} in {delay}s (attempt {_attempt + 1})")
             time_module.sleep(delay)
             return sync_lead_to_ghl_and_send_sms(lead_id, _attempt=_attempt + 1, _max_retries=_max_retries)
-        # All retries exhausted — unclaim so manual retry or next batch can try again
-        Lead.objects.filter(id=lead_id).update(
-            initial_sms_sent=False, initial_sms_sent_at=None
-        )
-        return {"status": "error", "reason": "max_retries_exceeded", "lead_id": lead_id}
+        # All retries exhausted — try email fallback before giving up
+        try:
+            lead = Lead.objects.get(id=lead_id)
+            email_sent = _try_email_fallback(lead)
+            if email_sent:
+                return {"status": "email_fallback", "lead_id": lead_id}
+            _mark_lead_lost(lead, "SMS retries exhausted, email also failed")
+        except Lead.DoesNotExist:
+            pass
+        return {"status": "lost", "reason": "all_channels_failed", "lead_id": lead_id}
+
+
+def _try_email_fallback(lead):
+    """
+    Try sending a quote email when SMS fails (bad number, UK number, etc.).
+    Updates the lead's initial_email_sent fields on success.
+
+    Returns:
+        bool: True if email was sent, False otherwise
+    """
+    from users.emails import send_lead_quote_email
+
+    if not lead.email:
+        logger.warning(f"Lead #{lead.id}: no email either, cannot fall back")
+        return False
+
+    try:
+        email_sent = send_lead_quote_email(lead)
+        if email_sent:
+            lead.initial_email_sent = True
+            lead.initial_email_sent_at = timezone.now()
+            lead.status = lead.StatusChoices.CONTACTED
+            lead.contact_attempts = (lead.contact_attempts or 0) + 1
+            lead.last_contact_date = timezone.now()
+            lead.save(update_fields=[
+                "initial_email_sent", "initial_email_sent_at",
+                "status", "contact_attempts", "last_contact_date",
+            ])
+            logger.info(f"Lead #{lead.id}: email fallback sent successfully")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Lead #{lead.id}: email fallback failed: {e}", exc_info=True)
+        return False
+
+
+def _mark_lead_lost(lead, reason):
+    """Mark a lead as lost when all contact channels have failed."""
+    from .models import LeadActivity
+
+    lead.status = lead.StatusChoices.LOST
+    lead.initial_sms_sent = False
+    lead.initial_sms_sent_at = None
+    lead.save(update_fields=["status", "initial_sms_sent", "initial_sms_sent_at"])
+
+    LeadActivity.objects.create(
+        lead=lead,
+        activity_type=LeadActivity.ActivityType.STATUS_CHANGE,
+        description=f"Marked as lost: {reason}",
+    )
+    logger.warning(f"Lead #{lead.id} marked as lost: {reason}")
 
 
 def batch_send_unsent_leads():
     """
     Batch task to find all leads without SMS sent and queue them for sending.
 
-    This task:
-    - Queries leads where initial_sms_sent=False, has phone number,
-      status in ['new', 'contacted'], and converted=False
-    - Limits to 50 leads per batch
-    - Queues each lead for individual processing via background threads
+    Respects the send window (8 AM – 9 PM Eastern). Outside the window,
+    skips the batch so leads queue up and get sent the next morning.
 
     Returns:
         dict: Count of queued leads
     """
     from reservations.models import Lead
     from .runner import run_in_background
+    from .timing import is_within_send_window
 
-    # Get leads that need SMS
+    # Don't send texts in the middle of the night
+    if not is_within_send_window():
+        logger.info("Outside send window (8 AM - 9 PM Eastern), skipping initial SMS batch")
+        return {"status": "outside_window", "queued": 0}
+
+    # Get leads that haven't been contacted by any channel yet
+    # Includes leads with phone (for SMS) and leads with only email (for email fallback)
     unsent_leads = Lead.objects.filter(
         initial_sms_sent=False,
-        phone__isnull=False,
+        initial_email_sent=False,
         status__in=[Lead.StatusChoices.NEW, Lead.StatusChoices.CONTACTED],
         converted=False
-    ).exclude(
-        phone=""
+    ).filter(
+        Q(phone__isnull=False) & ~Q(phone="") | Q(email__isnull=False) & ~Q(email="")
     ).values_list('id', flat=True)[:50]  # Limit batch size
 
     count = 0

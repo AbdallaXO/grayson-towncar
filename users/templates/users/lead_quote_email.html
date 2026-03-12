@@ -1,0 +1,237 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" style="-webkit-text-size-adjust: none !important;">
+  <head>
+    <title>Your Grayson Towncar Quote</title>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="x-apple-disable-message-reformatting" content="" />
+    <meta content="target-densitydpi=device-dpi" name="viewport" />
+    <meta content="true" name="HandheldFriendly" />
+    <meta content="width=device-width" name="viewport" />
+    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+
+    <!-- [if !mso]> -->
+    <style type="text/css">
+      @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;700&family=Roboto:wght@400;700&display=swap');
+    </style>
+    <!-- <![endif] -->
+
+    <style type="text/css">
+      body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+      table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+      img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+      table { border-collapse: collapse !important; }
+      body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+      a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+      u + #body a { color: inherit; text-decoration: none; font-size: inherit; font-family: inherit; font-weight: inherit; line-height: inherit; }
+      @media screen and (max-width: 600px) {
+        .main-table { width: 100% !important; }
+        .content-cell { padding: 30px 30px 40px 30px !important; }
+        .footer-cell { padding: 30px 30px !important; }
+        .cta-btn { width: 100% !important; }
+      }
+    </style>
+  </head>
+  <body style="margin:0; padding:0; background-color:#242424; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; background-color:#242424;">
+      <tr>
+        <td align="center" style="padding:0;">
+          <!-- Main Content Container -->
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse; background-color:#F8F8F8; margin-top:30px;">
+            <tr>
+              <td class="content-cell" style="padding:50px 50px 60px 50px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+
+                  <!-- Logo -->
+                  <tr>
+                    <td align="center" style="padding-bottom:20px;">
+                      <h2 style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:28px; color:#333333; font-weight:700;">GRAYSON TOWNCAR</h2>
+                    </td>
+                  </tr>
+
+                  <!-- Main Heading -->
+                  <tr>
+                    <td>
+                      <h1 style="margin:0; font-family:Roboto, Arial, sans-serif; font-size:25px; line-height:30px; color:#333333; font-weight:400; text-align:center;">Your Transportation Quote</h1>
+                    </td>
+                  </tr>
+                  <tr><td height="7"></td></tr>
+
+                  <!-- Greeting -->
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:26px; color:#555555; text-align:center; padding-bottom:22px;">
+                        Hey {{ lead.first_name|default:"there" }}, thanks for reaching out to Grayson Towncar! Here's your personalized quote.
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Quote Details Box -->
+                  <tr>
+                    <td style="background-color:#ffffff; border:1px solid #e0e0e0; border-left:4px solid #C89B3C; padding:20px 25px;">
+                      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:20px; line-height:24px; color:#333333; font-weight:700; padding-bottom:12px;">Trip Details</p>
+                          </td>
+                        </tr>
+
+                        {% if lead.pickup_location %}
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
+                              <strong>From:</strong> {{ lead.pickup_location }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if lead.dropoff_location %}
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
+                              <strong>To:</strong> {{ lead.dropoff_location }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if lead.pickup_date %}
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
+                              <strong>Date:</strong> {{ lead.pickup_date|date:"l, F d, Y" }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if lead.trip_type %}
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
+                              <strong>Trip Type:</strong> {{ lead.get_trip_type_display }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if lead.vehicle %}
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:22px; color:#555555; padding-bottom:4px;">
+                              <strong>Vehicle:</strong> {{ lead.vehicle.get_vehicle_type_display }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% endif %}
+
+                        {% if quote and quote.estimated_price %}
+                        <tr><td height="8"></td></tr>
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:22px; line-height:26px; color:#C89B3C; font-weight:700;">
+                              Estimated Price: ${{ quote.estimated_price|floatformat:2 }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% elif lead.estimated_price %}
+                        <tr><td height="8"></td></tr>
+                        <tr>
+                          <td>
+                            <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:22px; line-height:26px; color:#C89B3C; font-weight:700;">
+                              Estimated Price: ${{ lead.estimated_price|floatformat:2 }}
+                            </p>
+                          </td>
+                        </tr>
+                        {% endif %}
+
+                      </table>
+                    </td>
+                  </tr>
+                  <tr><td height="25"></td></tr>
+
+                  <!-- CTA Button -->
+                  {% if booking_url %}
+                  <tr>
+                    <td align="center">
+                      <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                        <tr>
+                          <td align="center" style="background-color:#C89B3C; border-radius:6px;">
+                            <a href="{{ booking_url }}" target="_blank" class="cta-btn" style="display:inline-block; padding:16px 40px; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:6px;">
+                              Book Now
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr><td height="20"></td></tr>
+                  {% endif %}
+
+                  <!-- Reassurance -->
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:24px; color:#555555; text-align:center;">
+                        Booking takes under a minute. Free cancellation up to 48 hours before pickup.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr><td height="25"></td></tr>
+
+                  <!-- What's Included -->
+                  <tr>
+                    <td style="background-color:#f9f9f9; padding:18px 22px; border-radius:6px;">
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:22px; color:#333333; font-weight:700; padding-bottom:8px;">What's Included</p>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:15px; line-height:24px; color:#555555;">
+                        &#10003; Professional chauffeur<br/>
+                        &#10003; Flight tracking &amp; delay monitoring<br/>
+                        &#10003; Meet &amp; greet at baggage claim<br/>
+                        &#10003; Complimentary child car seats<br/>
+                        &#10003; Bottled water &amp; phone chargers
+                      </p>
+                    </td>
+                  </tr>
+                  <tr><td height="25"></td></tr>
+
+                  <!-- Contact -->
+                  <tr>
+                    <td>
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:16px; line-height:24px; color:#555555; text-align:center;">
+                        Questions? Call or text us at <a href="tel:4072127190" style="color:#C89B3C; text-decoration:none; font-weight:700;">(407) 212-7190</a><br/>
+                        or reply directly to this email.
+                      </p>
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td class="footer-cell" style="background-color:#333333; padding:30px 50px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                  <tr>
+                    <td align="center">
+                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:14px; line-height:20px; color:#999999;">
+                        Grayson Towncar &bull; Orlando, FL<br/>
+                        <a href="https://graysontowncar.com" style="color:#C89B3C; text-decoration:none;">graysontowncar.com</a>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse;">
+            <tr><td height="30"></td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

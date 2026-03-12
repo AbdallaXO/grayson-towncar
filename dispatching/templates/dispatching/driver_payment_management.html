@@ -82,9 +82,9 @@
           </div>
           <div class="card-body">
             <form method="get" id="driverSelectForm">
-              <div class="row align-items-end">
-                <div class="col-md-6">
-                  <label for="driverSelect" class="form-label fw-semibold">Driver</label>
+              <div class="row align-items-end g-2">
+                <div class="col-md-3">
+                  <label for="driverSelect" class="form-label fw-semibold mb-1">Driver</label>
                   <select name="driver" class="form-select" id="driverSelect" required>
                     <option value="">Select a driver...</option>
                     {% for driver in drivers %}
@@ -95,12 +95,33 @@
                     {% endfor %}
                   </select>
                 </div>
-                <div class="col-md-6">
-                  <button type="submit" class="btn btn-dark">
-                    <i class="bi bi-search me-1"></i>Load Driver's Legs
+                <div class="col-md-2">
+                  <label for="dateFrom" class="form-label fw-semibold mb-1">From Date <span class="text-muted fw-normal">(optional)</span></label>
+                  <input type="date" name="date_from" class="form-control" id="dateFrom" value="{{ date_from }}">
+                </div>
+                <div class="col-md-2">
+                  <label for="dateTo" class="form-label fw-semibold mb-1">To Date <span class="text-muted fw-normal">(optional)</span></label>
+                  <input type="date" name="date_to" class="form-control" id="dateTo" value="{{ date_to }}">
+                </div>
+                <div class="col-md-2">
+                  <button type="submit" class="btn btn-dark w-100">
+                    <i class="bi bi-search me-1"></i>Load Legs
+                  </button>
+                </div>
+                <div class="col-md-1">
+                  <button type="button" class="btn btn-outline-secondary w-100" id="resetDatesBtn" title="Reset date filters">
+                    <i class="bi bi-x-circle"></i>
                   </button>
                 </div>
               </div>
+              {% if date_from or date_to %}
+                <div class="mt-2">
+                  <span class="badge bg-info text-dark">
+                    <i class="bi bi-funnel me-1"></i>
+                    Filtered: {{ date_from|default:"all" }} to {{ date_to|default:"latest" }}
+                  </span>
+                </div>
+              {% endif %}
             </form>
           </div>
         </div>
@@ -173,6 +194,30 @@
         </div>
       </div>
 
+      <!-- Review Alerts -->
+      {% if zero_pay_count or review_count %}
+        <div class="row mb-3">
+          {% if zero_pay_count %}
+            <div class="col-auto">
+              <div class="alert alert-danger d-flex align-items-center py-2 px-3 mb-0">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                <strong>{{ zero_pay_count }} leg{{ zero_pay_count|pluralize }} with $0 base pay</strong>
+                <span class="ms-2 text-muted">- needs rate assignment</span>
+              </div>
+            </div>
+          {% endif %}
+          {% if review_count > zero_pay_count %}
+            <div class="col-auto">
+              <div class="alert alert-warning d-flex align-items-center py-2 px-3 mb-0">
+                <i class="bi bi-eye-fill me-2 fs-5"></i>
+                <strong>{{ review_count }} leg{{ review_count|pluralize }} flagged for review</strong>
+                <span class="ms-2 text-muted">- cruise / Sanford / $0 pay</span>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+
       {% if legs %}
         <!-- Legs Table -->
         <div class="card border-0 shadow-sm">
@@ -204,10 +249,17 @@
                 </thead>
                 <tbody>
                   {% for leg in legs %}
-                    <tr class="align-middle">
+                    <tr class="align-middle{% if leg.is_zero_pay %} table-danger{% elif leg.needs_review %} table-warning{% endif %}">
                       <!-- Customer -->
                       <td>
                         <div class="d-flex flex-column">
+                          {% if leg.needs_review %}
+                            <div class="mb-1">
+                              {% if leg.is_zero_pay %}<span class="badge bg-danger me-1" title="$0 base pay">$0 PAY</span>{% endif %}
+                              {% if leg.is_cruise %}<span class="badge bg-info text-dark me-1" title="Cruise route - verify rate">🚢 CRUISE</span>{% endif %}
+                              {% if leg.is_sanford %}<span class="badge bg-warning text-dark me-1" title="Sanford route - verify rate"><i class="bi bi-airplane me-1"></i>SFB</span>{% endif %}
+                            </div>
+                          {% endif %}
                           <div class="fw-bold">{{ leg.reservation.customer.get_full_name }}</div>
                           <div class="small text-muted">
                             <a href="{% url 'reservation_details' leg.reservation.uuid %}"
@@ -452,8 +504,15 @@
               <div class="row g-3 p-2">
                 {% for leg in legs %}
                   <div class="col-12">
-                    <div class="card shadow-sm">
-                      <div class="card-header bg-light p-2">
+                    <div class="card shadow-sm{% if leg.is_zero_pay %} border-danger{% elif leg.needs_review %} border-warning{% endif %}">
+                      <div class="card-header {% if leg.is_zero_pay %}bg-danger bg-opacity-10{% elif leg.needs_review %}bg-warning bg-opacity-10{% else %}bg-light{% endif %} p-2">
+                        {% if leg.needs_review %}
+                          <div class="mb-1">
+                            {% if leg.is_zero_pay %}<span class="badge bg-danger me-1">$0 PAY</span>{% endif %}
+                            {% if leg.is_cruise %}<span class="badge bg-info text-dark me-1">🚢 CRUISE</span>{% endif %}
+                            {% if leg.is_sanford %}<span class="badge bg-warning text-dark me-1"><i class="bi bi-airplane me-1"></i>SFB</span>{% endif %}
+                          </div>
+                        {% endif %}
                         <div class="d-flex justify-content-between align-items-center">
                           <h6 class="mb-0 fw-bold">{{ leg.reservation.customer.get_full_name }}</h6>
                           <a href="{% url 'reservation_details' leg.reservation.uuid %}"
@@ -723,6 +782,7 @@
           </div>
           <div id="paymentPreview">
             <p><strong>Driver:</strong> <span id="previewDriverName"></span></p>
+            <p id="previewDateRange" style="display:none;"><strong>Date Range:</strong> <span id="previewDates"></span></p>
             <p><strong>Total Legs:</strong> <span id="previewLegCount"></span></p>
             <p><strong>Total Amount:</strong> <span id="previewTotalAmount" class="fw-bold text-success"></span></p>
             <p><strong>Payment Method:</strong> <span id="previewPaymentMethod"></span></p>
@@ -757,6 +817,17 @@
       document.addEventListener('DOMContentLoaded', function() {
           const driverPayInputs = document.querySelectorAll('.driver-pay-input');
           const saveButtons = document.querySelectorAll('.save-pay-btn');
+
+          // Reset dates button
+          const resetBtn = document.getElementById('resetDatesBtn');
+          if (resetBtn) {
+              resetBtn.addEventListener('click', function() {
+                  document.getElementById('dateFrom').value = '';
+                  document.getElementById('dateTo').value = '';
+                  // Re-submit with cleared dates (keep driver selected)
+                  document.getElementById('driverSelectForm').submit();
+              });
+          }
 
           // Get CSRF token
           const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
@@ -961,6 +1032,19 @@
                   document.getElementById('previewLegCount').textContent = completedLegCount;
                   document.getElementById('previewTotalAmount').textContent = '$' + totalPayCompleted.toFixed(2);
                   document.getElementById('previewPaymentMethod').textContent = paymentMethod;
+
+                  // Show date range in preview if filtered
+                  const dateFrom = document.getElementById('dateFrom').value;
+                  const dateTo = document.getElementById('dateTo').value;
+                  const dateRangeEl = document.getElementById('previewDateRange');
+                  if (dateFrom || dateTo) {
+                      const fromStr = dateFrom || 'earliest';
+                      const toStr = dateTo || 'latest';
+                      document.getElementById('previewDates').textContent = fromStr + ' to ' + toStr;
+                      dateRangeEl.style.display = '';
+                  } else {
+                      dateRangeEl.style.display = 'none';
+                  }
                   
                   // Store driver ID for confirmation
                   confirmProcessPaymentBtn.dataset.driverId = driverId;
@@ -995,7 +1079,9 @@
                       },
                   body: JSON.stringify({
                           driver_id: driverId,
-                          send_email: sendStatementCheckbox ? sendStatementCheckbox.checked : false
+                          send_email: sendStatementCheckbox ? sendStatementCheckbox.checked : false,
+                          date_from: document.getElementById('dateFrom').value || null,
+                          date_to: document.getElementById('dateTo').value || null
                       })
                   })
                   .then(response => response.json())

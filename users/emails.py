@@ -481,16 +481,22 @@ def send_agent_commission_statement(agent, payout, recipient_email):
 
     try:
         # Get reservations for this payout
-        reservations = payout.reservations.all().order_by("created_at")
+        reservations = payout.reservations.all().order_by("created_at").select_related("customer")
 
-        # Calculate total base price
+        # Calculate totals
         total_base_price = sum(r.base_price or 0 for r in reservations)
+        total_gratuity = sum(r.gratuity_amount or 0 for r in reservations)
+        total_additional = sum(r.additional_charges or 0 for r in reservations)
+        total_charged = total_base_price + total_gratuity + total_additional
 
         context = {
             "agent": agent,
             "payout": payout,
             "reservations": reservations,
             "total_base_price": total_base_price,
+            "total_gratuity": total_gratuity,
+            "total_additional": total_additional,
+            "total_charged": total_charged,
             "date": timezone.now().date(),
         }
 
@@ -583,4 +589,54 @@ def send_agency_commission_statement(agency, payout, recipient_email):
         return True
     except Exception as e:
         logger.exception(f"Failed to queue agency commission statement email: {e}")
+        return False
+
+
+def send_lead_quote_email(lead, booking_url=None):
+    """
+    Send a quote email to a lead. Used as fallback when SMS fails
+    (e.g. UK numbers, invalid phone numbers).
+
+    Args:
+        lead: Lead instance with email, trip details, etc.
+        booking_url: Optional URL to the booking page
+
+    Returns:
+        bool: True if email was queued successfully, False otherwise
+    """
+    if not lead.email:
+        logger.warning(f"Lead #{lead.id} has no email address, cannot send quote email")
+        return False
+
+    try:
+        validate_email(lead.email)
+    except ValidationError:
+        logger.warning(f"Lead #{lead.id} has invalid email: {lead.email}")
+        return False
+
+    try:
+        # Get the latest quote for this lead
+        quote = lead.quotes.filter(is_current=True).first()
+
+        context = {
+            "lead": lead,
+            "quote": quote,
+            "booking_url": booking_url or "https://graysontowncar.com/rates-booking/",
+        }
+
+        subject = f"Your Grayson Towncar Quote — {lead.pickup_location or 'Orlando'} to {lead.dropoff_location or 'your destination'}"
+        from_email = "reservations@graysontowncar.com"
+        to = [lead.email]
+        html_content = render_to_string("users/lead_quote_email.html", context)
+
+        def _send_email():
+            msg = EmailMultiAlternatives(subject, "", from_email, to)
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            logger.info(f"Lead quote email sent to {lead.email} for lead #{lead.id}")
+
+        _send_email_with_retry(_send_email, max_retries=3)
+        return True
+    except Exception as e:
+        logger.exception(f"Failed to send lead quote email for lead #{lead.id}: {e}")
         return False

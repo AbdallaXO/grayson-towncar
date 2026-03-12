@@ -151,6 +151,23 @@
             border-top: 2px solid #1a1a2e;
         }
 
+        .non-comm {
+            color: #888888;
+            font-size: 11px;
+        }
+
+        .badge-nc {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            background-color: #f0f0f0;
+            color: #888888;
+            vertical-align: middle;
+            letter-spacing: 0.3px;
+        }
+
         .section-title {
             margin: 28px 0 12px 0;
             font-size: 16px;
@@ -213,8 +230,28 @@
                 background-color: #1a1a1a;
             }
 
+            .header h1, .section-title {
+                color: #e0e0e0;
+            }
+
+            .header .subtitle {
+                color: #aaaaaa;
+            }
+
             .summary, .stat-box {
                 background-color: #2a2a2a;
+            }
+
+            .summary-row {
+                border-bottom-color: #444444;
+            }
+
+            .summary-label {
+                color: #aaaaaa;
+            }
+
+            .summary-value {
+                color: #e0e0e0;
             }
 
             .agent-section {
@@ -238,8 +275,26 @@
                 border-top-color: #e0e0e0;
             }
 
-            .stat-value, .agent-name, .agent-amount, .section-title {
+            .stat-value, .agent-name, .agent-amount {
                 color: #e0e0e0;
+            }
+
+            .stat-label, .agent-stats {
+                color: #aaaaaa;
+            }
+
+            .section-title {
+                border-bottom-color: #444444;
+            }
+
+            .badge-nc {
+                background-color: #333333;
+                color: #999999;
+            }
+
+            .footer {
+                border-top-color: #444444;
+                color: #aaaaaa;
             }
         }
     </style>
@@ -307,8 +362,8 @@
             <tr>
               <th>Date</th>
               <th>Customer</th>
-              <th>Trip Type</th>
-              <th class="text-right">Base Price</th>
+              <th class="text-right">Total Charged</th>
+              <th class="text-right">Commissionable</th>
               <th class="text-right">Commission</th>
             </tr>
           </thead>
@@ -317,7 +372,18 @@
               <tr>
                 <td>{{ reservation.created_at|date:"m/d/Y" }}</td>
                 <td>{{ reservation.customer.get_full_name|default:"N/A" }}</td>
-                <td>{{ reservation.get_trip_type_display }}</td>
+                <td class="text-right">
+                  ${{ reservation.total_price|floatformat:2 }}
+                  {% if reservation.gratuity_amount or reservation.additional_charges %}
+                  <br>
+                  <span class="non-comm">
+                    {% if reservation.gratuity_amount %}Grat: ${{ reservation.gratuity_amount|floatformat:2 }}{% endif %}
+                    {% if reservation.gratuity_amount and reservation.additional_charges %} | {% endif %}
+                    {% if reservation.additional_charges %}Addl: ${{ reservation.additional_charges|floatformat:2 }}{% endif %}
+                    <span class="badge-nc">N/C</span>
+                  </span>
+                  {% endif %}
+                </td>
                 <td class="text-right">${{ reservation.base_price|floatformat:2 }}</td>
                 <td class="text-right">${{ reservation.commission_amount|floatformat:2 }}</td>
               </tr>
@@ -332,6 +398,10 @@
       {% empty %}
       <p class="text-center" style="color: #666666;">No agent payouts found for this statement.</p>
       {% endfor %}
+
+      <p style="margin-top: 8px; font-size: 11px; color: #999999;">
+        <span class="badge-nc">N/C</span> = Non-Commissionable &mdash; Gratuity and additional charges are not included in commission calculations.
+      </p>
 
       {% if payout.notes %}
       <div style="margin-top: 20px; padding: 12px; background-color: #fff3cd; border-radius: 6px; font-size: 13px;">

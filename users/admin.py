@@ -552,6 +552,28 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     readonly_fields = ["paid_at", "reservation_details"]
     list_per_page = 50
 
+    @admin.action(description="Send commission statement email")
+    def send_commission_statement(self, request, queryset):
+        from users.emails import send_agent_commission_statement
+
+        sent = 0
+        failed = 0
+        for payout in queryset.select_related("agent__user"):
+            agent = payout.agent
+            email = agent.user.email if agent.user else None
+            if not email:
+                failed += 1
+                continue
+            if send_agent_commission_statement(agent=agent, payout=payout, recipient_email=email):
+                sent += 1
+            else:
+                failed += 1
+
+        if sent:
+            self.message_user(request, f"Sent {sent} statement(s) successfully.")
+        if failed:
+            self.message_user(request, f"Failed to send {failed} statement(s).", level="error")
+
     fieldsets = (
         (
             "Payout Information",
@@ -1012,6 +1034,33 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     readonly_fields = ["paid_at", "agent_payout_details"]
     list_per_page = 50
 
+    @admin.action(description="Send agency commission statement email")
+    def send_commission_statement(self, request, queryset):
+        from users.emails import send_agency_commission_statement
+
+        sent = 0
+        failed = 0
+        for payout in queryset.select_related("agency"):
+            agency = payout.agency
+            # Send to all agency heads
+            head_emails = list(agency.heads.values_list("email", flat=True))
+            if not head_emails:
+                failed += 1
+                continue
+            payout_sent = False
+            for email in head_emails:
+                if email and send_agency_commission_statement(agency=agency, payout=payout, recipient_email=email):
+                    payout_sent = True
+            if payout_sent:
+                sent += 1
+            else:
+                failed += 1
+
+        if sent:
+            self.message_user(request, f"Sent {sent} agency statement(s) successfully.")
+        if failed:
+            self.message_user(request, f"Failed to send {failed} statement(s).", level="error")
+
     fieldsets = (
         (
             "Payout Information",
@@ -1110,7 +1159,7 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
     agent_payout_details.short_description = "Agent Payout Details"
 
-    actions = ["cancel_agency_payouts"]
+    actions = ["cancel_agency_payouts", "send_commission_statement"]
 
     def cancel_agency_payouts(self, request, queryset):
         """Cancel selected agency payouts."""
