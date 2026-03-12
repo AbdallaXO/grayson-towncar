@@ -2144,11 +2144,11 @@ class LeadAdmin(admin.ModelAdmin):
                 if lead.email:
                     matching_reservation = Reservation.objects.filter(
                         customer__email__iexact=lead.email
-                    ).order_by('-pickup_date').first()
+                    ).order_by('-created_at').first()
                 if not matching_reservation and lead.phone:
                     matching_reservation = Reservation.objects.filter(
                         customer__phone_number__iexact=lead.phone
-                    ).order_by('-pickup_date').first()
+                    ).order_by('-created_at').first()
                 if matching_reservation:
                     lead.converted_reservation = matching_reservation
                     linked += 1

@@ -36,7 +36,7 @@ class Command(BaseCommand):
             if lead.email:
                 matching = (
                     Reservation.objects.filter(customer__email__iexact=lead.email)
-                    .order_by("-pickup_date")
+                    .order_by("-created_at")
                     .first()
                 )
 
@@ -44,7 +44,7 @@ class Command(BaseCommand):
             if not matching and lead.phone:
                 matching = (
                     Reservation.objects.filter(customer__phone_number__iexact=lead.phone)
-                    .order_by("-pickup_date")
+                    .order_by("-created_at")
                     .first()
                 )
 
@@ -57,7 +57,7 @@ class Command(BaseCommand):
                     candidates = (
                         Reservation.objects.filter(customer__phone_number__contains=last4)
                         .select_related("customer")
-                        .order_by("-pickup_date")
+                        .order_by("-created_at")
                     )
                     for res in candidates:
                         cand_digits = "".join(filter(str.isdigit, res.customer.phone_number))
