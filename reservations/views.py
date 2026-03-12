@@ -35,7 +35,21 @@ from .models import Lead, Quote, Reservation
 logger = logging.getLogger(__name__)
 
 
-# Create your views here.
+# UTM source normalization map
+_UTM_SOURCE_MAP = {
+    "facebook": "meta",
+    "fb": "meta",
+    "ig": "meta",
+    "instagram": "meta",
+    "meta": "meta",
+    "google": "google",
+    "gclid": "google",
+}
+
+
+def _normalize_utm_source(source):
+    """Normalize UTM source values (e.g. facebook/fb/ig → meta)."""
+    return _UTM_SOURCE_MAP.get(source.lower().strip(), source.lower().strip())
 
 
 def index(request):
@@ -161,9 +175,13 @@ def reservation_form(
             
             # Auto-detect Meta/Facebook traffic if fbclid present but no utm_source
             if reservation.fbclid and not reservation.utm_source:
-                reservation.utm_source = "facebook"
+                reservation.utm_source = "meta"
                 reservation.utm_medium = "cpc"
-                logger.info("Auto-detected Facebook/Meta traffic from fbclid")
+                logger.info("Auto-detected Meta traffic from fbclid")
+
+            # Normalize UTM sources
+            if reservation.utm_source:
+                reservation.utm_source = _normalize_utm_source(reservation.utm_source)
 
             # Save the reservation with UTM data
             reservation.save()
@@ -479,9 +497,13 @@ class QuoteFormHandlerView(View):
                 
                 # Auto-detect Meta/Facebook traffic if fbclid present but no utm_source
                 if lead.fbclid and not lead.utm_source:
-                    lead.utm_source = "facebook"
+                    lead.utm_source = "meta"
                     lead.utm_medium = "cpc"
-                    logger.info("Auto-detected Facebook/Meta traffic from fbclid for lead")
+                    logger.info("Auto-detected Meta traffic from fbclid for lead")
+
+                # Normalize UTM sources
+                if lead.utm_source:
+                    lead.utm_source = _normalize_utm_source(lead.utm_source)
 
                 # Set high/medium priority based on trip date
                 if lead.pickup_date:

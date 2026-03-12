@@ -8260,7 +8260,8 @@ def lead_analytics(request):
     """
     if not request.user.is_superuser:
         return redirect("dashboard")
-    from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField
+    from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField, Case, When
+    from django.db.models.functions import Coalesce, Greatest
     from reservations.models import Lead
     from ghl_integration.models import FollowUpTask, LeadActivity
 
@@ -8297,31 +8298,23 @@ def lead_analytics(request):
     reply_rate_val = leads_qs.filter(has_replied=True).count()
     reply_rate = round(reply_rate_val / all_leads * 100, 1) if all_leads else 0
 
-    # ── Segment breakdown ──
-    segment_data = list(
-        leads_qs.values("segment")
-        .annotate(
-            total=Count("id"),
-            replied=Count("id", filter=Q(has_replied=True)),
-            converted=Count("id", filter=Q(converted=True)),
-        )
-        .order_by("-total")
-    )
-    for seg in segment_data:
-        seg["reply_pct"] = round(seg["replied"] / seg["total"] * 100, 1) if seg["total"] else 0
-        seg["conv_pct"] = round(seg["converted"] / seg["total"] * 100, 1) if seg["total"] else 0
-        seg["label"] = dict(Lead.SegmentChoices.choices).get(seg["segment"], seg["segment"])
-
     # ── Priority breakdown ──
     priority_counts = dict(
         leads_qs.values_list("priority").annotate(c=Count("id")).values_list("priority", "c")
     )
 
-    # ── Source attribution (UTM) ──
+    # ── Source attribution (UTM) — normalize historical variants ──
+    from django.db.models import Value
+    from django.db.models.functions import Lower
+    normalized_source = Case(
+        When(utm_source__in=["facebook", "fb", "ig", "instagram", "Facebook", "Meta"], then=Value("meta")),
+        default=Lower("utm_source"),
+    )
     source_data = list(
         leads_qs.exclude(utm_source__isnull=True)
         .exclude(utm_source="")
-        .values("utm_source")
+        .annotate(norm_source=normalized_source)
+        .values("norm_source")
         .annotate(
             total=Count("id"),
             converted=Count("id", filter=Q(converted=True)),
@@ -8329,12 +8322,17 @@ def lead_analytics(request):
         .order_by("-total")[:10]
     )
     for src in source_data:
+        src["utm_source"] = src["norm_source"]
         src["conv_pct"] = round(src["converted"] / src["total"] * 100, 1) if src["total"] else 0
 
     # Ad click attribution
-    gclid_leads = leads_qs.exclude(gclid__isnull=True).exclude(gclid="").count()
-    fbclid_leads = leads_qs.exclude(fbclid__isnull=True).exclude(fbclid="").count()
-    direct_leads = all_leads - gclid_leads - fbclid_leads
+    google_leads = leads_qs.exclude(gclid__isnull=True).exclude(gclid="").count()
+    meta_leads = leads_qs.exclude(fbclid__isnull=True).exclude(fbclid="").count()
+    organic_leads = leads_qs.filter(
+        Q(gclid__isnull=True) | Q(gclid=""),
+        Q(fbclid__isnull=True) | Q(fbclid=""),
+    ).exclude(utm_source__isnull=True).exclude(utm_source="").count()
+    direct_leads = all_leads - google_leads - meta_leads - organic_leads
 
     # ── Revenue attribution ──
     revenue_data = (
@@ -8348,15 +8346,34 @@ def lead_analytics(request):
     total_lead_revenue = revenue_data["total_revenue"] or Decimal("0.00")
     avg_lead_revenue = revenue_data["avg_revenue"] or Decimal("0.00")
 
-    # Revenue by source
+    # Revenue by source (normalized)
     revenue_by_source = list(
         leads_qs.filter(converted=True, converted_reservation__isnull=False)
         .exclude(utm_source__isnull=True)
         .exclude(utm_source="")
-        .values("utm_source")
+        .annotate(norm_source=normalized_source)
+        .values("norm_source")
         .annotate(revenue=Sum("converted_reservation__total_price"), count=Count("id"))
         .order_by("-revenue")[:10]
     )
+    for rev in revenue_by_source:
+        rev["utm_source"] = rev["norm_source"]
+
+    # ── Time to conversion (lead created → converted) ──
+    converted_leads_qs = leads_qs.filter(converted=True, converted_at__isnull=False)
+    avg_conversion_time = None
+    if converted_leads_qs.exists():
+        conv_times = converted_leads_qs.annotate(
+            conv_delta=ExpressionWrapper(
+                F("converted_at") - F("created_at"),
+                output_field=DurationField(),
+            )
+        ).filter(conv_delta__isnull=False, conv_delta__gt=timedelta(0))
+        if conv_times.exists():
+            avg_td = conv_times.aggregate(avg=Avg("conv_delta"))["avg"]
+            if avg_td:
+                avg_days = avg_td.total_seconds() / 86400
+                avg_conversion_time = round(avg_days, 1)
 
     # ── Follow-up engine metrics ──
     tasks_qs = FollowUpTask.objects.filter(created_at__gte=start_date) if start_date else FollowUpTask.objects.all()
@@ -8393,13 +8410,21 @@ def lead_analytics(request):
     sequences_completed = leads_qs.filter(sequence_completed_at__isnull=False).count()
     needs_follow_up = leads_qs.filter(needs_human_follow_up=True).count()
 
-    # ── Response time (lead created → first reply) ──
+    # ── Response time (first contact → first reply) ──
+    # Use whichever contact method actually reached the lead (SMS or email fallback)
     replied_leads = leads_qs.filter(has_replied=True, last_reply_at__isnull=False)
     avg_response_time = None
     if replied_leads.exists():
         response_times = replied_leads.annotate(
+            first_contact_at=Case(
+                When(initial_sms_sent_at__isnull=False, initial_email_sent_at__isnull=False,
+                     then=Greatest(F("initial_sms_sent_at"), F("initial_email_sent_at"))),
+                When(initial_email_sent_at__isnull=False, then=F("initial_email_sent_at")),
+                When(initial_sms_sent_at__isnull=False, then=F("initial_sms_sent_at")),
+            ),
+        ).exclude(first_contact_at__isnull=True).annotate(
             response_delta=ExpressionWrapper(
-                F("last_reply_at") - F("initial_sms_sent_at"),
+                F("last_reply_at") - F("first_contact_at"),
                 output_field=DurationField(),
             )
         ).filter(response_delta__isnull=False, response_delta__gt=timedelta(0))
@@ -8432,10 +8457,10 @@ def lead_analytics(request):
         has_replied=False,
     ).count()
 
-    failed_syncs = leads_qs.filter(
-        ghl_contact_id__isnull=True,
-        phone__isnull=False,
-    ).exclude(phone="").count()
+    from ghl_integration.models import GHLSyncLog
+    failed_syncs = GHLSyncLog.objects.filter(
+        status=GHLSyncLog.StatusChoices.DEAD_LETTER,
+    ).count()
 
     # ── Recent activity ──
     activity_qs = LeadActivity.objects.select_related("lead").order_by("-created_at")
@@ -8464,16 +8489,16 @@ def lead_analytics(request):
         "lost_count": lost_count,
         "cold_count": cold_count,
         "future_count": future_count,
-        # Segments
-        "segment_data": segment_data,
         # Priority
         "priority_counts": priority_counts,
         # Source
         "source_data": source_data,
-        "gclid_leads": gclid_leads,
-        "fbclid_leads": fbclid_leads,
+        "google_leads": google_leads,
+        "meta_leads": meta_leads,
+        "organic_leads": organic_leads,
         "direct_leads": direct_leads,
         "revenue_by_source": revenue_by_source,
+        "avg_conversion_time": avg_conversion_time,
         # Follow-up engine
         "tasks_sent": tasks_sent,
         "tasks_pending": tasks_pending,

@@ -299,48 +299,6 @@
                     </div>
                 </div>
 
-                <!-- Segment Performance -->
-                <div class="la-card">
-                    <div class="la-card-header">
-                        <div class="la-icon" style="background: var(--la-amber-light); color: var(--la-amber);"><i class="bi bi-pie-chart-fill"></i></div>
-                        <h3>Segment Performance</h3>
-                    </div>
-                    {% if segment_data %}
-                    <div class="table-responsive">
-                        <table class="la-table">
-                            <thead>
-                                <tr>
-                                    <th>Segment</th>
-                                    <th style="text-align:center">Leads</th>
-                                    <th style="text-align:center">Replied</th>
-                                    <th style="text-align:center">Reply %</th>
-                                    <th style="text-align:center">Converted</th>
-                                    <th style="text-align:center">Conv %</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for seg in segment_data %}
-                                <tr>
-                                    <td><strong>{{ seg.label }}</strong></td>
-                                    <td style="text-align:center">{{ seg.total }}</td>
-                                    <td style="text-align:center">{{ seg.replied }}</td>
-                                    <td style="text-align:center">
-                                        <span class="la-badge" style="{% if seg.reply_pct >= 20 %}background: var(--la-green-light); color: var(--la-green);{% elif seg.reply_pct >= 10 %}background: var(--la-amber-light); color: var(--la-amber);{% else %}background: var(--la-surface-alt); color: var(--la-text-secondary);{% endif %}">{{ seg.reply_pct }}%</span>
-                                    </td>
-                                    <td style="text-align:center">{{ seg.converted }}</td>
-                                    <td style="text-align:center">
-                                        <span class="la-badge" style="{% if seg.conv_pct >= 20 %}background: var(--la-green-light); color: var(--la-green);{% elif seg.conv_pct >= 10 %}background: var(--la-amber-light); color: var(--la-amber);{% else %}background: var(--la-surface-alt); color: var(--la-text-secondary);{% endif %}">{{ seg.conv_pct }}%</span>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <p class="text-muted mb-0">No segment data yet.</p>
-                    {% endif %}
-                </div>
-
                 <!-- Follow-Up Engine -->
                 <div class="la-card">
                     <div class="la-card-header">
@@ -530,9 +488,15 @@
                         <span style="font-size: 1rem; font-weight: 800; color: var(--la-green);">{{ sequences_completed }}</span>
                     </div>
                     {% if avg_response_time %}
-                    <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0;">
+                    <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0;{% if avg_conversion_time %} border-bottom: 1px solid var(--la-surface-alt);{% endif %}">
                         <span style="font-size: 0.85rem;">Avg reply time</span>
                         <span style="font-size: 1rem; font-weight: 800;">{{ avg_response_time }}h</span>
+                    </div>
+                    {% endif %}
+                    {% if avg_conversion_time %}
+                    <div class="d-flex justify-content-between align-items-center" style="padding: 0.5rem 0;">
+                        <span style="font-size: 0.85rem;">Avg time to convert</span>
+                        <span style="font-size: 1rem; font-weight: 800;">{{ avg_conversion_time }}d</span>
                     </div>
                     {% endif %}
                 </div>
@@ -546,22 +510,28 @@
                     <div class="la-attr-row">
                         <div class="la-attr-icon" style="color: #4285F4;"><i class="bi bi-google"></i></div>
                         <div class="la-attr-label">Google Ads</div>
-                        <div class="la-attr-count">{{ gclid_leads }}</div>
+                        <div class="la-attr-count">{{ google_leads }}</div>
                     </div>
                     <div class="la-attr-row">
                         <div class="la-attr-icon" style="color: #1877F2;"><i class="bi bi-meta"></i></div>
                         <div class="la-attr-label">Meta Ads</div>
-                        <div class="la-attr-count">{{ fbclid_leads }}</div>
+                        <div class="la-attr-count">{{ meta_leads }}</div>
+                    </div>
+                    <div class="la-attr-row">
+                        <div class="la-attr-icon" style="color: var(--la-green);"><i class="bi bi-search"></i></div>
+                        <div class="la-attr-label">Organic</div>
+                        <div class="la-attr-count">{{ organic_leads }}</div>
                     </div>
                     <div class="la-attr-row">
                         <div class="la-attr-icon" style="color: var(--la-text-secondary);"><i class="bi bi-globe2"></i></div>
-                        <div class="la-attr-label">Direct / Organic</div>
+                        <div class="la-attr-label">Direct</div>
                         <div class="la-attr-count">{{ direct_leads }}</div>
                     </div>
                     {% if all_leads > 0 %}
                     <div class="la-stacked-bar">
-                        <div style="width: {% widthratio gclid_leads all_leads 100 %}%; background: #4285F4;"></div>
-                        <div style="width: {% widthratio fbclid_leads all_leads 100 %}%; background: #1877F2;"></div>
+                        <div style="width: {% widthratio google_leads all_leads 100 %}%; background: #4285F4;"></div>
+                        <div style="width: {% widthratio meta_leads all_leads 100 %}%; background: #1877F2;"></div>
+                        <div style="width: {% widthratio organic_leads all_leads 100 %}%; background: var(--la-green);"></div>
                         <div style="width: {% widthratio direct_leads all_leads 100 %}%; background: var(--la-border);"></div>
                     </div>
                     {% endif %}

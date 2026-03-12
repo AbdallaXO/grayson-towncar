@@ -100,6 +100,12 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
             # SMS failed (bad number, UK number, etc.) — try email instead
             email_sent = _try_email_fallback(lead)
             if email_sent:
+                # No SMS sequence for email-only leads — flag for human follow-up
+                with transaction.atomic():
+                    lead.refresh_from_db()
+                    lead.needs_human_follow_up = True
+                    lead.save(update_fields=["needs_human_follow_up"])
+                logger.info(f"Email-only Lead #{lead_id} flagged for human follow-up")
                 return {
                     "status": "email_fallback",
                     "lead_id": lead_id,
@@ -260,7 +266,47 @@ def batch_send_unsent_leads():
         count += 1
 
     logger.info(f"Queued {count} leads for GHL sync and SMS")
-    return {"queued": count}
+
+    # Also rescue stale leads (contacted but no sequence, no reply, have email)
+    stale_rescued = _rescue_stale_leads()
+
+    return {"queued": count, "stale_rescued": stale_rescued}
+
+
+def _rescue_stale_leads():
+    """
+    Find stale leads (contacted, no sequence, no reply, not converted)
+    that have an email address but were never emailed.
+    Send them the initial quote email and flag for human follow-up.
+    Runs as part of the regular batch cycle, 50 at a time.
+    """
+    from reservations.models import Lead
+
+    stale = Lead.objects.filter(
+        status__in=[Lead.StatusChoices.NEW, Lead.StatusChoices.CONTACTED],
+        sequence_active=False,
+        converted=False,
+        has_replied=False,
+        initial_email_sent=False,
+    ).exclude(email__isnull=True).exclude(email="").order_by("created_at")[:50]
+
+    rescued = 0
+    for lead in stale:
+        try:
+            if _try_email_fallback(lead):
+                lead.refresh_from_db()
+                lead.needs_human_follow_up = True
+                lead.save(update_fields=["needs_human_follow_up"])
+                rescued += 1
+                logger.info(f"Rescued stale Lead #{lead.id} via email")
+            else:
+                logger.warning(f"Stale Lead #{lead.id}: email send failed")
+        except Exception as e:
+            logger.error(f"Error rescuing stale Lead #{lead.id}: {e}")
+
+    if rescued:
+        logger.info(f"Rescued {rescued} stale leads via email")
+    return rescued
 
 
 def sync_lead_to_ghl_without_sms(lead_id):
