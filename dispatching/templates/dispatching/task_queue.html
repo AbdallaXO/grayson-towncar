@@ -589,14 +589,48 @@ body {
 .ops-act.a-claim:hover   { background: #dbeafe; border-color: var(--ops-blue); }
 .ops-act.a-done    { color: var(--ops-green); border-color: #a7f3d0; background: #ecfdf5; }
 .ops-act.a-done:hover    { background: #d1fae5; border-color: var(--ops-green); }
-.ops-act.a-snooze  { color: var(--ops-amber); }
-.ops-act.a-snooze:hover  { background: #fffbeb; border-color: var(--ops-amber); }
+.ops-act.a-assign  { color: #6366f1; }
+.ops-act.a-assign:hover  { background: #eef2ff; border-color: #6366f1; }
 .ops-act.a-comm    { color: var(--ops-blue); }
 .ops-act.a-comm:hover    { background: #eff6ff; border-color: var(--ops-blue); }
 .ops-act.a-cancel  { color: var(--ops-text-muted); }
 .ops-act.a-cancel:hover  { color: var(--ops-red); background: #fef2f2; border-color: var(--ops-red); }
 
-/* Snooze dropdown */
+/* Assign dropdown (queue) */
+.q-assign-wrap { position: relative; display: inline-block; }
+.q-assign-pop {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  z-index: 200;
+  padding: .25rem 0;
+  overflow: hidden;
+}
+.q-assign-pop.open { display: block; }
+.q-assign-opt {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .7rem;
+  font-size: .75rem;
+  font-weight: 500;
+  color: var(--ops-text);
+  cursor: pointer;
+  transition: background .1s;
+  font-family: var(--ops-sans);
+}
+.q-assign-opt:hover { background: #f1f5f9; }
+.q-assign-opt.current { color: var(--ops-blue); font-weight: 700; }
+.q-assign-opt.current::after { content: '\2713'; margin-left: auto; font-size: .65rem; }
+.q-assign-sep { height: 1px; background: var(--ops-border); margin: .15rem 0; }
+
+/* Snooze dropdown (legacy) */
 .snooze-wrap { position: relative; display: inline-block; }
 .snooze-pop {
   display: none;
@@ -783,6 +817,188 @@ body {
 /* ── Navbar override for dark theme ── */
 .navbar { margin-bottom: 0 !important; }
 
+/* ═══ My Active Tasks Banner ═══ */
+.my-active-section {
+  margin: 0 0 .5rem;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-bottom: 2px solid #334155;
+}
+.my-active-header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .65rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.my-active-header i {
+  color: #60a5fa;
+  font-size: .9rem;
+}
+.my-active-header .mah-label {
+  font-family: var(--ops-sans);
+  font-size: .72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.my-active-header .mah-count {
+  background: rgba(96,165,250,.15);
+  color: #60a5fa;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .1rem .4rem;
+  border-radius: 10px;
+  font-family: var(--ops-mono);
+}
+
+.my-active-row {
+  display: grid;
+  grid-template-columns: 4px 36px 1fr auto;
+  align-items: center;
+  padding: 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  transition: background .1s;
+  min-height: 50px;
+}
+.my-active-row:last-child { border-bottom: none; }
+.my-active-row:hover { background: rgba(255,255,255,.03); }
+
+/* Urgency pulse edge */
+.my-active-row .ma-edge {
+  width: 4px;
+  align-self: stretch;
+}
+.ma-edge.urg-critical { background: #ef4444; animation: urgPulse 1.5s ease-in-out infinite; }
+.ma-edge.urg-high { background: #f59e0b; }
+.ma-edge.urg-medium { background: #3b82f6; opacity: .5; }
+.ma-edge.urg-low { background: #475569; }
+
+@keyframes urgPulse {
+  0%, 100% { opacity: .5; }
+  50% { opacity: 1; }
+}
+
+.my-active-row .ma-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  font-size: .85rem;
+  color: #94a3b8;
+}
+
+.my-active-row .ma-body {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: .5rem .5rem .5rem 0;
+  min-width: 0;
+}
+.ma-title-line {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.ma-title {
+  font-size: .8rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+.ma-title:hover { color: #fff; text-decoration: underline; }
+
+.ma-urgency-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .1rem .4rem;
+  border-radius: 3px;
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ma-urgency-tag.urg-critical {
+  background: rgba(239,68,68,.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239,68,68,.35);
+  animation: urgPulse 1.5s ease-in-out infinite;
+}
+.ma-urgency-tag.urg-high {
+  background: rgba(245,158,11,.15);
+  color: #fcd34d;
+  border: 1px solid rgba(245,158,11,.3);
+}
+.ma-urgency-tag.urg-medium {
+  background: rgba(59,130,246,.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59,130,246,.25);
+}
+.ma-urgency-tag.urg-low {
+  background: rgba(148,163,184,.1);
+  color: #94a3b8;
+  border: 1px solid rgba(148,163,184,.2);
+}
+
+.ma-overdue-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  font-size: .56rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(239,68,68,.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239,68,68,.3);
+}
+
+.ma-meta {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  font-size: .68rem;
+  color: #64748b;
+  font-family: var(--ops-mono);
+}
+.ma-meta a { color: #94a3b8; text-decoration: none; }
+.ma-meta a:hover { color: #e2e8f0; }
+.ma-meta .meta-due { color: #94a3b8; }
+.ma-meta .meta-overdue { color: #fca5a5; }
+
+.my-active-row .ma-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 .65rem;
+}
+.ma-act {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.05);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .1s;
+  font-size: .78rem;
+  color: #94a3b8;
+}
+.ma-act:hover { background: rgba(255,255,255,.12); color: #e2e8f0; }
+.ma-act.ma-complete { color: #34d399; }
+.ma-act.ma-complete:hover { background: rgba(52,211,153,.15); }
+
 /* ── Toast notification ── */
 .ops-toast {
   position: fixed;
@@ -875,6 +1091,56 @@ body {
       <a href="{% url 'task_queue' %}" class="ops-filter-btn">Reset</a>
     </div>
   </form>
+
+  <!-- ═══ My Active Tasks ═══ -->
+  {% if my_active %}
+  <div class="my-active-section">
+    <div class="my-active-header">
+      <i class="bi bi-lightning-charge-fill"></i>
+      <span class="mah-label">Your Active Tasks</span>
+      <span class="mah-count">{{ my_active|length }}</span>
+    </div>
+    {% for task in my_active %}
+    <div class="my-active-row" id="my-task-row-{{ task.id }}">
+      <div class="ma-edge {% if task.priority == 1 %}urg-critical{% elif task.priority == 2 %}urg-high{% elif task.priority == 3 %}urg-medium{% else %}urg-low{% endif %}"></div>
+      <div class="ma-icon">
+        <i class="{{ task.type_icon }}"></i>
+      </div>
+      <div class="ma-body">
+        <div class="ma-title-line">
+          <a href="{% url 'task_detail' task.id %}" class="ma-title">{{ task.title }}</a>
+          <span class="ma-urgency-tag {% if task.priority == 1 %}urg-critical{% elif task.priority == 2 %}urg-high{% elif task.priority == 3 %}urg-medium{% else %}urg-low{% endif %}">
+            {% if task.priority == 1 %}<i class="bi bi-exclamation-triangle-fill"></i> Critical{% elif task.priority == 2 %}<i class="bi bi-arrow-up-circle-fill"></i> High{% elif task.priority == 3 %}Medium{% else %}Low{% endif %}
+          </span>
+          {% if task.is_overdue %}<span class="ma-overdue-tag"><i class="bi bi-clock-fill"></i> {{ task.due_at|timesince }} overdue</span>{% endif %}
+        </div>
+        <div class="ma-meta">
+          {% if task.leg %}
+          <span>
+            <i class="bi bi-person-fill" style="font-size:.6rem;"></i>
+            <a href="{% url 'reservation_details' task.leg.reservation.uuid %}">{{ task.leg.reservation.customer.get_full_name|truncatewords:3 }}</a>
+          </span>
+          <span>L{{ task.leg.id }} &middot; {{ task.leg.pickup_date|date:"M j" }}</span>
+          {% elif task.reservation %}
+          <span>
+            <a href="{% url 'reservation_details' task.reservation.uuid %}">{{ task.reservation.customer.get_full_name|truncatewords:3 }}</a>
+          </span>
+          {% endif %}
+          <span class="{% if task.is_overdue %}meta-overdue{% else %}meta-due{% endif %}">
+            <i class="bi bi-clock{% if task.is_overdue %}-fill{% endif %}" style="font-size:.6rem;"></i>
+            {% if task.is_overdue %}{{ task.due_at|timesince }} ago{% else %}due {{ task.due_at|date:"g:iA"|lower }}{% endif %}
+          </span>
+          <span>{{ task.get_task_type_display }}</span>
+        </div>
+      </div>
+      <div class="ma-actions">
+        <a href="{% url 'task_detail' task.id %}" class="ma-act" title="Open"><i class="bi bi-arrow-right"></i></a>
+        <button class="ma-act ma-complete btn-task-action" data-action="complete" data-task-id="{{ task.id }}" title="Complete"><i class="bi bi-check-lg"></i></button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <!-- ═══ Task List — grouped by priority ═══ -->
   <div class="ops-task-list">
@@ -994,19 +1260,25 @@ body {
             <i class="bi bi-person-check"></i>
           </button>
           {% endif %}
+          <div class="q-assign-wrap">
+            <button class="ops-act a-assign btn-assign-toggle" data-task-id="{{ task.id }}" title="Assign To">
+              <i class="bi bi-person-plus"></i>
+            </button>
+            <div class="q-assign-pop" data-task-id="{{ task.id }}">
+              <div class="q-assign-opt {% if not task.assigned_to %}current{% endif %}" data-user-id="" data-task-id="{{ task.id }}">
+                <i class="bi bi-person-dash"></i> Unassigned
+              </div>
+              <div class="q-assign-sep"></div>
+              {% for staff in ops_staff %}
+              <div class="q-assign-opt {% if task.assigned_to_id == staff.id %}current{% endif %}" data-user-id="{{ staff.id }}" data-task-id="{{ task.id }}">
+                <i class="bi bi-person-fill"></i> {{ staff.first_name|default:staff.username }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
           <button class="ops-act a-done btn-task-action" data-action="complete" data-task-id="{{ task.id }}" title="Complete">
             <i class="bi bi-check-lg"></i>
           </button>
-          <div class="snooze-wrap">
-            <button class="ops-act a-snooze btn-snooze-toggle" title="Snooze">
-              <i class="bi bi-clock"></i>
-            </button>
-            <div class="snooze-pop">
-              <a href="#" class="btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="1h"><i class="bi bi-clock-history"></i>1 hour</a>
-              <a href="#" class="btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="4h"><i class="bi bi-clock-history"></i>4 hours</a>
-              <a href="#" class="btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="tomorrow"><i class="bi bi-sunrise"></i>Tomorrow 9 AM</a>
-            </div>
-          </div>
           <button class="ops-act a-comm btn-log-comm" data-task-id="{{ task.id }}" data-task-title="{{ task.title }}" title="Log comm">
             <i class="bi bi-telephone"></i>
           </button>
@@ -1101,6 +1373,15 @@ body {
             </select>
           </div>
           <div class="mb-3">
+            <label class="form-label">Assign To</label>
+            <select id="newTaskAssignee" class="form-select">
+              <option value="">Unassigned</option>
+              {% for staff in ops_staff %}
+              <option value="{{ staff.id }}">{{ staff.first_name|default:staff.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
             <label class="form-label">Description</label>
             <textarea id="newTaskDescription" class="form-control" rows="2" placeholder="Optional details..."></textarea>
           </div>
@@ -1136,7 +1417,6 @@ function taskAction(action, taskId, extra = {}) {
   const urls = {
     claim: '{% url "task_claim" %}',
     complete: '{% url "task_complete" %}',
-    snooze: '{% url "task_snooze" %}',
     cancel: '{% url "task_cancel" %}',
   };
   fetch(urls[action], {
@@ -1160,7 +1440,7 @@ function taskAction(action, taskId, extra = {}) {
           row.style.borderBottom = 'none';
           row.style.overflow = 'hidden';
         }, 150);
-        const labels = {claim: 'Claimed', complete: 'Completed', snooze: 'Snoozed', cancel: 'Dismissed'};
+        const labels = {claim: 'Claimed', complete: 'Completed', cancel: 'Dismissed'};
         showToast(labels[action] || 'Done');
         setTimeout(() => location.reload(), 800);
       } else {
@@ -1181,25 +1461,46 @@ document.querySelectorAll('.btn-task-action').forEach(btn => {
     const action = this.dataset.action;
     const taskId = this.dataset.taskId;
     const extra = {};
-    if (action === 'snooze') extra.duration = this.dataset.duration;
     if (action === 'cancel' && !confirm('Dismiss this task?')) return;
     if (action === 'complete') extra.notes = prompt('Resolution notes (optional):') || '';
-    document.querySelectorAll('.snooze-pop.show').forEach(m => m.classList.remove('show'));
     taskAction(action, taskId, extra);
   });
 });
 
-/* ── Snooze Dropdown ── */
-document.querySelectorAll('.btn-snooze-toggle').forEach(btn => {
+/* ── Assign To Dropdown ── */
+document.querySelectorAll('.btn-assign-toggle').forEach(btn => {
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
-    const menu = this.nextElementSibling;
-    document.querySelectorAll('.snooze-pop.show').forEach(m => { if (m !== menu) m.classList.remove('show'); });
-    menu.classList.toggle('show');
+    const pop = this.nextElementSibling;
+    document.querySelectorAll('.q-assign-pop.open').forEach(m => { if (m !== pop) m.classList.remove('open'); });
+    pop.classList.toggle('open');
+  });
+});
+document.querySelectorAll('.q-assign-opt').forEach(opt => {
+  opt.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const userId = this.dataset.userId;
+    const taskId = this.dataset.taskId;
+    this.closest('.q-assign-pop').classList.remove('open');
+    fetch('{% url "task_assign" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({task_id: parseInt(taskId), user_id: userId || null}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        showToast(data.assigned_to ? 'Assigned to ' + data.assigned_to : 'Unassigned');
+        setTimeout(() => location.reload(), 600);
+      } else {
+        showToast('Error: ' + (data.error || 'Unknown'), 'error');
+      }
+    })
+    .catch(err => showToast('Network error', 'error'));
   });
 });
 document.addEventListener('click', () => {
-  document.querySelectorAll('.snooze-pop.show').forEach(m => m.classList.remove('show'));
+  document.querySelectorAll('.q-assign-pop.open').forEach(m => m.classList.remove('open'));
 });
 
 /* ── Log Communication Modal ── */
@@ -1228,7 +1529,7 @@ document.getElementById('btnSubmitComm').addEventListener('click', function() {
   .then(r => r.json())
   .then(result => {
     if (result.success) {
-      bootstrap.Modal.getInstance(document.getElementById('logCommModal')).hide();
+      bootstrap.Modal.getInstance(document.getElementById('logCommModal'))?.hide();
       showToast('Communication logged');
       setTimeout(() => location.reload(), 600);
     } else {
@@ -1240,10 +1541,12 @@ document.getElementById('btnSubmitComm').addEventListener('click', function() {
 
 /* ── Create Task ── */
 document.getElementById('btnCreateTask').addEventListener('click', function() {
+  const assigneeVal = document.getElementById('newTaskAssignee').value;
   const data = {
     title: document.getElementById('newTaskTitle').value,
     priority: parseInt(document.getElementById('newTaskPriority').value),
     description: document.getElementById('newTaskDescription').value,
+    assigned_to: assigneeVal ? parseInt(assigneeVal) : null,
   };
   if (!data.title.trim()) { showToast('Title is required', 'error'); return; }
   fetch('{% url "task_create_manual" %}', {
@@ -1254,7 +1557,7 @@ document.getElementById('btnCreateTask').addEventListener('click', function() {
   .then(r => r.json())
   .then(result => {
     if (result.success) {
-      bootstrap.Modal.getInstance(document.getElementById('createTaskModal')).hide();
+      bootstrap.Modal.getInstance(document.getElementById('createTaskModal'))?.hide();
       showToast('Task created');
       setTimeout(() => location.reload(), 600);
     } else {

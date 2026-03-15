@@ -718,12 +718,11 @@ class GoHighLevelService:
             if tag not in current_tags:
                 current_tags.append(tag)
                 
-                # Update contact with new tags
+                # Update contact with new tags — locationId must NOT be in PUT body
                 update_data = {
-                    'locationId': self.location_id,
                     'tags': current_tags,
                 }
-                
+
                 logger.debug(f"GHL API Request - PUT {url} with update_data: {update_data}")
                 update_response = requests.put(url, json=update_data, headers=self.headers, timeout=10)
                 
@@ -795,12 +794,11 @@ class GoHighLevelService:
             if tag in current_tags:
                 current_tags.remove(tag)
                 
-                # Update contact with updated tags
+                # Update contact with updated tags — locationId must NOT be in PUT body
                 update_data = {
-                    'locationId': self.location_id,
                     'tags': current_tags,
                 }
-                
+
                 logger.debug(f"GHL API Request - PUT {url} with update_data: {update_data}")
                 update_response = requests.put(url, json=update_data, headers=self.headers, timeout=10)
                 

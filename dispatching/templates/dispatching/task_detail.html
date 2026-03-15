@@ -164,6 +164,52 @@ body {
   color: #34d399;
 }
 .td-act.act-complete:hover { background: rgba(52, 211, 153, .25); }
+/* Assign To wrapper */
+.assign-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.td-act.act-assign {
+  border-color: rgba(99,102,241,.5);
+  background: rgba(99,102,241,.12);
+  color: #a5b4fc;
+  cursor: pointer;
+  user-select: none;
+}
+.td-act.act-assign:hover { background: rgba(99,102,241,.22); color: #c7d2fe; }
+
+/* Assign dropdown */
+.assign-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 190px;
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  z-index: 200;
+  overflow: hidden;
+  padding: .25rem 0;
+}
+.assign-dropdown.open { display: block; }
+.assign-dropdown .assign-option {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .55rem .85rem;
+  font-size: .78rem;
+  font-weight: 500;
+  color: rgba(241,245,249,.8);
+  cursor: pointer;
+  transition: background .1s;
+  font-family: var(--ops-sans);
+}
+.assign-dropdown .assign-option:hover { background: rgba(255,255,255,.1); color: #fff; }
+.assign-dropdown .assign-option.current { color: #60a5fa; font-weight: 700; }
+.assign-dropdown .assign-option.current::after { content: '\2713'; margin-left: auto; font-size: .7rem; }
+.assign-dropdown .assign-divider { height: 1px; background: rgba(255,255,255,.08); margin: .2rem 0; }
 
 /* ── Dependency Alert ── */
 .td-dep-alert {
@@ -551,6 +597,65 @@ body {
   font-size: .78rem;
   font-weight: 500;
 }
+
+/* ── Conflict Legs Side-by-Side ── */
+.conflict-legs-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: .5rem;
+  align-items: stretch;
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--ops-border);
+}
+.conflict-leg-card {
+  padding: .6rem .75rem;
+  border-radius: 8px;
+  background: var(--ops-surface-2);
+  border: 1px solid var(--ops-border);
+}
+.conflict-leg-card.card-trigger { border-left: 3px solid var(--ops-red); }
+.conflict-leg-card.card-conflicting { border-left: 3px solid var(--ops-amber); }
+.conflict-leg-card.card-reassigned { opacity: 0.6; }
+.cl-time { font-family: var(--ops-mono); font-size: .95rem; font-weight: 700; color: var(--ops-white); }
+.cl-customer { font-size: .78rem; color: var(--ops-text-dim); margin-top: .15rem; }
+.cl-location {
+  font-size: .78rem;
+  color: var(--ops-text);
+  margin-top: .2rem;
+  line-height: 1.4;
+}
+.cl-loc-label {
+  display: inline-block;
+  font-family: var(--ops-mono);
+  font-size: .6rem;
+  font-weight: 700;
+  color: var(--ops-text-muted);
+  width: 24px;
+  text-transform: uppercase;
+}
+.cl-clears {
+  font-family: var(--ops-mono);
+  font-size: .72rem;
+  color: var(--ops-text-dim);
+  margin-top: .3rem;
+}
+.cl-flight { font-size: .75rem; color: var(--ops-cyan); margin-top: .2rem; }
+.cl-tag { display: inline-block; font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: .15rem .4rem; border-radius: 3px; margin-top: .3rem; border: 1px solid; }
+.cl-tag-trigger { background: rgba(239,68,68,.12); color: #dc2626; border-color: rgba(239,68,68,.35); }
+.cl-tag-conflict { background: rgba(245,158,11,.12); color: #b45309; border-color: rgba(245,158,11,.35); }
+.cl-tag-reassigned { background: rgba(16,185,129,.12); color: #047857; border-color: rgba(16,185,129,.35); }
+.conflict-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: var(--ops-text-muted);
+}
+@media (max-width: 600px) {
+  .conflict-legs-row { grid-template-columns: 1fr; }
+  .conflict-arrow { transform: rotate(90deg); padding: .25rem 0; }
+}
 .late-night-alert i { font-size: .9rem; }
 
 /* ── Driver Timeline ── */
@@ -591,8 +696,9 @@ body {
 }
 .tl-end-time {
   font-family: var(--ops-mono);
-  font-size: .6rem;
-  color: var(--ops-text-muted);
+  font-size: .68rem;
+  font-weight: 500;
+  color: var(--ops-text-dim);
 }
 
 .tl-bar {
@@ -625,9 +731,21 @@ body {
   font-size: .78rem;
   font-weight: 600;
   color: var(--ops-white);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
+}
+.tl-route-label {
+  display: inline-block;
+  font-family: var(--ops-mono);
+  font-size: .58rem;
+  font-weight: 700;
+  color: var(--ops-text-muted);
+  width: 24px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.tl-route-loc {
+  color: var(--ops-white);
+  vertical-align: middle;
 }
 .tl-meta {
   display: flex;
@@ -648,69 +766,143 @@ body {
   gap: .2rem;
 }
 .tl-tag {
-  font-size: .55rem;
+  font-size: .58rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .06em;
-  padding: .1rem .3rem;
+  padding: .15rem .4rem;
   border-radius: 3px;
+  border: 1px solid;
 }
-.tl-tag-trigger { background: rgba(220,38,38,.12); color: var(--ops-red); }
-.tl-tag-conflict { background: rgba(217,119,6,.12); color: var(--ops-amber); }
+.tl-tag-trigger { background: rgba(220,38,38,.1); color: #dc2626; border-color: rgba(220,38,38,.3); }
+.tl-tag-conflict { background: rgba(217,119,6,.1); color: #b45309; border-color: rgba(217,119,6,.3); }
+
+/* ── Leg Status Badge ── */
+.tl-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  margin-top: .3rem;
+  padding: .2rem .5rem;
+  border-radius: 4px;
+  background: rgba(5, 150, 105, .08);
+  border: 1px solid rgba(5, 150, 105, .25);
+  font-size: .68rem;
+  font-weight: 600;
+}
+.tl-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #059669;
+  animation: pulse-status 1.5s ease-in-out infinite;
+}
+@keyframes pulse-status {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.tl-status-text {
+  color: #047857;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.tl-status-since {
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  font-weight: 500;
+  color: var(--ops-text-dim);
+}
+.tl-status-badge.tl-status-done {
+  background: rgba(5, 150, 105, .05);
+  border-color: rgba(5, 150, 105, .15);
+}
+.tl-status-done i { font-size: .65rem; color: #059669; }
+.tl-status-done .tl-status-text { color: var(--ops-text-muted); }
 
 /* ── Timing Detail Row ── */
 .tl-timing-row {
   display: flex;
   flex-direction: column;
-  gap: .3rem;
-  margin-top: .35rem;
-  font-size: .75rem;
-  color: var(--ops-text-dim);
-  line-height: 1.4;
+  gap: .4rem;
+  margin-top: .45rem;
+  padding-top: .4rem;
+  border-top: 1px dashed var(--ops-border);
+  font-size: .78rem;
+  color: var(--ops-text);
+  line-height: 1.5;
 }
 .tl-flight-line {
   display: flex;
   align-items: center;
-  gap: .4rem;
+  gap: .5rem;
   flex-wrap: wrap;
+  padding: .35rem .6rem;
+  background: rgba(37, 99, 235, .05);
+  border-radius: 5px;
+  border: 1px solid rgba(37, 99, 235, .15);
+  font-size: .78rem;
+  color: var(--ops-text);
 }
-.tl-flight-line i { font-size: .7rem; }
+.tl-flight-line i { font-size: .75rem; color: var(--ops-blue); }
+.tl-flight-label {
+  font-family: var(--ops-mono);
+  font-size: .6rem;
+  font-weight: 600;
+  color: var(--ops-text-muted);
+  text-transform: uppercase;
+}
+.tl-flight-time {
+  font-family: var(--ops-mono);
+  font-weight: 700;
+  font-size: .8rem;
+  color: var(--ops-text);
+}
+.tl-flight-sep {
+  color: var(--ops-border-lt);
+  margin: 0 .1rem;
+}
 .tl-flight-status {
   display: inline-block;
-  padding: .1rem .35rem;
+  padding: .15rem .4rem;
   border-radius: 3px;
-  font-size: .58rem;
+  font-size: .6rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .02em;
   background: #1e293b;
   color: #fff;
 }
-.tl-gate-time { color: var(--ops-text-dim); }
-/* ── Route with live drive time ── */
+/* ── Drive / dwell stats ── */
 .tl-drive-row {
   display: flex;
   align-items: center;
-  gap: .3rem;
+  gap: .5rem;
+  padding: .3rem .6rem;
+  background: var(--ops-surface-2);
+  border: 1px solid var(--ops-border);
+  border-radius: 5px;
   font-size: .75rem;
-  color: var(--ops-text-dim);
 }
-.tl-drive-row .loc {
-  max-width: 160px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tl-drive-arrow {
-  display: inline-flex;
+.tl-drive-stat {
+  display: flex;
   align-items: center;
-  gap: .2rem;
-  color: var(--ops-text-dim);
-  font-size: .7rem;
+  gap: .3rem;
 }
-.tl-drive-arrow .dur {
+.tl-drive-stat .stat-label {
+  font-family: var(--ops-mono);
+  font-size: .58rem;
   font-weight: 600;
-  font-size: .7rem;
+  text-transform: uppercase;
+  color: var(--ops-text-muted);
+}
+.tl-drive-stat .stat-value {
+  font-family: var(--ops-mono);
+  font-weight: 700;
+  font-size: .78rem;
+  color: var(--ops-text);
+}
+.tl-drive-sep {
+  color: var(--ops-border-lt);
 }
 .tl-live-dot {
   display: inline-block;
@@ -720,25 +912,32 @@ body {
   background: #22c55e;
   flex-shrink: 0;
 }
-/* ── Dwell ── */
-.tl-dwell {
-  font-size: .7rem;
-  color: var(--ops-text-dim);
-  opacity: .75;
-}
 /* ── Transit between legs ── */
 .tl-transit {
   display: flex;
   align-items: center;
-  gap: .3rem;
-  font-size: .7rem;
-  color: var(--ops-text-dim);
-  padding: .2rem 0;
-  margin-left: 1.8rem;
-  opacity: .6;
-  font-style: italic;
+  gap: .5rem;
+  font-size: .75rem;
+  color: var(--ops-text);
+  padding: .3rem .6rem;
+  margin: .15rem 0 .15rem 1.8rem;
+  background: var(--ops-surface-3);
+  border-radius: 5px;
+  border: 1px solid var(--ops-border);
 }
-.tl-transit i { font-size: .6rem; }
+.tl-transit i { font-size: .7rem; color: var(--ops-cyan); }
+.tl-transit .transit-label {
+  font-size: .62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--ops-text-dim);
+}
+.tl-transit .transit-time {
+  font-family: var(--ops-mono);
+  font-weight: 700;
+  font-size: .78rem;
+  color: var(--ops-text);
+}
 
 /* ── Conflict Breakdown ── */
 .conflict-breakdown {
@@ -1271,21 +1470,39 @@ body {
 
         {% if task.is_open %}
         <div class="td-actions">
-          <button class="td-act act-complete btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
-            <i class="bi bi-check-lg"></i> Complete
-          </button>
-          <button class="td-act btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="1h">
-            <i class="bi bi-clock"></i> 1h
-          </button>
-          <button class="td-act btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="4h">
-            <i class="bi bi-clock"></i> 4h
+          <div class="assign-wrap" id="assignWrap">
+            <div class="td-act act-assign" id="btnAssignToggle">
+              <i class="bi bi-person-plus-fill"></i>
+              <span class="assign-label">{% if task.assigned_to %}{{ task.assigned_to.first_name|default:task.assigned_to.username }}{% else %}Assign To{% endif %}</span>
+              <i class="bi bi-chevron-down" style="font-size:.6rem; opacity:.6;"></i>
+            </div>
+            <div class="assign-dropdown" id="assignDropdown">
+              <div class="assign-option {% if not task.assigned_to %}current{% endif %}" data-user-id="">
+                <i class="bi bi-person-dash"></i> Unassigned
+              </div>
+              <div class="assign-divider"></div>
+              {% for staff in ops_staff %}
+              <div class="assign-option {% if task.assigned_to_id == staff.id %}current{% endif %}" data-user-id="{{ staff.id }}">
+                <i class="bi bi-person-fill"></i> {{ staff.first_name|default:staff.username }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <button class="td-act act-complete btn-task-action" data-action="complete">
+            <i class="bi bi-check-circle"></i> Complete
           </button>
         </div>
         {% endif %}
       </div>
 
       {% if task.description %}
-      <p class="td-desc">{{ task.description }}</p>
+      <p class="td-desc">
+        {% if conflict_detail %}
+        Driver will be {{ conflict_minutes }} min late — reassign or adjust times.
+        {% else %}
+        {{ task.description }}
+        {% endif %}
+      </p>
       {% endif %}
     </div>
   </div>
@@ -1339,17 +1556,53 @@ body {
               {% endif %}
             </div>
 
+            <!-- Both conflicting legs side-by-side — earlier on left -->
+            {% if first_summary and second_summary %}
+            <div class="conflict-legs-row">
+              <div class="conflict-leg-card {% if first_summary == trigger_summary %}card-trigger{% else %}card-conflicting{% endif %} {% if first_summary.reassigned %}card-reassigned{% endif %}">
+                <div class="cl-time">{{ first_summary.time }}</div>
+                <div class="cl-customer">{{ first_summary.customer }}</div>
+                <div class="cl-location"><span class="cl-loc-label">P/U</span> {{ first_summary.pickup }}</div>
+                <div class="cl-location"><span class="cl-loc-label">D/O</span> {{ first_summary.dropoff }}</div>
+                {% if first_summary.flight %}<div class="cl-flight"><i class="bi bi-airplane"></i> {{ first_summary.flight }}</div>{% endif %}
+                <div class="cl-clears">Clears ~{{ first_summary.clear_time }}</div>
+                <span class="cl-tag {% if first_summary == trigger_summary %}cl-tag-trigger{% else %}cl-tag-conflict{% endif %}">{{ first_summary.trip_type|default:"leg" }}</span>
+                {% if first_summary.reassigned %}<span class="cl-tag cl-tag-reassigned">Reassigned</span>{% endif %}
+              </div>
+              <div class="conflict-arrow">
+                <i class="bi bi-arrow-right-circle-fill"></i>
+              </div>
+              <div class="conflict-leg-card {% if second_summary == trigger_summary %}card-trigger{% else %}card-conflicting{% endif %} {% if second_summary.reassigned %}card-reassigned{% endif %}">
+                <div class="cl-time">{{ second_summary.time }}</div>
+                <div class="cl-customer">{{ second_summary.customer }}</div>
+                <div class="cl-location"><span class="cl-loc-label">P/U</span> {{ second_summary.pickup }}</div>
+                <div class="cl-location"><span class="cl-loc-label">D/O</span> {{ second_summary.dropoff }}</div>
+                {% if second_summary.flight %}<div class="cl-flight"><i class="bi bi-airplane"></i> {{ second_summary.flight }}</div>{% endif %}
+                <div class="cl-clears">Clears ~{{ second_summary.clear_time }}</div>
+                <span class="cl-tag {% if second_summary == trigger_summary %}cl-tag-trigger{% else %}cl-tag-conflict{% endif %}">{{ second_summary.trip_type|default:"leg" }}</span>
+                {% if second_summary.reassigned %}<span class="cl-tag cl-tag-reassigned">Reassigned</span>{% endif %}
+              </div>
+            </div>
+            {% endif %}
+
             {% if is_flight_triggered and flight_arrival_str %}
             <!-- Flight shift detail -->
             <div class="flight-shift-detail">
+              {% if already_matched %}
+              <div class="post-match-ok">
+                <i class="bi bi-check-circle-fill"></i>
+                Pickup time already updated to match flight ({{ flight_arrival_str }}).
+                {% if conflict_minutes > 0 %}Driver still {{ conflict_minutes }} min late — reassign driver.{% endif %}
+              </div>
+              {% else %}
               <div class="shift-arrow">
                 <span class="shift-from">
-                  <span class="shift-label">Booked</span>
+                  <span class="shift-label">Booked pickup</span>
                   {{ booked_pickup_str }}
                 </span>
                 <i class="bi bi-arrow-right"></i>
                 <span class="shift-to">
-                  <span class="shift-label">Flight arriving</span>
+                  <span class="shift-label">Est. flight arrival</span>
                   {{ flight_arrival_str }}
                 </span>
               </div>
@@ -1364,6 +1617,7 @@ body {
                 <i class="bi bi-exclamation-triangle-fill"></i>
                 After matching flight time, driver still has a {{ post_match_overlap_min }} min conflict — reassignment needed.
               </div>
+              {% endif %}
               {% endif %}
             </div>
             {% endif %}
@@ -1389,9 +1643,9 @@ body {
               {% for entry in driver_schedule %}
               {% if entry.transit_label %}
               <div class="tl-transit">
-                <i class="bi bi-car-front"></i>
-                {{ entry.transit_from|truncatewords:3 }} &rarr; {{ entry.pickup_location|truncatewords:3 }}
-                &middot; {{ entry.transit_label }}
+                <i class="bi bi-arrow-down-short"></i>
+                <span class="transit-label">Transit</span>
+                <span class="transit-time">{{ entry.transit_label }}</span>
                 {% if entry.transit_is_live %}<span class="tl-live-dot" title="Live traffic"></span>{% endif %}
               </div>
               {% endif %}
@@ -1406,7 +1660,8 @@ body {
                 </div>
                 <div class="tl-detail">
                   <div class="tl-route">
-                    {{ entry.pickup_location|truncatewords:4 }} &rarr; {{ entry.dropoff_location|truncatewords:4 }}
+                    <div><span class="tl-route-label">P/U</span> <span class="tl-route-loc">{{ entry.pickup_location|truncatewords:6 }}</span></div>
+                    <div><span class="tl-route-label">D/O</span> <span class="tl-route-loc">{{ entry.dropoff_location|truncatewords:6 }}</span></div>
                   </div>
                   <div class="tl-meta">
                     <span class="tl-guest">{{ entry.customer_name }}</span>
@@ -1416,28 +1671,49 @@ body {
                     {% if entry.is_trigger %}<span class="tl-tag tl-tag-trigger">{% if is_flight_triggered and can_match_flight %}DELAYED FLIGHT{% else %}THIS LEG{% endif %}</span>{% endif %}
                     {% if entry.is_conflicting %}<span class="tl-tag tl-tag-conflict">CONFLICTS</span>{% endif %}
                   </div>
+                  {% if entry.is_active_job %}
+                  <div class="tl-status-badge">
+                    <span class="tl-status-dot"></span>
+                    <span class="tl-status-text">{{ entry.leg_status_display }}</span>
+                    {% if entry.active_since_str %}<span class="tl-status-since">since {{ entry.active_since_str }}</span>{% endif %}
+                  </div>
+                  {% elif entry.leg_status == "completed" %}
+                  <div class="tl-status-badge tl-status-done">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span class="tl-status-text">Completed</span>
+                  </div>
+                  {% endif %}
                   <!-- Timing details -->
                   <div class="tl-timing-row">
                     {% if entry.trip_type == "arrival" and entry.flight_landing_str %}
                     <div class="tl-flight-line">
-                      <span><i class="bi bi-airplane-engines"></i> Landing {{ entry.flight_landing_str }}</span>
+                      <i class="bi bi-airplane-engines"></i>
+                      <span class="tl-flight-label">Landing</span>
+                      <span class="tl-flight-time">{{ entry.flight_landing_str }}</span>
                       {% if entry.flight_status %}<span class="tl-flight-status">{{ entry.flight_status }}</span>{% endif %}
-                      {% if entry.flight_gate_arrival_str %}<span class="tl-gate-time">&middot; Gate {{ entry.flight_gate_arrival_str }}</span>{% endif %}
+                      {% if entry.flight_gate_arrival_str %}
+                      <span class="tl-flight-sep">|</span>
+                      <span class="tl-flight-label">Gate</span>
+                      <span class="tl-flight-time">{{ entry.flight_gate_arrival_str }}</span>
+                      {% endif %}
                     </div>
                     {% endif %}
                     <div class="tl-drive-row">
-                      <span class="loc">&#x1F4CD; {{ entry.pickup_location|truncatewords:3 }}</span>
-                      <span class="tl-drive-arrow">
-                        &rarr;
-                        <span class="dur">{{ entry.drive_label }}</span>
+                      <div class="tl-drive-stat">
+                        <i class="bi bi-car-front-fill" style="font-size:.7rem; color:var(--ops-cyan);"></i>
+                        <span class="stat-label">Drive</span>
+                        <span class="stat-value">{{ entry.drive_label }}</span>
                         {% if entry.drive_is_live %}<span class="tl-live-dot" title="Live traffic"></span>{% endif %}
-                        &rarr;
-                      </span>
-                      <span class="loc">&#x1F4CD; {{ entry.dropoff_location|truncatewords:3 }}</span>
+                      </div>
+                      {% if entry.dwell_minutes > 0 %}
+                      <span class="tl-drive-sep">|</span>
+                      <div class="tl-drive-stat">
+                        <i class="bi bi-hourglass-split" style="font-size:.65rem; color:var(--ops-amber);"></i>
+                        <span class="stat-label">Dwell</span>
+                        <span class="stat-value">{{ entry.dwell_minutes }} min</span>
+                      </div>
+                      {% endif %}
                     </div>
-                    {% if entry.dwell_minutes > 0 %}
-                    <span class="tl-dwell">&#x23F3; {{ entry.dwell_minutes }} min avg dwell</span>
-                    {% endif %}
                   </div>
                 </div>
               </div>
@@ -1459,11 +1735,13 @@ body {
               <div class="cb-step cb-step-flight">
                 <div class="cb-icon"><i class="bi bi-airplane-fill"></i></div>
                 <div class="cb-text">
-                  <span class="cb-label">{{ conflict_detail.second_flight_label }} shifted</span>
+                  <span class="cb-label">{{ conflict_detail.second_flight_label }} — flight time shifted</span>
                   <span class="cb-value">
                     <span class="cb-strike">{{ conflict_detail.original_flight_str }}</span>
+                    <span style="font-size:.68rem; color:#94a3b8; margin: 0 2px;">scheduled</span>
                     <i class="bi bi-arrow-right" style="font-size:.75rem; margin: 0 4px; color:#94a3b8;"></i>
-                    {{ conflict_detail.flight_gate_str }}
+                    <strong>{{ conflict_detail.flight_gate_str }}</strong>
+                    <span style="font-size:.68rem; color:#94a3b8; margin: 0 2px;">estimated</span>
                   </span>
                 </div>
               </div>
@@ -1483,7 +1761,7 @@ body {
                 <div class="cb-icon"><i class="bi bi-{% if conflict_detail.is_reposition %}arrow-repeat{% else %}signpost-split-fill{% endif %}"></i></div>
                 <div class="cb-text">
                   <span class="cb-label">{% if conflict_detail.is_reposition %}Reposition to pickup area{% else %}Travel to next pickup{% endif %}</span>
-                  <span class="cb-value">~{{ conflict_detail.travel_minutes }} min</span>
+                  <span class="cb-value">{{ conflict_detail.travel_label }}{% if conflict_detail.travel_is_live %} <span class="tl-live-dot" title="Live traffic data"></span>{% endif %}</span>
                   {% if not conflict_detail.is_reposition %}
                   <span class="cb-sub"><i class="bi bi-geo-alt" style="font-size:.65rem;"></i> {{ conflict_detail.travel_to|truncatewords:5 }}</span>
                   {% endif %}
@@ -1505,7 +1783,7 @@ body {
                 <div class="cb-text">
                   <span class="cb-label">Guest at baggage claim</span>
                   <span class="cb-value">~{{ conflict_detail.guest_ready_str }}</span>
-                  <span class="cb-sub">{{ conflict_detail.flight_gate_str }} gate + ~{{ conflict_detail.guest_ready_minutes }} min deplane &amp; walk</span>
+                  <span class="cb-sub">{{ conflict_detail.flight_gate_str }} est. gate arrival + ~{{ conflict_detail.guest_ready_minutes }} min deplane &amp; walk</span>
                   {% if conflict_detail.late_minutes > 0 %}
                   <span class="cb-late-badge">Driver arrives {{ conflict_detail.late_minutes }} min after guest</span>
                   {% endif %}
@@ -1684,7 +1962,8 @@ body {
                 </div>
                 <div class="tl-detail">
                   <div class="tl-route">
-                    {{ entry.pickup_location|truncatewords:4 }} &rarr; {{ entry.dropoff_location|truncatewords:4 }}
+                    <div><span class="tl-route-label">P/U</span> <span class="tl-route-loc">{{ entry.pickup_location|truncatewords:6 }}</span></div>
+                    <div><span class="tl-route-label">D/O</span> <span class="tl-route-loc">{{ entry.dropoff_location|truncatewords:6 }}</span></div>
                   </div>
                   <div class="tl-meta">
                     <span class="tl-guest">{{ entry.customer_name }}</span>
@@ -1998,60 +2277,19 @@ body {
                 </div>
               </a>
               {% if pc_guest_email %}
-              <a href="mailto:{{ pc_guest_email }}" class="conflict-act-btn">
-                <i class="bi bi-envelope-fill" style="color: var(--ops-blue);"></i>
+              <button class="conflict-act-btn" id="btnSendPaymentReminder" data-res-uuid="{{ pc_reservation_uuid }}">
+                <i class="bi bi-send-fill" style="color: var(--ops-blue);"></i>
                 <div class="act-text-col">
-                  <span class="act-label">Email {{ pc_guest_name }}</span>
-                  <span class="act-hint">{{ pc_guest_email }}</span>
+                  <span class="act-label">Send Payment Reminder</span>
+                  <span class="act-hint">Email {{ pc_guest_name }} at {{ pc_guest_email }} with checkout link</span>
                 </div>
-              </a>
+              </button>
               {% endif %}
             </div>
           </div>
         </div>
         {% endif %}
         {% endif %}
-
-        <!-- Communication History -->
-        <div class="ops-card">
-          <div class="ops-card-head">
-            <i class="bi bi-chat-dots" style="color: var(--ops-blue);"></i>
-            <h6>Communication History</h6>
-            <span class="head-ct">{{ comm_attempts|length }}</span>
-          </div>
-          <div class="ops-card-body">
-            {% if comm_attempts %}
-            <div class="comm-tl">
-              {% for attempt in comm_attempts %}
-              <div class="comm-item">
-                <div class="comm-dot dot-{{ attempt.channel }}">
-                  {% if attempt.channel == 'call' %}<i class="bi bi-telephone-fill"></i>{% elif attempt.channel == 'sms' %}<i class="bi bi-chat-fill"></i>{% else %}<i class="bi bi-envelope-fill"></i>{% endif %}
-                </div>
-                <div class="comm-head">
-                  <span class="comm-chip chip-{{ attempt.channel }}">{{ attempt.get_channel_display }}</span>
-                  <span class="comm-chip {% if attempt.outcome == 'answered' or attempt.outcome == 'delivered' or attempt.outcome == 'sent' %}chip-outcome-good{% elif attempt.outcome == 'failed' or attempt.outcome == 'bounced' %}chip-outcome-bad{% else %}chip-outcome-warn{% endif %}">
-                    {{ attempt.get_outcome_display }}
-                  </span>
-                  {% if attempt.contact_value %}<span class="comm-contact">{{ attempt.contact_value }}</span>{% endif %}
-                  <span class="comm-who">
-                    {% if attempt.staff_user %}{{ attempt.staff_user.first_name|default:attempt.staff_user.username }}{% else %}System{% endif %}
-                    &middot; {{ attempt.created_at|date:"M j g:i A" }}
-                  </span>
-                </div>
-                {% if attempt.notes %}
-                <p class="comm-notes">{{ attempt.notes }}</p>
-                {% endif %}
-              </div>
-              {% endfor %}
-            </div>
-            {% else %}
-            <div class="comm-empty">
-              <i class="bi bi-chat-square-dots"></i>
-              <span>No communication attempts logged yet.</span>
-            </div>
-            {% endif %}
-          </div>
-        </div>
 
         <!-- Log Communication Form -->
         {% if task.is_open %}
@@ -2094,6 +2332,47 @@ body {
           </div>
         </div>
         {% endif %}
+
+        <!-- Communication History -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-chat-dots" style="color: var(--ops-blue);"></i>
+            <h6>Communication History</h6>
+            <span class="head-ct">{{ comm_attempts|length }}</span>
+          </div>
+          <div class="ops-card-body">
+            {% if comm_attempts %}
+            <div class="comm-tl">
+              {% for attempt in comm_attempts %}
+              <div class="comm-item">
+                <div class="comm-dot dot-{{ attempt.channel }}">
+                  {% if attempt.channel == 'call' %}<i class="bi bi-telephone-fill"></i>{% elif attempt.channel == 'sms' %}<i class="bi bi-chat-fill"></i>{% else %}<i class="bi bi-envelope-fill"></i>{% endif %}
+                </div>
+                <div class="comm-head">
+                  <span class="comm-chip chip-{{ attempt.channel }}">{{ attempt.get_channel_display }}</span>
+                  <span class="comm-chip {% if attempt.outcome == 'answered' or attempt.outcome == 'delivered' or attempt.outcome == 'sent' %}chip-outcome-good{% elif attempt.outcome == 'failed' or attempt.outcome == 'bounced' %}chip-outcome-bad{% else %}chip-outcome-warn{% endif %}">
+                    {{ attempt.get_outcome_display }}
+                  </span>
+                  {% if attempt.contact_value %}<span class="comm-contact">{{ attempt.contact_value }}</span>{% endif %}
+                  <span class="comm-who">
+                    {% if attempt.staff_user %}{{ attempt.staff_user.first_name|default:attempt.staff_user.username }}{% else %}System{% endif %}
+                    &middot; {{ attempt.created_at|date:"M j g:i A" }}
+                  </span>
+                </div>
+                {% if attempt.notes %}
+                <p class="comm-notes">{{ attempt.notes }}</p>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="comm-empty">
+              <i class="bi bi-chat-square-dots"></i>
+              <span>No communication attempts logged yet.</span>
+            </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
 
       <!-- ═══ Sidebar ═══ -->
@@ -2305,26 +2584,17 @@ body {
 const CSRF = '{{ csrf_token }}';
 const TASK_ID = {{ task.id }};
 
-/* Task actions */
+/* Task actions — Complete */
 document.querySelectorAll('.btn-task-action').forEach(btn => {
   btn.addEventListener('click', function(e) {
     e.preventDefault();
     const action = this.dataset.action;
-    const urls = {
-      complete: '{% url "task_complete" %}',
-      snooze: '{% url "task_snooze" %}',
-    };
-    const extra = {};
-    if (action === 'complete') {
-      extra.notes = prompt('Resolution notes (optional):') || '';
-    }
-    if (action === 'snooze') {
-      extra.duration = this.dataset.duration;
-    }
-    fetch(urls[action], {
+    if (action !== 'complete') return;
+    const notes = prompt('Resolution notes (optional):') || '';
+    fetch('{% url "task_complete" %}', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({task_id: TASK_ID, ...extra}),
+      body: JSON.stringify({task_id: TASK_ID, notes: notes}),
     })
     .then(r => r.json())
     .then(data => { if (data.success) location.reload(); else alert(data.error); })
@@ -2332,38 +2602,77 @@ document.querySelectorAll('.btn-task-action').forEach(btn => {
   });
 });
 
-/* Match Flight Time action */
-document.querySelector('.act-match-flight')?.addEventListener('click', function() {
-  const btn = this;
-  const legId = btn.dataset.legId;
-  const origLabel = btn.querySelector('.act-label').textContent;
-  btn.style.pointerEvents = 'none';
-  btn.style.opacity = '.6';
-  btn.querySelector('.act-label').textContent = 'Updating...';
+/* Assign To dropdown */
+(function() {
+  const wrap = document.getElementById('assignWrap');
+  const toggle = document.getElementById('btnAssignToggle');
+  const dropdown = document.getElementById('assignDropdown');
+  if (!wrap || !toggle || !dropdown) return;
 
-  fetch('{% url "match_leg_time_to_flight" %}', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify({leg_id: legId}),
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      btn.querySelector('.act-label').textContent = 'Updated!';
-      btn.querySelector('i').className = 'bi bi-check-circle-fill';
-      setTimeout(() => location.reload(), 800);
-    } else {
-      btn.style.pointerEvents = '';
-      btn.style.opacity = '';
-      btn.querySelector('.act-label').textContent = origLabel;
-      alert(data.error || 'Could not update pickup time');
-    }
-  })
-  .catch(err => {
-    btn.style.pointerEvents = '';
-    btn.style.opacity = '';
-    btn.querySelector('.act-label').textContent = origLabel;
-    alert('Error: ' + err);
+  toggle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdown.classList.toggle('open');
+  });
+
+  dropdown.querySelectorAll('.assign-option').forEach(opt => {
+    opt.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const userId = this.dataset.userId;
+      dropdown.classList.remove('open');
+      toggle.querySelector('.assign-label').textContent = 'Assigning...';
+      toggle.style.opacity = '.6';
+      toggle.style.pointerEvents = 'none';
+      fetch('{% url "task_assign" %}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify({task_id: TASK_ID, user_id: userId || null}),
+      })
+      .then(r => r.json())
+      .then(data => { if (data.success) location.reload(); else { alert(data.error); toggle.style.opacity = ''; toggle.style.pointerEvents = ''; } })
+      .catch(err => { alert('Error: ' + err); toggle.style.opacity = ''; toggle.style.pointerEvents = ''; });
+    });
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!wrap.contains(e.target)) dropdown.classList.remove('open');
+  });
+})();
+
+/* Match Flight Time action */
+document.querySelectorAll('.act-match-flight').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const legId = this.dataset.legId;
+    const label = this.querySelector('.act-label');
+    const origLabel = label ? label.textContent : '';
+    this.style.pointerEvents = 'none';
+    this.style.opacity = '.6';
+    if (label) label.textContent = 'Updating...';
+
+    fetch('{% url "match_leg_time_to_flight" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({leg_id: legId}),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (label) label.textContent = 'Updated!';
+        const icon = this.querySelector('i');
+        if (icon) icon.className = 'bi bi-check-circle-fill';
+        setTimeout(() => location.reload(), 800);
+      } else {
+        this.style.pointerEvents = '';
+        this.style.opacity = '';
+        if (label) label.textContent = origLabel;
+        alert(data.error || 'Could not update pickup time');
+      }
+    })
+    .catch(err => {
+      this.style.pointerEvents = '';
+      this.style.opacity = '';
+      if (label) label.textContent = origLabel;
+      alert('Error: ' + err);
+    });
   });
 });
 
@@ -2384,6 +2693,42 @@ document.getElementById('btnDetailSubmitComm')?.addEventListener('click', functi
   .then(r => r.json())
   .then(result => { if (result.success) location.reload(); else alert(result.error); })
   .catch(err => alert('Error: ' + err));
+});
+
+/* Send Payment Reminder Email */
+document.getElementById('btnSendPaymentReminder')?.addEventListener('click', function() {
+  const btn = this;
+  const resUuid = btn.dataset.resUuid;
+  btn.style.pointerEvents = 'none';
+  btn.style.opacity = '.6';
+  btn.querySelector('.act-label').textContent = 'Sending...';
+
+  fetch('{% url "send_payment_reminder" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({reservation_id: resUuid}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      btn.querySelector('.act-label').textContent = 'Sent!';
+      btn.querySelector('i').className = 'bi bi-check-circle-fill';
+      btn.querySelector('i').style.color = '#059669';
+      btn.querySelector('.act-hint').textContent = 'Payment reminder sent to ' + data.email;
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      btn.style.pointerEvents = '';
+      btn.style.opacity = '';
+      btn.querySelector('.act-label').textContent = 'Send Payment Reminder';
+      alert(data.error || 'Could not send email');
+    }
+  })
+  .catch(err => {
+    btn.style.pointerEvents = '';
+    btn.style.opacity = '';
+    btn.querySelector('.act-label').textContent = 'Send Payment Reminder';
+    alert('Error: ' + err);
+  });
 });
 </script>
 {% endblock %}

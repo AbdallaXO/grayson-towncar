@@ -4,10 +4,11 @@
 {% block extra_css %}
 <style>
   .dupe-table { font-size: 0.82rem; }
-  .dupe-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.4rem 0.5rem; }
-  .dupe-table td { padding: 0.35rem 0.5rem; vertical-align: middle; }
-  .dupe-table .badge { font-size: 0.7rem; }
-  .dupe-card .card-header { padding: 0.5rem 0.75rem; }
+  .dupe-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.35rem 0.5rem; }
+  .dupe-table td { padding: 0.3rem 0.5rem; vertical-align: middle; }
+  .dupe-table .badge { font-size: 0.68rem; }
+  .dupe-card .card-header { padding: 0.45rem 0.75rem; font-size: 0.85rem; }
+  .loc-text { font-size: 0.78rem; color: #555; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 {% endblock extra_css %}
 
@@ -36,8 +37,7 @@
           </div>
         </div>
         <small class="text-muted">
-          Same customer, same day — one paid, one unpaid. Cancel the duplicates.
-          Scanning last 90 days + future.
+          Same customer, same day &mdash; one paid, one unpaid. Sorted by upcoming dates first.
         </small>
       </div>
     </div>
@@ -68,9 +68,9 @@
       <div class="card-header bg-light d-flex justify-content-between align-items-center">
         <div>
           <strong class="me-2">{{ group.customer.first_name }} {{ group.customer.last_name }}</strong>
-          {% if group.customer.email %}<small class="text-muted me-2">{{ group.customer.email }}</small>{% endif %}
-          {% if group.customer.phone_number %}<small class="text-muted me-2">{{ group.customer.phone_number }}</small>{% endif %}
-          <span class="badge bg-dark" style="font-size: 0.7rem;">{{ group.pickup_date|date:"M d, Y" }}</span>
+          {% if group.customer.phone_number %}<small class="text-muted me-2"><i class="bi bi-telephone me-1"></i>{{ group.customer.phone_number }}</small>{% endif %}
+          {% if group.customer.email %}<small class="text-muted me-2"><i class="bi bi-envelope me-1"></i>{{ group.customer.email }}</small>{% endif %}
+          <span class="badge bg-dark" style="font-size: 0.7rem;">{{ group.pickup_date|date:"D, M d Y" }}</span>
         </div>
         <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">{{ group.unpaid|length }} unpaid</span>
       </div>
@@ -79,14 +79,18 @@
           <table class="table table-hover mb-0 dupe-table">
             <thead class="table-light">
               <tr>
-                <th style="width: 50px;"></th>
-                <th>Reservation</th>
-                <th>Route</th>
+                <th style="width: 45px;"></th>
+                <th>Res #</th>
+                <th>Type</th>
+                <th>Vehicle</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
                 <th>Time</th>
+                <th>Details</th>
                 <th>Price</th>
                 <th>Payment</th>
                 <th>Created</th>
-                <th style="width: 100px;"></th>
+                <th style="width: 90px;"></th>
               </tr>
             </thead>
             <tbody>
@@ -98,13 +102,20 @@
                     #{{ res.id }}
                   </a>
                 </td>
-                <td>{% if res.rate %}{{ res.rate }}{% else %}&mdash;{% endif %}</td>
                 <td>
-                  {% with leg=res.legs.all.0 %}
-                    {% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}
-                  {% endwith %}
+                  <span class="badge bg-info text-dark">{{ res.trip_type|title }}</span>
                 </td>
-                <td>${{ res.total_price }}</td>
+                <td>{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</td>
+                {% with leg=res.legs.all.0 %}
+                <td><span class="loc-text" title="{{ leg.pickup_location }}">{% if leg %}{{ leg.pickup_location }}{% else %}&mdash;{% endif %}</span></td>
+                <td><span class="loc-text" title="{{ leg.dropoff_location }}">{% if leg %}{{ leg.dropoff_location }}{% else %}&mdash;{% endif %}</span></td>
+                <td>{% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}</td>
+                {% endwith %}
+                <td>
+                  <small>{{ res.passenger_count }} pax, {{ res.luggage_count }} bag{{ res.luggage_count|pluralize }}</small>
+                  {% if res.need_carseats %}<br><small class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats</small>{% endif %}
+                </td>
+                <td class="fw-bold">${{ res.total_price }}</td>
                 <td><span class="badge bg-success">{{ res.payment_status }}</span></td>
                 <td>{{ res.created_at|date:"M d, g:i A" }}</td>
                 <td><small class="text-muted">Paid</small></td>
@@ -118,18 +129,25 @@
                     #{{ res.id }}
                   </a>
                 </td>
-                <td>{% if res.rate %}{{ res.rate }}{% else %}&mdash;{% endif %}</td>
                 <td>
-                  {% with leg=res.legs.all.0 %}
-                    {% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}
-                  {% endwith %}
+                  <span class="badge bg-info text-dark">{{ res.trip_type|title }}</span>
                 </td>
-                <td>${{ res.total_price }}</td>
+                <td>{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</td>
+                {% with leg=res.legs.all.0 %}
+                <td><span class="loc-text" title="{{ leg.pickup_location }}">{% if leg %}{{ leg.pickup_location }}{% else %}&mdash;{% endif %}</span></td>
+                <td><span class="loc-text" title="{{ leg.dropoff_location }}">{% if leg %}{{ leg.dropoff_location }}{% else %}&mdash;{% endif %}</span></td>
+                <td>{% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}</td>
+                {% endwith %}
+                <td>
+                  <small>{{ res.passenger_count }} pax, {{ res.luggage_count }} bag{{ res.luggage_count|pluralize }}</small>
+                  {% if res.need_carseats %}<br><small class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats</small>{% endif %}
+                </td>
+                <td class="fw-bold">${{ res.total_price }}</td>
                 <td><span class="badge bg-secondary">{{ res.payment_status }}</span></td>
                 <td>{{ res.created_at|date:"M d, g:i A" }}</td>
                 <td>
                   <button class="btn btn-sm btn-outline-danger cancel-btn py-0 px-2"
-                          style="font-size: 0.78rem;"
+                          style="font-size: 0.75rem;"
                           onclick="cancelOne(this, '{{ res.uuid }}', {{ res.id }})">
                     <i class="bi bi-x-circle me-1"></i>Cancel
                   </button>
@@ -147,7 +165,7 @@
       <div class="card-body text-center py-5">
         <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
         <h4 class="mt-3">No Duplicates Found</h4>
-        <p class="text-muted">All clean — no paid/unpaid duplicates in the last 90 days.</p>
+        <p class="text-muted">All clean &mdash; no paid/unpaid duplicates detected.</p>
       </div>
     </div>
     {% endif %}
@@ -180,7 +198,7 @@ function cancelOne(btn, uuid, resId) {
   const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
   document.getElementById('confirmModalBody').innerHTML =
     `Cancel Reservation <strong>#${resId}</strong>?<br>
-     <small class="text-muted">Sets status to "cancelled". Reversible from reservation detail page.</small>`;
+     <small class="text-muted">Sets status to "cancelled". Reversible.</small>`;
 
   document.getElementById('confirmModalYes').onclick = async function() {
     modal.hide();
@@ -204,7 +222,7 @@ function cancelOne(btn, uuid, resId) {
           firstBadge.className = 'badge bg-secondary';
           firstBadge.textContent = 'DONE';
         }
-        btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Cancelled</small>';
+        btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Done</small>';
       } else {
         alert('Error: ' + data.error);
         btn.disabled = false;
@@ -256,7 +274,7 @@ function cancelAll() {
             firstBadge.className = 'badge bg-secondary';
             firstBadge.textContent = 'DONE';
           }
-          btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Cancelled</small>';
+          btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Done</small>';
         } else {
           fail++;
         }

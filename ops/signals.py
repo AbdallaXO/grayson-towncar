@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Store old values for change detection (same pattern as reservations/signals.py)
 _leg_old_driver = {}
 _res_old_status = {}
+_NOT_TRACKED = object()  # Sentinel: pre_save didn't store this leg
 
 
 # ── Reservation signals ──
@@ -82,8 +83,13 @@ def _ops_leg_task_handler(sender, instance, created, **kwargs):
     from .services import close_task
 
     if not created:
-        old_driver = _leg_old_driver.pop(instance.pk, None)
-        if old_driver is None and instance.driver_id:
+        old_driver = _leg_old_driver.pop(instance.pk, _NOT_TRACKED)
+        if old_driver is _NOT_TRACKED:
+            # pre_save didn't track this save (update_fields without "driver")
+            # — skip, driver didn't change
+            return
+        if not old_driver and instance.driver_id:
+            # Driver went from None → assigned: close driver_assign tasks
             tasks = OperationalTask.objects.filter(
                 task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
                 leg=instance,

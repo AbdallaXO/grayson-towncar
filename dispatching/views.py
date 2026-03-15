@@ -2877,32 +2877,55 @@ def match_leg_time_to_flight(request):
         old_time = leg.pickup_time
         Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
 
-        # Auto-resolve any open flight_verify or driver_conflict tasks for this leg
+        # Auto-resolve open tasks for this leg
         from ops.models import OperationalTask, StaffActivity
         from ops.services import close_task
-        open_tasks = OperationalTask.objects.filter(
+        match_note = (
+            f"Flight matched: pickup updated "
+            f"{old_time.strftime('%I:%M %p').lstrip('0')} → "
+            f"{new_time.strftime('%I:%M %p').lstrip('0')}"
+        )
+
+        # Always close flight_verify tasks — the mismatch is resolved
+        fv_tasks = OperationalTask.objects.filter(
             leg=leg,
-            task_type__in=[
-                OperationalTask.TaskType.FLIGHT_VERIFICATION,
-                OperationalTask.TaskType.DRIVER_CONFLICT,
-            ],
+            task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
             status__in=list(OperationalTask.OPEN_STATUSES),
         )
-        for task in open_tasks:
-            close_task(
-                task,
-                resolved_by=request.user,
-                resolution_notes=(
-                    f"Flight matched: pickup updated "
-                    f"{old_time.strftime('%I:%M %p').lstrip('0')} → "
-                    f"{new_time.strftime('%I:%M %p').lstrip('0')}"
-                ),
-            )
+        for task in fv_tasks:
+            close_task(task, resolved_by=request.user, resolution_notes=match_note)
             StaffActivity.objects.create(
                 user=request.user,
                 action_type=StaffActivity.ActionType.TASK_COMPLETED,
                 task=task,
             )
+
+        # For driver_conflict tasks: only close if the conflict is actually resolved
+        # Refresh leg from DB to get the updated pickup_time
+        leg.refresh_from_db()
+        dc_tasks = OperationalTask.objects.filter(
+            leg=leg,
+            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+        )
+        for task in dc_tasks:
+            from ops.tasks import detect_driver_conflicts
+            remaining = detect_driver_conflicts(leg, leg.pickup_date)
+            if not remaining:
+                close_task(task, resolved_by=request.user, resolution_notes=match_note)
+                StaffActivity.objects.create(
+                    user=request.user,
+                    action_type=StaffActivity.ActionType.TASK_COMPLETED,
+                    task=task,
+                )
+            else:
+                # Conflict persists — update the task description but keep it open
+                worst = max(remaining, key=lambda c: c["conflict_minutes"])
+                task.description = (
+                    f"Flight matched but conflict remains: driver will be "
+                    f"{worst['conflict_minutes']} min late — reassign or adjust times."
+                )
+                task.save(update_fields=["description", "updated_at"])
 
         return JsonResponse({
             "success": True,
@@ -9200,7 +9223,7 @@ def duplicate_reservations(request):
             legs__pickup_date__gte=cutoff,
         )
         .exclude(status="cancelled")
-        .select_related("customer")
+        .select_related("customer", "vehicle")
         .prefetch_related(
             Prefetch("payments", queryset=Payment.objects.all()),
             Prefetch(
@@ -9251,7 +9274,11 @@ def duplicate_reservations(request):
             }
         )
 
-    duplicate_groups.sort(key=lambda g: g["pickup_date"], reverse=True)
+    # Sort by upcoming dates first (ascending), then past dates after
+    today = timezone.now().date()
+    duplicate_groups.sort(
+        key=lambda g: (0 if g["pickup_date"] >= today else 1, g["pickup_date"]),
+    )
 
     context = {
         "duplicate_groups": duplicate_groups,

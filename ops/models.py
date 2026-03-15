@@ -310,6 +310,7 @@ class StaffActivity(models.Model):
         TASK_COMPLETED = "task_completed", "Task Completed"
         TASK_SNOOZED = "task_snoozed", "Task Snoozed"
         TASK_CREATED = "task_created", "Task Created"
+        TASK_ASSIGNED = "task_assigned", "Task Assigned"
         COMM_LOGGED = "comm_logged", "Communication Logged"
 
     user = models.ForeignKey(

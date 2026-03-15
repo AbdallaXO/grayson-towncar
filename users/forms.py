@@ -1,6 +1,10 @@
+import re
+import time
+
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django import forms
+from django.core.exceptions import ValidationError
 from .models import PartnerForm, ContactUsForm
 
 
@@ -121,6 +125,30 @@ class PartnerFormSubmission(forms.ModelForm):
 
 
 class ContactUsFormSubmission(forms.ModelForm):
+    # Honeypot — hidden field that bots fill out, humans never see
+    website = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            "tabindex": "-1",
+            "autocomplete": "off",
+            "style": "position:absolute;left:-9999px;opacity:0;height:0;width:0;",
+        }),
+        label="",
+    )
+    # Timestamp to detect instant submissions (bots)
+    form_loaded_at = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=False,
+    )
+
+    # Cyrillic / spam patterns
+    CYRILLIC_RE = re.compile(r'[\u0400-\u04FF]')
+    URL_RE = re.compile(r'https?://', re.IGNORECASE)
+    SPAM_KEYWORDS = [
+        'tinyurl.com', 'bit.ly', 'руб', 'перевод', 'сюрприз',
+        'подарок', 'новости', 'ссылк',
+    ]
+
     class Meta:
         model = ContactUsForm
         fields = [
@@ -186,3 +214,42 @@ class ContactUsFormSubmission(forms.ModelForm):
             "contact_method": "",
             "about": "About Your Trip",
         }
+
+    def clean(self):
+        cleaned = super().clean()
+
+        # 1. Honeypot — if filled, it's a bot
+        if cleaned.get("website"):
+            raise ValidationError("Something went wrong. Please try again.")
+
+        # 2. Speed check — submitted in under 3 seconds = bot
+        loaded_at = cleaned.get("form_loaded_at", "")
+        if loaded_at:
+            try:
+                elapsed = time.time() - float(loaded_at)
+                if elapsed < 3:
+                    raise ValidationError("Please wait a moment before submitting.")
+            except (ValueError, TypeError):
+                pass
+
+        # 3. Cyrillic / spam content check
+        text_fields = [
+            cleaned.get("first_name", ""),
+            cleaned.get("last_name", ""),
+            cleaned.get("about", ""),
+        ]
+        combined = " ".join(text_fields).lower()
+
+        if self.CYRILLIC_RE.search(combined):
+            raise ValidationError("Your submission could not be processed.")
+
+        # URLs in name fields = spam
+        for field in ["first_name", "last_name"]:
+            if self.URL_RE.search(cleaned.get(field, "")):
+                raise ValidationError("Your submission could not be processed.")
+
+        # Known spam keywords
+        if any(kw in combined for kw in self.SPAM_KEYWORDS):
+            raise ValidationError("Your submission could not be processed.")
+
+        return cleaned

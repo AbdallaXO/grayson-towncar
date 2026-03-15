@@ -744,6 +744,7 @@ def _auto_close_resolved_tasks():
     from reservations.models import Leg
 
     closed = 0
+    now = timezone.now()
 
     # 1. Flight verify tasks where mismatch no longer exists
     flight_tasks = OperationalTask.objects.filter(
@@ -758,29 +759,69 @@ def _auto_close_resolved_tasks():
             closed += 1
 
     # 2. Driver conflict tasks where conflict no longer exists
-    conflict_tasks = OperationalTask.objects.filter(
-        task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
-        status__in=list(OperationalTask.OPEN_STATUSES),
-        leg__isnull=False,
-    ).select_related("leg", "leg__driver", "leg__flight_information")
+    conflict_tasks = list(
+        OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+        ).select_related("leg", "leg__driver", "leg__flight_information")
+    )
+
+    # Batch-fetch all conflicting legs referenced in task metadata
+    conflicting_leg_ids = set()
+    for task in conflict_tasks:
+        cid = (task.metadata or {}).get("conflicting_leg_id")
+        if cid:
+            conflicting_leg_ids.add(cid)
+    conflicting_legs_map = {}
+    if conflicting_leg_ids:
+        conflicting_legs_map = {
+            lg.pk: lg for lg in Leg.objects.filter(pk__in=conflicting_leg_ids)
+        }
 
     for task in conflict_tasks:
         leg = task.leg
         meta = task.metadata or {}
         is_pure_overlap = meta.get("mismatch_direction") == "overlap"
+        conflicting_leg_id = meta.get("conflicting_leg_id")
 
         if not leg.driver_id:
             close_task(task, resolution_notes="Auto-closed: driver unassigned")
             closed += 1
-        elif not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
-            # Flight-triggered conflict: close if the flight mismatch resolved
-            close_task(task, resolution_notes="Auto-closed: flight mismatch resolved")
+            continue
+
+        # Auto-close if the pickup time is 3+ hours in the past (stale conflict)
+        pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
+        pickup_aware = timezone.make_aware(pickup_dt, timezone.get_current_timezone())
+        if pickup_aware < now - timedelta(hours=3):
+            close_task(task, resolution_notes="Auto-closed: pickup time has passed")
             closed += 1
-        elif leg.driver_id and getattr(leg.driver, "driver_type", "") == "inhouse":
-            # Re-check if the schedule conflict still exists
+            continue
+
+        # Check if the conflicting leg was reassigned to a different driver or cancelled
+        if conflicting_leg_id:
+            other_leg = conflicting_legs_map.get(conflicting_leg_id)
+            if other_leg is None:
+                close_task(task, resolution_notes="Auto-closed: conflicting leg deleted")
+                closed += 1
+                continue
+            if other_leg.driver_id != leg.driver_id:
+                close_task(task, resolution_notes="Auto-closed: conflicting leg reassigned to different driver")
+                closed += 1
+                continue
+            if other_leg.status in ("completed", "cancelled"):
+                close_task(task, resolution_notes=f"Auto-closed: conflicting leg {other_leg.status}")
+                closed += 1
+                continue
+
+        # Re-check if the schedule conflict still exists (regardless of flight mismatch status)
+        if leg.driver_id:
             conflicts = detect_driver_conflicts(leg, leg.pickup_date)
             if not conflicts:
-                close_task(task, resolution_notes="Auto-closed: driver conflict resolved")
+                if not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
+                    close_task(task, resolution_notes="Auto-closed: flight matched and conflict resolved")
+                else:
+                    close_task(task, resolution_notes="Auto-closed: driver conflict resolved")
                 closed += 1
 
     # 3. Contact form tasks where form was contacted/closed
