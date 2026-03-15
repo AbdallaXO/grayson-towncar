@@ -9178,3 +9178,142 @@ def admin_agent_payout_detail(request, pk):
         "reservations": reservations,
     }
     return render(request, "dispatching/admin_agent_payout_detail.html", context)
+
+
+# ── Duplicate Reservation Cleanup ──────────────────────────────────────
+
+
+@login_required(login_url="login")
+def duplicate_reservations(request):
+    """Show duplicate reservations: same customer + same pickup date, one paid one unpaid."""
+    if not request.user.is_superuser:
+        messages.error(request, "You don't have permission to access this page.")
+        return redirect("dashboard")
+
+    from collections import defaultdict
+
+    # Scan range: past 90 days + future
+    cutoff = timezone.now().date() - timedelta(days=90)
+
+    reservations = (
+        Reservation.objects.filter(
+            legs__pickup_date__gte=cutoff,
+        )
+        .exclude(status="cancelled")
+        .select_related("customer")
+        .prefetch_related(
+            Prefetch("payments", queryset=Payment.objects.all()),
+            Prefetch(
+                "legs",
+                queryset=Leg.objects.order_by("pickup_date", "pickup_time"),
+            ),
+        )
+        .distinct()
+    )
+
+    # Group by (customer_id, pickup_date)
+    groups = defaultdict(list)
+    for res in reservations:
+        if not res.customer_id:
+            continue
+        first_leg = res.legs.all().first()
+        if first_leg:
+            key = (res.customer_id, first_leg.pickup_date)
+            groups[key].append(res)
+
+    # Find groups where at least one paid + one unpaid
+    duplicate_groups = []
+    total_unpaid = 0
+    for (customer_id, pickup_date), res_list in groups.items():
+        seen_ids = set()
+        unique = []
+        for r in res_list:
+            if r.id not in seen_ids:
+                seen_ids.add(r.id)
+                unique.append(r)
+        if len(unique) < 2:
+            continue
+
+        paid = [r for r in unique if r.payment_status == "paid"]
+        unpaid = [r for r in unique if r.payment_status != "paid"]
+
+        if not paid or not unpaid:
+            continue
+
+        total_unpaid += len(unpaid)
+        customer = unique[0].customer
+        duplicate_groups.append(
+            {
+                "customer": customer,
+                "pickup_date": pickup_date,
+                "paid": paid,
+                "unpaid": unpaid,
+            }
+        )
+
+    duplicate_groups.sort(key=lambda g: g["pickup_date"], reverse=True)
+
+    context = {
+        "duplicate_groups": duplicate_groups,
+        "total_unpaid": total_unpaid,
+        "total_groups": len(duplicate_groups),
+    }
+    return render(request, "dispatching/duplicate_reservations.html", context)
+
+
+@require_POST
+@login_required(login_url="login")
+def cancel_duplicate_reservation(request):
+    """Cancel an unpaid duplicate reservation via AJAX."""
+    if not request.user.is_superuser:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        reservation_uuid = data.get("reservation_uuid")
+
+        if not reservation_uuid:
+            return JsonResponse(
+                {"success": False, "error": "Missing reservation UUID"}, status=400
+            )
+
+        reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
+
+        # Safety: don't cancel paid reservations
+        if reservation.payment_status == "paid":
+            return JsonResponse(
+                {"success": False, "error": "Cannot cancel a paid reservation from this page. Use the refund workflow instead."},
+                status=400,
+            )
+
+        # Safety: don't cancel already-cancelled
+        if reservation.status == "cancelled":
+            return JsonResponse(
+                {"success": False, "error": "Reservation is already cancelled."},
+                status=400,
+            )
+
+        reservation.status = "cancelled"
+        reservation.save(update_fields=["status"])
+
+        logger.info(
+            f"Cancelled duplicate reservation #{reservation.id} "
+            f"({reservation.customer.get_full_name()}) by {request.user.username}"
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Reservation #{reservation.id} cancelled.",
+            }
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON"}, status=400
+        )
+    except Exception as e:
+        logger.error(f"Error cancelling duplicate reservation: {e}")
+        return JsonResponse(
+            {"success": False, "error": str(e)}, status=500
+        )

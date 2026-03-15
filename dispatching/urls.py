@@ -277,4 +277,7 @@ urlpatterns = [
     path("task-queue/<int:task_id>/", ops_views.task_detail_view, name="task_detail"),
     path("staff-metrics/", ops_views.staff_metrics_view, name="staff_metrics"),
     path("staff-metrics/<int:user_id>/", ops_views.staff_detail_view, name="staff_detail"),
+    # Duplicate Reservation Cleanup
+    path("duplicate-reservations/", views.duplicate_reservations, name="duplicate_reservations"),
+    path("cancel-duplicate-reservation/", views.cancel_duplicate_reservation, name="cancel_duplicate_reservation"),
 ]

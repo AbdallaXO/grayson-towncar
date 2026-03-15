@@ -404,6 +404,17 @@ def _build_driver_conflict_context(task):
     )
 
     # Build schedule entries with timing info
+    from dispatching.scheduler import (
+        get_drive_time as sched_get_drive_time,
+        get_airport_dwell_time,
+        _get_best_flight_arrival,
+    )
+    from dispatching.analytics import (
+        categorize_location,
+        categorize_time_of_day,
+        categorize_day_type,
+    )
+
     schedule = []
     for leg in day_legs:
         ready_time = _get_effective_ready_time(leg, pickup_date)
@@ -425,10 +436,57 @@ def _build_driver_conflict_context(task):
 
         # Flight info
         flight_label = ""
+        flight_landing_str = ""
+        flight_gate_arrival_str = ""
+        flight_status = ""
         if leg.flight_information:
             fi = leg.flight_information
             airline = fi.airline_display_name or fi.airline or ""
             flight_label = f"{airline} {fi.flight_number}".strip()
+            flight_status = fi.status or ""
+            # Runway arrival (landing)
+            runway_dt = (
+                fi.actual_arrival_local
+                or fi.estimated_arrival_local
+                or fi.scheduled_arrival_local
+            )
+            if runway_dt:
+                from django.utils import timezone as tz
+                if tz.is_aware(runway_dt):
+                    runway_dt = tz.make_naive(runway_dt, tz.get_current_timezone())
+                flight_landing_str = runway_dt.time().strftime("%I:%M %p").lstrip("0")
+            # Gate arrival (arriving at gate)
+            gate_dt = (
+                fi.actual_gate_arrival_local
+                or fi.estimated_gate_arrival_local
+                or fi.scheduled_gate_arrival_local
+            )
+            if gate_dt:
+                from django.utils import timezone as tz
+                if tz.is_aware(gate_dt):
+                    gate_dt = tz.make_naive(gate_dt, tz.get_current_timezone())
+                flight_gate_arrival_str = gate_dt.time().strftime("%I:%M %p").lstrip("0")
+
+        # Drive time — prefer live Google Maps, fall back to historical P75
+        from drivers.utils import get_drive_time as google_drive_time
+        pickup_cat = categorize_location(leg.pickup_location or "")
+        dropoff_cat = categorize_location(leg.dropoff_location or "")
+        time_cat = categorize_time_of_day(leg.pickup_time)
+        day_cat = categorize_day_type(pickup_date)
+
+        live_drive = google_drive_time(leg.pickup_location, leg.dropoff_location)
+        if live_drive:
+            drive_minutes = round(live_drive["duration_seconds"] / 60)
+            drive_label = live_drive["duration_text"]
+            drive_is_live = True
+        else:
+            drive_minutes = sched_get_drive_time(pickup_cat, dropoff_cat, time_cat, day_cat)
+            drive_label = f"{drive_minutes} min"
+            drive_is_live = False
+
+        dwell_minutes = 0
+        if trip_type == "arrival":
+            dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
 
         schedule.append({
             "leg": leg,
@@ -440,11 +498,37 @@ def _build_driver_conflict_context(task):
             "customer_name": customer_name,
             "trip_type": trip_type,
             "flight_label": flight_label,
+            "flight_landing_str": flight_landing_str,
+            "flight_gate_arrival_str": flight_gate_arrival_str,
+            "flight_status": flight_status,
+            "drive_minutes": drive_minutes,
+            "drive_label": drive_label,
+            "drive_is_live": drive_is_live,
+            "dwell_minutes": dwell_minutes,
             "is_trigger": is_trigger,
             "is_conflicting": is_conflicting,
             "pickup_location": leg.pickup_location,
             "dropoff_location": leg.dropoff_location,
         })
+
+    # ── Travel time between consecutive legs (D/O → next P/U) ──
+    for i in range(len(schedule) - 1):
+        prev_dropoff = schedule[i]["dropoff_location"]
+        next_pickup = schedule[i + 1]["pickup_location"]
+        if prev_dropoff and next_pickup:
+            transit = google_drive_time(prev_dropoff, next_pickup)
+            if transit:
+                schedule[i + 1]["transit_label"] = transit["duration_text"]
+                schedule[i + 1]["transit_from"] = prev_dropoff
+                schedule[i + 1]["transit_is_live"] = True
+            else:
+                # Fall back to historical
+                p_cat = categorize_location(prev_dropoff)
+                n_cat = categorize_location(next_pickup)
+                mins = sched_get_drive_time(p_cat, n_cat, None, None)
+                schedule[i + 1]["transit_label"] = f"{mins} min"
+                schedule[i + 1]["transit_from"] = prev_dropoff
+                schedule[i + 1]["transit_is_live"] = False
 
     # ── Conflict breakdown: travel time between conflicting legs ──
     conflict_detail = None
@@ -894,9 +978,21 @@ def _build_driver_assign_context(task):
         airline = fi.airline_display_name or fi.airline or ""
         flight_label = f"{airline} {fi.flight_number}".strip()
 
-    # In-house drivers with their leg count for this day
+    # Only drivers with a vehicle assignment for the day (i.e., working)
+    from datetime import datetime as dt_cls
+    from ops.tasks import _estimate_leg_end_time
+    from drivers.models import DriverVehicleAssignment
+
+    # Get vehicle assignments for this date
+    vehicle_assignments = {
+        va.driver_id: va
+        for va in DriverVehicleAssignment.objects.filter(date=pickup_date)
+        .select_related("vehicle", "vehicle__vehicle_type", "driver")
+    }
+
     drivers = list(
         Driver.objects.filter(
+            id__in=vehicle_assignments.keys(),
             driver_type="inhouse",
             profile__is_active=True,
         )
@@ -913,37 +1009,97 @@ def _build_driver_assign_context(task):
         .order_by("day_legs", "profile__first_name")
     )
 
+    # Fetch all active legs for all drivers on this day (one query)
+    all_driver_legs = list(
+        Leg.objects.filter(
+            driver__in=[d.id for d in drivers],
+            pickup_date=pickup_date,
+        )
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .select_related("driver", "reservation", "reservation__customer")
+        .order_by("pickup_time")
+    )
+
+    # Group legs by driver
+    legs_by_driver = {}
+    for dl in all_driver_legs:
+        legs_by_driver.setdefault(dl.driver_id, []).append(dl)
+
+    # This leg's pickup as datetime for overlap checking
+    this_pickup_dt = dt_cls.combine(pickup_date, leg.pickup_time)
+
     driver_list = []
     for d in drivers:
+        d_legs = legs_by_driver.get(d.id, [])
+
+        # Build mini-schedule for this driver
+        mini_schedule = []
+        latest_end = None
+        has_overlap = False
+        for dl in d_legs:
+            try:
+                end_time = _estimate_leg_end_time(dl, pickup_date)
+            except Exception:
+                end_time = dt_cls.combine(pickup_date, dl.pickup_time) + timedelta(minutes=60)
+            if latest_end is None or end_time > latest_end:
+                latest_end = end_time
+
+            cust = dl.reservation.customer if dl.reservation else None
+            mini_schedule.append({
+                "pickup_str": dl.pickup_time.strftime("%I:%M %p").lstrip("0"),
+                "end_str": end_time.strftime("%I:%M %p").lstrip("0"),
+                "route": f"{(dl.pickup_location or '')[:25]} → {(dl.dropoff_location or '')[:25]}",
+                "customer": cust.get_full_name() if cust else "Unknown",
+            })
+
+        # Check for time conflict with the unassigned leg
+        for dl in d_legs:
+            try:
+                end_time = _estimate_leg_end_time(dl, pickup_date)
+            except Exception:
+                end_time = dt_cls.combine(pickup_date, dl.pickup_time) + timedelta(minutes=60)
+            dl_pickup_dt = dt_cls.combine(pickup_date, dl.pickup_time)
+            # Overlap: driver's leg spans across this leg's pickup time
+            if dl_pickup_dt <= this_pickup_dt < end_time:
+                has_overlap = True
+                break
+
+        # Availability status
+        if d.day_legs == 0:
+            avail_status = "free"
+            avail_label = "Available all day"
+        elif has_overlap:
+            avail_status = "conflict"
+            avail_label = "Busy at pickup time"
+        elif latest_end and latest_end <= this_pickup_dt:
+            avail_status = "free"
+            avail_label = f"Free from {latest_end.strftime('%I:%M %p').lstrip('0')}"
+        elif latest_end:
+            avail_status = "maybe"
+            avail_label = f"Clears ~{latest_end.strftime('%I:%M %p').lstrip('0')}"
+        else:
+            avail_status = "free"
+            avail_label = "Available"
+
+        # Vehicle assignment for the day
+        va = vehicle_assignments.get(d.id)
+        vehicle_label = ""
+        if va and va.vehicle:
+            v = va.vehicle
+            vtype = v.vehicle_type.vehicle_type if v.vehicle_type else ""
+            vehicle_label = f"{vtype} #{v.vehicle_number}".strip() if vtype else f"#{v.vehicle_number}"
+
         driver_list.append({
             "id": d.id,
             "name": str(d),
             "phone": d.phone_number or "",
             "day_legs": d.day_legs,
-            "schedule": d.schedule or "",
-        })
-
-    # Other legs on the same day (for context)
-    day_legs = list(
-        Leg.objects.filter(pickup_date=pickup_date)
-        .exclude(status__in=["completed", "cancelled"])
-        .exclude(reservation__status="cancelled")
-        .select_related("driver", "reservation", "reservation__customer")
-        .order_by("pickup_time")[:20]
-    )
-
-    day_schedule = []
-    for dl in day_legs:
-        cust = dl.reservation.customer if dl.reservation else None
-        day_schedule.append({
-            "leg": dl,
-            "pickup_str": dl.pickup_time.strftime("%I:%M %p").lstrip("0"),
-            "customer_name": cust.get_full_name() if cust else "Unknown",
-            "driver_name": str(dl.driver) if dl.driver else "Unassigned",
-            "has_driver": bool(dl.driver),
-            "is_this_leg": dl.pk == leg.pk,
-            "pickup_location": dl.pickup_location,
-            "dropoff_location": dl.dropoff_location,
+            "vehicle_label": vehicle_label,
+            "mini_schedule": mini_schedule,
+            "avail_status": avail_status,
+            "avail_label": avail_label,
+            "has_overlap": has_overlap,
         })
 
     return {
@@ -955,7 +1111,6 @@ def _build_driver_assign_context(task):
         "da_pickup_location": leg.pickup_location,
         "da_dropoff_location": leg.dropoff_location,
         "da_drivers": driver_list,
-        "da_day_schedule": day_schedule,
         "is_driver_assign": True,
     }
 

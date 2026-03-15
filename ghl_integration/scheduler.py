@@ -5,6 +5,9 @@ Replaces Celery beat — runs inside the Django/Gunicorn process.
 Starts a single daemon thread that wakes up every 30 minutes to
 process due follow-up tasks and batch-send unsent initial SMS.
 
+Uses a PostgreSQL advisory lock so that only ONE Gunicorn worker
+actually executes the batch tasks each cycle. Other workers skip.
+
 Usage:
     Called automatically from GhlIntegrationConfig.ready() in apps.py.
     Only starts once per process (guarded by a module-level flag).
@@ -23,6 +26,27 @@ _cycle_count = 0  # Tracks how many 30-min cycles have run
 # How often the scheduler runs (in seconds)
 INTERVAL_SECONDS = 30 * 60  # 30 minutes
 
+# Advisory lock ID — arbitrary unique integer for pg_try_advisory_lock
+_SCHEDULER_LOCK_ID = 737_201  # "GTC scheduler"
+
+
+def _try_advisory_lock():
+    """
+    Try to acquire a PostgreSQL session-level advisory lock.
+    Returns True if this process wins the lock (i.e. is the scheduler leader).
+    Returns True unconditionally on SQLite (dev mode — only one process).
+    """
+    from django.db import connection
+
+    if connection.vendor != "postgresql":
+        # SQLite / dev mode — no multi-worker concern
+        return True
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_try_advisory_lock(%s)", [_SCHEDULER_LOCK_ID])
+        acquired = cursor.fetchone()[0]
+    return acquired
+
 
 def _run_scheduler():
     """
@@ -37,7 +61,12 @@ def _run_scheduler():
     while True:
         _cycle_count += 1
         try:
-            _run_batch_tasks()
+            # Only one Gunicorn worker should run batch tasks.
+            # pg_try_advisory_lock is non-blocking: returns True if acquired.
+            if _try_advisory_lock():
+                _run_batch_tasks()
+            else:
+                logger.debug("Another worker holds the scheduler lock, skipping cycle")
         except Exception as e:
             logger.error(f"Scheduler error: {e}", exc_info=True)
 

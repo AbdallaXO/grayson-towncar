@@ -165,34 +165,58 @@ def detect_driver_conflicts(leg, target_date):
 
     conflicts = []
 
+    def _travel_minutes(from_location, to_location):
+        """Get travel time between two locations (live traffic → historical → 0)."""
+        if not from_location or not to_location:
+            return 0
+        try:
+            from drivers.utils import get_drive_time as google_drive_time
+            live = google_drive_time(from_location, to_location)
+            if live:
+                return round(live["duration_seconds"] / 60)
+        except Exception:
+            pass
+        try:
+            from dispatching.analytics import categorize_location
+            from dispatching.scheduler import get_drive_time as sched_drive
+            fc = categorize_location(from_location)
+            tc = categorize_location(to_location)
+            return sched_drive(fc, tc, None, None)
+        except Exception:
+            return 0
+
     for other in other_legs:
         other_ready_time = _get_effective_ready_time(other, target_date)
         other_end_time = _estimate_leg_end_time(other, target_date)
 
-        # Check two directions:
+        # Check two directions, including travel time between legs:
         # 1. Does THIS leg's shifted time cause the driver to be late for OTHER leg?
-        #    i.e., this_end_time > other_ready_time (and this leg is before other)
-        if this_end_time > other_ready_time and this_ready_time < other_ready_time:
-            conflict_minutes = int((this_end_time - other_ready_time).total_seconds() / 60)
-            if conflict_minutes > 0:
+        #    Driver finishes this leg, then travels from this dropoff → other pickup
+        if this_ready_time < other_ready_time:
+            travel = _travel_minutes(leg.dropoff_location, other.pickup_location)
+            driver_arrives = this_end_time + timedelta(minutes=travel)
+            conflict_mins = int((driver_arrives - other_ready_time).total_seconds() / 60)
+            if conflict_mins > 0:
                 conflicts.append({
                     "conflicting_leg": other,
                     "driver_clears_at": this_end_time,
                     "effective_ready": other_ready_time,
-                    "conflict_minutes": conflict_minutes,
+                    "conflict_minutes": conflict_mins,
                     "direction": "this_delays_other",
                 })
 
         # 2. Does OTHER leg cause driver to be late for THIS shifted leg?
-        #    i.e., other_end_time > this_ready_time (and other leg is before this)
-        if other_end_time > this_ready_time and other_ready_time < this_ready_time:
-            conflict_minutes = int((other_end_time - this_ready_time).total_seconds() / 60)
-            if conflict_minutes > 0:
+        #    Driver finishes other leg, then travels from other dropoff → this pickup
+        if other_ready_time < this_ready_time:
+            travel = _travel_minutes(other.dropoff_location, leg.pickup_location)
+            driver_arrives = other_end_time + timedelta(minutes=travel)
+            conflict_mins = int((driver_arrives - this_ready_time).total_seconds() / 60)
+            if conflict_mins > 0:
                 conflicts.append({
                     "conflicting_leg": other,
                     "driver_clears_at": other_end_time,
                     "effective_ready": this_ready_time,
-                    "conflict_minutes": conflict_minutes,
+                    "conflict_minutes": conflict_mins,
                     "direction": "other_delays_this",
                 })
 
@@ -496,10 +520,32 @@ def _scan_driver_overlaps():
             end_a = _estimate_leg_end_time(leg_a, today)
             ready_b = _get_effective_ready_time(leg_b, today)
 
-            if end_a <= ready_b:
+            # Include travel time from leg_a dropoff to leg_b pickup
+            travel_mins = 0
+            if leg_a.dropoff_location and leg_b.pickup_location:
+                try:
+                    from drivers.utils import get_drive_time as google_drive_time
+                    live = google_drive_time(leg_a.dropoff_location, leg_b.pickup_location)
+                    if live:
+                        travel_mins = round(live["duration_seconds"] / 60)
+                except Exception:
+                    pass
+                if not travel_mins:
+                    try:
+                        from dispatching.analytics import categorize_location
+                        from dispatching.scheduler import get_drive_time as sched_drive
+                        fc = categorize_location(leg_a.dropoff_location)
+                        tc = categorize_location(leg_b.pickup_location)
+                        travel_mins = sched_drive(fc, tc, None, None)
+                    except Exception:
+                        pass
+
+            driver_arrives_b = end_a + timedelta(minutes=travel_mins)
+
+            if driver_arrives_b <= ready_b:
                 continue  # No overlap
 
-            conflict_minutes = int((end_a - ready_b).total_seconds() / 60)
+            conflict_minutes = int((driver_arrives_b - ready_b).total_seconds() / 60)
             if conflict_minutes <= 0:
                 continue
 

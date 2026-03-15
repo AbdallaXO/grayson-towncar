@@ -59,6 +59,31 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
                 logger.info(f"Lead #{lead_id} already contacted, skipping")
                 return {"status": "skipped", "reason": "already_sent", "lead_id": lead_id}
 
+            if lead.converted or lead.status == Lead.StatusChoices.CONVERTED:
+                logger.info(f"Lead #{lead_id} already converted, skipping SMS")
+                return {"status": "skipped", "reason": "already_converted", "lead_id": lead_id}
+
+            # Skip if another lead with same phone already has an active sequence
+            # or was already contacted (prevents spamming the same person twice)
+            if lead.phone:
+                digits = ''.join(filter(str.isdigit, lead.phone))
+                if len(digits) >= 10:
+                    last10 = digits[-10:]
+                    other_contacted = Lead.objects.filter(
+                        initial_sms_sent=True,
+                    ).exclude(id=lead.id).exclude(phone__isnull=True).exclude(phone="")
+                    for other in other_contacted:
+                        other_digits = ''.join(filter(str.isdigit, other.phone))
+                        if len(other_digits) >= 10 and other_digits[-10:] == last10:
+                            logger.info(
+                                f"Lead #{lead_id} shares phone with Lead #{other.id} "
+                                f"(already contacted), skipping duplicate SMS"
+                            )
+                            lead.initial_sms_sent = True  # Mark so it doesn't get retried
+                            lead.initial_sms_sent_at = timezone.now()
+                            lead.save(update_fields=["initial_sms_sent", "initial_sms_sent_at"])
+                            return {"status": "skipped", "reason": "duplicate_phone", "lead_id": lead_id}
+
             if not lead.phone:
                 # No phone number — go straight to email fallback
                 logger.info(f"Lead #{lead_id} has no phone number, trying email fallback")
@@ -249,13 +274,13 @@ def batch_send_unsent_leads():
         logger.info("Outside send window (8 AM - 9 PM Eastern), skipping initial SMS batch")
         return {"status": "outside_window", "queued": 0}
 
-    # Get leads that haven't been contacted by any channel yet
-    # Includes leads with phone (for SMS) and leads with only email (for email fallback)
+    # Get leads that haven't been contacted by any channel yet.
+    # Only NEW leads — not converted, lost, or already contacted.
     unsent_leads = Lead.objects.filter(
         initial_sms_sent=False,
         initial_email_sent=False,
-        status__in=[Lead.StatusChoices.NEW, Lead.StatusChoices.CONTACTED],
-        converted=False
+        status=Lead.StatusChoices.NEW,
+        converted=False,
     ).filter(
         Q(phone__isnull=False) & ~Q(phone="") | Q(email__isnull=False) & ~Q(email="")
     ).values_list('id', flat=True)[:50]  # Limit batch size
@@ -414,6 +439,25 @@ def start_follow_up_sequence(lead_id):
         if lead.sequence_active:
             logger.info(f"Lead #{lead_id} already has active sequence, skipping")
             return {"status": "skipped", "reason": "already_active"}
+
+        # Guard: don't start if another lead with the same phone already has
+        # an active sequence (prevents double-texting round-trip leads)
+        if lead.phone:
+            digits = ''.join(filter(str.isdigit, lead.phone))
+            if len(digits) >= 10:
+                last10 = digits[-10:]
+                other_active = Lead.objects.filter(
+                    sequence_active=True,
+                ).exclude(id=lead.id).exclude(phone__isnull=True).exclude(phone="")
+                for other in other_active:
+                    other_digits = ''.join(filter(str.isdigit, other.phone))
+                    if len(other_digits) >= 10 and other_digits[-10:] == last10:
+                        logger.info(
+                            f"Lead #{lead_id} shares phone with Lead #{other.id} "
+                            f"(active sequence), skipping duplicate sequence"
+                        )
+                        return {"status": "skipped", "reason": "duplicate_phone_sequence"}
+
         if lead.converted:
             logger.info(f"Lead #{lead_id} is already converted, skipping")
             return {"status": "skipped", "reason": "converted"}
@@ -504,17 +548,19 @@ def process_follow_up_batch():
         logger.info("Outside send window (8 AM - 9 PM Eastern), skipping batch")
         return {"status": "outside_window", "processed": 0}
 
-    # Query due tasks, ordered by lead priority (urgent first)
-    due_tasks = (
+    # Collect due task IDs first (lightweight query).
+    # We'll lock each row individually below to prevent duplicate sends
+    # when multiple Gunicorn workers run the scheduler concurrently.
+    due_task_ids = list(
         FollowUpTask.objects.filter(
             status=FollowUpTask.StatusChoices.PENDING,
             scheduled_at__lte=now,
         )
-        .select_related("lead")
-        .order_by("lead__priority", "scheduled_at")[:100]
+        .order_by("lead__priority", "scheduled_at")
+        .values_list("id", flat=True)[:100]
     )
 
-    if not due_tasks:
+    if not due_task_ids:
         logger.debug("No due follow-up tasks found")
         return {"status": "no_tasks", "processed": 0}
 
@@ -524,12 +570,25 @@ def process_follow_up_batch():
     failed = 0
     rescheduled = 0
 
-    for task in due_tasks:
+    for task_id in due_task_ids:
+        # --- Atomically claim this task so no other worker can process it ---
+        try:
+            with transaction.atomic():
+                task = (
+                    FollowUpTask.objects
+                    .select_for_update(skip_locked=True)
+                    .select_related("lead")
+                    .get(id=task_id, status=FollowUpTask.StatusChoices.PENDING)
+                )
+        except FollowUpTask.DoesNotExist:
+            # Already claimed by another worker or no longer PENDING
+            continue
+
         lead = task.lead
 
-        # --- Stop condition checks (fresh from DB) ---
+        # --- Stop condition checks (fresh from DB via select_related) ---
 
-        # 1. Lead has replied
+        # 1. Lead has replied (DB flag)
         if lead.has_replied:
             _cancel_task(task, "replied", now)
             cancelled += 1
@@ -546,6 +605,28 @@ def process_follow_up_batch():
             _cancel_task(task, "expired_date", now)
             cancelled += 1
             continue
+
+        # 4. Safety net: check GHL conversation for inbound replies.
+        #    Catches replies even when the webhook fails to fire.
+        if lead.ghl_contact_id and not lead.has_replied:
+            try:
+                if service.contact_has_replied(lead.ghl_contact_id):
+                    # Update lead so future checks skip the API call
+                    lead.has_replied = True
+                    lead.needs_human_follow_up = True
+                    lead.save(update_fields=["has_replied", "needs_human_follow_up"])
+                    _cancel_task(task, "replied", now)
+                    # Cancel remaining pending tasks for this lead
+                    from .tasks import cancel_lead_sequence
+                    cancel_lead_sequence(lead.id, reason="replied")
+                    cancelled += 1
+                    logger.warning(
+                        f"Reply detected via GHL API for lead #{lead.id} "
+                        f"(webhook missed it) — cancelling sequence"
+                    )
+                    continue
+            except Exception as e:
+                logger.warning(f"GHL reply check failed for lead #{lead.id}: {e}")
 
         # --- Send window double-check at exact moment ---
         if not is_within_send_window():
@@ -644,7 +725,7 @@ def process_follow_up_batch():
                 task.status = FollowUpTask.StatusChoices.FAILED
                 LeadActivity.objects.create(
                     lead=lead,
-                    activity_type=LeadActivity.ActivityType.SMS_FAILED,
+                    activity_type=LeadActivity.ActivityType.SMS_SENT,
                     description=f"Follow-up step {task.step_number} failed after {task.attempts} attempts",
                     metadata={"step": task.step_number, "attempts": task.attempts},
                 )

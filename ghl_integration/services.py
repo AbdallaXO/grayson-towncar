@@ -564,6 +564,61 @@ class GoHighLevelService:
             logger.error(f"Unexpected error updating contact status: {str(e)}", exc_info=True)
             return False
     
+    def contact_has_replied(self, contact_id: str) -> bool:
+        """
+        Check if a contact has any inbound (reply) messages in GHL.
+        Used as a safety net when the webhook isn't detecting replies.
+
+        Searches conversations for the contact, then checks for inbound messages.
+        Returns True if any inbound message is found, False otherwise.
+        """
+        if not self.api_key or not contact_id:
+            return False
+
+        try:
+            # Search for conversations with this contact
+            url = f"{self.base_url}/conversations/search"
+            params = {"locationId": self.location_id, "contactId": contact_id}
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
+
+            if response.status_code != 200:
+                logger.debug(f"Conversation search failed for {contact_id}: {response.status_code}")
+                return False
+
+            data = response.json()
+            conversations = data.get("conversations", [])
+            if not conversations:
+                return False
+
+            # Check messages in the first (most recent) conversation
+            conv_id = conversations[0].get("id")
+            if not conv_id:
+                return False
+
+            msg_url = f"{self.base_url}/conversations/{conv_id}/messages"
+            msg_response = requests.get(msg_url, headers=self.headers, timeout=10)
+
+            if msg_response.status_code != 200:
+                return False
+
+            messages = msg_response.json().get("messages", {})
+            # messages can be a list or dict with 'messages' key
+            if isinstance(messages, dict):
+                messages = messages.get("messages", [])
+
+            for msg in messages:
+                direction = msg.get("direction", "")
+                if direction == "inbound":
+                    logger.info(f"Found inbound reply for contact {contact_id}")
+                    return True
+
+            return False
+
+        except Exception as e:
+            logger.warning(f"Error checking replies for contact {contact_id}: {e}")
+            # On error, err on the side of caution — don't block sends
+            return False
+
     def send_sms(self, contact_id: str, message: str) -> bool:
         """
         Send an SMS message to a contact in GHL.

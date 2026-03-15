@@ -1,0 +1,274 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  .dupe-table { font-size: 0.82rem; }
+  .dupe-table th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.4rem 0.5rem; }
+  .dupe-table td { padding: 0.35rem 0.5rem; vertical-align: middle; }
+  .dupe-table .badge { font-size: 0.7rem; }
+  .dupe-card .card-header { padding: 0.5rem 0.75rem; }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+  {% block navbar %}
+  {% endblock navbar %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="container-fluid py-3">
+    <!-- Header -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <h1 class="mb-0 fs-4 fw-bold">
+            <i class="bi bi-files me-2"></i>Duplicate Reservations
+          </h1>
+          <div class="d-flex gap-2 align-items-center">
+            {% if total_unpaid > 0 %}
+            <button class="btn btn-sm btn-danger" id="cancelAllBtn" onclick="cancelAll()">
+              <i class="bi bi-x-circle me-1"></i>Cancel All {{ total_unpaid }} Unpaid
+            </button>
+            {% endif %}
+            <a href="{% url 'dashboard' %}" class="btn btn-sm btn-dark">
+              <i class="bi bi-arrow-left me-1"></i>Dashboard
+            </a>
+          </div>
+        </div>
+        <small class="text-muted">
+          Same customer, same day — one paid, one unpaid. Cancel the duplicates.
+          Scanning last 90 days + future.
+        </small>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="row mb-3 g-2">
+      <div class="col-auto">
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center py-2 px-4">
+            <h4 class="fw-bold mb-0">{{ total_groups }}</h4>
+            <small class="text-muted" style="font-size: 0.7rem;">Groups</small>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="card shadow-sm border-0">
+          <div class="card-body text-center py-2 px-4">
+            <h4 class="fw-bold text-danger mb-0">{{ total_unpaid }}</h4>
+            <small class="text-muted" style="font-size: 0.7rem;">Unpaid Dupes</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if duplicate_groups %}
+    {% for group in duplicate_groups %}
+    <div class="card shadow-sm mb-2 dupe-card" id="group-{{ forloop.counter }}">
+      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <div>
+          <strong class="me-2">{{ group.customer.first_name }} {{ group.customer.last_name }}</strong>
+          {% if group.customer.email %}<small class="text-muted me-2">{{ group.customer.email }}</small>{% endif %}
+          {% if group.customer.phone_number %}<small class="text-muted me-2">{{ group.customer.phone_number }}</small>{% endif %}
+          <span class="badge bg-dark" style="font-size: 0.7rem;">{{ group.pickup_date|date:"M d, Y" }}</span>
+        </div>
+        <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">{{ group.unpaid|length }} unpaid</span>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 dupe-table">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 50px;"></th>
+                <th>Reservation</th>
+                <th>Route</th>
+                <th>Time</th>
+                <th>Price</th>
+                <th>Payment</th>
+                <th>Created</th>
+                <th style="width: 100px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for res in group.paid %}
+              <tr class="table-success">
+                <td><span class="badge bg-success">KEEP</span></td>
+                <td>
+                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="fw-bold text-decoration-none">
+                    #{{ res.id }}
+                  </a>
+                </td>
+                <td>{% if res.rate %}{{ res.rate }}{% else %}&mdash;{% endif %}</td>
+                <td>
+                  {% with leg=res.legs.all.0 %}
+                    {% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}
+                  {% endwith %}
+                </td>
+                <td>${{ res.total_price }}</td>
+                <td><span class="badge bg-success">{{ res.payment_status }}</span></td>
+                <td>{{ res.created_at|date:"M d, g:i A" }}</td>
+                <td><small class="text-muted">Paid</small></td>
+              </tr>
+              {% endfor %}
+              {% for res in group.unpaid %}
+              <tr class="unpaid-row" data-uuid="{{ res.uuid }}">
+                <td><span class="badge bg-danger">DUPE</span></td>
+                <td>
+                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="fw-bold text-decoration-none">
+                    #{{ res.id }}
+                  </a>
+                </td>
+                <td>{% if res.rate %}{{ res.rate }}{% else %}&mdash;{% endif %}</td>
+                <td>
+                  {% with leg=res.legs.all.0 %}
+                    {% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}
+                  {% endwith %}
+                </td>
+                <td>${{ res.total_price }}</td>
+                <td><span class="badge bg-secondary">{{ res.payment_status }}</span></td>
+                <td>{{ res.created_at|date:"M d, g:i A" }}</td>
+                <td>
+                  <button class="btn btn-sm btn-outline-danger cancel-btn py-0 px-2"
+                          style="font-size: 0.78rem;"
+                          onclick="cancelOne(this, '{{ res.uuid }}', {{ res.id }})">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
+        <h4 class="mt-3">No Duplicates Found</h4>
+        <p class="text-muted">All clean — no paid/unpaid duplicates in the last 90 days.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Confirm Modal -->
+  <div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title">Confirm Cancellation</h6>
+          <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body py-2" id="confirmModalBody" style="font-size: 0.88rem;">
+        </div>
+        <div class="modal-footer py-1">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">No, keep it</button>
+          <button type="button" class="btn btn-sm btn-danger" id="confirmModalYes">Yes, cancel it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrfToken = '{{ csrf_token }}';
+
+function cancelOne(btn, uuid, resId) {
+  const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+  document.getElementById('confirmModalBody').innerHTML =
+    `Cancel Reservation <strong>#${resId}</strong>?<br>
+     <small class="text-muted">Sets status to "cancelled". Reversible from reservation detail page.</small>`;
+
+  document.getElementById('confirmModalYes').onclick = async function() {
+    modal.hide();
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+      const resp = await fetch("{% url 'cancel_duplicate_reservation' %}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({reservation_uuid: uuid})
+      });
+      const data = await resp.json();
+
+      if (data.success) {
+        const row = btn.closest('tr');
+        row.classList.remove('unpaid-row');
+        row.classList.add('table-secondary');
+        const firstBadge = row.querySelector('td:first-child .badge');
+        if (firstBadge) {
+          firstBadge.className = 'badge bg-secondary';
+          firstBadge.textContent = 'DONE';
+        }
+        btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Cancelled</small>';
+      } else {
+        alert('Error: ' + data.error);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Cancel';
+    }
+  };
+  modal.show();
+}
+
+function cancelAll() {
+  const rows = document.querySelectorAll('.unpaid-row');
+  if (rows.length === 0) return;
+
+  const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+  document.getElementById('confirmModalBody').innerHTML =
+    `Cancel <strong>all ${rows.length} unpaid duplicates</strong>?<br>
+     <small class="text-muted">Each set to "cancelled". Reversible.</small>`;
+
+  document.getElementById('confirmModalYes').onclick = async function() {
+    modal.hide();
+    const cancelAllBtn = document.getElementById('cancelAllBtn');
+    cancelAllBtn.disabled = true;
+    cancelAllBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Working...';
+
+    let success = 0, fail = 0;
+    for (const row of rows) {
+      const uuid = row.dataset.uuid;
+      const btn = row.querySelector('.cancel-btn');
+      if (!btn) continue;
+
+      try {
+        const resp = await fetch("{% url 'cancel_duplicate_reservation' %}", {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+          body: JSON.stringify({reservation_uuid: uuid})
+        });
+        const data = await resp.json();
+        if (data.success) {
+          success++;
+          row.classList.remove('unpaid-row');
+          row.classList.add('table-secondary');
+          const firstBadge = row.querySelector('td:first-child .badge');
+          if (firstBadge) {
+            firstBadge.className = 'badge bg-secondary';
+            firstBadge.textContent = 'DONE';
+          }
+          btn.outerHTML = '<small class="text-success"><i class="bi bi-check"></i>Cancelled</small>';
+        } else {
+          fail++;
+        }
+      } catch {
+        fail++;
+      }
+    }
+
+    cancelAllBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>${success} cancelled${fail ? ', ' + fail + ' failed' : ''}`;
+    cancelAllBtn.classList.replace('btn-danger', 'btn-success');
+  };
+  modal.show();
+}
+</script>
+{% endblock %}
