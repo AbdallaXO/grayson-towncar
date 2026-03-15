@@ -1,0 +1,1289 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Driver Ops — Coverage Dashboard{% endblock %}
+
+{% block head_extra %}
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080b12;
+  --surface: #0e1219;
+  --card: #131720;
+  --card-hover: #181d27;
+  --border: #1c2235;
+  --border-bright: #2a3350;
+  --teal: #00e5c3;
+  --teal-dim: #00a88f;
+  --teal-muted: #00e5c315;
+  --gold: #f5c842;
+  --gold-dim: #b8941e;
+  --gold-muted: #f5c84215;
+  --red: #ff4d4d;
+  --red-muted: #ff4d4d18;
+  --orange: #ff8c42;
+  --orange-muted: #ff8c4218;
+  --green: #3ddc84;
+  --text: #dde3f0;
+  --text-dim: #7a8aaa;
+  --text-muted: #3d4a66;
+  --mono: 'JetBrains Mono', monospace;
+  --bar: 'Barlow Condensed', sans-serif;
+}
+
+/* ── Global ── */
+body { background: var(--bg) !important; }
+
+.ops-page {
+  background: var(--bg);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(255,255,255,0.012) 1px,
+    rgba(255,255,255,0.012) 2px
+  );
+  min-height: 100vh;
+  color: var(--text);
+  padding-bottom: 3rem;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+/* Section fade-in */
+.ops-section { opacity: 0; transform: translateY(8px); animation: fadeUp .4s ease forwards; }
+.ops-section:nth-child(2) { animation-delay: .08s; }
+.ops-section:nth-child(3) { animation-delay: .16s; }
+.ops-section:nth-child(4) { animation-delay: .24s; }
+.ops-section:nth-child(5) { animation-delay: .32s; }
+.ops-section:nth-child(6) { animation-delay: .40s; }
+.ops-section:nth-child(7) { animation-delay: .48s; }
+.ops-section:nth-child(8) { animation-delay: .56s; }
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+
+/* ── Cards ── */
+.ops-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.ops-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-family: var(--bar);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.ops-card-head::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+.ops-card-head.head-gold::before { background: var(--gold); }
+.ops-card-head.head-teal::before { background: var(--teal); }
+.ops-card-head.head-red::before { background: var(--red); }
+.ops-card-head.head-green::before { background: var(--green); }
+.ops-card-head .head-border {
+  flex: 0;
+  height: 2px;
+  width: 24px;
+  background: var(--gold);
+  margin-left: 4px;
+}
+
+/* ── Header ── */
+.ops-header {
+  padding: 24px 0 20px;
+  border-bottom: 1px solid var(--border-bright);
+  margin-bottom: 20px;
+}
+.ops-header-tag {
+  font-family: var(--bar);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+.ops-header-title {
+  font-family: var(--bar);
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.15;
+}
+.ops-clock {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--gold);
+  line-height: 1;
+}
+.ops-clock-date {
+  font-family: var(--bar);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-align: right;
+}
+.ops-edit-btn {
+  font-family: var(--bar);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--border-bright);
+  background: transparent;
+  padding: 6px 16px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all .15s;
+}
+.ops-edit-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── Weekly Strip ── */
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.week-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 6px 8px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  transition: all .15s;
+  cursor: pointer;
+  position: relative;
+}
+.week-col:hover { background: var(--card-hover); color: inherit; }
+.week-col.selected {
+  background: var(--card-hover);
+  border-left-color: var(--gold);
+}
+.week-col.selected .wc-day { color: var(--gold); }
+.week-col.weakest { background: var(--red-muted); }
+.week-col.weakest .wc-bar-fill { background: var(--red) !important; }
+
+.wc-day {
+  font-family: var(--bar);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wc-date-num {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+  margin: 4px 0 2px;
+}
+.wc-drivers-big {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--teal);
+}
+.wc-drivers-big .suffix { font-size: 10px; font-weight: 500; color: var(--teal-dim); }
+.wc-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.wc-bar-fill { height: 100%; background: var(--teal); border-radius: 2px; transition: width .3s; }
+
+/* ── Stats Strip ── */
+.stats-strip {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.stat-cell {
+  flex: 1;
+  text-align: center;
+  padding: 16px 8px;
+  border-right: 1px solid var(--border);
+}
+.stat-cell:last-child { border-right: none; }
+.stat-num {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+}
+.stat-num.c-teal { color: var(--teal); }
+.stat-num.c-white { color: #fff; }
+.stat-num.c-green { color: var(--green); }
+.stat-num.c-red { color: var(--red); }
+.stat-num.c-gold { color: var(--gold); }
+.stat-num.c-orange { color: var(--orange); }
+.stat-label {
+  font-family: var(--bar);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* ── Timeline ── */
+.tl-wrap { position: relative; }
+
+.tl-axis {
+  display: flex;
+  margin-left: 180px;
+  margin-right: 4px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-tick {
+  flex: 1;
+  position: relative;
+}
+.tl-tick-label {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--text-muted);
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+}
+.tl-tick::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 1px;
+  height: 6px;
+  background: var(--border);
+}
+
+.tl-row {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-row:nth-child(odd) { background: var(--surface); }
+.tl-row:nth-child(even) { background: var(--card); }
+.tl-row:hover { background: var(--card-hover); }
+
+.tl-driver {
+  min-width: 180px;
+  max-width: 180px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--border);
+}
+.tl-driver-border {
+  width: 3px;
+  height: 20px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+.tl-driver-border.bd-teal { background: var(--teal); }
+.tl-driver-border.bd-gold { background: var(--gold); }
+.tl-driver-border.bd-off { background: transparent; }
+
+.tl-driver-info { overflow: hidden; }
+.tl-d-name {
+  font-family: var(--bar);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+}
+.tl-d-vehicle {
+  font-family: var(--bar);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tl-track {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.tl-track::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--border);
+}
+
+.tl-bar {
+  position: absolute;
+  top: 8px;
+  height: 20px;
+  border-radius: 2px;
+  transition: transform .1s;
+  cursor: default;
+}
+.tl-bar:hover { transform: translateY(-1px); }
+.tl-bar.bar-teal {
+  background: var(--teal);
+  box-shadow: inset 0 0 12px rgba(0,229,195,0.19), 0 0 8px rgba(0,229,195,0.09);
+}
+.tl-bar.bar-gold {
+  background: var(--gold);
+  box-shadow: inset 0 0 12px rgba(245,200,66,0.19), 0 0 8px rgba(245,200,66,0.09);
+}
+
+.tl-bar-text {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--bg);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tl-off-text {
+  position: absolute;
+  top: 50%; left: 16px;
+  transform: translateY(-50%);
+  font-family: var(--bar);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* OFF duty separator and dimming */
+.tl-separator {
+  padding: 4px 0 2px 14px;
+  border-top: 1px dashed var(--border-bright);
+  margin-top: 4px;
+}
+.tl-sep-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 3px;
+}
+.tl-row-off {
+  opacity: 0.45;
+}
+
+/* Now line */
+.tl-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed var(--gold);
+  z-index: 10;
+  pointer-events: none;
+}
+.tl-now::before {
+  content: 'NOW';
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+
+/* Demand window markers (first/last job) */
+.tl-demand {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  z-index: 11;
+  pointer-events: none;
+}
+.tl-demand-first {
+  border-left: 2px solid var(--green);
+}
+.tl-demand-last {
+  border-left: 2px solid var(--red);
+}
+.tl-demand::before {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.tl-demand-first::before {
+  content: attr(data-label);
+  color: var(--green);
+}
+.tl-demand-last::before {
+  content: attr(data-label);
+  color: var(--red);
+}
+.tl-demand-first::after,
+.tl-demand-last::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: -4px;
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+.tl-demand-first::after { border-top: 6px solid var(--green); }
+.tl-demand-last::after { border-top: 6px solid var(--red); }
+
+/* Demand window shaded area */
+.tl-demand-zone {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(255,255,255,0.03);
+  border-left: 1px solid rgba(61,220,132,0.2);
+  border-right: 1px solid rgba(255,77,77,0.2);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Grid lines behind timeline */
+.tl-grid-lines {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 180px; right: 4px;
+  pointer-events: none;
+  display: flex;
+}
+.tl-grid-line {
+  flex: 1;
+  border-left: 1px solid var(--border);
+}
+.tl-grid-line:first-child { border-left: none; }
+.tl-grid-line:nth-child(3n+1) { border-left-color: var(--border-bright); }
+
+/* ── Hourly Coverage ── */
+.cov-strip { display: flex; gap: 2px; }
+.cov-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 52px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  transition: transform .1s;
+  min-width: 0;
+}
+.cov-cell:hover { transform: scaleY(1.08); }
+.cov-cell.now-hour { border-top: 2px solid var(--gold); }
+.cov-num {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+.cov-hr {
+  font-family: var(--mono);
+  font-size: 8px;
+  margin-top: 2px;
+}
+
+.cov-red  { background: #2a0808; border-color: rgba(255,77,77,0.25); }
+.cov-red .cov-num { color: var(--red); }
+.cov-red .cov-hr  { color: rgba(255,77,77,0.5); }
+
+.cov-orange  { background: #2a1a08; border-color: rgba(255,140,66,0.25); }
+.cov-orange .cov-num { color: var(--orange); }
+.cov-orange .cov-hr  { color: rgba(255,140,66,0.5); }
+
+.cov-yellow  { background: #2a2208; border-color: rgba(245,200,66,0.25); }
+.cov-yellow .cov-num { color: var(--gold); }
+.cov-yellow .cov-hr  { color: rgba(245,200,66,0.5); }
+
+.cov-green  { background: #0a2a18; border-color: rgba(0,229,195,0.31); }
+.cov-green .cov-num { color: var(--teal); }
+.cov-green .cov-hr  { color: rgba(0,229,195,0.5); }
+
+/* ── Alerts ── */
+.alert-item {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  min-height: 36px;
+}
+.alert-item:last-child { border-bottom: none; }
+
+.alert-bar { width: 3px; flex-shrink: 0; border-radius: 1px 0 0 1px; }
+.alert-bar.bar-critical { background: var(--red); }
+.alert-bar.bar-warning  { background: var(--orange); }
+.alert-bar.bar-info     { background: var(--teal); }
+.alert-bar.bar-notice   { background: var(--text-muted); }
+
+.alert-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  flex: 1;
+}
+.alert-item.bg-critical { background: var(--red-muted); }
+.alert-item.bg-warning  { background: var(--orange-muted); }
+
+.alert-sev {
+  font-family: var(--bar);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  min-width: 64px;
+}
+.alert-sev.sev-critical { color: var(--red); }
+.alert-sev.sev-warning  { color: var(--orange); }
+.alert-sev.sev-info     { color: var(--teal); }
+.alert-sev.sev-notice   { color: var(--text-muted); }
+
+.alert-msg {
+  font-family: var(--bar);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.alert-clear {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  color: var(--green);
+  font-family: var(--bar);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+/* ── Tooltip ── */
+.ops-tip {
+  display: none;
+  position: fixed;
+  z-index: 999;
+  background: var(--card);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 6px;
+  pointer-events: none;
+  max-width: 240px;
+}
+.ops-tip .tip-name {
+  font-family: var(--bar);
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.ops-tip .tip-row {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── Weekly job count + risk badge ── */
+.wc-jobs {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--gold-dim);
+  margin-top: 1px;
+}
+.wc-risk-badge {
+  position: absolute;
+  top: 4px; right: 4px;
+  font-size: 12px;
+  color: var(--red);
+  line-height: 1;
+}
+
+/* ── Job demand histogram ── */
+.tl-demand-row {
+  height: 48px !important;
+  background: var(--surface) !important;
+  border-bottom: 1px solid var(--border-bright) !important;
+}
+.jd-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  position: relative;
+}
+.jd-bar {
+  width: 60%;
+  min-height: 3px;
+  border-radius: 2px 2px 0 0;
+  transition: height .2s;
+}
+.jd-bar-gold { background: var(--gold); box-shadow: 0 0 6px rgba(245,200,66,0.15); }
+.jd-bar-red  { background: var(--red); box-shadow: 0 0 6px rgba(255,77,77,0.15); }
+.jd-num {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-top: 1px;
+  line-height: 1;
+}
+.jd-bar-red + .jd-num { color: var(--red); }
+
+/* ── Hourly coverage job dot + dark state ── */
+.cov-jobs {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--gold);
+  line-height: 1;
+  margin-top: 1px;
+}
+.cov-jobs-risk {
+  color: var(--red);
+  font-weight: 700;
+}
+.cov-cell.cov-dark {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.cov-dark .cov-num { color: var(--text-muted); }
+.cov-dark .cov-hr  { color: var(--text-muted); opacity: 0.5; }
+/* Boost cell height for job numbers */
+.cov-cell { height: 62px; }
+
+/* ── Schedule Insights panel ── */
+.ins-toggle {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform .2s;
+  display: inline-block;
+  margin-left: 4px;
+}
+.ins-toggle.open { transform: rotate(0deg); }
+.ins-toggle:not(.open) { transform: rotate(-90deg); }
+#insightsBody.collapsed { display: none; }
+
+.ins-day-group {
+  margin-bottom: 12px;
+}
+.ins-day-group:last-child { margin-bottom: 0; }
+.ins-day-label {
+  font-family: var(--bar);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.ins-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+}
+.ins-item.ins-critical { background: var(--red-muted); }
+.ins-item.ins-warning  { background: var(--orange-muted); }
+.ins-item.ins-opportunity { background: rgba(0,229,195,0.06); }
+.ins-badge {
+  font-family: var(--bar);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  min-width: 80px;
+  padding-top: 2px;
+}
+.ins-badge-critical    { color: var(--red); }
+.ins-badge-warning     { color: var(--orange); }
+.ins-badge-opportunity { color: var(--teal); }
+.ins-msg {
+  font-family: var(--bar);
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ── View Toggle Buttons ── */
+.view-toggle {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border-bright);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: auto;
+}
+.view-toggle-btn {
+  font-family: var(--bar);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all .15s;
+  text-decoration: none;
+}
+.view-toggle-btn:hover { color: var(--text-dim); background: var(--surface); }
+.view-toggle-btn.active {
+  color: var(--gold);
+  background: var(--surface);
+}
+
+/* ── Month Calendar ── */
+.cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cal-nav-btn {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .15s;
+  line-height: 1.3;
+}
+.cal-nav-btn:hover { color: var(--gold); border-color: var(--gold); }
+.cal-today-btn {
+  font-family: var(--bar);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: none;
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .15s;
+}
+.cal-today-btn:hover { background: var(--gold-muted); color: var(--gold); }
+.cal-month-label {
+  font-family: var(--bar);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #fff;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.cal-day-head {
+  text-align: center;
+  font-family: var(--bar);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  padding: 4px 0 6px;
+  text-transform: uppercase;
+}
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all .15s;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  min-height: 68px;
+}
+.cal-cell:hover { background: var(--card-hover); color: inherit; border-color: var(--border-bright); }
+.cal-cell.out-month { opacity: 0.3; }
+.cal-cell.is-past:not(.is-today) { opacity: 0.55; }
+.cal-cell.is-today { border-color: var(--gold); }
+.cal-cell.is-selected {
+  background: var(--card-hover);
+  border-color: var(--gold);
+  box-shadow: 0 0 8px rgba(245,200,66,0.15);
+}
+.cal-day-num {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+.cal-cell.out-month .cal-day-num { color: var(--text-muted); }
+.cal-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+}
+.cal-drv { color: var(--teal-dim); }
+.cal-jobs { color: var(--gold-dim); }
+.cal-risk-dot {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+}
+.cal-status-bar {
+  width: 80%;
+  height: 3px;
+  border-radius: 2px;
+  margin-top: 4px;
+}
+.cal-status-green { background: var(--teal); }
+.cal-status-yellow { background: var(--gold); }
+.cal-status-red { background: var(--red); }
+.cal-status-empty { background: var(--border); }
+
+@media (max-width: 768px) {
+  .week-strip { gap: 3px; }
+  .wc-date-num { font-size: 18px; }
+  .wc-drivers-big { font-size: 14px; }
+  .tl-driver { min-width: 100px; max-width: 100px; }
+  .tl-axis { margin-left: 100px; }
+  .tl-grid-lines { left: 100px; }
+  .stat-num { font-size: 22px; }
+  .stats-strip { flex-wrap: wrap; }
+  .stat-cell { min-width: 33%; }
+  .cal-cell { min-height: 54px; padding: 6px 2px 4px; }
+  .cal-day-num { font-size: 14px; }
+  .cal-meta { font-size: 8px; gap: 4px; }
+}
+</style>
+{% endblock %}
+
+{% block body_class %}ops-page-body{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include "dispatching/dispatcher_navbar.html" %}
+
+<div class="ops-page">
+<div class="container-fluid" style="max-width: 1260px;">
+
+  <!-- Header -->
+  <div class="ops-header ops-section">
+    <div class="d-flex justify-content-between align-items-end flex-wrap gap-3">
+      <div>
+        <div class="ops-header-tag">Driver Ops</div>
+        <div class="ops-header-title">Coverage Dashboard</div>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <div class="text-end">
+          <div class="ops-clock" id="liveClock">--:--:--</div>
+          <div class="ops-clock-date">{{ selected_date|date:"l, M d Y" }}</div>
+        </div>
+        <a href="{% url 'inhouse_schedule' %}" class="ops-edit-btn">Edit Schedules</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weekly / Monthly Overview -->
+  <div class="ops-card ops-section">
+    <div class="ops-card-head head-gold" style="display:flex;align-items:center;">
+      <span id="overviewTitle">{% if view_mode == 'month' %}Monthly Overview{% else %}Weekly Overview{% endif %}</span>
+      <div class="view-toggle">
+        <a href="?date={{ selected_date|date:'Y-m-d' }}&view=week" class="view-toggle-btn {% if view_mode != 'month' %}active{% endif %}">Week</a>
+        <a href="?date={{ selected_date|date:'Y-m-d' }}&view=month" class="view-toggle-btn {% if view_mode == 'month' %}active{% endif %}">Month</a>
+      </div>
+      <span class="head-border"></span>
+    </div>
+
+    <!-- Week View -->
+    <div id="weekView" {% if view_mode == 'month' %}style="display:none;"{% endif %}>
+      <div class="week-strip">
+        {% for wt in weekly_totals %}
+        <a href="?date={{ wt.date|date:'Y-m-d' }}&view=week"
+           class="week-col {% if wt.is_selected %}selected{% endif %} {% if wt.is_weakest %}weakest{% endif %}"
+           id="wcol-{{ wt.day_idx }}">
+          <div class="wc-day">{{ wt.day_name }}</div>
+          <div class="wc-date-num">{{ wt.date|date:"d" }}</div>
+          <div class="wc-drivers-big">{{ wt.active_count }} <span class="suffix">avail</span></div>
+          <div class="wc-jobs">{{ wt.job_count }} job{{ wt.job_count|pluralize }}</div>
+          {% if wt.has_risk %}<div class="wc-risk-badge" title="Hours where jobs > available">&#9888;</div>{% endif %}
+          <div class="wc-bar"><div class="wc-bar-fill" style="width: {{ wt.bar_pct }}%;"></div></div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Month View -->
+    <div id="monthView" {% if view_mode != 'month' %}style="display:none;"{% endif %}>
+      <div class="cal-header">
+        <div class="cal-nav">
+          <a href="?date={{ prev_month_date }}&view=month" class="cal-nav-btn" title="Previous month">&#9664;</a>
+          <span class="cal-month-label">{{ cal_month_label }}</span>
+          <a href="?date={{ next_month_date }}&view=month" class="cal-nav-btn" title="Next month">&#9654;</a>
+        </div>
+        <a href="?date={{ today_iso }}&view=month" class="cal-today-btn">Today</a>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-day-head">Mon</div>
+        <div class="cal-day-head">Tue</div>
+        <div class="cal-day-head">Wed</div>
+        <div class="cal-day-head">Thu</div>
+        <div class="cal-day-head">Fri</div>
+        <div class="cal-day-head">Sat</div>
+        <div class="cal-day-head">Sun</div>
+        {% for week_row in cal_weeks %}
+          {% for cell in week_row %}
+          <a href="?date={{ cell.date_str }}&view=month"
+             class="cal-cell {% if not cell.in_month %}out-month{% endif %} {% if cell.is_today %}is-today{% endif %} {% if cell.is_selected %}is-selected{% endif %} {% if cell.is_past %}is-past{% endif %}">
+            <div class="cal-day-num">{{ cell.day_num }}</div>
+            {% if cell.in_month %}
+            <div class="cal-meta">
+              <span class="cal-drv">{{ cell.drivers }}</span>
+              <span class="cal-jobs">{{ cell.jobs }}</span>
+            </div>
+            {% if cell.has_risk %}<div class="cal-risk-dot" title="At-risk hours"></div>{% endif %}
+            <div class="cal-status-bar {% if cell.has_risk %}cal-status-red{% elif cell.jobs > 0 and cell.drivers > 0 %}cal-status-green{% elif cell.jobs > 0 %}cal-status-yellow{% else %}cal-status-empty{% endif %}"></div>
+            {% endif %}
+          </a>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats Strip -->
+  <div class="stats-strip ops-section">
+    <div class="stat-cell">
+      <div class="stat-num c-teal">{{ total_active }}</div>
+      <div class="stat-label">Available Drivers</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num c-green">{% if peak_hour %}{{ peak_hour.count }}{% else %}&mdash;{% endif %}</div>
+      <div class="stat-label">Peak{% if peak_hour %} ({{ peak_hour.label }}){% endif %}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num {% if gap_hours > 0 %}c-red{% else %}c-green{% endif %}">{{ gap_hours }}</div>
+      <div class="stat-label">Gap Hours</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num c-gold">{{ earliest_start }}</div>
+      <div class="stat-label">Earliest Start</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num c-orange">{{ farm_risk_hours }}</div>
+      <div class="stat-label">Farm Risk Hrs</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num c-gold">{{ total_jobs }}</div>
+      <div class="stat-label">Total Jobs</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num {% if at_risk_hours > 0 %}c-red{% else %}c-green{% endif %}">{{ at_risk_hours }}</div>
+      <div class="stat-label">At Risk Hrs</div>
+    </div>
+  </div>
+
+  <!-- Driver Timeline -->
+  <div class="ops-card ops-section" id="timelineSection">
+    <div class="ops-card-head head-teal" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Driver Timeline &mdash; {{ selected_day_name }}</span>
+      {% if first_job_label %}
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text-dim);font-weight:400;letter-spacing:0;">
+        <span style="color:var(--green);">&#9646;</span> First Job {{ first_job_label }}
+        &nbsp;&middot;&nbsp;
+        <span style="color:var(--red);">&#9646;</span> Last Job {{ last_job_label }}
+        &nbsp;&middot;&nbsp;
+        {{ total_jobs }} job{{ total_jobs|pluralize }}
+      </span>
+      {% endif %}
+      <span class="head-border"></span>
+    </div>
+    <div class="tl-wrap" id="tlWrap">
+      <!-- Hour axis -->
+      <div class="tl-axis">
+        {% for hm in hour_markers %}
+        <div class="tl-tick">
+          {% if hm.hour == 0 or hm.hour == 3 or hm.hour == 6 or hm.hour == 9 or hm.hour == 12 or hm.hour == 15 or hm.hour == 18 or hm.hour == 21 or hm.hour == 23 %}
+          <span class="tl-tick-label">{{ hm.label }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Grid lines -->
+      <div class="tl-grid-lines">
+        {% for hm in hour_markers %}<div class="tl-grid-line"></div>{% endfor %}
+      </div>
+
+      <!-- Driver rows -->
+      {% for row in timeline_rows %}
+      {% ifchanged row.is_available %}{% if not row.is_available %}
+      <div class="tl-separator">
+        <span class="tl-sep-label">OFF DUTY</span>
+      </div>
+      {% endif %}{% endifchanged %}
+      <div class="tl-row {% if not row.is_available %}tl-row-off{% endif %}">
+        <div class="tl-driver">
+          <div class="tl-driver-border {% if row.color == 'teal' %}bd-teal{% elif row.color == 'gold' %}bd-gold{% else %}bd-off{% endif %}"></div>
+          <div class="tl-driver-info">
+            <div class="tl-d-name">{{ row.driver }}</div>
+            <div class="tl-d-vehicle">{{ row.driver.get_vehicle_display }}</div>
+          </div>
+        </div>
+        <div class="tl-track">
+          {% if row.is_available %}
+          <div class="tl-bar bar-{{ row.color }}"
+               style="left: {{ row.left_pct }}%; width: {{ row.width_pct }}%;"
+               data-name="{{ row.driver }}"
+               data-hours="{{ row.start_label }} – {{ row.end_label }} ({{ row.hours }}h)"
+               data-pref="{% if row.preference %}{{ row.preference }}{% else %}Any{% endif %}"
+               data-notes="{{ row.driver.notes|default:'' }}"
+               onmouseenter="showTip(event,this)"
+               onmousemove="moveTip(event)"
+               onmouseleave="hideTip()">
+            <span class="tl-bar-text">{{ row.start_label }}–{{ row.end_label }}</span>
+          </div>
+          {% else %}
+          <span class="tl-off-text">OFF</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Job Demand Histogram Row -->
+      <div class="tl-separator" style="margin-top:2px;">
+        <span class="tl-sep-label" style="color:var(--gold);">JOB DEMAND</span>
+      </div>
+      <div class="tl-row tl-demand-row">
+        <div class="tl-driver" style="justify-content:flex-end; padding-right:12px;">
+          <div class="tl-d-name" style="color:var(--gold);font-size:11px;">{{ total_jobs }} jobs</div>
+        </div>
+        <div class="tl-track" style="display:flex;align-items:flex-end;height:44px;">
+          {% for hc in hourly_coverage %}
+          <div class="jd-col" title="{{ hc.label }}: {{ hc.jobs }} job{{ hc.jobs|pluralize }}">
+            {% if hc.jobs > 0 %}
+            <div class="jd-bar {% if hc.jobs > hc.count %}jd-bar-red{% else %}jd-bar-gold{% endif %}" style="height: {{ hc.job_bar_pct }}%;"></div>
+            <div class="jd-num">{{ hc.jobs }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if current_hour is not None %}
+      <div class="tl-now" style="left: calc(180px + (100% - 184px) * {{ current_hour }} / 24);"></div>
+      {% endif %}
+
+      {% if first_job_pct is not None and last_job_pct is not None %}
+      <div class="tl-demand-zone" style="left: calc(180px + (100% - 184px) * {{ first_job_pct }} / 100); width: calc((100% - 184px) * ({{ last_job_pct }} - {{ first_job_pct }}) / 100);"></div>
+      {% endif %}
+      {% if first_job_pct is not None %}
+      <div class="tl-demand tl-demand-first" data-label="FIRST {{ first_job_label }}" style="left: calc(180px + (100% - 184px) * {{ first_job_pct }} / 100);"></div>
+      {% endif %}
+      {% if last_job_pct is not None %}
+      <div class="tl-demand tl-demand-last" data-label="LAST {{ last_job_label }}" style="left: calc(180px + (100% - 184px) * {{ last_job_pct }} / 100);"></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Hourly Coverage -->
+  <div class="ops-card ops-section">
+    <div class="ops-card-head head-green">
+      Hourly Coverage vs Demand
+      <span style="font-size:9px;font-family:var(--mono);color:var(--text-muted);font-weight:400;letter-spacing:0;margin-left:8px;">
+        top = available &middot; bottom = jobs
+      </span>
+      <span class="head-border"></span>
+    </div>
+    <div class="cov-strip">
+      {% for hc in hourly_coverage %}
+      <div class="cov-cell {{ hc.color_class }} {% if current_hour is not None and hc.hour == current_hour %}now-hour{% endif %}" title="{{ hc.label }}: {{ hc.count }} available, {{ hc.jobs }} jobs">
+        <div class="cov-num">{{ hc.count }}</div>
+        {% if hc.jobs > 0 %}<div class="cov-jobs">{% if hc.jobs > hc.count %}<span class="cov-jobs-risk">{{ hc.jobs }}</span>{% else %}{{ hc.jobs }}{% endif %}</div>{% endif %}
+        <div class="cov-hr">{{ hc.short_label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Coverage Alerts -->
+  <div class="ops-card ops-section">
+    <div class="ops-card-head head-red">Coverage Alerts{% if alerts %} ({{ alerts|length }}){% endif %}<span class="head-border"></span></div>
+    {% if alerts %}
+    {% for alert in alerts %}
+    <div class="alert-item {% if alert.severity == 'critical' %}bg-critical{% elif alert.severity == 'warning' %}bg-warning{% endif %}">
+      <div class="alert-bar bar-{{ alert.severity }}"></div>
+      <div class="alert-body">
+        <span class="alert-sev sev-{{ alert.severity }}">{{ alert.severity }}</span>
+        <span class="alert-msg">{{ alert.message }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="alert-clear">
+      <i class="bi bi-check-circle-fill"></i>
+      ALL CLEAR — No coverage gaps detected
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Schedule Insights -->
+  {% if insights %}
+  <div class="ops-card ops-section">
+    <div class="ops-card-head head-gold" style="cursor:pointer;" onclick="document.getElementById('insightsBody').classList.toggle('collapsed'); this.querySelector('.ins-toggle').classList.toggle('open');">
+      Schedule Insights ({{ insights|length }})
+      <span class="ins-toggle open">&#9660;</span>
+      <span class="head-border"></span>
+    </div>
+    <div id="insightsBody">
+      {% regroup insights by day as day_groups %}
+      {% for group in day_groups %}
+      <div class="ins-day-group">
+        <div class="ins-day-label">{{ group.grouper }}</div>
+        {% for ins in group.list %}
+        <div class="ins-item ins-{{ ins.severity }}">
+          <span class="ins-badge ins-badge-{{ ins.severity }}">{{ ins.severity }}</span>
+          <span class="ins-msg">{{ ins.message }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+</div>
+
+<!-- Tooltip -->
+<div class="ops-tip" id="opsTip">
+  <div class="tip-name"></div>
+  <div class="tip-row tip-hours"></div>
+  <div class="tip-row tip-pref"></div>
+  <div class="tip-row tip-notes"></div>
+</div>
+{% endblock %}
+
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  /* Live clock */
+  const clockEl = document.getElementById('liveClock');
+  function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    clockEl.textContent = h + ':' + m + ':' + s;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  /* Tooltip */
+  const tip = document.getElementById('opsTip');
+
+  window.showTip = function(e, el) {
+    tip.querySelector('.tip-name').textContent = el.dataset.name;
+    tip.querySelector('.tip-hours').textContent = el.dataset.hours;
+    tip.querySelector('.tip-pref').textContent = 'Preference: ' + el.dataset.pref;
+    const notesEl = tip.querySelector('.tip-notes');
+    if (el.dataset.notes) { notesEl.textContent = el.dataset.notes; notesEl.style.display = ''; }
+    else { notesEl.style.display = 'none'; }
+    tip.style.display = 'block';
+    moveTip(e);
+  };
+
+  window.moveTip = function(e) {
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top = (e.clientY - 12) + 'px';
+  };
+
+  window.hideTip = function() { tip.style.display = 'none'; };
+
+  /* Auto-scroll to timeline when a date was clicked */
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('date')) {
+    const tl = document.getElementById('timelineSection');
+    if (tl) {
+      setTimeout(function() {
+        tl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 500);
+    }
+  }
+})();
+</script>
+{% endblock %}

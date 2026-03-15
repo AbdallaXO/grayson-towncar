@@ -20,6 +20,7 @@ urlpatterns = [
     path("edit-reservation/<id>", views.modify_reservation, name="modify_reservation"),
     path("legs-list/", views.legs_list, name="legs_list"),
     path("inhouse-schedule/", views.inhouse_schedule, name="inhouse_schedule"),
+    path("driver-schedules/", views.driver_schedules_dashboard, name="driver_schedules_dashboard"),
     path("leg/<int:id>/history/", views.leg_history, name="leg_history"),
     path("leg/<int:id>/history/partial/", views.leg_history_partial, name="leg_history_partial"),
     path("statistics/", views.statistics_page, name="statistics_page"),

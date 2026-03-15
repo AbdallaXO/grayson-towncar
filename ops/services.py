@@ -4,6 +4,7 @@ Provides create_task() and log_communication() used by signals, views, and sched
 """
 
 import logging
+from datetime import timedelta
 from django.utils import timezone
 from .models import OperationalTask, CommunicationAttempt, StaffActivity
 
@@ -53,6 +54,21 @@ def create_task(
 
     if dedup_filter and OperationalTask.objects.filter(**dedup_filter).exists():
         return None
+
+    # Cooldown: don't recreate a task that was recently closed/cancelled for the
+    # same object. Prevents the 30-min scanner from resurrecting tasks that staff
+    # already resolved or that were auto-closed as stale.
+    if dedup_filter:
+        cooldown_filter = {
+            k: v for k, v in dedup_filter.items() if k != "status__in"
+        }
+        cooldown_filter["status__in"] = [
+            OperationalTask.Status.COMPLETED,
+            OperationalTask.Status.CANCELLED,
+        ]
+        cooldown_filter["resolved_at__gte"] = timezone.now() - timedelta(hours=2)
+        if OperationalTask.objects.filter(**cooldown_filter).exists():
+            return None
 
     task = OperationalTask.objects.create(
         task_type=task_type,

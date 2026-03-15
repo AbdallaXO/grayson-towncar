@@ -281,10 +281,17 @@ def _scan_flight_mismatches():
         )
     )
 
+    local_now_time = timezone.localtime(now).time()
+
     created = 0
     for leg in legs:
         if leg.get_trip_type() != "arrival":
             continue
+
+        # Skip same-day legs whose pickup time has already passed
+        if leg.pickup_date == today and leg.pickup_time < local_now_time:
+            continue
+
         if not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
             continue
 
@@ -467,19 +474,23 @@ def _scan_driver_overlaps():
 
     Only checks same-day, in-house drivers. Skips legs that already have
     an open driver_conflict task (deduplication handled by create_task).
+    Skips legs whose pickup time has already passed (no actionable conflict).
     """
     from reservations.models import Leg
     from itertools import groupby
 
     now = timezone.now()
     today = timezone.localdate()
+    local_now_time = timezone.localtime(now).time()
 
     # All today's active legs with an in-house driver, ordered by driver then time
+    # Skip legs whose pickup time has already passed — no point alerting on past events
     legs = list(
         Leg.objects.filter(
             pickup_date=today,
             driver__isnull=False,
             driver__driver_type="inhouse",
+            pickup_time__gte=local_now_time,
         )
         .exclude(status__in=["completed", "cancelled"])
         .exclude(reservation__status="cancelled")
@@ -610,16 +621,19 @@ def _scan_unassigned_legs():
     """
     Create driver_assign tasks for TODAY's legs without a driver.
     Only today — upcoming days are normal dispatch scheduling, not ops tasks.
+    Skips legs whose pickup time has already passed.
     """
     from reservations.models import Leg
 
     now = timezone.now()
     today = timezone.localdate()
+    local_now_time = timezone.localtime(now).time()
 
     legs = (
         Leg.objects.filter(
             pickup_date=today,
             driver__isnull=True,
+            pickup_time__gte=local_now_time,
         )
         .exclude(status__in=["completed", "cancelled"])
         .exclude(reservation__status="cancelled")
@@ -680,20 +694,27 @@ def _scan_unpaid_reservations():
     created = 0
     for res in reservations:
         # Use the model's cached payment properties
-        if res.payment_status == "paid":
+        # Skip paid and card_saved — saved cards can be charged anytime, not unpaid
+        if res.payment_status in ("paid", "card_saved"):
             continue
 
         amount_owed = res.amount_owed
         if amount_owed <= Decimal("0.01"):
             continue
 
-        # Find earliest upcoming leg
-        earliest_leg = (
+        # Find earliest upcoming leg (skip same-day legs whose pickup time passed)
+        local_now_time = timezone.localtime(now).time()
+        upcoming_legs = (
             res.legs.filter(pickup_date__gte=today)
             .exclude(status__in=["completed", "cancelled"])
             .order_by("pickup_date", "pickup_time")
-            .first()
         )
+        earliest_leg = None
+        for candidate in upcoming_legs:
+            if candidate.pickup_date == today and candidate.pickup_time < local_now_time:
+                continue  # pickup already passed today
+            earliest_leg = candidate
+            break
         if not earliest_leg:
             continue
 
@@ -836,7 +857,7 @@ def _auto_close_resolved_tasks():
             close_task(task, resolution_notes=f"Auto-closed: form marked {task.contact_form.status}")
             closed += 1
 
-    # 4. Driver assign tasks where driver was assigned
+    # 4. Driver assign tasks where driver was assigned or pickup time has passed
     driver_tasks = OperationalTask.objects.filter(
         task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
         status__in=list(OperationalTask.OPEN_STATUSES),
@@ -844,6 +865,7 @@ def _auto_close_resolved_tasks():
     ).select_related("leg")
 
     today = timezone.localdate()
+    local_now_time = timezone.localtime(now).time()
     for task in driver_tasks:
         if task.leg.driver_id:
             close_task(task, resolution_notes="Auto-closed: driver assigned")
@@ -851,8 +873,37 @@ def _auto_close_resolved_tasks():
         elif task.leg.pickup_date < today:
             close_task(task, resolution_notes="Auto-closed: pickup date has passed")
             closed += 1
+        elif task.leg.pickup_date == today and task.leg.pickup_time < local_now_time:
+            close_task(task, resolution_notes="Auto-closed: pickup time has passed")
+            closed += 1
 
-    # 5. Cancel tasks linked to cancelled reservations
+    # 5. Payment chase tasks where all legs have passed
+    payment_tasks = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.PAYMENT_CHASE,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+        reservation__isnull=False,
+    ).select_related("reservation")
+
+    for task in payment_tasks:
+        # Close if card has been saved — not truly unpaid
+        if task.reservation.payment_status in ("paid", "card_saved"):
+            reason = "Auto-closed: card saved on file" if task.reservation.payment_status == "card_saved" else "Auto-closed: payment received"
+            close_task(task, resolution_notes=reason)
+            closed += 1
+            continue
+
+        meta = task.metadata or {}
+        earliest_pickup_str = meta.get("earliest_pickup")
+        if earliest_pickup_str:
+            try:
+                earliest_date = datetime.strptime(earliest_pickup_str, "%Y-%m-%d").date()
+                if earliest_date < today:
+                    close_task(task, resolution_notes="Auto-closed: pickup date has passed")
+                    closed += 1
+            except (ValueError, TypeError):
+                pass
+
+    # 6. Cancel tasks linked to cancelled reservations
     cancelled_res_tasks = OperationalTask.objects.filter(
         status__in=list(OperationalTask.OPEN_STATUSES),
         reservation__status="cancelled",

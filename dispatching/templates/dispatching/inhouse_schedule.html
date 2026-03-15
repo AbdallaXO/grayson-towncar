@@ -5,6 +5,21 @@
 
 {% block extra_css %}
 <style>
+  :root {
+    --gold: #C9A227;
+    --dark: #0d1117;
+    --dark-secondary: #161b22;
+  }
+
+  .sched-header {
+    background: linear-gradient(135deg, var(--dark) 0%, var(--dark-secondary) 100%);
+    padding: 1.5rem 0 1.25rem;
+    margin-top: -1rem;
+    margin-bottom: 1.5rem;
+  }
+  .sched-header h1 { color: #fff; font-size: 1.4rem; font-weight: 700; }
+  .sched-header .lead { color: rgba(255,255,255,0.6); font-size: 0.85rem; }
+
   .driver-card {
     border: 1px solid #e5e7eb;
     border-radius: 10px;
@@ -14,6 +29,7 @@
     transition: box-shadow .15s;
   }
   .driver-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+  .driver-card.has-unsaved { border-color: #fbbf24; }
 
   .driver-summary {
     display: flex;
@@ -23,11 +39,20 @@
     flex-wrap: wrap;
   }
 
-  .driver-name-block { min-width: 155px; flex-shrink: 0; }
-  .driver-name  { font-weight: 600; font-size: 0.95rem; }
-  .driver-phone { font-size: 0.78rem; color: #6b7280; }
+  .driver-name-block { min-width: 180px; flex-shrink: 0; }
+  .driver-name { font-weight: 600; font-size: 0.95rem; }
+  .driver-meta { font-size: 0.72rem; color: #6b7280; }
+  .driver-meta i { margin-right: 0.2rem; }
 
-  .day-strip { display: flex; gap: 0.35rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+  .day-strip { display: flex; gap: 0.3rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+
+  /* Weekend separator */
+  .day-strip .wk-sep {
+    width: 1px;
+    background: #d1d5db;
+    margin: 0.15rem 0.1rem;
+    flex-shrink: 0;
+  }
 
   .day-pill {
     display: inline-flex;
@@ -45,8 +70,20 @@
   .day-pill.avail .pill-hours { color: #059669; font-size: 0.65rem; }
   .day-pill.off    { background:#f3f4f6; border-color:#d1d5db; color:#9ca3af; }
   .day-pill.off .pill-label { font-weight: 600; }
+  .day-pill.weekend.avail { border-color: #bfdbfe; background: #eff6ff; }
+  .day-pill.weekend.avail .pill-hours { color: #2563eb; }
 
-  .btn-edit-driver { margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+  .btn-edit-driver { margin-left: auto; white-space: nowrap; flex-shrink: 0; position: relative; }
+  .unsaved-dot {
+    display: none;
+    position: absolute;
+    top: -3px; right: -3px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #fbbf24;
+    border: 1px solid #fff;
+  }
+  .driver-card.has-unsaved .unsaved-dot { display: block; }
 
   /* Edit form */
   .driver-edit-form {
@@ -57,6 +94,15 @@
   }
   .driver-edit-form.open { display: block; }
 
+  .edit-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+    flex-wrap: wrap;
+  }
+  .edit-toolbar .fw-semibold { flex: 1; }
+
   .day-edit-row {
     display: flex;
     align-items: center;
@@ -66,6 +112,7 @@
     flex-wrap: wrap;
   }
   .day-edit-row:last-of-type { border-bottom: none; }
+  .day-edit-row.weekend-sep { border-top: 2px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.55rem; }
 
   .day-label-col { width: 38px; font-weight: 600; font-size: 0.82rem; color: #374151; flex-shrink: 0; }
 
@@ -80,6 +127,7 @@
     background: #fff;
   }
   .time-selects .sep { color: #9ca3af; font-size: 0.8rem; }
+  .time-selects select.invalid { border-color: #dc2626; background: #fef2f2; }
 
   .day-edit-row.day-off .time-selects,
   .day-edit-row.day-off .pref-col { opacity: .3; pointer-events: none; }
@@ -92,65 +140,82 @@
     margin-top: 0.5rem;
     border-top: 1px solid #e5e7eb;
   }
+
+  .validation-error {
+    font-size: 0.72rem;
+    color: #dc2626;
+    margin-top: 0.15rem;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-3" style="max-width:1060px;">
+{% block navbar %}{% endblock %}
+{% include "dispatching/dispatcher_navbar.html" %}
 
-  <!-- Header -->
-  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-    <div>
-      <h4 class="mb-0 fw-bold">
-        <i class="bi bi-people me-2 text-primary"></i>In-House Driver Schedules
-      </h4>
-      <div class="text-muted small mt-1">
-        Weekly availability — days, hours, and trip preferences.
-        Vehicle assignments for a specific date are on the
-        <a href="{{ today_legs_url }}">Legs Dashboard</a>.
+<!-- Header -->
+<div class="sched-header">
+  <div class="container-fluid" style="max-width: 1060px;">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h1 class="mb-0"><i class="bi bi-pencil-square me-2"></i>In-House Driver Schedules</h1>
+        <p class="lead mb-0 mt-1">
+          Weekly availability &mdash; days, hours, and trip preferences.
+          <strong>{{ driver_rows|length }}</strong> driver{{ driver_rows|length|pluralize }}.
+        </p>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'driver_schedules_dashboard' %}" class="btn btn-sm btn-outline-light">
+          <i class="bi bi-calendar-week me-1"></i>View Dashboard
+        </a>
+        <a href="{{ today_legs_url }}" class="btn btn-sm btn-outline-light">
+          <i class="bi bi-list-check me-1"></i>Legs Dashboard
+        </a>
       </div>
     </div>
-    <a href="{{ today_legs_url }}" class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-list-check me-1"></i>Legs Dashboard
-    </a>
   </div>
+</div>
 
-  <div class="text-muted small mb-3">
-    <i class="bi bi-person-fill me-1"></i>
-    <strong>{{ driver_rows|length }}</strong>
-    in-house driver{{ driver_rows|length|pluralize }}
-    &mdash; click <strong>Edit</strong> on any row to update their schedule.
-  </div>
+<div class="container-fluid py-0" style="max-width:1060px;">
 
   <!-- Driver cards -->
   {% for row in driver_rows %}
-  <div class="driver-card" id="card-{{ row.driver.id }}">
+  <div class="driver-card" id="card-{{ row.driver.id }}"
+       data-default-start="{{ row.driver.default_start_hour }}"
+       data-default-end="{{ row.driver.default_end_hour }}"
+       data-default-pref="{{ row.driver.default_preference }}">
 
     <!-- Summary (always visible) -->
     <div class="driver-summary">
       <div class="driver-name-block">
         <div class="driver-name">{{ row.driver }}</div>
+        <div class="driver-meta">
+          <i class="bi bi-truck"></i>{{ row.driver.get_vehicle_display }}
+          &middot;
+          <span class="text-muted">Default: {{ row.driver.default_start_hour }}:00&ndash;{{ row.driver.default_end_hour }}:00</span>
+        </div>
         {% if row.driver.phone_number %}
-          <div class="driver-phone">
-            <i class="bi bi-telephone me-1"></i>{{ row.driver.phone_number }}
+          <div class="driver-meta">
+            <i class="bi bi-telephone"></i>{{ row.driver.phone_number }}
           </div>
         {% endif %}
         {% if row.driver.notes %}
-          <div class="driver-phone mt-1" style="color:#6b7280;font-style:italic;">
-            <i class="bi bi-sticky me-1"></i>{{ row.driver.notes|truncatechars:60 }}
+          <div class="driver-meta live-notes-display" style="font-style:italic;">
+            <i class="bi bi-sticky"></i>{{ row.driver.notes|truncatechars:60 }}
           </div>
         {% endif %}
       </div>
 
       <div class="day-strip" id="strip-{{ row.driver.id }}">
         {% for day in row.days %}
+          {% if day.day_idx == 5 %}<div class="wk-sep"></div>{% endif %}
           {% if day.is_available %}
-            <span class="day-pill avail">
+            <span class="day-pill avail {% if day.day_idx >= 5 %}weekend{% endif %}">
               <span class="pill-label">{{ day.day_name }}</span>
               <span class="pill-hours">{{ day.pill_label }}</span>
             </span>
           {% else %}
-            <span class="day-pill off">
+            <span class="day-pill off {% if day.day_idx >= 5 %}weekend{% endif %}">
               <span class="pill-label">{{ day.day_name }}</span>
               <span class="pill-hours">Off</span>
             </span>
@@ -162,18 +227,28 @@
               data-driver-id="{{ row.driver.id }}"
               onclick="toggleEdit({{ row.driver.id }})">
         <i class="bi bi-pencil me-1"></i>Edit
+        <span class="unsaved-dot"></span>
       </button>
     </div>
 
     <!-- Inline edit form -->
     <div class="driver-edit-form" id="edit-{{ row.driver.id }}">
-      <div class="fw-semibold small text-muted mb-2 text-uppercase"
-           style="letter-spacing:.5px;">
-        <i class="bi bi-calendar3 me-1"></i>Schedule for {{ row.driver }}
+      <div class="edit-toolbar">
+        <div class="fw-semibold small text-muted text-uppercase" style="letter-spacing:.5px;">
+          <i class="bi bi-calendar3 me-1"></i>Schedule for {{ row.driver }}
+        </div>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem;"
+                onclick="copyMondayToWeekdays({{ row.driver.id }})" title="Copy Monday hours to Tue-Fri">
+          <i class="bi bi-clipboard me-1"></i>Copy Mon &rarr; Weekdays
+        </button>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem;"
+                onclick="resetToDefaults({{ row.driver.id }})" title="Reset all days to driver defaults">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Defaults
+        </button>
       </div>
 
       {% for day in row.days %}
-      <div class="day-edit-row {% if not day.is_available %}day-off{% endif %}"
+      <div class="day-edit-row {% if not day.is_available %}day-off{% endif %} {% if day.day_idx == 5 %}weekend-sep{% endif %}"
            id="erow-{{ row.driver.id }}-{{ day.day_idx }}">
 
         <div class="day-label-col">{{ day.day_name }}</div>
@@ -195,7 +270,7 @@
         </div>
 
         <div class="time-selects">
-          <select id="start-{{ row.driver.id }}-{{ day.day_idx }}">
+          <select id="start-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})">
             {% for hc in hour_choices %}
               <option value="{{ hc.value }}"
                       {% if hc.value == day.start_hour %}selected{% endif %}>
@@ -204,7 +279,7 @@
             {% endfor %}
           </select>
           <span class="sep">to</span>
-          <select id="end-{{ row.driver.id }}-{{ day.day_idx }}">
+          <select id="end-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})">
             {% for hc in hour_choices %}
               <option value="{{ hc.value }}"
                       {% if hc.value == day.end_hour %}selected{% endif %}>
@@ -215,14 +290,10 @@
         </div>
 
         <div class="pref-col">
-          <select id="pref-{{ row.driver.id }}-{{ day.day_idx }}">
-            <option value=""               {% if day.preference == "" %}selected{% endif %}>Any trips</option>
-            <option value="prefer_arrival" {% if day.preference == "prefer_arrival" %}selected{% endif %}>Prefer Arrivals</option>
-            <option value="prefer_return"  {% if day.preference == "prefer_return"  %}selected{% endif %}>Prefer Returns</option>
-            <option value="prefer_cruise"  {% if day.preference == "prefer_cruise"  %}selected{% endif %}>Prefer Cruises</option>
-            <option value="only_arrival"   {% if day.preference == "only_arrival"   %}selected{% endif %}>Arrivals Only</option>
-            <option value="only_return"    {% if day.preference == "only_return"    %}selected{% endif %}>Returns Only</option>
-            <option value="only_cruise"    {% if day.preference == "only_cruise"    %}selected{% endif %}>Cruises Only</option>
+          <select id="pref-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})">
+            {% for val, label in preference_choices %}
+              <option value="{{ val }}" {% if val == day.preference %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
           </select>
         </div>
 
@@ -238,7 +309,8 @@
         <textarea class="form-control form-control-sm"
                   id="notes-{{ row.driver.id }}"
                   rows="2"
-                  placeholder="e.g. Prefers airport runs, has a backup SUV, contact before 6 AM…">{{ row.driver.notes|default:"" }}</textarea>
+                  oninput="markDirty({{ row.driver.id }})"
+                  placeholder="e.g. Prefers airport runs, has a backup SUV, contact before 6 AM...">{{ row.driver.notes|default:"" }}</textarea>
       </div>
 
       <div class="edit-save-bar">
@@ -280,8 +352,18 @@
     if (h === 0)  return '12a';
     if (h < 12)   return h + 'a';
     if (h === 12) return '12p';
-    if (h === 23) return 'EOD';
+    if (h === 23) return '11p';
     return (h - 12) + 'p';
+  }
+
+  window.markDirty = function(driverId) {
+    const card = document.getElementById('card-' + driverId);
+    if (card) card.classList.add('has-unsaved');
+  };
+
+  function clearDirty(driverId) {
+    const card = document.getElementById('card-' + driverId);
+    if (card) card.classList.remove('has-unsaved');
   }
 
   window.toggleEdit = function (driverId, forceClose) {
@@ -290,23 +372,63 @@
     const open = form.classList.contains('open');
     if (forceClose || open) {
       form.classList.remove('open');
-      btn.innerHTML = '<i class="bi bi-pencil me-1"></i>Edit';
+      btn.innerHTML = '<i class="bi bi-pencil me-1"></i>Edit<span class="unsaved-dot"></span>';
       btn.className = btn.className.replace('btn-primary', 'btn-outline-primary');
+      if (forceClose) clearDirty(driverId);
     } else {
       form.classList.add('open');
-      btn.innerHTML = '<i class="bi bi-x me-1"></i>Close';
+      btn.innerHTML = '<i class="bi bi-x me-1"></i>Close<span class="unsaved-dot"></span>';
       btn.className = btn.className.replace('btn-outline-primary', 'btn-primary');
     }
   };
 
   window.onAvailChange = function (cb) {
-    const row   = document.getElementById('erow-' + cb.dataset.driver + '-' + cb.dataset.day);
+    const driverId = cb.dataset.driver;
+    const row   = document.getElementById('erow-' + driverId + '-' + cb.dataset.day);
     const label = cb.nextElementSibling;
-    if (cb.checked) { row.classList.remove('day-off'); label.textContent = 'On'; }
-    else            { row.classList.add('day-off');    label.textContent = 'Off'; }
+    const selects = row.querySelectorAll('select');
+    if (cb.checked) {
+      row.classList.remove('day-off');
+      label.textContent = 'On';
+      selects.forEach(s => s.disabled = false);
+    } else {
+      row.classList.add('day-off');
+      label.textContent = 'Off';
+      selects.forEach(s => s.disabled = true);
+    }
+    markDirty(driverId);
   };
 
+  // Validation: end > start when available
+  function validate(driverId) {
+    let valid = true;
+    // Clear previous errors
+    document.querySelectorAll('#edit-' + driverId + ' .invalid').forEach(el => el.classList.remove('invalid'));
+    document.querySelectorAll('#edit-' + driverId + ' .validation-error').forEach(el => el.remove());
+
+    for (let d = 0; d < 7; d++) {
+      const avail = document.getElementById('avail-' + driverId + '-' + d);
+      if (!avail || !avail.checked) continue;
+      const startSel = document.getElementById('start-' + driverId + '-' + d);
+      const endSel = document.getElementById('end-' + driverId + '-' + d);
+      const sh = parseInt(startSel.value, 10);
+      const eh = parseInt(endSel.value, 10);
+      if (eh <= sh) {
+        endSel.classList.add('invalid');
+        const row = document.getElementById('erow-' + driverId + '-' + d);
+        const err = document.createElement('div');
+        err.className = 'validation-error';
+        err.textContent = 'End hour must be after start hour';
+        row.appendChild(err);
+        valid = false;
+      }
+    }
+    return valid;
+  }
+
   window.saveDriver = function (driverId) {
+    if (!validate(driverId)) return;
+
     const statusEl = document.getElementById('status-' + driverId);
     statusEl.innerHTML = '<span class="text-muted">Saving&#8230;</span>';
 
@@ -334,6 +456,7 @@
       .then(data => {
         if (data.success) {
           statusEl.innerHTML = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i>Saved</span>';
+          clearDirty(driverId);
           refreshStrip(driverId, weekly, notes);
           setTimeout(() => { statusEl.innerHTML = ''; toggleEdit(driverId, true); }, 1400);
         } else {
@@ -343,25 +466,70 @@
       .catch(() => { statusEl.innerHTML = '<span class="text-danger">Network error</span>'; });
   };
 
+  window.copyMondayToWeekdays = function(driverId) {
+    const monAvail = document.getElementById('avail-' + driverId + '-0');
+    const monStart = document.getElementById('start-' + driverId + '-0');
+    const monEnd   = document.getElementById('end-'   + driverId + '-0');
+    const monPref  = document.getElementById('pref-'  + driverId + '-0');
+    if (!monAvail) return;
+
+    for (let d = 1; d <= 4; d++) {
+      const avail = document.getElementById('avail-' + driverId + '-' + d);
+      const start = document.getElementById('start-' + driverId + '-' + d);
+      const end   = document.getElementById('end-'   + driverId + '-' + d);
+      const pref  = document.getElementById('pref-'  + driverId + '-' + d);
+      if (!avail) continue;
+
+      avail.checked = monAvail.checked;
+      start.value = monStart.value;
+      end.value = monEnd.value;
+      pref.value = monPref.value;
+      onAvailChange(avail);
+    }
+    markDirty(driverId);
+  };
+
+  window.resetToDefaults = function(driverId) {
+    const card = document.getElementById('card-' + driverId);
+    const defStart = parseInt(card.dataset.defaultStart, 10);
+    const defEnd   = parseInt(card.dataset.defaultEnd, 10);
+    const defPref  = card.dataset.defaultPref || '';
+
+    for (let d = 0; d < 7; d++) {
+      const avail = document.getElementById('avail-' + driverId + '-' + d);
+      const start = document.getElementById('start-' + driverId + '-' + d);
+      const end   = document.getElementById('end-'   + driverId + '-' + d);
+      const pref  = document.getElementById('pref-'  + driverId + '-' + d);
+      if (!avail) continue;
+
+      avail.checked = true;
+      start.value = defStart;
+      end.value = defEnd;
+      pref.value = defPref;
+      onAvailChange(avail);
+    }
+    markDirty(driverId);
+  };
+
   function refreshStrip(driverId, weekly, notes) {
     const strip = document.getElementById('strip-' + driverId);
     if (!strip) return;
-    // Update notes display in the summary
+    // Update notes display
     const card = document.getElementById('card-' + driverId);
     if (card) {
       let notesDiv = card.querySelector('.live-notes-display');
       if (notes && notes.trim()) {
-        const short = notes.trim().length > 60 ? notes.trim().substring(0, 60) + '…' : notes.trim();
+        const short = notes.trim().length > 60 ? notes.trim().substring(0, 60) + '...' : notes.trim();
         if (notesDiv) {
-          notesDiv.textContent = short;
+          notesDiv.innerHTML = '<i class="bi bi-sticky me-1"></i>' + short;
         } else {
-          const phoneDiv = card.querySelector('.driver-phone');
-          if (phoneDiv) {
+          const nameBlock = card.querySelector('.driver-name-block');
+          if (nameBlock) {
             const newDiv = document.createElement('div');
-            newDiv.className = 'driver-phone mt-1 live-notes-display';
-            newDiv.style.cssText = 'color:#6b7280;font-style:italic;';
+            newDiv.className = 'driver-meta live-notes-display';
+            newDiv.style.fontStyle = 'italic';
             newDiv.innerHTML = '<i class="bi bi-sticky me-1"></i>' + short;
-            phoneDiv.parentNode.insertBefore(newDiv, phoneDiv.nextSibling);
+            nameBlock.appendChild(newDiv);
           }
         }
       } else if (notesDiv) {
@@ -372,11 +540,13 @@
     for (let d = 0; d < 7; d++) {
       const w = weekly[d];
       if (!w) continue;
+      if (d === 5) html += '<div class="wk-sep"></div>';
+      const wkCls = d >= 5 ? ' weekend' : '';
       if (w.is_available) {
         const lbl = fmtHour(w.start_hour) + '-' + fmtHour(w.end_hour);
-        html += `<span class="day-pill avail"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">${lbl}</span></span>`;
+        html += `<span class="day-pill avail${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">${lbl}</span></span>`;
       } else {
-        html += `<span class="day-pill off"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">Off</span></span>`;
+        html += `<span class="day-pill off${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">Off</span></span>`;
       }
     }
     strip.innerHTML = html;

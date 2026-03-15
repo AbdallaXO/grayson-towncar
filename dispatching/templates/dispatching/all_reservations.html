@@ -112,6 +112,16 @@
               <span class="fw-bold" id="needPaymentCount">{{ need_payment_count }}</span>
             </div>
           </div>
+          <div class="d-flex align-items-center bg-light rounded px-3 py-2">
+            <i class="bi bi-credit-card text-info me-2"></i>
+            <div>
+              <small class="text-muted d-block">Saved Cards</small>
+              <span class="fw-bold" id="cardSavedCount">{{ card_saved_count }}</span>
+              {% if can_view_revenue and card_saved_total %}
+                <small class="text-muted ms-1">($<span id="cardSavedTotal">{{ card_saved_total|floatformat:2 }}</span>)</small>
+              {% endif %}
+            </div>
+          </div>
           {% if can_view_revenue %}
           <div class="d-flex align-items-center bg-light rounded px-3 py-2">
             <i class="bi bi-currency-dollar text-danger me-2"></i>
@@ -172,6 +182,8 @@
                           {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
                   <option value="need_payment"
                           {% if status_filter == 'need_payment' %}selected{% endif %}>Need Payment</option>
+                  <option value="card_saved"
+                          {% if status_filter == 'card_saved' %}selected{% endif %}>Saved Cards</option>
                 </select>
               </div>
 
@@ -311,6 +323,9 @@
                     document.getElementById('pendingCount').textContent = data.pending_count;
                     document.getElementById('confirmedCount').textContent = data.confirmed_count;
                     document.getElementById('needPaymentCount').textContent = data.need_payment_count;
+                    document.getElementById('cardSavedCount').textContent = data.card_saved_count;
+                    var cardTotalEl = document.getElementById('cardSavedTotal');
+                    if (cardTotalEl && data.card_saved_total !== null) cardTotalEl.textContent = data.card_saved_total.toFixed(2);
                     var revenueEl = document.getElementById('totalRevenue');
                     if (revenueEl) revenueEl.textContent = data.total_revenue.toFixed(2);
 

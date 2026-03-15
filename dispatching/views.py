@@ -755,6 +755,8 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         if status_filter:
             if status_filter == "need_payment":
                 queryset = queryset.filter(payments__isnull=True)
+            elif status_filter == "card_saved":
+                queryset = queryset.filter(payments__status="card_saved").distinct()
             else:
                 queryset = queryset.filter(status=status_filter)
 
@@ -776,16 +778,20 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             pending_count=Count("id", filter=Q(status="pending")),
             confirmed_count=Count("id", filter=Q(status="confirmed")),
             need_payment_count=Count("id", filter=Q(payments__isnull=True)),
+            card_saved_count=Count("id", filter=Q(payments__status="card_saved"), distinct=True),
         )
-        
+
         # Only calculate revenue for admins
         if can_view_revenue(self.request.user):
             revenue_stats = queryset.aggregate(
                 total_revenue=Sum("total_price", filter=Q(payments__status="paid")),
+                card_saved_total=Sum("total_price", filter=Q(payments__status="card_saved")),
             )
             total_revenue = revenue_stats["total_revenue"] or 0
+            card_saved_total = revenue_stats["card_saved_total"] or 0
         else:
             total_revenue = None
+            card_saved_total = None
 
         # Add statistics to context
         context.update(
@@ -794,6 +800,8 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 "pending_reservations": stats["pending_count"],
                 "confirmed_reservations": stats["confirmed_count"],
                 "need_payment_count": stats["need_payment_count"],
+                "card_saved_count": stats["card_saved_count"],
+                "card_saved_total": card_saved_total,
                 "total_revenue": total_revenue,
                 "can_view_revenue": can_view_revenue(self.request.user),
                 "search_query": self.request.GET.get("search_q", ""),
@@ -818,6 +826,8 @@ class ReservationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                     "pending_count": context["pending_reservations"],
                     "confirmed_count": context["confirmed_reservations"],
                     "need_payment_count": context["need_payment_count"],
+                    "card_saved_count": context["card_saved_count"],
+                    "card_saved_total": context["card_saved_total"],
                     "total_revenue": context["total_revenue"],
                 }
             )
@@ -6765,7 +6775,7 @@ def smart_schedule_builder(request):
     Build an optimal schedule for a specific driver with parameters:
     - driver_id: which driver
     - date: target date
-    - start_hour / end_hour: working window
+    - start_hour / end_hour: availability window
     - pinned_leg_ids: legs that MUST be included
     - preferred_trip_type: 'arrival', 'return', 'cruise', 'other', or '' (no preference)
     - apply: if true, actually save the assignments. If false, just preview.
@@ -7871,11 +7881,10 @@ def inhouse_schedule(request):
     DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
     def _fmt_hour(h):
-        """Return a short human-readable hour label like 2a, 12p, EOD."""
+        """Return a short human-readable hour label like 2a, 12p, 11p."""
         if h == 0:  return "12a"
         if h < 12:  return f"{h}a"
         if h == 12: return "12p"
-        if h == 23: return "EOD"
         return f"{h - 12}p"
 
     def _fmt_hour_long(h):
@@ -7883,7 +7892,6 @@ def inhouse_schedule(request):
         if h == 0:  return "12 AM"
         if h < 12:  return f"{h} AM"
         if h == 12: return "12 PM"
-        if h == 23: return "EOD (11 PM)"
         return f"{h - 12} PM"
 
     # All 24 hour choices for the time selects
@@ -7921,10 +7929,564 @@ def inhouse_schedule(request):
     context = {
         "driver_rows": driver_rows,
         "hour_choices": hour_choices,
+        "preference_choices": DriverWeeklySchedule.PREFERENCE_CHOICES,
         "today": today,
         "today_legs_url": f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
     }
     return render(request, "dispatching/inhouse_schedule.html", context)
+
+
+@login_required(login_url="login")
+def driver_schedules_dashboard(request):
+    """
+    Read-only driver schedule dashboard showing weekly coverage overview,
+    timeline bars, hourly heatmap, and coverage alerts.
+    """
+    if not request.user.is_staff:
+        messages.error(request, "Permission denied.")
+        return redirect("dashboard")
+
+    DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    DAY_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    def _fmt_hour(h):
+        if h == 0:  return "12 AM"
+        if h < 12:  return f"{h} AM"
+        if h == 12: return "12 PM"
+        return f"{h - 12} PM"
+
+    def _fmt_hour_short(h):
+        """Compact label for small cells: 12a, 1a, 12p, 1p"""
+        if h == 0:  return "12a"
+        if h < 12:  return f"{h}a"
+        if h == 12: return "12p"
+        return f"{h - 12}p"
+
+    import calendar as _cal
+    import json as _json
+    from datetime import date as _date_type
+
+    today = timezone.localdate()
+
+    # ── Determine selected date ──
+    # Support ?date=YYYY-MM-DD (month view clicks) or ?day=N (week view clicks)
+    selected_date = None
+    date_param = request.GET.get("date")
+    if date_param:
+        try:
+            selected_date = _date_type.fromisoformat(date_param)
+        except (ValueError, TypeError):
+            pass
+
+    if selected_date is None:
+        try:
+            day_param = int(request.GET.get("day", today.weekday()))
+            if day_param < 0 or day_param > 6:
+                day_param = today.weekday()
+        except (ValueError, TypeError):
+            day_param = today.weekday()
+        monday = today - timedelta(days=today.weekday())
+        selected_date = monday + timedelta(days=day_param)
+
+    # Compute the week containing the selected date
+    monday = selected_date - timedelta(days=selected_date.weekday())
+    week_dates = [monday + timedelta(days=i) for i in range(7)]
+    selected_day = selected_date.weekday()  # 0-6
+
+    # Which view mode
+    view_mode = request.GET.get("view", "week")
+
+    inhouse_drivers = (
+        Driver.objects.filter(driver_type="inhouse")
+        .select_related("profile")
+        .prefetch_related("weekly_schedule")
+        .order_by("profile__first_name", "profile__last_name")
+    )
+
+    # Build per-driver, per-day availability matrix
+    driver_schedules = []
+    for driver in inhouse_drivers:
+        days = []
+        for i, date in enumerate(week_dates):
+            is_avail, sh, eh, pref = driver.get_availability_for_date(date)
+            hours = (eh - sh) if is_avail and eh > sh else 0
+            days.append({
+                "day_idx": i,
+                "is_available": is_avail,
+                "start_hour": sh,
+                "end_hour": eh,
+                "hours": hours,
+                "preference": pref,
+                "start_label": _fmt_hour(sh),
+                "end_label": _fmt_hour(eh),
+            })
+        driver_schedules.append({
+            "driver": driver,
+            "days": days,
+            "selected": days[selected_day],
+        })
+
+    # Weekly totals for heatmap
+    weekly_totals = []
+    for i in range(7):
+        total_hours = sum(ds["days"][i]["hours"] for ds in driver_schedules)
+        active_count = sum(1 for ds in driver_schedules if ds["days"][i]["is_available"])
+        weekly_totals.append({
+            "day_idx": i,
+            "day_name": DAY_NAMES[i],
+            "date": week_dates[i],
+            "total_hours": total_hours,
+            "active_count": active_count,
+            "is_selected": i == selected_day,
+            "is_today": week_dates[i] == today,
+        })
+
+    # Compute bar_pct and is_weakest for weekly sparkline
+    max_hours = max((wt["total_hours"] for wt in weekly_totals), default=1) or 1
+    min_hours = min((wt["total_hours"] for wt in weekly_totals), default=0)
+    for wt in weekly_totals:
+        wt["bar_pct"] = round((wt["total_hours"] / max_hours) * 100, 1)
+        wt["is_weakest"] = wt["total_hours"] == min_hours and wt["total_hours"] < max_hours
+
+    # Timeline data for selected day
+    timeline_rows = []
+    for ds in driver_schedules:
+        sel = ds["selected"]
+        if sel["is_available"]:
+            left_pct = round((sel["start_hour"] / 24) * 100, 2)
+            width_pct = round(((sel["end_hour"] - sel["start_hour"]) / 24) * 100, 2)
+            color = "teal" if sel["hours"] >= 12 else "gold"
+        else:
+            left_pct = 0
+            width_pct = 0
+            color = "off"
+        timeline_rows.append({
+            "driver": ds["driver"],
+            "is_available": sel["is_available"],
+            "start_hour": sel["start_hour"],
+            "end_hour": sel["end_hour"],
+            "hours": sel["hours"],
+            "preference": sel["preference"],
+            "start_label": sel["start_label"],
+            "end_label": sel["end_label"],
+            "left_pct": left_pct,
+            "width_pct": width_pct,
+            "color": color,
+        })
+
+    # Sort: active drivers first (by start hour), OFF drivers at bottom
+    timeline_rows.sort(key=lambda r: (0 if r["is_available"] else 1, r["start_hour"]))
+
+    # Hourly coverage
+    hourly_coverage = []
+    for hour in range(24):
+        count = sum(
+            1 for ds in driver_schedules
+            if ds["selected"]["is_available"]
+            and ds["selected"]["start_hour"] <= hour < ds["selected"]["end_hour"]
+        )
+        if count == 0:
+            color_class = "cov-red"
+        elif count == 1:
+            color_class = "cov-orange"
+        elif count <= 3:
+            color_class = "cov-yellow"
+        else:
+            color_class = "cov-green"
+        hourly_coverage.append({
+            "hour": hour,
+            "label": _fmt_hour(hour),
+            "short_label": _fmt_hour_short(hour),
+            "count": count,
+            "color_class": color_class,
+        })
+
+    # Coverage alerts
+    alerts = []
+    for hc in hourly_coverage:
+        h = hc["hour"]
+        if hc["count"] == 0 and 4 <= h <= 23:
+            alerts.append({"severity": "critical", "icon": "bi-x-octagon-fill", "message": f"No drivers available at {hc['label']}"})
+        elif hc["count"] == 1 and 6 <= h <= 22:
+            alerts.append({"severity": "warning", "icon": "bi-exclamation-triangle-fill", "message": f"Only 1 driver available at {hc['label']}"})
+        elif (h >= 22 or h <= 4) and 0 < hc["count"] < 2:
+            alerts.append({"severity": "info", "icon": "bi-moon-fill", "message": f"Late-night {hc['label']}: only {hc['count']} driver available"})
+
+    # Early outs
+    for ds in driver_schedules:
+        sel = ds["selected"]
+        if sel["is_available"] and sel["end_hour"] < 18:
+            alerts.append({
+                "severity": "notice",
+                "icon": "bi-clock",
+                "message": f"{ds['driver']} ends at {sel['end_label']} (early out)",
+            })
+
+    # Summary stats
+    active_drivers = [ds for ds in driver_schedules if ds["selected"]["is_available"]]
+    total_active = len(active_drivers)
+    total_driver_hours = sum(ds["selected"]["hours"] for ds in active_drivers)
+    peak_hour = max(hourly_coverage, key=lambda h: h["count"]) if hourly_coverage else None
+    gap_hours = sum(1 for hc in hourly_coverage if hc["count"] == 0 and 4 <= hc["hour"] <= 23)
+    earliest_start = min((ds["selected"]["start_hour"] for ds in active_drivers), default=None)
+    latest_end = max((ds["selected"]["end_hour"] for ds in active_drivers), default=None)
+
+    # Farm risk: any hour 6-22 with fewer than 3 drivers
+    farm_risk_hours = sum(1 for hc in hourly_coverage if 6 <= hc["hour"] <= 22 and hc["count"] < 3)
+
+    # ── Job demand data for all 7 days ──
+    active_statuses = ["in-progress", "confirmed", "on-the-way", "on-location", "picked-up"]
+    week_legs = list(
+        Leg.objects.filter(
+            pickup_date__gte=monday,
+            pickup_date__lte=week_dates[6],
+            status__in=active_statuses,
+        ).select_related("driver").only(
+            "pickup_date", "pickup_time", "status",
+            "driver__driver_type", "driver__id",
+        )
+    )
+
+    # Bucket jobs by (day_index, hour) for all 7 days
+    job_demand_by_day = {i: {h: 0 for h in range(24)} for i in range(7)}
+    job_totals_by_day = {i: 0 for i in range(7)}
+    for leg in week_legs:
+        day_idx = (leg.pickup_date - monday).days
+        if 0 <= day_idx <= 6:
+            job_demand_by_day[day_idx][leg.pickup_time.hour] += 1
+            job_totals_by_day[day_idx] += 1
+
+    selected_date = week_dates[selected_day]
+    selected_demand = job_demand_by_day[selected_day]
+
+    # First / last job pickup times for selected day
+    day_legs_qs = [l for l in week_legs if l.pickup_date == selected_date]
+    day_legs_qs.sort(key=lambda l: l.pickup_time)
+
+    first_job = day_legs_qs[0] if day_legs_qs else None
+    last_job = day_legs_qs[-1] if day_legs_qs else None
+    first_job_time = first_job.pickup_time if first_job else None
+    last_job_time = last_job.pickup_time if last_job else None
+
+    # Compute percentage positions for demand window markers
+    if first_job_time:
+        first_job_hour = first_job_time.hour + first_job_time.minute / 60
+        first_job_pct = round((first_job_hour / 24) * 100, 2)
+        first_job_label = first_job_time.strftime("%I:%M %p").lstrip("0")
+    else:
+        first_job_pct = None
+        first_job_label = None
+
+    if last_job_time:
+        last_job_hour = last_job_time.hour + last_job_time.minute / 60
+        last_job_pct = round((last_job_hour / 24) * 100, 2)
+        last_job_label = last_job_time.strftime("%I:%M %p").lstrip("0")
+    else:
+        last_job_pct = None
+        last_job_label = None
+
+    total_jobs = job_totals_by_day[selected_day]
+
+    # ── Enhance hourly coverage with job demand ──
+    max_jobs_hour = max(selected_demand.values()) if selected_demand else 0
+    at_risk_hours = 0
+    for hc in hourly_coverage:
+        h = hc["hour"]
+        jobs = selected_demand.get(h, 0)
+        drivers = hc["count"]
+        hc["jobs"] = jobs
+        # New color logic: demand-aware
+        if jobs > drivers:
+            hc["color_class"] = "cov-red"
+            at_risk_hours += 1
+        elif jobs > 0 and jobs == drivers:
+            hc["color_class"] = "cov-orange"
+        elif drivers > 0 and jobs >= (drivers * 0.75):
+            hc["color_class"] = "cov-yellow"
+        elif drivers > 0:
+            hc["color_class"] = "cov-green"
+        else:
+            if jobs == 0:
+                hc["color_class"] = "cov-dark"
+            else:
+                hc["color_class"] = "cov-red"
+        # Bar height for job demand histogram (0-100%)
+        hc["job_bar_pct"] = round((jobs / max_jobs_hour) * 100) if max_jobs_hour > 0 else 0
+
+    # Utilization %
+    util_pct = round((total_jobs / total_driver_hours) * 100) if total_driver_hours > 0 else 0
+
+    # ── Add job totals to weekly_totals ──
+    for wt in weekly_totals:
+        d_idx = wt["day_idx"]
+        wt["job_count"] = job_totals_by_day[d_idx]
+        # Check if any hour has jobs > drivers for this day
+        day_driver_avail = {}
+        for h in range(24):
+            day_driver_avail[h] = sum(
+                1 for ds in driver_schedules
+                if ds["days"][d_idx]["is_available"]
+                and ds["days"][d_idx]["start_hour"] <= h < ds["days"][d_idx]["end_hour"]
+            )
+        wt["has_risk"] = any(
+            job_demand_by_day[d_idx][h] > day_driver_avail[h]
+            for h in range(24) if job_demand_by_day[d_idx][h] > 0
+        )
+
+    # ── Demand-aware alerts ──
+    # Jobs > drivers alerts
+    for hc in hourly_coverage:
+        h = hc["hour"]
+        jobs = hc["jobs"]
+        drivers = hc["count"]
+        if jobs > drivers and jobs > 0:
+            alerts.append({
+                "severity": "critical",
+                "icon": "bi-exclamation-diamond-fill",
+                "message": f"{jobs} job{'s' if jobs > 1 else ''} at {hc['label']} — only {drivers} driver{'s' if drivers != 1 else ''} available",
+            })
+        elif jobs > 0 and jobs == drivers:
+            alerts.append({
+                "severity": "warning",
+                "icon": "bi-exclamation-triangle-fill",
+                "message": f"Peak demand at {hc['label']} — {jobs} job{'s' if jobs > 1 else ''}, {drivers} available (no buffer)",
+            })
+
+    # First/last job info alert
+    if first_job_label and last_job_label:
+        alerts.insert(0, {
+            "severity": "info",
+            "icon": "bi-clock-history",
+            "message": f"First job: {first_job_label} — Last job: {last_job_label} ({total_jobs} total)",
+        })
+
+    # Dead hours: find contiguous blocks with 0 jobs during operational window
+    if first_job_time and last_job_time:
+        op_start = first_job_time.hour
+        op_end = last_job_time.hour
+        dead_start = None
+        for h in range(op_start, op_end + 1):
+            if selected_demand.get(h, 0) == 0:
+                if dead_start is None:
+                    dead_start = h
+            else:
+                if dead_start is not None:
+                    alerts.append({
+                        "severity": "info",
+                        "icon": "bi-pause-circle",
+                        "message": f"Dead hours: {_fmt_hour(dead_start)}–{_fmt_hour(h)} — no jobs scheduled",
+                    })
+                    dead_start = None
+        if dead_start is not None:
+            alerts.append({
+                "severity": "info",
+                "icon": "bi-pause-circle",
+                "message": f"Dead hours: {_fmt_hour(dead_start)}–{_fmt_hour(op_end + 1)} — no jobs scheduled",
+            })
+
+    # ── Schedule Insights (all 7 days) ──
+    insights = []
+    for d_idx in range(7):
+        day_name = DAY_FULL[d_idx]
+        demand = job_demand_by_day[d_idx]
+        day_job_count = job_totals_by_day[d_idx]
+        if day_job_count == 0:
+            continue
+
+        # Compute per-hour driver availability for this day
+        day_avail = {}
+        for h in range(24):
+            day_avail[h] = sum(
+                1 for ds in driver_schedules
+                if ds["days"][d_idx]["is_available"]
+                and ds["days"][d_idx]["start_hour"] <= h < ds["days"][d_idx]["end_hour"]
+            )
+
+        # Find first/last job hours for this day
+        job_hours_with_demand = [h for h in range(24) if demand[h] > 0]
+        if not job_hours_with_demand:
+            continue
+        day_first_h = min(job_hours_with_demand)
+        day_last_h = max(job_hours_with_demand)
+
+        # 1. Early start needed
+        if day_first_h < 6:
+            insights.append({
+                "day": day_name,
+                "day_idx": d_idx,
+                "severity": "warning",
+                "message": f"Early start needed — {demand[day_first_h]} job{'s' if demand[day_first_h] > 1 else ''} at {_fmt_hour(day_first_h)}, consider shifting a driver to {_fmt_hour(max(0, day_first_h - 1))} start",
+            })
+
+        # 2. Night coverage gap
+        if day_last_h >= 21:
+            night_drivers = day_avail.get(day_last_h, 0)
+            if night_drivers == 0:
+                insights.append({
+                    "day": day_name,
+                    "day_idx": d_idx,
+                    "severity": "critical",
+                    "message": f"Night coverage gap — {demand[day_last_h]} job{'s' if demand[day_last_h] > 1 else ''} at {_fmt_hour(day_last_h)}, no in-house driver available",
+                })
+            elif night_drivers < demand[day_last_h]:
+                insights.append({
+                    "day": day_name,
+                    "day_idx": d_idx,
+                    "severity": "warning",
+                    "message": f"Night coverage tight — {demand[day_last_h]} job{'s' if demand[day_last_h] > 1 else ''} at {_fmt_hour(day_last_h)}, only {night_drivers} available",
+                })
+
+        # 3. Bottleneck: 3+ jobs in one hour with fewer drivers
+        for h in range(24):
+            if demand[h] >= 3 and demand[h] > day_avail.get(h, 0):
+                insights.append({
+                    "day": day_name,
+                    "day_idx": d_idx,
+                    "severity": "critical",
+                    "message": f"Bottleneck at {_fmt_hour(h)} — {demand[h]} jobs, only {day_avail.get(h, 0)} available",
+                })
+
+        # 4. Oversupply: drivers start before first job
+        earliest_driver = min(
+            (ds["days"][d_idx]["start_hour"] for ds in driver_schedules if ds["days"][d_idx]["is_available"]),
+            default=None
+        )
+        if earliest_driver is not None and day_first_h - earliest_driver >= 2:
+            idle_drivers = day_avail.get(earliest_driver, 0)
+            if idle_drivers >= 2:
+                insights.append({
+                    "day": day_name,
+                    "day_idx": d_idx,
+                    "severity": "opportunity",
+                    "message": f"Oversupply {_fmt_hour(earliest_driver)}–{_fmt_hour(day_first_h)} — {idle_drivers} available, first job not until {_fmt_hour(day_first_h)}. Consider staggered starts",
+                })
+
+    # Current hour for "now" indicator
+    current_hour = timezone.localtime().hour if selected_date == today else None
+
+    # ── Month calendar data ──
+    cal_month = selected_date.month
+    cal_year = selected_date.year
+    cal_first_day = _date_type(cal_year, cal_month, 1)
+    cal_days_in_month = _cal.monthrange(cal_year, cal_month)[1]
+    cal_last_day = _date_type(cal_year, cal_month, cal_days_in_month)
+
+    # Grid starts on Monday of the week containing the 1st
+    grid_start = cal_first_day - timedelta(days=cal_first_day.weekday())
+    # Grid ends on Sunday of the week containing the last day
+    grid_end = cal_last_day + timedelta(days=(6 - cal_last_day.weekday()))
+
+    # Query jobs for the full grid range
+    month_legs = list(
+        Leg.objects.filter(
+            pickup_date__gte=grid_start,
+            pickup_date__lte=grid_end,
+            status__in=active_statuses,
+        ).values_list("pickup_date", "pickup_time")
+    )
+    # Bucket jobs by date and hour
+    month_jobs_by_date = {}
+    for pd, pt in month_legs:
+        if pd not in month_jobs_by_date:
+            month_jobs_by_date[pd] = {h: 0 for h in range(24)}
+        month_jobs_by_date[pd][pt.hour] += 1
+
+    # Build month_data JSON: {date_str: {drivers, jobs, has_risk}}
+    month_data = {}
+    current = grid_start
+    while current <= grid_end:
+        # Driver availability for this date
+        avail_count = 0
+        avail_by_hour = {h: 0 for h in range(24)}
+        for driver in inhouse_drivers:
+            is_avail, sh, eh, _ = driver.get_availability_for_date(current)
+            if is_avail:
+                avail_count += 1
+                for h in range(sh, eh):
+                    avail_by_hour[h] += 1
+
+        day_jobs = month_jobs_by_date.get(current, {})
+        job_total = sum(day_jobs.values())
+        has_risk = any(
+            day_jobs.get(h, 0) > avail_by_hour[h]
+            for h in range(24) if day_jobs.get(h, 0) > 0
+        )
+
+        month_data[current.isoformat()] = {
+            "drivers": avail_count,
+            "jobs": job_total,
+            "has_risk": has_risk,
+        }
+        current += timedelta(days=1)
+
+    # Build calendar weeks for template rendering
+    cal_weeks = []
+    current = grid_start
+    while current <= grid_end:
+        week_row = []
+        for _ in range(7):
+            d = month_data.get(current.isoformat(), {})
+            week_row.append({
+                "date": current,
+                "date_str": current.isoformat(),
+                "day_num": current.day,
+                "in_month": current.month == cal_month,
+                "is_today": current == today,
+                "is_selected": current == selected_date,
+                "is_past": current < today,
+                "drivers": d.get("drivers", 0),
+                "jobs": d.get("jobs", 0),
+                "has_risk": d.get("has_risk", False),
+            })
+            current += timedelta(days=1)
+        cal_weeks.append(week_row)
+
+    # Prev/next month dates for navigation
+    if cal_month == 1:
+        prev_month_date = _date_type(cal_year - 1, 12, 1)
+    else:
+        prev_month_date = _date_type(cal_year, cal_month - 1, 1)
+    if cal_month == 12:
+        next_month_date = _date_type(cal_year + 1, 1, 1)
+    else:
+        next_month_date = _date_type(cal_year, cal_month + 1, 1)
+
+    context = {
+        "driver_schedules": driver_schedules,
+        "weekly_totals": weekly_totals,
+        "selected_day": selected_day,
+        "selected_day_name": DAY_FULL[selected_day],
+        "selected_date": selected_date,
+        "timeline_rows": timeline_rows,
+        "hourly_coverage": hourly_coverage,
+        "alerts": alerts,
+        "total_active": total_active,
+        "total_driver_hours": total_driver_hours,
+        "peak_hour": peak_hour,
+        "gap_hours": gap_hours,
+        "earliest_start": _fmt_hour(earliest_start) if earliest_start is not None else "—",
+        "latest_end": _fmt_hour(latest_end) if latest_end is not None else "—",
+        "farm_risk_hours": farm_risk_hours,
+        "current_hour": current_hour,
+        "hour_markers": [{"hour": h, "label": _fmt_hour(h)} for h in range(24)],
+        "first_job_pct": first_job_pct,
+        "first_job_label": first_job_label,
+        "last_job_pct": last_job_pct,
+        "last_job_label": last_job_label,
+        "total_jobs": total_jobs,
+        "at_risk_hours": at_risk_hours,
+        "util_pct": util_pct,
+        "insights": insights,
+        "selected_demand": selected_demand,
+        # Month calendar
+        "view_mode": view_mode,
+        "cal_weeks": cal_weeks,
+        "cal_month_label": f"{_cal.month_name[cal_month].upper()} {cal_year}",
+        "prev_month_date": prev_month_date.isoformat(),
+        "next_month_date": next_month_date.isoformat(),
+        "today_iso": today.isoformat(),
+    }
+    return render(request, "dispatching/driver_schedules_dashboard.html", context)
 
 
 # ── Swap Optimizer Endpoints ─────────────────────────────────────────
