@@ -19,7 +19,11 @@
         <button type="button" class="btn btn-dark me-2" data-bs-toggle="modal" data-bs-target="#sendStatementModal">
           <i class="bi bi-envelope me-2"></i>Email Statement
         </button>
-        <a href="{% url 'agent_commission_history' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Back to History</a>
+        {% if is_admin %}
+          <a href="{% url 'admin_commission_report' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Back to Report</a>
+        {% else %}
+          <a href="{% url 'agent_commission_history' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-2"></i>Back to History</a>
+        {% endif %}
       </div>
     </div>
 

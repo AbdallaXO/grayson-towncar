@@ -8290,7 +8290,8 @@ def lead_analytics(request):
     """
     if not request.user.is_superuser:
         return redirect("dashboard")
-    from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField
+    from django.db.models import Count, Sum, Q, Avg, F, ExpressionWrapper, DurationField, Case, When
+    from django.db.models.functions import Coalesce, Greatest
     from reservations.models import Lead
     from ghl_integration.models import FollowUpTask, LeadActivity
 
@@ -8327,31 +8328,23 @@ def lead_analytics(request):
     reply_rate_val = leads_qs.filter(has_replied=True).count()
     reply_rate = round(reply_rate_val / all_leads * 100, 1) if all_leads else 0
 
-    # ── Segment breakdown ──
-    segment_data = list(
-        leads_qs.values("segment")
-        .annotate(
-            total=Count("id"),
-            replied=Count("id", filter=Q(has_replied=True)),
-            converted=Count("id", filter=Q(converted=True)),
-        )
-        .order_by("-total")
-    )
-    for seg in segment_data:
-        seg["reply_pct"] = round(seg["replied"] / seg["total"] * 100, 1) if seg["total"] else 0
-        seg["conv_pct"] = round(seg["converted"] / seg["total"] * 100, 1) if seg["total"] else 0
-        seg["label"] = dict(Lead.SegmentChoices.choices).get(seg["segment"], seg["segment"])
-
     # ── Priority breakdown ──
     priority_counts = dict(
         leads_qs.values_list("priority").annotate(c=Count("id")).values_list("priority", "c")
     )
 
-    # ── Source attribution (UTM) ──
+    # ── Source attribution (UTM) — normalize historical variants ──
+    from django.db.models import Value
+    from django.db.models.functions import Lower
+    normalized_source = Case(
+        When(utm_source__in=["facebook", "fb", "ig", "instagram", "Facebook", "Meta"], then=Value("meta")),
+        default=Lower("utm_source"),
+    )
     source_data = list(
         leads_qs.exclude(utm_source__isnull=True)
         .exclude(utm_source="")
-        .values("utm_source")
+        .annotate(norm_source=normalized_source)
+        .values("norm_source")
         .annotate(
             total=Count("id"),
             converted=Count("id", filter=Q(converted=True)),
@@ -8359,12 +8352,17 @@ def lead_analytics(request):
         .order_by("-total")[:10]
     )
     for src in source_data:
+        src["utm_source"] = src["norm_source"]
         src["conv_pct"] = round(src["converted"] / src["total"] * 100, 1) if src["total"] else 0
 
     # Ad click attribution
-    gclid_leads = leads_qs.exclude(gclid__isnull=True).exclude(gclid="").count()
-    fbclid_leads = leads_qs.exclude(fbclid__isnull=True).exclude(fbclid="").count()
-    direct_leads = all_leads - gclid_leads - fbclid_leads
+    google_leads = leads_qs.exclude(gclid__isnull=True).exclude(gclid="").count()
+    meta_leads = leads_qs.exclude(fbclid__isnull=True).exclude(fbclid="").count()
+    organic_leads = leads_qs.filter(
+        Q(gclid__isnull=True) | Q(gclid=""),
+        Q(fbclid__isnull=True) | Q(fbclid=""),
+    ).exclude(utm_source__isnull=True).exclude(utm_source="").count()
+    direct_leads = all_leads - google_leads - meta_leads - organic_leads
 
     # ── Revenue attribution ──
     revenue_data = (
@@ -8378,15 +8376,34 @@ def lead_analytics(request):
     total_lead_revenue = revenue_data["total_revenue"] or Decimal("0.00")
     avg_lead_revenue = revenue_data["avg_revenue"] or Decimal("0.00")
 
-    # Revenue by source
+    # Revenue by source (normalized)
     revenue_by_source = list(
         leads_qs.filter(converted=True, converted_reservation__isnull=False)
         .exclude(utm_source__isnull=True)
         .exclude(utm_source="")
-        .values("utm_source")
+        .annotate(norm_source=normalized_source)
+        .values("norm_source")
         .annotate(revenue=Sum("converted_reservation__total_price"), count=Count("id"))
         .order_by("-revenue")[:10]
     )
+    for rev in revenue_by_source:
+        rev["utm_source"] = rev["norm_source"]
+
+    # ── Time to conversion (lead created → converted) ──
+    converted_leads_qs = leads_qs.filter(converted=True, converted_at__isnull=False)
+    avg_conversion_time = None
+    if converted_leads_qs.exists():
+        conv_times = converted_leads_qs.annotate(
+            conv_delta=ExpressionWrapper(
+                F("converted_at") - F("created_at"),
+                output_field=DurationField(),
+            )
+        ).filter(conv_delta__isnull=False, conv_delta__gt=timedelta(0))
+        if conv_times.exists():
+            avg_td = conv_times.aggregate(avg=Avg("conv_delta"))["avg"]
+            if avg_td:
+                avg_days = avg_td.total_seconds() / 86400
+                avg_conversion_time = round(avg_days, 1)
 
     # ── Follow-up engine metrics ──
     tasks_qs = FollowUpTask.objects.filter(created_at__gte=start_date) if start_date else FollowUpTask.objects.all()
@@ -8423,13 +8440,21 @@ def lead_analytics(request):
     sequences_completed = leads_qs.filter(sequence_completed_at__isnull=False).count()
     needs_follow_up = leads_qs.filter(needs_human_follow_up=True).count()
 
-    # ── Response time (lead created → first reply) ──
+    # ── Response time (first contact → first reply) ──
+    # Use whichever contact method actually reached the lead (SMS or email fallback)
     replied_leads = leads_qs.filter(has_replied=True, last_reply_at__isnull=False)
     avg_response_time = None
     if replied_leads.exists():
         response_times = replied_leads.annotate(
+            first_contact_at=Case(
+                When(initial_sms_sent_at__isnull=False, initial_email_sent_at__isnull=False,
+                     then=Greatest(F("initial_sms_sent_at"), F("initial_email_sent_at"))),
+                When(initial_email_sent_at__isnull=False, then=F("initial_email_sent_at")),
+                When(initial_sms_sent_at__isnull=False, then=F("initial_sms_sent_at")),
+            ),
+        ).exclude(first_contact_at__isnull=True).annotate(
             response_delta=ExpressionWrapper(
-                F("last_reply_at") - F("initial_sms_sent_at"),
+                F("last_reply_at") - F("first_contact_at"),
                 output_field=DurationField(),
             )
         ).filter(response_delta__isnull=False, response_delta__gt=timedelta(0))
@@ -8462,10 +8487,10 @@ def lead_analytics(request):
         has_replied=False,
     ).count()
 
-    failed_syncs = leads_qs.filter(
-        ghl_contact_id__isnull=True,
-        phone__isnull=False,
-    ).exclude(phone="").count()
+    from ghl_integration.models import GHLSyncLog
+    failed_syncs = GHLSyncLog.objects.filter(
+        status=GHLSyncLog.StatusChoices.DEAD_LETTER,
+    ).count()
 
     # ── Recent activity ──
     activity_qs = LeadActivity.objects.select_related("lead").order_by("-created_at")
@@ -8494,16 +8519,16 @@ def lead_analytics(request):
         "lost_count": lost_count,
         "cold_count": cold_count,
         "future_count": future_count,
-        # Segments
-        "segment_data": segment_data,
         # Priority
         "priority_counts": priority_counts,
         # Source
         "source_data": source_data,
-        "gclid_leads": gclid_leads,
-        "fbclid_leads": fbclid_leads,
+        "google_leads": google_leads,
+        "meta_leads": meta_leads,
+        "organic_leads": organic_leads,
         "direct_leads": direct_leads,
         "revenue_by_source": revenue_by_source,
+        "avg_conversion_time": avg_conversion_time,
         # Follow-up engine
         "tasks_sent": tasks_sent,
         "tasks_pending": tasks_pending,
@@ -8530,3 +8555,610 @@ def lead_analytics(request):
         "recent_activity": recent_activity,
     }
     return render(request, "dispatching/lead_analytics.html", context)
+
+
+# =============================================
+# AFFILIATE PAYMENT DASHBOARD
+# =============================================
+
+from django.contrib.admin.views.decorators import staff_member_required
+from django.db.models import Min
+from users.models import TravelAgent, Agency, CommissionPayout, AgencyCommissionPayout
+from users.services import (
+    process_agent_payout as svc_process_agent_payout,
+    process_agency_payout as svc_process_agency_payout,
+    preview_agent_payout as svc_preview_agent_payout,
+    preview_agency_payout as svc_preview_agency_payout,
+)
+
+
+@staff_member_required
+def affiliate_payments(request):
+    """Main affiliate payments dashboard."""
+    search = request.GET.get("q", "").strip()
+    show = request.GET.get("show", "owing")  # owing | all
+    sort = request.GET.get("sort", "amount")  # amount | name | date
+
+    # --- Agencies with unpaid balances ---
+    agencies_qs = Agency.objects.filter(is_active=True).prefetch_related("heads")
+
+    if show == "owing":
+        # Agencies that have agents with unpaid commissions where agency handles payment
+        agencies_qs = agencies_qs.filter(
+            agents__unpaid_commissions__gt=0,
+            agents__agency_handles_payment=True,
+        ).distinct()
+
+    if search:
+        agencies_qs = agencies_qs.filter(
+            Q(name__icontains=search)
+            | Q(agents__agent_name__icontains=search)
+            | Q(agents__user__email__icontains=search)
+        ).distinct()
+
+    # Annotate agencies with totals
+    agencies_qs = agencies_qs.annotate(
+        unpaid_total=Sum(
+            "agents__unpaid_commissions",
+            filter=Q(agents__agency_handles_payment=True),
+        ),
+        owing_agent_count=Count(
+            "agents",
+            filter=Q(agents__unpaid_commissions__gt=0, agents__agency_handles_payment=True),
+        ),
+    )
+
+    if sort == "amount":
+        agencies_qs = agencies_qs.order_by("-unpaid_total")
+    elif sort == "name":
+        agencies_qs = agencies_qs.order_by("name")
+
+    # --- Individual agents (no agency, or agency_handles_payment=False) ---
+    agents_qs = TravelAgent.objects.filter(is_active=True).select_related("user", "agency")
+
+    if show == "owing":
+        agents_qs = agents_qs.filter(unpaid_commissions__gt=0)
+
+    # Only agents who are paid directly (not through agency)
+    agents_qs = agents_qs.filter(
+        Q(agency__isnull=True) | Q(agency_handles_payment=False)
+    )
+
+    if search:
+        agents_qs = agents_qs.filter(
+            Q(agent_name__icontains=search)
+            | Q(user__email__icontains=search)
+            | Q(agency__name__icontains=search)
+        )
+
+    if sort == "amount":
+        agents_qs = agents_qs.order_by("-unpaid_commissions")
+    elif sort == "name":
+        agents_qs = agents_qs.order_by("agent_name")
+    elif sort == "date":
+        agents_qs = agents_qs.order_by("last_payment_date")
+
+    # Count unpaid reservations per agent
+    from reservations.models import Reservation
+
+    agent_unpaid_counts = dict(
+        Reservation.objects.filter(
+            commission_paid=False, status="completed",
+            travel_agent__in=agents_qs,
+        ).values_list("travel_agent").annotate(cnt=Count("id")).values_list("travel_agent", "cnt")
+    )
+
+    # Pagination for agents
+    agents_paginator = Paginator(agents_qs, 25)
+    agents_page = request.GET.get("agents_page", 1)
+    try:
+        agents_page_obj = agents_paginator.page(agents_page)
+    except (PageNotAnInteger, EmptyPage):
+        agents_page_obj = agents_paginator.page(1)
+
+    # Attach unpaid res counts
+    for agent in agents_page_obj:
+        agent.unpaid_res_count = agent_unpaid_counts.get(agent.id, 0)
+
+    # Agency unpaid reservation counts
+    agency_res_counts = {}
+    agency_ids = [a.id for a in agencies_qs]
+    if agency_ids:
+        from django.db.models import F as Ff
+        rows = (
+            Reservation.objects.filter(
+                commission_paid=False, status="completed",
+                travel_agent__agency_id__in=agency_ids,
+                travel_agent__agency_handles_payment=True,
+            )
+            .values("travel_agent__agency_id")
+            .annotate(cnt=Count("id"))
+        )
+        for row in rows:
+            agency_res_counts[row["travel_agent__agency_id"]] = row["cnt"]
+
+    for agency in agencies_qs:
+        agency.unpaid_res_count = agency_res_counts.get(agency.id, 0)
+
+    # Summary stats
+    total_owing_agents = TravelAgent.objects.filter(
+        unpaid_commissions__gt=0, is_active=True
+    ).filter(
+        Q(agency__isnull=True) | Q(agency_handles_payment=False)
+    ).aggregate(
+        total=Sum("unpaid_commissions"),
+        count=Count("id"),
+    )
+
+    total_owing_agencies = Agency.objects.filter(
+        is_active=True,
+        agents__unpaid_commissions__gt=0,
+        agents__agency_handles_payment=True,
+    ).distinct().count()
+
+    agency_owing_amount = TravelAgent.objects.filter(
+        is_active=True,
+        unpaid_commissions__gt=0,
+        agency_handles_payment=True,
+        agency__isnull=False,
+    ).aggregate(total=Sum("unpaid_commissions"))["total"] or Decimal("0")
+
+    total_owing = (total_owing_agents["total"] or Decimal("0")) + agency_owing_amount
+
+    # --- Payout history ---
+    history_tab = request.GET.get("history_tab", "agency")  # agency | agent
+
+    agency_payouts = AgencyCommissionPayout.objects.select_related(
+        "agency"
+    ).prefetch_related(
+        "agent_payouts__agent__user"
+    ).order_by("-paid_at")
+
+    agency_payouts_paginator = Paginator(agency_payouts, 15)
+    agency_payouts_page = request.GET.get("ap_page", 1)
+    try:
+        agency_payouts_page_obj = agency_payouts_paginator.page(agency_payouts_page)
+    except (PageNotAnInteger, EmptyPage):
+        agency_payouts_page_obj = agency_payouts_paginator.page(1)
+
+    agent_payouts = CommissionPayout.objects.select_related(
+        "agent", "agent__user", "agency"
+    ).order_by("-paid_at")
+
+    agent_payouts_paginator = Paginator(agent_payouts, 15)
+    agent_payouts_page = request.GET.get("cp_page", 1)
+    try:
+        agent_payouts_page_obj = agent_payouts_paginator.page(agent_payouts_page)
+    except (PageNotAnInteger, EmptyPage):
+        agent_payouts_page_obj = agent_payouts_paginator.page(1)
+
+    # Reuse paginator counts instead of separate COUNT queries
+    total_payouts = agent_payouts_paginator.count + agency_payouts_paginator.count
+
+    context = {
+        "agencies": agencies_qs,
+        "agents_page_obj": agents_page_obj,
+        "search": search,
+        "show": show,
+        "sort": sort,
+        "total_owing": total_owing,
+        "total_owing_agencies": total_owing_agencies,
+        "total_owing_agents": total_owing_agents["count"] or 0,
+        "total_payouts": total_payouts,
+        "history_tab": history_tab,
+        "agency_payouts_page_obj": agency_payouts_page_obj,
+        "agent_payouts_page_obj": agent_payouts_page_obj,
+    }
+    return render(request, "dispatching/affiliate_payments.html", context)
+
+
+@staff_member_required
+def agency_payouts_report(request):
+    """Affiliate Explorer — agencies, agents, analytics, payouts."""
+    from reservations.models import Reservation
+    from django.db.models import Max, Avg
+    from django.db.models.functions import Coalesce
+
+    section = request.GET.get("section", "overview")  # overview | agencies | agents
+    search = request.GET.get("q", "").strip()
+
+    # ---- Global stats (used by all sections) ----
+    all_agents_qs = TravelAgent.objects.filter(is_active=True).select_related("user", "agency")
+    total_agents_count = all_agents_qs.count()
+    total_agencies_count = Agency.objects.filter(is_active=True).count()
+
+    global_unpaid = all_agents_qs.aggregate(t=Sum("unpaid_commissions"))["t"] or Decimal("0")
+    global_paid = CommissionPayout.objects.aggregate(t=Sum("total_amount"))["t"] or Decimal("0")
+    global_revenue = Reservation.objects.filter(
+        travel_agent__isnull=False, status="completed"
+    ).aggregate(t=Sum("base_price"))["t"] or Decimal("0")
+
+    context = {
+        "section": section,
+        "search": search,
+        "total_agents_count": total_agents_count,
+        "total_agencies_count": total_agencies_count,
+        "global_unpaid": global_unpaid,
+        "global_paid": global_paid,
+        "global_revenue": global_revenue,
+    }
+
+    if section == "overview":
+        # Top 10 agents by revenue
+        top_agents_revenue = all_agents_qs.annotate(
+            total_revenue=Coalesce(Sum(
+                "reservations__base_price",
+                filter=Q(reservations__status="completed"),
+            ), Decimal("0")),
+            booking_count=Count(
+                "reservations",
+                filter=Q(reservations__status="completed"),
+            ),
+        ).filter(total_revenue__gt=0).order_by("-total_revenue")[:10]
+
+        # Top 10 agents with most unpaid
+        top_agents_unpaid = all_agents_qs.filter(
+            unpaid_commissions__gt=0
+        ).order_by("-unpaid_commissions")[:10]
+
+        # Top agencies by revenue
+        top_agencies = Agency.objects.filter(is_active=True).annotate(
+            total_revenue=Coalesce(Sum(
+                "agents__reservations__base_price",
+                filter=Q(agents__reservations__status="completed"),
+            ), Decimal("0")),
+            agent_count=Count("agents", filter=Q(agents__is_active=True), distinct=True),
+            unpaid_total=Coalesce(Sum(
+                "agents__unpaid_commissions",
+                filter=Q(agents__is_active=True),
+            ), Decimal("0")),
+            total_paid=Coalesce(Sum("commission_payouts__total_amount"), Decimal("0")),
+            booking_count=Count(
+                "agents__reservations",
+                filter=Q(agents__reservations__status="completed"),
+            ),
+        ).filter(total_revenue__gt=0).order_by("-total_revenue")[:10]
+
+        # Recent payouts (last 10)
+        recent_payouts = CommissionPayout.objects.select_related(
+            "agent", "agent__user", "agency"
+        ).order_by("-paid_at")[:10]
+
+        # Agents needing payment (longest overdue)
+        overdue_agents = all_agents_qs.filter(
+            unpaid_commissions__gt=0
+        ).annotate(
+            oldest_unpaid=Min(
+                "reservations__created_at",
+                filter=Q(reservations__commission_paid=False, reservations__status="completed"),
+            ),
+        ).filter(oldest_unpaid__isnull=False).order_by("oldest_unpaid")[:10]
+
+        context.update({
+            "top_agents_revenue": top_agents_revenue,
+            "top_agents_unpaid": top_agents_unpaid,
+            "top_agencies": top_agencies,
+            "recent_payouts": recent_payouts,
+            "overdue_agents": overdue_agents,
+        })
+
+    elif section == "agencies":
+        agency_id = request.GET.get("agency")
+        tab = request.GET.get("tab", "agents")
+
+        agencies = Agency.objects.filter(is_active=True).annotate(
+            total_paid=Coalesce(Sum("commission_payouts__total_amount"), Decimal("0")),
+            payout_count=Count("commission_payouts"),
+            agent_count=Count("agents", filter=Q(agents__is_active=True), distinct=True),
+            unpaid_total=Coalesce(Sum(
+                "agents__unpaid_commissions",
+                filter=Q(agents__is_active=True),
+            ), Decimal("0")),
+            total_revenue=Coalesce(Sum(
+                "agents__reservations__base_price",
+                filter=Q(agents__reservations__status="completed"),
+            ), Decimal("0")),
+        ).order_by("name")
+
+        if search:
+            agencies = agencies.filter(
+                Q(name__icontains=search)
+                | Q(agents__agent_name__icontains=search)
+                | Q(agents__user__email__icontains=search)
+            ).distinct()
+
+        selected_agency = None
+        agents_list = None
+        agency_payouts_page_obj = None
+
+        if agency_id:
+            try:
+                selected_agency = Agency.objects.get(id=agency_id)
+
+                agents_list = TravelAgent.objects.filter(
+                    agency=selected_agency, is_active=True
+                ).select_related("user").annotate(
+                    total_revenue=Coalesce(Sum(
+                        "reservations__base_price",
+                        filter=Q(reservations__status="completed"),
+                    ), Decimal("0")),
+                    completed_res_count=Count(
+                        "reservations", filter=Q(reservations__status="completed"),
+                    ),
+                    unpaid_res_count=Count(
+                        "reservations",
+                        filter=Q(reservations__status="completed", reservations__commission_paid=False),
+                    ),
+                    paid_res_count=Count(
+                        "reservations", filter=Q(reservations__commission_paid=True),
+                    ),
+                    last_booking=Max("reservations__created_at"),
+                ).order_by("-total_revenue")
+
+                payouts_qs = AgencyCommissionPayout.objects.filter(
+                    agency=selected_agency
+                ).prefetch_related(
+                    "agent_payouts__agent__user",
+                    "agent_payouts__reservations",
+                ).order_by("-paid_at")
+
+                payouts_paginator = Paginator(payouts_qs, 10)
+                page = request.GET.get("page", 1)
+                try:
+                    agency_payouts_page_obj = payouts_paginator.page(page)
+                except (PageNotAnInteger, EmptyPage):
+                    agency_payouts_page_obj = payouts_paginator.page(1)
+
+            except Agency.DoesNotExist:
+                pass
+
+        context.update({
+            "agencies": agencies,
+            "selected_agency": selected_agency,
+            "tab": tab,
+            "agents_list": agents_list,
+            "agency_payouts_page_obj": agency_payouts_page_obj,
+        })
+
+    elif section == "agents":
+        sort = request.GET.get("sort", "revenue")  # revenue | unpaid | bookings | name | rate
+        agent_filter = request.GET.get("filter", "all")  # all | owing | independent | agency
+
+        agents_qs = all_agents_qs.annotate(
+            total_revenue=Coalesce(Sum(
+                "reservations__base_price",
+                filter=Q(reservations__status="completed"),
+            ), Decimal("0")),
+            booking_count=Count(
+                "reservations", filter=Q(reservations__status="completed"),
+            ),
+            unpaid_res_count=Count(
+                "reservations",
+                filter=Q(reservations__status="completed", reservations__commission_paid=False),
+            ),
+            last_booking=Max("reservations__created_at"),
+        )
+
+        if search:
+            agents_qs = agents_qs.filter(
+                Q(agent_name__icontains=search)
+                | Q(user__email__icontains=search)
+                | Q(agency__name__icontains=search)
+            )
+
+        if agent_filter == "owing":
+            agents_qs = agents_qs.filter(unpaid_commissions__gt=0)
+        elif agent_filter == "independent":
+            agents_qs = agents_qs.filter(agency__isnull=True)
+        elif agent_filter == "agency":
+            agents_qs = agents_qs.filter(agency__isnull=False)
+
+        sort_map = {
+            "revenue": "-total_revenue",
+            "unpaid": "-unpaid_commissions",
+            "bookings": "-booking_count",
+            "name": "agent_name",
+            "rate": "-commission_rate",
+        }
+        agents_qs = agents_qs.order_by(sort_map.get(sort, "-total_revenue"))
+
+        agents_paginator = Paginator(agents_qs, 25)
+        page = request.GET.get("page", 1)
+        try:
+            agents_page_obj = agents_paginator.page(page)
+        except (PageNotAnInteger, EmptyPage):
+            agents_page_obj = agents_paginator.page(1)
+
+        context.update({
+            "agents_page_obj": agents_page_obj,
+            "sort": sort,
+            "agent_filter": agent_filter,
+        })
+
+    return render(request, "dispatching/agency_payouts_report.html", context)
+
+
+@staff_member_required
+@require_POST
+def process_agent_payout_view(request):
+    """AJAX endpoint to process agent payout."""
+    try:
+        data = json.loads(request.body)
+        agent_id = data.get("id")
+        send_email = data.get("send_email", False)
+
+        agent = TravelAgent.objects.select_related("user", "agency").get(id=agent_id)
+
+        if agent.unpaid_commissions <= 0:
+            return JsonResponse({"success": False, "error": "No unpaid commissions for this agent."})
+
+        payout, amount, agency_payout = svc_process_agent_payout(
+            agent, send_email=send_email, recipient_email=agent.user.email
+        )
+
+        if not payout:
+            return JsonResponse({"success": False, "error": "No completed unpaid reservations found."})
+
+        result = {
+            "success": True,
+            "payout_id": payout.id,
+            "amount": str(amount),
+            "email_sent_to": agent.user.email if send_email else None,
+            "payout_url": reverse("admin_agent_payout_detail", args=[payout.pk]),
+        }
+
+        if agency_payout:
+            result["agency_payout_id"] = agency_payout.id
+            result["agency_payout_url"] = reverse("admin_agency_payout_detail", args=[agency_payout.id])
+
+        return JsonResponse(result)
+
+    except TravelAgent.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Agent not found."}, status=404)
+    except Exception as e:
+        logger.exception(f"Error processing agent payout: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+@require_POST
+def process_agency_payout_view(request):
+    """AJAX endpoint to process agency payout."""
+    try:
+        data = json.loads(request.body)
+        agency_id = data.get("id")
+        send_email = data.get("send_email", False)
+
+        agency = Agency.objects.get(id=agency_id)
+
+        # Check if there are agents with unpaid commissions
+        owing_agents = agency.agents.filter(
+            unpaid_commissions__gt=0, agency_handles_payment=True
+        ).count()
+
+        if owing_agents == 0:
+            return JsonResponse({"success": False, "error": "No unpaid commissions for this agency."})
+
+        # Determine recipient email
+        recipient_email = None
+        if send_email:
+            first_head = agency.heads.first()
+            recipient_email = first_head.email if first_head else None
+
+        payout, amount = svc_process_agency_payout(
+            agency, send_email=send_email, recipient_email=recipient_email
+        )
+
+        if not payout:
+            return JsonResponse({"success": False, "error": "No completed unpaid reservations found."})
+
+        return JsonResponse({
+            "success": True,
+            "payout_id": payout.id,
+            "amount": str(amount),
+            "agents_count": payout.agent_payouts.count(),
+            "email_sent_to": recipient_email if send_email else None,
+            "payout_url": reverse("admin_agency_payout_detail", args=[payout.id]),
+        })
+
+    except Agency.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Agency not found."}, status=404)
+    except Exception as e:
+        logger.exception(f"Error processing agency payout: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@staff_member_required
+def preview_agent_payout_view(request):
+    """AJAX GET endpoint to preview agent payout."""
+    agent_id = request.GET.get("id")
+    if not agent_id:
+        return JsonResponse({"error": "Missing agent id."}, status=400)
+
+    try:
+        agent = TravelAgent.objects.select_related("user").get(id=agent_id)
+        preview = svc_preview_agent_payout(agent)
+        preview["agent_name"] = agent.agent_name or agent.user.username
+        preview["commission_rate"] = str(agent.commission_rate)
+        return JsonResponse(preview)
+    except TravelAgent.DoesNotExist:
+        return JsonResponse({"error": "Agent not found."}, status=404)
+
+
+@staff_member_required
+def preview_agency_payout_view(request):
+    """AJAX GET endpoint to preview agency payout."""
+    agency_id = request.GET.get("id")
+    if not agency_id:
+        return JsonResponse({"error": "Missing agency id."}, status=400)
+
+    try:
+        agency = Agency.objects.get(id=agency_id)
+        preview = svc_preview_agency_payout(agency)
+        preview["agency_name"] = agency.name
+        return JsonResponse(preview)
+    except Agency.DoesNotExist:
+        return JsonResponse({"error": "Agency not found."}, status=404)
+
+
+@staff_member_required
+def admin_agency_payout_detail(request, payout_id):
+    """Admin-facing detail view for an agency commission payout."""
+    payout = get_object_or_404(
+        AgencyCommissionPayout.objects.select_related("agency").prefetch_related(
+            "agency__heads",
+            Prefetch(
+                "agent_payouts",
+                queryset=CommissionPayout.objects.select_related(
+                    "agent", "agent__user"
+                ).prefetch_related(
+                    Prefetch(
+                        "reservations",
+                        queryset=Reservation.objects.select_related(
+                            "customer", "rate__route__origin", "rate__route__destination"
+                        ),
+                    )
+                ),
+            ),
+        ),
+        id=payout_id,
+    )
+    agency = payout.agency
+
+    # Use prefetched data — no extra queries
+    agent_payouts = list(payout.agent_payouts.all())
+    for ap in agent_payouts:
+        ap.res_count = len(ap.reservations.all())
+    total_reservations = sum(ap.res_count for ap in agent_payouts)
+    agent_count = len(agent_payouts)
+    average_commission = payout.total_amount / agent_count if agent_count else 0
+
+    context = {
+        "agency": agency,
+        "payout": payout,
+        "agent_payouts": agent_payouts,
+        "total_reservations": total_reservations,
+        "average_commission": average_commission,
+        "agent_count": agent_count,
+    }
+    return render(request, "dispatching/admin_agency_payout_detail.html", context)
+
+
+@staff_member_required
+def admin_agent_payout_detail(request, pk):
+    """Admin-facing detail view for an agent commission payout."""
+    payout = get_object_or_404(
+        CommissionPayout.objects.select_related("agent", "agent__user", "agency"),
+        pk=pk,
+    )
+    agent = payout.agent
+    reservations = payout.reservations.select_related(
+        "customer", "rate__route__origin", "rate__route__destination"
+    ).order_by("-created_at")
+
+    context = {
+        "payout": payout,
+        "agent": agent,
+        "reservations": reservations,
+    }
+    return render(request, "dispatching/admin_agent_payout_detail.html", context)

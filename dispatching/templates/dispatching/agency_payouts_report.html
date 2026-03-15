@@ -1,0 +1,775 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Affiliate Explorer{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gt-gold: #C9A227;
+    --gt-gold-soft: rgba(201,162,39,0.12);
+    --gt-dark: #1a1d21;
+    --gt-dark-2: #23272b;
+    --gt-surface: #f7f8fa;
+    --gt-border: #e2e5ea;
+    --gt-red: #e74c3c;
+    --gt-green: #27ae60;
+    --gt-text: #2c3e50;
+    --gt-muted: #7f8c9b;
+    --gt-radius: 10px;
+  }
+
+  .container-fluid { font-family: 'DM Sans', sans-serif; color: var(--gt-text); }
+
+  /* Page header */
+  .page-title { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; color: var(--gt-dark); }
+
+  /* Summary strip */
+  .summary-strip {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+    background: var(--gt-dark); border-radius: var(--gt-radius); overflow: hidden; margin-bottom: 24px;
+    position: relative;
+  }
+  .summary-strip::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--gt-gold), transparent);
+  }
+  .stat-card {
+    text-align: center; padding: 18px 10px; color: #fff;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .stat-card:last-child { border-right: none; }
+  .stat-card .val {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: 500;
+  }
+  .stat-card .val.text-success { color: var(--gt-green) !important; }
+  .stat-card .val.text-danger { color: #ff6b6b !important; }
+  .stat-card .lbl {
+    font-size: 0.68rem; color: rgba(255,255,255,0.45); text-transform: uppercase;
+    letter-spacing: 1px; margin-top: 4px; font-weight: 500;
+  }
+
+  /* Section nav */
+  .nav-section .nav-link {
+    font-weight: 600; font-size: 0.88rem; color: var(--gt-muted);
+    padding: 8px 18px; border: none; border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .nav-section .nav-link:hover { color: var(--gt-dark); border-bottom-color: #ddd; }
+  .nav-section .nav-link.active {
+    color: var(--gt-dark); border-bottom-color: var(--gt-gold);
+  }
+
+  /* Cards */
+  .card {
+    border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    box-shadow: none;
+  }
+  .card-header {
+    background: #fff; border-bottom: 1px solid var(--gt-border);
+    font-size: 0.88rem; padding: 12px 16px;
+  }
+  .card-header strong { letter-spacing: -0.2px; }
+
+  /* Rank tables */
+  .rank-table th {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom: 2px solid var(--gt-border);
+    padding: 10px 12px;
+  }
+  .rank-table td { font-size: 0.84rem; vertical-align: middle; padding: 9px 12px; }
+  .rank-num { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--gt-muted); width: 30px; }
+  .rank-table .rank-1 .rank-num { color: #FFD700; }
+  .rank-table .rank-2 .rank-num { color: #C0C0C0; }
+  .rank-table .rank-3 .rank-num { color: #CD7F32; }
+
+  /* Agency list (sidebar) */
+  .agency-list { max-height: calc(100vh - 240px); overflow-y: auto; }
+  .agency-list::-webkit-scrollbar { width: 4px; }
+  .agency-list::-webkit-scrollbar-thumb { background: var(--gt-border); border-radius: 4px; }
+  .agency-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; border-bottom: 1px solid var(--gt-border);
+    text-decoration: none; color: inherit; transition: all 0.15s; cursor: pointer;
+  }
+  .agency-item:hover { background: var(--gt-surface); color: inherit; }
+  .agency-item.active {
+    background: var(--gt-gold-soft); border-left: 3px solid var(--gt-gold);
+    color: inherit;
+  }
+  .agency-item .name { font-weight: 600; font-size: 0.86rem; color: var(--gt-dark); }
+  .agency-item .meta { font-size: 0.74rem; color: var(--gt-muted); }
+
+  /* Payment badges */
+  .payment-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .payment-badge.venmo { background: #e8f4fd; color: #008CFF; }
+  .payment-badge.zelle { background: #f0e6ff; color: #6D2FBF; }
+  .payment-badge.paypal { background: #fff4e0; color: #003087; }
+  .payment-badge.cashapp { background: #e6ffe6; color: #00C244; }
+  .payment-badge.bank { background: #f0f0f0; color: #333; }
+  .payment-badge.check { background: #f5f5f5; color: #555; }
+  .payment-badge.other { background: #f5f5f5; color: #555; }
+  .payment-badge.agency { background: var(--gt-gold-soft); color: #9a7b1a; }
+
+  /* Payout cards */
+  .payout-card {
+    border-left: 3px solid var(--gt-green); background: #fff;
+    border: 1px solid var(--gt-border); border-left: 3px solid var(--gt-green);
+    border-radius: var(--gt-radius); padding: 16px; margin-bottom: 12px;
+    transition: all 0.2s;
+  }
+  .payout-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+  .breakdown-table th {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); padding: 6px 10px;
+  }
+  .breakdown-table td { padding: 6px 10px; font-size: 0.82rem; }
+
+  /* Filter bar */
+  .filter-bar {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    padding: 10px 16px; margin-bottom: 16px;
+  }
+  .filter-bar .form-control, .filter-bar .form-select {
+    border-color: var(--gt-border); font-size: 0.82rem; border-radius: 6px;
+  }
+  .filter-bar .form-control:focus, .filter-bar .form-select:focus {
+    border-color: var(--gt-gold); box-shadow: 0 0 0 2px var(--gt-gold-soft);
+  }
+
+  /* Tables */
+  .table { font-size: 0.84rem; }
+  .table thead th {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom: 2px solid var(--gt-border);
+    padding: 10px 12px;
+  }
+  .table tbody td { padding: 10px 12px; vertical-align: middle; }
+  .table-light { background: var(--gt-surface) !important; }
+  .table-warning { background: rgba(201,162,39,0.06) !important; }
+
+  /* Sub-tabs */
+  .nav-tabs { border-bottom: 2px solid var(--gt-border); }
+  .nav-tabs .nav-link {
+    font-size: 0.82rem; font-weight: 600; color: var(--gt-muted);
+    border: none; padding: 8px 16px; border-bottom: 2px solid transparent; margin-bottom: -2px;
+  }
+  .nav-tabs .nav-link.active {
+    color: var(--gt-dark); border-bottom-color: var(--gt-gold); background: none;
+  }
+  .nav-tabs .nav-link:hover { color: var(--gt-dark); border-bottom-color: #ddd; }
+
+  /* Buttons */
+  .btn-dark { background: var(--gt-dark); border-color: var(--gt-dark); border-radius: 6px; font-size: 0.82rem; font-weight: 500; }
+  .btn-dark:hover { background: var(--gt-dark-2); }
+  .btn-outline-primary { color: var(--gt-gold); border-color: var(--gt-gold); border-radius: 6px; font-size: 0.82rem; }
+  .btn-outline-primary:hover { background: var(--gt-gold); border-color: var(--gt-gold); color: #fff; }
+  .btn-outline-dark { border-radius: 6px; font-size: 0.82rem; }
+
+  /* Modals */
+  .modal-content { border-radius: 12px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+  .modal-header { border-bottom: 1px solid var(--gt-border); padding: 16px 20px; }
+  .modal-title { font-weight: 700; font-size: 1rem; letter-spacing: -0.3px; }
+  .modal-body { padding: 20px; }
+  .modal-footer { border-top: 1px solid var(--gt-border); padding: 12px 20px; }
+
+  /* Pagination */
+  .page-link {
+    color: var(--gt-dark); border-color: var(--gt-border); font-size: 0.82rem;
+    border-radius: 6px !important; margin: 0 2px;
+  }
+  .page-item.active .page-link { background: var(--gt-dark); border-color: var(--gt-dark); }
+
+  /* Animations */
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .card { animation: fadeSlideIn 0.3s ease both; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .summary-strip { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-3">
+
+  <!-- Header + Section Nav -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="page-title mb-0">Affiliate Explorer</h1>
+    <a href="{% url 'affiliate_payments' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-wallet2 me-1"></i>Process Payments
+    </a>
+  </div>
+
+  <!-- Summary strip -->
+  <div class="summary-strip">
+    <div class="stat-card">
+      <div class="val">{{ total_agencies_count }}</div>
+      <div class="lbl">Agencies</div>
+    </div>
+    <div class="stat-card">
+      <div class="val">{{ total_agents_count }}</div>
+      <div class="lbl">Agents</div>
+    </div>
+    <div class="stat-card">
+      <div class="val text-success">${{ global_revenue|floatformat:0 }}</div>
+      <div class="lbl">Total Revenue</div>
+    </div>
+    <div class="stat-card">
+      <div class="val text-danger">${{ global_unpaid|floatformat:2 }}</div>
+      <div class="lbl">Unpaid</div>
+    </div>
+    <div class="stat-card">
+      <div class="val text-success">${{ global_paid|floatformat:0 }}</div>
+      <div class="lbl">Total Paid</div>
+    </div>
+  </div>
+
+  <ul class="nav nav-section nav-underline mb-4">
+    <li class="nav-item">
+      <a class="nav-link {% if section == 'overview' %}active{% endif %}" href="?section=overview">
+        <i class="bi bi-grid me-1"></i>Overview
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if section == 'agencies' %}active{% endif %}" href="?section=agencies">
+        <i class="bi bi-building me-1"></i>Agencies
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {% if section == 'agents' %}active{% endif %}" href="?section=agents">
+        <i class="bi bi-people me-1"></i>All Agents
+      </a>
+    </li>
+  </ul>
+
+  {% if section == 'overview' %}
+  <!-- ====== OVERVIEW SECTION ====== -->
+  <div class="row">
+    <!-- Top Agents by Revenue -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-white"><strong><i class="bi bi-trophy me-1 text-warning"></i>Top Agents by Revenue</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm rank-table mb-0">
+            <thead><tr><th></th><th>Agent</th><th>Agency</th><th class="text-center">Bookings</th><th class="text-end">Revenue</th><th class="text-end">Unpaid</th></tr></thead>
+            <tbody>
+            {% for agent in top_agents_revenue %}
+            <tr class="rank-{{ forloop.counter }}">
+              <td class="rank-num">{{ forloop.counter }}</td>
+              <td>
+                <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                <br><small class="text-muted">{{ agent.user.email }}</small>
+              </td>
+              <td><small>{{ agent.agency.name|default:"Independent" }}</small></td>
+              <td class="text-center">{{ agent.booking_count }}</td>
+              <td class="text-end fw-bold text-success">${{ agent.total_revenue|floatformat:0 }}</td>
+              <td class="text-end">
+                {% if agent.unpaid_commissions > 0 %}
+                  <span class="text-danger">${{ agent.unpaid_commissions|floatformat:2 }}</span>
+                {% else %}
+                  <span class="text-muted">$0</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-3">No data yet</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Agencies by Revenue -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-white"><strong><i class="bi bi-building me-1 text-primary"></i>Top Agencies by Revenue</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm rank-table mb-0">
+            <thead><tr><th></th><th>Agency</th><th class="text-center">Agents</th><th class="text-center">Bookings</th><th class="text-end">Revenue</th><th class="text-end">Unpaid</th></tr></thead>
+            <tbody>
+            {% for agency in top_agencies %}
+            <tr class="rank-{{ forloop.counter }}">
+              <td class="rank-num">{{ forloop.counter }}</td>
+              <td>
+                <a href="?section=agencies&agency={{ agency.id }}" class="text-decoration-none">
+                  <strong>{{ agency.name }}</strong>
+                </a>
+              </td>
+              <td class="text-center">{{ agency.agent_count }}</td>
+              <td class="text-center">{{ agency.booking_count }}</td>
+              <td class="text-end fw-bold text-success">${{ agency.total_revenue|floatformat:0 }}</td>
+              <td class="text-end">
+                {% if agency.unpaid_total > 0 %}
+                  <span class="text-danger">${{ agency.unpaid_total|floatformat:2 }}</span>
+                {% else %}
+                  <span class="text-muted">$0</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-3">No data yet</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overdue Payments -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-white"><strong><i class="bi bi-exclamation-triangle me-1 text-danger"></i>Longest Awaiting Payment</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm rank-table mb-0">
+            <thead><tr><th>Agent</th><th>Agency</th><th class="text-end">Owed</th><th class="text-end">Waiting Since</th></tr></thead>
+            <tbody>
+            {% for agent in overdue_agents %}
+            <tr>
+              <td>
+                <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+              </td>
+              <td><small>{{ agent.agency.name|default:"Independent" }}</small></td>
+              <td class="text-end text-danger fw-bold">${{ agent.unpaid_commissions|floatformat:2 }}</td>
+              <td class="text-end">
+                {{ agent.oldest_unpaid|date:"M d, Y" }}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">All caught up!</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Payouts -->
+    <div class="col-md-6 mb-4">
+      <div class="card h-100">
+        <div class="card-header bg-white"><strong><i class="bi bi-clock-history me-1"></i>Recent Payouts</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm rank-table mb-0">
+            <thead><tr><th>Agent</th><th>Agency</th><th class="text-end">Amount</th><th class="text-end">Date</th></tr></thead>
+            <tbody>
+            {% for p in recent_payouts %}
+            <tr>
+              <td><strong>{{ p.agent.agent_name|default:p.agent.user.username }}</strong></td>
+              <td><small>{{ p.agency.name|default:"Independent" }}</small></td>
+              <td class="text-end text-success fw-bold">${{ p.total_amount|floatformat:2 }}</td>
+              <td class="text-end"><small>{{ p.paid_at|date:"M d, g:i A" }}</small></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-3">No payouts yet</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% elif section == 'agencies' %}
+  <!-- ====== AGENCIES SECTION ====== -->
+  <div class="row">
+    <!-- Left: Agency List -->
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body p-2">
+          <form method="get">
+            <input type="hidden" name="section" value="agencies">
+            <div class="input-group input-group-sm">
+              <input type="text" name="q" class="form-control" placeholder="Search..." value="{{ search }}">
+              <button class="btn btn-outline-dark" type="submit"><i class="bi bi-search"></i></button>
+            </div>
+          </form>
+        </div>
+        <div class="agency-list">
+          {% for agency in agencies %}
+          <a href="?section=agencies&agency={{ agency.id }}{% if search %}&q={{ search }}{% endif %}"
+             class="agency-item {% if selected_agency and selected_agency.id == agency.id %}active{% endif %}">
+            <div>
+              <div class="name">{{ agency.name }}</div>
+              <div class="meta">{{ agency.agent_count }} agent{{ agency.agent_count|pluralize }} / {{ agency.payout_count }} payout{{ agency.payout_count|pluralize }}</div>
+            </div>
+            <div class="text-end">
+              {% if agency.unpaid_total > 0 %}
+                <div class="text-danger fw-bold" style="font-size: 0.88rem;">${{ agency.unpaid_total|floatformat:2 }}</div>
+              {% endif %}
+              <div class="text-muted" style="font-size: 0.76rem;">${{ agency.total_revenue|floatformat:0 }} rev</div>
+            </div>
+          </a>
+          {% empty %}
+          <p class="text-muted text-center py-4">No agencies found.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Agency Detail -->
+    <div class="col-md-9">
+      {% if selected_agency %}
+      <!-- Agency header -->
+      <div class="card mb-3">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h4 class="mb-1">{{ selected_agency.name }}</h4>
+              <div>
+                {% if selected_agency.payment_method %}
+                  <span class="payment-badge {{ selected_agency.payment_method }}">
+                    {{ selected_agency.get_payment_method_display }}{% if selected_agency.payment_info %}: {{ selected_agency.payment_info }}{% endif %}
+                  </span>
+                {% else %}
+                  <span class="text-muted">No payment method</span>
+                {% endif %}
+                {% if selected_agency.phone %}
+                  <span class="text-muted ms-3"><i class="bi bi-telephone me-1"></i>{{ selected_agency.phone }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="d-flex gap-3 text-center">
+              <div>
+                <div class="fw-bold fs-5">{{ agents_list.count }}</div>
+                <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase;">Agents</div>
+              </div>
+              <div>
+                <div class="fw-bold fs-5 text-danger">${{ selected_agency.get_total_unpaid_commissions|floatformat:2 }}</div>
+                <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase;">Unpaid</div>
+              </div>
+              <div>
+                <div class="fw-bold fs-5 text-success">${{ selected_agency.total_paid_commission|floatformat:2 }}</div>
+                <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase;">Paid</div>
+              </div>
+              <div>
+                <div class="fw-bold fs-5">{{ agency_payouts_page_obj.paginator.count }}</div>
+                <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase;">Payouts</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subtabs -->
+      <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+          <a class="nav-link {% if tab == 'agents' %}active{% endif %}"
+             href="?section=agencies&agency={{ selected_agency.id }}&tab=agents{% if search %}&q={{ search }}{% endif %}">
+            <i class="bi bi-people me-1"></i>Agents ({{ agents_list.count }})
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if tab == 'payouts' %}active{% endif %}"
+             href="?section=agencies&agency={{ selected_agency.id }}&tab=payouts{% if search %}&q={{ search }}{% endif %}">
+            <i class="bi bi-receipt me-1"></i>Payouts ({{ agency_payouts_page_obj.paginator.count }})
+          </a>
+        </li>
+      </ul>
+
+      {% if tab == 'agents' %}
+      <div class="card">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Agent</th>
+                <th class="text-center">Bookings</th>
+                <th class="text-end">Revenue</th>
+                <th class="text-end">Unpaid $</th>
+                <th class="text-end">Paid $</th>
+                <th>Last Booking</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for agent in agents_list %}
+            <tr {% if agent.unpaid_commissions > 0 %}class="table-warning"{% endif %}>
+              <td>
+                <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+                <br><small class="text-muted">{{ agent.user.email }}</small>
+              </td>
+              <td class="text-center">{{ agent.completed_res_count }}</td>
+              <td class="text-end fw-bold">${{ agent.total_revenue|floatformat:0 }}</td>
+              <td class="text-end">
+                {% if agent.unpaid_commissions > 0 %}
+                  <span class="text-danger fw-bold">${{ agent.unpaid_commissions|floatformat:2 }}</span>
+                {% else %}
+                  <span class="text-muted">$0</span>
+                {% endif %}
+              </td>
+              <td class="text-end text-success">${{ agent.total_paid_commission|floatformat:2 }}</td>
+              <td><small>{{ agent.last_booking|date:"M d, Y"|default:"-" }}</small></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No agents</td></tr>
+            {% endfor %}
+            </tbody>
+            {% if agents_list %}
+            <tfoot class="table-light">
+              <tr class="fw-bold">
+                <td colspan="2">Totals</td>
+                <td class="text-end">-</td>
+                <td class="text-end text-danger">${{ selected_agency.get_total_unpaid_commissions|floatformat:2 }}</td>
+                <td class="text-end text-success">${{ selected_agency.total_paid_commission|floatformat:2 }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+
+      {% elif tab == 'payouts' %}
+      {% for payout in agency_payouts_page_obj %}
+      <div class="payout-card">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <span class="fw-bold text-success fs-5">${{ payout.total_amount|floatformat:2 }}</span>
+            <span class="text-muted ms-2">#{{ payout.id }}</span>
+            <div class="text-muted" style="font-size: 0.82rem;">
+              {{ payout.payout_period_start|date:"M d, Y" }} - {{ payout.payout_period_end|date:"M d, Y" }}
+              &middot; {{ payout.paid_at|date:"M d, Y g:i A" }}
+              &middot; {{ payout.agent_payouts.count }} agent{{ payout.agent_payouts.count|pluralize }}
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <a href="{% url 'admin_agency_payout_detail' payout.id %}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-eye me-1"></i>View
+            </a>
+            <button class="btn btn-outline-dark btn-sm" onclick="emailStatement({{ payout.id }}, '{{ selected_agency.name|escapejs }}')">
+              <i class="bi bi-envelope me-1"></i>Email
+            </button>
+          </div>
+        </div>
+        <table class="table table-sm breakdown-table mb-0">
+          <thead><tr class="table-light"><th>Agent</th><th>Rate</th><th class="text-center">Reservations</th><th class="text-end">Amount</th></tr></thead>
+          <tbody>
+          {% for ap in payout.agent_payouts.all %}
+          <tr>
+            <td>{{ ap.agent.agent_name|default:ap.agent.user.username }} <small class="text-muted">({{ ap.agent.user.email }})</small></td>
+            <td>{{ ap.agent.commission_rate }}%</td>
+            <td class="text-center">{{ ap.reservations.count }}</td>
+            <td class="text-end fw-bold">${{ ap.total_amount|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% empty %}
+      <p class="text-muted text-center py-5">No payouts yet.</p>
+      {% endfor %}
+
+      {% if agency_payouts_page_obj.has_other_pages %}
+      <nav class="mt-3">
+        <ul class="pagination pagination-sm justify-content-center">
+          {% if agency_payouts_page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?section=agencies&agency={{ selected_agency.id }}&tab=payouts&page={{ agency_payouts_page_obj.previous_page_number }}">&laquo;</a></li>
+          {% endif %}
+          {% for num in agency_payouts_page_obj.paginator.page_range %}
+            {% if agency_payouts_page_obj.number == num %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > agency_payouts_page_obj.number|add:"-3" and num < agency_payouts_page_obj.number|add:"3" %}
+              <li class="page-item"><a class="page-link" href="?section=agencies&agency={{ selected_agency.id }}&tab=payouts&page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if agency_payouts_page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?section=agencies&agency={{ selected_agency.id }}&tab=payouts&page={{ agency_payouts_page_obj.next_page_number }}">&raquo;</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% endif %}
+
+      {% else %}
+      <div class="card"><div class="card-body text-center text-muted py-5">
+        <i class="bi bi-building" style="font-size: 2.5rem;"></i>
+        <p class="mt-2">Select an agency from the list</p>
+      </div></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% elif section == 'agents' %}
+  <!-- ====== ALL AGENTS SECTION ====== -->
+  <div class="filter-bar mb-3">
+    <form method="get" class="row g-2 align-items-center">
+      <input type="hidden" name="section" value="agents">
+      <div class="col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" class="form-control" placeholder="Search name, email, agency..." value="{{ search }}">
+        </div>
+      </div>
+      <div class="col-md-2">
+        <select name="filter" class="form-select form-select-sm">
+          <option value="all" {% if agent_filter == "all" %}selected{% endif %}>All Agents</option>
+          <option value="owing" {% if agent_filter == "owing" %}selected{% endif %}>Owing Only</option>
+          <option value="agency" {% if agent_filter == "agency" %}selected{% endif %}>Agency Agents</option>
+          <option value="independent" {% if agent_filter == "independent" %}selected{% endif %}>Independent</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="sort" class="form-select form-select-sm">
+          <option value="revenue" {% if sort == "revenue" %}selected{% endif %}>Sort: Revenue</option>
+          <option value="unpaid" {% if sort == "unpaid" %}selected{% endif %}>Sort: Unpaid</option>
+          <option value="bookings" {% if sort == "bookings" %}selected{% endif %}>Sort: Bookings</option>
+          <option value="rate" {% if sort == "rate" %}selected{% endif %}>Sort: Rate</option>
+          <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-dark btn-sm w-100"><i class="bi bi-funnel me-1"></i>Filter</button>
+      </div>
+      <div class="col-md-2">
+        <a href="?section=agents" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Agent</th>
+            <th>Agency</th>
+            <th class="text-center">Bookings</th>
+            <th class="text-end">Revenue</th>
+            <th class="text-end">Unpaid $</th>
+            <th class="text-end">Paid $</th>
+            <th>Last Booking</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for agent in agents_page_obj %}
+        <tr {% if agent.unpaid_commissions > 0 %}class="table-warning"{% endif %}>
+          <td class="text-muted">{{ forloop.counter0|add:agents_page_obj.start_index }}</td>
+          <td>
+            <strong>{{ agent.agent_name|default:agent.user.username }}</strong>
+            <br><small class="text-muted">{{ agent.user.email }}</small>
+          </td>
+          <td>
+            {% if agent.agency %}
+              <a href="?section=agencies&agency={{ agent.agency.id }}" class="text-decoration-none">{{ agent.agency.name }}</a>
+            {% else %}
+              <small class="text-muted">Independent</small>
+            {% endif %}
+          </td>
+          <td class="text-center">{{ agent.booking_count }}</td>
+          <td class="text-end fw-bold">${{ agent.total_revenue|floatformat:0 }}</td>
+          <td class="text-end">
+            {% if agent.unpaid_commissions > 0 %}
+              <span class="text-danger fw-bold">${{ agent.unpaid_commissions|floatformat:2 }}</span>
+            {% else %}
+              <span class="text-muted">$0</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-success">${{ agent.total_paid_commission|floatformat:2 }}</td>
+          <td><small>{{ agent.last_booking|date:"M d, Y"|default:"-" }}</small></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No agents found.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if agents_page_obj.has_other_pages %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center">
+      {% if agents_page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?section=agents&page={{ agents_page_obj.previous_page_number }}&q={{ search }}&sort={{ sort }}&filter={{ agent_filter }}">&laquo;</a></li>
+      {% endif %}
+      {% for num in agents_page_obj.paginator.page_range %}
+        {% if agents_page_obj.number == num %}
+          <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num > agents_page_obj.number|add:"-3" and num < agents_page_obj.number|add:"3" %}
+          <li class="page-item"><a class="page-link" href="?section=agents&page={{ num }}&q={{ search }}&sort={{ sort }}&filter={{ agent_filter }}">{{ num }}</a></li>
+        {% endif %}
+      {% endfor %}
+      {% if agents_page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?section=agents&page={{ agents_page_obj.next_page_number }}&q={{ search }}&sort={{ sort }}&filter={{ agent_filter }}">&raquo;</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+  {% endif %}
+
+</div>
+
+<!-- Email Statement Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="emailModalTitle">Email Commission Statement</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3" id="emailModalDesc"></p>
+        <div class="mb-3">
+          <label for="recipientEmail" class="form-label">Recipient Email</label>
+          <input type="email" class="form-control" id="recipientEmail" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-dark" id="sendEmailBtn">
+          <i class="bi bi-send me-1"></i>Send Statement
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSRF = '{{ csrf_token }}';
+function emailStatement(payoutId, agencyName) {
+  document.getElementById('emailModalTitle').textContent = `Email Statement - ${agencyName}`;
+  document.getElementById('emailModalDesc').textContent = `Send payout #${payoutId} statement with full agent breakdown.`;
+  document.getElementById('recipientEmail').value = '';
+  const modal = new bootstrap.Modal(document.getElementById('emailModal'));
+  modal.show();
+  document.getElementById('sendEmailBtn').onclick = function() {
+    const email = document.getElementById('recipientEmail').value;
+    if (!email) return;
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+    const form = new FormData();
+    form.append('recipient_email', email);
+    form.append('csrfmiddlewaretoken', CSRF);
+    fetch(`/users/agency_commission_payout/${payoutId}/send-statement/`, { method: 'POST', body: form })
+    .then(r => {
+      bootstrap.Modal.getInstance(document.getElementById('emailModal')).hide();
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-send me-1"></i>Send Statement';
+      if (r.ok || r.redirected) {
+        const toast = document.createElement('div');
+        toast.className = 'alert alert-success alert-dismissible fade show position-fixed bottom-0 end-0 m-3';
+        toast.style.zIndex = '9999';
+        toast.innerHTML = `<i class="bi bi-check-circle me-1"></i>Statement sent to ${email}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+      } else { alert('Failed to send email.'); }
+    })
+    .catch(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-send me-1"></i>Send Statement'; alert('Network error.'); });
+  };
+}
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

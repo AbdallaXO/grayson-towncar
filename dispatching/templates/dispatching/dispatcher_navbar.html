@@ -101,6 +101,10 @@
              href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'affiliate_payments' %}active{% endif %}"
+             href="{% url 'affiliate_payments' %}"><i class="bi bi-wallet2 me-1"></i>Affiliate Pay</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'staff_metrics' %}active{% endif %}"
              href="{% url 'staff_metrics' %}"><i class="bi bi-activity me-1"></i>Staff Metrics</a>
         </li>

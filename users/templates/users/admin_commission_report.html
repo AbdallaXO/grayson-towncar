@@ -1,0 +1,384 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Commission Report | Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4 align-items-center">
+    <div class="col-md-6">
+      <h1 class="h2 mb-1">Commission Payouts Report</h1>
+      <p class="text-muted mb-0">All travel agent commission payouts</p>
+    </div>
+    <div class="col-md-6 text-md-end">
+      <a href="{% url 'admin_commission_export_csv' %}?agent={{ selected_agent|default:'' }}&agency={{ selected_agency|default:'' }}&date_from={{ date_from }}&date_to={{ date_to }}"
+         class="btn btn-outline-success me-2">
+        <i class="bi bi-download me-1"></i>Export CSV
+      </a>
+      <button type="button" class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#emailReportModal">
+        <i class="bi bi-envelope me-1"></i>Email Report
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-muted small mb-1">Total Paid Out</div>
+          <h3 class="text-success mb-0">${{ total_paid }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-muted small mb-1">Unpaid (Completed)</div>
+          <h3 class="text-danger mb-0">${{ total_unpaid }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-muted small mb-1">Pending (Confirmed)</div>
+          <h3 class="text-warning mb-0">${{ total_pending }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center">
+          <div class="text-muted small mb-1">Total Payouts</div>
+          <h3 class="mb-0">{{ total_payouts }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-Agent Totals -->
+  {% if agent_totals %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Total Paid by Agent</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Agent</th>
+                <th>Agency</th>
+                <th>Rate</th>
+                <th>Payouts</th>
+                <th>Total Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for at in agent_totals %}
+                <tr>
+                  <td>
+                    <div class="fw-bold">{{ at.agent.agent_name }}</div>
+                    <small class="text-muted">{{ at.agent.user.email }}</small>
+                  </td>
+                  <td>{% if at.agent.agency %}{{ at.agent.agency.name }}{% else %}<span class="text-muted">Independent</span>{% endif %}</td>
+                  <td>{{ at.agent.commission_rate }}%</td>
+                  <td>{{ at.payouts }}</td>
+                  <td class="text-success fw-bold">${{ at.total|floatformat:2 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small text-muted">Agent</label>
+          <select name="agent" class="form-select form-select-sm">
+            <option value="">All Agents</option>
+            {% for agent in agents %}
+              <option value="{{ agent.id }}" {% if selected_agent == agent.id|stringformat:"d" %}selected{% endif %}>
+                {{ agent.agent_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-muted">Agency</label>
+          <select name="agency" class="form-select form-select-sm">
+            <option value="">All Agencies</option>
+            {% for agency in agencies %}
+              <option value="{{ agency.id }}" {% if selected_agency == agency.id|stringformat:"d" %}selected{% endif %}>
+                {{ agency.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted">From</label>
+          <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small text-muted">To</label>
+          <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-dark btn-sm w-100">
+            <i class="bi bi-funnel me-1"></i>Filter
+          </button>
+          <a href="{% url 'admin_commission_report' %}" class="btn btn-outline-secondary btn-sm w-100 mt-1">Reset</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Payouts with Expandable Reservation Breakdown -->
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">Commission Payouts</h5>
+      <span class="badge bg-dark">{{ total_payouts }} total</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width: 30px;"></th>
+              <th>ID</th>
+              <th>Agent</th>
+              <th>Agency</th>
+              <th>Rate</th>
+              <th>Reservations</th>
+              <th>Amount</th>
+              <th>Period</th>
+              <th>Paid At</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payout in page_obj %}
+              <tr class="payout-row" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#payoutDetail{{ payout.id }}" aria-expanded="false">
+                <td class="text-center">
+                  <i class="bi bi-chevron-right toggle-icon" id="icon{{ payout.id }}"></i>
+                </td>
+                <td>#{{ payout.id }}</td>
+                <td>
+                  <div class="fw-bold">{{ payout.agent.agent_name }}</div>
+                  <small class="text-muted">{{ payout.agent.user.email }}</small>
+                </td>
+                <td>
+                  {% if payout.agency %}
+                    {{ payout.agency.name }}
+                  {% else %}
+                    <span class="text-muted">Independent</span>
+                  {% endif %}
+                </td>
+                <td>{{ payout.agent.commission_rate }}%</td>
+                <td>{{ payout.reservations.count }}</td>
+                <td class="text-success fw-bold">${{ payout.total_amount|floatformat:2 }}</td>
+                <td>
+                  <small>{{ payout.payout_period_start|date:"M d, Y" }} &ndash; {{ payout.payout_period_end|date:"M d, Y" }}</small>
+                </td>
+                <td>{{ payout.paid_at|date:"M d, Y" }}</td>
+                <td class="text-end" onclick="event.stopPropagation();">
+                  <a href="{% url 'commission_payout_detail' payout.pk %}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-eye me-1"></i>View
+                  </a>
+                </td>
+              </tr>
+              <!-- Expandable Reservation Detail Row -->
+              <tr class="collapse" id="payoutDetail{{ payout.id }}">
+                <td colspan="10" class="p-0 border-0">
+                  <div class="bg-light p-3">
+                    <h6 class="mb-2 fw-bold">Reservation Breakdown</h6>
+                    <table class="table table-sm table-bordered bg-white mb-0">
+                      <thead>
+                        <tr class="table-secondary">
+                          <th>Res #</th>
+                          <th>Customer</th>
+                          <th>Route</th>
+                          <th>Trip Type</th>
+                          <th>Base Price</th>
+                          <th>Gratuity</th>
+                          <th>Add'l Charges</th>
+                          <th>Total Price</th>
+                          <th>Commission</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for res in payout.reservations.all %}
+                          <tr>
+                            <td>#{{ res.id }}</td>
+                            <td>{{ res.customer.get_full_name }}</td>
+                            <td>
+                              {% if res.rate and res.rate.route %}
+                                {{ res.rate.route.origin }} to {{ res.rate.route.destination }}
+                              {% endif %}
+                            </td>
+                            <td>{{ res.trip_type|title }}</td>
+                            <td>${{ res.base_price|floatformat:2 }}</td>
+                            <td>${{ res.gratuity_amount|floatformat:2 }}</td>
+                            <td>${{ res.additional_charges|floatformat:2 }}</td>
+                            <td>${{ res.total_price|floatformat:2 }}</td>
+                            <td class="text-success fw-bold">${{ res.commission_amount|floatformat:2 }}</td>
+                            <td>{{ res.created_at|date:"M d, Y" }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                      <tfoot class="table-light">
+                        <tr>
+                          <td colspan="8" class="text-end fw-bold">Total Commission:</td>
+                          <td class="text-success fw-bold">${{ payout.total_amount|floatformat:2 }}</td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="10" class="text-center py-4 text-muted">No commission payouts found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% if page_obj.has_other_pages %}
+      <div class="card-footer">
+        <nav>
+          <ul class="pagination pagination-sm justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&agent={{ selected_agent|default:'' }}&agency={{ selected_agency|default:'' }}&date_from={{ date_from }}&date_to={{ date_to }}">&laquo;</a>
+              </li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+              {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+              {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ num }}&agent={{ selected_agent|default:'' }}&agency={{ selected_agency|default:'' }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ num }}</a>
+                </li>
+              {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&agent={{ selected_agent|default:'' }}&agency={{ selected_agency|default:'' }}&date_from={{ date_from }}&date_to={{ date_to }}">&raquo;</a>
+              </li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Unpaid Commissions Section -->
+  {% if agents_with_unpaid %}
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">Agents with Unpaid Commissions</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Agent</th>
+                <th>Agency</th>
+                <th>Rate</th>
+                <th>Unpaid Amount</th>
+                <th>Pending Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for agent in agents_with_unpaid %}
+                <tr>
+                  <td>
+                    <div class="fw-bold">{{ agent.agent_name }}</div>
+                    <small class="text-muted">{{ agent.user.email }}</small>
+                  </td>
+                  <td>
+                    {% if agent.agency %}
+                      {{ agent.agency.name }}
+                    {% else %}
+                      <span class="text-muted">Independent</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ agent.commission_rate }}%</td>
+                  <td class="text-danger fw-bold">${{ agent.unpaid_commissions|floatformat:2 }}</td>
+                  <td class="text-warning">${{ agent.pending_commissions|floatformat:2 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Email Report Modal -->
+<div class="modal fade" id="emailReportModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Email Commission Report</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'admin_commission_email_report' %}">
+        {% csrf_token %}
+        <input type="hidden" name="agent" value="{{ selected_agent|default:'' }}">
+        <input type="hidden" name="agency" value="{{ selected_agency|default:'' }}">
+        <input type="hidden" name="date_from" value="{{ date_from }}">
+        <input type="hidden" name="date_to" value="{{ date_to }}">
+        <div class="modal-body">
+          <p class="text-muted mb-3">Send the current commission report (with applied filters) to any email address.</p>
+          <div class="mb-3">
+            <label for="recipient_email" class="form-label">Recipient Email</label>
+            <input type="email" class="form-control" id="recipient_email" name="recipient_email" required
+                   placeholder="email@example.com">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dark"><i class="bi bi-send me-1"></i>Send Report</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  .toggle-icon { transition: transform 0.2s; font-size: 0.8rem; }
+  .payout-row[aria-expanded="true"] .toggle-icon { transform: rotate(90deg); }
+</style>
+
+<script>
+  document.querySelectorAll('.payout-row').forEach(function(row) {
+    var targetId = row.getAttribute('data-bs-target');
+    var el = document.querySelector(targetId);
+    if (el) {
+      el.addEventListener('show.bs.collapse', function() {
+        row.setAttribute('aria-expanded', 'true');
+      });
+      el.addEventListener('hide.bs.collapse', function() {
+        row.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

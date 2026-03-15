@@ -224,6 +224,48 @@ urlpatterns = [
         views.refund_suggestion,
         name="refund_suggestion",
     ),
+    # Affiliate Payment Dashboard
+    path(
+        "agency-payouts-report/",
+        views.agency_payouts_report,
+        name="agency_payouts_report",
+    ),
+    path(
+        "affiliate-payments/",
+        views.affiliate_payments,
+        name="affiliate_payments",
+    ),
+    path(
+        "affiliate-payments/process-agent/",
+        views.process_agent_payout_view,
+        name="process_agent_payout",
+    ),
+    path(
+        "affiliate-payments/process-agency/",
+        views.process_agency_payout_view,
+        name="process_agency_payout",
+    ),
+    path(
+        "affiliate-payments/preview-agent/",
+        views.preview_agent_payout_view,
+        name="preview_agent_payout",
+    ),
+    path(
+        "affiliate-payments/preview-agency/",
+        views.preview_agency_payout_view,
+        name="preview_agency_payout",
+    ),
+    # Admin Payout Detail Views
+    path(
+        "payout/agency/<int:payout_id>/",
+        views.admin_agency_payout_detail,
+        name="admin_agency_payout_detail",
+    ),
+    path(
+        "payout/agent/<int:pk>/",
+        views.admin_agent_payout_detail,
+        name="admin_agent_payout_detail",
+    ),
     # ── Ops Task Queue ──
     path("task-queue/", ops_views.task_queue_view, name="task_queue"),
     path("task-queue/claim/", ops_views.task_claim, name="task_claim"),

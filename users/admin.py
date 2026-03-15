@@ -9,7 +9,8 @@ commission processing and financial tracking.
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
-from django.db.models import Sum, Count, Q, Exists, OuterRef
+from django.db.models import Sum, Count, Q, Exists, OuterRef, Subquery, DecimalField, Value
+from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from decimal import Decimal
@@ -114,6 +115,9 @@ class AgentPayoutInline(admin.TabularInline):
     readonly_fields = ["agent_payout_info"]
     verbose_name = "Agent Payout"
     verbose_name_plural = "Agent Payouts in this Agency Payout"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("commissionpayout__agent")
 
     def agent_payout_info(self, obj):
         """Display formatted agent payout information."""
@@ -265,15 +269,20 @@ class TravelAgentAdmin(admin.ModelAdmin):
     )
     readonly_fields = ["created_at"]
 
+    show_full_result_count = False
+
     def get_queryset(self, request):
-        """Optimize queryset with related data."""
-        return super().get_queryset(request).select_related("user", "agency")
+        """Optimize queryset with related data and annotations."""
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("user", "agency")
+            .annotate(_reservation_count=Count("reservations"))
+        )
 
     def total_reservations(self, obj):
         """Display total reservations with link to filtered list."""
-        from reservations.models import Reservation
-
-        count = Reservation.objects.filter(travel_agent=obj).count()
+        count = obj._reservation_count
         return create_changelist_link(
             "reservation",
             f"travel_agent__id__exact={obj.id}",
@@ -282,6 +291,7 @@ class TravelAgentAdmin(admin.ModelAdmin):
         )
 
     total_reservations.short_description = "Reservations"
+    total_reservations.admin_order_field = "_reservation_count"
 
     def total_paid(self, obj):
         """Display formatted total paid commission."""
@@ -551,6 +561,7 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     inlines = [ReservationInline]
     readonly_fields = ["paid_at", "reservation_details"]
     list_per_page = 50
+    show_full_result_count = False
 
     @admin.action(description="Send commission statement email")
     def send_commission_statement(self, request, queryset):
@@ -645,8 +656,8 @@ class CommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     payout_period.short_description = "Period"
 
     def reservation_count(self, obj):
-        """Display count of reservations in payout."""
-        return obj.reservations.count()
+        """Display count of reservations in payout (uses prefetched data)."""
+        return len(obj.reservations.all())
 
     reservation_count.short_description = "Trips"
 
@@ -828,22 +839,45 @@ class AgencyAdmin(admin.ModelAdmin):
     )
     readonly_fields = ["created_at", "updated_at", "total_paid_commission"]
 
+    show_full_result_count = False
+
     def get_queryset(self, request):
-        """Optimize queryset with related data."""
-        return super().get_queryset(request).prefetch_related("agents", "heads")
+        """Optimize queryset with annotations instead of per-row queries."""
+        return (
+            super()
+            .get_queryset(request)
+            .prefetch_related("heads")
+            .annotate(
+                _agent_count=Count("agents"),
+                _agency_payment_count=Count(
+                    "agents", filter=Q(agents__agency_handles_payment=True)
+                ),
+                _total_unpaid=Coalesce(
+                    Sum("agents__unpaid_commissions"),
+                    Value(0),
+                    output_field=DecimalField(),
+                ),
+                _total_pending=Coalesce(
+                    Sum("agents__pending_commissions"),
+                    Value(0),
+                    output_field=DecimalField(),
+                ),
+            )
+        )
 
     def agent_count(self, obj):
         """Display total agent count with link to filtered list."""
-        count = obj.agents.count()
+        count = obj._agent_count
         return create_changelist_link(
             "travelagent", f"agency__id__exact={obj.id}", str(count)
         )
 
     agent_count.short_description = "Agents"
+    agent_count.admin_order_field = "_agent_count"
 
     def agents_with_agency_payment(self, obj):
         """Display count of agents with agency payment handling."""
-        count = obj.agents.filter(agency_handles_payment=True).count()
+        count = obj._agency_payment_count
         if count > 0:
             return create_changelist_link(
                 "travelagent",
@@ -856,25 +890,24 @@ class AgencyAdmin(admin.ModelAdmin):
 
     def total_unpaid(self, obj):
         """Display total unpaid commissions."""
-        return format_currency(
-            obj.get_total_unpaid_commissions(), highlight_positive=True
-        )
+        return format_currency(obj._total_unpaid, highlight_positive=True)
 
     total_unpaid.short_description = "Unpaid"
+    total_unpaid.admin_order_field = "_total_unpaid"
 
     def total_pending(self, obj):
         """Display total pending commissions."""
         return format_currency(
-            obj.get_total_pending_commissions(),
+            obj._total_pending,
             highlight_positive=True,
             positive_color="blue",
         )
 
     total_pending.short_description = "Pending"
+    total_pending.admin_order_field = "_total_pending"
 
     def total_paid(self, obj):
         """Display total paid commissions."""
-        obj.sync_paid_commission()
         return format_currency(obj.total_paid_commission)
 
     total_paid.short_description = "Paid"
@@ -1033,6 +1066,7 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     inlines = [AgentPayoutInline]
     readonly_fields = ["paid_at", "agent_payout_details"]
     list_per_page = 50
+    show_full_result_count = False
 
     @admin.action(description="Send agency commission statement email")
     def send_commission_statement(self, request, queryset):
@@ -1086,7 +1120,10 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             super()
             .get_queryset(request)
             .select_related("agency")
-            .prefetch_related("agent_payouts")
+            .prefetch_related(
+                "agent_payouts__agent",
+                "agent_payouts__reservations",
+            )
         )
 
     def payout_id(self, obj):
@@ -1102,8 +1139,8 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     agency_link.short_description = "Agency"
 
     def agent_count(self, obj):
-        """Display count of agent payouts."""
-        return obj.agent_payouts.count()
+        """Display count of agent payouts (uses prefetched data)."""
+        return len(obj.agent_payouts.all())
 
     agent_count.short_description = "Agents"
 
@@ -1147,7 +1184,7 @@ class AgencyCommissionPayoutAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>{payout_link}</td>"
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>{payout.agent}</td>"
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>${payout.total_amount:,.2f}</td>"
-                f"<td style='padding: 4px; border: 1px solid #ddd;'>{payout.reservations.count()}</td>"
+                f"<td style='padding: 4px; border: 1px solid #ddd;'>{len(payout.reservations.all())}</td>"
                 f"<td style='padding: 4px; border: 1px solid #ddd;'>"
                 f"{payout.payout_period_start.strftime('%b %d')} - {payout.payout_period_end.strftime('%b %d, %Y')}"
                 f"</td>"

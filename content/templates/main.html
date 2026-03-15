@@ -110,14 +110,18 @@
                 const match = document.cookie.match(new RegExp('(^|; )' + name + '=([^;]+)'));
                 return match ? decodeURIComponent(match[2]) : null;
             }
+            var utmNorm = {'facebook':'meta','fb':'meta','ig':'meta','instagram':'meta'};
             params.forEach(function(param) {
-                const value = new URLSearchParams(window.location.search).get(param);
-                if (value) { setCookie(param, value); }
+                var value = new URLSearchParams(window.location.search).get(param);
+                if (value) {
+                    if (param === 'utm_source') { value = utmNorm[value.toLowerCase()] || value.toLowerCase(); }
+                    setCookie(param, value);
+                }
             });
             var fbclid = new URLSearchParams(window.location.search).get('fbclid');
             var hasFbpCookie = document.cookie.includes('_fbp=');
             if ((fbclid || hasFbpCookie) && !getCookie('utm_source')) {
-                setCookie('utm_source', 'facebook');
+                setCookie('utm_source', 'meta');
                 setCookie('utm_medium', 'cpc');
             }
             window.getCookie = getCookie;

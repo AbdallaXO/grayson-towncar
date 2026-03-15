@@ -20,7 +20,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.generic import DetailView, ListView, UpdateView, TemplateView
 from django.urls import reverse_lazy
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 import logging
 
 from reservations.models import Reservation, Leg
@@ -799,10 +799,10 @@ def agency_commission_history(request, agency_id):
         .order_by("-paid_at")
     )
 
-    # Calculate total reservations for each agency payout
+    # Calculate total reservations for each agency payout (use len() on prefetched data)
     for payout in agency_payouts:
         payout.total_reservations = sum(
-            agent_payout.reservations.count()
+            len(agent_payout.reservations.all())
             for agent_payout in payout.agent_payouts.all()
         )
 
@@ -1059,8 +1059,10 @@ def commission_payout_detail(request, pk):
     agent = payout.agent
 
     # Check permissions
-    has_permission = request.user == agent.user or (
-        agent.agency and agent.agency.heads.filter(id=request.user.id).exists()
+    has_permission = (
+        request.user.is_superuser
+        or request.user == agent.user
+        or (agent.agency and agent.agency.heads.filter(id=request.user.id).exists())
     )
 
     if not has_permission:
@@ -1085,6 +1087,7 @@ def commission_payout_detail(request, pk):
         "is_agency_head": (
             agent.agency and agent.agency.heads.filter(id=request.user.id).exists()
         ),
+        "is_admin": request.user.is_superuser,
     }
 
     return render(request, "users/commission_payout_detail.html", context)
@@ -1113,7 +1116,7 @@ def agency_commission_payout_detail(request, payout_id):
     agency = payout.agency
 
     # Verify user permissions
-    if not agency.heads.filter(id=request.user.id).exists():
+    if not request.user.is_superuser and not agency.heads.filter(id=request.user.id).exists():
         raise Http404("You don't have permission to view this payout")
 
     # Calculate total reservations across all agent payouts
@@ -1172,9 +1175,13 @@ def send_agent_commission_statement_email(request, pk):
             else:
                 messages.error(request, "Failed to send statement email. Please try again.")
 
+        if request.user.is_staff:
+            return redirect("admin_agent_payout_detail", pk=pk)
         return redirect("commission_payout_detail", pk=pk)
 
     # For GET requests, redirect back
+    if request.user.is_staff:
+        return redirect("admin_agent_payout_detail", pk=pk)
     return redirect("commission_payout_detail", pk=pk)
 
 
@@ -1211,9 +1218,13 @@ def send_agency_commission_statement_email(request, payout_id):
             else:
                 messages.error(request, "Failed to send statement email. Please try again.")
 
+        if request.user.is_staff:
+            return redirect("admin_agency_payout_detail", payout_id=payout_id)
         return redirect("agency_commission_payout_detail", payout_id=payout_id)
 
     # For GET requests, redirect back
+    if request.user.is_staff:
+        return redirect("admin_agency_payout_detail", payout_id=payout_id)
     return redirect("agency_commission_payout_detail", payout_id=payout_id)
 
 
@@ -1268,3 +1279,284 @@ class AgencyUpdateView(AdminRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, "Agency updated successfully.")
         return super().form_valid(form)
+
+
+@login_required
+def admin_commission_report(request):
+    """Admin-only view showing all commission payouts with filters, email, and CSV export."""
+    if not request.user.is_superuser:
+        messages.error(request, "Permission denied.")
+        return redirect("home")
+
+    # Filters
+    agent_id = request.GET.get("agent")
+    agency_id = request.GET.get("agency")
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+
+    payouts = CommissionPayout.objects.select_related(
+        "agent", "agent__user", "agency"
+    ).prefetch_related(
+        Prefetch(
+            "reservations",
+            queryset=Reservation.objects.select_related(
+                "customer", "rate__route__origin", "rate__route__destination", "vehicle"
+            ).order_by("-created_at"),
+        )
+    ).order_by("-paid_at")
+
+    if agent_id:
+        payouts = payouts.filter(agent_id=agent_id)
+    if agency_id:
+        payouts = payouts.filter(agency_id=agency_id)
+    if date_from:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_from, "%Y-%m-%d").date()
+            payouts = payouts.filter(paid_at__date__gte=dt)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+            payouts = payouts.filter(paid_at__date__lte=dt)
+        except ValueError:
+            pass
+
+    # Summary stats
+    total_paid = payouts.aggregate(total=Sum("total_amount"))["total"] or 0
+    total_payouts = payouts.count()
+
+    # All agents/agencies for filter dropdowns
+    agents = TravelAgent.objects.select_related("user").order_by("user__first_name")
+    agencies = Agency.objects.order_by("name")
+
+    # Unpaid commissions across all agents
+    agents_with_unpaid = TravelAgent.objects.select_related("user", "agency").filter(
+        unpaid_commissions__gt=0
+    ).order_by("-unpaid_commissions")
+    total_unpaid = agents_with_unpaid.aggregate(total=Sum("unpaid_commissions"))["total"] or 0
+
+    # Pending commissions
+    total_pending = TravelAgent.objects.aggregate(
+        total=Sum("pending_commissions")
+    )["total"] or 0
+
+    # Per-agent totals
+    agent_totals = {}
+    for p in payouts:
+        aid = p.agent_id
+        if aid not in agent_totals:
+            agent_totals[aid] = {"agent": p.agent, "total": 0, "payouts": 0}
+        agent_totals[aid]["total"] += float(p.total_amount)
+        agent_totals[aid]["payouts"] += 1
+    agent_totals_list = sorted(agent_totals.values(), key=lambda x: x["total"], reverse=True)
+
+    # Paginate
+    paginator = Paginator(payouts, 25)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        "page_obj": page_obj,
+        "total_paid": format_decimal(total_paid),
+        "total_unpaid": format_decimal(total_unpaid),
+        "total_pending": format_decimal(total_pending),
+        "total_payouts": total_payouts,
+        "agents": agents,
+        "agencies": agencies,
+        "agents_with_unpaid": agents_with_unpaid,
+        "agent_totals": agent_totals_list,
+        "selected_agent": agent_id,
+        "selected_agency": agency_id,
+        "date_from": date_from or "",
+        "date_to": date_to or "",
+    }
+
+    return render(request, "users/admin_commission_report.html", context)
+
+
+@login_required
+def admin_commission_export_csv(request):
+    """Export commission payouts as CSV. Superuser only."""
+    if not request.user.is_superuser:
+        return redirect("home")
+
+    import csv
+
+    # Apply same filters as the report view
+    agent_id = request.GET.get("agent")
+    agency_id = request.GET.get("agency")
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+
+    payouts = CommissionPayout.objects.select_related(
+        "agent", "agent__user", "agency"
+    ).prefetch_related(
+        "reservations", "reservations__customer", "reservations__rate__route"
+    ).order_by("-paid_at")
+
+    if agent_id:
+        payouts = payouts.filter(agent_id=agent_id)
+    if agency_id:
+        payouts = payouts.filter(agency_id=agency_id)
+    if date_from:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_from, "%Y-%m-%d").date()
+            payouts = payouts.filter(paid_at__date__gte=dt)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+            payouts = payouts.filter(paid_at__date__lte=dt)
+        except ValueError:
+            pass
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = (
+        f'attachment; filename="commission_payouts_{timezone.localdate()}.csv"'
+    )
+
+    writer = csv.writer(response)
+    writer.writerow([
+        "Payout ID", "Agent Name", "Agent Email", "Agency",
+        "Commission Rate (%)", "Payout Total", "Period Start", "Period End", "Paid At",
+        "Reservation ID", "Customer", "Route", "Trip Type",
+        "Base Price", "Gratuity", "Additional Charges", "Total Price", "Commission",
+        "Reservation Date",
+    ])
+
+    for payout in payouts:
+        reservations = payout.reservations.all()
+        for res in reservations:
+            route_str = ""
+            if res.rate and res.rate.route:
+                route_str = f"{res.rate.route.origin} to {res.rate.route.destination}"
+            writer.writerow([
+                payout.id,
+                payout.agent.agent_name,
+                payout.agent.user.email,
+                payout.agency.name if payout.agency else "N/A",
+                payout.agent.commission_rate,
+                payout.total_amount,
+                payout.payout_period_start.strftime("%Y-%m-%d"),
+                payout.payout_period_end.strftime("%Y-%m-%d"),
+                payout.paid_at.strftime("%Y-%m-%d %H:%M"),
+                res.id,
+                res.customer.get_full_name() if res.customer else "",
+                route_str,
+                res.trip_type,
+                res.base_price,
+                res.gratuity_amount,
+                res.additional_charges,
+                res.total_price,
+                res.commission_amount,
+                res.created_at.strftime("%Y-%m-%d"),
+            ])
+
+    return response
+
+
+@login_required
+def admin_commission_email_report(request):
+    """Email commission report to any address. Superuser only."""
+    if not request.user.is_superuser:
+        return redirect("home")
+
+    if request.method != "POST":
+        return redirect("admin_commission_report")
+
+    recipient_email = request.POST.get("recipient_email", "").strip()
+    if not recipient_email:
+        messages.error(request, "Please enter an email address.")
+        return redirect("admin_commission_report")
+
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    try:
+        validate_email(recipient_email)
+    except ValidationError:
+        messages.error(request, "Invalid email address.")
+        return redirect("admin_commission_report")
+
+    # Build report data using current filters
+    agent_id = request.POST.get("agent")
+    agency_id = request.POST.get("agency")
+    date_from = request.POST.get("date_from")
+    date_to = request.POST.get("date_to")
+
+    payouts = CommissionPayout.objects.select_related(
+        "agent", "agent__user", "agency"
+    ).prefetch_related(
+        Prefetch(
+            "reservations",
+            queryset=Reservation.objects.select_related(
+                "customer", "rate__route__origin", "rate__route__destination"
+            ).order_by("-created_at"),
+        )
+    ).order_by("-paid_at")
+
+    if agent_id:
+        payouts = payouts.filter(agent_id=agent_id)
+    if agency_id:
+        payouts = payouts.filter(agency_id=agency_id)
+    if date_from:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_from, "%Y-%m-%d").date()
+            payouts = payouts.filter(paid_at__date__gte=dt)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_to, "%Y-%m-%d").date()
+            payouts = payouts.filter(paid_at__date__lte=dt)
+        except ValueError:
+            pass
+
+    total_paid = payouts.aggregate(total=Sum("total_amount"))["total"] or 0
+
+    # Unpaid
+    agents_with_unpaid = TravelAgent.objects.filter(unpaid_commissions__gt=0)
+    total_unpaid = agents_with_unpaid.aggregate(total=Sum("unpaid_commissions"))["total"] or 0
+
+    from django.template.loader import render_to_string
+    from django.core.mail import EmailMultiAlternatives
+    from reservations.utils import _run_in_background
+
+    site_url = "https://graysontowncar.com"
+
+    context = {
+        "payouts": payouts[:50],
+        "total_paid": format_decimal(total_paid),
+        "total_unpaid": format_decimal(total_unpaid),
+        "total_payouts": payouts.count(),
+        "date_from": date_from or "All time",
+        "date_to": date_to or "Present",
+        "generated_at": timezone.now(),
+        "site_url": site_url,
+    }
+
+    html_content = render_to_string("users/admin_commission_email.html", context)
+    subject = f"Grayson Towncar - Commission Report ({timezone.localdate().strftime('%b %d, %Y')})"
+
+    def _send():
+        try:
+            msg = EmailMultiAlternatives(
+                subject, "", "reservations@graysontowncar.com", [recipient_email]
+            )
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            logger.info(f"Admin commission report emailed to {recipient_email}")
+        except Exception as e:
+            logger.exception(f"Failed to send admin commission report: {e}")
+
+    _run_in_background(_send)
+    messages.success(request, f"Commission report sent to {recipient_email}.")
+    return redirect("admin_commission_report")

@@ -87,6 +87,22 @@ urlpatterns = [
         views.update_agency_payment,
         name="update_agency_payment",
     ),
+    # Admin commission report
+    path(
+        "admin/commission-report/",
+        views.admin_commission_report,
+        name="admin_commission_report",
+    ),
+    path(
+        "admin/commission-report/export-csv/",
+        views.admin_commission_export_csv,
+        name="admin_commission_export_csv",
+    ),
+    path(
+        "admin/commission-report/email/",
+        views.admin_commission_email_report,
+        name="admin_commission_email_report",
+    ),
     # Admin agency management URLs - Updated with admin prefix
     path("admin/agencies/", views.AgencyListView.as_view(), name="admin_agency_list"),
     path(

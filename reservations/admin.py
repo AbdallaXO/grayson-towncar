@@ -2129,19 +2129,38 @@ class LeadAdmin(admin.ModelAdmin):
     def mark_converted(self, request, queryset):
         # Get leads with GHL contact IDs before update (for syncing)
         leads_with_ghl = list(queryset.filter(ghl_contact_id__isnull=False).values_list('id', 'ghl_contact_id'))
-        
-        # Update status
-        updated = queryset.update(
-            status="converted",
-            converted=True,
-            converted_at=timezone.now()
-        )
-        
+
+        # Mark as converted and try to link matching reservations
+        updated = 0
+        linked = 0
+        for lead in queryset:
+            lead.status = "converted"
+            lead.converted = True
+            lead.converted_at = timezone.now()
+
+            # Try to find a matching reservation for revenue attribution
+            if not lead.converted_reservation:
+                matching_reservation = None
+                if lead.email:
+                    matching_reservation = Reservation.objects.filter(
+                        customer__email__iexact=lead.email
+                    ).order_by('-created_at').first()
+                if not matching_reservation and lead.phone:
+                    matching_reservation = Reservation.objects.filter(
+                        customer__phone_number__iexact=lead.phone
+                    ).order_by('-created_at').first()
+                if matching_reservation:
+                    lead.converted_reservation = matching_reservation
+                    linked += 1
+
+            lead.save()
+            updated += 1
+
         # Sync status to GHL for leads that have contact IDs
         if leads_with_ghl:
             from ghl_integration.services import GoHighLevelService
             from threading import Thread
-            
+
             def sync_statuses_in_background():
                 service = GoHighLevelService()
                 synced_count = 0
@@ -2155,13 +2174,13 @@ class LeadAdmin(admin.ModelAdmin):
                             synced_count += 1
                     except Exception as e:
                         logger.error(f"Failed to sync status to GHL for Lead #{lead_id}: {e}")
-                
+
                 logger.info(f"Synced status to GHL for {synced_count} out of {len(leads_with_ghl)} leads")
-            
+
             thread = Thread(target=sync_statuses_in_background, daemon=True)
             thread.start()
-        
-        self.message_user(request, f"Marked {updated} leads as converted.")
+
+        self.message_user(request, f"Marked {updated} leads as converted ({linked} linked to reservations).")
     
     @admin.action(description="Check for Auto-Conversion")
     def check_auto_conversion(self, request, queryset):
@@ -2191,7 +2210,8 @@ class LeadAdmin(admin.ModelAdmin):
                     lead.status = 'converted'
                     lead.converted = True
                     lead.converted_at = timezone.now()
-                    
+                    lead.converted_reservation = matching_reservation
+
                     # Add conversion note
                     conversion_note = f"Auto-converted on {timezone.now().strftime('%Y-%m-%d %H:%M')} - Found existing Reservation #{matching_reservation.id}"
                     if lead.notes:
