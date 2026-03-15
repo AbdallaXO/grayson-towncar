@@ -35,7 +35,7 @@ SECRET_KEY = os.environ.get(
 # STORAGE_PATH = CONTENT_DIR
 
 
-DEBUG = True
+DEBUG = False
 
 
 ALLOWED_HOSTS = [
