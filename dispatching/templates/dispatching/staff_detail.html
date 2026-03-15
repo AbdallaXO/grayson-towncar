@@ -1,0 +1,637 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ops-bg:         #f3f4f6;
+  --ops-surface:    #ffffff;
+  --ops-surface-2:  #f9fafb;
+  --ops-border:     #e5e7eb;
+  --ops-border-lt:  #d1d5db;
+  --ops-text:       #374151;
+  --ops-text-dim:   #6b7280;
+  --ops-text-muted: #9ca3af;
+  --ops-white:      #111827;
+  --ops-red:        #dc2626;
+  --ops-red-dim:    #fef2f2;
+  --ops-amber:      #d97706;
+  --ops-amber-dim:  #fffbeb;
+  --ops-cyan:       #0891b2;
+  --ops-green:      #059669;
+  --ops-green-dim:  #ecfdf5;
+  --ops-purple:     #7c3aed;
+  --ops-blue:       #2563eb;
+  --ops-mono:       'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --ops-sans:       'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ops-header-bg:  #1e293b;
+  --ops-header-text:#f1f5f9;
+}
+
+body {
+  background: var(--ops-bg) !important;
+  color: var(--ops-text);
+  font-family: var(--ops-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.navbar { margin-bottom: 0 !important; }
+
+/* ── Header ── */
+.sd-header {
+  background: var(--ops-header-bg);
+  border-bottom: 1px solid var(--ops-border);
+  padding: 1rem 0;
+}
+.sd-breadcrumb {
+  display: flex; align-items: center; gap: .4rem;
+  margin-bottom: .5rem; font-size: .72rem;
+}
+.sd-breadcrumb a { color: rgba(241,245,249,.5); text-decoration: none; display: flex; align-items: center; gap: .25rem; }
+.sd-breadcrumb a:hover { color: #fff; }
+.sd-breadcrumb .sep { color: rgba(241,245,249,.3); }
+.sd-breadcrumb .current { color: rgba(241,245,249,.8); font-weight: 600; }
+
+.sd-title {
+  font-family: var(--ops-sans); font-size: 1.3rem; font-weight: 800;
+  color: var(--ops-header-text); margin: 0;
+  display: flex; align-items: center; gap: .5rem;
+}
+.sd-title .avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,.15); display: flex;
+  align-items: center; justify-content: center;
+  font-size: .9rem; color: rgba(255,255,255,.7);
+}
+
+.sd-range-btns {
+  display: flex; gap: .25rem;
+}
+.sd-range-btn {
+  padding: .3rem .6rem; border-radius: 5px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: transparent; color: rgba(255,255,255,.6);
+  font-size: .7rem; font-weight: 600; cursor: pointer;
+  text-decoration: none; transition: all .12s;
+}
+.sd-range-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.sd-range-btn.active { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+
+/* ── KPI Cards ── */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .65rem; margin-bottom: 1rem; }
+.kpi-card {
+  background: var(--ops-surface); border: 1px solid var(--ops-border);
+  border-radius: 8px; padding: .75rem; text-align: center;
+}
+.kpi-value {
+  font-family: var(--ops-mono); font-size: 1.5rem; font-weight: 800;
+  color: var(--ops-white); line-height: 1.2;
+}
+.kpi-label {
+  font-size: .62rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--ops-text-muted); margin-top: .15rem;
+}
+.kpi-green { color: var(--ops-green); }
+.kpi-blue { color: var(--ops-blue); }
+.kpi-amber { color: var(--ops-amber); }
+.kpi-cyan { color: var(--ops-cyan); }
+
+/* ── Cards ── */
+.ops-card {
+  background: var(--ops-surface); border: 1px solid var(--ops-border);
+  border-radius: 8px; margin-bottom: .85rem; overflow: hidden;
+}
+.ops-card-head {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .55rem .85rem; border-bottom: 1px solid var(--ops-border);
+}
+.ops-card-head i { font-size: .85rem; }
+.ops-card-head h6 {
+  margin: 0; font-size: .78rem; font-weight: 700;
+  color: var(--ops-white); letter-spacing: .02em; flex: 1;
+}
+.ops-card-head .head-ct {
+  font-family: var(--ops-mono); font-size: .6rem; font-weight: 600;
+  padding: .1rem .35rem; border-radius: 3px;
+  background: #eff6ff; color: var(--ops-blue);
+}
+.ops-card-body { padding: .85rem; }
+
+/* ── Table rows ── */
+.sd-row {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .5rem .85rem; border-bottom: 1px solid var(--ops-border);
+  font-size: .78rem; text-decoration: none; color: inherit;
+  transition: background .1s;
+}
+.sd-row:last-child { border-bottom: none; }
+.sd-row:hover { background: var(--ops-surface-2); }
+a.sd-row:hover { color: inherit; }
+
+.sd-row-date {
+  font-family: var(--ops-mono); font-size: .68rem; font-weight: 600;
+  color: var(--ops-text-dim); min-width: 90px;
+}
+.sd-row-main { flex: 1; min-width: 0; }
+.sd-row-title {
+  font-weight: 600; color: var(--ops-white);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sd-row-sub { font-size: .7rem; color: var(--ops-text-muted); }
+.sd-row-value {
+  font-family: var(--ops-mono); font-weight: 700; font-size: .78rem;
+  white-space: nowrap;
+}
+.sd-row-value-green { color: var(--ops-green); }
+.sd-row-badge {
+  display: inline-flex; align-items: center; gap: .15rem;
+  padding: .12rem .4rem; border-radius: 3px;
+  font-size: .58rem; font-weight: 700; text-transform: uppercase;
+}
+.badge-priority-1 { background: var(--ops-red-dim); color: var(--ops-red); }
+.badge-priority-2 { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.badge-priority-3 { background: rgba(59,130,246,.1); color: var(--ops-blue); }
+.badge-priority-4 { background: rgba(107,122,141,.1); color: var(--ops-text-dim); }
+
+/* ── Stat breakdown ── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: .5rem; }
+.stat-item { text-align: center; padding: .5rem; }
+.stat-val { font-family: var(--ops-mono); font-size: 1.1rem; font-weight: 800; color: var(--ops-white); }
+.stat-lbl { font-size: .58rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ops-text-muted); }
+
+/* ── Staff nav sidebar ── */
+.staff-nav { list-style: none; padding: 0; margin: 0; }
+.staff-nav-item {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .4rem .65rem; font-size: .78rem;
+  text-decoration: none; color: var(--ops-text-dim);
+  border-radius: 5px; transition: all .1s;
+}
+.staff-nav-item:hover { background: var(--ops-surface-2); color: var(--ops-white); }
+.staff-nav-item.active { background: #eff6ff; color: var(--ops-blue); font-weight: 600; }
+.staff-nav-item .nav-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--ops-border-lt);
+}
+.staff-nav-item.active .nav-dot { background: var(--ops-blue); }
+
+/* ── Activity timeline ── */
+.act-item {
+  display: flex; gap: .5rem; align-items: flex-start;
+  padding: .35rem 0; border-bottom: 1px solid var(--ops-border);
+  font-size: .72rem;
+}
+.act-item:last-child { border-bottom: none; }
+.act-time {
+  font-family: var(--ops-mono); font-size: .62rem;
+  color: var(--ops-text-muted); min-width: 80px;
+}
+.act-text { color: var(--ops-text-dim); }
+.act-text a { color: var(--ops-blue); text-decoration: none; }
+.act-text a:hover { text-decoration: underline; }
+
+/* ── Change history ── */
+.ch-item {
+  display: flex; gap: .65rem; align-items: flex-start;
+  padding: .45rem .85rem; border-bottom: 1px solid var(--ops-border);
+  font-size: .75rem;
+}
+.ch-item:last-child { border-bottom: none; }
+.ch-time {
+  font-family: var(--ops-mono); font-size: .62rem;
+  color: var(--ops-text-muted); min-width: 58px; padding-top: .05rem;
+}
+.ch-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6rem; flex-shrink: 0;
+}
+.ch-icon-time { background: rgba(37,99,235,.1); color: var(--ops-blue); }
+.ch-icon-driver { background: rgba(5,150,105,.1); color: var(--ops-green); }
+.ch-icon-status { background: rgba(217,119,6,.1); color: var(--ops-amber); }
+.ch-icon-price { background: rgba(124,58,237,.1); color: var(--ops-purple); }
+.ch-icon-location { background: rgba(8,145,178,.1); color: var(--ops-cyan); }
+.ch-icon-other { background: rgba(107,122,141,.1); color: var(--ops-text-dim); }
+.ch-detail { flex: 1; min-width: 0; }
+.ch-field { font-weight: 600; color: var(--ops-white); }
+.ch-model { font-size: .62rem; color: var(--ops-text-muted); }
+.ch-diff {
+  display: flex; align-items: center; gap: .3rem;
+  margin-top: .1rem; font-size: .72rem;
+}
+.ch-old {
+  color: var(--ops-text-muted); text-decoration: line-through;
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ch-arrow { color: var(--ops-text-muted); font-size: .6rem; }
+.ch-new {
+  color: var(--ops-white); font-weight: 600;
+  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Date nav ── */
+.date-nav {
+  display: flex; align-items: center; gap: .25rem; margin-left: auto;
+}
+.date-nav-btn {
+  padding: .3rem .55rem; border-radius: 5px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: transparent; color: rgba(255,255,255,.6);
+  font-size: .68rem; font-weight: 600; cursor: pointer;
+  text-decoration: none; transition: all .12s;
+}
+.date-nav-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.date-nav-btn.active { background: rgba(255,255,255,.15); color: #fff; border-color: rgba(255,255,255,.4); }
+.date-nav-sep {
+  width: 1px; height: 16px; background: rgba(255,255,255,.15); margin: 0 .15rem;
+}
+.date-nav input[type="date"] {
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2);
+  border-radius: 5px; color: rgba(255,255,255,.8); font-size: .68rem;
+  padding: .25rem .4rem; font-family: var(--ops-mono);
+}
+.date-nav input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(.7);
+}
+
+@media (max-width: 991px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <!-- ═══ Header ═══ -->
+  <div class="sd-header">
+    <div class="container-fluid px-4">
+      <div class="sd-breadcrumb">
+        <a href="{% url 'staff_metrics' %}"><i class="bi bi-activity"></i> Staff Metrics</a>
+        <span class="sep">/</span>
+        <span class="current">{{ staff_user.first_name|default:staff_user.username }}</span>
+      </div>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h1 class="sd-title">
+          <span class="avatar"><i class="bi bi-person-fill"></i></span>
+          {{ staff_user.get_full_name|default:staff_user.username }}
+          {% if view_date %}
+          <span style="font-size: .7rem; font-weight: 500; color: rgba(241,245,249,.5); margin-left: .25rem;">
+            {{ view_date|date:"M j, Y" }}
+          </span>
+          {% endif %}
+        </h1>
+        <div class="date-nav">
+          <a href="?date={{ today|date:'Y-m-d' }}" class="date-nav-btn {% if view_date == today %}active{% endif %}">Today</a>
+          <a href="?date={{ yesterday|date:'Y-m-d' }}" class="date-nav-btn {% if view_date == yesterday %}active{% endif %}">Yesterday</a>
+          <input type="date" value="{{ view_date|date:'Y-m-d' }}" onchange="location.href='?date='+this.value" title="Pick a date">
+          <span class="date-nav-sep"></span>
+          <a href="?range=7" class="date-nav-btn {% if not view_date and range_days == 7 %}active{% endif %}">7d</a>
+          <a href="?range=30" class="date-nav-btn {% if not view_date and range_days == 30 %}active{% endif %}">30d</a>
+          <a href="?range=90" class="date-nav-btn {% if not view_date and range_days == 90 %}active{% endif %}">90d</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container-fluid px-4 py-3">
+    <div class="row">
+      <!-- ═══ Main Column ═══ -->
+      <div class="col-lg-9">
+
+        <!-- KPI Cards -->
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-value kpi-green">${{ res_revenue|floatformat:0|intcomma }}</div>
+            <div class="kpi-label">Revenue</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value kpi-blue">{{ res_count }}</div>
+            <div class="kpi-label">Reservations</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value kpi-amber">{{ tasks_resolved_count }}</div>
+            <div class="kpi-label">Tasks Resolved</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value kpi-cyan">{{ comms_total }}</div>
+            <div class="kpi-label">Communications</div>
+          </div>
+        </div>
+
+        <!-- Revenue Trend (range mode only) -->
+        {% if res_count > 0 and range_days > 0 %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-graph-up" style="color: var(--ops-green);"></i>
+            <h6>Booking Trend ({{ range_days }}d)</h6>
+          </div>
+          <div class="ops-card-body">
+            <canvas id="resTrendChart" height="70"></canvas>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Currently Assigned Tasks -->
+        {% if assigned_tasks %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-list-task" style="color: var(--ops-red);"></i>
+            <h6>Currently Assigned</h6>
+            <span class="head-ct">{{ assigned_tasks|length }}</span>
+          </div>
+          <div>
+            {% for task in assigned_tasks %}
+            <a href="{% url 'task_detail' task.id %}" class="sd-row">
+              <span class="sd-row-badge badge-priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
+              <div class="sd-row-main">
+                <div class="sd-row-title">{{ task.title }}</div>
+                <div class="sd-row-sub">{{ task.get_task_type_display }}</div>
+              </div>
+              <span class="sd-row-date">{{ task.due_at|date:"M j g:i A" }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Reservations -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-calendar-check" style="color: var(--ops-green);"></i>
+            <h6>Reservations Created</h6>
+            <span class="head-ct">{{ res_count }}</span>
+          </div>
+          <div>
+            {% if recent_reservations %}
+              {% for res in recent_reservations %}
+              <a href="{% url 'reservation_details' res.uuid %}" class="sd-row" target="_blank">
+                <span class="sd-row-date">{{ res.created_at|date:"M j" }}</span>
+                <div class="sd-row-main">
+                  <div class="sd-row-title">{{ res.customer.get_full_name }}</div>
+                  <div class="sd-row-sub">{{ res.get_trip_type_display|default:"One Way" }} &middot; {{ res.status|title }}</div>
+                </div>
+                <span class="sd-row-value sd-row-value-green">${{ res.total_price|floatformat:0|intcomma }}</span>
+              </a>
+              {% endfor %}
+            {% else %}
+              <div class="ops-card-body" style="text-align: center;">
+                <span style="font-size: .78rem; color: var(--ops-text-muted);">No reservations in this period.</span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Tasks Resolved -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-check-circle" style="color: var(--ops-blue);"></i>
+            <h6>Tasks Resolved</h6>
+            <span class="head-ct">{{ tasks_resolved_count }}</span>
+          </div>
+          <div>
+            {% if recent_resolved %}
+              {% for task in recent_resolved %}
+              <a href="{% url 'task_detail' task.id %}" class="sd-row">
+                <span class="sd-row-date">{{ task.resolved_at|date:"M j" }}</span>
+                <div class="sd-row-main">
+                  <div class="sd-row-title">{{ task.title|truncatewords:10 }}</div>
+                  <div class="sd-row-sub">
+                    {{ task.get_task_type_display }}
+                    {% if task.resolution_notes %}&middot; {{ task.resolution_notes|truncatewords:8 }}{% endif %}
+                  </div>
+                </div>
+              </a>
+              {% endfor %}
+            {% else %}
+              <div class="ops-card-body" style="text-align: center;">
+                <span style="font-size: .78rem; color: var(--ops-text-muted);">No tasks resolved in this period.</span>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Communication Log -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-chat-dots" style="color: var(--ops-purple);"></i>
+            <h6>Communication Log</h6>
+            <span class="head-ct">{{ comms_total }}</span>
+          </div>
+          {% if recent_comms %}
+          <div class="ops-card-body">
+            <div class="stat-grid" style="margin-bottom: .75rem;">
+              <div class="stat-item">
+                <div class="stat-val">{{ comms_by_channel.call|default:"0" }}</div>
+                <div class="stat-lbl">Calls</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val">{{ comms_by_channel.sms|default:"0" }}</div>
+                <div class="stat-lbl">SMS</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val">{{ comms_by_channel.email|default:"0" }}</div>
+                <div class="stat-lbl">Emails</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val">{{ comms_by_outcome.answered|default:"0" }}</div>
+                <div class="stat-lbl">Answered</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val">{{ comms_by_outcome.no_answer|default:"0" }}</div>
+                <div class="stat-lbl">No Answer</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-val">{{ comms_by_outcome.voicemail|default:"0" }}</div>
+                <div class="stat-lbl">Voicemail</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            {% for comm in recent_comms %}
+            <div class="sd-row">
+              <span class="sd-row-date">{{ comm.created_at|date:"M j g:i A" }}</span>
+              <div class="sd-row-main">
+                <div class="sd-row-title">
+                  {{ comm.get_channel_display }} &middot; {{ comm.get_outcome_display }}
+                  {% if comm.contact_value %}<span style="color: var(--ops-text-muted); font-weight: 400;"> &middot; {{ comm.contact_value }}</span>{% endif %}
+                </div>
+                {% if comm.notes %}<div class="sd-row-sub">{{ comm.notes|truncatewords:15 }}</div>{% endif %}
+              </div>
+              {% if comm.task %}
+              <a href="{% url 'task_detail' comm.task.id %}" style="font-size: .65rem; color: var(--ops-blue); text-decoration: none;">Task #{{ comm.task.id }}</a>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="ops-card-body" style="text-align: center;">
+            <span style="font-size: .78rem; color: var(--ops-text-muted);">No communications in this period.</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Change History (from django-simple-history) -->
+        {% if change_history %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-pencil-square" style="color: var(--ops-amber);"></i>
+            <h6>Changes Made</h6>
+            <span class="head-ct">{{ change_history|length }}</span>
+          </div>
+          <div>
+            {% for ch in change_history %}
+            <div class="ch-item">
+              <span class="ch-time">{{ ch.timestamp|date:"g:i A" }}</span>
+              <div class="ch-icon {% if 'time' in ch.field or 'date' in ch.field %}ch-icon-time{% elif ch.field == 'driver' %}ch-icon-driver{% elif ch.field == 'status' %}ch-icon-status{% elif 'price' in ch.field or 'pay' in ch.field or 'gratuity' in ch.field %}ch-icon-price{% elif 'location' in ch.field %}ch-icon-location{% else %}ch-icon-other{% endif %}">
+                {% if 'time' in ch.field or 'date' in ch.field %}<i class="bi bi-clock"></i>{% elif ch.field == 'driver' %}<i class="bi bi-person"></i>{% elif ch.field == 'status' %}<i class="bi bi-flag"></i>{% elif 'price' in ch.field or 'pay' in ch.field or 'gratuity' in ch.field %}<i class="bi bi-currency-dollar"></i>{% elif 'location' in ch.field %}<i class="bi bi-geo-alt"></i>{% else %}<i class="bi bi-pencil"></i>{% endif %}
+              </div>
+              <div class="ch-detail">
+                <div>
+                  <span class="ch-field">{{ ch.field|title }}</span>
+                  <span class="ch-model">{{ ch.model }} #{{ ch.object_id }}</span>
+                </div>
+                <div class="ch-diff">
+                  {% if ch.old %}<span class="ch-old">{{ ch.old }}</span>{% else %}<span class="ch-old">(empty)</span>{% endif %}
+                  <i class="bi bi-arrow-right ch-arrow"></i>
+                  <span class="ch-new">{{ ch.new }}</span>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+
+      <!-- ═══ Sidebar ═══ -->
+      <div class="col-lg-3">
+
+        <!-- Task Breakdown -->
+        {% if resolved_by_type %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-pie-chart" style="color: var(--ops-amber);"></i>
+            <h6>Resolved by Type</h6>
+          </div>
+          <div class="ops-card-body">
+            {% for type_code, count in resolved_by_type.items %}
+            <div style="display: flex; justify-content: space-between; padding: .25rem 0; font-size: .78rem;">
+              <span style="color: var(--ops-text-dim);">
+                {% for k, v in task_type_labels.items %}{% if k == type_code %}{{ v }}{% endif %}{% endfor %}
+              </span>
+              <span style="font-family: var(--ops-mono); font-weight: 700; color: var(--ops-white);">{{ count }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Activity Timeline -->
+        {% if recent_activities %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-clock-history" style="color: var(--ops-text-dim);"></i>
+            <h6>Recent Activity</h6>
+          </div>
+          <div class="ops-card-body" style="padding: .5rem .85rem;">
+            {% for act in recent_activities %}
+            <div class="act-item">
+              <span class="act-time">{{ act.created_at|date:"M j g:i A" }}</span>
+              <span class="act-text">
+                {{ act.get_action_type_display }}
+                {% if act.task %}
+                  <a href="{% url 'task_detail' act.task.id %}">{{ act.task.title|truncatewords:5 }}</a>
+                {% endif %}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Staff Navigation -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-people" style="color: var(--ops-text-dim);"></i>
+            <h6>Team</h6>
+          </div>
+          <div class="ops-card-body" style="padding: .5rem;">
+            <ul class="staff-nav">
+              {% for u in all_staff %}
+              <li>
+                <a href="{% url 'staff_detail' u.id %}?{% if view_date %}date={{ view_date|date:'Y-m-d' }}{% else %}range={{ range_days }}{% endif %}" class="staff-nav-item {% if u.id == staff_user.id %}active{% endif %}">
+                  <span class="nav-dot"></span>
+                  {{ u.get_full_name|default:u.username }}
+                </a>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const raw = '{{ res_trend_json|escapejs }}';
+  if (!raw) return;
+  const data = JSON.parse(raw);
+  if (!data.length) return;
+
+  const ctx = document.getElementById('resTrendChart');
+  if (!ctx) return;
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => {
+        const dt = new Date(d.day + 'T00:00:00');
+        return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }),
+      datasets: [
+        {
+          label: 'Bookings',
+          data: data.map(d => d.count),
+          backgroundColor: 'rgba(37, 99, 235, 0.7)',
+          borderRadius: 3,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Revenue ($)',
+          data: data.map(d => d.revenue),
+          type: 'line',
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5, 150, 105, 0.08)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 1,
+          yAxisID: 'y1',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Bookings', font: { size: 10 } } },
+        y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Revenue ($)', font: { size: 10 } } },
+      },
+    },
+  });
+});
+</script>
+{% endblock %}

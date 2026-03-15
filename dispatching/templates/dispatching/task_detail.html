@@ -118,17 +118,16 @@ body {
   letter-spacing: .06em;
 }
 .badge-type { color: #fff; }
-.badge-priority-1 { background: var(--ops-red-dim); color: var(--ops-red); }
-.badge-priority-2 { background: var(--ops-amber-dim); color: var(--ops-amber); }
-.badge-priority-3 { background: rgba(59, 130, 246, .12); color: var(--ops-blue); }
-.badge-priority-4 { background: rgba(107, 122, 141, .12); color: var(--ops-text-dim); }
+.badge-priority-1 { background: rgba(220,38,38,.08); color: #b91c1c; }
+.badge-priority-2 { background: rgba(217,119,6,.08); color: #b45309; }
+.badge-priority-3 { background: rgba(59, 130, 246, .08); color: var(--ops-blue); }
+.badge-priority-4 { background: rgba(107, 122, 141, .08); color: var(--ops-text-dim); }
 .badge-status-completed { background: var(--ops-green-dim); color: var(--ops-green); }
-.badge-status-escalated { background: var(--ops-red-dim); color: var(--ops-red); animation: td-flash 2s infinite; }
-.badge-status-snoozed { background: rgba(107, 122, 141, .12); color: var(--ops-text-dim); }
-.badge-status-cancelled { background: rgba(107, 122, 141, .08); color: var(--ops-text-muted); }
-.badge-status-pending, .badge-status-in_progress { background: rgba(34, 211, 238, .1); color: var(--ops-cyan); }
-.badge-overdue { background: rgba(239, 68, 68, .15); color: var(--ops-red); }
-@keyframes td-flash { 0%,100% { opacity: 1; } 50% { opacity: .65; } }
+.badge-status-escalated { background: rgba(220,38,38,.06); color: #b91c1c; }
+.badge-status-snoozed { background: rgba(107, 122, 141, .08); color: var(--ops-text-dim); }
+.badge-status-cancelled { background: rgba(107, 122, 141, .06); color: var(--ops-text-muted); }
+.badge-status-pending, .badge-status-in_progress { background: rgba(34, 211, 238, .08); color: var(--ops-cyan); }
+.badge-overdue { background: rgba(220,38,38,.06); color: #b91c1c; }
 
 .td-desc {
   font-size: .82rem;
@@ -797,10 +796,292 @@ body {
 .act-badge-ok { background: var(--ops-green-dim); color: var(--ops-green); }
 .act-badge-warn { background: var(--ops-amber-dim); color: var(--ops-amber); }
 
+/* ── Driver Assign Panel ── */
+.da-leg-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .5rem .75rem;
+  padding: .75rem 0;
+}
+.da-leg-label {
+  font-size: .62rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--ops-text-muted); text-align: right;
+  padding-top: .1rem;
+}
+.da-leg-value {
+  font-size: .82rem; font-weight: 600; color: var(--ops-white);
+}
+.da-leg-value-dim { color: var(--ops-text-dim); font-weight: 500; }
+
+.da-driver-row {
+  display: flex; align-items: center; gap: .65rem;
+  padding: .5rem .85rem; border-bottom: 1px solid var(--ops-border);
+  font-size: .78rem; transition: background .1s;
+}
+.da-driver-row:last-child { border-bottom: none; }
+.da-driver-row:hover { background: var(--ops-surface-2); }
+.da-driver-name { font-weight: 600; color: var(--ops-white); flex: 1; }
+.da-driver-load {
+  font-family: var(--ops-mono); font-size: .68rem; font-weight: 700;
+  padding: .15rem .4rem; border-radius: 4px;
+}
+.da-load-free { background: var(--ops-green-dim); color: var(--ops-green); }
+.da-load-light { background: rgba(59,130,246,.1); color: var(--ops-blue); }
+.da-load-busy { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.da-load-heavy { background: var(--ops-red-dim); color: var(--ops-red); }
+.da-driver-phone {
+  font-family: var(--ops-mono); font-size: .68rem; color: var(--ops-text-muted);
+}
+
+.da-sched-row {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .4rem .85rem; border-bottom: 1px solid var(--ops-border);
+  font-size: .75rem;
+}
+.da-sched-row:last-child { border-bottom: none; }
+.da-sched-row.da-this-leg {
+  background: rgba(220,38,38,.05); border-left: 3px solid var(--ops-red);
+}
+.da-sched-time {
+  font-family: var(--ops-mono); font-size: .72rem; font-weight: 700;
+  color: var(--ops-white); min-width: 72px;
+}
+.da-sched-route {
+  flex: 1; min-width: 0; color: var(--ops-text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.da-sched-driver { font-size: .68rem; }
+.da-sched-driver.assigned { color: var(--ops-blue); }
+.da-sched-driver.unassigned { color: var(--ops-red); font-weight: 600; }
+
+/* ── Flight Verify Panel ── */
+.fv-shift-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .5rem 0;
+}
+.fv-time-block {
+  display: flex;
+  flex-direction: column;
+  gap: .05rem;
+}
+.fv-time-label {
+  font-size: .58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ops-text-muted);
+}
+.fv-time-value {
+  font-family: var(--ops-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ops-white);
+}
+.fv-time-old { color: var(--ops-text-muted); text-decoration: line-through; opacity: .6; }
+.fv-time-new { color: var(--ops-amber); }
+.fv-time-booked { color: var(--ops-blue); }
+.fv-arrow { color: var(--ops-text-muted); font-size: 1rem; }
+.fv-severity {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .2rem .5rem;
+  border-radius: 4px;
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.fv-severity-minor { background: rgba(59,130,246,.1); color: var(--ops-blue); }
+.fv-severity-moderate { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.fv-severity-major { background: var(--ops-red-dim); color: var(--ops-red); }
+
+.fv-conflict-alert {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  border-radius: 6px;
+  background: var(--ops-red-dim);
+  color: var(--ops-red);
+  font-size: .78rem;
+  font-weight: 600;
+  margin-top: .65rem;
+}
+.fv-no-conflict {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  border-radius: 6px;
+  background: var(--ops-green-dim);
+  color: var(--ops-green);
+  font-size: .78rem;
+  font-weight: 600;
+  margin-top: .65rem;
+}
+.fv-no-driver {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .75rem;
+  border-radius: 6px;
+  background: rgba(107,122,141,.08);
+  color: var(--ops-text-dim);
+  font-size: .78rem;
+  font-weight: 500;
+  margin-top: .65rem;
+}
+
+/* ── Payment Chase Panel ── */
+.pc-balance-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--ops-border);
+  margin-bottom: .75rem;
+}
+.pc-balance-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: .65rem .5rem;
+  gap: .15rem;
+}
+.pc-balance-item:not(:last-child) {
+  border-right: 1px solid var(--ops-border);
+}
+.pc-balance-label {
+  font-size: .58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ops-text-muted);
+}
+.pc-balance-value {
+  font-family: var(--ops-mono);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ops-white);
+}
+.pc-balance-owed { color: var(--ops-red); }
+.pc-balance-paid { color: var(--ops-green); }
+
+.pc-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .2rem .55rem;
+  border-radius: 4px;
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.pc-status-unpaid { background: var(--ops-red-dim); color: var(--ops-red); }
+.pc-status-paid { background: var(--ops-green-dim); color: var(--ops-green); }
+.pc-status-card_saved { background: rgba(59,130,246,.1); color: var(--ops-blue); }
+.pc-status-pending { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.pc-status-failed { background: var(--ops-red-dim); color: var(--ops-red); }
+
+.pc-leg-row {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .5rem .85rem;
+  border-bottom: 1px solid var(--ops-border);
+  font-size: .78rem;
+}
+.pc-leg-row:last-child { border-bottom: none; }
+.pc-leg-date {
+  font-family: var(--ops-mono);
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--ops-white);
+  min-width: 100px;
+}
+.pc-leg-route {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ops-text-dim);
+}
+.pc-leg-driver {
+  font-size: .7rem;
+  color: var(--ops-text-muted);
+}
+.pc-leg-driver.has-driver { color: var(--ops-blue); }
+
+.pc-payment-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .4rem .85rem;
+  border-bottom: 1px solid var(--ops-border);
+  font-size: .75rem;
+}
+.pc-payment-row:last-child { border-bottom: none; }
+.pc-pay-amount {
+  font-family: var(--ops-mono);
+  font-weight: 700;
+  min-width: 70px;
+}
+.pc-pay-desc {
+  flex: 1;
+  color: var(--ops-text-dim);
+}
+.pc-pay-date {
+  font-size: .65rem;
+  color: var(--ops-text-muted);
+  font-family: var(--ops-mono);
+}
+
+.pc-call-banner {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .75rem .85rem;
+  background: linear-gradient(135deg, #eff6ff, #f0fdf4);
+  border-radius: 8px;
+  border: 1px solid var(--ops-border);
+  margin-bottom: .75rem;
+}
+.pc-call-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--ops-green);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.pc-call-info { flex: 1; }
+.pc-call-name {
+  font-weight: 700;
+  font-size: .88rem;
+  color: var(--ops-white);
+}
+.pc-call-phone {
+  font-family: var(--ops-mono);
+  font-size: .82rem;
+  color: var(--ops-blue);
+  text-decoration: none;
+}
+.pc-call-phone:hover { text-decoration: underline; }
+
 /* ── Responsive ── */
 @media (max-width: 991px) {
   .td-title-row { flex-direction: column; gap: .65rem; }
   .conflict-summary { grid-template-columns: repeat(2, 1fr); }
+  .pc-balance-bar { flex-direction: column; }
 }
 </style>
 {% endblock %}
@@ -825,9 +1106,8 @@ body {
             {{ task.title }}
           </h1>
           <div class="td-badges">
-            <span class="td-badge badge-type" style="background-color: {{ task.type_color }};">{{ task.get_task_type_display }}</span>
             <span class="td-badge badge-priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
-            <span class="td-badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+            {% if task.status != 'pending' %}<span class="td-badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>{% endif %}
             {% if task.is_overdue %}<span class="td-badge badge-overdue"><i class="bi bi-clock-fill"></i> OVERDUE</span>{% endif %}
           </div>
         </div>
@@ -1077,9 +1357,9 @@ body {
                   <span class="act-label">Match Flight Time</span>
                   <span class="act-hint">
                     {% if post_match_ok == True %}
-                    Updates pickup to {{ flight_arrival_str }} — schedule works after this
+                    Updates pickup to {{ flight_arrival_str }}
                     {% elif post_match_ok == False %}
-                    Updates pickup to {{ flight_arrival_str }} — still needs reassignment after
+                    Updates pickup to {{ flight_arrival_str }} — still conflicts after, needs reassignment
                     {% else %}
                     Update pickup to match current flight arrival
                     {% endif %}
@@ -1092,7 +1372,7 @@ body {
                 {% endif %}
               </button>
               {% endif %}
-              <a href="{% url 'legs_list' %}?date={{ pickup_date_str }}" class="conflict-act-btn act-dispatch" target="_blank">
+              <a href="{% url 'dashboard' %}?date={{ pickup_date_str }}" class="conflict-act-btn act-dispatch" target="_blank">
                 <i class="bi bi-layout-text-window-reverse"></i>
                 <div class="act-text-col">
                   <span class="act-label">Open Dispatch Board</span>
@@ -1113,6 +1393,431 @@ body {
         </div>
         {% endif %}
 
+        {% endif %}
+
+        {% if is_flight_verify %}
+        <!-- ═══ Flight Verify Panel ═══ -->
+
+        <!-- Flight Mismatch Summary -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-airplane-fill" style="color: var(--ops-amber);"></i>
+            <h6>Flight Mismatch</h6>
+            <span class="fv-severity fv-severity-{{ fv_mismatch.severity }}">{{ fv_mismatch.severity }}</span>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-summary" style="margin-bottom: .65rem;">
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Flight</span>
+                <span class="conflict-stat-value">{{ fv_mismatch.flight_ident }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Shift</span>
+                <span class="conflict-stat-value conflict-stat-warn">{{ fv_mismatch.label }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Pickup Date</span>
+                <span class="conflict-stat-value">{{ fv_pickup_date_str }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Trip Type</span>
+                <span class="conflict-stat-value">{{ fv_trip_type|title }}</span>
+              </div>
+            </div>
+
+            <!-- Time comparison -->
+            <div class="fv-shift-row">
+              <div class="fv-time-block">
+                <span class="fv-time-label">Booked Pickup</span>
+                <span class="fv-time-value fv-time-booked">{{ fv_booked_pickup_str }}</span>
+              </div>
+              {% if fv_scheduled_str %}
+              <div class="fv-time-block">
+                <span class="fv-time-label">Scheduled Arrival</span>
+                <span class="fv-time-value fv-time-old">{{ fv_scheduled_str }}</span>
+              </div>
+              {% endif %}
+              {% if fv_estimated_str %}
+              <i class="bi bi-arrow-right fv-arrow"></i>
+              <div class="fv-time-block">
+                <span class="fv-time-label">Estimated Arrival</span>
+                <span class="fv-time-value fv-time-new">{{ fv_estimated_str }}</span>
+              </div>
+              {% endif %}
+              {% if fv_flight_arrival_str %}
+              <div class="fv-time-block" style="margin-left: auto;">
+                <span class="fv-time-label">Suggested Pickup</span>
+                <span class="fv-time-value" style="color: var(--ops-green);">{{ fv_flight_arrival_str }}</span>
+              </div>
+              {% endif %}
+            </div>
+
+            <!-- Driver conflict status -->
+            {% if fv_has_driver %}
+              {% if fv_has_driver_conflict %}
+              <div class="fv-conflict-alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                {{ fv_driver_name }} has a scheduling conflict ({{ fv_conflict_minutes }} min overlap) if flight time is matched
+              </div>
+              {% else %}
+              <div class="fv-no-conflict">
+                <i class="bi bi-check-circle-fill"></i>
+                {{ fv_driver_name }} assigned — no scheduling conflicts
+              </div>
+              {% endif %}
+            {% else %}
+            <div class="fv-no-driver">
+              <i class="bi bi-person-dash"></i>
+              No driver assigned to this leg
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if fv_driver_schedule %}
+        <!-- Driver's Day Schedule -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-calendar-day" style="color: var(--ops-cyan);"></i>
+            <h6>{{ fv_driver_name }}'s Schedule — {{ fv_pickup_date_str }}</h6>
+            <span class="head-ct">{{ fv_driver_schedule|length }} legs</span>
+          </div>
+          <div class="ops-card-body" style="padding: .5rem .85rem;">
+            <div class="driver-timeline">
+              {% for entry in fv_driver_schedule %}
+              <div class="tl-leg {% if entry.is_this_leg %}tl-trigger{% endif %}">
+                <div class="tl-time-col">
+                  <span class="tl-pickup-time">{{ entry.pickup_str }}</span>
+                  <span class="tl-end-time">ends ~{{ entry.end_str }}</span>
+                </div>
+                <div class="tl-bar">
+                  <div class="tl-dot {% if entry.is_this_leg %}dot-trigger{% else %}dot-normal{% endif %}"></div>
+                  <div class="tl-line"></div>
+                </div>
+                <div class="tl-detail">
+                  <div class="tl-route">
+                    {{ entry.pickup_location|truncatewords:4 }} &rarr; {{ entry.dropoff_location|truncatewords:4 }}
+                  </div>
+                  <div class="tl-meta">
+                    <span class="tl-guest">{{ entry.customer_name }}</span>
+                    {% if entry.flight_label %}
+                    <span class="tl-flight"><i class="bi bi-airplane"></i> {{ entry.flight_label }}</span>
+                    {% endif %}
+                    {% if entry.is_this_leg %}<span class="tl-tag tl-tag-trigger">THIS FLIGHT</span>{% endif %}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        {% if task.is_open %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-lightning-fill" style="color: var(--ops-amber);"></i>
+            <h6>Quick Actions</h6>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-actions">
+              {% if fv_is_arrival and task.leg %}
+              <button class="conflict-act-btn act-match-flight" data-leg-id="{{ task.leg.id }}">
+                <i class="bi bi-clock-history"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Match Flight Time</span>
+                  <span class="act-hint">
+                    Update pickup from {{ fv_booked_pickup_str }} to {{ fv_flight_arrival_str|default:"flight arrival" }}
+                    {% if fv_has_driver_conflict %} — driver conflict will need resolving{% endif %}
+                  </span>
+                </div>
+                {% if not fv_has_driver_conflict %}
+                <span class="act-badge act-badge-ok"><i class="bi bi-check-circle-fill"></i> No conflicts</span>
+                {% else %}
+                <span class="act-badge act-badge-warn"><i class="bi bi-exclamation-triangle-fill"></i> Conflict</span>
+                {% endif %}
+              </button>
+              {% endif %}
+              <a href="{% url 'dashboard' %}?date={{ fv_pickup_date_str }}" class="conflict-act-btn act-dispatch" target="_blank">
+                <i class="bi bi-layout-text-window-reverse"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Dispatch Board</span>
+                  <span class="act-hint">View full day and reassign driver if needed</span>
+                </div>
+              </a>
+              {% if task.reservation %}
+              <a href="{% url 'reservation_details' task.reservation.uuid %}" class="conflict-act-btn" target="_blank">
+                <i class="bi bi-file-text" style="color: var(--ops-purple);"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Reservation</span>
+                  <span class="act-hint">View full reservation details</span>
+                </div>
+              </a>
+              {% endif %}
+              {% if fv_driver_phone %}
+              <a href="tel:{{ fv_driver_phone }}" class="conflict-act-btn act-call">
+                <i class="bi bi-telephone-fill"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Call {{ fv_driver_name }}</span>
+                  <span class="act-hint">{{ fv_driver_phone }}</span>
+                </div>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if is_driver_assign %}
+        <!-- ═══ Driver Assignment Panel ═══ -->
+
+        <!-- Leg Details -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-geo-alt-fill" style="color: var(--ops-red);"></i>
+            <h6>Trip Details</h6>
+          </div>
+          <div class="ops-card-body">
+            <div class="da-leg-card">
+              <span class="da-leg-label">Guest</span>
+              <span class="da-leg-value">{{ da_customer_name }}</span>
+              <span class="da-leg-label">Pickup</span>
+              <span class="da-leg-value">{{ da_pickup_date_str }} at {{ da_pickup_time_str }}</span>
+              <span class="da-leg-label">From</span>
+              <span class="da-leg-value da-leg-value-dim">{{ da_pickup_location }}</span>
+              <span class="da-leg-label">To</span>
+              <span class="da-leg-value da-leg-value-dim">{{ da_dropoff_location }}</span>
+              {% if da_trip_type %}
+              <span class="da-leg-label">Type</span>
+              <span class="da-leg-value da-leg-value-dim">{{ da_trip_type|title }}</span>
+              {% endif %}
+              {% if da_flight_label %}
+              <span class="da-leg-label">Flight</span>
+              <span class="da-leg-value" style="color: var(--ops-blue);">{{ da_flight_label }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Drivers -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-people-fill" style="color: var(--ops-green);"></i>
+            <h6>In-House Drivers</h6>
+            <span class="head-ct">{{ da_drivers|length }}</span>
+          </div>
+          <div>
+            {% for d in da_drivers %}
+            <div class="da-driver-row">
+              <span class="da-driver-name">{{ d.name }}</span>
+              <span class="da-driver-load {% if d.day_legs == 0 %}da-load-free{% elif d.day_legs <= 2 %}da-load-light{% elif d.day_legs <= 4 %}da-load-busy{% else %}da-load-heavy{% endif %}">
+                {{ d.day_legs }} leg{{ d.day_legs|pluralize }}
+              </span>
+              {% if d.phone %}<span class="da-driver-phone">{{ d.phone }}</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Day Schedule -->
+        {% if da_day_schedule %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-calendar-day" style="color: var(--ops-cyan);"></i>
+            <h6>All Legs — {{ da_pickup_date_str }}</h6>
+            <span class="head-ct">{{ da_day_schedule|length }}</span>
+          </div>
+          <div>
+            {% for entry in da_day_schedule %}
+            <div class="da-sched-row {% if entry.is_this_leg %}da-this-leg{% endif %}">
+              <span class="da-sched-time">{{ entry.pickup_str }}</span>
+              <span class="da-sched-route">{{ entry.pickup_location|truncatewords:3 }} &rarr; {{ entry.dropoff_location|truncatewords:3 }}</span>
+              <span class="da-sched-driver {% if entry.has_driver %}assigned{% else %}unassigned{% endif %}">
+                {% if entry.has_driver %}{{ entry.driver_name }}{% else %}UNASSIGNED{% endif %}
+              </span>
+              {% if entry.is_this_leg %}<span class="tl-tag tl-tag-trigger" style="font-size:.5rem;">THIS LEG</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        {% if task.is_open %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-lightning-fill" style="color: var(--ops-amber);"></i>
+            <h6>Quick Actions</h6>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-actions">
+              <a href="{% url 'dashboard' %}?date={{ da_pickup_date_str }}" class="conflict-act-btn act-dispatch" target="_blank">
+                <i class="bi bi-layout-text-window-reverse"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Dispatch Board</span>
+                  <span class="act-hint">Assign driver from the full day view</span>
+                </div>
+              </a>
+              {% if task.reservation %}
+              <a href="{% url 'reservation_details' task.reservation.uuid %}" class="conflict-act-btn" target="_blank">
+                <i class="bi bi-file-text" style="color: var(--ops-purple);"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Reservation</span>
+                  <span class="act-hint">{{ da_customer_name }}</span>
+                </div>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if is_payment_chase %}
+        <!-- ═══ Payment Chase Panel ═══ -->
+
+        <!-- Call Banner — prominent guest contact for the call workflow -->
+        {% if pc_guest_phone %}
+        <div class="pc-call-banner">
+          <div class="pc-call-icon"><i class="bi bi-telephone-fill"></i></div>
+          <div class="pc-call-info">
+            <div class="pc-call-name">{{ pc_guest_name }}</div>
+            <a href="tel:{{ pc_guest_phone }}" class="pc-call-phone">{{ pc_guest_phone }}</a>
+          </div>
+          {% if pc_guest_email %}
+          <a href="mailto:{{ pc_guest_email }}" style="color: var(--ops-blue); font-size: .82rem; text-decoration: none;">
+            <i class="bi bi-envelope-fill"></i> Email
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Balance Summary -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-credit-card-fill" style="color: var(--ops-red);"></i>
+            <h6>Payment Summary</h6>
+            <span class="pc-status-chip pc-status-{{ pc_payment_status }}">
+              {% if pc_payment_status == 'unpaid' %}<i class="bi bi-x-circle-fill"></i>{% elif pc_payment_status == 'paid' %}<i class="bi bi-check-circle-fill"></i>{% elif pc_payment_status == 'card_saved' %}<i class="bi bi-credit-card"></i>{% endif %}
+              {{ pc_payment_status }}
+            </span>
+          </div>
+          <div class="ops-card-body">
+            <div class="pc-balance-bar">
+              <div class="pc-balance-item">
+                <span class="pc-balance-label">Total Price</span>
+                <span class="pc-balance-value">${{ pc_total_price }}</span>
+              </div>
+              <div class="pc-balance-item">
+                <span class="pc-balance-label">Paid</span>
+                <span class="pc-balance-value pc-balance-paid">${{ pc_total_paid }}</span>
+              </div>
+              <div class="pc-balance-item">
+                <span class="pc-balance-label">Balance Due</span>
+                <span class="pc-balance-value pc-balance-owed">${{ pc_amount_owed }}</span>
+              </div>
+            </div>
+
+            {% if pc_has_saved_card %}
+            <div class="fv-no-conflict" style="margin-top: 0;">
+              <i class="bi bi-credit-card-fill"></i>
+              Card on file — can charge directly from payment portal
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Upcoming Legs -->
+        {% if pc_legs %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-geo-alt-fill" style="color: var(--ops-cyan);"></i>
+            <h6>Upcoming Trips</h6>
+            <span class="head-ct">{{ pc_legs|length }}</span>
+          </div>
+          <div>
+            {% for entry in pc_legs %}
+            <div class="pc-leg-row">
+              <span class="pc-leg-date">{{ entry.pickup_date|date:"M j" }} {{ entry.pickup_time_str }}</span>
+              <span class="pc-leg-route">{{ entry.pickup_location|truncatewords:3 }} &rarr; {{ entry.dropoff_location|truncatewords:3 }}</span>
+              <span class="pc-leg-driver {% if entry.has_driver %}has-driver{% endif %}">
+                <i class="bi bi-{% if entry.has_driver %}person-check{% else %}person-dash{% endif %}"></i>
+                {{ entry.driver_name }}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Payment History -->
+        {% if pc_payment_history %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-clock-history" style="color: var(--ops-text-dim);"></i>
+            <h6>Payment History</h6>
+            <span class="head-ct">{{ pc_payment_history|length }}</span>
+          </div>
+          <div>
+            {% for p in pc_payment_history %}
+            <div class="pc-payment-row">
+              <span class="pc-pay-amount">${{ p.amount }}</span>
+              <span class="pc-status-chip pc-status-{{ p.status }}" style="font-size: .55rem;">{{ p.status }}</span>
+              <span class="pc-pay-desc">{{ p.description }}</span>
+              <span class="pc-pay-date">{{ p.created_at|date:"M j, g:i A" }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        {% if task.is_open %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-lightning-fill" style="color: var(--ops-amber);"></i>
+            <h6>Quick Actions</h6>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-actions">
+              {% if pc_guest_phone %}
+              <a href="tel:{{ pc_guest_phone }}" class="conflict-act-btn act-call">
+                <i class="bi bi-telephone-fill"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Call {{ pc_guest_name }}</span>
+                  <span class="act-hint">{{ pc_guest_phone }}</span>
+                </div>
+              </a>
+              {% endif %}
+              <a href="{% url 'dispatcher_payment_portal' pc_reservation_uuid %}" class="conflict-act-btn" target="_blank">
+                <i class="bi bi-credit-card-2-front-fill" style="color: var(--ops-green);"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Payment Portal</span>
+                  <span class="act-hint">Charge saved card or send payment link</span>
+                </div>
+              </a>
+              <a href="{% url 'reservation_details' pc_reservation_uuid %}" class="conflict-act-btn" target="_blank">
+                <i class="bi bi-file-text" style="color: var(--ops-purple);"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Reservation</span>
+                  <span class="act-hint">View full reservation details and edit</span>
+                </div>
+              </a>
+              {% if pc_guest_email %}
+              <a href="mailto:{{ pc_guest_email }}" class="conflict-act-btn">
+                <i class="bi bi-envelope-fill" style="color: var(--ops-blue);"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Email {{ pc_guest_name }}</span>
+                  <span class="act-hint">{{ pc_guest_email }}</span>
+                </div>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
         {% endif %}
 
         <!-- Communication History -->
@@ -1166,7 +1871,7 @@ body {
           <div class="ops-card-body comm-form">
             <form id="commForm">
               <div class="row g-2">
-                <div class="col-md-4">
+                <div class="col-md-6">
                   <label class="form-label">Channel</label>
                   <select id="detailCommChannel" class="form-select">
                     {% for value, label in channels %}
@@ -1174,7 +1879,7 @@ body {
                     {% endfor %}
                   </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                   <label class="form-label">Outcome</label>
                   <select id="detailCommOutcome" class="form-select">
                     {% for value, label in outcomes %}
@@ -1182,17 +1887,14 @@ body {
                     {% endfor %}
                   </select>
                 </div>
-                <div class="col-md-4">
-                  <label class="form-label">Contact</label>
-                  <input type="text" id="detailCommContact" class="form-control" placeholder="Phone or email">
-                </div>
+                <input type="hidden" id="detailCommContact" value="">
                 <div class="col-12">
                   <label class="form-label">Notes</label>
                   <input type="text" id="detailCommNotes" class="form-control" placeholder="Optional">
                 </div>
                 <div class="col-12 mt-2">
                   <button type="button" class="btn btn-primary btn-sm" id="btnDetailSubmitComm">
-                    <i class="bi bi-check me-1"></i>Log Communication
+                    <i class="bi bi-check me-1"></i>Log
                   </button>
                 </div>
               </div>

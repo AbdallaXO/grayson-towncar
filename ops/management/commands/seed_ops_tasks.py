@@ -440,7 +440,7 @@ class Command(BaseCommand):
                      "_flight": "WN2156_mismatch"},
                 ],
             },
-            # 4: Sarah - tomorrow pickup, driver assigned, no SMS sent
+            # 4: Sarah - tomorrow pickup, driver_a assigned (creates multi-leg day for driver_a)
             {
                 "customer": customers[4],
                 "trip_type": "one_way",
@@ -448,10 +448,10 @@ class Command(BaseCommand):
                 "total_price": Decimal("165.00"),
                 "status": "confirmed",
                 "legs": [
-                    {"pickup_date": tomorrow, "pickup_time": time(8, 15),
+                    {"pickup_date": tomorrow, "pickup_time": time(16, 30),
                      "pickup_location": "Disney's Animal Kingdom Lodge",
                      "dropoff_location": "Orlando International Airport (MCO)",
-                     "driver": driver_b},
+                     "driver": driver_a},
                 ],
             },
             # 5: Robert - 3 days out, no driver (coverage gap)
@@ -563,11 +563,17 @@ class Command(BaseCommand):
         # Res #2 leg 0 — DL1842 arriving 1hr later than booked pickup
         leg_2_0 = legs_map[2][0]
         if getattr(leg_2_0, "_flight_key", None) and not leg_2_0.flight_information_id:
-            flight_dt = datetime.combine(
+            scheduled_dt = datetime.combine(
                 leg_2_0.pickup_date, leg_2_0.pickup_time
-            ) + timedelta(hours=1)
-            flight_dt = timezone.make_aware(
-                flight_dt, timezone.get_current_timezone()
+            ) - timedelta(minutes=15)  # originally scheduled 15min before pickup
+            scheduled_dt = timezone.make_aware(
+                scheduled_dt, timezone.get_current_timezone()
+            )
+            estimated_dt = datetime.combine(
+                leg_2_0.pickup_date, leg_2_0.pickup_time
+            ) + timedelta(hours=1)  # now estimated 1hr after pickup
+            estimated_dt = timezone.make_aware(
+                estimated_dt, timezone.get_current_timezone()
             )
             flight = Flight.objects.create(
                 flight_type="arrival",
@@ -577,8 +583,10 @@ class Command(BaseCommand):
                 origin="ATL - Hartsfield-Jackson Atlanta Intl",
                 destination="MCO - Orlando Intl",
                 status="Scheduled",
-                scheduled_arrival_local=flight_dt,
-                estimated_arrival_local=flight_dt,
+                scheduled_arrival_local=scheduled_dt,
+                estimated_arrival_local=estimated_dt,
+                scheduled_gate_arrival_local=scheduled_dt,
+                estimated_gate_arrival_local=estimated_dt,
                 terminal="B",
                 gate="76",
             )
@@ -590,11 +598,17 @@ class Command(BaseCommand):
         # Res #3 leg 0 — WN2156 arriving 45min earlier than booked pickup
         leg_3_0 = legs_map[3][0]
         if getattr(leg_3_0, "_flight_key", None) and not leg_3_0.flight_information_id:
-            flight_dt = datetime.combine(
+            scheduled_dt = datetime.combine(
                 leg_3_0.pickup_date, leg_3_0.pickup_time
-            ) - timedelta(minutes=45)
-            flight_dt = timezone.make_aware(
-                flight_dt, timezone.get_current_timezone()
+            )  # originally scheduled at pickup time
+            scheduled_dt = timezone.make_aware(
+                scheduled_dt, timezone.get_current_timezone()
+            )
+            estimated_dt = datetime.combine(
+                leg_3_0.pickup_date, leg_3_0.pickup_time
+            ) - timedelta(minutes=45)  # now estimated 45min early
+            estimated_dt = timezone.make_aware(
+                estimated_dt, timezone.get_current_timezone()
             )
             flight = Flight.objects.create(
                 flight_type="arrival",
@@ -604,8 +618,10 @@ class Command(BaseCommand):
                 origin="BWI - Baltimore/Washington Intl",
                 destination="MCO - Orlando Intl",
                 status="Scheduled",
-                scheduled_arrival_local=flight_dt,
-                estimated_arrival_local=flight_dt - timedelta(minutes=10),
+                scheduled_arrival_local=scheduled_dt,
+                estimated_arrival_local=estimated_dt,
+                scheduled_gate_arrival_local=scheduled_dt,
+                estimated_gate_arrival_local=estimated_dt - timedelta(minutes=10),
                 terminal="A",
                 gate="122",
             )
@@ -620,6 +636,18 @@ class Command(BaseCommand):
         """Create payment records — some paid, some not."""
         now = timezone.now()
 
+        # Res #0 (Jennifer, unpaid) - failed payment attempt
+        Payment.objects.get_or_create(
+            reservation=reservations[0],
+            status="failed",
+            defaults={
+                "customer": reservations[0].customer,
+                "amount": Decimal("285.00"),
+                "payment_type": "pay_now",
+                "description": "Initial Payment — declined",
+            },
+        )
+
         # Res #1 (Marcus) - card saved but not charged
         Payment.objects.get_or_create(
             reservation=reservations[1],
@@ -629,6 +657,7 @@ class Command(BaseCommand):
                 "amount": Decimal("195.00"),
                 "payment_type": "pay_later",
                 "description": "Card on file",
+                "stripe_payment_method_id": "pm_seed_fake_card",
             },
         )
 
@@ -711,22 +740,32 @@ class Command(BaseCommand):
         tasks["flight_pending"] = OperationalTask.objects.create(
             task_type=T.FLIGHT_VERIFICATION, status=S.PENDING, priority=P.HIGH,
             title=f"Flight mismatch: Amanda Rodriguez — DL1842 arriving 1hr late",
-            description="Booked pickup 2:30 PM, flight lands ~3:30 PM. Verify with guest.",
+            description="Pickup at 02:30 PM but flight is arriving ~1hr late. Call guest to verify correct pickup time.",
             leg=legs_map[2][0], reservation=reservations[2],
             due_at=now, escalate_at=now + timedelta(hours=4),
             metadata=_meta(mismatch_minutes=60, mismatch_direction="late",
-                           flight_ident="DL1842"),
+                           mismatch_label="~1hr late",
+                           severity_tier="moderate",
+                           days_until_pickup=1,
+                           flight_ident="Delta Air Lines 1842",
+                           pickup_date=str(legs_map[2][0].pickup_date),
+                           pickup_time=str(legs_map[2][0].pickup_time)),
         )
 
         tasks["flight_escalated"] = OperationalTask.objects.create(
             task_type=T.FLIGHT_VERIFICATION, status=S.ESCALATED, priority=P.CRITICAL,
             title=f"Flight mismatch: David Thompson — WN2156 arriving 45min early",
-            description="Booked pickup 11:00 AM, flight lands ~10:15 AM. Guest may wait.",
+            description="Pickup at 11:00 AM but flight is arriving ~45min early. Call guest to verify correct pickup time.",
             leg=legs_map[3][0], reservation=reservations[3],
             due_at=now - timedelta(hours=4), escalate_at=now - timedelta(hours=1),
             attempts=1, last_attempt_at=now - timedelta(hours=2),
             metadata=_meta(mismatch_minutes=45, mismatch_direction="early",
-                           flight_ident="WN2156"),
+                           mismatch_label="~45min early",
+                           severity_tier="moderate",
+                           days_until_pickup=1,
+                           flight_ident="Southwest Airlines 2156",
+                           pickup_date=str(legs_map[3][0].pickup_date),
+                           pickup_time=str(legs_map[3][0].pickup_time)),
         )
 
         # ── contact_form (3) ──

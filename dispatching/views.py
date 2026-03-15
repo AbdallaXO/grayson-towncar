@@ -2820,22 +2820,9 @@ def refresh_flight_data(request):
 
 def _best_flight_arrival_time(flight):
     """
-    Pick the best arrival time based on flight status.
-
-    - Flight not yet departed (Scheduled, Filed, etc.): use scheduled time only,
-      because estimated is just a FlightAware prediction before takeoff.
-    - Flight en route / delayed / landed / arrived: use the best real-time data
-      (actual > estimated > scheduled).
+    Pick the best arrival time for matching pickup to flight.
+    Uses the same priority as the scheduler: actual > estimated > scheduled.
     """
-    status = (flight.status or "").strip().lower()
-    # Statuses that mean the flight has NOT departed yet
-    not_departed = status in ("", "scheduled", "filed", "not yet departed")
-
-    if not_departed:
-        # Pre-departure: only use scheduled times
-        return flight.scheduled_gate_arrival_local or flight.scheduled_arrival_local
-
-    # In-air or post-arrival: use best available real-time data
     return (
         flight.actual_gate_arrival_local
         or flight.estimated_gate_arrival_local
@@ -2887,7 +2874,36 @@ def match_leg_time_to_flight(request):
                 flight_dt, timezone.get_current_timezone()
             )
         new_time = flight_dt.time()
+        old_time = leg.pickup_time
         Leg.objects.filter(id=leg.id).update(pickup_time=new_time)
+
+        # Auto-resolve any open flight_verify or driver_conflict tasks for this leg
+        from ops.models import OperationalTask, StaffActivity
+        from ops.services import close_task
+        open_tasks = OperationalTask.objects.filter(
+            leg=leg,
+            task_type__in=[
+                OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                OperationalTask.TaskType.DRIVER_CONFLICT,
+            ],
+            status__in=list(OperationalTask.OPEN_STATUSES),
+        )
+        for task in open_tasks:
+            close_task(
+                task,
+                resolved_by=request.user,
+                resolution_notes=(
+                    f"Flight matched: pickup updated "
+                    f"{old_time.strftime('%I:%M %p').lstrip('0')} → "
+                    f"{new_time.strftime('%I:%M %p').lstrip('0')}"
+                ),
+            )
+            StaffActivity.objects.create(
+                user=request.user,
+                action_type=StaffActivity.ActionType.TASK_COMPLETED,
+                task=task,
+            )
+
         return JsonResponse({
             "success": True,
             "message": "Leg pickup time updated to match flight arrival",

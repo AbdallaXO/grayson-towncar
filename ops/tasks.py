@@ -218,15 +218,10 @@ def generate_ops_tasks():
     closed += _auto_close_resolved_tasks()
     reopened += _reopen_snoozed_tasks()
 
-    # Run escalation engine
-    from .escalation import run_escalations
-    escalated = 0
-    try:
-        escalated = run_escalations()
-    except Exception as e:
-        logger.error(f"Escalation engine error: {e}", exc_info=True)
+    # Auto-escalation disabled — staff are responsible for their own tasks.
+    # Escalation engine (ops/escalation.py) still exists if re-enabled later.
 
-    return {"created": created, "closed": closed, "reopened": reopened, "escalated": escalated}
+    return {"created": created, "closed": closed, "reopened": reopened, "escalated": 0}
 
 
 # ── Flight mismatch scanner ─────────────────────────────────────────────────
@@ -383,8 +378,7 @@ def _handle_future_mismatch(leg, mismatch, customer_name, flight_label, days_unt
         due_at=now,
         priority=priority,
         description=(
-            f"Pickup at {leg.pickup_time:%I:%M %p} but flight is {mismatch['label']}. "
-            f"Call guest to verify correct pickup time."
+            f"Booked pickup {leg.pickup_time:%I:%M %p} — flight {mismatch['label']}."
         ),
         leg=leg,
         reservation=leg.reservation,

@@ -634,6 +634,332 @@ def _build_driver_conflict_context(task):
     }
 
 
+def _build_flight_verify_context(task):
+    """
+    Build extra context for flight_verify task detail: flight mismatch info,
+    assigned driver schedule, conflict check, and quick actions.
+    """
+    from reservations.models import Leg
+    from datetime import datetime, date as date_type
+    from ops.tasks import (
+        _get_effective_ready_time,
+        _estimate_leg_end_time,
+        AIRPORT_ARRIVAL_GRACE_MINUTES,
+    )
+
+    leg = task.leg
+    if not leg:
+        return {}
+
+    meta = task.metadata or {}
+    flight = leg.flight_information
+    pickup_date = leg.pickup_date
+
+    # ── Flight mismatch info ──
+    mismatch_info = {
+        "direction": meta.get("mismatch_direction", ""),
+        "minutes": meta.get("mismatch_minutes", 0),
+        "label": meta.get("mismatch_label", ""),
+        "severity": meta.get("severity_tier", ""),
+        "flight_ident": meta.get("flight_ident", ""),
+    }
+
+    # Live flight times
+    scheduled_str = ""
+    estimated_str = ""
+    flight_arrival_str = ""
+    booked_pickup_str = leg.pickup_time.strftime("%I:%M %p").lstrip("0")
+
+    if flight:
+        sched = flight.scheduled_gate_arrival_local or flight.scheduled_arrival_local
+        if sched:
+            from django.utils import timezone as tz
+            if tz.is_aware(sched):
+                sched = tz.make_naive(sched, tz.get_current_timezone())
+            scheduled_str = sched.time().strftime("%I:%M %p").lstrip("0")
+
+        est = flight.estimated_gate_arrival_local
+        if est:
+            from django.utils import timezone as tz
+            if tz.is_aware(est):
+                est = tz.make_naive(est, tz.get_current_timezone())
+            estimated_str = est.time().strftime("%I:%M %p").lstrip("0")
+
+        # Best available arrival (for "Match Flight Time")
+        try:
+            from dispatching.scheduler import _get_best_flight_arrival
+            flight_dt = _get_best_flight_arrival(leg)
+            if flight_dt:
+                flight_arrival_str = flight_dt.time().strftime("%I:%M %p").lstrip("0")
+        except Exception:
+            pass
+
+    # ── Driver info + schedule ──
+    driver = leg.driver
+    driver_name = ""
+    driver_phone = ""
+    driver_schedule = []
+    has_driver_conflict = False
+    conflict_minutes = 0
+
+    if driver:
+        driver_name = str(driver)
+        driver_phone = getattr(driver, "phone_number", "") or ""
+
+        # Build driver's day schedule
+        day_legs = list(
+            Leg.objects.filter(
+                driver=driver,
+                pickup_date=pickup_date,
+            )
+            .exclude(status__in=["completed", "cancelled"])
+            .exclude(reservation__status="cancelled")
+            .select_related(
+                "flight_information",
+                "reservation",
+                "reservation__customer",
+            )
+            .order_by("pickup_time")
+        )
+
+        for dl in day_legs:
+            ready_time = _get_effective_ready_time(dl, pickup_date)
+            end_time = _estimate_leg_end_time(dl, pickup_date)
+            is_this_leg = dl.pk == leg.pk
+            customer = dl.reservation.customer if dl.reservation else None
+            customer_name = customer.get_full_name() if customer else "Unknown"
+            trip_type = dl.get_trip_type() if hasattr(dl, "get_trip_type") else ""
+
+            flight_label = ""
+            if dl.flight_information:
+                fi = dl.flight_information
+                airline = fi.airline_display_name or fi.airline or ""
+                flight_label = f"{airline} {fi.flight_number}".strip()
+
+            driver_schedule.append({
+                "leg": dl,
+                "pickup_str": dl.pickup_time.strftime("%I:%M %p").lstrip("0"),
+                "ready_str": ready_time.strftime("%I:%M %p").lstrip("0"),
+                "end_str": end_time.strftime("%I:%M %p").lstrip("0"),
+                "ready_time": ready_time,
+                "end_time": end_time,
+                "customer_name": customer_name,
+                "trip_type": trip_type,
+                "flight_label": flight_label,
+                "is_this_leg": is_this_leg,
+                "pickup_location": dl.pickup_location,
+                "dropoff_location": dl.dropoff_location,
+            })
+
+        # Check for conflicts if flight time were matched
+        if flight_arrival_str and len(day_legs) > 1:
+            try:
+                from ops.tasks import detect_driver_conflicts
+                conflicts = detect_driver_conflicts(leg, pickup_date)
+                if conflicts:
+                    has_driver_conflict = True
+                    conflict_minutes = max(c["conflict_minutes"] for c in conflicts)
+            except Exception:
+                logger.exception("Error checking driver conflicts for flight verify task %s", task.id)
+
+    # Trip info
+    trip_type = leg.get_trip_type() if hasattr(leg, "get_trip_type") else ""
+    is_arrival = trip_type == "arrival"
+
+    return {
+        "fv_mismatch": mismatch_info,
+        "fv_scheduled_str": scheduled_str,
+        "fv_estimated_str": estimated_str,
+        "fv_flight_arrival_str": flight_arrival_str,
+        "fv_booked_pickup_str": booked_pickup_str,
+        "fv_driver_name": driver_name,
+        "fv_driver_phone": driver_phone,
+        "fv_driver_schedule": driver_schedule,
+        "fv_has_driver_conflict": has_driver_conflict,
+        "fv_conflict_minutes": conflict_minutes,
+        "fv_has_driver": bool(driver),
+        "fv_is_arrival": is_arrival,
+        "fv_pickup_date_str": str(pickup_date),
+        "fv_trip_type": trip_type,
+        "is_flight_verify": True,
+    }
+
+
+def _build_payment_chase_context(task):
+    """
+    Build extra context for payment_chase task detail: reservation payment
+    summary, upcoming legs, guest contact, and quick action links.
+    """
+    reservation = task.reservation
+    if not reservation:
+        return {}
+
+    from reservations.models import Leg
+    from decimal import Decimal
+
+    customer = reservation.customer
+    meta = task.metadata or {}
+
+    # Payment summary (live, not from metadata)
+    total_price = reservation.total_price or Decimal("0")
+    total_paid = reservation.total_paid or Decimal("0")
+    amount_owed = reservation.amount_owed or Decimal("0")
+    payment_status = reservation.payment_status
+    detailed_status = reservation.detailed_payment_status
+
+    # All upcoming legs for this reservation
+    today = timezone.localdate()
+    legs = list(
+        reservation.legs.filter(pickup_date__gte=today)
+        .exclude(status__in=["cancelled"])
+        .select_related("driver", "flight_information")
+        .order_by("pickup_date", "pickup_time")
+    )
+
+    leg_data = []
+    for lg in legs:
+        driver_name = str(lg.driver) if lg.driver else "Unassigned"
+        leg_data.append({
+            "leg": lg,
+            "pickup_date": lg.pickup_date,
+            "pickup_time_str": lg.pickup_time.strftime("%I:%M %p").lstrip("0"),
+            "pickup_location": lg.pickup_location,
+            "dropoff_location": lg.dropoff_location,
+            "driver_name": driver_name,
+            "status": lg.status,
+            "has_driver": bool(lg.driver),
+        })
+
+    # Guest contact
+    guest_name = customer.get_full_name() if customer else "Unknown"
+    guest_phone = getattr(customer, "phone_number", "") or "" if customer else ""
+    guest_email = getattr(customer, "email", "") or "" if customer else ""
+
+    # Payment history
+    payments = list(reservation.payments.all().order_by("-created_at"))
+    payment_history = []
+    for p in payments:
+        payment_history.append({
+            "amount": p.amount,
+            "status": p.status,
+            "payment_type": p.payment_type,
+            "description": p.description or "",
+            "created_at": p.created_at,
+            "has_card": bool(p.stripe_payment_method_id),
+        })
+
+    return {
+        "pc_total_price": total_price,
+        "pc_total_paid": total_paid,
+        "pc_amount_owed": amount_owed,
+        "pc_payment_status": payment_status,
+        "pc_detailed_status": detailed_status,
+        "pc_legs": leg_data,
+        "pc_guest_name": guest_name,
+        "pc_guest_phone": guest_phone,
+        "pc_guest_email": guest_email,
+        "pc_payment_history": payment_history,
+        "pc_reservation_uuid": str(reservation.uuid),
+        "pc_reservation_id": reservation.id,
+        "pc_days_until": meta.get("days_until_pickup", ""),
+        "pc_has_saved_card": any(p.stripe_payment_method_id for p in payments),
+        "is_payment_chase": True,
+    }
+
+
+def _build_driver_assign_context(task):
+    """
+    Build context for driver_assign task detail: leg info, available
+    in-house drivers with their day load, and quick actions.
+    """
+    from reservations.models import Leg
+    from drivers.models import Driver
+    from django.db.models import Count, Q
+
+    leg = task.leg
+    if not leg:
+        return {}
+
+    pickup_date = leg.pickup_date
+    meta = task.metadata or {}
+
+    # Leg details
+    customer = leg.reservation.customer if leg.reservation else None
+    customer_name = customer.get_full_name() if customer else "Unknown"
+    trip_type = leg.get_trip_type() if hasattr(leg, "get_trip_type") else ""
+
+    flight_label = ""
+    if leg.flight_information:
+        fi = leg.flight_information
+        airline = fi.airline_display_name or fi.airline or ""
+        flight_label = f"{airline} {fi.flight_number}".strip()
+
+    # In-house drivers with their leg count for this day
+    drivers = list(
+        Driver.objects.filter(
+            driver_type="inhouse",
+            profile__is_active=True,
+        )
+        .select_related("profile")
+        .annotate(
+            day_legs=Count(
+                "legs",
+                filter=Q(
+                    legs__pickup_date=pickup_date,
+                    legs__status__in=["in-progress", "confirmed", "pending"],
+                ) & ~Q(legs__reservation__status="cancelled"),
+            )
+        )
+        .order_by("day_legs", "profile__first_name")
+    )
+
+    driver_list = []
+    for d in drivers:
+        driver_list.append({
+            "id": d.id,
+            "name": str(d),
+            "phone": d.phone_number or "",
+            "day_legs": d.day_legs,
+            "schedule": d.schedule or "",
+        })
+
+    # Other legs on the same day (for context)
+    day_legs = list(
+        Leg.objects.filter(pickup_date=pickup_date)
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .select_related("driver", "reservation", "reservation__customer")
+        .order_by("pickup_time")[:20]
+    )
+
+    day_schedule = []
+    for dl in day_legs:
+        cust = dl.reservation.customer if dl.reservation else None
+        day_schedule.append({
+            "leg": dl,
+            "pickup_str": dl.pickup_time.strftime("%I:%M %p").lstrip("0"),
+            "customer_name": cust.get_full_name() if cust else "Unknown",
+            "driver_name": str(dl.driver) if dl.driver else "Unassigned",
+            "has_driver": bool(dl.driver),
+            "is_this_leg": dl.pk == leg.pk,
+            "pickup_location": dl.pickup_location,
+            "dropoff_location": dl.dropoff_location,
+        })
+
+    return {
+        "da_customer_name": customer_name,
+        "da_trip_type": trip_type,
+        "da_flight_label": flight_label,
+        "da_pickup_date_str": str(pickup_date),
+        "da_pickup_time_str": leg.pickup_time.strftime("%I:%M %p").lstrip("0"),
+        "da_pickup_location": leg.pickup_location,
+        "da_dropoff_location": leg.dropoff_location,
+        "da_drivers": driver_list,
+        "da_day_schedule": day_schedule,
+        "is_driver_assign": True,
+    }
+
+
 @login_required(login_url="login")
 @user_passes_test(_is_superuser, login_url="login")
 def task_detail_view(request, task_id):
@@ -649,12 +975,16 @@ def task_detail_view(request, task_id):
             "leg__reservation",
             "leg__reservation__customer",
             "leg__flight_information",
+            "leg__driver",
+            "leg__driver__profile",
             "lead",
             "contact_form",
             "assigned_to",
             "created_by",
             "resolved_by",
             "blocked_by",
+        ).prefetch_related(
+            "reservation__payments",
         ),
         id=task_id,
     )
@@ -670,9 +1000,15 @@ def task_detail_view(request, task_id):
         "outcomes": CommunicationAttempt.Outcome.choices,
     }
 
-    # ── Driver Conflict: build the driver's full day schedule ──
+    # ── Task-type-specific context ──
     if task.task_type == OperationalTask.TaskType.DRIVER_CONFLICT and task.leg:
         context.update(_build_driver_conflict_context(task))
+    elif task.task_type == OperationalTask.TaskType.FLIGHT_VERIFICATION and task.leg:
+        context.update(_build_flight_verify_context(task))
+    elif task.task_type == OperationalTask.TaskType.PAYMENT_CHASE and task.reservation:
+        context.update(_build_payment_chase_context(task))
+    elif task.task_type == OperationalTask.TaskType.DRIVER_ASSIGNMENT and task.leg:
+        context.update(_build_driver_assign_context(task))
 
     return render(request, "dispatching/task_detail.html", context)
 
@@ -823,6 +1159,30 @@ def staff_metrics_view(request):
     for pv in page_views_today:
         pv["name"] = pv["user__first_name"] or pv["user__username"]
 
+    # ── Reservations created per staff (in range) ──
+    from reservations.models import Reservation
+    from django.db.models import Sum, DecimalField
+    from django.db.models.functions import Coalesce
+    from decimal import Decimal
+
+    staff_reservations = list(
+        Reservation.objects.filter(
+            created_at__gte=range_start,
+            created_by__isnull=False,
+        )
+        .values("created_by__id", "created_by__first_name", "created_by__username")
+        .annotate(
+            count=Count("id"),
+            revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
+        )
+        .order_by("-revenue")
+    )
+    for s in staff_reservations:
+        s["name"] = s["created_by__first_name"] or s["created_by__username"]
+
+    total_staff_reservations = sum(s["count"] for s in staff_reservations)
+    total_staff_revenue = sum(s["revenue"] for s in staff_reservations)
+
     context = {
         "range_days": days_back,
         "range_start": range_start,
@@ -849,5 +1209,276 @@ def staff_metrics_view(request):
         "type_performance": type_performance,
         "task_type_labels": dict(OperationalTask.TaskType.choices),
         "priority_labels": dict(OperationalTask.Priority.choices),
+        # Staff reservations
+        "staff_reservations": staff_reservations,
+        "total_staff_reservations": total_staff_reservations,
+        "total_staff_revenue": total_staff_revenue,
     }
     return render(request, "dispatching/staff_metrics.html", context)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="dashboard")
+def staff_detail_view(request, user_id):
+    """
+    Per-staff detail page: reservations created, revenue, tasks resolved,
+    communication history, and activity timeline.
+    """
+    import pytz
+    from reservations.models import Reservation
+    from django.db.models import Sum, DecimalField
+    from django.db.models.functions import Coalesce, TruncDate
+    from decimal import Decimal
+
+    staff_user = get_object_or_404(User, id=user_id)
+    eastern = pytz.timezone("US/Eastern")
+    now = timezone.now()
+    today = timezone.localdate()
+
+    # Support two modes: ?date=2026-03-15 (single day) or ?range=30 (range)
+    from datetime import date as date_type
+    date_param = request.GET.get("date", "")
+    view_date = None
+    if date_param:
+        try:
+            view_date = date_type.fromisoformat(date_param)
+        except ValueError:
+            pass
+
+    if view_date:
+        # Single-day mode
+        range_start = timezone.make_aware(
+            timezone.datetime.combine(view_date, timezone.datetime.min.time()),
+            timezone.get_current_timezone(),
+        )
+        range_end = range_start + timedelta(days=1)
+        days_back = 0  # signals single-day mode in template
+    else:
+        range_param = request.GET.get("range", "30")
+        try:
+            days_back = int(range_param)
+        except ValueError:
+            days_back = 30
+        days_back = min(days_back, 365)
+        range_start = now - timedelta(days=days_back)
+        range_end = now
+
+    # ── Reservations created by this staff ──
+    staff_res = Reservation.objects.filter(
+        created_by=staff_user,
+        created_at__gte=range_start,
+        created_at__lt=range_end,
+    ).select_related("customer").order_by("-created_at")
+
+    res_count = staff_res.count()
+    res_revenue = staff_res.aggregate(
+        total=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField())
+    )["total"]
+
+    # Recent reservations (last 25)
+    recent_reservations = list(staff_res[:25])
+
+    # Daily reservation trend
+    daily_res = dict(
+        staff_res.annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(count=Count("id"), rev=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()))
+        .values_list("day", "count")
+    )
+    daily_rev = dict(
+        staff_res.annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(rev=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()))
+        .values_list("day", "rev")
+    )
+
+    res_trend = []
+    for i in range(days_back):
+        d = today - timedelta(days=days_back - 1 - i)
+        res_trend.append({
+            "day": d.isoformat(),
+            "count": daily_res.get(d, 0),
+            "revenue": float(daily_rev.get(d, 0)),
+        })
+
+    # ── Tasks resolved by this staff ──
+    resolved_tasks = OperationalTask.objects.filter(
+        resolved_by=staff_user,
+        resolved_at__gte=range_start,
+        resolved_at__lt=range_end,
+    ).order_by("-resolved_at")
+
+    tasks_resolved_count = resolved_tasks.count()
+    resolved_by_type = dict(
+        resolved_tasks.values_list("task_type")
+        .annotate(c=Count("id"))
+        .values_list("task_type", "c")
+    )
+
+    recent_resolved = list(
+        resolved_tasks.select_related("reservation", "reservation__customer", "leg")[:25]
+    )
+
+    # ── Tasks currently assigned to this staff ──
+    assigned_tasks = list(
+        OperationalTask.objects.filter(
+            assigned_to=staff_user,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+        )
+        .select_related("reservation", "reservation__customer", "leg")
+        .order_by("priority", "due_at")[:20]
+    )
+
+    # ── Communication attempts by this staff ──
+    staff_comms = CommunicationAttempt.objects.filter(
+        staff_user=staff_user,
+        created_at__gte=range_start,
+        created_at__lt=range_end,
+    )
+    comms_total = staff_comms.count()
+    comms_by_channel = dict(
+        staff_comms.values_list("channel")
+        .annotate(c=Count("id"))
+        .values_list("channel", "c")
+    )
+    comms_by_outcome = dict(
+        staff_comms.values_list("outcome")
+        .annotate(c=Count("id"))
+        .values_list("outcome", "c")
+    )
+    recent_comms = list(
+        staff_comms.select_related("task").order_by("-created_at")[:25]
+    )
+
+    # ── Activity timeline (last 50) ──
+    recent_activities = list(
+        StaffActivity.objects.filter(
+            user=staff_user,
+            created_at__gte=range_start,
+            created_at__lt=range_end,
+        )
+        .exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
+        .select_related("task")
+        .order_by("-created_at")[:50]
+    )
+
+    # ── Change history from django-simple-history ──
+    from reservations.models import Leg, Reservation as Res
+
+    # Fields worth showing (skip noisy internal fields)
+    INTERESTING_FIELDS = {
+        "pickup_time", "pickup_date", "pickup_location", "dropoff_location",
+        "driver", "status", "total_price", "base_price", "gratuity_amount",
+        "passenger_count", "luggage_count", "private_notes",
+        "driver_base_pay", "driver_gratuity", "driver_additional",
+        "flight_information",
+    }
+
+    change_history = []
+
+    # Leg changes by this user
+    leg_changes = (
+        Leg.history.filter(
+            history_user=staff_user,
+            history_date__gte=range_start,
+            history_date__lt=range_end,
+            history_type="~",  # only updates, not creates
+        )
+        .select_related("history_user")
+        .order_by("-history_date")[:100]
+    )
+    for rec in leg_changes:
+        prev = rec.prev_record
+        if not prev:
+            continue
+        try:
+            delta = rec.diff_against(prev)
+        except Exception:
+            continue
+        for change in delta.changes:
+            if change.field not in INTERESTING_FIELDS:
+                continue
+            change_history.append({
+                "timestamp": rec.history_date,
+                "model": "Leg",
+                "object_id": rec.id,
+                "field": change.field,
+                "old": str(change.old) if change.old is not None else "",
+                "new": str(change.new) if change.new is not None else "",
+                "reservation_id": rec.reservation_id,
+            })
+
+    # Reservation changes by this user
+    res_changes = (
+        Res.history.filter(
+            history_user=staff_user,
+            history_date__gte=range_start,
+            history_date__lt=range_end,
+            history_type="~",
+        )
+        .select_related("history_user")
+        .order_by("-history_date")[:100]
+    )
+    for rec in res_changes:
+        prev = rec.prev_record
+        if not prev:
+            continue
+        try:
+            delta = rec.diff_against(prev)
+        except Exception:
+            continue
+        for change in delta.changes:
+            if change.field not in INTERESTING_FIELDS:
+                continue
+            change_history.append({
+                "timestamp": rec.history_date,
+                "model": "Reservation",
+                "object_id": rec.id,
+                "field": change.field,
+                "old": str(change.old) if change.old is not None else "",
+                "new": str(change.new) if change.new is not None else "",
+                "reservation_id": rec.id,
+            })
+
+    # Sort all changes by timestamp descending
+    change_history.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    # ── All staff users (for sidebar navigation) ──
+    all_staff = list(
+        User.objects.filter(is_staff=True, is_active=True)
+        .order_by("first_name", "username")
+    )
+
+    # Date navigation helpers
+    yesterday = today - timedelta(days=1)
+
+    context = {
+        "staff_user": staff_user,
+        "range_days": days_back,
+        "range_start": range_start,
+        "view_date": view_date,
+        "today": today,
+        "yesterday": yesterday,
+        # Reservations
+        "res_count": res_count,
+        "res_revenue": res_revenue,
+        "recent_reservations": recent_reservations,
+        "res_trend_json": json.dumps(res_trend),
+        # Tasks
+        "tasks_resolved_count": tasks_resolved_count,
+        "resolved_by_type": resolved_by_type,
+        "recent_resolved": recent_resolved,
+        "assigned_tasks": assigned_tasks,
+        "task_type_labels": dict(OperationalTask.TaskType.choices),
+        # Communication
+        "comms_total": comms_total,
+        "comms_by_channel": comms_by_channel,
+        "comms_by_outcome": comms_by_outcome,
+        "recent_comms": recent_comms,
+        # Activity & Changes
+        "recent_activities": recent_activities,
+        "change_history": change_history,
+        # Navigation
+        "all_staff": all_staff,
+    }
+    return render(request, "dispatching/staff_detail.html", context)
