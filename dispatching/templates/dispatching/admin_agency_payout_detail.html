@@ -1,0 +1,317 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Agency Payout #{{ payout.id }} — {{ agency.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gt-gold: #C9A227;
+    --gt-gold-soft: rgba(201,162,39,0.12);
+    --gt-dark: #1a1d21;
+    --gt-dark-2: #23272b;
+    --gt-surface: #f7f8fa;
+    --gt-border: #e2e5ea;
+    --gt-green: #27ae60;
+    --gt-text: #2c3e50;
+    --gt-muted: #7f8c9b;
+    --gt-radius: 10px;
+  }
+  .container-fluid { font-family: 'DM Sans', sans-serif; color: var(--gt-text); }
+  .page-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.5px; color: var(--gt-dark); }
+  .page-subtitle { font-size: 0.85rem; color: var(--gt-muted); }
+
+  .summary-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    background: var(--gt-dark); border-radius: var(--gt-radius); overflow: hidden; margin-bottom: 24px;
+    position: relative;
+  }
+  .summary-strip::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--gt-gold), transparent);
+  }
+  .sc { text-align: center; padding: 18px 12px; color: #fff; border-right: 1px solid rgba(255,255,255,0.06); }
+  .sc:last-child { border-right: none; }
+  .sc .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,0.45); margin-bottom: 4px; font-weight: 500; }
+  .sc .value { font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: 500; }
+  .sc .value.green { color: var(--gt-green); }
+  .sc .value.gold { color: var(--gt-gold); }
+
+  .card { border: 1px solid var(--gt-border); border-radius: var(--gt-radius); box-shadow: none; }
+  .card-header { background: #fff; border-bottom: 1px solid var(--gt-border); padding: 12px 18px; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .info-section { padding: 20px; }
+  .info-section:first-child { border-right: 1px solid var(--gt-border); }
+  .info-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gt-muted); font-weight: 600; margin-bottom: 3px; }
+  .info-value { font-size: 0.95rem; font-weight: 600; color: var(--gt-dark); margin-bottom: 14px; }
+  .info-value.big { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; color: var(--gt-green); }
+
+  .payment-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
+  }
+  .payment-badge.venmo { background: #e8f4fd; color: #008CFF; }
+  .payment-badge.zelle { background: #f0e6ff; color: #6D2FBF; }
+  .payment-badge.paypal { background: #fff4e0; color: #003087; }
+  .payment-badge.cashapp { background: #e6ffe6; color: #00C244; }
+  .payment-badge.bank { background: #f0f0f0; color: #333; }
+  .payment-badge.check { background: #f5f5f5; color: #555; }
+  .payment-badge.other { background: #f5f5f5; color: #555; }
+
+  .table { font-size: 0.84rem; }
+  .table thead th {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom: 2px solid var(--gt-border);
+    padding: 10px 14px;
+  }
+  .table tbody td { padding: 10px 14px; vertical-align: middle; }
+  .table-light { background: var(--gt-surface) !important; }
+
+  .agent-breakdown-card {
+    border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    margin-bottom: 12px; overflow: hidden;
+  }
+  .agent-breakdown-header {
+    padding: 14px 18px; background: var(--gt-surface);
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .agent-breakdown-header:hover { background: #eef0f4; }
+  .agent-breakdown-body { padding: 0; }
+
+  .btn-dark { background: var(--gt-dark); border-color: var(--gt-dark); border-radius: 6px; font-size: 0.82rem; font-weight: 500; }
+  .btn-dark:hover { background: var(--gt-dark-2); }
+  .btn-outline-primary { color: var(--gt-gold); border-color: var(--gt-gold); border-radius: 6px; font-size: 0.82rem; }
+  .btn-outline-primary:hover { background: var(--gt-gold); border-color: var(--gt-gold); color: #fff; }
+
+  .modal-content { border-radius: 12px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+  .modal-header { border-bottom: 1px solid var(--gt-border); padding: 16px 20px; }
+  .modal-title { font-weight: 700; font-size: 1rem; }
+  .modal-body { padding: 20px; }
+  .modal-footer { border-top: 1px solid var(--gt-border); padding: 12px 20px; }
+
+  .section-label {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--gt-muted); margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--gt-border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-label i { color: var(--gt-gold); }
+
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .card, .agent-breakdown-card { animation: fadeSlideIn 0.3s ease both; }
+
+  @media (max-width: 768px) {
+    .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    .info-grid { grid-template-columns: 1fr; }
+    .info-section:first-child { border-right: none; border-bottom: 1px solid var(--gt-border); }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="page-title mb-0">Agency Payout #{{ payout.id }}</h1>
+      <p class="page-subtitle mb-0">{{ agency.name }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-dark btn-sm" data-bs-toggle="modal" data-bs-target="#sendStatementModal">
+        <i class="bi bi-envelope me-1"></i>Email Statement
+      </button>
+      <a href="{% url 'affiliate_payments' %}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Affiliate Payments
+      </a>
+    </div>
+  </div>
+
+  <!-- Summary Strip -->
+  <div class="summary-strip">
+    <div class="sc">
+      <div class="label">Total Amount</div>
+      <div class="value green">${{ payout.total_amount|floatformat:2 }}</div>
+    </div>
+    <div class="sc">
+      <div class="label">Agents</div>
+      <div class="value gold">{{ agent_count }}</div>
+    </div>
+    <div class="sc">
+      <div class="label">Reservations</div>
+      <div class="value">{{ total_reservations }}</div>
+    </div>
+    <div class="sc">
+      <div class="label">Avg Per Agent</div>
+      <div class="value">${{ average_commission|floatformat:2 }}</div>
+    </div>
+  </div>
+
+  <!-- Payout Info Card -->
+  <div class="card mb-4">
+    <div class="info-grid">
+      <div class="info-section">
+        <div class="info-label">Payment Date</div>
+        <div class="info-value">{{ payout.paid_at|date:'F d, Y g:i A' }}</div>
+        <div class="info-label">Period</div>
+        <div class="info-value">{{ payout.payout_period_start|date:'M d, Y' }} — {{ payout.payout_period_end|date:'M d, Y' }}</div>
+        <div class="info-label">Total Amount</div>
+        <div class="info-value big">${{ payout.total_amount|floatformat:2 }}</div>
+      </div>
+      <div class="info-section">
+        <div class="info-label">Agency</div>
+        <div class="info-value">{{ agency.name }}</div>
+        <div class="info-label">Payment Method</div>
+        <div class="info-value">
+          {% if agency.payment_method %}
+            <span class="payment-badge {{ agency.payment_method }}">
+              {{ agency.get_payment_method_display }}{% if agency.payment_info %}: {{ agency.payment_info }}{% endif %}
+            </span>
+          {% else %}
+            <span class="text-muted">Not set</span>
+          {% endif %}
+        </div>
+        {% if agency.phone %}
+        <div class="info-label">Phone</div>
+        <div class="info-value">{{ agency.phone }}</div>
+        {% endif %}
+        <div class="info-label">Agency Heads</div>
+        <div class="info-value">
+          {% for head in agency.heads.all %}
+            {{ head.get_full_name|default:head.email }}{% if not forloop.last %}, {% endif %}
+          {% empty %}
+            <span class="text-muted">None</span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Breakdown -->
+  <div class="section-label">
+    <i class="bi bi-people"></i> Agent Breakdown ({{ agent_count }})
+  </div>
+
+  <!-- Summary Table -->
+  <div class="card mb-4">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Agent</th>
+            <th>Rate</th>
+            <th class="text-center">Reservations</th>
+            <th class="text-end">Amount</th>
+            <th>Period</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for agent_payout in agent_payouts %}
+          <tr>
+            <td>
+              <strong>{{ agent_payout.agent.agent_name }}</strong>
+              <br><small class="text-muted">{{ agent_payout.agent.user.email }}</small>
+            </td>
+            <td>{{ agent_payout.agent.commission_rate }}%</td>
+            <td class="text-center">{{ agent_payout.res_count }}</td>
+            <td class="text-end fw-bold" style="color: var(--gt-green);">${{ agent_payout.total_amount|floatformat:2 }}</td>
+            <td><small>{{ agent_payout.payout_period_start|date:'M d' }} — {{ agent_payout.payout_period_end|date:'M d, Y' }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light">
+          <tr class="fw-bold">
+            <td>Total</td>
+            <td></td>
+            <td class="text-center">{{ total_reservations }}</td>
+            <td class="text-end" style="color: var(--gt-green);">${{ payout.total_amount|floatformat:2 }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Per-Agent Reservation Details -->
+  {% for agent_payout in agent_payouts %}
+  <div class="agent-breakdown-card" style="animation-delay: {{ forloop.counter0 }}00ms;">
+    <div class="agent-breakdown-header" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'; this.querySelector('.chevron').classList.toggle('bi-chevron-down'); this.querySelector('.chevron').classList.toggle('bi-chevron-right');">
+      <div>
+        <strong>{{ agent_payout.agent.agent_name }}</strong>
+        <span class="text-muted ms-2">{{ agent_payout.agent.commission_rate }}% &middot; {{ agent_payout.res_count }} reservation{{ agent_payout.res_count|pluralize }}</span>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <span class="fw-bold" style="font-family: 'JetBrains Mono', monospace; color: var(--gt-green);">${{ agent_payout.total_amount|floatformat:2 }}</span>
+        <i class="bi bi-chevron-right chevron" style="font-size: 0.8rem; color: var(--gt-muted);"></i>
+      </div>
+    </div>
+    <div class="agent-breakdown-body" style="display: none;">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Res #</th>
+              <th>Customer</th>
+              <th>Route</th>
+              <th class="text-end">Base Price</th>
+              <th class="text-end">Commission</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for res in agent_payout.reservations.all %}
+            <tr>
+              <td><a href="{% url 'reservation_details' res.id %}" class="text-decoration-none" style="color: var(--gt-gold);">#{{ res.id }}</a></td>
+              <td>{{ res.customer.get_full_name }}</td>
+              <td>{{ res.rate.route }}</td>
+              <td class="text-end">${{ res.base_price|floatformat:2 }}</td>
+              <td class="text-end fw-bold" style="color: var(--gt-green);">${{ res.commission_amount|floatformat:2 }}</td>
+              <td><small>{{ res.created_at|date:'M d, Y' }}</small></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+<!-- Email Statement Modal -->
+<div class="modal fade" id="sendStatementModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Email Agency Commission Statement</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="{% url 'send_agency_commission_statement' payout.id %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <p class="text-muted mb-3">Send the payout statement with full agent breakdown to the specified email.</p>
+          <div class="mb-3">
+            <label for="recipient_email" class="form-label">Recipient Email</label>
+            <input type="email" class="form-control" id="recipient_email" name="recipient_email"
+                   value="{% for head in agency.heads.all %}{% if forloop.first %}{{ head.email }}{% endif %}{% endfor %}" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dark btn-sm"><i class="bi bi-send me-1"></i>Send Statement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

@@ -1,0 +1,925 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block title %}Affiliate Payments{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gt-gold: #C9A227;
+    --gt-gold-soft: rgba(201,162,39,0.12);
+    --gt-dark: #1a1d21;
+    --gt-dark-2: #23272b;
+    --gt-surface: #f7f8fa;
+    --gt-border: #e2e5ea;
+    --gt-red: #e74c3c;
+    --gt-green: #27ae60;
+    --gt-text: #2c3e50;
+    --gt-muted: #7f8c9b;
+    --gt-radius: 10px;
+  }
+
+  .container-fluid { font-family: 'DM Sans', sans-serif; color: var(--gt-text); }
+
+  /* Page header */
+  .page-title { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; color: var(--gt-dark); }
+  .page-subtitle { font-size: 0.85rem; color: var(--gt-muted); font-weight: 400; }
+
+  /* Summary cards */
+  .summary-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;
+  }
+  .summary-card {
+    background: var(--gt-dark); color: #fff; border-radius: var(--gt-radius);
+    padding: 20px 16px; text-align: center; position: relative; overflow: hidden;
+  }
+  .summary-card::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--gt-gold), transparent);
+  }
+  .summary-card .sc-label {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;
+    color: rgba(255,255,255,0.5); margin-bottom: 6px; font-weight: 500;
+  }
+  .summary-card .sc-value {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.4rem; font-weight: 500;
+  }
+  .summary-card .sc-value.red { color: #ff6b6b; }
+  .summary-card .sc-value.gold { color: var(--gt-gold); }
+
+  /* Filter bar */
+  .filter-bar {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    padding: 10px 16px; margin-bottom: 24px;
+  }
+  .filter-bar .form-control, .filter-bar .form-select {
+    border-color: var(--gt-border); font-size: 0.82rem; border-radius: 6px;
+  }
+  .filter-bar .form-control:focus, .filter-bar .form-select:focus {
+    border-color: var(--gt-gold); box-shadow: 0 0 0 2px var(--gt-gold-soft);
+  }
+  .filter-bar .btn-dark {
+    background: var(--gt-dark); border-color: var(--gt-dark); border-radius: 6px;
+  }
+  .filter-bar .btn-dark:hover { background: var(--gt-dark-2); }
+
+  /* Section labels */
+  .section-label {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--gt-muted); margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--gt-border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-label i { color: var(--gt-gold); }
+
+  /* Entity cards */
+  .card-entity {
+    background: #fff; border: 1px solid var(--gt-border); border-radius: var(--gt-radius);
+    margin-bottom: 10px; transition: all 0.2s ease;
+  }
+  .card-entity:hover { border-color: #ccc; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+  .card-entity.paid {
+    border-color: var(--gt-green); background: linear-gradient(135deg, #f0fdf4, #fff);
+  }
+  .card-entity .entity-header {
+    padding: 14px 18px; cursor: pointer;
+    display: flex; align-items: center; gap: 12px; transition: background 0.15s;
+  }
+  .card-entity .entity-header:hover { background: var(--gt-surface); }
+  .card-entity .entity-body { padding: 0 18px 14px; }
+
+  .entity-expand {
+    transition: transform 0.25s ease; font-size: 0.7rem; color: var(--gt-muted);
+    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    background: var(--gt-surface); border-radius: 4px;
+  }
+  .entity-expand.open { transform: rotate(90deg); background: var(--gt-gold-soft); color: var(--gt-gold); }
+
+  .entity-info { flex: 1; min-width: 0; }
+  .entity-name {
+    font-weight: 600; font-size: 0.92rem; color: var(--gt-dark);
+    margin-bottom: 3px; letter-spacing: -0.2px;
+  }
+  .entity-meta { font-size: 0.78rem; color: var(--gt-muted); line-height: 1.5; }
+
+  .entity-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: relative; z-index: 2; }
+  .entity-actions .dropdown-menu { z-index: 1050; }
+
+  .amount-lg {
+    font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 500;
+    color: var(--gt-red); letter-spacing: -0.5px;
+  }
+  .paid-state .amount-lg { color: var(--gt-green); }
+
+  /* Payment badges */
+  .payment-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .payment-badge.venmo { background: #e8f4fd; color: #008CFF; }
+  .payment-badge.zelle { background: #f0e6ff; color: #6D2FBF; }
+  .payment-badge.paypal { background: #fff4e0; color: #003087; }
+  .payment-badge.cashapp { background: #e6ffe6; color: #00C244; }
+  .payment-badge.bank { background: #f0f0f0; color: #333; }
+  .payment-badge.check { background: #f5f5f5; color: #555; }
+  .payment-badge.other { background: #f5f5f5; color: #555; }
+  .payment-badge.agency { background: var(--gt-gold-soft); color: #9a7b1a; }
+
+  /* Buttons */
+  .btn-dark {
+    background: var(--gt-dark); border-color: var(--gt-dark); border-radius: 6px;
+    font-size: 0.82rem; font-weight: 500; letter-spacing: 0.2px;
+  }
+  .btn-dark:hover { background: var(--gt-dark-2); }
+  .btn-outline-primary {
+    color: var(--gt-gold); border-color: var(--gt-gold); border-radius: 6px; font-size: 0.82rem;
+  }
+  .btn-outline-primary:hover { background: var(--gt-gold); border-color: var(--gt-gold); color: #fff; }
+  .btn-outline-dark { border-radius: 6px; font-size: 0.82rem; }
+
+  /* Preview table */
+  .preview-table th {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom-width: 2px;
+  }
+  .preview-table td { font-size: 0.82rem; }
+
+  /* Payout history */
+  .nav-tabs { border-bottom: 2px solid var(--gt-border); }
+  .nav-tabs .nav-link {
+    font-size: 0.82rem; font-weight: 600; color: var(--gt-muted);
+    border: none; padding: 8px 16px; border-bottom: 2px solid transparent; margin-bottom: -2px;
+  }
+  .nav-tabs .nav-link.active {
+    color: var(--gt-dark); border-bottom-color: var(--gt-gold); background: none;
+  }
+  .nav-tabs .nav-link:hover { color: var(--gt-dark); border-bottom-color: #ddd; }
+
+  /* History tables */
+  .table { font-size: 0.84rem; }
+  .table thead th {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--gt-muted); border-bottom: 2px solid var(--gt-border);
+    padding: 10px 12px;
+  }
+  .table tbody td { padding: 10px 12px; vertical-align: middle; }
+  .table-light { background: var(--gt-surface) !important; }
+
+  /* Modals */
+  .modal-content { border-radius: 12px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+  .modal-header { border-bottom: 1px solid var(--gt-border); padding: 16px 20px; }
+  .modal-title { font-weight: 700; font-size: 1rem; letter-spacing: -0.3px; }
+  .modal-body { padding: 20px; }
+  .modal-footer { border-top: 1px solid var(--gt-border); padding: 12px 20px; }
+
+  /* Pagination */
+  .page-link {
+    color: var(--gt-dark); border-color: var(--gt-border); font-size: 0.82rem;
+    border-radius: 6px !important; margin: 0 2px;
+  }
+  .page-item.active .page-link {
+    background: var(--gt-dark); border-color: var(--gt-dark);
+  }
+
+  /* Paid banner */
+  .paid-banner {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+    background: linear-gradient(135deg, #d1e7dd, #e8f5e9);
+    border-radius: 6px; font-size: 0.85rem; color: #0f5132; margin-bottom: 8px;
+  }
+
+  /* Animations */
+  @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .card-entity { animation: fadeSlideIn 0.3s ease both; }
+  .card-entity:nth-child(2) { animation-delay: 0.03s; }
+  .card-entity:nth-child(3) { animation-delay: 0.06s; }
+  .card-entity:nth-child(4) { animation-delay: 0.09s; }
+  .card-entity:nth-child(5) { animation-delay: 0.12s; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    .entity-actions { flex-wrap: wrap; }
+  }
+</style>
+{% endblock %}
+
+{% block navbar %}{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="page-title mb-0">Affiliate Payments</h1>
+      <p class="page-subtitle mb-0">Process commission payouts for agents and agencies</p>
+    </div>
+    <a href="{% url 'agency_payouts_report' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-binoculars me-1"></i>Affiliate Explorer
+    </a>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="summary-strip">
+    <div class="summary-card">
+      <div class="sc-label">Total Owing</div>
+      <div class="sc-value red">${{ total_owing|floatformat:2 }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Agencies Owing</div>
+      <div class="sc-value gold">{{ total_owing_agencies }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Agents Owing</div>
+      <div class="sc-value gold">{{ total_owing_agents }}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">Total Payouts</div>
+      <div class="sc-value">{{ total_payouts }}</div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" class="form-control" placeholder="Search name, email, agency..." value="{{ search }}">
+        </div>
+      </div>
+      <div class="col-md-2">
+        <select name="show" class="form-select form-select-sm">
+          <option value="owing" {% if show == "owing" %}selected{% endif %}>Owing Only</option>
+          <option value="all" {% if show == "all" %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select name="sort" class="form-select form-select-sm">
+          <option value="amount" {% if sort == "amount" %}selected{% endif %}>Sort: Amount</option>
+          <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
+          <option value="date" {% if sort == "date" %}selected{% endif %}>Sort: Last Paid</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-dark btn-sm w-100"><i class="bi bi-funnel me-1"></i>Filter</button>
+      </div>
+      <div class="col-md-2">
+        <a href="{% url 'affiliate_payments' %}" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- AGENCIES SECTION -->
+  {% if agencies %}
+  <div class="section-label">
+    <i class="bi bi-building me-1"></i>Agencies ({{ agencies|length }} {% if show == "owing" %}owing{% endif %})
+  </div>
+
+  {% for agency in agencies %}
+  <div class="card-entity" id="agency-card-{{ agency.id }}" data-type="agency" data-id="{{ agency.id }}">
+    <div class="entity-header" onclick="toggleExpand(this)">
+      <i class="bi bi-chevron-right entity-expand" id="expand-agency-{{ agency.id }}"></i>
+      <div class="entity-info">
+        <div class="entity-name">{{ agency.name }}</div>
+        <div class="entity-meta">
+          {{ agency.owing_agent_count }} agent{{ agency.owing_agent_count|pluralize }} &middot;
+          {{ agency.unpaid_res_count }} reservation{{ agency.unpaid_res_count|pluralize }} &middot;
+          {% if agency.payment_method %}
+            <span class="payment-badge {{ agency.payment_method }}">
+              {{ agency.get_payment_method_display }}{% if agency.payment_info %}: {{ agency.payment_info|truncatechars:40 }}{% endif %}
+            </span>
+          {% else %}
+            <span class="text-muted">No payment method set</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="entity-actions" onclick="event.stopPropagation();">
+        <span class="amount-lg">${{ agency.unpaid_total|floatformat:2 }}</span>
+        <button class="btn btn-outline-primary btn-sm" onclick="showPreview('agency', {{ agency.id }}, '{{ agency.name|escapejs }}')">
+          <i class="bi bi-eye me-1"></i>Preview
+        </button>
+        <div class="btn-group">
+          <button type="button" class="btn btn-dark btn-sm" onclick="processPayout('agency', {{ agency.id }}, false)">
+            Pay ${{ agency.unpaid_total|floatformat:2 }}
+          </button>
+          <button type="button" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="visually-hidden">Toggle Dropdown</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#" onclick="processPayout('agency', {{ agency.id }}, false); return false;">
+              <i class="bi bi-cash me-2"></i>Pay Only</a></li>
+            <li><a class="dropdown-item" href="#" onclick="processPayout('agency', {{ agency.id }}, true); return false;">
+              <i class="bi bi-envelope-check me-2"></i>Pay & Email</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="entity-body" id="detail-agency-{{ agency.id }}" style="display:none;"></div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- INDIVIDUAL AGENTS SECTION -->
+  <div class="section-label mt-4">
+    <i class="bi bi-person me-1"></i>Individual Agents ({{ agents_page_obj.paginator.count }} {% if show == "owing" %}owing{% endif %})
+  </div>
+
+  {% for agent in agents_page_obj %}
+  <div class="card-entity" id="agent-card-{{ agent.id }}" data-type="agent" data-id="{{ agent.id }}">
+    <div class="entity-header" onclick="toggleExpand(this)">
+      <i class="bi bi-chevron-right entity-expand" id="expand-agent-{{ agent.id }}"></i>
+      <div class="entity-info">
+        <div class="entity-name">{{ agent.agent_name|default:agent.user.username }}</div>
+        <div class="entity-meta">
+          {% if agent.agency %}Under: {{ agent.agency.name }} (pays agent directly) &middot; {% else %}Independent &middot; {% endif %}
+          {{ agent.commission_rate }}% &middot;
+          {{ agent.unpaid_res_count }} reservation{{ agent.unpaid_res_count|pluralize }} &middot;
+          {% if agent.payment_method %}
+            <span class="payment-badge {{ agent.payment_method }}">
+              {{ agent.get_payment_method_display }}{% if agent.payment_info %}: {{ agent.payment_info|truncatechars:40 }}{% endif %}
+            </span>
+          {% else %}
+            <span class="text-muted">No payment method</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="entity-actions" onclick="event.stopPropagation();">
+        <span class="amount-lg">${{ agent.unpaid_commissions|floatformat:2 }}</span>
+        <button class="btn btn-outline-primary btn-sm" onclick="showPreview('agent', {{ agent.id }}, '{{ agent.agent_name|default:agent.user.username|escapejs }}')">
+          <i class="bi bi-eye me-1"></i>Preview
+        </button>
+        {% if agent.unpaid_commissions > 0 %}
+        <div class="btn-group">
+          <button type="button" class="btn btn-dark btn-sm" onclick="processPayout('agent', {{ agent.id }}, false)">
+            Pay ${{ agent.unpaid_commissions|floatformat:2 }}
+          </button>
+          <button type="button" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="visually-hidden">Toggle Dropdown</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" href="#" onclick="processPayout('agent', {{ agent.id }}, false); return false;">
+              <i class="bi bi-cash me-2"></i>Pay Only</a></li>
+            <li><a class="dropdown-item" href="#" onclick="processPayout('agent', {{ agent.id }}, true); return false;">
+              <i class="bi bi-envelope-check me-2"></i>Pay & Email</a></li>
+          </ul>
+        </div>
+        {% else %}
+        <span class="badge bg-secondary">Paid Up</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="entity-body" id="detail-agent-{{ agent.id }}" style="display:none;"></div>
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-4">No agents found.</div>
+  {% endfor %}
+
+  <!-- Pagination -->
+  {% if agents_page_obj.has_other_pages %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center">
+      {% if agents_page_obj.has_previous %}
+        <li class="page-item">
+          <a class="page-link" href="?agents_page={{ agents_page_obj.previous_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}">&laquo;</a>
+        </li>
+      {% endif %}
+      {% for num in agents_page_obj.paginator.page_range %}
+        {% if agents_page_obj.number == num %}
+          <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num > agents_page_obj.number|add:"-3" and num < agents_page_obj.number|add:"3" %}
+          <li class="page-item">
+            <a class="page-link" href="?agents_page={{ num }}&q={{ search }}&show={{ show }}&sort={{ sort }}">{{ num }}</a>
+          </li>
+        {% endif %}
+      {% endfor %}
+      {% if agents_page_obj.has_next %}
+        <li class="page-item">
+          <a class="page-link" href="?agents_page={{ agents_page_obj.next_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}">&raquo;</a>
+        </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  <!-- PAYOUT HISTORY -->
+  <div class="section-label mt-5">
+    <i class="bi bi-clock-history me-1"></i>Payout History
+  </div>
+
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item">
+      <button class="nav-tab-btn nav-link {% if history_tab == 'agency' %}active{% endif %}"
+              id="agency-history-tab" data-bs-toggle="tab" data-bs-target="#agency-history"
+              type="button" role="tab">
+        Agency Payouts ({{ agency_payouts_page_obj.paginator.count }})
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-tab-btn nav-link {% if history_tab == 'agent' %}active{% endif %}"
+              id="agent-history-tab" data-bs-toggle="tab" data-bs-target="#agent-history"
+              type="button" role="tab">
+        Agent Payouts ({{ agent_payouts_page_obj.paginator.count }})
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+    <!-- Agency Payouts Tab -->
+    <div class="tab-pane fade {% if history_tab == 'agency' %}show active{% endif %}" id="agency-history" role="tabpanel">
+      {% if agency_payouts_page_obj %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Agency</th>
+              <th>Agents</th>
+              <th>Amount</th>
+              <th>Period</th>
+              <th>Paid At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payout in agency_payouts_page_obj %}
+            <tr>
+              <td>#{{ payout.id }}</td>
+              <td>
+                <strong>{{ payout.agency.name }}</strong>
+                {% if payout.agency.payment_method %}
+                  <br><span class="payment-badge {{ payout.agency.payment_method }}">{{ payout.agency.get_payment_method_display }}</span>
+                {% endif %}
+              </td>
+              <td>{{ payout.agent_payouts.count }}</td>
+              <td class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</td>
+              <td>{{ payout.payout_period_start|date:"M d, Y" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
+              <td>{{ payout.paid_at|date:"M d, Y g:i A" }}</td>
+              <td>
+                <a href="{% url 'admin_agency_payout_detail' payout.id %}" class="btn btn-outline-primary btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <button class="btn btn-outline-dark btn-sm" onclick="openEmailModal('agency', {{ payout.id }})" title="Email Statement">
+                  <i class="bi bi-envelope"></i>
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if agency_payouts_page_obj.has_other_pages %}
+      <nav>
+        <ul class="pagination pagination-sm justify-content-center">
+          {% if agency_payouts_page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?ap_page={{ agency_payouts_page_obj.previous_page_number }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}">&laquo;</a></li>
+          {% endif %}
+          {% for num in agency_payouts_page_obj.paginator.page_range %}
+            {% if agency_payouts_page_obj.number == num %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > agency_payouts_page_obj.number|add:"-3" and num < agency_payouts_page_obj.number|add:"3" %}
+              <li class="page-item"><a class="page-link" href="?ap_page={{ num }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if agency_payouts_page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?ap_page={{ agency_payouts_page_obj.next_page_number }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}">&raquo;</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="text-muted text-center py-3">No agency payouts yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Agent Payouts Tab -->
+    <div class="tab-pane fade {% if history_tab == 'agent' %}show active{% endif %}" id="agent-history" role="tabpanel">
+      {% if agent_payouts_page_obj %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Agent</th>
+              <th>Agency</th>
+              <th>Amount</th>
+              <th>Period</th>
+              <th>Paid At</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payout in agent_payouts_page_obj %}
+            <tr>
+              <td>#{{ payout.id }}</td>
+              <td>
+                <strong>{{ payout.agent.agent_name|default:payout.agent.user.username }}</strong>
+                <br><small class="text-muted">{{ payout.agent.user.email }}</small>
+              </td>
+              <td>{{ payout.agency.name|default:"Independent" }}</td>
+              <td class="fw-bold text-success">${{ payout.total_amount|floatformat:2 }}</td>
+              <td>{{ payout.payout_period_start|date:"M d, Y" }} - {{ payout.payout_period_end|date:"M d, Y" }}</td>
+              <td>{{ payout.paid_at|date:"M d, Y g:i A" }}</td>
+              <td>
+                <a href="{% url 'admin_agent_payout_detail' payout.pk %}" class="btn btn-outline-primary btn-sm" title="View Details">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <button class="btn btn-outline-dark btn-sm" onclick="openEmailModal('agent', {{ payout.id }})" title="Email Statement">
+                  <i class="bi bi-envelope"></i>
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if agent_payouts_page_obj.has_other_pages %}
+      <nav>
+        <ul class="pagination pagination-sm justify-content-center">
+          {% if agent_payouts_page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?cp_page={{ agent_payouts_page_obj.previous_page_number }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}">&laquo;</a></li>
+          {% endif %}
+          {% for num in agent_payouts_page_obj.paginator.page_range %}
+            {% if agent_payouts_page_obj.number == num %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > agent_payouts_page_obj.number|add:"-3" and num < agent_payouts_page_obj.number|add:"3" %}
+              <li class="page-item"><a class="page-link" href="?cp_page={{ num }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+          {% if agent_payouts_page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?cp_page={{ agent_payouts_page_obj.next_page_number }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}">&raquo;</a></li>
+          {% endif %}
+        </ul>
+      </nav>
+      {% endif %}
+      {% else %}
+      <p class="text-muted text-center py-3">No agent payouts yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="previewModalTitle">Payout Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="previewModalBody">
+        <div class="text-center py-4"><div class="spinner-border text-dark"></div></div>
+      </div>
+      <div class="modal-footer" id="previewModalFooter"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Pay Modal -->
+<div class="modal fade" id="confirmPayModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Payout</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="confirmPayBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-dark" id="confirmPayBtn" onclick="executePayment()">
+          <i class="bi bi-check-lg me-1"></i>Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Email Statement Modal -->
+<div class="modal fade" id="emailStatementModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Email Commission Statement</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3">Send the commission statement for this payout.</p>
+        <div class="mb-3">
+          <label for="statementEmail" class="form-label">Recipient Email</label>
+          <input type="email" class="form-control" id="statementEmail" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-dark" id="sendStatementBtn">
+          <i class="bi bi-send me-1"></i>Send Statement
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const URLS = {
+  previewAgent: '{% url "preview_agent_payout" %}',
+  previewAgency: '{% url "preview_agency_payout" %}',
+  processAgent: '{% url "process_agent_payout" %}',
+  processAgency: '{% url "process_agency_payout" %}',
+  sendAgentStatement: '/users/commission-payout/__ID__/send-statement/',
+  sendAgencyStatement: '/users/agency_commission_payout/__ID__/send-statement/',
+};
+
+// Track pending payment for confirm modal
+let pendingPayment = null;
+
+function toggleExpand(headerEl) {
+  const card = headerEl.closest('.card-entity');
+  const type = card.dataset.type;
+  const id = card.dataset.id;
+  const detailEl = document.getElementById(`detail-${type}-${id}`);
+  const expandIcon = document.getElementById(`expand-${type}-${id}`);
+
+  if (detailEl.style.display === 'none') {
+    expandIcon.classList.add('open');
+    detailEl.style.display = 'block';
+
+    // Load preview if empty
+    if (!detailEl.innerHTML.trim()) {
+      detailEl.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-dark"></div></div>';
+      const url = type === 'agency' ? URLS.previewAgency : URLS.previewAgent;
+      fetch(`${url}?id=${id}`)
+        .then(r => r.json())
+        .then(data => {
+          detailEl.innerHTML = renderInlinePreview(type, data);
+        })
+        .catch(() => {
+          detailEl.innerHTML = '<p class="text-danger px-3">Failed to load preview.</p>';
+        });
+    }
+  } else {
+    expandIcon.classList.remove('open');
+    detailEl.style.display = 'none';
+  }
+}
+
+function renderInlinePreview(type, data) {
+  if (type === 'agent') {
+    if (!data.reservations || data.reservations.length === 0) {
+      return '<p class="text-muted px-3 py-2">No unpaid completed reservations.</p>';
+    }
+    let html = '<table class="table table-sm preview-table mb-0"><thead><tr class="table-light">';
+    html += '<th>Res #</th><th>Customer</th><th>Route</th><th>Base Price</th><th>Commission</th><th>Date</th>';
+    html += '</tr></thead><tbody>';
+    data.reservations.forEach(r => {
+      html += `<tr><td>#${r.id}</td><td>${r.customer}</td><td>${r.route}</td>`;
+      html += `<td>$${r.base_price}</td><td class="text-success fw-bold">$${r.commission}</td><td>${r.date}</td></tr>`;
+    });
+    html += `</tbody><tfoot><tr class="table-light"><td colspan="4" class="text-end fw-bold">Total:</td>`;
+    html += `<td class="text-success fw-bold">$${data.total}</td><td></td></tr></tfoot></table>`;
+    return html;
+  } else {
+    // Agency
+    if (!data.agents || data.agents.length === 0) {
+      return '<p class="text-muted px-3 py-2">No agents with unpaid completed reservations.</p>';
+    }
+    let html = '<table class="table table-sm preview-table mb-0"><thead><tr class="table-light">';
+    html += '<th>Agent</th><th>Rate</th><th>Reservations</th><th>Subtotal</th>';
+    html += '</tr></thead><tbody>';
+    data.agents.forEach(a => {
+      html += `<tr><td>${a.agent_name}<br><small class="text-muted">${a.email}</small></td>`;
+      html += `<td>${a.commission_rate}%</td><td>${a.count}</td>`;
+      html += `<td class="text-success fw-bold">$${a.subtotal}</td></tr>`;
+    });
+    html += `</tbody><tfoot><tr class="table-light"><td colspan="3" class="text-end fw-bold">Total:</td>`;
+    html += `<td class="text-success fw-bold">$${data.total}</td></tr></tfoot></table>`;
+    return html;
+  }
+}
+
+function showPreview(type, id, name) {
+  const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+  document.getElementById('previewModalTitle').textContent = `Payout Preview — ${name}`;
+  document.getElementById('previewModalBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-dark"></div></div>';
+  document.getElementById('previewModalFooter').innerHTML = '';
+  modal.show();
+
+  const url = type === 'agency' ? URLS.previewAgency : URLS.previewAgent;
+  fetch(`${url}?id=${id}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('previewModalBody').innerHTML = renderInlinePreview(type, data);
+      document.getElementById('previewModalFooter').innerHTML = `
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-dark" onclick="bootstrap.Modal.getInstance(document.getElementById('previewModal')).hide(); processPayout('${type}', ${id}, false);">
+          <i class="bi bi-cash me-1"></i>Pay $${data.total}
+        </button>
+        <button type="button" class="btn btn-outline-dark" onclick="bootstrap.Modal.getInstance(document.getElementById('previewModal')).hide(); processPayout('${type}', ${id}, true);">
+          <i class="bi bi-envelope-check me-1"></i>Pay & Email
+        </button>
+      `;
+    })
+    .catch(() => {
+      document.getElementById('previewModalBody').innerHTML = '<p class="text-danger">Failed to load preview.</p>';
+    });
+}
+
+function processPayout(type, id, sendEmail) {
+  // Show confirmation modal
+  const card = document.getElementById(`${type}-card-${id}`);
+  const name = card.querySelector('.entity-name').textContent;
+  const amount = card.querySelector('.amount-lg').textContent;
+
+  pendingPayment = { type, id, sendEmail };
+
+  let msg = `<p>Process commission payout for <strong>${name}</strong>?</p>`;
+  msg += `<p class="h4 text-success">${amount}</p>`;
+  if (sendEmail) {
+    msg += '<p class="text-muted"><i class="bi bi-envelope me-1"></i>A statement email will be sent automatically.</p>';
+  }
+
+  document.getElementById('confirmPayBody').innerHTML = msg;
+  const confirmModal = new bootstrap.Modal(document.getElementById('confirmPayModal'));
+  confirmModal.show();
+}
+
+function executePayment() {
+  if (!pendingPayment) return;
+
+  const { type, id, sendEmail } = pendingPayment;
+  const btn = document.getElementById('confirmPayBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Processing...';
+
+  const url = type === 'agency' ? URLS.processAgency : URLS.processAgent;
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': CSRF_TOKEN,
+    },
+    body: JSON.stringify({ id, send_email: sendEmail }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    bootstrap.Modal.getInstance(document.getElementById('confirmPayModal')).hide();
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Confirm';
+
+    if (data.success) {
+      updateCardToPaid(type, id, data);
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error'));
+    }
+  })
+  .catch(err => {
+    bootstrap.Modal.getInstance(document.getElementById('confirmPayModal')).hide();
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Confirm';
+    alert('Network error. Please try again.');
+  });
+
+  pendingPayment = null;
+}
+
+function updateCardToPaid(type, id, data) {
+  const card = document.getElementById(`${type}-card-${id}`);
+  card.classList.add('paid');
+
+  const header = card.querySelector('.entity-header');
+  const actionsEl = card.querySelector('.entity-actions');
+
+  // Update amount display
+  const amountEl = actionsEl.querySelector('.amount-lg');
+  if (amountEl) {
+    amountEl.textContent = `Paid $${parseFloat(data.amount).toFixed(2)}`;
+    amountEl.style.color = '#198754';
+  }
+
+  // Replace action buttons with post-payment actions
+  let emailInfo = '';
+  if (data.email_sent_to) {
+    emailInfo = `<small class="text-muted d-block mt-1">Statement sent to ${data.email_sent_to}</small>`;
+  }
+
+  // Build payout URL
+  let viewUrl = data.payout_url;
+
+  // Build email statement URL
+  let emailStatementUrl;
+  if (type === 'agency') {
+    emailStatementUrl = URLS.sendAgencyStatement.replace('__ID__', data.payout_id);
+  } else {
+    emailStatementUrl = URLS.sendAgentStatement.replace('__ID__', data.payout_id);
+  }
+
+  actionsEl.innerHTML = `
+    <div class="paid-state">
+      <span class="amount-lg" style="color: #198754;">Paid $${parseFloat(data.amount).toFixed(2)}</span>
+      ${emailInfo}
+    </div>
+    <a href="${viewUrl}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-eye me-1"></i>View Payout
+    </a>
+    <button class="btn btn-outline-dark btn-sm" onclick="openEmailModal('${type}', ${data.payout_id})">
+      <i class="bi bi-envelope me-1"></i>Email Statement
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="dismissCard('${type}', ${id})">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  `;
+
+  // Clear any expanded detail (it's now stale)
+  const detailEl = document.getElementById(`detail-${type}-${id}`);
+  if (detailEl) {
+    detailEl.style.display = 'none';
+    detailEl.innerHTML = '';
+  }
+
+  // Update summary stats
+  updateSummaryStats();
+}
+
+function dismissCard(type, id) {
+  const card = document.getElementById(`${type}-card-${id}`);
+  card.style.transition = 'opacity 0.3s';
+  card.style.opacity = '0';
+  setTimeout(() => card.remove(), 300);
+}
+
+function openEmailModal(type, payoutId) {
+  document.getElementById('statementEmail').value = '';
+  const modal = new bootstrap.Modal(document.getElementById('emailStatementModal'));
+  modal.show();
+
+  const sendBtn = document.getElementById('sendStatementBtn');
+  sendBtn.onclick = function() {
+    const email = document.getElementById('statementEmail').value;
+    if (!email) return;
+
+    let url;
+    if (type === 'agency') {
+      url = URLS.sendAgencyStatement.replace('__ID__', payoutId);
+    } else {
+      url = URLS.sendAgentStatement.replace('__ID__', payoutId);
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+
+    // Submit as form POST (existing view expects form data)
+    const form = new FormData();
+    form.append('recipient_email', email);
+    form.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+    fetch(url, {
+      method: 'POST',
+      body: form,
+    })
+    .then(r => {
+      if (r.redirected || r.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('emailStatementModal')).hide();
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="bi bi-send me-1"></i>Send Statement';
+        // Show success toast or alert
+        alert('Statement email sent successfully!');
+      } else {
+        throw new Error('Failed to send');
+      }
+    })
+    .catch(() => {
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = '<i class="bi bi-send me-1"></i>Send Statement';
+      alert('Failed to send email. Please try again.');
+    });
+  };
+}
+
+function updateSummaryStats() {
+  setTimeout(() => {
+    fetch(window.location.href)
+      .then(r => r.text())
+      .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const newCards = doc.querySelectorAll('.summary-card');
+        const currentCards = document.querySelectorAll('.summary-card');
+        newCards.forEach((newCard, i) => {
+          if (currentCards[i]) {
+            currentCards[i].querySelector('.sc-value').textContent = newCard.querySelector('.sc-value').textContent;
+          }
+        });
+      })
+      .catch(() => {});
+  }, 1000);
+}
+</script>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

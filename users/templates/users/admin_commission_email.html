@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; }
+    .header { background: #0d1117; color: #fff; padding: 24px 30px; }
+    .header h1 { margin: 0 0 4px; font-size: 22px; }
+    .header p { margin: 0; color: #8b949e; font-size: 13px; }
+    .body-content { padding: 24px 30px; }
+    .stats { display: flex; gap: 12px; margin-bottom: 24px; }
+    .stat { flex: 1; background: #f8f9fa; border-radius: 6px; padding: 14px; text-align: center; }
+    .stat .label { font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+    .stat .value.green { color: #198754; }
+    .stat .value.red { color: #dc3545; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #f1f3f5; text-align: left; padding: 8px 10px; font-weight: 600; border-bottom: 2px solid #dee2e6; }
+    td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+    .amount { color: #198754; font-weight: 600; }
+    .payout-section { margin-bottom: 28px; border: 1px solid #e9ecef; border-radius: 6px; overflow: hidden; }
+    .payout-header { background: #f8f9fa; padding: 12px 16px; border-bottom: 1px solid #dee2e6; }
+    .payout-header h3 { margin: 0; font-size: 15px; }
+    .payout-header .meta { font-size: 12px; color: #6c757d; margin-top: 4px; }
+    .payout-body { padding: 0; }
+    .view-link { display: inline-block; margin-top: 8px; color: #0d6efd; text-decoration: none; font-size: 12px; }
+    .view-link:hover { text-decoration: underline; }
+    .total-row td { font-weight: 700; background: #f8f9fa; border-top: 2px solid #dee2e6; }
+    .footer { padding: 16px 30px; background: #f8f9fa; text-align: center; font-size: 12px; color: #6c757d; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Commission Payouts Report</h1>
+      <p>Generated {{ generated_at|date:"F d, Y g:i A" }} &middot; Period: {{ date_from }} &ndash; {{ date_to }}</p>
+    </div>
+    <div class="body-content">
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Total Paid</div>
+          <div class="value green">${{ total_paid }}</div>
+        </div>
+        <div class="stat">
+          <div class="label">Unpaid</div>
+          <div class="value red">${{ total_unpaid }}</div>
+        </div>
+        <div class="stat">
+          <div class="label">Payouts</div>
+          <div class="value">{{ total_payouts }}</div>
+        </div>
+      </div>
+
+      {% if payouts %}
+        {% for payout in payouts %}
+          <div class="payout-section">
+            <div class="payout-header">
+              <h3>{{ payout.agent.agent_name }} &mdash; ${{ payout.total_amount|floatformat:2 }}</h3>
+              <div class="meta">
+                {% if payout.agency %}{{ payout.agency.name }} &middot; {% endif %}
+                {{ payout.agent.commission_rate }}% rate &middot;
+                {{ payout.payout_period_start|date:"M d" }} &ndash; {{ payout.payout_period_end|date:"M d, Y" }} &middot;
+                Paid {{ payout.paid_at|date:"M d, Y" }}
+              </div>
+              <a href="{{ site_url }}{% url 'commission_payout_detail' payout.pk %}" class="view-link">View Full Payout Details &rarr;</a>
+            </div>
+            <div class="payout-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Res #</th>
+                    <th>Customer</th>
+                    <th>Route</th>
+                    <th>Base Price</th>
+                    <th>Gratuity</th>
+                    <th>Total</th>
+                    <th>Commission</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for res in payout.reservations.all %}
+                    <tr>
+                      <td>#{{ res.id }}</td>
+                      <td>{{ res.customer.get_full_name }}</td>
+                      <td>
+                        {% if res.rate and res.rate.route %}
+                          {{ res.rate.route.origin }} &rarr; {{ res.rate.route.destination }}
+                        {% endif %}
+                      </td>
+                      <td>${{ res.base_price|floatformat:2 }}</td>
+                      <td>${{ res.gratuity_amount|floatformat:2 }}</td>
+                      <td>${{ res.total_price|floatformat:2 }}</td>
+                      <td class="amount">${{ res.commission_amount|floatformat:2 }}</td>
+                      <td>{{ res.created_at|date:"M d, Y" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="6" style="text-align: right;">Total Commission:</td>
+                    <td class="amount">${{ payout.total_amount|floatformat:2 }}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        {% endfor %}
+
+        {% if total_payouts > 50 %}
+          <p style="margin-top: 12px; font-size: 12px; color: #6c757d; text-align: center;">
+            Showing first 50 of {{ total_payouts }} payouts. Export CSV for the complete dataset.
+          </p>
+        {% endif %}
+      {% else %}
+        <p style="text-align: center; color: #6c757d; padding: 20px;">No commission payouts found for this period.</p>
+      {% endif %}
+
+      <div style="margin-top: 20px; text-align: center;">
+        <a href="{{ site_url }}{% url 'admin_commission_report' %}"
+           style="display: inline-block; background: #0d1117; color: #fff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-size: 14px;">
+          View Full Report Dashboard
+        </a>
+      </div>
+    </div>
+    <div class="footer">
+      Grayson Towncar &middot; Commission Report
+    </div>
+  </div>
+</body>
+</html>
