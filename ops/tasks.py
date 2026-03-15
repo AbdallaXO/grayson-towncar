@@ -7,7 +7,7 @@ against existing open tasks, and bulk-creates new ones.
 """
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 
@@ -16,6 +16,190 @@ from .services import create_task, close_task
 
 logger = logging.getLogger(__name__)
 
+# ── Constants ────────────────────────────────────────────────────────────────
+
+# Minutes after flight gate arrival before passenger is realistically ready.
+# Prevents false driver conflicts for back-to-back airport pickups.
+AIRPORT_ARRIVAL_GRACE_MINUTES = 15
+
+# Default estimated trip duration when no RouteTimingMetric data exists.
+FALLBACK_TRIP_DURATION_MINUTES = 75
+
+# Mismatch severity thresholds (minutes)
+MINOR_THRESHOLD = 30
+MODERATE_THRESHOLD = 60
+MAJOR_THRESHOLD = 120
+
+# Priority matrix: (severity_tier, days_until_bucket) → Priority
+# severity_tier: "minor" (30-60min), "moderate" (60-120min), "major" (120+min)
+# days_bucket: "imminent" (1-2d), "soon" (3-5d), "distant" (6-7d)
+# Note: same-day (0d) is handled separately as driver conflict → always CRITICAL.
+# CRITICAL is reserved for same-day only. Future tasks max out at HIGH.
+_PRIORITY_MATRIX = {
+    ("minor", "imminent"): OperationalTask.Priority.MEDIUM,
+    ("minor", "soon"): OperationalTask.Priority.LOW,
+    ("minor", "distant"): OperationalTask.Priority.LOW,
+    ("moderate", "imminent"): OperationalTask.Priority.HIGH,
+    ("moderate", "soon"): OperationalTask.Priority.MEDIUM,
+    ("moderate", "distant"): OperationalTask.Priority.LOW,
+    ("major", "imminent"): OperationalTask.Priority.HIGH,
+    ("major", "soon"): OperationalTask.Priority.MEDIUM,
+    ("major", "distant"): OperationalTask.Priority.LOW,
+}
+
+# Escalation delays per priority level
+_ESCALATION_DELAYS = {
+    OperationalTask.Priority.CRITICAL: timedelta(hours=0),
+    OperationalTask.Priority.HIGH: timedelta(hours=4),
+    OperationalTask.Priority.MEDIUM: timedelta(hours=8),
+    OperationalTask.Priority.LOW: timedelta(hours=24),
+}
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _get_severity_tier(mismatch_minutes):
+    """Classify mismatch into minor/moderate/major."""
+    if mismatch_minutes >= MAJOR_THRESHOLD:
+        return "major"
+    elif mismatch_minutes >= MODERATE_THRESHOLD:
+        return "moderate"
+    return "minor"
+
+
+def _get_days_bucket(days_until):
+    """Classify days-until-pickup into imminent/soon/distant."""
+    if days_until <= 2:
+        return "imminent"
+    elif days_until <= 5:
+        return "soon"
+    return "distant"
+
+
+def _get_flight_priority(mismatch_minutes, days_until):
+    """Look up priority from the severity × proximity matrix."""
+    severity = _get_severity_tier(mismatch_minutes)
+    bucket = _get_days_bucket(days_until)
+    return _PRIORITY_MATRIX.get((severity, bucket), OperationalTask.Priority.MEDIUM)
+
+
+def _estimate_leg_end_time(leg, target_date):
+    """
+    Estimate when a driver finishes a leg. Reuses the existing scheduling engine.
+    Falls back to pickup_time + FALLBACK_TRIP_DURATION_MINUTES if the scheduler
+    function is unavailable.
+    """
+    try:
+        from dispatching.scheduler import estimate_job_end_time
+        return estimate_job_end_time(leg, target_date)
+    except Exception:
+        pickup_dt = datetime.combine(target_date, leg.pickup_time)
+        return pickup_dt + timedelta(minutes=FALLBACK_TRIP_DURATION_MINUTES)
+
+
+def _get_effective_ready_time(leg, target_date):
+    """
+    For airport arrival legs: flight_arrival + AIRPORT_ARRIVAL_GRACE_MINUTES
+    (passenger needs time to deplane, walk to pickup).
+    For all other legs: just the pickup_time.
+    """
+    trip_type = leg.get_trip_type()
+
+    if trip_type == "arrival" and leg.flight_information:
+        try:
+            from dispatching.scheduler import _get_best_flight_arrival
+            flight_dt = _get_best_flight_arrival(leg)
+            if flight_dt:
+                # Normalize to target_date
+                flight_dt = datetime.combine(target_date, flight_dt.time())
+                return flight_dt + timedelta(minutes=AIRPORT_ARRIVAL_GRACE_MINUTES)
+        except Exception:
+            pass
+
+    return datetime.combine(target_date, leg.pickup_time)
+
+
+def detect_driver_conflicts(leg, target_date):
+    """
+    For a given leg with a shifted flight time, check if the assigned in-house
+    driver has any conflicting legs on the same day.
+
+    Returns a list of conflict dicts, each containing:
+      - conflicting_leg: the Leg object that conflicts
+      - driver_clears_at: datetime when driver finishes the prior leg
+      - effective_ready: datetime when passenger is ready for the checked leg
+      - conflict_minutes: how many minutes late the driver would be
+
+    Only evaluates in-house drivers. Returns empty list for affiliates or
+    unassigned legs.
+    """
+    from reservations.models import Leg
+
+    if not leg.driver_id:
+        return []
+
+    driver = leg.driver
+    # Skip affiliates
+    if getattr(driver, "driver_type", "affiliate") != "inhouse":
+        return []
+
+    # Get all other same-day legs for this driver
+    other_legs = (
+        Leg.objects.filter(
+            driver=driver,
+            pickup_date=target_date,
+        )
+        .exclude(pk=leg.pk)
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .select_related("flight_information", "reservation", "reservation__customer")
+        .order_by("pickup_time")
+    )
+
+    if not other_legs.exists():
+        return []
+
+    # The effective ready time for THIS leg (the one with the shifted flight)
+    this_ready_time = _get_effective_ready_time(leg, target_date)
+    this_end_time = _estimate_leg_end_time(leg, target_date)
+
+    conflicts = []
+
+    for other in other_legs:
+        other_ready_time = _get_effective_ready_time(other, target_date)
+        other_end_time = _estimate_leg_end_time(other, target_date)
+
+        # Check two directions:
+        # 1. Does THIS leg's shifted time cause the driver to be late for OTHER leg?
+        #    i.e., this_end_time > other_ready_time (and this leg is before other)
+        if this_end_time > other_ready_time and this_ready_time < other_ready_time:
+            conflict_minutes = int((this_end_time - other_ready_time).total_seconds() / 60)
+            if conflict_minutes > 0:
+                conflicts.append({
+                    "conflicting_leg": other,
+                    "driver_clears_at": this_end_time,
+                    "effective_ready": other_ready_time,
+                    "conflict_minutes": conflict_minutes,
+                    "direction": "this_delays_other",
+                })
+
+        # 2. Does OTHER leg cause driver to be late for THIS shifted leg?
+        #    i.e., other_end_time > this_ready_time (and other leg is before this)
+        if other_end_time > this_ready_time and other_ready_time < this_ready_time:
+            conflict_minutes = int((other_end_time - this_ready_time).total_seconds() / 60)
+            if conflict_minutes > 0:
+                conflicts.append({
+                    "conflicting_leg": other,
+                    "driver_clears_at": other_end_time,
+                    "effective_ready": this_ready_time,
+                    "conflict_minutes": conflict_minutes,
+                    "direction": "other_delays_this",
+                })
+
+    return conflicts
+
+
+# ── Main entry point ─────────────────────────────────────────────────────────
 
 def generate_ops_tasks():
     """
@@ -27,9 +211,10 @@ def generate_ops_tasks():
     reopened = 0
 
     created += _scan_flight_mismatches()
-    created += _scan_upcoming_confirmations()
+    created += _scan_driver_overlaps()
     created += _scan_unassigned_legs()
     created += _scan_unpaid_reservations()
+    created += _scan_uncontacted_forms()
     closed += _auto_close_resolved_tasks()
     reopened += _reopen_snoozed_tasks()
 
@@ -44,166 +229,356 @@ def generate_ops_tasks():
     return {"created": created, "closed": closed, "reopened": reopened, "escalated": escalated}
 
 
+# ── Flight mismatch scanner ─────────────────────────────────────────────────
+
 def _scan_flight_mismatches():
     """
-    Create flight_verify tasks for arrival legs (tomorrow and day-after)
-    where the flight time diverges from the booked pickup time by 30+ min.
+    Scan arrival legs for the next 7 days for flight time mismatches.
+
+    Same-day legs: check for real driver conflicts (in-house only).
+      - True conflict → CRITICAL driver_conflict task
+      - No conflict → skip (minor shifts are normal, just "Match Flight Time")
+      - Unassigned leg → skip conflict check (no driver to conflict with)
+
+    Future legs (1-7 days): create flight_verify tasks with tiered priority
+    based on mismatch severity × days until pickup.
     """
     from reservations.models import Leg
 
     now = timezone.now()
     today = timezone.localdate()
-    tomorrow = today + timedelta(days=1)
-    day_after = today + timedelta(days=2)
+    horizon = today + timedelta(days=7)
 
     legs = (
         Leg.objects.filter(
-            pickup_date__in=[tomorrow, day_after],
+            pickup_date__range=[today, horizon],
             flight_information__isnull=False,
         )
         .exclude(status__in=["completed", "cancelled"])
         .exclude(reservation__status="cancelled")
-        .select_related("flight_information", "reservation", "reservation__customer")
+        .select_related(
+            "flight_information", "reservation", "reservation__customer",
+            "driver",
+        )
     )
 
     created = 0
     for leg in legs:
         if leg.get_trip_type() != "arrival":
             continue
-        if not leg.has_flight_time_mismatch(threshold_minutes=30):
+        if not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
             continue
 
         mismatch = leg.get_flight_time_mismatch_display()
         if not mismatch:
             continue
 
+        days_until = (leg.pickup_date - today).days
+        is_same_day = (days_until == 0)
+
         customer_name = leg.reservation.customer.get_full_name()
         flight = leg.flight_information
-        flight_label = f"{flight.airline_display_name or flight.airline or ''} {flight.flight_number or ''}".strip()
+        flight_label = (
+            f"{flight.airline_display_name or flight.airline or ''} "
+            f"{flight.flight_number or ''}"
+        ).strip()
 
-        task = create_task(
-            task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-            title=f"Flight mismatch: {customer_name} — {flight_label} {mismatch['label']}",
-            due_at=now,
-            priority=OperationalTask.Priority.HIGH,
-            description=(
-                f"Pickup at {leg.pickup_time:%I:%M %p} but flight is {mismatch['label']}. "
-                f"Call guest to verify correct pickup time."
-            ),
-            leg=leg,
-            reservation=leg.reservation,
-            escalate_at=now + timedelta(hours=4),
-            metadata={
-                "mismatch_direction": mismatch["direction"],
-                "mismatch_minutes": mismatch["minutes"],
-                "mismatch_label": mismatch["label"],
-                "flight_ident": flight_label,
-                "pickup_date": str(leg.pickup_date),
-                "pickup_time": str(leg.pickup_time),
-            },
-        )
-        if task:
-            created += 1
+        if is_same_day:
+            # Same-day: create driver conflict if real overlap exists
+            conflict_created = _handle_same_day_mismatch(
+                leg, mismatch, customer_name, flight_label, now
+            )
+            if conflict_created:
+                created += conflict_created
+            else:
+                # No driver conflict, but flight still shifted — create
+                # a flight_verify task so dispatch knows about the change.
+                created += _handle_future_mismatch(
+                    leg, mismatch, customer_name, flight_label, days_until=0, now=now
+                )
+        else:
+            # Future: tiered priority guest-verification task
+            created += _handle_future_mismatch(
+                leg, mismatch, customer_name, flight_label, days_until, now
+            )
 
     if created:
-        logger.info(f"Flight scan: created {created} flight_verify tasks")
+        logger.info(f"Flight scan: created {created} flight tasks")
     return created
 
 
-def _scan_upcoming_confirmations():
+def _handle_same_day_mismatch(leg, mismatch, customer_name, flight_label, now):
     """
-    Create guest_confirm tasks for legs tomorrow that haven't been confirmed yet.
-    Only for legs with a driver assigned and not cancelled.
+    Same-day flight shift: check for real driver conflicts.
+    Only flags in-house drivers. Returns 1 if task created, 0 otherwise.
     """
-    from reservations.models import Leg
+    today = timezone.localdate()
+
+    # No driver assigned — nothing to conflict with
+    if not leg.driver_id:
+        return 0
+
+    # Skip affiliates
+    driver = leg.driver
+    if getattr(driver, "driver_type", "affiliate") != "inhouse":
+        return 0
+
+    conflicts = detect_driver_conflicts(leg, today)
+    if not conflicts:
+        return 0
+
+    # Use the worst conflict for the task description
+    worst = max(conflicts, key=lambda c: c["conflict_minutes"])
+    conflicting = worst["conflicting_leg"]
+    driver_name = str(driver)
+
+    title = f"Driver Conflict — {driver_name}"
+    clears_str = worst["driver_clears_at"].strftime("%I:%M %p").lstrip("0")
+
+    description = (
+        f"Flight {mismatch['label']}. "
+        f"Driver will be {worst['conflict_minutes']} min late — reassign or adjust times."
+    )
+
+    task = create_task(
+        task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+        title=title,
+        due_at=now,
+        priority=OperationalTask.Priority.CRITICAL,
+        description=description,
+        leg=leg,
+        reservation=leg.reservation,
+        escalate_at=now,  # Immediate escalation for same-day conflicts
+        metadata={
+            "driver_id": driver.id,
+            "driver_name": driver_name,
+            "flight_ident": flight_label,
+            "mismatch_direction": mismatch["direction"],
+            "mismatch_minutes": mismatch["minutes"],
+            "mismatch_label": mismatch["label"],
+            "conflict_minutes": worst["conflict_minutes"],
+            "conflicting_leg_id": conflicting.id,
+            "conflicting_pickup_time": str(conflicting.pickup_time),
+            "driver_clears_at": clears_str,
+            "pickup_date": str(leg.pickup_date),
+            "pickup_time": str(leg.pickup_time),
+        },
+    )
+    return 1 if task else 0
+
+
+def _handle_future_mismatch(leg, mismatch, customer_name, flight_label, days_until, now):
+    """
+    Future flight mismatch (1-7 days out): create a flight_verify task
+    with priority based on severity × proximity matrix.
+    Returns 1 if task created, 0 otherwise.
+    """
+    priority = _get_flight_priority(mismatch["minutes"], days_until)
+    escalate_delay = _ESCALATION_DELAYS.get(priority, timedelta(hours=8))
+    severity = _get_severity_tier(mismatch["minutes"])
+
+    task = create_task(
+        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+        title=f"Flight mismatch: {customer_name} — {flight_label} {mismatch['label']}",
+        due_at=now,
+        priority=priority,
+        description=(
+            f"Pickup at {leg.pickup_time:%I:%M %p} but flight is {mismatch['label']}. "
+            f"Call guest to verify correct pickup time."
+        ),
+        leg=leg,
+        reservation=leg.reservation,
+        escalate_at=now + escalate_delay,
+        metadata={
+            "mismatch_direction": mismatch["direction"],
+            "mismatch_minutes": mismatch["minutes"],
+            "mismatch_label": mismatch["label"],
+            "severity_tier": severity,
+            "days_until_pickup": days_until,
+            "flight_ident": flight_label,
+            "pickup_date": str(leg.pickup_date),
+            "pickup_time": str(leg.pickup_time),
+        },
+    )
+    return 1 if task else 0
+
+
+# ── Other scanners (unchanged) ──────────────────────────────────────────────
+
+def _scan_uncontacted_forms():
+    """
+    Create contact_form tasks for Contact Us submissions still in 'pending' status.
+    """
+    from users.models import ContactUsForm
 
     now = timezone.now()
-    tomorrow = timezone.localdate() + timedelta(days=1)
 
-    legs = (
-        Leg.objects.filter(
-            pickup_date=tomorrow,
-            driver__isnull=False,
-            confirmation_sms_sent_at__isnull=True,
-        )
-        .exclude(status__in=["completed", "cancelled"])
-        .exclude(reservation__status="cancelled")
-        .select_related("reservation", "reservation__customer")
-    )
-
-    # Set due_at to today 3 PM Eastern (confirmations should go out afternoon before)
-    try:
-        import pytz
-        eastern = pytz.timezone("US/Eastern")
-        today_3pm = timezone.now().astimezone(eastern).replace(
-            hour=15, minute=0, second=0, microsecond=0
-        )
-        if today_3pm < timezone.now().astimezone(eastern):
-            # Already past 3 PM, due now
-            due = now
-        else:
-            due = today_3pm
-    except Exception:
-        due = now
-
-    # Check for open flight_verify tasks to set up soft dependency
-    open_flight_tasks = dict(
-        OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-            status__in=list(OperationalTask.OPEN_STATUSES),
-        ).values_list("leg_id", "id")
-    )
+    pending_forms = ContactUsForm.objects.filter(status="pending")
 
     created = 0
-    for leg in legs:
-        customer_name = leg.reservation.customer.get_full_name()
-        blocked_by_id = open_flight_tasks.get(leg.id)
-        blocked_by_task = None
-        if blocked_by_id:
-            try:
-                blocked_by_task = OperationalTask.objects.get(id=blocked_by_id)
-            except OperationalTask.DoesNotExist:
-                pass
-
+    for form in pending_forms:
+        name = f"{form.first_name} {form.last_name}".strip()
         task = create_task(
-            task_type=OperationalTask.TaskType.GUEST_CONFIRMATION,
-            title=f"Confirm: {customer_name} — {leg.pickup_date:%b %d} {leg.pickup_time:%I:%M %p}",
-            due_at=due,
-            priority=OperationalTask.Priority.MEDIUM,
-            description=f"{leg.pickup_location} → {leg.dropoff_location}",
-            leg=leg,
-            reservation=leg.reservation,
-            blocked_by=blocked_by_task,
-            escalate_at=now.replace(hour=18, minute=0, second=0),
+            task_type=OperationalTask.TaskType.CONTACT_FORM,
+            title=f"Contact form: {name}",
+            due_at=now,
+            priority=OperationalTask.Priority.HIGH,
+            description=form.about[:200] if form.about else "",
+            contact_form=form,
+            escalate_at=now + timedelta(hours=4),
             metadata={
-                "pickup_date": str(leg.pickup_date),
-                "pickup_time": str(leg.pickup_time),
-                "pickup_location": leg.pickup_location or "",
-                "dropoff_location": leg.dropoff_location or "",
+                "email": form.email or "",
+                "phone": form.phone_number or "",
+                "contact_method": form.contact_method or "",
             },
         )
         if task:
             created += 1
 
     if created:
-        logger.info(f"Confirmation scan: created {created} guest_confirm tasks")
+        logger.info(f"Contact form scan: created {created} contact_form tasks")
+    return created
+
+
+def _scan_driver_overlaps():
+    """
+    Scan today's legs for in-house driver scheduling overlaps, independent
+    of flight changes. Catches cases like two legs assigned to the same
+    driver where the first leg's estimated end time overlaps the second
+    leg's effective ready time.
+
+    Only checks same-day, in-house drivers. Skips legs that already have
+    an open driver_conflict task (deduplication handled by create_task).
+    """
+    from reservations.models import Leg
+    from itertools import groupby
+
+    now = timezone.now()
+    today = timezone.localdate()
+
+    # All today's active legs with an in-house driver, ordered by driver then time
+    legs = list(
+        Leg.objects.filter(
+            pickup_date=today,
+            driver__isnull=False,
+            driver__driver_type="inhouse",
+        )
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .select_related(
+            "driver", "driver__profile",
+            "flight_information",
+            "reservation", "reservation__customer",
+        )
+        .order_by("driver_id", "pickup_time")
+    )
+
+    # Pre-fetch legs that already have open driver_conflict tasks to avoid duplicates
+    # with the flight mismatch scanner (which may have already created a task
+    # for the same conflict from the flight's perspective).
+    legs_with_open_conflict = set(
+        OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+        ).values_list("leg_id", flat=True)
+    )
+
+    created = 0
+    for driver_id, driver_legs in groupby(legs, key=lambda l: l.driver_id):
+        driver_legs = list(driver_legs)
+        if len(driver_legs) < 2:
+            continue
+
+        # Compare each consecutive pair
+        for i in range(len(driver_legs) - 1):
+            leg_a = driver_legs[i]
+            leg_b = driver_legs[i + 1]
+
+            # Skip if either leg already has an open driver_conflict task
+            if leg_a.pk in legs_with_open_conflict or leg_b.pk in legs_with_open_conflict:
+                continue
+
+            end_a = _estimate_leg_end_time(leg_a, today)
+            ready_b = _get_effective_ready_time(leg_b, today)
+
+            if end_a <= ready_b:
+                continue  # No overlap
+
+            conflict_minutes = int((end_a - ready_b).total_seconds() / 60)
+            if conflict_minutes <= 0:
+                continue
+
+            driver = leg_a.driver
+            driver_name = str(driver)
+
+            # Use leg_b as the "affected" leg (the one the driver will be late to)
+            pickup_str_a = leg_a.pickup_time.strftime("%I:%M %p").lstrip("0")
+            pickup_str_b = leg_b.pickup_time.strftime("%I:%M %p").lstrip("0")
+            clears_str = end_a.strftime("%I:%M %p").lstrip("0")
+
+            customer_a = leg_a.reservation.customer.get_full_name() if leg_a.reservation else "Unknown"
+            customer_b = leg_b.reservation.customer.get_full_name() if leg_b.reservation else "Unknown"
+
+            title = f"Driver Conflict — {driver_name}"
+            description = (
+                f"{pickup_str_a} and {pickup_str_b} legs conflict — "
+                f"driver will be {conflict_minutes} min late. Reassign or adjust times."
+            )
+
+            # Flight label if either leg has one
+            flight_label = ""
+            for check_leg in (leg_a, leg_b):
+                if check_leg.flight_information:
+                    fi = check_leg.flight_information
+                    flight_label = f"{fi.airline_display_name or fi.airline or ''} {fi.flight_number or ''}".strip()
+                    break
+
+            task = create_task(
+                task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+                title=title,
+                due_at=now,
+                priority=OperationalTask.Priority.CRITICAL,
+                description=description,
+                leg=leg_b,  # The leg the driver will be late to
+                reservation=leg_b.reservation,
+                escalate_at=now,
+                metadata={
+                    "driver_id": driver.id,
+                    "driver_name": driver_name,
+                    "flight_ident": flight_label,
+                    "mismatch_direction": "overlap",
+                    "mismatch_minutes": conflict_minutes,
+                    "mismatch_label": f"{conflict_minutes} min late",
+                    "conflict_minutes": conflict_minutes,
+                    "conflicting_leg_id": leg_a.id,
+                    "conflicting_pickup_time": str(leg_a.pickup_time),
+                    "driver_clears_at": clears_str,
+                    "pickup_date": str(today),
+                    "pickup_time": str(leg_b.pickup_time),
+                },
+            )
+            if task:
+                created += 1
+
+    if created:
+        logger.info(f"Driver overlap scan: created {created} driver_conflict tasks")
     return created
 
 
 def _scan_unassigned_legs():
     """
-    Create driver_assign / coverage_gap tasks for legs in the next 3 days
-    without a driver assigned.
+    Create driver_assign tasks for TODAY's legs without a driver.
+    Only today — upcoming days are normal dispatch scheduling, not ops tasks.
     """
     from reservations.models import Leg
 
     now = timezone.now()
     today = timezone.localdate()
-    horizon = today + timedelta(days=3)
 
     legs = (
         Leg.objects.filter(
-            pickup_date__range=[today, horizon],
+            pickup_date=today,
             driver__isnull=True,
         )
         .exclude(status__in=["completed", "cancelled"])
@@ -213,43 +588,26 @@ def _scan_unassigned_legs():
 
     created = 0
     for leg in legs:
-        days_until = (leg.pickup_date - today).days
-        if days_until <= 1:
-            priority = OperationalTask.Priority.CRITICAL
-            task_type = OperationalTask.TaskType.DRIVER_ASSIGNMENT
-        elif days_until <= 2:
-            priority = OperationalTask.Priority.HIGH
-            task_type = OperationalTask.TaskType.DRIVER_ASSIGNMENT
-        else:
-            priority = OperationalTask.Priority.MEDIUM
-            task_type = OperationalTask.TaskType.COVERAGE_GAP
-
         customer_name = leg.reservation.customer.get_full_name()
-
         task = create_task(
-            task_type=task_type,
+            task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
             title=f"No driver: {customer_name} — {leg.pickup_date:%b %d} {leg.pickup_time:%I:%M %p}",
-            due_at=now if days_until <= 1 else now + timedelta(hours=days_until * 8),
-            priority=priority,
+            due_at=now,
+            priority=OperationalTask.Priority.CRITICAL,
             description=f"{leg.pickup_location} → {leg.dropoff_location}",
             leg=leg,
             reservation=leg.reservation,
-            escalate_at=timezone.make_aware(
-                timezone.datetime.combine(
-                    leg.pickup_date - timedelta(days=1),
-                    timezone.datetime.min.time().replace(hour=9),
-                )
-            ) if days_until > 1 else now,
+            escalate_at=now,
             metadata={
                 "pickup_date": str(leg.pickup_date),
-                "days_until": days_until,
+                "pickup_time": str(leg.pickup_time),
             },
         )
         if task:
             created += 1
 
     if created:
-        logger.info(f"Driver scan: created {created} assignment/coverage tasks")
+        logger.info(f"Driver scan: created {created} driver_assign tasks (today only)")
     return created
 
 
@@ -300,12 +658,14 @@ def _scan_unpaid_reservations():
             continue
 
         days_until = (earliest_leg.pickup_date - today).days
-        if days_until <= 2:
+        if days_until == 0:
             priority = OperationalTask.Priority.CRITICAL
-        elif days_until <= 5:
+        elif days_until <= 2:
             priority = OperationalTask.Priority.HIGH
-        else:
+        elif days_until <= 5:
             priority = OperationalTask.Priority.MEDIUM
+        else:
+            priority = OperationalTask.Priority.LOW
 
         customer_name = res.customer.get_full_name()
         task = create_task(
@@ -353,38 +713,65 @@ def _auto_close_resolved_tasks():
     ).select_related("leg", "leg__flight_information")
 
     for task in flight_tasks:
-        if not task.leg.has_flight_time_mismatch(threshold_minutes=30):
+        if not task.leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
             close_task(task, resolution_notes="Auto-closed: flight mismatch resolved")
             closed += 1
 
-    # 2. Guest confirm tasks where confirmation was sent
-    confirm_tasks = OperationalTask.objects.filter(
-        task_type=OperationalTask.TaskType.GUEST_CONFIRMATION,
+    # 2. Driver conflict tasks where conflict no longer exists
+    conflict_tasks = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
         status__in=list(OperationalTask.OPEN_STATUSES),
         leg__isnull=False,
-    ).select_related("leg")
+    ).select_related("leg", "leg__driver", "leg__flight_information")
 
-    for task in confirm_tasks:
-        if task.leg.confirmation_sms_sent_at:
-            close_task(task, resolution_notes="Auto-closed: confirmation SMS sent")
+    for task in conflict_tasks:
+        leg = task.leg
+        meta = task.metadata or {}
+        is_pure_overlap = meta.get("mismatch_direction") == "overlap"
+
+        if not leg.driver_id:
+            close_task(task, resolution_notes="Auto-closed: driver unassigned")
+            closed += 1
+        elif not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
+            # Flight-triggered conflict: close if the flight mismatch resolved
+            close_task(task, resolution_notes="Auto-closed: flight mismatch resolved")
+            closed += 1
+        elif leg.driver_id and getattr(leg.driver, "driver_type", "") == "inhouse":
+            # Re-check if the schedule conflict still exists
+            conflicts = detect_driver_conflicts(leg, leg.pickup_date)
+            if not conflicts:
+                close_task(task, resolution_notes="Auto-closed: driver conflict resolved")
+                closed += 1
+
+    # 3. Contact form tasks where form was contacted/closed
+    contact_tasks = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.CONTACT_FORM,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+        contact_form__isnull=False,
+    ).select_related("contact_form")
+
+    for task in contact_tasks:
+        if task.contact_form.status in ("contacted", "closed"):
+            close_task(task, resolution_notes=f"Auto-closed: form marked {task.contact_form.status}")
             closed += 1
 
-    # 3. Driver assign / coverage gap tasks where driver was assigned
+    # 4. Driver assign tasks where driver was assigned
     driver_tasks = OperationalTask.objects.filter(
-        task_type__in=[
-            OperationalTask.TaskType.DRIVER_ASSIGNMENT,
-            OperationalTask.TaskType.COVERAGE_GAP,
-        ],
+        task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
         status__in=list(OperationalTask.OPEN_STATUSES),
         leg__isnull=False,
     ).select_related("leg")
 
+    today = timezone.localdate()
     for task in driver_tasks:
         if task.leg.driver_id:
             close_task(task, resolution_notes="Auto-closed: driver assigned")
             closed += 1
+        elif task.leg.pickup_date < today:
+            close_task(task, resolution_notes="Auto-closed: pickup date has passed")
+            closed += 1
 
-    # 4. Cancel tasks linked to cancelled reservations
+    # 5. Cancel tasks linked to cancelled reservations
     cancelled_res_tasks = OperationalTask.objects.filter(
         status__in=list(OperationalTask.OPEN_STATUSES),
         reservation__status="cancelled",
@@ -421,3 +808,181 @@ def _reopen_snoozed_tasks():
     if reopened:
         logger.info(f"Snooze scan: reopened {reopened} tasks")
     return reopened
+
+
+# ── Auto-refresh flight data ────────────────────────────────────────────────
+
+def auto_refresh_flights():
+    """
+    Auto-refresh arrival flight data from AeroAPI on a tiered schedule:
+      - Today: every call (every 30 min via scheduler)
+      - Next 2 days: every 4 hours (every 8th cycle)
+      - Days 3-7: once per day (every 48th cycle)
+
+    Only refreshes arrival legs with flight info. Skips legs with no flight ident.
+    Returns summary dict with counts.
+    """
+    from reservations.models import Leg
+    from dispatching.aeroapi_service import AeroAPIService
+
+    today = timezone.localdate()
+    refreshed = 0
+    errors = 0
+
+    # Determine which date ranges to refresh this cycle
+    # The scheduler passes cycle_count so we can tier the refresh frequency
+    date_ranges = _get_refresh_date_ranges(today)
+    if not date_ranges:
+        return {"refreshed": 0, "errors": 0}
+
+    aeroapi = AeroAPIService()
+    if not aeroapi.api_key:
+        logger.warning("AeroAPI key not configured, skipping auto-refresh")
+        return {"refreshed": 0, "errors": 0}
+
+    legs = (
+        Leg.objects.filter(
+            pickup_date__in=date_ranges,
+            flight_information__isnull=False,
+        )
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .select_related("flight_information")
+    )
+
+    for leg in legs:
+        if leg.get_trip_type() != "arrival":
+            continue
+
+        flight = leg.flight_information
+        flight_ident = flight.get_flight_ident()
+        if not flight_ident:
+            continue
+
+        try:
+            flight_date = leg.pickup_date.strftime("%Y-%m-%d")
+            trip_type = leg.get_trip_type()
+            flight_data = aeroapi.get_flight_data(
+                flight_ident, flight_date=flight_date, trip_type=trip_type
+            )
+
+            if flight_data.get("status") == "success":
+                _apply_flight_update(flight, flight_data)
+                refreshed += 1
+            else:
+                errors += 1
+                logger.debug(
+                    f"Auto-refresh skip: {flight_ident} leg {leg.id} — "
+                    f"{flight_data.get('error', 'unknown')}"
+                )
+        except Exception as e:
+            errors += 1
+            logger.error(f"Auto-refresh error for leg {leg.id}: {e}", exc_info=True)
+
+    if refreshed:
+        logger.info(f"Auto-refresh: updated {refreshed} flights, {errors} errors")
+    return {"refreshed": refreshed, "errors": errors}
+
+
+def _get_refresh_date_ranges(today):
+    """
+    Return the list of dates to refresh based on the current scheduler cycle.
+    Called from the scheduler — uses _cycle_count from the scheduler module.
+    """
+    try:
+        from ghl_integration.scheduler import _cycle_count
+    except ImportError:
+        _cycle_count = 1
+
+    dates = []
+
+    # Today: always refresh (every 30 min)
+    dates.append(today)
+
+    # Next 2 days: every 8 cycles (every 4 hours)
+    if _cycle_count % 8 == 0 or _cycle_count <= 1:
+        dates.append(today + timedelta(days=1))
+        dates.append(today + timedelta(days=2))
+
+    # Days 3-7: every 48 cycles (once per day)
+    if _cycle_count % 48 == 0 or _cycle_count <= 1:
+        for d in range(3, 8):
+            dates.append(today + timedelta(days=d))
+
+    return dates
+
+
+def _apply_flight_update(flight, flight_data):
+    """
+    Apply AeroAPI response data to a Flight model instance.
+    Mirrors the logic in dispatching/views.py:refresh_flight_data but
+    operates headlessly without a request.
+    """
+    from django.utils import timezone as tz
+
+    update_fields = []
+
+    if flight_data.get("flight_iata"):
+        flight.flight_iata = flight_data["flight_iata"]
+        update_fields.append("flight_iata")
+
+    if flight_data.get("origin"):
+        flight.origin = flight_data["origin"]
+        update_fields.append("origin")
+
+    if flight_data.get("destination"):
+        flight.destination = flight_data["destination"]
+        update_fields.append("destination")
+
+    flight_status = flight_data.get("flight_status") or flight_data.get("status", "")
+    if flight_status:
+        flight.status = flight_status
+        update_fields.append("status")
+
+    # Datetime fields
+    for field_name in [
+        "scheduled_arrival_local",
+        "estimated_arrival_local",
+        "scheduled_gate_arrival_local",
+        "estimated_gate_arrival_local",
+    ]:
+        val = flight_data.get(field_name)
+        if val is not None:
+            setattr(flight, field_name, val)
+            update_fields.append(field_name)
+
+    # Actual arrival times — clear for future flights to avoid stale data
+    now = tz.now()
+    scheduled = flight_data.get("scheduled_arrival_local") or flight_data.get(
+        "scheduled_gate_arrival_local"
+    )
+    is_future = scheduled and scheduled > now
+
+    if is_future:
+        flight.actual_arrival_local = None
+        flight.actual_gate_arrival_local = None
+        update_fields.extend(["actual_arrival_local", "actual_gate_arrival_local"])
+    else:
+        actual_runway = flight_data.get("actual_runway_arrival_local")
+        if actual_runway is not None:
+            flight.actual_arrival_local = actual_runway
+            update_fields.append("actual_arrival_local")
+        actual_gate = flight_data.get("actual_gate_arrival_local")
+        if actual_gate is not None:
+            flight.actual_gate_arrival_local = actual_gate
+            update_fields.append("actual_gate_arrival_local")
+
+    for field_name in ["terminal", "gate", "baggage_claim"]:
+        val = flight_data.get(field_name)
+        if val:
+            setattr(flight, field_name, val)
+            update_fields.append(field_name)
+
+    # Always update last_updated
+    flight.last_updated = tz.now()
+    update_fields.append("last_updated")
+
+    if update_fields:
+        # Deduplicate
+        update_fields = list(set(update_fields))
+        flight.save(update_fields=update_fields)

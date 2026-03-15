@@ -29,7 +29,7 @@ def run_escalations():
         status__in=["pending", "in_progress", "snoozed"],
     ).exclude(
         status="escalated",
-    ).select_related("reservation", "reservation__customer", "leg", "lead")
+    ).select_related("reservation", "reservation__customer", "leg")
 
     for task in tasks_to_escalate:
         _escalate_task(task)
@@ -93,12 +93,10 @@ def _send_escalation_ntfy(task):
 
         # Map task types to NTFY tags
         tags_map = {
-            "lead_response": ["rotating_light", "phone"],
             "payment_chase": ["money_with_wings", "warning"],
             "flight_verify": ["airplane", "warning"],
-            "guest_confirm": ["speech_balloon", "warning"],
             "driver_assign": ["car", "warning"],
-            "coverage_gap": ["calendar", "warning"],
+            "contact_form": ["envelope", "warning"],
         }
         tags = tags_map.get(task.task_type, ["warning"])
 

@@ -412,6 +412,11 @@
                                   title="Refresh flight data from AeroAPI">
                             <i class="bi bi-arrow-clockwise"></i>
                           </button>
+                          {% if leg.flight_information.last_updated %}
+                            <span class="text-muted small ms-1" title="{{ leg.flight_information.last_updated|date:'M j, g:i A' }}">{{ leg.flight_information.last_updated|timesince }} ago</span>
+                          {% else %}
+                            <span class="text-muted small ms-1">Never refreshed</span>
+                          {% endif %}
                           {% if leg.get_trip_type == 'arrival' and leg.flight_information %}
                             <button class="btn btn-sm btn-outline-success match-flight-time-btn"
                                     data-leg-id="{{ leg.id }}"

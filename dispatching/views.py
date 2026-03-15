@@ -548,11 +548,25 @@ def index(request):
     prev_date = selected_date - timedelta(days=1)
     next_date = selected_date + timedelta(days=1)
 
+    # Oldest flight refresh timestamp for arrival legs on this date
+    from django.db.models import Min
+    _arrival_flights_agg = (
+        Leg.objects.filter(
+            pickup_date=selected_date,
+            flight_information__isnull=False,
+        )
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .aggregate(oldest_refresh=Min("flight_information__last_updated"))
+    )
+    oldest_flight_refresh = _arrival_flights_agg.get("oldest_refresh")
+
     context = {
         "legs": legs,
         "selected_date": selected_date,
         "prev_date": prev_date,
         "next_date": next_date,
+        "oldest_flight_refresh": oldest_flight_refresh,
         "driver_filter": driver_filter,
         "trip_type_filter": trip_type_filter,
         "vehicle_filter": vehicle_filter,

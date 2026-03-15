@@ -620,6 +620,9 @@
                     title="Refresh all arrival flight data for {{ selected_date|date:'l, F j, Y' }} (Returns are not refreshed)">
               <i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-md-inline">Refresh Arrival Flights</span><span class="d-md-none">Refresh</span>
             </button>
+            {% if oldest_flight_refresh %}
+              <span class="text-muted small" title="Oldest flight data: {{ oldest_flight_refresh|date:'M j, g:i A' }}">Oldest: {{ oldest_flight_refresh|timesince }} ago</span>
+            {% endif %}
             <button id="matchAllFlightTimesBtn"
                     class="btn btn-sm btn-success"
                     data-date="{{ selected_date|date:'Y-m-d' }}"

@@ -13,8 +13,8 @@ from django.utils import timezone
 
 class OperationalTask(models.Model):
     """
-    Central work-queue item. Covers lead response, payment chasing,
-    flight verification, guest confirmations, driver assignment, and manual tasks.
+    Central work-queue item. Covers unpaid reservations, flight verification,
+    driver assignment, contact form follow-up, and manual tasks.
 
     Uses concrete FKs (not GenericFK) because the related object types are a
     closed set — matching how FollowUpTask uses a concrete FK to Lead.
@@ -23,12 +23,11 @@ class OperationalTask(models.Model):
     """
 
     class TaskType(models.TextChoices):
-        LEAD_RESPONSE = "lead_response", "Lead Response"
-        PAYMENT_CHASE = "payment_chase", "Payment Chase"
+        PAYMENT_CHASE = "payment_chase", "Unpaid Reservations"
         FLIGHT_VERIFICATION = "flight_verify", "Flight Verification"
-        GUEST_CONFIRMATION = "guest_confirm", "Guest Confirmation"
+        DRIVER_CONFLICT = "driver_conflict", "Driver Conflict"
         DRIVER_ASSIGNMENT = "driver_assign", "Driver Assignment"
-        COVERAGE_GAP = "coverage_gap", "Coverage Gap"
+        CONTACT_FORM = "contact_form", "Contact Us"
         MANUAL = "manual", "Manual Task"
 
     class Status(models.TextChoices):
@@ -73,6 +72,13 @@ class OperationalTask(models.Model):
     )
     lead = models.ForeignKey(
         "reservations.Lead",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="ops_tasks",
+    )
+    contact_form = models.ForeignKey(
+        "users.ContactUsForm",
         null=True,
         blank=True,
         on_delete=models.CASCADE,
@@ -186,7 +192,7 @@ class OperationalTask(models.Model):
     @property
     def related_object(self):
         """Return the most specific related object for display."""
-        return self.leg or self.reservation or self.lead
+        return self.leg or self.reservation or self.lead or self.contact_form
 
     @property
     def customer(self):
@@ -200,22 +206,20 @@ class OperationalTask(models.Model):
     # ── Task type display helpers ──
 
     TASK_TYPE_ICONS = {
-        TaskType.LEAD_RESPONSE: "bi-lightning-charge-fill",
         TaskType.PAYMENT_CHASE: "bi-currency-dollar",
         TaskType.FLIGHT_VERIFICATION: "bi-airplane",
-        TaskType.GUEST_CONFIRMATION: "bi-chat-text",
+        TaskType.DRIVER_CONFLICT: "bi-exclamation-triangle",
         TaskType.DRIVER_ASSIGNMENT: "bi-person-plus",
-        TaskType.COVERAGE_GAP: "bi-exclamation-triangle",
+        TaskType.CONTACT_FORM: "bi-envelope-paper",
         TaskType.MANUAL: "bi-pencil-square",
     }
 
     TASK_TYPE_COLORS = {
-        TaskType.LEAD_RESPONSE: "#e74c3c",
         TaskType.PAYMENT_CHASE: "#f39c12",
         TaskType.FLIGHT_VERIFICATION: "#3498db",
-        TaskType.GUEST_CONFIRMATION: "#2ecc71",
+        TaskType.DRIVER_CONFLICT: "#e74c3c",
         TaskType.DRIVER_ASSIGNMENT: "#9b59b6",
-        TaskType.COVERAGE_GAP: "#e67e22",
+        TaskType.CONTACT_FORM: "#2ecc71",
         TaskType.MANUAL: "#7f8c8d",
     }
 

@@ -19,6 +19,7 @@ def create_task(
     reservation=None,
     leg=None,
     lead=None,
+    contact_form=None,
     created_by=None,
     assigned_to=None,
     escalate_at=None,
@@ -44,6 +45,8 @@ def create_task(
         dedup_filter["reservation"] = reservation
     elif lead:
         dedup_filter["lead"] = lead
+    elif contact_form:
+        dedup_filter["contact_form"] = contact_form
     else:
         # Manual tasks or tasks without related objects don't dedup
         dedup_filter = None
@@ -60,6 +63,7 @@ def create_task(
         reservation=reservation,
         leg=leg,
         lead=lead,
+        contact_form=contact_form,
         created_by=created_by,
         assigned_to=assigned_to,
         escalate_at=escalate_at,

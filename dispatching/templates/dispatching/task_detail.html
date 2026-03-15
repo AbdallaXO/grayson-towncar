@@ -2,118 +2,1172 @@
 {% load static %}
 {% load humanize %}
 
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   GRAYSON OPS CONTROL — Task Detail
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --ops-bg:         #f3f4f6;
+  --ops-surface:    #ffffff;
+  --ops-surface-2:  #f9fafb;
+  --ops-surface-3:  #f0f1f3;
+  --ops-border:     #e5e7eb;
+  --ops-border-lt:  #d1d5db;
+  --ops-text:       #374151;
+  --ops-text-dim:   #6b7280;
+  --ops-text-muted: #9ca3af;
+  --ops-white:      #111827;
+  --ops-red:        #dc2626;
+  --ops-red-dim:    #fef2f2;
+  --ops-amber:      #d97706;
+  --ops-amber-dim:  #fffbeb;
+  --ops-cyan:       #0891b2;
+  --ops-green:      #059669;
+  --ops-green-dim:  #ecfdf5;
+  --ops-purple:     #7c3aed;
+  --ops-blue:       #2563eb;
+  --ops-mono:       'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --ops-sans:       'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --ops-header-bg:  #1e293b;
+  --ops-header-text:#f1f5f9;
+}
+
+body {
+  background: var(--ops-bg) !important;
+  color: var(--ops-text);
+  font-family: var(--ops-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.navbar { margin-bottom: 0 !important; }
+
+/* ── Header ── */
+.td-header {
+  background: var(--ops-header-bg);
+  border-bottom: 1px solid var(--ops-border);
+  padding: 1rem 0 1rem;
+}
+
+.td-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-bottom: .65rem;
+  font-size: .72rem;
+}
+.td-breadcrumb a {
+  color: rgba(241,245,249,.5);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  transition: color .12s;
+}
+.td-breadcrumb a:hover { color: #fff; }
+.td-breadcrumb .sep { color: rgba(241,245,249,.3); }
+.td-breadcrumb .current {
+  color: rgba(241,245,249,.8);
+  font-weight: 600;
+}
+
+.td-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.td-title-main h1 {
+  font-family: var(--ops-sans);
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ops-header-text);
+  margin: 0 0 .4rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.td-title-main h1 .title-icon {
+  font-size: 1rem;
+  opacity: .7;
+}
+
+.td-badges {
+  display: flex;
+  gap: .3rem;
+  flex-wrap: wrap;
+}
+
+.td-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .15rem .5rem;
+  border-radius: 4px;
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.badge-type { color: #fff; }
+.badge-priority-1 { background: var(--ops-red-dim); color: var(--ops-red); }
+.badge-priority-2 { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.badge-priority-3 { background: rgba(59, 130, 246, .12); color: var(--ops-blue); }
+.badge-priority-4 { background: rgba(107, 122, 141, .12); color: var(--ops-text-dim); }
+.badge-status-completed { background: var(--ops-green-dim); color: var(--ops-green); }
+.badge-status-escalated { background: var(--ops-red-dim); color: var(--ops-red); animation: td-flash 2s infinite; }
+.badge-status-snoozed { background: rgba(107, 122, 141, .12); color: var(--ops-text-dim); }
+.badge-status-cancelled { background: rgba(107, 122, 141, .08); color: var(--ops-text-muted); }
+.badge-status-pending, .badge-status-in_progress { background: rgba(34, 211, 238, .1); color: var(--ops-cyan); }
+.badge-overdue { background: rgba(239, 68, 68, .15); color: var(--ops-red); }
+@keyframes td-flash { 0%,100% { opacity: 1; } 50% { opacity: .65; } }
+
+.td-desc {
+  font-size: .82rem;
+  color: rgba(241,245,249,.6);
+  margin: .5rem 0 0;
+  line-height: 1.5;
+}
+
+.td-actions {
+  display: flex;
+  gap: .35rem;
+  flex-shrink: 0;
+}
+
+.td-act {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .4rem .75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.85);
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .12s;
+  text-decoration: none;
+}
+.td-act:hover { background: rgba(255,255,255,.15); color: #fff; }
+.td-act.act-complete {
+  border-color: #34d399;
+  background: rgba(52, 211, 153, .15);
+  color: #34d399;
+}
+.td-act.act-complete:hover { background: rgba(52, 211, 153, .25); }
+
+/* ── Dependency Alert ── */
+.td-dep-alert {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem .85rem;
+  border-radius: 6px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: .78rem;
+  color: var(--ops-amber);
+  margin-bottom: 1rem;
+}
+.td-dep-alert a { color: var(--ops-amber); font-weight: 600; text-decoration: none; margin-left: auto; }
+.td-dep-alert a:hover { text-decoration: underline; }
+
+/* ── Cards ── */
+.ops-card {
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+  border-radius: 8px;
+  margin-bottom: .85rem;
+  overflow: hidden;
+}
+.ops-card-head {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .55rem .85rem;
+  border-bottom: 1px solid var(--ops-border);
+  background: var(--ops-surface);
+}
+.ops-card-head i { font-size: .85rem; }
+.ops-card-head h6 {
+  margin: 0;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--ops-white);
+  letter-spacing: .02em;
+}
+.ops-card-head .head-ct {
+  font-family: var(--ops-mono);
+  font-size: .6rem;
+  font-weight: 600;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  background: #eff6ff;
+  color: var(--ops-blue);
+}
+.ops-card-body { padding: .85rem; }
+
+/* ── Communication Timeline ── */
+.comm-tl {
+  position: relative;
+  padding-left: 1.6rem;
+}
+.comm-tl::before {
+  content: '';
+  position: absolute;
+  left: .45rem;
+  top: .25rem;
+  bottom: .25rem;
+  width: 2px;
+  background: var(--ops-border);
+}
+
+.comm-item {
+  position: relative;
+  margin-bottom: .85rem;
+}
+.comm-item:last-child { margin-bottom: 0; }
+
+.comm-dot {
+  position: absolute;
+  left: -1.6rem;
+  top: .12rem;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .55rem;
+  color: #fff;
+  z-index: 1;
+}
+.dot-call  { background: var(--ops-blue); }
+.dot-sms   { background: var(--ops-green); }
+.dot-email { background: var(--ops-purple); }
+
+.comm-head {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: wrap;
+}
+
+.comm-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  font-size: .62rem;
+  font-weight: 600;
+}
+.chip-call  { background: #eff6ff; color: var(--ops-blue); }
+.chip-sms   { background: #ecfdf5; color: var(--ops-green); }
+.chip-email { background: #f5f3ff; color: var(--ops-purple); }
+
+.chip-outcome-good { background: #ecfdf5; color: var(--ops-green); }
+.chip-outcome-warn { background: #fffbeb; color: var(--ops-amber); }
+.chip-outcome-bad  { background: #fef2f2; color: var(--ops-red); }
+
+.comm-contact {
+  font-family: var(--ops-mono);
+  font-size: .65rem;
+  color: var(--ops-text-dim);
+}
+.comm-dur {
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  color: var(--ops-text-muted);
+}
+
+.comm-who {
+  font-size: .65rem;
+  color: var(--ops-text-muted);
+  margin-left: auto;
+}
+
+.comm-notes {
+  font-size: .75rem;
+  color: var(--ops-text-dim);
+  margin: .2rem 0 0;
+  line-height: 1.4;
+}
+
+.comm-empty {
+  text-align: center;
+  padding: 1.5rem;
+}
+.comm-empty i { font-size: 1.3rem; color: var(--ops-text-muted); display: block; margin-bottom: .35rem; }
+.comm-empty span { font-size: .78rem; color: var(--ops-text-dim); }
+
+/* ── Log Comm Form ── */
+.comm-form .form-label {
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--ops-text-dim);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: .15rem;
+}
+.comm-form .form-control,
+.comm-form .form-select {
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+  border-radius: 5px;
+  color: var(--ops-text);
+  font-size: .8rem;
+}
+.comm-form .form-control:focus,
+.comm-form .form-select:focus {
+  border-color: var(--ops-blue);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .1);
+}
+.comm-form .form-control::placeholder { color: var(--ops-text-muted); }
+.comm-form .btn-primary {
+  background: var(--ops-blue);
+  border: 1px solid var(--ops-blue);
+  color: #fff;
+  font-size: .75rem;
+  font-weight: 600;
+  border-radius: 5px;
+  transition: all .12s;
+}
+.comm-form .btn-primary:hover {
+  background: #1d4ed8;
+}
+
+/* ── Sidebar Detail Rows ── */
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .45rem .85rem;
+  border-bottom: 1px solid var(--ops-border);
+  font-size: .78rem;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-row .dl { color: var(--ops-text-dim); font-weight: 500; }
+.detail-row .dv {
+  font-weight: 600;
+  color: var(--ops-white);
+  text-align: right;
+  font-family: var(--ops-mono);
+  font-size: .72rem;
+}
+.dv-overdue { color: var(--ops-red) !important; }
+.dv-warn { color: var(--ops-amber) !important; }
+.dv-ok { color: var(--ops-green) !important; }
+
+/* ── Contact Card ── */
+.contact-info { padding: .65rem .85rem; }
+.contact-name {
+  font-weight: 700;
+  font-size: .85rem;
+  color: var(--ops-white);
+  margin-bottom: .35rem;
+}
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .78rem;
+  margin-bottom: .2rem;
+}
+.contact-row i { color: var(--ops-text-muted); width: 14px; text-align: center; font-size: .72rem; }
+.contact-row a { color: var(--ops-blue); text-decoration: none; }
+.contact-row a:hover { text-decoration: underline; }
+.contact-row span { color: var(--ops-text-dim); }
+
+.contact-extra {
+  margin-top: .5rem;
+  padding-top: .5rem;
+  border-top: 1px solid var(--ops-border);
+  font-size: .75rem;
+  color: var(--ops-text-dim);
+  line-height: 1.4;
+}
+
+/* ── Assignee chip ── */
+.assigned-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .15rem .4rem;
+  border-radius: 4px;
+  font-family: var(--ops-sans);
+  font-size: .72rem;
+  font-weight: 600;
+  background: #eff6ff;
+  color: var(--ops-blue);
+}
+.assigned-chip.none { background: #f3f4f6; color: var(--ops-text-muted); }
+
+/* ── Activity Log ── */
+.activity-item {
+  display: flex;
+  gap: .5rem;
+  align-items: flex-start;
+  padding: .3rem 0;
+  border-bottom: 1px solid var(--ops-border);
+  font-size: .72rem;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-time {
+  font-family: var(--ops-mono);
+  font-size: .62rem;
+  color: var(--ops-text-muted);
+  white-space: nowrap;
+  min-width: 80px;
+  padding-top: .05rem;
+}
+.activity-text { color: var(--ops-text-dim); }
+.activity-text strong { color: var(--ops-text); font-weight: 600; }
+
+/* ── Resolution block ── */
+.resolution-block {
+  padding: .65rem .85rem;
+  border-top: 1px solid var(--ops-border);
+}
+.resolution-label {
+  font-size: .65rem;
+  font-weight: 600;
+  color: var(--ops-text-dim);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: .2rem;
+}
+.resolution-text {
+  font-size: .78rem;
+  color: var(--ops-text);
+  line-height: 1.5;
+}
+
+/* ── Driver Conflict Panel ── */
+.conflict-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: .75rem;
+}
+.conflict-stat {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+.conflict-stat-label {
+  font-size: .62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ops-text-muted);
+}
+.conflict-stat-value {
+  font-family: var(--ops-mono);
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--ops-white);
+}
+.conflict-stat-warn { color: var(--ops-amber); }
+.conflict-stat-danger { color: var(--ops-red); }
+
+/* ── Flight Shift Detail ── */
+.flight-shift-detail {
+  margin-top: .75rem;
+  padding-top: .75rem;
+  border-top: 1px solid var(--ops-border);
+}
+.shift-arrow {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .5rem;
+}
+.shift-arrow i { color: var(--ops-text-muted); font-size: .85rem; }
+.shift-from, .shift-to {
+  display: flex;
+  flex-direction: column;
+  gap: .05rem;
+  font-family: var(--ops-mono);
+  font-size: .85rem;
+  font-weight: 700;
+  color: var(--ops-white);
+}
+.shift-from { color: var(--ops-text-dim); text-decoration: line-through; opacity: .6; }
+.shift-to { color: var(--ops-amber); }
+.shift-label {
+  font-family: var(--ops-sans);
+  font-size: .58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ops-text-muted);
+  text-decoration: none;
+}
+
+.post-match-ok {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .65rem;
+  border-radius: 5px;
+  background: var(--ops-green-dim);
+  color: var(--ops-green);
+  font-size: .75rem;
+  font-weight: 600;
+}
+.post-match-conflict {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .4rem .65rem;
+  border-radius: 5px;
+  background: var(--ops-amber-dim);
+  color: var(--ops-amber);
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.late-night-alert {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-top: .75rem;
+  padding: .5rem .75rem;
+  border-radius: 6px;
+  background: #312e81;
+  color: #c4b5fd;
+  font-size: .78rem;
+  font-weight: 500;
+}
+.late-night-alert i { font-size: .9rem; }
+
+/* ── Driver Timeline ── */
+.driver-timeline { padding: .25rem 0; }
+
+.tl-leg {
+  display: flex;
+  gap: .65rem;
+  padding: .55rem 0;
+  border-radius: 6px;
+  transition: background .12s;
+}
+.tl-leg.tl-trigger {
+  background: rgba(239, 68, 68, .06);
+  padding: .55rem .5rem;
+  margin: 0 -.5rem;
+  border-left: 3px solid var(--ops-red);
+}
+.tl-leg.tl-conflicting {
+  background: rgba(217, 119, 6, .06);
+  padding: .55rem .5rem;
+  margin: 0 -.5rem;
+  border-left: 3px solid var(--ops-amber);
+}
+
+.tl-time-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 72px;
+  flex-shrink: 0;
+}
+.tl-pickup-time {
+  font-family: var(--ops-mono);
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--ops-white);
+}
+.tl-end-time {
+  font-family: var(--ops-mono);
+  font-size: .6rem;
+  color: var(--ops-text-muted);
+}
+
+.tl-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 18px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.tl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-normal { background: var(--ops-border-lt); }
+.dot-trigger { background: var(--ops-red); box-shadow: 0 0 0 3px rgba(220,38,38,.2); }
+.dot-conflict { background: var(--ops-amber); box-shadow: 0 0 0 3px rgba(217,119,6,.2); }
+.tl-line {
+  width: 2px;
+  flex: 1;
+  background: var(--ops-border);
+  margin-top: 3px;
+}
+.tl-leg:last-child .tl-line { display: none; }
+
+.tl-detail { flex: 1; min-width: 0; }
+.tl-route {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--ops-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tl-meta {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin-top: .15rem;
+}
+.tl-guest {
+  font-size: .7rem;
+  color: var(--ops-text-dim);
+}
+.tl-flight {
+  font-size: .65rem;
+  color: var(--ops-blue);
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+}
+.tl-tag {
+  font-size: .55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: .1rem .3rem;
+  border-radius: 3px;
+}
+.tl-tag-trigger { background: rgba(220,38,38,.12); color: var(--ops-red); }
+.tl-tag-conflict { background: rgba(217,119,6,.12); color: var(--ops-amber); }
+
+/* ── Conflict Breakdown ── */
+.conflict-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: .25rem 0;
+}
+.cb-step {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: .5rem .75rem;
+  border-radius: 8px;
+}
+.cb-step-late {
+  background: rgba(220,38,38,.06);
+}
+.cb-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .95rem;
+  color: #64748b;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.cb-step-late .cb-icon { color: var(--ops-red); }
+.cb-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cb-label {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+.cb-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.cb-sub {
+  font-size: .78rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+.cb-late-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: .75rem;
+  font-weight: 700;
+  background: rgba(220,38,38,.12);
+  color: var(--ops-red);
+  width: fit-content;
+}
+.cb-strike {
+  text-decoration: line-through;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.cb-step-flight {
+  background: rgba(217,119,6,.06);
+}
+.cb-step-flight .cb-icon { color: var(--ops-amber); }
+.cb-connector {
+  padding-left: calc(.75rem + 8px);
+  color: #cbd5e1;
+  font-size: .85rem;
+  line-height: 1;
+}
+
+/* ── Conflict Actions ── */
+.conflict-actions {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.conflict-act-btn {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  padding: .65rem .85rem;
+  border-radius: 6px;
+  border: 1px solid var(--ops-border);
+  background: var(--ops-surface);
+  cursor: pointer;
+  transition: all .12s;
+  text-decoration: none;
+  color: inherit;
+}
+.conflict-act-btn:hover {
+  border-color: var(--ops-border-lt);
+  background: var(--ops-surface-2);
+}
+.conflict-act-btn i {
+  font-size: 1.1rem;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.act-match-flight i { color: var(--ops-green); }
+.act-dispatch i { color: var(--ops-blue); }
+.act-call i { color: var(--ops-cyan); }
+.act-text-col {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  flex: 1;
+  min-width: 0;
+}
+.act-label {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--ops-white);
+}
+.act-hint {
+  font-size: .68rem;
+  color: var(--ops-text-muted);
+  line-height: 1.3;
+}
+.act-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .2rem;
+  padding: .2rem .45rem;
+  border-radius: 4px;
+  font-size: .6rem;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.act-badge-ok { background: var(--ops-green-dim); color: var(--ops-green); }
+.act-badge-warn { background: var(--ops-amber-dim); color: var(--ops-amber); }
+
+/* ── Responsive ── */
+@media (max-width: 991px) {
+  .td-title-row { flex-direction: column; gap: .65rem; }
+  .conflict-summary { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+{% endblock %}
+
 {% block content %}
   {% block navbar %}{% endblock %}
   {% include 'dispatching/dispatcher_navbar.html' %}
 
-  <div class="container-fluid py-4">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-3">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{% url 'task_queue' %}">Task Queue</a></li>
-        <li class="breadcrumb-item active">Task #{{ task.id }}</li>
-      </ol>
-    </nav>
+  <!-- ═══ Header ═══ -->
+  <div class="td-header">
+    <div class="container-fluid px-4">
+      <div class="td-breadcrumb">
+        <a href="{% url 'task_queue' %}"><i class="bi bi-broadcast"></i> Ops Control</a>
+        <span class="sep">/</span>
+        <span class="current">Task #{{ task.id }}</span>
+      </div>
+
+      <div class="td-title-row">
+        <div class="td-title-main">
+          <h1>
+            <i class="{{ task.type_icon }} title-icon" style="color: {{ task.type_color }};"></i>
+            {{ task.title }}
+          </h1>
+          <div class="td-badges">
+            <span class="td-badge badge-type" style="background-color: {{ task.type_color }};">{{ task.get_task_type_display }}</span>
+            <span class="td-badge badge-priority-{{ task.priority }}">{{ task.get_priority_display }}</span>
+            <span class="td-badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+            {% if task.is_overdue %}<span class="td-badge badge-overdue"><i class="bi bi-clock-fill"></i> OVERDUE</span>{% endif %}
+          </div>
+        </div>
+
+        {% if task.is_open %}
+        <div class="td-actions">
+          <button class="td-act act-complete btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
+            <i class="bi bi-check-lg"></i> Complete
+          </button>
+          <button class="td-act btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="1h">
+            <i class="bi bi-clock"></i> 1h
+          </button>
+          <button class="td-act btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="4h">
+            <i class="bi bi-clock"></i> 4h
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if task.description %}
+      <p class="td-desc">{{ task.description }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="container-fluid px-4 py-3">
+    {% if task.blocked_by and task.blocked_by.is_open %}
+    <div class="td-dep-alert">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <span><strong>Depends on:</strong> {{ task.blocked_by.title }}</span>
+      <a href="{% url 'task_detail' task.blocked_by.id %}">View &rarr;</a>
+    </div>
+    {% endif %}
 
     <div class="row">
-      <!-- Main content -->
+      <!-- ═══ Main Column ═══ -->
       <div class="col-lg-8">
-        <!-- Task header -->
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-body">
-            <div class="d-flex align-items-start justify-content-between">
-              <div>
-                <h2 class="mb-1">
-                  <i class="{{ task.type_icon }} me-2" style="color: {{ task.type_color }};"></i>
-                  {{ task.title }}
-                </h2>
-                <div class="d-flex gap-2 mb-2">
-                  <span class="badge" style="background-color: {{ task.type_color }};">{{ task.get_task_type_display }}</span>
-                  <span class="badge" style="background-color: {{ task.priority_color }};">{{ task.get_priority_display }}</span>
-                  <span class="badge bg-{% if task.status == 'completed' %}success{% elif task.status == 'escalated' %}danger{% elif task.status == 'snoozed' %}secondary{% elif task.status == 'cancelled' %}dark{% else %}primary{% endif %}">
-                    {{ task.get_status_display }}
-                  </span>
-                  {% if task.is_overdue %}<span class="badge bg-danger">OVERDUE</span>{% endif %}
-                </div>
-                {% if task.description %}
-                <p class="text-muted mb-0">{{ task.description }}</p>
-                {% endif %}
+
+        {% if driver_schedule %}
+        <!-- ═══ Driver Conflict Panel ═══ -->
+
+        <!-- Conflict Summary -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            {% if is_flight_triggered %}
+            <i class="bi bi-airplane-fill" style="color: var(--ops-red);"></i>
+            <h6>Flight Delay + Driver Conflict</h6>
+            {% else %}
+            <i class="bi bi-exclamation-diamond-fill" style="color: var(--ops-red);"></i>
+            <h6>Scheduling Conflict</h6>
+            {% endif %}
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-summary">
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Driver</span>
+                <span class="conflict-stat-value">{{ driver_name }}</span>
               </div>
-              {% if task.is_open %}
-              <div class="btn-group">
-                <button class="btn btn-sm btn-success btn-task-action" data-action="complete" data-task-id="{{ task.id }}">
-                  <i class="bi bi-check-lg me-1"></i>Complete
-                </button>
-                <button class="btn btn-sm btn-outline-secondary btn-task-action" data-action="snooze" data-task-id="{{ task.id }}" data-duration="1h">
-                  <i class="bi bi-clock me-1"></i>Snooze 1h
-                </button>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Late by</span>
+                <span class="conflict-stat-value conflict-stat-danger">{{ conflict_minutes }} min</span>
+              </div>
+              {% if is_flight_triggered and flight_ident %}
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Flight</span>
+                <span class="conflict-stat-value">{{ flight_ident }}</span>
+              </div>
+              <div class="conflict-stat">
+                <span class="conflict-stat-label">Shift</span>
+                <span class="conflict-stat-value conflict-stat-warn">{{ mismatch_label }}</span>
               </div>
               {% endif %}
             </div>
 
-            {% if task.blocked_by and task.blocked_by.is_open %}
-            <div class="alert alert-warning mt-3 mb-0 py-2">
-              <i class="bi bi-exclamation-triangle me-1"></i>
-              <strong>Soft dependency:</strong> {{ task.blocked_by.title }}
-              <a href="{% url 'task_detail' task.blocked_by.id %}" class="ms-2">View</a>
+            {% if is_flight_triggered and flight_arrival_str %}
+            <!-- Flight shift detail -->
+            <div class="flight-shift-detail">
+              <div class="shift-arrow">
+                <span class="shift-from">
+                  <span class="shift-label">Booked</span>
+                  {{ booked_pickup_str }}
+                </span>
+                <i class="bi bi-arrow-right"></i>
+                <span class="shift-to">
+                  <span class="shift-label">Flight arriving</span>
+                  {{ flight_arrival_str }}
+                </span>
+              </div>
+
+              {% if post_match_ok == True %}
+              <div class="post-match-ok">
+                <i class="bi bi-check-circle-fill"></i>
+                After matching flight time, schedule works — no reassignment needed.
+              </div>
+              {% elif post_match_ok == False %}
+              <div class="post-match-conflict">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                After matching flight time, driver still has a {{ post_match_overlap_min }} min conflict — reassignment needed.
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if late_night_flag %}
+            <div class="late-night-alert">
+              <i class="bi bi-moon-stars-fill"></i>
+              Flight now arriving after 10 PM — confirm driver is available for late-night pickup.
             </div>
             {% endif %}
           </div>
         </div>
 
-        <!-- Communication History -->
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h5 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Communication History ({{ comm_attempts|length }})</h5>
+        <!-- Driver's Day Schedule -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-calendar-day" style="color: var(--ops-cyan);"></i>
+            <h6>{{ driver_name }}'s Schedule — {{ pickup_date_str }}</h6>
+            <span class="head-ct">{{ driver_schedule|length }} legs</span>
           </div>
-          <div class="card-body">
-            {% if comm_attempts %}
-            <div class="list-group list-group-flush">
-              {% for attempt in comm_attempts %}
-              <div class="list-group-item px-0">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <span class="badge bg-{% if attempt.channel == 'call' %}primary{% elif attempt.channel == 'sms' %}info{% else %}secondary{% endif %} me-2">
-                      {% if attempt.channel == 'call' %}<i class="bi bi-telephone"></i>{% elif attempt.channel == 'sms' %}<i class="bi bi-chat"></i>{% else %}<i class="bi bi-envelope"></i>{% endif %}
-                      {{ attempt.get_channel_display }}
-                    </span>
-                    <span class="badge bg-{% if attempt.outcome == 'answered' or attempt.outcome == 'delivered' or attempt.outcome == 'sent' %}success{% elif attempt.outcome == 'failed' or attempt.outcome == 'bounced' %}danger{% else %}warning{% endif %}">
-                      {{ attempt.get_outcome_display }}
-                    </span>
-                    {% if attempt.contact_value %}
-                    <small class="text-muted ms-2">{{ attempt.contact_value }}</small>
-                    {% endif %}
-                    {% if attempt.duration_seconds %}
-                    <small class="text-muted ms-2">({{ attempt.duration_seconds }}s)</small>
-                    {% endif %}
+          <div class="ops-card-body" style="padding: .5rem .85rem;">
+            <div class="driver-timeline">
+              {% for entry in driver_schedule %}
+              <div class="tl-leg {% if entry.is_trigger %}tl-trigger{% elif entry.is_conflicting %}tl-conflicting{% endif %}">
+                <div class="tl-time-col">
+                  <span class="tl-pickup-time">{{ entry.pickup_str }}</span>
+                  <span class="tl-end-time">ends ~{{ entry.end_str }}</span>
+                </div>
+                <div class="tl-bar">
+                  <div class="tl-dot {% if entry.is_trigger %}dot-trigger{% elif entry.is_conflicting %}dot-conflict{% else %}dot-normal{% endif %}"></div>
+                  <div class="tl-line"></div>
+                </div>
+                <div class="tl-detail">
+                  <div class="tl-route">
+                    {{ entry.pickup_location|truncatewords:4 }} &rarr; {{ entry.dropoff_location|truncatewords:4 }}
                   </div>
-                  <small class="text-muted">
-                    {{ attempt.staff_user.first_name|default:attempt.staff_user.username }} — {{ attempt.created_at|date:"M j g:i A" }}
-                  </small>
+                  <div class="tl-meta">
+                    <span class="tl-guest">{{ entry.customer_name }}</span>
+                    {% if entry.flight_label %}
+                    <span class="tl-flight"><i class="bi bi-airplane"></i> {{ entry.flight_label }}</span>
+                    {% endif %}
+                    {% if entry.is_trigger %}<span class="tl-tag tl-tag-trigger">{% if is_flight_triggered and can_match_flight %}DELAYED FLIGHT{% else %}THIS LEG{% endif %}</span>{% endif %}
+                    {% if entry.is_conflicting %}<span class="tl-tag tl-tag-conflict">CONFLICTS</span>{% endif %}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Conflict Breakdown -->
+        {% if conflict_detail %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-signpost-split-fill" style="color: var(--ops-amber);"></i>
+            <h6>Why It Conflicts</h6>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-breakdown">
+              {% if conflict_detail.second_is_arrival and conflict_detail.original_flight_str %}
+              <div class="cb-step cb-step-flight">
+                <div class="cb-icon"><i class="bi bi-airplane-fill"></i></div>
+                <div class="cb-text">
+                  <span class="cb-label">{{ conflict_detail.second_flight_label }} shifted</span>
+                  <span class="cb-value">
+                    <span class="cb-strike">{{ conflict_detail.original_flight_str }}</span>
+                    <i class="bi bi-arrow-right" style="font-size:.75rem; margin: 0 4px; color:#94a3b8;"></i>
+                    {{ conflict_detail.flight_gate_str }}
+                  </span>
+                </div>
+              </div>
+              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+              {% endif %}
+
+              <div class="cb-step">
+                <div class="cb-icon"><i class="bi bi-check-circle"></i></div>
+                <div class="cb-text">
+                  <span class="cb-label">Driver clears at</span>
+                  <span class="cb-value">{{ conflict_detail.clears_at_str }}</span>
+                  <span class="cb-sub">{{ conflict_detail.clears_location|truncatewords:5 }}</span>
+                </div>
+              </div>
+              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+              <div class="cb-step">
+                <div class="cb-icon"><i class="bi bi-{% if conflict_detail.is_reposition %}arrow-repeat{% else %}truck{% endif %}"></i></div>
+                <div class="cb-text">
+                  <span class="cb-label">{% if conflict_detail.is_reposition %}Reposition to pickup area{% else %}Travel to next pickup{% endif %}</span>
+                  <span class="cb-value">~{{ conflict_detail.travel_minutes }} min</span>
+                  {% if not conflict_detail.is_reposition %}
+                  <span class="cb-sub">{{ conflict_detail.travel_to|truncatewords:5 }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+              <div class="cb-step">
+                <div class="cb-icon"><i class="bi bi-geo-alt"></i></div>
+                <div class="cb-text">
+                  <span class="cb-label">Driver at pickup</span>
+                  <span class="cb-value">{{ conflict_detail.earliest_arrival_str }}</span>
+                </div>
+              </div>
+
+              {% if conflict_detail.second_is_arrival and conflict_detail.guest_ready_str %}
+              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+              <div class="cb-step cb-step-late">
+                <div class="cb-icon"><i class="bi bi-person-walking"></i></div>
+                <div class="cb-text">
+                  <span class="cb-label">Guest at baggage claim</span>
+                  <span class="cb-value">~{{ conflict_detail.guest_ready_str }}</span>
+                  <span class="cb-sub">{{ conflict_detail.flight_gate_str }} gate + ~{{ conflict_detail.guest_ready_minutes }} min deplane &amp; walk</span>
+                  {% if conflict_detail.late_minutes > 0 %}
+                  <span class="cb-late-badge">Driver arrives {{ conflict_detail.late_minutes }} min after guest</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% else %}
+              <div class="cb-connector"><i class="bi bi-three-dots-vertical"></i></div>
+              <div class="cb-step cb-step-late">
+                <div class="cb-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                <div class="cb-text">
+                  <span class="cb-label">Pickup scheduled</span>
+                  <span class="cb-value">{{ conflict_detail.second_pickup_str }}</span>
+                  {% if conflict_detail.late_minutes > 0 %}
+                  <span class="cb-late-badge">{{ conflict_detail.late_minutes }} min late</span>
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Actions -->
+        {% if task.is_open %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-lightning-fill" style="color: var(--ops-amber);"></i>
+            <h6>Quick Actions</h6>
+          </div>
+          <div class="ops-card-body">
+            <div class="conflict-actions">
+              {% if can_match_flight and task.leg %}
+              <button class="conflict-act-btn act-match-flight" data-leg-id="{{ task.leg.id }}">
+                <i class="bi bi-clock-history"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Match Flight Time</span>
+                  <span class="act-hint">
+                    {% if post_match_ok == True %}
+                    Updates pickup to {{ flight_arrival_str }} — schedule works after this
+                    {% elif post_match_ok == False %}
+                    Updates pickup to {{ flight_arrival_str }} — still needs reassignment after
+                    {% else %}
+                    Update pickup to match current flight arrival
+                    {% endif %}
+                  </span>
+                </div>
+                {% if post_match_ok == True %}
+                <span class="act-badge act-badge-ok"><i class="bi bi-check-circle-fill"></i> Resolves it</span>
+                {% elif post_match_ok == False %}
+                <span class="act-badge act-badge-warn"><i class="bi bi-exclamation-triangle-fill"></i> Step 1 of 2</span>
+                {% endif %}
+              </button>
+              {% endif %}
+              <a href="{% url 'legs_list' %}?date={{ pickup_date_str }}" class="conflict-act-btn act-dispatch" target="_blank">
+                <i class="bi bi-layout-text-window-reverse"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Open Dispatch Board</span>
+                  <span class="act-hint">View full day and reassign driver if needed</span>
+                </div>
+              </a>
+              {% if driver_phone %}
+              <a href="tel:{{ driver_phone }}" class="conflict-act-btn act-call">
+                <i class="bi bi-telephone-fill"></i>
+                <div class="act-text-col">
+                  <span class="act-label">Call {{ driver_name }}</span>
+                  <span class="act-hint">{{ driver_phone }}</span>
+                </div>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% endif %}
+
+        <!-- Communication History -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-chat-dots" style="color: var(--ops-blue);"></i>
+            <h6>Communication History</h6>
+            <span class="head-ct">{{ comm_attempts|length }}</span>
+          </div>
+          <div class="ops-card-body">
+            {% if comm_attempts %}
+            <div class="comm-tl">
+              {% for attempt in comm_attempts %}
+              <div class="comm-item">
+                <div class="comm-dot dot-{{ attempt.channel }}">
+                  {% if attempt.channel == 'call' %}<i class="bi bi-telephone-fill"></i>{% elif attempt.channel == 'sms' %}<i class="bi bi-chat-fill"></i>{% else %}<i class="bi bi-envelope-fill"></i>{% endif %}
+                </div>
+                <div class="comm-head">
+                  <span class="comm-chip chip-{{ attempt.channel }}">{{ attempt.get_channel_display }}</span>
+                  <span class="comm-chip {% if attempt.outcome == 'answered' or attempt.outcome == 'delivered' or attempt.outcome == 'sent' %}chip-outcome-good{% elif attempt.outcome == 'failed' or attempt.outcome == 'bounced' %}chip-outcome-bad{% else %}chip-outcome-warn{% endif %}">
+                    {{ attempt.get_outcome_display }}
+                  </span>
+                  {% if attempt.contact_value %}<span class="comm-contact">{{ attempt.contact_value }}</span>{% endif %}
+                  <span class="comm-who">
+                    {% if attempt.staff_user %}{{ attempt.staff_user.first_name|default:attempt.staff_user.username }}{% else %}System{% endif %}
+                    &middot; {{ attempt.created_at|date:"M j g:i A" }}
+                  </span>
                 </div>
                 {% if attempt.notes %}
-                <p class="mt-1 mb-0 small text-muted">{{ attempt.notes }}</p>
+                <p class="comm-notes">{{ attempt.notes }}</p>
                 {% endif %}
               </div>
               {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted text-center mb-0">No communication attempts logged yet.</p>
+            <div class="comm-empty">
+              <i class="bi bi-chat-square-dots"></i>
+              <span>No communication attempts logged yet.</span>
+            </div>
             {% endif %}
           </div>
         </div>
 
         <!-- Log Communication Form -->
         {% if task.is_open %}
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Log Communication</h5>
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-plus-circle" style="color: var(--ops-green);"></i>
+            <h6>Log Communication</h6>
           </div>
-          <div class="card-body">
+          <div class="ops-card-body comm-form">
             <form id="commForm">
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-md-4">
-                  <label class="form-label fw-bold">Channel</label>
+                  <label class="form-label">Channel</label>
                   <select id="detailCommChannel" class="form-select">
                     {% for value, label in channels %}
                     <option value="{{ value }}">{{ label }}</option>
@@ -121,27 +1175,23 @@
                   </select>
                 </div>
                 <div class="col-md-4">
-                  <label class="form-label fw-bold">Outcome</label>
+                  <label class="form-label">Outcome</label>
                   <select id="detailCommOutcome" class="form-select">
                     {% for value, label in outcomes %}
-                    <option value="{{ value }}">{{ label }}</option>
+                    <option value="{{ value }}" {% if value == "voicemail" %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                   </select>
                 </div>
-                <div class="col-md-4" id="detailDurationGroup">
-                  <label class="form-label fw-bold">Duration (seconds)</label>
-                  <input type="number" id="detailCommDuration" class="form-control" placeholder="Optional">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Contact (phone/email)</label>
-                  <input type="text" id="detailCommContact" class="form-control" placeholder="Optional">
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label fw-bold">Notes</label>
-                  <input type="text" id="detailCommNotes" class="form-control" placeholder="Optional">
+                <div class="col-md-4">
+                  <label class="form-label">Contact</label>
+                  <input type="text" id="detailCommContact" class="form-control" placeholder="Phone or email">
                 </div>
                 <div class="col-12">
-                  <button type="button" class="btn btn-primary" id="btnDetailSubmitComm">
+                  <label class="form-label">Notes</label>
+                  <input type="text" id="detailCommNotes" class="form-control" placeholder="Optional">
+                </div>
+                <div class="col-12 mt-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="btnDetailSubmitComm">
                     <i class="bi bi-check me-1"></i>Log Communication
                   </button>
                 </div>
@@ -152,155 +1202,200 @@
         {% endif %}
       </div>
 
-      <!-- Sidebar -->
+      <!-- ═══ Sidebar ═══ -->
       <div class="col-lg-4">
-        <!-- Task details card -->
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h6 class="mb-0">Details</h6>
+        <!-- Task Details -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-info-circle" style="color: var(--ops-blue);"></i>
+            <h6>Details</h6>
           </div>
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Created</span>
-              <span>{{ task.created_at|date:"M j, Y g:i A" }}</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Due</span>
-              <span class="{% if task.is_overdue %}text-danger fw-bold{% endif %}">{{ task.due_at|date:"M j, Y g:i A" }}</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Assigned to</span>
-              <span>{{ task.assigned_to.first_name|default:task.assigned_to.username|default:"Unassigned" }}</span>
-            </li>
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Attempts</span>
-              <span>{{ task.attempts }} / {{ task.max_attempts }}</span>
-            </li>
+          <div>
+            <div class="detail-row">
+              <span class="dl">Created</span>
+              <span class="dv">{{ task.created_at|date:"M j, Y g:i A" }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="dl">Due</span>
+              <span class="dv {% if task.is_overdue %}dv-overdue{% endif %}">{{ task.due_at|date:"M j, Y g:i A" }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="dl">Assigned to</span>
+              <span class="dv" style="font-family: var(--ops-sans);">
+                {% if task.assigned_to %}
+                <span class="assigned-chip">
+                  <i class="bi bi-person-check-fill"></i>
+                  {{ task.assigned_to.first_name|default:task.assigned_to.username }}
+                </span>
+                {% else %}
+                <span class="assigned-chip none">Unassigned</span>
+                {% endif %}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="dl">Attempts</span>
+              <span class="dv">{{ task.attempts }} / {{ task.max_attempts }}</span>
+            </div>
             {% if task.last_attempt_at %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Last attempt</span>
-              <span>{{ task.last_attempt_at|date:"M j g:i A" }}</span>
-            </li>
+            <div class="detail-row">
+              <span class="dl">Last attempt</span>
+              <span class="dv">{{ task.last_attempt_at|date:"M j g:i A" }}</span>
+            </div>
             {% endif %}
             {% if task.escalate_at %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Escalates at</span>
-              <span>{{ task.escalate_at|date:"M j g:i A" }}</span>
-            </li>
+            <div class="detail-row">
+              <span class="dl">Escalates at</span>
+              <span class="dv dv-warn">{{ task.escalate_at|date:"M j g:i A" }}</span>
+            </div>
             {% endif %}
             {% if task.resolved_at %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Resolved</span>
-              <span>{{ task.resolved_at|date:"M j g:i A" }}</span>
-            </li>
+            <div class="detail-row">
+              <span class="dl">Resolved</span>
+              <span class="dv dv-ok">{{ task.resolved_at|date:"M j g:i A" }}</span>
+            </div>
             {% if task.resolved_by %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Resolved by</span>
-              <span>{{ task.resolved_by.first_name|default:task.resolved_by.username }}</span>
-            </li>
+            <div class="detail-row">
+              <span class="dl">Resolved by</span>
+              <span class="dv" style="font-family: var(--ops-sans);">{{ task.resolved_by.first_name|default:task.resolved_by.username }}</span>
+            </div>
             {% endif %}
             {% if task.resolution_notes %}
-            <li class="list-group-item">
-              <span class="text-muted d-block">Resolution</span>
-              <span>{{ task.resolution_notes }}</span>
-            </li>
+            <div class="resolution-block">
+              <div class="resolution-label">Resolution Notes</div>
+              <div class="resolution-text">{{ task.resolution_notes }}</div>
+            </div>
             {% endif %}
             {% endif %}
-          </ul>
+          </div>
         </div>
 
-        <!-- Related object card -->
+        <!-- Guest / Lead / Contact Form Info -->
         {% if task.customer %}
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h6 class="mb-0">Guest Info</h6>
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-person-fill" style="color: var(--ops-green);"></i>
+            <h6>Guest Info</h6>
           </div>
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item">
-              <strong>{{ task.customer.get_full_name }}</strong>
-            </li>
+          <div class="contact-info">
+            <div class="contact-name">{{ task.customer.get_full_name }}</div>
             {% if task.customer.phone_number %}
-            <li class="list-group-item">
-              <i class="bi bi-telephone me-2 text-muted"></i>
+            <div class="contact-row">
+              <i class="bi bi-telephone-fill"></i>
               <a href="tel:{{ task.customer.phone_number }}">{{ task.customer.phone_number }}</a>
-            </li>
+            </div>
             {% endif %}
             {% if task.customer.email %}
-            <li class="list-group-item">
-              <i class="bi bi-envelope me-2 text-muted"></i>
+            <div class="contact-row">
+              <i class="bi bi-envelope-fill"></i>
               <a href="mailto:{{ task.customer.email }}">{{ task.customer.email }}</a>
-            </li>
+            </div>
             {% endif %}
-          </ul>
+          </div>
         </div>
         {% elif task.lead %}
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h6 class="mb-0">Lead Info</h6>
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-person-lines-fill" style="color: var(--ops-amber);"></i>
+            <h6>Lead Info</h6>
           </div>
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item">
-              <strong>{{ task.lead.first_name }} {{ task.lead.last_name }}</strong>
-            </li>
+          <div class="contact-info">
+            <div class="contact-name">{{ task.lead.first_name }} {{ task.lead.last_name }}</div>
             {% if task.lead.phone %}
-            <li class="list-group-item">
-              <i class="bi bi-telephone me-2 text-muted"></i>
+            <div class="contact-row">
+              <i class="bi bi-telephone-fill"></i>
               <a href="tel:{{ task.lead.phone }}">{{ task.lead.phone }}</a>
-            </li>
+            </div>
             {% endif %}
             {% if task.lead.email %}
-            <li class="list-group-item">
-              <i class="bi bi-envelope me-2 text-muted"></i>
+            <div class="contact-row">
+              <i class="bi bi-envelope-fill"></i>
               <a href="mailto:{{ task.lead.email }}">{{ task.lead.email }}</a>
-            </li>
+            </div>
             {% endif %}
-          </ul>
+          </div>
+        </div>
+        {% elif task.contact_form %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-envelope-paper-fill" style="color: var(--ops-green);"></i>
+            <h6>Contact Form</h6>
+          </div>
+          <div class="contact-info">
+            <div class="contact-name">{{ task.contact_form.first_name }} {{ task.contact_form.last_name }}</div>
+            {% if task.contact_form.phone_number %}
+            <div class="contact-row">
+              <i class="bi bi-telephone-fill"></i>
+              <a href="tel:{{ task.contact_form.phone_number }}">{{ task.contact_form.phone_number }}</a>
+            </div>
+            {% endif %}
+            {% if task.contact_form.email %}
+            <div class="contact-row">
+              <i class="bi bi-envelope-fill"></i>
+              <a href="mailto:{{ task.contact_form.email }}">{{ task.contact_form.email }}</a>
+            </div>
+            {% endif %}
+            {% if task.contact_form.contact_method %}
+            <div class="contact-row">
+              <i class="bi bi-chat-dots-fill"></i>
+              <span>Prefers: {{ task.contact_form.get_contact_method_display }}</span>
+            </div>
+            {% endif %}
+            {% if task.contact_form.about %}
+            <div class="contact-extra">{{ task.contact_form.about|truncatewords:40 }}</div>
+            {% endif %}
+          </div>
         </div>
         {% endif %}
 
-        <!-- Flight info (if flight_verify task) -->
+        <!-- Flight Info -->
         {% if task.leg and task.leg.flight_information %}
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h6 class="mb-0"><i class="bi bi-airplane me-2"></i>Flight Info</h6>
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-airplane" style="color: var(--ops-blue);"></i>
+            <h6>Flight Info</h6>
           </div>
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Flight</span>
-              <span>{{ task.leg.flight_information.airline_display_name|default:task.leg.flight_information.airline }} {{ task.leg.flight_information.flight_number }}</span>
-            </li>
+          <div>
+            <div class="detail-row">
+              <span class="dl">Flight</span>
+              <span class="dv" style="font-family: var(--ops-sans); font-weight: 700; color: var(--ops-white);">
+                {{ task.leg.flight_information.airline_display_name|default:task.leg.flight_information.airline }} {{ task.leg.flight_information.flight_number }}
+              </span>
+            </div>
             {% if task.leg.flight_information.scheduled_gate_arrival_local %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Scheduled arrival</span>
-              <span>{{ task.leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
-            </li>
+            <div class="detail-row">
+              <span class="dl">Scheduled</span>
+              <span class="dv">{{ task.leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+            </div>
             {% endif %}
             {% if task.leg.flight_information.estimated_gate_arrival_local %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Estimated arrival</span>
-              <span>{{ task.leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
-            </li>
+            <div class="detail-row">
+              <span class="dl">Estimated</span>
+              <span class="dv dv-warn">{{ task.leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
+            </div>
             {% endif %}
-            <li class="list-group-item d-flex justify-content-between">
-              <span class="text-muted">Booked pickup</span>
-              <span>{{ task.leg.pickup_time|date:"g:i A" }}</span>
-            </li>
-          </ul>
+            <div class="detail-row">
+              <span class="dl">Booked pickup</span>
+              <span class="dv">{{ task.leg.pickup_time|date:"g:i A" }}</span>
+            </div>
+          </div>
         </div>
         {% endif %}
 
-        <!-- Activity log -->
+        <!-- Activity Log -->
         {% if activities %}
-        <div class="card border-0 shadow-sm mb-4">
-          <div class="card-header bg-white">
-            <h6 class="mb-0">Activity</h6>
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-clock-history" style="color: var(--ops-text-dim);"></i>
+            <h6>Activity</h6>
           </div>
-          <div class="card-body p-2">
+          <div class="ops-card-body" style="padding: .5rem .85rem;">
             {% for activity in activities %}
-            <div class="small py-1 {% if not forloop.last %}border-bottom{% endif %}">
-              <span class="text-muted">{{ activity.created_at|date:"M j g:i A" }}</span>
-              — {{ activity.user.first_name|default:activity.user.username }}
-              {{ activity.get_action_type_display|lower }}
+            <div class="activity-item">
+              <span class="activity-time">{{ activity.created_at|date:"M j g:i A" }}</span>
+              <span class="activity-text">
+                <strong>{{ activity.user.first_name|default:activity.user.username }}</strong>
+                {{ activity.get_action_type_display|lower }}
+              </span>
             </div>
             {% endfor %}
           </div>
@@ -316,7 +1411,7 @@
 const CSRF = '{{ csrf_token }}';
 const TASK_ID = {{ task.id }};
 
-// Task actions
+/* Task actions */
 document.querySelectorAll('.btn-task-action').forEach(btn => {
   btn.addEventListener('click', function(e) {
     e.preventDefault();
@@ -343,13 +1438,42 @@ document.querySelectorAll('.btn-task-action').forEach(btn => {
   });
 });
 
-// Channel toggle for duration field
-document.getElementById('detailCommChannel')?.addEventListener('change', function() {
-  document.getElementById('detailDurationGroup').style.display =
-    this.value === 'call' ? 'block' : 'none';
+/* Match Flight Time action */
+document.querySelector('.act-match-flight')?.addEventListener('click', function() {
+  const btn = this;
+  const legId = btn.dataset.legId;
+  const origLabel = btn.querySelector('.act-label').textContent;
+  btn.style.pointerEvents = 'none';
+  btn.style.opacity = '.6';
+  btn.querySelector('.act-label').textContent = 'Updating...';
+
+  fetch('{% url "match_leg_time_to_flight" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({leg_id: legId}),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      btn.querySelector('.act-label').textContent = 'Updated!';
+      btn.querySelector('i').className = 'bi bi-check-circle-fill';
+      setTimeout(() => location.reload(), 800);
+    } else {
+      btn.style.pointerEvents = '';
+      btn.style.opacity = '';
+      btn.querySelector('.act-label').textContent = origLabel;
+      alert(data.error || 'Could not update pickup time');
+    }
+  })
+  .catch(err => {
+    btn.style.pointerEvents = '';
+    btn.style.opacity = '';
+    btn.querySelector('.act-label').textContent = origLabel;
+    alert('Error: ' + err);
+  });
 });
 
-// Submit communication
+/* Submit communication */
 document.getElementById('btnDetailSubmitComm')?.addEventListener('click', function() {
   const data = {
     task_id: TASK_ID,
@@ -357,7 +1481,6 @@ document.getElementById('btnDetailSubmitComm')?.addEventListener('click', functi
     outcome: document.getElementById('detailCommOutcome').value,
     notes: document.getElementById('detailCommNotes').value,
     contact_value: document.getElementById('detailCommContact').value,
-    duration_seconds: document.getElementById('detailCommDuration').value || null,
   };
   fetch('{% url "task_log_comm" %}', {
     method: 'POST',

@@ -97,7 +97,16 @@ def _run_batch_tasks():
         except Exception as e:
             logger.error(f"alert_dead_letter_syncs error: {e}", exc_info=True)
 
-    # 6. Ops task generation — scan for flight mismatches, confirmations,
+    # 6. Auto-refresh arrival flight data from AeroAPI (tiered schedule)
+    try:
+        from ops.tasks import auto_refresh_flights
+        result = auto_refresh_flights()
+        if result and result.get("refreshed"):
+            logger.info(f"Flight auto-refresh: {result['refreshed']} updated, {result.get('errors', 0)} errors")
+    except Exception as e:
+        logger.error(f"auto_refresh_flights error: {e}", exc_info=True)
+
+    # 7. Ops task generation — scan for flight mismatches, driver conflicts,
     #    unassigned legs, unpaid reservations, auto-close, snooze expiry
     try:
         from ops.tasks import generate_ops_tasks

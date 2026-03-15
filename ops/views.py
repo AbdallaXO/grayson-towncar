@@ -24,7 +24,12 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
+def _is_superuser(user):
+    return user.is_superuser
+
+
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 def task_queue_view(request):
     """
     Main staff task queue — shows all open operational tasks sorted by priority.
@@ -36,8 +41,14 @@ def task_queue_view(request):
     status_filter = request.GET.get("status", "")
     overdue_only = request.GET.get("overdue") == "1"
 
+    today = timezone.localdate()
+
     tasks = OperationalTask.objects.filter(
         status__in=["pending", "in_progress", "escalated", "snoozed"],
+    ).exclude(
+        # Hide driver assignment tasks for past pickup dates
+        task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
+        leg__pickup_date__lt=today,
     ).select_related(
         "reservation",
         "reservation__customer",
@@ -46,6 +57,7 @@ def task_queue_view(request):
         "leg__reservation__customer",
         "leg__flight_information",
         "lead",
+        "contact_form",
         "assigned_to",
         "blocked_by",
     ).order_by("priority", "due_at")
@@ -75,8 +87,28 @@ def task_queue_view(request):
     total_open = sum(type_counts.values())
     overdue_count = summary_qs.filter(due_at__lt=now).count()
 
+    # Build priority-grouped task list for the template
+    priority_config = [
+        (1, "critical", "Critical", "Needs immediate action"),
+        (2, "high", "High", "Address within a few hours"),
+        (3, "medium", "Medium", "Handle today"),
+        (4, "low", "Low", "When time permits"),
+    ]
+    priority_groups = []
+    task_list = list(tasks)
+    for pval, key, label, hint in priority_config:
+        group_tasks = [t for t in task_list if t.priority == pval]
+        priority_groups.append({
+            "priority": pval,
+            "key": key,
+            "label": label,
+            "hint": hint,
+            "tasks": group_tasks,
+        })
+
     context = {
-        "tasks": tasks,
+        "tasks": task_list,
+        "priority_groups": priority_groups,
         "now": now,
         "type_filter": type_filter,
         "assignee_filter": assignee_filter,
@@ -91,6 +123,7 @@ def task_queue_view(request):
 
 
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 @require_POST
 def task_claim(request):
     """Claim a task — assign it to the current user and set status to in_progress."""
@@ -119,6 +152,7 @@ def task_claim(request):
 
 
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 @require_POST
 def task_complete(request):
     """Mark a task as completed."""
@@ -147,6 +181,7 @@ def task_complete(request):
 
 
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 @require_POST
 def task_snooze(request):
     """Snooze a task for a specified duration."""
@@ -202,6 +237,7 @@ def task_snooze(request):
 
 
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 @require_POST
 def task_cancel(request):
     """Cancel a task."""
@@ -223,6 +259,7 @@ def task_cancel(request):
 
 
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 @require_POST
 def task_log_comm(request):
     """Log a communication attempt on a task."""
@@ -260,6 +297,7 @@ def task_log_comm(request):
 
 
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 @require_http_methods(["GET", "POST"])
 def task_create_manual(request):
     """Create a manual task via form POST or JSON."""
@@ -307,7 +345,297 @@ def task_create_manual(request):
         return JsonResponse({"success": False, "error": "Duplicate task exists"})
 
 
+def _build_driver_conflict_context(task):
+    """
+    Build extra context for driver_conflict task detail: the driver's full
+    day schedule with conflict highlighting and timing data.
+
+    Handles two flavours:
+      1. Flight-triggered — a flight shifted, which causes (or would cause)
+         a scheduling conflict. Shows flight shift info + "what happens
+         after matching flight time" analysis.
+      2. Pure scheduling overlap — two legs assigned to the same driver
+         overlap regardless of any flight change.
+    """
+    from reservations.models import Leg
+    from datetime import datetime
+    from ops.tasks import (
+        _get_effective_ready_time,
+        _estimate_leg_end_time,
+        AIRPORT_ARRIVAL_GRACE_MINUTES,
+    )
+
+    meta = task.metadata or {}
+    driver_id = meta.get("driver_id")
+    pickup_date_str = meta.get("pickup_date")
+    conflicting_leg_id = meta.get("conflicting_leg_id")
+
+    if not driver_id or not pickup_date_str:
+        return {}
+
+    from datetime import date as date_type
+    pickup_date = date_type.fromisoformat(pickup_date_str)
+
+    # Is this flight-triggered or a pure scheduling overlap?
+    is_flight_triggered = meta.get("mismatch_direction") != "overlap"
+    has_flight = bool(task.leg and task.leg.flight_information) if task.leg else False
+    # "Match Flight Time" only makes sense for arrival legs (airport → hotel)
+    is_arrival_leg = (
+        has_flight
+        and hasattr(task.leg, "get_trip_type")
+        and task.leg.get_trip_type() == "arrival"
+    )
+    can_match_flight = is_arrival_leg
+
+    # All legs for this driver on this day, ordered by pickup_time
+    day_legs = list(
+        Leg.objects.filter(
+            driver_id=driver_id,
+            pickup_date=pickup_date,
+        )
+        .exclude(status__in=["completed", "cancelled"])
+        .exclude(reservation__status="cancelled")
+        .select_related(
+            "flight_information",
+            "reservation",
+            "reservation__customer",
+        )
+        .order_by("pickup_time")
+    )
+
+    # Build schedule entries with timing info
+    schedule = []
+    for leg in day_legs:
+        ready_time = _get_effective_ready_time(leg, pickup_date)
+        end_time = _estimate_leg_end_time(leg, pickup_date)
+        is_trigger = leg.pk == task.leg_id
+        is_conflicting = leg.pk == conflicting_leg_id
+
+        # Format times
+        ready_str = ready_time.strftime("%I:%M %p").lstrip("0")
+        end_str = end_time.strftime("%I:%M %p").lstrip("0")
+        pickup_str = leg.pickup_time.strftime("%I:%M %p").lstrip("0")
+
+        # Customer name
+        customer = leg.reservation.customer if leg.reservation else None
+        customer_name = customer.get_full_name() if customer else "Unknown"
+
+        # Trip type display
+        trip_type = leg.get_trip_type() if hasattr(leg, "get_trip_type") else ""
+
+        # Flight info
+        flight_label = ""
+        if leg.flight_information:
+            fi = leg.flight_information
+            airline = fi.airline_display_name or fi.airline or ""
+            flight_label = f"{airline} {fi.flight_number}".strip()
+
+        schedule.append({
+            "leg": leg,
+            "pickup_str": pickup_str,
+            "ready_str": ready_str,
+            "end_str": end_str,
+            "ready_time": ready_time,
+            "end_time": end_time,
+            "customer_name": customer_name,
+            "trip_type": trip_type,
+            "flight_label": flight_label,
+            "is_trigger": is_trigger,
+            "is_conflicting": is_conflicting,
+            "pickup_location": leg.pickup_location,
+            "dropoff_location": leg.dropoff_location,
+        })
+
+    # ── Conflict breakdown: travel time between conflicting legs ──
+    conflict_detail = None
+    trigger_entry = next((e for e in schedule if e["is_trigger"]), None)
+    conflicting_entry = next((e for e in schedule if e["is_conflicting"]), None)
+    if trigger_entry and conflicting_entry:
+        try:
+            from dispatching.scheduler import get_drive_time
+            from dispatching.analytics import (
+                categorize_location,
+                categorize_time_of_day,
+                categorize_day_type,
+            )
+
+            # Determine which leg is first chronologically
+            if trigger_entry["ready_time"] <= conflicting_entry["ready_time"]:
+                first, second = trigger_entry, conflicting_entry
+            else:
+                first, second = conflicting_entry, trigger_entry
+
+            first_leg = first["leg"]
+            second_leg = second["leg"]
+
+            # Travel from first leg's dropoff to second leg's pickup
+            from_cat = categorize_location(first_leg.dropoff_location or "")
+            to_cat = categorize_location(second_leg.pickup_location or "")
+            time_cat = categorize_time_of_day(first_leg.pickup_time)
+            day_cat = categorize_day_type(pickup_date)
+            travel_minutes = get_drive_time(from_cat, to_cat, time_cat, day_cat)
+
+            clears_at = first["end_time"]
+            earliest_arrival = clears_at + timedelta(minutes=travel_minutes)
+            second_pickup = datetime.combine(pickup_date, second_leg.pickup_time)
+            late_minutes = max(
+                0,
+                int((earliest_arrival - second_pickup).total_seconds() / 60),
+            )
+
+            # Check if second leg is an arrival with flight data
+            second_is_arrival = (
+                hasattr(second_leg, "get_trip_type")
+                and second_leg.get_trip_type() == "arrival"
+                and second_leg.flight_information
+            )
+
+            # Flight-specific context for arrival legs
+            flight_gate_str = ""
+            original_flight_str = ""
+            guest_ready_str = ""
+            guest_ready_minutes = 0
+
+            if second_is_arrival:
+                from dispatching.scheduler import _get_best_flight_arrival
+                flight_dt = _get_best_flight_arrival(second_leg)
+                if flight_dt:
+                    flight_gate_str = flight_dt.time().strftime("%I:%M %p").lstrip("0")
+                    grace = AIRPORT_ARRIVAL_GRACE_MINUTES
+                    guest_ready_dt = datetime.combine(pickup_date, flight_dt.time()) + timedelta(minutes=grace)
+                    guest_ready_str = guest_ready_dt.strftime("%I:%M %p").lstrip("0")
+                    guest_ready_minutes = grace
+
+                    # Late vs guest ready (not vs booked pickup)
+                    late_minutes = max(
+                        0,
+                        int((earliest_arrival - guest_ready_dt).total_seconds() / 60),
+                    )
+
+                    # Original scheduled time (to show the shift)
+                    fi = second_leg.flight_information
+                    sched = fi.scheduled_arrival_local or fi.scheduled_gate_arrival_local
+                    if sched:
+                        from django.utils import timezone as tz
+                        if tz.is_aware(sched):
+                            sched = tz.make_naive(sched, tz.get_current_timezone())
+                        original_flight_str = sched.time().strftime("%I:%M %p").lstrip("0")
+
+            # Same-airport reposition vs regular travel
+            is_reposition = from_cat == to_cat and "Terminal" in from_cat
+
+            conflict_detail = {
+                "first_customer": first["customer_name"],
+                "second_customer": second["customer_name"],
+                "clears_at_str": clears_at.strftime("%I:%M %p").lstrip("0"),
+                "clears_location": first_leg.dropoff_location or "",
+                "travel_to": second_leg.pickup_location or "",
+                "travel_minutes": travel_minutes,
+                "is_reposition": is_reposition,
+                "earliest_arrival_str": earliest_arrival.strftime("%I:%M %p").lstrip("0"),
+                "second_pickup_str": second["pickup_str"],
+                "late_minutes": late_minutes,
+                # Flight arrival context
+                "second_is_arrival": second_is_arrival,
+                "flight_gate_str": flight_gate_str,
+                "original_flight_str": original_flight_str,
+                "guest_ready_str": guest_ready_str,
+                "guest_ready_minutes": guest_ready_minutes,
+                "second_flight_label": second["flight_label"],
+            }
+        except Exception:
+            logger.exception("Error computing conflict breakdown for task %s", task.id)
+
+    # ── Flight-triggered: compute post-match analysis ──
+    flight_arrival_str = ""
+    booked_pickup_str = ""
+    post_match_ok = None  # None = not applicable, True = schedule works, False = still conflicts
+    post_match_overlap_min = 0
+    late_night_flag = False
+
+    if can_match_flight:
+        try:
+            from dispatching.scheduler import _get_best_flight_arrival
+            flight_dt = _get_best_flight_arrival(task.leg)
+            if flight_dt:
+                flight_arrival_str = flight_dt.time().strftime("%I:%M %p").lstrip("0")
+                booked_pickup_str = task.leg.pickup_time.strftime("%I:%M %p").lstrip("0")
+
+                if flight_dt.hour >= 22:
+                    late_night_flag = True
+
+                # Simulate: if we match flight time, does the schedule still conflict?
+                # After matching, the trigger leg's ready_time becomes flight_arrival + grace
+                matched_ready = datetime.combine(
+                    pickup_date, flight_dt.time()
+                ) + timedelta(minutes=AIRPORT_ARRIVAL_GRACE_MINUTES)
+
+                # Get the trigger leg's current duration to estimate new end time
+                trigger_entry = next(
+                    (e for e in schedule if e["is_trigger"]), None
+                )
+                conflicting_entry = next(
+                    (e for e in schedule if e["is_conflicting"]), None
+                )
+                if trigger_entry and conflicting_entry:
+                    # Use the same trip duration (end - ready) from the current estimate
+                    trip_duration = trigger_entry["end_time"] - trigger_entry["ready_time"]
+                    matched_end = matched_ready + trip_duration
+
+                    other_end = conflicting_entry["end_time"]
+                    other_ready = conflicting_entry["ready_time"]
+
+                    if other_end > matched_ready and other_ready < matched_ready:
+                        # Other leg finishes after we need to start
+                        post_match_ok = False
+                        post_match_overlap_min = int(
+                            (other_end - matched_ready).total_seconds() / 60
+                        )
+                    elif matched_end > other_ready and matched_ready < other_ready:
+                        # Our matched leg would finish after the other needs to start
+                        post_match_ok = False
+                        post_match_overlap_min = int(
+                            (matched_end - other_ready).total_seconds() / 60
+                        )
+                    else:
+                        post_match_ok = True
+        except Exception:
+            logger.exception("Error computing post-match analysis for task %s", task.id)
+
+    # Driver info
+    from drivers.models import Driver
+    try:
+        driver = Driver.objects.select_related("profile").get(pk=driver_id)
+        driver_name = str(driver)
+        driver_phone = driver.phone_number or ""
+    except Driver.DoesNotExist:
+        driver_name = meta.get("driver_name", "Unknown")
+        driver_phone = ""
+
+    return {
+        "driver_schedule": schedule,
+        "driver_name": driver_name,
+        "driver_phone": driver_phone,
+        "conflict_minutes": meta.get("conflict_minutes", 0),
+        "mismatch_minutes": meta.get("mismatch_minutes", 0),
+        "mismatch_label": meta.get("mismatch_label", ""),
+        "flight_ident": meta.get("flight_ident", ""),
+        "is_flight_triggered": is_flight_triggered,
+        "has_flight": has_flight,
+        "can_match_flight": can_match_flight,
+        "is_arrival_leg": is_arrival_leg,
+        "flight_arrival_str": flight_arrival_str,
+        "booked_pickup_str": booked_pickup_str,
+        "post_match_ok": post_match_ok,
+        "post_match_overlap_min": post_match_overlap_min,
+        "late_night_flag": late_night_flag,
+        "pickup_date_str": pickup_date_str,
+        "conflict_detail": conflict_detail,
+    }
+
+
 @login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
 def task_detail_view(request, task_id):
     """
     Detailed view of a single task with full communication history,
@@ -322,6 +650,7 @@ def task_detail_view(request, task_id):
             "leg__reservation__customer",
             "leg__flight_information",
             "lead",
+            "contact_form",
             "assigned_to",
             "created_by",
             "resolved_by",
@@ -340,14 +669,15 @@ def task_detail_view(request, task_id):
         "channels": CommunicationAttempt.Channel.choices,
         "outcomes": CommunicationAttempt.Outcome.choices,
     }
+
+    # ── Driver Conflict: build the driver's full day schedule ──
+    if task.task_type == OperationalTask.TaskType.DRIVER_CONFLICT and task.leg:
+        context.update(_build_driver_conflict_context(task))
+
     return render(request, "dispatching/task_detail.html", context)
 
 
 # ── Staff Metrics Dashboard (superuser-only) ──
-
-
-def _is_superuser(user):
-    return user.is_superuser
 
 
 @login_required(login_url="login")

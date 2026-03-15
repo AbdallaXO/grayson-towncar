@@ -73,6 +73,10 @@ DEFAULT_DRIVE_TIME = 35  # fallback for unknown routes
 # Buffer between jobs (repositioning uncertainty + personal break)
 INTER_JOB_BUFFER = 5  # minutes
 
+# Airport arrivals: passengers deplane + collect bags, so driver can arrive
+# up to this many minutes after the pickup_time and still be on time.
+ARRIVAL_GRACE_MINUTES = 8
+
 
 # ============================================================================
 # VEHICLE TIER HIERARCHY
@@ -529,6 +533,14 @@ def check_feasibility(
     new_pickup_cat = categorize_location(new_leg.pickup_location)
     new_dropoff_cat = categorize_location(new_leg.dropoff_location)
 
+    # Airport arrivals: passenger deplanes + collects bags, so driver
+    # can arrive a few minutes after the listed pickup_time.
+    is_airport_arrival = (
+        new_leg.get_trip_type() == 'arrival'
+        and new_pickup_cat in ('MCO Terminal', 'SFB Terminal')
+    )
+    arrival_grace = ARRIVAL_GRACE_MINUTES if is_airport_arrival else 0
+
     warnings = []
     sorted_slots = sorted(driver_schedule.slots, key=lambda s: s.pickup_time)
 
@@ -548,7 +560,7 @@ def check_feasibility(
     if preceding:
         reposition = get_drive_time(preceding.dropoff_category, new_pickup_cat)
         earliest_available = preceding.estimated_end_time + timedelta(minutes=reposition + inter_job_buffer)
-        buffer_minutes = int((new_pickup_dt - earliest_available).total_seconds() / 60)
+        buffer_minutes = int((new_pickup_dt + timedelta(minutes=arrival_grace) - earliest_available).total_seconds() / 60)
 
         if buffer_minutes < 0:
             end_str = preceding.estimated_end_time.strftime('%I:%M %p').lstrip('0')
