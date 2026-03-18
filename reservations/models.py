@@ -24,7 +24,7 @@ class Customer(models.Model):
     last_name = models.CharField(max_length=50, blank=True)
     email = models.EmailField(db_index=True)
     phone_number = models.CharField(max_length=20)
-    zipcode = models.CharField(max_length=20)
+    zipcode = models.CharField(max_length=20, blank=True, default="")
     # For future reference
     is_returning = models.BooleanField(default=False)
     reservation_count = models.PositiveIntegerField(default=0)

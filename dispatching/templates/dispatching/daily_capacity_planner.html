@@ -1104,6 +1104,7 @@
                                 <h6 class="fw-bold mb-2">Global</h6>
                                 <div class="row g-2 mb-3">
                                     <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Job Buffer (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="inter_job_buffer" style="width:75px;"></div>
+                                    <div class="col-6 col-md-4 d-flex align-items-center justify-content-between"><label class="me-2">Arrival Grace (min)</label><input type="number" class="form-control form-control-sm tuning-input" data-field="arrival_grace_minutes" style="width:75px;" title="Airport arrivals: pax deplane + bags, driver can arrive this many min after flight time"></div>
                                 </div>
                                 <h6 class="fw-bold mb-2">Auto-Assign Buffer Scores</h6>
                                 <div class="row g-2 mb-3">
@@ -2571,6 +2572,14 @@
                 + '<br><br><span style="color:#2e7d32"><b>3-5 min</b></span> — tight, fits more jobs but drivers rush'
                 + '<br><span style="color:#1565c0"><b>5-10 min</b></span> — comfortable for most days'
                 + '<br><span style="color:#e65100"><b>15-20 min</b></span> — very relaxed, fewer jobs fit per driver'
+        },
+        arrival_grace_minutes: {
+            title: 'Airport Arrival Grace',
+            body: 'For airport arrivals, the scheduled time is when the <b>flight lands</b>, not when the passenger is ready. They still need to deplane, get bags, etc.'
+                + '<br><br>This adds extra minutes to the flight time when checking if a driver can chain to an arrival — so a driver clearing at 1:05 PM can pick up a 1:00 PM arrival if the grace covers the gap.'
+                + '<br><br><span style="color:#2e7d32"><b>8-10 min</b></span> — domestic flights, quick deplane'
+                + '<br><span style="color:#1565c0"><b>12-15 min</b></span> — international or large planes'
+                + '<br><span style="color:#e65100"><b>20+ min</b></span> — customs/immigration expected'
         },
         buffer_perfect: {
             title: 'Perfect Free Time (20-30 min gap)',

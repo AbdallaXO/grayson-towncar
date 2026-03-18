@@ -83,6 +83,7 @@ class SchedulerSettings(models.Model):
 
     # ── Global ────────────────────────────────────────────────────
     inter_job_buffer = models.IntegerField(default=5, help_text="Minutes between jobs (break + buffer)")
+    arrival_grace_minutes = models.IntegerField(default=15, help_text="Airport arrival grace: flight lands but pax still deplaning/bags, so driver can arrive this many min after flight time")
 
     # ── Builder Extras ────────────────────────────────────────────
     base_score = models.IntegerField(default=50, help_text="Starting score for each candidate leg")

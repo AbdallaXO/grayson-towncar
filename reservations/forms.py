@@ -307,7 +307,7 @@ class ReservationAdminForm(forms.ModelForm):
 
     class Meta:
         model = Reservation
-        fields = "__all__"
+        exclude = ["trip_type"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -317,6 +317,18 @@ class ReservationAdminForm(forms.ModelForm):
         self.fields['rate'].queryset = Rate.objects.select_related(
             'vehicle', 'route', 'route__origin', 'route__destination'
         )
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Auto-determine trip_type from leg count
+        if instance.pk:
+            leg_count = instance.legs.count()
+            instance.trip_type = "round_trip" if leg_count >= 2 else "one_way"
+        elif not instance.trip_type:
+            instance.trip_type = "one_way"
+        if commit:
+            instance.save()
+        return instance
 
 
 class LeadForm(forms.ModelForm):

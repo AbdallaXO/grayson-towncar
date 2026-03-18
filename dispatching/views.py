@@ -1109,6 +1109,12 @@ def modify_reservation(request, id):
             return redirect("reservation_details", id=updated_reservation.uuid)
         else:
             messages.error(request, "Please correct the errors in the form.")
+            leg_forms = [
+                LegForm(request.POST, instance=leg, prefix=f"leg_{i + 1}")
+                for i, leg in enumerate(reservation.legs.all())
+            ]
+            if not leg_forms:
+                leg_forms.append(LegForm(request.POST, prefix="leg_1"))
     else:
         customer_form = CustomerForm(instance=reservation.customer)
         reservation_form = ReservationAdminForm(instance=reservation)
@@ -1596,7 +1602,9 @@ def check_driver_feasibility(request):
                 "vehicle_mismatch_detail": vehicle_mismatch_detail,
             })
 
-        result = check_feasibility(driver_schedule, leg, target_date)
+        from dispatching.models import SchedulerSettings
+        cfg = SchedulerSettings.get_settings()
+        result = check_feasibility(driver_schedule, leg, target_date, arrival_grace=cfg.arrival_grace_minutes)
         end_time = estimate_job_end_time(leg, target_date)
 
         warnings = list(result.warnings) if result.warnings else []
@@ -8816,7 +8824,7 @@ def swap_tester(request):
             sched = schedules.get(driver.id)
             if not sched:
                 continue
-            feas = check_feasibility(sched, leg, selected_date, cfg.inter_job_buffer)
+            feas = check_feasibility(sched, leg, selected_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
             if feas.feasible:
                 if best_direct is None or feas.buffer_minutes > best_direct["buffer"]:
                     best_direct = {

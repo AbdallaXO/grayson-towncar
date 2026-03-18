@@ -37,8 +37,8 @@ DRIVE_TIME_ESTIMATES = {
     ('Disney Resort', 'Other Hotel'): 25,
     ('Other Hotel', 'Disney Resort'): 25,
     ('Disney Resort', 'Disney Resort'): 12,
-    ('MCO Terminal', 'MCO Terminal'): 5,
-    ('SFB Terminal', 'SFB Terminal'): 5,
+    ('MCO Terminal', 'MCO Terminal'): 2,
+    ('SFB Terminal', 'SFB Terminal'): 2,
     ('Airport Hotel', 'Airport Hotel'): 10,
     ('Other Hotel', 'Other Hotel'): 15,
     ('Residential', 'Residential'): 15,
@@ -75,7 +75,8 @@ INTER_JOB_BUFFER = 5  # minutes
 
 # Airport arrivals: passengers deplane + collect bags, so driver can arrive
 # up to this many minutes after the pickup_time and still be on time.
-ARRIVAL_GRACE_MINUTES = 8
+# This is the fallback default; prefer SchedulerSettings.arrival_grace_minutes.
+ARRIVAL_GRACE_MINUTES = 15
 
 
 # ============================================================================
@@ -511,6 +512,7 @@ def check_feasibility(
     new_leg,
     target_date: date,
     inter_job_buffer: int = None,
+    arrival_grace: int = None,
 ) -> FeasibilityResult:
     """
     Check whether a driver can fit a new leg into their schedule.
@@ -539,7 +541,9 @@ def check_feasibility(
         new_leg.get_trip_type() == 'arrival'
         and new_pickup_cat in ('MCO Terminal', 'SFB Terminal')
     )
-    arrival_grace = ARRIVAL_GRACE_MINUTES if is_airport_arrival else 0
+    if arrival_grace is None:
+        arrival_grace = ARRIVAL_GRACE_MINUTES
+    arrival_grace = arrival_grace if is_airport_arrival else 0
 
     warnings = []
     sorted_slots = sorted(driver_schedule.slots, key=lambda s: s.pickup_time)
@@ -559,7 +563,17 @@ def check_feasibility(
     # Check against preceding slot
     if preceding:
         reposition = get_drive_time(preceding.dropoff_category, new_pickup_cat)
-        earliest_available = preceding.estimated_end_time + timedelta(minutes=reposition + inter_job_buffer)
+        # Airport arrivals: pax deplaning + bags IS the break and covers any
+        # within-airport repositioning. Only arrival_grace matters — so zero
+        # out both reposition and inter_job_buffer. This way the tuning knob
+        # (arrival_grace_minutes) is the single control for arrival chaining.
+        if is_airport_arrival:
+            effective_reposition = 0
+            effective_buffer = 0
+        else:
+            effective_reposition = reposition
+            effective_buffer = inter_job_buffer
+        earliest_available = preceding.estimated_end_time + timedelta(minutes=effective_reposition + effective_buffer)
         buffer_minutes = int((new_pickup_dt + timedelta(minutes=arrival_grace) - earliest_available).total_seconds() / 60)
 
         if buffer_minutes < 0:
@@ -568,7 +582,7 @@ def check_feasibility(
                 feasible=False,
                 buffer_minutes=buffer_minutes,
                 reason=f"Needs {abs(buffer_minutes)} more min. Previous job ends ~{end_str}, "
-                       f"+{reposition}min drive +{inter_job_buffer}min buffer.",
+                       f"+{effective_reposition}min drive +{effective_buffer}min buffer.",
             )
         if buffer_minutes < 15:
             warnings.append(f"Tight: {buffer_minutes}min after previous job")
@@ -711,6 +725,7 @@ def suggest_assignments(
 
     # Pre-compute chain opportunities
     chain_map = {}
+    grace = cfg.arrival_grace_minutes
     for leg in sorted_legs:
         dropoff_cat = categorize_location(leg.dropoff_location)
         leg_end_est = estimate_job_end_time(leg, target_date)
@@ -728,7 +743,13 @@ def suggest_assignments(
                 if drive_between > cfg.chain_drive_threshold:
                     continue
             other_pickup_dt = datetime.combine(target_date, other.pickup_time)
-            gap_minutes = (other_pickup_dt - leg_end_est).total_seconds() / 60
+            # Airport arrivals: flight time != pickup time, pax still deplaning
+            other_is_arrival = (
+                other.get_trip_type() == 'arrival'
+                and other_pickup_cat in ('MCO Terminal', 'SFB Terminal')
+            )
+            effective_pickup = other_pickup_dt + timedelta(minutes=grace) if other_is_arrival else other_pickup_dt
+            gap_minutes = (effective_pickup - leg_end_est).total_seconds() / 60
             if cfg.chain_time_min <= gap_minutes <= cfg.chain_time_max:
                 chain_count += 1
         chain_map[leg.id] = chain_count
@@ -832,7 +853,7 @@ def suggest_assignments(
                 if leg_vtype not in compatible:
                     continue
 
-            feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
+            feas = check_feasibility(sched, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
             if not feas.feasible:
                 continue
 
@@ -1198,7 +1219,7 @@ def build_smart_schedule(
     # Step 1: Insert pinned legs first (they're mandatory)
     pinned_sorted = sorted(pinned_legs, key=lambda l: l.pickup_time)
     for leg in pinned_sorted:
-        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
+        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
         if feas.feasible:
             _add_leg_to_schedule(working, leg, target_date)
             pinned_included.append(leg.id)
@@ -1232,6 +1253,7 @@ def build_smart_schedule(
 
     # Pre-compute chain opportunities for this driver's candidate legs
     chain_map = {}
+    grace = cfg.arrival_grace_minutes
     for leg in optional_legs:
         dropoff_cat = categorize_location(leg.dropoff_location)
         leg_end_est = estimate_job_end_time(leg, target_date)
@@ -1249,7 +1271,13 @@ def build_smart_schedule(
                 if drive_between > cfg.chain_drive_threshold:
                     continue
             other_pickup_dt = datetime.combine(target_date, other.pickup_time)
-            gap_minutes = (other_pickup_dt - leg_end_est).total_seconds() / 60
+            # Airport arrivals: flight time != pickup time, pax still deplaning
+            other_is_arrival = (
+                other.get_trip_type() == 'arrival'
+                and other_pickup_cat in ('MCO Terminal', 'SFB Terminal')
+            )
+            effective_pickup = other_pickup_dt + timedelta(minutes=grace) if other_is_arrival else other_pickup_dt
+            gap_minutes = (effective_pickup - leg_end_est).total_seconds() / 60
             if cfg.chain_time_min <= gap_minutes <= cfg.chain_time_max:
                 chain_count += 1
         chain_map[leg.id] = chain_count
@@ -1312,7 +1340,7 @@ def build_smart_schedule(
         if est_end.hour > end_hour + 1:  # allow 1 hour grace for last job
             continue
 
-        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer)
+        feas = check_feasibility(working, leg, target_date, inter_job_buffer=cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
         if not feas.feasible:
             continue
 

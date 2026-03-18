@@ -170,6 +170,7 @@ def _get_conflicting_slots(
     candidate_leg,
     target_date: date,
     inter_job_buffer: int = None,
+    arrival_grace: int = None,
 ) -> List[Tuple[ScheduleSlot, int]]:
     """
     Find slots that, if individually removed, would make candidate_leg feasible.
@@ -180,7 +181,7 @@ def _get_conflicting_slots(
     results = []
     for slot in schedule.slots:
         modified = _build_modified_schedule(schedule, remove_leg_ids={slot.leg_id})
-        result = check_feasibility(modified, candidate_leg, target_date, inter_job_buffer)
+        result = check_feasibility(modified, candidate_leg, target_date, inter_job_buffer, arrival_grace=arrival_grace)
         if result.feasible:
             results.append((slot, result.buffer_minutes))
     results.sort(key=lambda x: x[1], reverse=True)
@@ -415,7 +416,7 @@ def _search(
             continue
 
         # ── Try direct placement ──────────────────────────────────
-        feasibility = check_feasibility(schedule, leg_to_place, target_date, cfg.inter_job_buffer)
+        feasibility = check_feasibility(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
 
         if feasibility.feasible:
             pickup_str = leg_to_place.pickup_time.strftime("%I:%M %p").lstrip("0") if hasattr(leg_to_place.pickup_time, "strftime") else str(leg_to_place.pickup_time)
@@ -455,7 +456,7 @@ def _search(
         if depth_remaining <= 0:
             continue
 
-        conflicting = _get_conflicting_slots(schedule, leg_to_place, target_date, cfg.inter_job_buffer)
+        conflicting = _get_conflicting_slots(schedule, leg_to_place, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
 
         for slot, buffer_after_removal in conflicting:
             if _budget_exceeded(iterations[0], start, max_iterations, time_limit_ms):
@@ -564,7 +565,7 @@ def _build_diagnostic(
             continue
 
         # Direct placement
-        feas = check_feasibility(schedule, target_leg, target_date, cfg.inter_job_buffer)
+        feas = check_feasibility(schedule, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
         attempt.direct_feasible = feas.feasible
         attempt.direct_buffer = feas.buffer_minutes
         attempt.direct_fail_reason = feas.reason if not feas.feasible else None
@@ -573,7 +574,7 @@ def _build_diagnostic(
             # Try displacement for each slot
             for slot in schedule.slots:
                 modified = _build_modified_schedule(schedule, remove_leg_ids={slot.leg_id})
-                mod_feas = check_feasibility(modified, target_leg, target_date, cfg.inter_job_buffer)
+                mod_feas = check_feasibility(modified, target_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
                 if mod_feas.feasible:
                     # Could place target here if we remove this leg — can we rehome it?
                     displaced_leg = all_legs_by_id.get(slot.leg_id)
@@ -588,7 +589,7 @@ def _build_diagnostic(
                             other_sched = inhouse_schedules.get(other_did)
                             if other_sched is None:
                                 continue
-                            other_feas = check_feasibility(other_sched, displaced_leg, target_date, cfg.inter_job_buffer)
+                            other_feas = check_feasibility(other_sched, displaced_leg, target_date, cfg.inter_job_buffer, arrival_grace=cfg.arrival_grace_minutes)
                             if other_feas.feasible:
                                 rehomed = True
                                 break
