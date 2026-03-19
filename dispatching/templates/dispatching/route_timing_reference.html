@@ -138,38 +138,38 @@
     .metric-item { text-align: center; min-width: 50px; }
     .metric-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #999; display: block; margin-bottom: 1px; }
     .metric-value { font-size: 0.95rem; font-weight: 700; color: var(--dark); }
-    .metric-value.highlight { color: var(--gold); }
+    .metric-value.highlight { color: var(--gold); font-size: 1.05rem; }
     .metric-na { color: #ccc; font-size: 0.9rem; }
     .time-period { font-size: 0.9rem; color: #555; }
     .day-type { font-size: 0.8rem; color: #999; }
 
-    /* Info icon tooltip trigger */
-    .info-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 16px;
-        height: 16px;
-        border-radius: 50%;
-        background: #e8e5dd;
-        color: #666;
-        font-size: 0.6rem;
-        font-weight: 700;
+    /* Clickable sample count */
+    .sample-badge {
+        display: inline-block;
+        padding: 0.3rem 0.6rem;
+        border-radius: 0.4rem;
         cursor: pointer;
-        margin-left: 0.3rem;
-        vertical-align: middle;
-    }
-    .info-icon:hover { background: var(--gold); color: #fff; }
-
-    /* Info card */
-    .info-card {
-        background: linear-gradient(135deg, #f8f6f0, #fff);
         border: 1px solid #e0ddd5;
-        border-radius: 0.75rem;
-        padding: 2.5rem;
-        text-align: center;
+        background: #fafaf8;
+        transition: all 0.15s ease;
+        font-size: 0.85rem;
+        font-weight: 700;
     }
-    .info-card i { font-size: 2.5rem; color: var(--gold); margin-bottom: 1rem; }
+    .sample-badge:hover { border-color: var(--gold); background: #fff8e1; }
+    .sample-badge .skip-count { font-size: 0.7rem; color: #999; font-weight: 400; }
+
+    /* P75 scheduler label */
+    .scheduler-label {
+        font-size: 0.6rem;
+        background: var(--gold);
+        color: #fff;
+        padding: 0.1rem 0.3rem;
+        border-radius: 0.2rem;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        vertical-align: middle;
+        margin-left: 0.2rem;
+    }
 
     /* Live badge */
     .live-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 0.25rem; background: #e3f2fd; color: #1565c0; font-weight: 700; }
@@ -191,6 +191,35 @@
         color: var(--dark);
         transition: color 0.2s;
     }
+
+    /* Modal leg table */
+    .leg-modal-table th.sortable { cursor: pointer; user-select: none; }
+    .leg-modal-table th.sortable:hover { color: var(--gold); }
+    .leg-modal-table th .sort-icon { font-size: 0.6rem; margin-left: 0.2rem; opacity: 0.4; }
+    .leg-modal-table th.sorted .sort-icon { opacity: 1; color: var(--gold); }
+    .leg-status-badge { font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 0.2rem; font-weight: 600; }
+    .status-valid { background: #e8f5e9; color: #2e7d32; }
+    .status-excluded { background: #ffeef0; color: #c62828; }
+    .status-incomplete { background: #f5f5f5; color: #999; }
+    .status-partial { background: #fff3e0; color: #e65100; }
+    .outlier-bg { background: #fff0f0 !important; }
+
+    /* Toast notification */
+    .route-toast {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        padding: 0.75rem 1.25rem;
+        border-radius: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .route-toast.show { opacity: 1; }
+    .route-toast.success { background: #2e7d32; color: #fff; }
 
     @media (max-width: 768px) {
         .page-header { padding: 1.5rem 0 1rem; }
@@ -249,7 +278,7 @@
             {% endif %}
             {% if skipped_incomplete %}
                 {% if skipped_excluded or excluded_driver_count %}<span class="mx-1">|</span>{% endif %}
-                {{ skipped_incomplete }} skipped — incomplete status chain
+                {{ skipped_incomplete }} with incomplete status chain
             {% endif %}
             {% if fallback_total_only %}
                 {% if skipped_incomplete or skipped_excluded or excluded_driver_count %}<span class="mx-1">|</span>{% endif %}
@@ -258,7 +287,7 @@
         </div>
         {% endif %}
 
-        <!-- Guide: What the columns and numbers mean -->
+        <!-- Guide: What the columns and numbers mean (collapsed by default) -->
         <div class="chart-container">
             <div class="collapse-trigger d-flex align-items-center" data-bs-toggle="collapse" data-bs-target="#metricsLegend">
                 <div class="chart-title flex-grow-1" style="margin: 0;">
@@ -267,76 +296,40 @@
                 <i class="bi bi-chevron-down text-muted"></i>
             </div>
             <div class="collapse mt-3" id="metricsLegend">
-                <!-- Column Explanations -->
-                <h6 class="fw-bold mb-2" style="color: var(--dark);">Table Columns</h6>
-                <div class="row g-3 mb-4">
+                <div class="row g-3 mb-3">
                     <div class="col-md-4">
                         <div class="p-3 rounded" style="background: #f8f6f0;">
-                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Dwell Time</div>
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Dwell Time <span style="font-weight:400;font-size:0.8rem;">(Gate → Pickup)</span></div>
                             <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                                How long from when the <strong>flight lands</strong> to when the <strong>driver picks up</strong> the passenger.
-                                This includes walking through the terminal, getting bags, and meeting the driver. Only applies to airport arrivals.
+                                Time from flight landing to driver picking up the passenger. Only for airport arrivals.
                             </p>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="p-3 rounded" style="background: #f8f6f0;">
-                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Drive Time</div>
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Drive Time <span style="font-weight:400;font-size:0.8rem;">(Pickup → Drop)</span></div>
                             <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                                How long from <strong>picking up</strong> the passenger to <strong>dropping them off</strong>.
-                                The actual driving time on the road.
+                                Time from picking up to dropping off the passenger.
                             </p>
                         </div>
                     </div>
                     <div class="col-md-4">
                         <div class="p-3 rounded" style="background: #f8f6f0;">
-                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Gate → Drop (Full Trip)</div>
+                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">P75 = Scheduler Value <span class="scheduler-label">USED BY SCHEDULER</span></div>
                             <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                                The full trip time from when the <strong>flight arrives at the gate</strong> to when the <strong>passenger is dropped off</strong>.
-                                For arrivals this is dwell + drive combined. For returns/cruises it's the same as drive time.
+                                75% of trips finish within this time. The <strong>gold highlighted</strong> P75 value is what the scheduler uses for clearing estimates.
                             </p>
                         </div>
                     </div>
                 </div>
-
-                <!-- Number Explanations -->
-                <h6 class="fw-bold mb-2" style="color: var(--dark);">The Numbers (Avg / Med / P75)</h6>
-                <div class="row g-3 mb-4">
-                    <div class="col-md-4">
-                        <div class="p-3 rounded" style="background: #f8f6f0;">
-                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Avg (Average)</div>
-                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                                Add up all trip times and divide by how many trips. A few really long trips can make this number higher than what's "normal."
-                            </p>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="p-3 rounded" style="background: #f8f6f0;">
-                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem;">Med (Median)</div>
-                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                                The middle trip. Half your trips are faster, half are slower. <strong>Best answer for "how long does this usually take?"</strong>
-                            </p>
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="p-3 rounded" style="background: #f8f6f0;">
-                            <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--gold);">P75 (75th Percentile)</div>
-                            <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                                75 out of 100 trips finish within this time. Good for planning with buffer. <strong>This is what the auto-scheduler uses.</strong>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Confidence -->
-                <h6 class="fw-bold mb-2" style="color: var(--dark);">Confidence</h6>
                 <div class="p-3 rounded" style="background: #f8f6f0;">
                     <p style="font-size: 0.85rem; color: #555; margin: 0;">
-                        How much you can trust the numbers based on how many completed trips we have for that route:
-                        &nbsp;&nbsp;<span class="badge-confidence confidence-high">High</span> 20+ trips — very reliable
-                        &nbsp;&nbsp;<span class="badge-confidence confidence-medium">Medium</span> 10-19 — decent estimate
-                        &nbsp;&nbsp;<span class="badge-confidence confidence-low">Low</span> 5-9 — rough estimate
-                        &nbsp;&nbsp;<span class="badge-confidence confidence-none">None</span> under 5 — not enough data yet
+                        <strong>Confidence:</strong>
+                        <span class="badge-confidence confidence-high ms-1">High</span> 20+ trips
+                        <span class="badge-confidence confidence-medium ms-2">Medium</span> 10-19
+                        <span class="badge-confidence confidence-low ms-2">Low</span> 5-9
+                        <span class="badge-confidence confidence-none ms-2">None</span> under 5.
+                        Click the sample count to view individual legs and exclude bad data.
                     </p>
                 </div>
             </div>
@@ -432,7 +425,7 @@
                     {{ group.pickup_cat }}<span class="arrow">&rarr;</span>{{ group.dropoff_cat }}
                 </div>
                 {% if group.hardcoded_drive_time %}
-                <div class="route-hardcoded">Hardcoded estimate: <strong>{{ group.hardcoded_drive_time }} min</strong></div>
+                <div class="route-hardcoded">Fallback: <strong>{{ group.hardcoded_drive_time }} min</strong></div>
                 {% endif %}
             </div>
             <table class="route-table">
@@ -459,11 +452,17 @@
                             </span>
                         </td>
                         <td>
-                            <strong>{{ row.sample_count }}</strong>
-                            <span class="badge-confidence confidence-{{ row.confidence }}">{{ row.confidence|title }}</span>
                             {% if row.leg_ids %}
-                            <br><a href="#" class="view-legs-link" data-leg-ids="{{ row.leg_ids }}" style="font-size:0.7rem;color:var(--gold);">View Legs</a>
+                            <span class="sample-badge view-legs-link" data-leg-ids="{{ row.leg_ids }}" title="Click to view legs">
+                                <strong>{{ row.sample_count }}</strong>
+                                {% if row.total_leg_count > row.sample_count %}
+                                <span class="skip-count"> / {{ row.total_leg_count }}</span>
+                                {% endif %}
+                            </span>
+                            {% else %}
+                            <strong>{{ row.sample_count }}</strong>
                             {% endif %}
+                            <span class="badge-confidence confidence-{{ row.confidence }}">{{ row.confidence|title }}</span>
                         </td>
                         <!-- Dwell -->
                         <td>
@@ -483,7 +482,7 @@
                                     {% if row.dwell.p75 %}
                                     <div class="metric-item">
                                         <span class="metric-label">P75</span>
-                                        <span class="metric-value highlight">{{ row.dwell.p75|fmt_dur }}</span>
+                                        <span class="metric-value highlight">{{ row.dwell.p75|fmt_dur }}<span class="scheduler-label">SCHED</span></span>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -511,7 +510,7 @@
                                     {% if row.drive.p75 %}
                                     <div class="metric-item">
                                         <span class="metric-label">P75</span>
-                                        <span class="metric-value highlight">{{ row.drive.p75|fmt_dur }}</span>
+                                        <span class="metric-value highlight">{{ row.drive.p75|fmt_dur }}<span class="scheduler-label">SCHED</span></span>
                                     </div>
                                     {% endif %}
                                 </div>
@@ -551,8 +550,8 @@
         </div>
         {% endfor %}
         {% else %}
-        <div class="info-card">
-            <i class="bi bi-stopwatch d-block"></i>
+        <div style="background:linear-gradient(135deg,#f8f6f0,#fff);border:1px solid #e0ddd5;border-radius:0.75rem;padding:2.5rem;text-align:center;">
+            <i class="bi bi-stopwatch d-block" style="font-size:2.5rem;color:var(--gold);margin-bottom:1rem;"></i>
             <h5 style="color: var(--dark);">No Timing Data Yet</h5>
             <p class="text-muted mb-3">
                 Route timing metrics accumulate as legs complete with status tracking.<br>
@@ -598,6 +597,9 @@
     </div>
 </div>
 
+<!-- Toast -->
+<div id="routeToast" class="route-toast success"></div>
+
 <!-- Leg Details Modal -->
 <div class="modal fade" id="legDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -607,29 +609,33 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-0">
+                <div id="legDetailsSummary" class="px-3 py-2" style="background:#f8f6f0;border-bottom:1px solid #e8e5dd;font-size:0.85rem;display:none;">
+                </div>
                 <div id="legDetailsLoading" class="text-center py-4">
                     <div class="spinner-border text-muted" role="status"></div>
                     <div class="text-muted mt-2">Loading legs...</div>
                 </div>
                 <div id="legDetailsContent" style="display:none;">
-                    <table class="table table-sm table-striped mb-0" style="font-size:0.85rem;">
-                        <thead style="background:#f8f6f0;">
+                    <div class="table-responsive">
+                    <table class="table table-sm mb-0 leg-modal-table" style="font-size:0.82rem;">
+                        <thead style="background:#f8f6f0;position:sticky;top:0;z-index:1;">
                             <tr>
                                 <th>ID</th>
-                                <th>Date</th>
+                                <th class="sortable" data-sort="date">Date <i class="bi bi-arrow-down-up sort-icon"></i></th>
                                 <th>Time</th>
                                 <th>Driver</th>
                                 <th>Customer</th>
-                                <th>Pickup</th>
-                                <th>Dropoff</th>
-                                <th>Dwell</th>
-                                <th>Drive</th>
-                                <th>Total</th>
-                                <th></th>
+                                <th>Status</th>
+                                <th class="sortable" data-sort="dwell">Dwell <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                                <th class="sortable" data-sort="drive">Drive <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                                <th class="sortable" data-sort="total">Total <i class="bi bi-arrow-down-up sort-icon"></i></th>
+                                <th>Timestamps</th>
+                                <th style="min-width:120px;"></th>
                             </tr>
                         </thead>
                         <tbody id="legDetailsBody"></tbody>
                     </table>
+                    </div>
                 </div>
                 <div id="legDetailsError" class="text-center py-4 text-danger" style="display:none;"></div>
             </div>
@@ -641,10 +647,31 @@
 
 {% block extra_js %}
 <script>
+let currentLegsData = [];
+let currentSortCol = null;
+let currentSortAsc = true;
+
+function fmtDur(mins) {
+    if (mins === null || mins === undefined) return null;
+    mins = Math.round(mins);
+    if (mins < 60) return mins + 'm';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? h + 'h' : h + 'h ' + m + 'm';
+}
+
+function showToast(msg) {
+    const t = document.getElementById('routeToast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+}
+
 // Exclude/include leg from analytics
 function toggleExcludeLeg(legId, btn) {
     const exclude = btn.dataset.excluded !== 'true';
     btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     fetch("{% url 'route_timing_exclude_leg' %}", {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
@@ -656,19 +683,119 @@ function toggleExcludeLeg(legId, btn) {
         if (data.success) {
             btn.dataset.excluded = String(data.excluded);
             const row = btn.closest('tr');
+            // Update the leg data
+            const leg = currentLegsData.find(l => l.id === legId);
+            if (leg) {
+                leg.excluded = data.excluded;
+                leg.data_status = data.excluded ? 'excluded' : 'valid';
+            }
             if (data.excluded) {
-                btn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Include';
-                btn.className = 'btn btn-sm btn-outline-success';
-                row.style.opacity = '0.4';
+                btn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Include';
+                btn.className = 'btn btn-sm btn-success';
+                row.style.opacity = '0.5';
                 row.style.textDecoration = 'line-through';
+                showToast('Leg excluded — metrics recalculated');
             } else {
-                btn.innerHTML = '<i class="bi bi-x-circle"></i> Exclude';
+                btn.innerHTML = '<i class="bi bi-x-circle me-1"></i>Exclude';
                 btn.className = 'btn btn-sm btn-outline-danger';
                 row.style.opacity = '1';
                 row.style.textDecoration = 'none';
+                showToast('Leg included — metrics recalculated');
             }
+            updateSummary();
         }
     });
+}
+
+function updateSummary() {
+    const summary = document.getElementById('legDetailsSummary');
+    const total = currentLegsData.length;
+    const valid = currentLegsData.filter(l => l.data_status === 'valid').length;
+    const excluded = currentLegsData.filter(l => l.data_status === 'excluded').length;
+    const incomplete = currentLegsData.filter(l => l.data_status === 'incomplete' || l.data_status === 'partial').length;
+    summary.innerHTML = `<strong>${total}</strong> total legs &nbsp;|&nbsp; <span style="color:#2e7d32;"><strong>${valid}</strong> with data</span> &nbsp;|&nbsp; <span style="color:#c62828;"><strong>${excluded}</strong> excluded</span> &nbsp;|&nbsp; <span style="color:#999;"><strong>${incomplete}</strong> no timing data</span>`;
+}
+
+function getStatusBadge(status) {
+    const labels = {valid: 'Valid', excluded: 'Excluded', incomplete: 'No Data', partial: 'Partial'};
+    return `<span class="leg-status-badge status-${status}">${labels[status] || status}</span>`;
+}
+
+function renderLegs() {
+    const tbody = document.getElementById('legDetailsBody');
+    tbody.innerHTML = '';
+    currentLegsData.forEach(leg => {
+        const isOutlier = (leg.dwell_min && leg.dwell_min > 90) || (leg.drive_min && leg.drive_min > 120) || (leg.total_min && leg.total_min > 180);
+        const rowClass = isOutlier && leg.data_status === 'valid' ? 'outlier-bg' : '';
+        const rowStyle = leg.excluded ? 'opacity:0.5;text-decoration:line-through;' : (leg.data_status === 'incomplete' ? 'opacity:0.6;' : '');
+
+        const btnLabel = leg.excluded
+            ? '<i class="bi bi-arrow-counterclockwise me-1"></i>Include'
+            : '<i class="bi bi-x-circle me-1"></i>Exclude';
+        const btnClass = leg.excluded ? 'btn btn-sm btn-success' : 'btn btn-sm btn-outline-danger';
+
+        // Timestamps column
+        let tsHtml = '';
+        if (leg.otw_time || leg.pickup_actual || leg.completed_time) {
+            const parts = [];
+            if (leg.otw_time) parts.push('OTW ' + leg.otw_time);
+            if (leg.pickup_actual) parts.push('PU ' + leg.pickup_actual);
+            if (leg.completed_time) parts.push('Done ' + leg.completed_time);
+            tsHtml = `<span style="font-size:0.72rem;color:#888;">${parts.join('<br>')}</span>`;
+        } else {
+            tsHtml = '<span style="color:#ccc;">—</span>';
+        }
+
+        const dwellStyle = leg.dwell_min && leg.dwell_min > 90 ? 'color:#dc3545;font-weight:700;' : '';
+        const driveStyle = leg.drive_min && leg.drive_min > 120 ? 'color:#dc3545;font-weight:700;' : '';
+        const totalStyle = leg.total_min && leg.total_min > 180 ? 'color:#dc3545;font-weight:700;' : '';
+
+        tbody.innerHTML += `<tr class="${rowClass}" style="${rowStyle}">
+            <td><a href="/dispatching/reservation/${leg.reservation_id}" target="_blank" style="color:var(--gold);font-weight:600;">${leg.id}</a></td>
+            <td>${leg.pickup_date}</td>
+            <td>${leg.pickup_time}</td>
+            <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${leg.driver}">${leg.driver}</td>
+            <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${leg.customer}">${leg.customer}</td>
+            <td>${getStatusBadge(leg.data_status)}</td>
+            <td style="${dwellStyle}">${leg.dwell_min !== null ? fmtDur(leg.dwell_min) : '<span style="color:#ccc;">—</span>'}</td>
+            <td style="${driveStyle}">${leg.drive_min !== null ? fmtDur(leg.drive_min) : '<span style="color:#ccc;">—</span>'}</td>
+            <td style="${totalStyle}">${leg.total_min !== null ? fmtDur(leg.total_min) : '<span style="color:#ccc;">—</span>'}</td>
+            <td>${tsHtml}</td>
+            <td class="text-end">
+                <button class="${btnClass}" data-excluded="${leg.excluded}" onclick="toggleExcludeLeg(${leg.id}, this)">${btnLabel}</button>
+            </td>
+        </tr>`;
+    });
+}
+
+function sortLegs(col) {
+    if (currentSortCol === col) {
+        currentSortAsc = !currentSortAsc;
+    } else {
+        currentSortCol = col;
+        currentSortAsc = true;
+    }
+    // Update header styles
+    document.querySelectorAll('.leg-modal-table th.sortable').forEach(th => {
+        th.classList.remove('sorted');
+        if (th.dataset.sort === col) th.classList.add('sorted');
+    });
+
+    const getVal = (leg) => {
+        switch(col) {
+            case 'date': return leg.pickup_date || '';
+            case 'dwell': return leg.dwell_min !== null ? leg.dwell_min : -1;
+            case 'drive': return leg.drive_min !== null ? leg.drive_min : -1;
+            case 'total': return leg.total_min !== null ? leg.total_min : -1;
+            default: return 0;
+        }
+    };
+    currentLegsData.sort((a, b) => {
+        let va = getVal(a), vb = getVal(b);
+        if (typeof va === 'string') return currentSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        return currentSortAsc ? va - vb : vb - va;
+    });
+    renderLegs();
 }
 
 // Leg details drill-down
@@ -680,12 +807,14 @@ document.querySelectorAll('.view-legs-link').forEach(link => {
         const loading = document.getElementById('legDetailsLoading');
         const content = document.getElementById('legDetailsContent');
         const errorDiv = document.getElementById('legDetailsError');
-        const tbody = document.getElementById('legDetailsBody');
+        const summary = document.getElementById('legDetailsSummary');
 
         loading.style.display = 'block';
         content.style.display = 'none';
         errorDiv.style.display = 'none';
-        tbody.innerHTML = '';
+        summary.style.display = 'none';
+        currentLegsData = [];
+        currentSortCol = null;
         modal.show();
 
         fetch(`{% url 'route_timing_leg_details' %}?ids=${ids}`)
@@ -697,32 +826,10 @@ document.querySelectorAll('.view-legs-link').forEach(link => {
                     errorDiv.style.display = 'block';
                     return;
                 }
-                data.legs.forEach(leg => {
-                    const dwellClass = leg.dwell_min && leg.dwell_min > 90 ? 'color:#dc3545;font-weight:700;' : '';
-                    const driveClass = leg.drive_min && leg.drive_min > 120 ? 'color:#dc3545;font-weight:700;' : '';
-                    const totalClass = leg.total_min && leg.total_min > 180 ? 'color:#dc3545;font-weight:700;' : '';
-                    const rowStyle = leg.excluded ? 'opacity:0.4;text-decoration:line-through;' : '';
-                    const btnLabel = leg.excluded
-                        ? '<i class="bi bi-arrow-counterclockwise"></i> Include'
-                        : '<i class="bi bi-x-circle"></i> Exclude';
-                    const btnClass = leg.excluded ? 'btn btn-sm btn-outline-success' : 'btn btn-sm btn-outline-danger';
-                    tbody.innerHTML += `<tr style="${rowStyle}">
-                        <td>${leg.id}</td>
-                        <td>${leg.pickup_date}</td>
-                        <td>${leg.pickup_time}</td>
-                        <td>${leg.driver}</td>
-                        <td>${leg.customer}</td>
-                        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${leg.pickup}">${leg.pickup}</td>
-                        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${leg.dropoff}">${leg.dropoff}</td>
-                        <td style="${dwellClass}">${leg.dwell_min !== null ? leg.dwell_min + 'm' : '—'}</td>
-                        <td style="${driveClass}">${leg.drive_min !== null ? leg.drive_min + 'm' : '—'}</td>
-                        <td style="${totalClass}">${leg.total_min !== null ? leg.total_min + 'm' : '—'}</td>
-                        <td class="text-nowrap">
-                            <a href="/dispatching/reservation/${leg.reservation_id}" target="_blank" style="color:var(--gold);font-size:0.75rem;" class="me-1"><i class="bi bi-box-arrow-up-right"></i></a>
-                            <button class="${btnClass}" data-excluded="${leg.excluded}" onclick="toggleExcludeLeg(${leg.id}, this)" style="font-size:0.7rem;padding:0.15rem 0.4rem;">${btnLabel}</button>
-                        </td>
-                    </tr>`;
-                });
+                currentLegsData = data.legs;
+                renderLegs();
+                updateSummary();
+                summary.style.display = 'block';
                 content.style.display = 'block';
             })
             .catch(err => {
@@ -731,6 +838,11 @@ document.querySelectorAll('.view-legs-link').forEach(link => {
                 errorDiv.style.display = 'block';
             });
     });
+});
+
+// Sort column click handlers
+document.querySelectorAll('.leg-modal-table th.sortable').forEach(th => {
+    th.addEventListener('click', () => sortLegs(th.dataset.sort));
 });
 
 function recalcMetrics(recentDays) {

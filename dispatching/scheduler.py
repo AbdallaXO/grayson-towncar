@@ -499,6 +499,85 @@ def estimate_job_end_time(leg, target_date: date) -> datetime:
     return pickup_dt + timedelta(minutes=drive_minutes)
 
 
+def get_clearing_breakdown(leg, target_date: date) -> dict:
+    """
+    Return a detailed breakdown of how clearing time is estimated for a leg.
+    Useful for diagnosing incorrect clearing estimates.
+    """
+    from dispatching.analytics import categorize_location, categorize_time_of_day, categorize_day_type
+
+    pickup_cat = categorize_location(leg.pickup_location)
+    dropoff_cat = categorize_location(leg.dropoff_location)
+    time_cat = categorize_time_of_day(leg.pickup_time)
+    day_cat = categorize_day_type(target_date)
+    drive_minutes = get_drive_time(pickup_cat, dropoff_cat, time_cat, day_cat)
+    static_drive = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat), DEFAULT_DRIVE_TIME)
+
+    pickup_dt = datetime.combine(target_date, leg.pickup_time)
+    trip_type = leg.get_trip_type()
+
+    breakdown = {
+        'pickup_category': pickup_cat,
+        'dropoff_category': dropoff_cat,
+        'trip_type': trip_type,
+        'time_of_day': time_cat,
+        'day_type': day_cat,
+        'drive_minutes': drive_minutes,
+        'static_drive_minutes': static_drive,
+        'drive_source': 'metric' if drive_minutes != static_drive else 'static',
+    }
+
+    if trip_type == 'arrival':
+        flight_dt = _get_best_flight_arrival(leg)
+        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
+        store_stop = 0
+        if hasattr(leg, 'reservation') and leg.reservation and getattr(leg.reservation, 'store_stop', False):
+            store_stop = PUBLIX_STOP_MINUTES
+
+        start_dt = datetime.combine(target_date, flight_dt.time()) if flight_dt else pickup_dt
+        end_dt = start_dt + timedelta(minutes=dwell_minutes + drive_minutes + store_stop)
+
+        breakdown['start_time'] = start_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['start_source'] = 'flight' if flight_dt else 'pickup_time'
+        breakdown['flight_time'] = flight_dt.strftime('%I:%M %p').lstrip('0') if flight_dt else None
+        breakdown['pickup_time'] = pickup_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['dwell_minutes'] = dwell_minutes
+        breakdown['store_stop_minutes'] = store_stop
+        breakdown['clearing_time'] = end_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['total_minutes'] = dwell_minutes + drive_minutes + store_stop
+        breakdown['formula'] = (
+            f"{breakdown['start_time']} ({'flight' if flight_dt else 'pickup'}) "
+            f"+ {dwell_minutes}min dwell + {drive_minutes}min drive"
+            + (f" + {store_stop}min store stop" if store_stop else "")
+            + f" = {breakdown['clearing_time']}"
+        )
+    elif trip_type == 'cruise' and leg.get_cruise_direction() == 'to_cruise' and leg.is_airport_pickup():
+        dwell_minutes = get_airport_dwell_time(pickup_cat, dropoff_cat, time_cat, day_cat)
+        end_dt = pickup_dt + timedelta(minutes=dwell_minutes + drive_minutes)
+        breakdown['start_time'] = pickup_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['dwell_minutes'] = dwell_minutes
+        breakdown['clearing_time'] = end_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['total_minutes'] = dwell_minutes + drive_minutes
+        breakdown['formula'] = (
+            f"{breakdown['start_time']} (pickup) "
+            f"+ {dwell_minutes}min dwell + {drive_minutes}min drive"
+            f" = {breakdown['clearing_time']}"
+        )
+    else:
+        end_dt = pickup_dt + timedelta(minutes=drive_minutes)
+        breakdown['start_time'] = pickup_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['dwell_minutes'] = 0
+        breakdown['clearing_time'] = end_dt.strftime('%I:%M %p').lstrip('0')
+        breakdown['total_minutes'] = drive_minutes
+        breakdown['formula'] = (
+            f"{breakdown['start_time']} (pickup) "
+            f"+ {drive_minutes}min drive"
+            f" = {breakdown['clearing_time']}"
+        )
+
+    return breakdown
+
+
 def predict_driver_available_time(leg, target_date: date) -> datetime:
     """
     Predict when a driver will be available for the next job after this leg.
@@ -563,13 +642,17 @@ def check_feasibility(
     # Check against preceding slot
     if preceding:
         reposition = get_drive_time(preceding.dropoff_category, new_pickup_cat)
-        # Airport arrivals: pax deplaning + bags IS the break and covers any
-        # within-airport repositioning. Only arrival_grace matters — so zero
-        # out both reposition and inter_job_buffer. This way the tuning knob
-        # (arrival_grace_minutes) is the single control for arrival chaining.
-        if is_airport_arrival:
+        # Airport arrivals: pax deplaning + bags covers within-airport
+        # repositioning + inter-job buffer. BUT only when the driver is
+        # already at the terminal (preceding dropoff is same terminal).
+        # If the driver must drive back from a hotel/resort/port, reposition
+        # time is real and must be counted — grace still replaces inter_job_buffer.
+        if is_airport_arrival and preceding.dropoff_category == new_pickup_cat:
             effective_reposition = 0
             effective_buffer = 0
+        elif is_airport_arrival:
+            effective_reposition = reposition
+            effective_buffer = 0  # grace period replaces inter-job buffer
         else:
             effective_reposition = reposition
             effective_buffer = inter_job_buffer

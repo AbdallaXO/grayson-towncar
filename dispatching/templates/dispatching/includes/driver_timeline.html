@@ -65,6 +65,13 @@
                        data-vehicle="{{ slot.vehicle_type|default:'' }}"
                        onclick="document.getElementById('leg-row-{{ slot.leg_id }}')?.scrollIntoView({behavior:'smooth', block:'center'})">
                     {{ slot.pickup_time|time:"g:i" }}
+                    {% if slot.status == 'picked-up' %}<span class="tl-status-tag">PU</span>
+                    {% elif slot.status == 'on-location' %}<span class="tl-status-tag">OL</span>
+                    {% elif slot.status == 'on-the-way' %}<span class="tl-status-tag">OTW</span>
+                    {% elif slot.status == 'completed' %}<span class="tl-status-tag">DONE</span>
+                    {% elif slot.status == 'confirmed' %}<span class="tl-status-tag">CNF</span>
+                    {% endif %}
+                    <span class="tl-status-strip st-{{ slot.status }}"></span>
                   </div>
                 {% endfor %}
                 {% for gap in data.gaps %}
@@ -115,6 +122,12 @@
         <small><span style="display:inline-block;width:10px;height:10px;background:#2e7d32;border-radius:2px;"></span> Return</small>
         <small><span style="display:inline-block;width:10px;height:10px;background:#e65100;border-radius:2px;"></span> Cruise</small>
         <small><span style="display:inline-block;width:10px;height:10px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
+        <small class="text-muted">|</small>
+        <small><span style="display:inline-block;width:10px;height:4px;background:#00e676;border-radius:1px;vertical-align:middle;"></span> Picked Up</small>
+        <small><span style="display:inline-block;width:10px;height:4px;background:#ffea00;border-radius:1px;vertical-align:middle;"></span> On Location</small>
+        <small><span style="display:inline-block;width:10px;height:4px;background:#ff9100;border-radius:1px;vertical-align:middle;"></span> On the Way</small>
+        <small><span style="display:inline-block;width:10px;height:4px;background:#40c4ff;border-radius:1px;vertical-align:middle;"></span> Confirmed</small>
+        <small class="text-muted">|</small>
         <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #dc3545;border-radius:2px;"></span> Tight gap</small>
         <small><span style="display:inline-block;width:10px;height:10px;border:2px dashed #0d6efd;border-radius:2px;background:rgba(13,110,253,0.08);"></span> Open gap</small>
       </div>

@@ -78,6 +78,33 @@
       .timeline-slot.return { background: #2e7d32; }
       .timeline-slot.cruise { background: #e65100; }
       .timeline-slot.other { background: #6a1b9a; }
+      /* Status indicator strip at bottom of slot */
+      .timeline-slot .tl-status-strip {
+          position: absolute;
+          bottom: 0; left: 0; right: 0;
+          height: 5px;
+          border-radius: 0 0 3px 3px;
+      }
+      .timeline-slot .tl-status-strip.st-completed { background: #fff; }
+      .timeline-slot .tl-status-strip.st-picked-up { background: #00e676; }
+      .timeline-slot .tl-status-strip.st-on-location { background: #ffea00; }
+      .timeline-slot .tl-status-strip.st-on-the-way { background: #ff9100; }
+      .timeline-slot .tl-status-strip.st-confirmed { background: #40c4ff; }
+      .timeline-slot .tl-status-strip.st-in-progress { background: rgba(255,255,255,0.25); }
+      .timeline-slot .tl-status-strip.st-cancelled { background: #ff1744; }
+      /* Status label inside slot for wider bars */
+      .timeline-slot .tl-status-tag {
+          font-size: 0.5rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          opacity: 0.9;
+          margin-left: 4px;
+          background: rgba(0,0,0,0.2);
+          padding: 0 3px;
+          border-radius: 2px;
+          line-height: 1.4;
+      }
       .timeline-hour-markers {
           display: flex;
           padding-left: 120px;
@@ -2932,18 +2959,23 @@
                   html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
               }
               html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
+              const statusColors = {'picked-up':'#00c853','on-location':'#ffd600','on-the-way':'#ff9100','confirmed':'#00b0ff','completed':'#4caf50','in-progress':'#90a4ae','cancelled':'#ff1744'};
+              const statusLabelsMap = {'picked-up':'Picked Up','on-location':'On Location','on-the-way':'On the Way','confirmed':'Confirmed','completed':'Completed','in-progress':'In Progress','cancelled':'Cancelled'};
+              const rawStatus = el.dataset.status || '';
+              const sColor = statusColors[rawStatus] || '#90a4ae';
               if (el.dataset.statusLabel) {
-                  let statusHtml = '<span style="text-transform:capitalize;">' + el.dataset.statusLabel;
+                  let statusHtml = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + sColor + ';margin-right:4px;"></span>';
+                  statusHtml += '<strong style="color:' + sColor + ';">' + el.dataset.statusLabel + '</strong>';
                   if (el.dataset.statusTime) {
-                      statusHtml += ' ' + el.dataset.statusTime;
+                      statusHtml += ' at ' + el.dataset.statusTime;
                       if (el.dataset.statusAgo) {
-                          statusHtml += ' <span style="color:#888;font-size:0.75rem;">(' + el.dataset.statusAgo + ')</span>';
+                          statusHtml += ' <span style="color:#888;font-size:0.65rem;">(' + el.dataset.statusAgo + ')</span>';
                       }
                   }
-                  statusHtml += '</span>';
-                  html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value">' + statusHtml + '</span></div>';
-              } else if (el.dataset.status) {
-                  html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="text-transform:capitalize;">' + el.dataset.status + '</span></div>';
+                  html += '<div class="tl-popup-row" style="border-top:1px solid #eee;padding-top:4px;margin-top:2px;"><span class="tl-label">Status</span><span class="tl-value">' + statusHtml + '</span></div>';
+              } else if (rawStatus) {
+                  const sLabel = statusLabelsMap[rawStatus] || rawStatus;
+                  html += '<div class="tl-popup-row" style="border-top:1px solid #eee;padding-top:4px;margin-top:2px;"><span class="tl-label">Status</span><span class="tl-value"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + sColor + ';margin-right:4px;"></span><strong style="color:' + sColor + ';">' + sLabel + '</strong></span></div>';
               }
               html += '</div>';
               popup.innerHTML = html;
@@ -2959,28 +2991,41 @@
               });
           }
 
+          let _activeSlot = null;
+
           document.addEventListener('mouseover', function(e) {
-              if (window._gapPopupActive) { popup.classList.remove('visible'); return; }
+              if (window._gapPopupActive) { popup.classList.remove('visible'); _activeSlot = null; return; }
               const slot = e.target.closest('[data-tl-popup]');
-              if (slot) showPopup(slot, e);
+              if (slot) {
+                  _activeSlot = slot;
+                  showPopup(slot, e);
+              } else if (_activeSlot && !popup.contains(e.target)) {
+                  // Mouse moved to a non-slot element — hide popup
+                  popup.classList.remove('visible');
+                  _activeSlot = null;
+              }
           });
           document.addEventListener('mousemove', function(e) {
               if (!popup.classList.contains('visible')) return;
               const slot = e.target.closest('[data-tl-popup]');
               if (slot) {
-                  popup.style.left = (e.clientX + 12) + 'px';
-                  popup.style.top = (e.clientY + 12) + 'px';
-                  requestAnimationFrame(function() {
-                      const rect = popup.getBoundingClientRect();
-                      if (rect.right > window.innerWidth - 8) popup.style.left = (e.clientX - rect.width - 12) + 'px';
-                      if (rect.bottom > window.innerHeight - 8) popup.style.top = (e.clientY - rect.height - 12) + 'px';
-                  });
-              }
-          });
-          document.addEventListener('mouseout', function(e) {
-              const slot = e.target.closest('[data-tl-popup]');
-              if (slot && !slot.contains(e.relatedTarget)) {
+                  if (slot !== _activeSlot) {
+                      // Moved to a different slot — refresh popup content
+                      _activeSlot = slot;
+                      showPopup(slot, e);
+                  } else {
+                      popup.style.left = (e.clientX + 12) + 'px';
+                      popup.style.top = (e.clientY + 12) + 'px';
+                      requestAnimationFrame(function() {
+                          const rect = popup.getBoundingClientRect();
+                          if (rect.right > window.innerWidth - 8) popup.style.left = (e.clientX - rect.width - 12) + 'px';
+                          if (rect.bottom > window.innerHeight - 8) popup.style.top = (e.clientY - rect.height - 12) + 'px';
+                      });
+                  }
+              } else {
+                  // Mouse left all slots — hide immediately
                   popup.classList.remove('visible');
+                  _activeSlot = null;
               }
           });
       })();

@@ -761,159 +761,229 @@ def _auto_close_resolved_tasks():
     """
     Close tasks whose triggering condition has resolved.
     Runs every 30 minutes to catch state changes not covered by signals.
+
+    Each section is wrapped in try/except so a failure in one section
+    doesn't prevent other sections from running.
     """
     from reservations.models import Leg
 
     closed = 0
     now = timezone.now()
-
-    # 1. Flight verify tasks where mismatch no longer exists
-    flight_tasks = OperationalTask.objects.filter(
-        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
-        status__in=list(OperationalTask.OPEN_STATUSES),
-        leg__isnull=False,
-    ).select_related("leg", "leg__flight_information")
-
-    for task in flight_tasks:
-        if not task.leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
-            close_task(task, resolution_notes="Auto-closed: flight mismatch resolved")
-            closed += 1
-
-    # 2. Driver conflict tasks where conflict no longer exists
-    conflict_tasks = list(
-        OperationalTask.objects.filter(
-            task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
-            status__in=list(OperationalTask.OPEN_STATUSES),
-            leg__isnull=False,
-        ).select_related("leg", "leg__driver", "leg__flight_information")
-    )
-
-    # Batch-fetch all conflicting legs referenced in task metadata
-    conflicting_leg_ids = set()
-    for task in conflict_tasks:
-        cid = (task.metadata or {}).get("conflicting_leg_id")
-        if cid:
-            conflicting_leg_ids.add(cid)
-    conflicting_legs_map = {}
-    if conflicting_leg_ids:
-        conflicting_legs_map = {
-            lg.pk: lg for lg in Leg.objects.filter(pk__in=conflicting_leg_ids)
-        }
-
-    for task in conflict_tasks:
-        leg = task.leg
-        meta = task.metadata or {}
-        is_pure_overlap = meta.get("mismatch_direction") == "overlap"
-        conflicting_leg_id = meta.get("conflicting_leg_id")
-
-        if not leg.driver_id:
-            close_task(task, resolution_notes="Auto-closed: driver unassigned")
-            closed += 1
-            continue
-
-        # Auto-close if the pickup time is 3+ hours in the past (stale conflict)
-        pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
-        pickup_aware = timezone.make_aware(pickup_dt, timezone.get_current_timezone())
-        if pickup_aware < now - timedelta(hours=3):
-            close_task(task, resolution_notes="Auto-closed: pickup time has passed")
-            closed += 1
-            continue
-
-        # Check if the conflicting leg was reassigned to a different driver or cancelled
-        if conflicting_leg_id:
-            other_leg = conflicting_legs_map.get(conflicting_leg_id)
-            if other_leg is None:
-                close_task(task, resolution_notes="Auto-closed: conflicting leg deleted")
-                closed += 1
-                continue
-            if other_leg.driver_id != leg.driver_id:
-                close_task(task, resolution_notes="Auto-closed: conflicting leg reassigned to different driver")
-                closed += 1
-                continue
-            if other_leg.status in ("completed", "cancelled"):
-                close_task(task, resolution_notes=f"Auto-closed: conflicting leg {other_leg.status}")
-                closed += 1
-                continue
-
-        # Re-check if the schedule conflict still exists (regardless of flight mismatch status)
-        if leg.driver_id:
-            conflicts = detect_driver_conflicts(leg, leg.pickup_date)
-            if not conflicts:
-                if not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
-                    close_task(task, resolution_notes="Auto-closed: flight matched and conflict resolved")
-                else:
-                    close_task(task, resolution_notes="Auto-closed: driver conflict resolved")
-                closed += 1
-
-    # 3. Contact form tasks where form was contacted/closed
-    contact_tasks = OperationalTask.objects.filter(
-        task_type=OperationalTask.TaskType.CONTACT_FORM,
-        status__in=list(OperationalTask.OPEN_STATUSES),
-        contact_form__isnull=False,
-    ).select_related("contact_form")
-
-    for task in contact_tasks:
-        if task.contact_form.status in ("contacted", "closed"):
-            close_task(task, resolution_notes=f"Auto-closed: form marked {task.contact_form.status}")
-            closed += 1
-
-    # 4. Driver assign tasks where driver was assigned or pickup time has passed
-    driver_tasks = OperationalTask.objects.filter(
-        task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
-        status__in=list(OperationalTask.OPEN_STATUSES),
-        leg__isnull=False,
-    ).select_related("leg")
-
     today = timezone.localdate()
     local_now_time = timezone.localtime(now).time()
-    for task in driver_tasks:
-        if task.leg.driver_id:
-            close_task(task, resolution_notes="Auto-closed: driver assigned")
-            closed += 1
-        elif task.leg.pickup_date < today:
-            close_task(task, resolution_notes="Auto-closed: pickup date has passed")
-            closed += 1
-        elif task.leg.pickup_date == today and task.leg.pickup_time < local_now_time:
-            close_task(task, resolution_notes="Auto-closed: pickup time has passed")
-            closed += 1
 
-    # 5. Payment chase tasks where all legs have passed
-    payment_tasks = OperationalTask.objects.filter(
-        task_type=OperationalTask.TaskType.PAYMENT_CHASE,
-        status__in=list(OperationalTask.OPEN_STATUSES),
-        reservation__isnull=False,
-    ).select_related("reservation")
-
-    for task in payment_tasks:
-        # Close if card has been saved — not truly unpaid
-        if task.reservation.payment_status in ("paid", "card_saved"):
-            reason = "Auto-closed: card saved on file" if task.reservation.payment_status == "card_saved" else "Auto-closed: payment received"
-            close_task(task, resolution_notes=reason)
-            closed += 1
-            continue
-
-        meta = task.metadata or {}
-        earliest_pickup_str = meta.get("earliest_pickup")
-        if earliest_pickup_str:
+    # ── 0. Bulk-close ALL stale tasks whose leg's pickup date has passed ─────
+    # This is the catch-all: any open task linked to a leg from a past date
+    # is no longer actionable. Handles every task type in one query.
+    try:
+        stale_leg_tasks = OperationalTask.objects.filter(
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+            leg__pickup_date__lt=today,
+        )
+        for task in stale_leg_tasks:
             try:
-                earliest_date = datetime.strptime(earliest_pickup_str, "%Y-%m-%d").date()
-                if earliest_date < today:
+                close_task(task, resolution_notes="Auto-closed: pickup date has passed")
+                closed += 1
+            except Exception as e:
+                logger.error(f"Error closing stale task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close stale leg tasks error: {e}", exc_info=True)
+
+    # ── 0b. Close tasks whose leg is completed or cancelled ──────────────────
+    try:
+        done_leg_tasks = OperationalTask.objects.filter(
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+            leg__status__in=["completed", "cancelled"],
+        )
+        for task in done_leg_tasks:
+            try:
+                close_task(task, resolution_notes=f"Auto-closed: leg {task.leg.status}")
+                closed += 1
+            except Exception as e:
+                logger.error(f"Error closing done-leg task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close done-leg tasks error: {e}", exc_info=True)
+
+    # ── 1. Flight verify tasks where mismatch no longer exists ───────────────
+    try:
+        flight_tasks = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+        ).select_related("leg", "leg__flight_information")
+
+        for task in flight_tasks:
+            try:
+                if not task.leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
+                    close_task(task, resolution_notes="Auto-closed: flight mismatch resolved")
+                    closed += 1
+            except Exception as e:
+                logger.error(f"Error checking flight task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close flight tasks error: {e}", exc_info=True)
+
+    # ── 2. Driver conflict tasks where conflict no longer exists ─────────────
+    try:
+        conflict_tasks = list(
+            OperationalTask.objects.filter(
+                task_type=OperationalTask.TaskType.DRIVER_CONFLICT,
+                status__in=list(OperationalTask.OPEN_STATUSES),
+                leg__isnull=False,
+            ).select_related("leg", "leg__driver", "leg__flight_information")
+        )
+
+        # Batch-fetch all conflicting legs referenced in task metadata
+        conflicting_leg_ids = set()
+        for task in conflict_tasks:
+            cid = (task.metadata or {}).get("conflicting_leg_id")
+            if cid:
+                conflicting_leg_ids.add(cid)
+        conflicting_legs_map = {}
+        if conflicting_leg_ids:
+            conflicting_legs_map = {
+                lg.pk: lg for lg in Leg.objects.filter(pk__in=conflicting_leg_ids)
+            }
+
+        for task in conflict_tasks:
+            try:
+                leg = task.leg
+                meta = task.metadata or {}
+                is_pure_overlap = meta.get("mismatch_direction") == "overlap"
+                conflicting_leg_id = meta.get("conflicting_leg_id")
+
+                if not leg.driver_id:
+                    close_task(task, resolution_notes="Auto-closed: driver unassigned")
+                    closed += 1
+                    continue
+
+                # Auto-close if the pickup time is 3+ hours in the past (stale conflict)
+                pickup_dt = datetime.combine(leg.pickup_date, leg.pickup_time)
+                pickup_aware = timezone.make_aware(pickup_dt, timezone.get_current_timezone())
+                if pickup_aware < now - timedelta(hours=3):
+                    close_task(task, resolution_notes="Auto-closed: pickup time has passed")
+                    closed += 1
+                    continue
+
+                # Check if the conflicting leg was reassigned to a different driver or cancelled
+                if conflicting_leg_id:
+                    other_leg = conflicting_legs_map.get(conflicting_leg_id)
+                    if other_leg is None:
+                        close_task(task, resolution_notes="Auto-closed: conflicting leg deleted")
+                        closed += 1
+                        continue
+                    if other_leg.driver_id != leg.driver_id:
+                        close_task(task, resolution_notes="Auto-closed: conflicting leg reassigned to different driver")
+                        closed += 1
+                        continue
+                    if other_leg.status in ("completed", "cancelled"):
+                        close_task(task, resolution_notes=f"Auto-closed: conflicting leg {other_leg.status}")
+                        closed += 1
+                        continue
+
+                # Re-check if the schedule conflict still exists (regardless of flight mismatch status)
+                if leg.driver_id:
+                    conflicts = detect_driver_conflicts(leg, leg.pickup_date)
+                    if not conflicts:
+                        if not is_pure_overlap and not leg.has_flight_time_mismatch(threshold_minutes=MINOR_THRESHOLD):
+                            close_task(task, resolution_notes="Auto-closed: flight matched and conflict resolved")
+                        else:
+                            close_task(task, resolution_notes="Auto-closed: driver conflict resolved")
+                        closed += 1
+            except Exception as e:
+                logger.error(f"Error checking conflict task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close conflict tasks error: {e}", exc_info=True)
+
+    # ── 3. Contact form tasks where form was contacted/closed ────────────────
+    try:
+        contact_tasks = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.CONTACT_FORM,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            contact_form__isnull=False,
+        ).select_related("contact_form")
+
+        for task in contact_tasks:
+            try:
+                if task.contact_form.status in ("contacted", "closed"):
+                    close_task(task, resolution_notes=f"Auto-closed: form marked {task.contact_form.status}")
+                    closed += 1
+            except Exception as e:
+                logger.error(f"Error checking contact task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close contact tasks error: {e}", exc_info=True)
+
+    # ── 4. Driver assign tasks where driver was assigned or pickup time has passed
+    try:
+        driver_tasks = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.DRIVER_ASSIGNMENT,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__isnull=False,
+        ).select_related("leg")
+
+        for task in driver_tasks:
+            try:
+                if task.leg.driver_id:
+                    close_task(task, resolution_notes="Auto-closed: driver assigned")
+                    closed += 1
+                elif task.leg.pickup_date < today:
                     close_task(task, resolution_notes="Auto-closed: pickup date has passed")
                     closed += 1
-            except (ValueError, TypeError):
-                pass
+                elif task.leg.pickup_date == today and task.leg.pickup_time < local_now_time:
+                    close_task(task, resolution_notes="Auto-closed: pickup time has passed")
+                    closed += 1
+            except Exception as e:
+                logger.error(f"Error checking driver task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close driver tasks error: {e}", exc_info=True)
 
-    # 6. Cancel tasks linked to cancelled reservations
-    cancelled_res_tasks = OperationalTask.objects.filter(
-        status__in=list(OperationalTask.OPEN_STATUSES),
-        reservation__status="cancelled",
-    )
-    for task in cancelled_res_tasks:
-        task.status = OperationalTask.Status.CANCELLED
-        task.resolved_at = timezone.now()
-        task.resolution_notes = "Auto-cancelled: reservation cancelled"
-        task.save(update_fields=["status", "resolved_at", "resolution_notes", "updated_at"])
-        closed += 1
+    # ── 5. Payment chase tasks where payment received or pickup passed ───────
+    try:
+        payment_tasks = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.PAYMENT_CHASE,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            reservation__isnull=False,
+        ).select_related("reservation")
+
+        for task in payment_tasks:
+            try:
+                # Close if card has been saved — not truly unpaid
+                if task.reservation.payment_status in ("paid", "card_saved"):
+                    reason = "Auto-closed: card saved on file" if task.reservation.payment_status == "card_saved" else "Auto-closed: payment received"
+                    close_task(task, resolution_notes=reason)
+                    closed += 1
+                    continue
+
+                meta = task.metadata or {}
+                earliest_pickup_str = meta.get("earliest_pickup")
+                if earliest_pickup_str:
+                    earliest_date = datetime.strptime(earliest_pickup_str, "%Y-%m-%d").date()
+                    if earliest_date < today:
+                        close_task(task, resolution_notes="Auto-closed: pickup date has passed")
+                        closed += 1
+            except Exception as e:
+                logger.error(f"Error checking payment task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close payment tasks error: {e}", exc_info=True)
+
+    # ── 6. Cancel tasks linked to cancelled reservations ─────────────────────
+    try:
+        cancelled_res_tasks = OperationalTask.objects.filter(
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            reservation__status="cancelled",
+        )
+        for task in cancelled_res_tasks:
+            try:
+                task.status = OperationalTask.Status.CANCELLED
+                task.resolved_at = timezone.now()
+                task.resolution_notes = "Auto-cancelled: reservation cancelled"
+                task.save(update_fields=["status", "resolved_at", "resolution_notes", "updated_at"])
+                closed += 1
+            except Exception as e:
+                logger.error(f"Error cancelling task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close cancelled-res tasks error: {e}", exc_info=True)
 
     if closed:
         logger.info(f"Auto-close scan: closed {closed} tasks")

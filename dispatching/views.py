@@ -7084,7 +7084,7 @@ def route_timing_reference(request):
             pass
 
     # Compute metrics grouped by route + time_of_day + day_type
-    buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': [], 'leg_ids': []})
+    buckets = defaultdict(lambda: {'dwell': [], 'drive': [], 'total': [], 'leg_ids': [], 'total_legs': 0})
 
     skipped_incomplete = 0
     skipped_excluded = 0
@@ -7115,27 +7115,28 @@ def route_timing_reference(request):
         valid_chain = has_valid_status_chain(leg)
 
         if not valid_chain:
+            # Categorize the leg so we can always add it to leg_ids
+            pickup_cat = categorize_location(leg.pickup_location)
+            dropoff_cat = categorize_location(leg.dropoff_location)
+            time_cat = categorize_time_of_day(leg.pickup_time)
+            day_cat = categorize_day_type(leg.pickup_date)
+            trip_type = leg.get_trip_type()
+            has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
+            if trip_type == 'arrival' and has_store_stop:
+                trip_type = 'arrival_store'
+            if trip_type_filter and trip_type != trip_type_filter:
+                continue
+            if pickup_filter and pickup_cat != pickup_filter:
+                continue
+            if dropoff_filter and dropoff_cat != dropoff_filter:
+                continue
+            key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
+            # Always add to leg_ids so modal shows ALL legs for this bucket
+            buckets[key]['leg_ids'].append(leg.id)
             # Fallback: for arrivals, try gate → completed total time
-            # (no dwell/drive split, but we get a usable total)
             gate_total = calculate_gate_to_completed_time(leg)
             if gate_total is not None:
-                pickup_cat = categorize_location(leg.pickup_location)
-                dropoff_cat = categorize_location(leg.dropoff_location)
-                time_cat = categorize_time_of_day(leg.pickup_time)
-                day_cat = categorize_day_type(leg.pickup_date)
-                trip_type = leg.get_trip_type()
-                has_store_stop = getattr(leg.reservation, 'store_stop', False) if leg.reservation else False
-                if trip_type == 'arrival' and has_store_stop:
-                    trip_type = 'arrival_store'
-                if trip_type_filter and trip_type != trip_type_filter:
-                    continue
-                if pickup_filter and pickup_cat != pickup_filter:
-                    continue
-                if dropoff_filter and dropoff_cat != dropoff_filter:
-                    continue
-                key = (trip_type, pickup_cat, dropoff_cat, time_cat, day_cat)
                 buckets[key]['total'].append(gate_total)
-                buckets[key]['leg_ids'].append(leg.id)
                 fallback_total_only += 1
             else:
                 skipped_incomplete += 1
@@ -7225,6 +7226,7 @@ def route_timing_reference(request):
         confidence = 'high' if sample_count >= 20 else ('medium' if sample_count >= 10 else ('low' if sample_count >= 5 else 'none'))
         hardcoded = DRIVE_TIME_ESTIMATES.get((pickup_cat, dropoff_cat))
 
+        total_leg_count = len(vals['leg_ids'])
         metrics_list.append({
             'pickup_cat': pickup_cat,
             'dropoff_cat': dropoff_cat,
@@ -7234,6 +7236,7 @@ def route_timing_reference(request):
             'time_label': TIME_LABELS.get(time_cat, time_cat),
             'day_label': DAY_LABELS.get(day_cat, day_cat),
             'sample_count': sample_count,
+            'total_leg_count': total_leg_count,
             'confidence': confidence,
             'dwell': _stats(vals['dwell']),
             'drive': _stats(vals['drive']),
@@ -7306,7 +7309,11 @@ def route_timing_leg_details(request):
     if not request.user.is_staff:
         return JsonResponse({"error": "Permission denied"}, status=403)
 
-    from dispatching.analytics import calculate_airport_dwell_time, calculate_drive_time
+    from dispatching.analytics import (
+        calculate_airport_dwell_time, calculate_drive_time,
+        has_valid_status_chain,
+    )
+    from django.utils import timezone as tz
 
     leg_ids_str = request.GET.get('ids', '')
     if not leg_ids_str:
@@ -7336,6 +7343,25 @@ def route_timing_leg_details(request):
         dwell = calculate_airport_dwell_time(leg)
         drive = calculate_drive_time(leg)
 
+        # Determine status reason
+        if leg.exclude_from_analytics:
+            data_status = 'excluded'
+        elif has_valid_status_chain(leg):
+            data_status = 'valid'
+        elif dwell is None and drive is None:
+            data_status = 'incomplete'
+        else:
+            data_status = 'partial'
+
+        # Get raw status timestamps for diagnostics
+        status_times = {}
+        for s in leg.status_history.all():
+            if s.status in ('on-the-way', 'picked-up', 'completed') and s.status not in status_times:
+                ts = s.timestamp
+                if tz.is_aware(ts):
+                    ts = tz.localtime(ts)
+                status_times[s.status] = ts.strftime('%I:%M %p').lstrip('0')
+
         results.append({
             'id': leg.id,
             'reservation_id': leg.reservation_id,
@@ -7349,7 +7375,14 @@ def route_timing_leg_details(request):
             'drive_min': drive,
             'total_min': (dwell + drive) if dwell is not None and drive is not None else drive,
             'excluded': leg.exclude_from_analytics,
+            'data_status': data_status,
+            'otw_time': status_times.get('on-the-way'),
+            'pickup_actual': status_times.get('picked-up'),
+            'completed_time': status_times.get('completed'),
         })
+
+    # Sort by pickup_date descending (most recent first)
+    results.sort(key=lambda r: r['pickup_date'], reverse=True)
 
     return JsonResponse({"legs": results})
 
@@ -7371,20 +7404,12 @@ def route_timing_exclude_leg(request):
         leg.exclude_from_analytics = exclude
         leg.save(update_fields=['exclude_from_analytics'])
 
-        # Recalculate the affected bucket immediately so the change takes effect
-        import threading
-        from django.db import connection as _conn
-
-        def _recalc_bucket(leg_obj):
-            try:
-                from dispatching.analytics import update_single_route_timing_metric
-                update_single_route_timing_metric(leg_obj)
-            except Exception:
-                pass
-            finally:
-                _conn.close()
-
-        threading.Thread(target=_recalc_bucket, args=(leg,), daemon=True).start()
+        # Recalculate the affected bucket synchronously
+        try:
+            from dispatching.analytics import update_single_route_timing_metric
+            update_single_route_timing_metric(leg)
+        except Exception:
+            pass
 
         return JsonResponse({"success": True, "excluded": exclude})
     except Leg.DoesNotExist:
