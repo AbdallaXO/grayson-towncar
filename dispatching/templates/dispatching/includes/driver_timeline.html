@@ -65,12 +65,6 @@
                        data-vehicle="{{ slot.vehicle_type|default:'' }}"
                        onclick="document.getElementById('leg-row-{{ slot.leg_id }}')?.scrollIntoView({behavior:'smooth', block:'center'})">
                     {{ slot.pickup_time|time:"g:i" }}
-                    {% if slot.status == 'picked-up' %}<span class="tl-status-tag">PU</span>
-                    {% elif slot.status == 'on-location' %}<span class="tl-status-tag">OL</span>
-                    {% elif slot.status == 'on-the-way' %}<span class="tl-status-tag">OTW</span>
-                    {% elif slot.status == 'completed' %}<span class="tl-status-tag">DONE</span>
-                    {% elif slot.status == 'confirmed' %}<span class="tl-status-tag">CNF</span>
-                    {% endif %}
                     <span class="tl-status-strip st-{{ slot.status }}"></span>
                   </div>
                 {% endfor %}

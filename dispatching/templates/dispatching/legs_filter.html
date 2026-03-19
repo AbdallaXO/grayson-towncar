@@ -5,6 +5,9 @@
 
 {% block extra_css %}
   <style>
+      /* Ensure interactive elements show pointer cursor */
+      .form-select, .btn { cursor: pointer; }
+
       @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
@@ -82,7 +85,7 @@
       .timeline-slot .tl-status-strip {
           position: absolute;
           bottom: 0; left: 0; right: 0;
-          height: 5px;
+          height: 4px;
           border-radius: 0 0 3px 3px;
       }
       .timeline-slot .tl-status-strip.st-completed { background: #fff; }
@@ -92,19 +95,6 @@
       .timeline-slot .tl-status-strip.st-confirmed { background: #40c4ff; }
       .timeline-slot .tl-status-strip.st-in-progress { background: rgba(255,255,255,0.25); }
       .timeline-slot .tl-status-strip.st-cancelled { background: #ff1744; }
-      /* Status label inside slot for wider bars */
-      .timeline-slot .tl-status-tag {
-          font-size: 0.5rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-          opacity: 0.9;
-          margin-left: 4px;
-          background: rgba(0,0,0,0.2);
-          padding: 0 3px;
-          border-radius: 2px;
-          line-height: 1.4;
-      }
       .timeline-hour-markers {
           display: flex;
           padding-left: 120px;
@@ -2424,6 +2414,12 @@
                   let modalClosed = false;
                   progressModal.addEventListener('hidden.bs.modal', () => {
                       modalClosed = true;
+                      // Remove modal element and any leftover backdrop so they don't block clicks
+                      progressModal.remove();
+                      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+                      document.body.classList.remove('modal-open');
+                      document.body.style.removeProperty('overflow');
+                      document.body.style.removeProperty('padding-right');
                       showToast('Flight refresh is running in the background. You\'ll be notified when it completes.', 'info');
                   });
 
@@ -2534,7 +2530,7 @@
                       if (!modalClosed) {
                           setTimeout(() => {
                               if (bsModal) bsModal.hide();
-                              progressModal.remove();
+                              // hidden.bs.modal handler will clean up the element
                           }, 3000);
                       }
 
