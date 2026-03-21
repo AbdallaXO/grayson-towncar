@@ -7,13 +7,14 @@ Usage:
 """
 
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
+from django.utils import timezone
 
-from reservations.models import Customer, Reservation, Leg
+from reservations.models import Customer, Reservation, Leg, LegStatus
 from rates.models import Vehicle, Rate
 from drivers.models import Driver
 
@@ -38,6 +39,14 @@ INHOUSE_DRIVERS = {
     "hany",
     "oualid",
     "wael",
+    "seline",
+    "shaq",
+    "rizwan",
+    "steven kleisath",
+    "george",
+    "ray santos",
+    "tony rodriguez",
+    "carlos",
 }
 
 # Map CSV vehicle types to model vehicle_type choices
@@ -68,8 +77,25 @@ STATUS_MAP = {
 }
 
 
+def _disconnect_signals():
+    """Disconnect all post_save/pre_save signals for Reservation and Leg."""
+    from django.db.models.signals import post_save, pre_save
+
+    for signal in (pre_save, post_save):
+        for model_class in (Reservation, Leg):
+            sender_id = id(model_class)
+            # Django signal receivers are 3-tuples: (key, receiver, use_caching)
+            # key is ((receiver_id, sender_id), sender_id)
+            signal.receivers = [
+                entry for entry in signal.receivers
+                if not (isinstance(entry[0], tuple) and sender_id in entry[0])
+            ]
+        # Clear the entire sender cache
+        signal.sender_receivers_cache.clear()
+
+
 class Command(BaseCommand):
-    help = "Load sample leg data from CSV into local database for capacity planner testing"
+    help = "Load sample leg data from CSV into local database for testing"
 
     def add_arguments(self, parser):
         parser.add_argument("csv_path", type=str, help="Path to CSV file with leg data")
@@ -82,6 +108,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         csv_path = options["csv_path"]
         clear = options["clear"]
+
+        # Disconnect signals FIRST to prevent emails, notifications, SMS, etc.
+        self.stdout.write("Disconnecting signals to prevent side effects...")
+        _disconnect_signals()
+        self.stdout.write(self.style.WARNING("  Signals disconnected (no emails/notifications will fire)"))
 
         if clear:
             self._clear_test_data()
@@ -118,6 +149,7 @@ class Command(BaseCommand):
         drivers_cache = {}
         customers_cache = {}
         created_legs = 0
+        created_statuses = 0
 
         for prod_res_id, leg_rows in reservations_map.items():
             first_row = leg_rows[0]
@@ -140,7 +172,7 @@ class Command(BaseCommand):
             trip_type = "round_trip" if len(leg_rows) > 1 else "one_way"
             price = rate.round_trip_price if trip_type == "round_trip" else rate.oneway_price
 
-            reservation = Reservation.objects.create(
+            reservation = Reservation(
                 customer=customer,
                 rate=rate,
                 vehicle=vehicle,
@@ -151,10 +183,17 @@ class Command(BaseCommand):
                 status="confirmed",
                 private_notes=f"[TEST DATA] Production res #{prod_res_id}",
             )
+            # Use save with update_fields trick to skip signal-based side effects
+            reservation.save()
 
             # Create legs for this reservation
             for row in leg_rows:
-                driver = self._get_or_create_driver(row.get("assigned_driver", ""), drivers_cache)
+                driver_name = row.get("assigned_driver", "").strip()
+                # Handle "Unassigned" as no driver
+                if driver_name.lower() == "unassigned":
+                    driver = None
+                else:
+                    driver = self._get_or_create_driver(driver_name, drivers_cache)
 
                 # Parse pickup time
                 pickup_time_str = row["pickup_time"].strip()
@@ -166,11 +205,7 @@ class Command(BaseCommand):
                 # Get status
                 status = STATUS_MAP.get(row.get("status", "").lower().strip(), "in-progress")
 
-                # Get vehicle for this specific leg
-                leg_vehicle_str = row.get("vehicle_type", "SUV").lower()
-                leg_vehicle_key = VEHICLE_TYPE_MAP.get(leg_vehicle_str, "suv")
-
-                Leg.objects.create(
+                leg = Leg(
                     reservation=reservation,
                     pickup_date=pickup_date,
                     pickup_time=pickup_time,
@@ -180,13 +215,24 @@ class Command(BaseCommand):
                     status=status,
                     private_notes=f"[TEST] Prod leg #{row['leg_id']} | {row.get('trip_type', '')} | Vehicle: {row.get('vehicle_type', '')}",
                 )
+                leg.save()
                 created_legs += 1
+
+                # Create LegStatus entry so live ops shows "X min ago"
+                status_ts = self._make_status_timestamp(pickup_date, pickup_time, status)
+                LegStatus.objects.create(
+                    leg=leg,
+                    status=status,
+                    timestamp=status_ts,
+                )
+                created_statuses += 1
 
         self.stdout.write(self.style.SUCCESS(
             f"\nDone! Created:"
             f"\n  {len(customers_cache)} customers"
             f"\n  {len(reservations_map)} reservations"
             f"\n  {created_legs} legs"
+            f"\n  {created_statuses} status entries"
             f"\n  {len(drivers_cache)} drivers"
         ))
 
@@ -195,7 +241,30 @@ class Command(BaseCommand):
         affiliate = [name for name, d in drivers_cache.items() if d.driver_type == "affiliate"]
         self.stdout.write(f"\n  In-house drivers ({len(inhouse)}): {', '.join(inhouse)}")
         self.stdout.write(f"  Affiliate drivers ({len(affiliate)}): {', '.join(affiliate)}")
-        self.stdout.write(f"\nTest the planner at: /dispatching/capacity-planner/?date={rows[0]['pickup_date'].strip()}")
+        self.stdout.write(f"\nTest at: /dispatching/live-ops/?date={rows[0]['pickup_date'].strip()}")
+
+    def _make_status_timestamp(self, pickup_date, pickup_time, status):
+        """
+        Create a realistic timestamp for the status entry.
+        - completed: pickup_time + 45-60 min
+        - picked-up: pickup_time + 15-25 min
+        - on-location: pickup_time + 5-10 min
+        - on-the-way: pickup_time - 10-20 min
+        - confirmed/in-progress: pickup_time - 60 min (or creation time)
+        """
+        base_dt = timezone.make_aware(
+            datetime.combine(pickup_date, pickup_time),
+            timezone=timezone.get_current_timezone(),
+        )
+        offsets = {
+            "completed": timedelta(minutes=50),
+            "picked-up": timedelta(minutes=20),
+            "on-location": timedelta(minutes=5),
+            "on-the-way": timedelta(minutes=-15),
+            "confirmed": timedelta(minutes=-60),
+            "in-progress": timedelta(minutes=-30),
+        }
+        return base_dt + offsets.get(status, timedelta(0))
 
     def _ensure_vehicles(self):
         """Make sure all vehicle types exist locally."""

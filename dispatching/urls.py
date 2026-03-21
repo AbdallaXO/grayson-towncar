@@ -282,4 +282,7 @@ urlpatterns = [
     # Duplicate Reservation Cleanup
     path("duplicate-reservations/", views.duplicate_reservations, name="duplicate_reservations"),
     path("cancel-duplicate-reservation/", views.cancel_duplicate_reservation, name="cancel_duplicate_reservation"),
+    # Live Operations Dashboard
+    path("live-ops/", views.live_ops_dashboard, name="live_ops_dashboard"),
+    path("live-ops/data/", views.live_ops_data, name="live_ops_data"),
 ]

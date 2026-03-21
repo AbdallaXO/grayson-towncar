@@ -69,6 +69,10 @@
           </ul>
         </li>
         <li class="nav-item">
+          <a class="nav-link text-white {% if request.resolver_match.url_name == 'live_ops_dashboard' %}active{% endif %}"
+             href="{% url 'live_ops_dashboard' %}"><i class="bi bi-broadcast me-1"></i>Live Ops</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'capacity_planner' %}active{% endif %}"
              href="{% url 'capacity_planner' %}"><i class="bi bi-calendar3-week me-1"></i>Planner</a>
         </li>

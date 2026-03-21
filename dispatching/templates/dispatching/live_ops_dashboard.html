@@ -1,0 +1,728 @@
+{% extends 'main.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --lo-bg: #0f1117; --lo-surface: #1a1d25; --lo-surface2: #232730;
+    --lo-border: #2e323d; --lo-text: #e8eaed; --lo-muted: #8b8fa3; --lo-accent: #C9A227;
+    --st-confirmed: #40c4ff; --st-otw: #ff9100; --st-on-location: #ffd600;
+    --st-picked-up: #00e676; --st-completed: #666;
+    --tt-arrival: #42a5f5; --tt-return: #66bb6a; --tt-cruise: #ffa726; --tt-other: #ab47bc;
+  }
+
+  body { background: var(--lo-bg) !important; margin: 0; overflow: hidden; }
+  .lo-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* Top bar */
+  .lo-topbar {
+    background: var(--lo-surface); border-bottom: 1px solid var(--lo-border);
+    padding: 0.5rem 1rem; display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.5rem; flex-shrink: 0; z-index: 10;
+  }
+  .lo-brand { display: flex; align-items: center; gap: 0.5rem; }
+  .lo-brand h1 { font-size: 1.1rem; font-weight: 700; color: var(--lo-text); margin: 0; }
+  .lo-pulse { width: 8px; height: 8px; border-radius: 50%; background: #00e676; display: inline-block; animation: loPulse 2s infinite; }
+  .lo-pulse.paused { background: var(--lo-muted); animation: none; }
+  @keyframes loPulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,230,118,.5)} 50%{opacity:.6;box-shadow:0 0 0 5px rgba(0,230,118,0)} }
+  .lo-controls { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .lo-controls input[type="date"] {
+    background: var(--lo-surface2); border: 1px solid var(--lo-border); border-radius: 5px;
+    padding: 0.25rem 0.5rem; font-size: 0.78rem; color: var(--lo-text);
+    font-family: 'JetBrains Mono', monospace; color-scheme: dark;
+  }
+  .lo-tg { display: inline-flex; border: 1px solid var(--lo-border); border-radius: 5px; overflow: hidden; }
+  .lo-tg button {
+    padding: 0.22rem 0.6rem; font-size: 0.72rem; font-weight: 600; border: none;
+    background: transparent; color: var(--lo-muted); cursor: pointer; transition: all .15s;
+  }
+  .lo-tg button.active { background: var(--lo-accent); color: #000; }
+  .lo-tg button:not(:last-child) { border-right: 1px solid var(--lo-border); }
+  .lo-ts { font-size: 0.7rem; color: var(--lo-muted); font-family: 'JetBrains Mono', monospace; }
+
+  /* Stats strip */
+  .lo-stats-strip {
+    background: var(--lo-surface); border-bottom: 1px solid var(--lo-border);
+    padding: 0.4rem 1rem; display: flex; align-items: center; gap: 1.5rem;
+    flex-shrink: 0; overflow-x: auto; white-space: nowrap;
+  }
+  .lo-stat { display: flex; align-items: center; gap: 0.4rem; }
+  .lo-stat .num { font-size: 1.1rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: var(--lo-text); }
+  .lo-stat .lbl { font-size: 0.68rem; color: var(--lo-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+  .lo-stat-divider { width: 1px; height: 24px; background: var(--lo-border); }
+  .lo-sdot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .lo-coverage-bar-sm { display:flex; height:6px; width:100px; border-radius:3px; overflow:hidden; background:var(--lo-surface2); }
+  .lo-coverage-bar-sm .seg { transition: width .4s; }
+
+  /* ── Zone Board ── */
+  .lo-board { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0.75rem; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; align-content: start; }
+
+  .lo-zone {
+    background: var(--lo-surface); border: 1px solid var(--lo-border); border-radius: 10px;
+    overflow: hidden; transition: border-color .2s;
+  }
+  .lo-zone:hover { border-color: rgba(201,162,39,.3); }
+  .lo-zone.has-active { border-left: 3px solid var(--lo-accent); }
+  .lo-zone.has-unassigned { border-left: 3px solid #ef5350; }
+
+  .lo-zone-head {
+    padding: 0.6rem 0.8rem; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--lo-border); background: var(--lo-surface2);
+  }
+  .lo-zone-name { font-size: 0.82rem; font-weight: 700; color: var(--lo-text); display: flex; align-items: center; gap: 0.4rem; }
+  .lo-zone-name .zone-icon { font-size: 0.9rem; opacity: 0.7; }
+  .lo-zone-counts { display: flex; gap: 0.5rem; }
+  .lo-zone-counts .zc {
+    font-size: 0.65rem; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+    padding: 0.12rem 0.4rem; border-radius: 3px; display: flex; align-items: center; gap: 0.25rem;
+  }
+
+  .lo-zone-body { padding: 0.5rem 0.7rem; }
+
+  /* Section headers inside zone */
+  .lo-zsec {
+    font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--lo-muted); padding: 0.35rem 0 0.2rem; display: flex; align-items: center; gap: 0.4rem;
+  }
+  .lo-zsec:not(:first-child) { border-top: 1px solid rgba(46,50,61,.5); margin-top: 0.3rem; padding-top: 0.5rem; }
+
+  /* Trip mini-card inside zone */
+  .lo-zrow {
+    display: flex; flex-direction: column; gap: 0.25rem; padding: 0.55rem 0.6rem;
+    font-size: 0.75rem; color: var(--lo-text); cursor: pointer; border-radius: 8px;
+    transition: all .15s; margin: 0.3rem 0; border-left: 3px solid transparent;
+    background: rgba(255,255,255,.02);
+  }
+  .lo-zrow:hover { background: rgba(255,255,255,.06); transform: translateX(2px); }
+
+  /* Row 1: driver + status + time */
+  .lo-zrow-top { display: flex; align-items: center; gap: 0.4rem; }
+  .lo-zrow .z-driver { font-weight: 700; font-size: 0.8rem; }
+  .lo-zrow .z-driver.unassigned { color: #ef5350; }
+  .lo-zrow .z-badge {
+    font-size: 0.56rem; font-weight: 700; padding: 0.12rem 0.4rem; border-radius: 3px; flex-shrink: 0;
+    text-transform: uppercase; letter-spacing: .03em;
+  }
+  .lo-zrow .z-time { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--lo-muted); flex-shrink: 0; white-space: nowrap; }
+
+  /* Row 2: route with visual arrow */
+  .lo-zrow-route {
+    display: flex; align-items: center; gap: 0.35rem; font-size: 0.73rem;
+    padding: 0.2rem 0; color: var(--lo-text);
+  }
+  .lo-zrow-route .route-from { color: var(--lo-text); font-weight: 500; }
+  .lo-zrow-route .route-arrow {
+    display: flex; align-items: center; gap: 0; color: var(--lo-accent); font-size: 0.65rem; flex-shrink: 0;
+  }
+  .lo-zrow-route .route-arrow::before {
+    content: ''; display: inline-block; width: 20px; height: 1px; background: var(--lo-accent); opacity: .5;
+  }
+  .lo-zrow-route .route-to { color: var(--lo-muted); }
+
+  /* Row 3: flight info */
+  .lo-zrow-flight {
+    display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem;
+    padding: 0.15rem 0.4rem; border-radius: 4px; background: rgba(66,165,245,.08);
+    color: #64b5f6; font-family: 'JetBrains Mono', monospace;
+  }
+  .lo-zrow-flight .fl-icon { font-size: 0.75rem; }
+  .lo-zrow-flight .fl-number { font-weight: 700; }
+  .lo-zrow-flight .fl-status { font-weight: 600; }
+  .lo-zrow-flight .fl-status.landed { color: #66bb6a; }
+  .lo-zrow-flight .fl-status.delayed { color: #ffa726; }
+  .lo-zrow-flight .fl-time { margin-left: auto; opacity: .8; }
+
+  /* Row 4: clear time + customer */
+  .lo-zrow-meta {
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.66rem; color: var(--lo-muted); opacity: 0.8;
+  }
+  .lo-zrow-meta .meta-clear { font-family: 'JetBrains Mono', monospace; color: var(--lo-accent); font-weight: 600; }
+
+  /* Next job line */
+  .lo-zrow-next {
+    display: flex; align-items: center; gap: 0.35rem; font-size: 0.66rem;
+    padding: 0.2rem 0.4rem; border-radius: 4px; background: rgba(255,255,255,.03);
+    border: 1px dashed rgba(255,255,255,.08); color: var(--lo-muted);
+  }
+  .lo-zrow-next .next-label { font-weight: 700; text-transform: uppercase; font-size: 0.58rem; letter-spacing: .04em; }
+  .lo-zrow-next .next-gap { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+  .lo-zrow-next .next-gap.tight { color: #ef5350; }
+  .lo-zrow-next .next-gap.ok { color: #66bb6a; }
+  .lo-zrow-next .next-gap.free { color: var(--lo-accent); }
+  .lo-zrow-next .next-loc { opacity: .7; }
+
+  /* Clearing soon rows */
+  .lo-zrow.clearing { border-left-color: var(--lo-accent); }
+  .lo-zrow.clearing .z-time { color: var(--lo-accent); font-weight: 600; }
+
+  /* Empty zone state */
+  .lo-zone-empty { font-size: 0.72rem; color: var(--lo-muted); padding: 0.5rem 0; text-align: center; opacity: 0.6; }
+
+  /* ── Timeline ── */
+  .lo-timeline-pane {
+    height: 250px; flex-shrink: 0; background: var(--lo-surface);
+    border-top: 1px solid var(--lo-border); display: flex; flex-direction: column;
+    overflow: hidden; position: relative;
+  }
+  .lo-tl-header {
+    padding: 0.35rem 1rem; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--lo-border); flex-shrink: 0;
+  }
+  .lo-tl-header span { font-size: 0.75rem; font-weight: 700; color: var(--lo-muted); text-transform: uppercase; letter-spacing: .05em; }
+  .lo-tl-resize { width: 100%; height: 4px; cursor: ns-resize; background: transparent; position: absolute; top: -2px; z-index: 5; }
+  .lo-tl-resize:hover { background: var(--lo-accent); }
+  .lo-tl-body { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; }
+  .lo-tl-hours { position: sticky; top: 0; background: var(--lo-surface); z-index: 4; display: flex; height: 22px; border-bottom: 1px solid var(--lo-border); margin-left: 140px; }
+  .lo-tl-hours .hour-mark { font-size: 0.62rem; color: var(--lo-muted); font-family: 'JetBrains Mono', monospace; position: absolute; transform: translateX(-50%); top: 4px; }
+  .lo-tl-row { display: flex; align-items: stretch; min-height: 36px; border-bottom: 1px solid rgba(46,50,61,.5); }
+  .lo-tl-row:hover { background: rgba(255,255,255,.02); }
+  .lo-tl-driver {
+    width: 140px; flex-shrink: 0; padding: 0 0.5rem; display: flex; align-items: center;
+    font-size: 0.72rem; font-weight: 600; color: var(--lo-text);
+    border-right: 1px solid var(--lo-border); background: var(--lo-surface);
+    position: sticky; left: 0; z-index: 3; gap: 0.35rem;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .lo-tl-driver .dtype { font-size: 0.55rem; padding: 0.1rem 0.3rem; border-radius: 2px; font-weight: 700; }
+  .lo-tl-driver .dtype.ih { background: rgba(102,187,106,.15); color: #66bb6a; }
+  .lo-tl-driver .dtype.af { background: rgba(255,167,38,.15); color: #ffa726; }
+  .lo-tl-driver .dtype.un { background: rgba(239,83,80,.15); color: #ef5350; }
+  .lo-tl-track { flex: 1; position: relative; min-height: 36px; }
+  .lo-tl-bar {
+    position: absolute; top: 4px; height: 28px; border-radius: 4px;
+    display: flex; align-items: center; padding: 0 6px; gap: 4px;
+    font-size: 0.62rem; font-weight: 600; color: #fff; cursor: pointer;
+    overflow: hidden; white-space: nowrap; transition: opacity .15s; min-width: 20px;
+  }
+  .lo-tl-bar:hover { opacity: .85; z-index: 2; }
+  .lo-tl-bar .bar-route { opacity: .9; overflow: hidden; text-overflow: ellipsis; }
+  .lo-tl-bar .bar-time { opacity: .7; font-size: 0.58rem; }
+  .lo-tl-bar::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; border-radius: 0 0 4px 4px; }
+  .lo-tl-bar.st-confirmed::after { background: var(--st-confirmed); }
+  .lo-tl-bar.st-on-the-way::after { background: var(--st-otw); }
+  .lo-tl-bar.st-on-location::after { background: var(--st-on-location); }
+  .lo-tl-bar.st-picked-up::after { background: var(--st-picked-up); }
+  .lo-tl-bar.st-completed::after { background: var(--st-completed); }
+  .lo-tl-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef5350; z-index: 3; pointer-events: none; }
+  .lo-tl-now::before { content: 'NOW'; position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 0.55rem; font-weight: 800; color: #ef5350; letter-spacing: .06em; font-family: 'JetBrains Mono', monospace; }
+  .lo-tl-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(46,50,61,.6); z-index: 0; pointer-events: none; }
+
+  /* Tooltip */
+  .lo-tl-tooltip {
+    position: fixed; background: var(--lo-surface2); border: 1px solid var(--lo-border);
+    border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.72rem; color: var(--lo-text);
+    pointer-events: none; z-index: 100; max-width: 280px; box-shadow: 0 8px 24px rgba(0,0,0,.4); display: none;
+  }
+  .lo-tl-tooltip .tt-driver { font-weight: 700; margin-bottom: 2px; }
+  .lo-tl-tooltip .tt-route { color: var(--lo-muted); margin-bottom: 2px; }
+  .lo-tl-tooltip .tt-time { font-family: 'JetBrains Mono', monospace; color: var(--lo-accent); }
+  .lo-tl-tooltip .tt-status { margin-top: 3px; font-size: 0.68rem; }
+  .lo-tl-tooltip .tt-flight { color: var(--tt-arrival); margin-top: 2px; }
+
+  /* Scrollbars */
+  .lo-board::-webkit-scrollbar, .lo-tl-body::-webkit-scrollbar { width: 6px; }
+  .lo-board::-webkit-scrollbar-track, .lo-tl-body::-webkit-scrollbar-track { background: transparent; }
+  .lo-board::-webkit-scrollbar-thumb, .lo-tl-body::-webkit-scrollbar-thumb { background: var(--lo-border); border-radius: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+<div class="lo-shell">
+  <div class="lo-topbar">
+    <div class="lo-brand">
+      <span class="lo-pulse" id="refreshIndicator"></span>
+      <h1>Live Operations</h1>
+    </div>
+    <div class="lo-controls">
+      <input type="date" id="dateSelector" value="{{ selected_date|date:'Y-m-d' }}">
+      <div class="lo-tg">
+        <button class="active" data-interval="30" onclick="setRefreshInterval(30)">30s</button>
+        <button data-interval="60" onclick="setRefreshInterval(60)">60s</button>
+        <button data-interval="0" onclick="setRefreshInterval(0)">Off</button>
+      </div>
+      <span class="lo-ts" id="lastRefresh"></span>
+    </div>
+  </div>
+
+  <div class="lo-stats-strip" id="statsStrip"></div>
+
+  <!-- Zone Board -->
+  <div class="lo-board" id="zoneBoard"></div>
+
+  <!-- Timeline -->
+  <div class="lo-timeline-pane" id="timelinePane">
+    <div class="lo-tl-resize" id="tlResize"></div>
+    <div class="lo-tl-header">
+      <span>Driver Timeline</span>
+      <span id="tlDriverCount"></span>
+    </div>
+    <div class="lo-tl-body" id="tlBody"></div>
+  </div>
+</div>
+
+<div class="lo-tl-tooltip" id="tlTooltip"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  'use strict';
+
+  let LEGS = {{ legs_json|safe }};
+  let refreshInterval = 30;
+  let refreshTimer = null;
+
+  const STATUS_COLORS = {
+    'confirmed':'#40c4ff','on-the-way':'#ff9100','on-location':'#ffd600',
+    'picked-up':'#00e676','completed':'#666','in-progress':'#90a4ae',
+  };
+  const STATUS_LABELS = {
+    'confirmed':'Confirmed','on-the-way':'On the Way','on-location':'On Location',
+    'picked-up':'Picked Up','completed':'Completed','in-progress':'In Progress',
+  };
+  const TT_COLORS = {arrival:'#42a5f5','return':'#66bb6a',cruise:'#ffa726',other:'#ab47bc'};
+
+  const ZONE_META = {
+    'MCO Terminal':       { icon: '<i class="bi bi-airplane"></i>', short: 'MCO', order: 1 },
+    'SFB Terminal':       { icon: '<i class="bi bi-airplane"></i>', short: 'SFB', order: 2 },
+    'Disney Resort':      { icon: '<i class="bi bi-stars"></i>', short: 'Disney', order: 3 },
+    'Universal Resort':   { icon: '<i class="bi bi-globe-americas"></i>', short: 'Universal', order: 4 },
+    'Port Canaveral Area':{ icon: '<i class="bi bi-water"></i>', short: 'Port Canaveral', order: 5 },
+    'Airport Hotel':      { icon: '<i class="bi bi-building"></i>', short: 'Airport Hotels', order: 6 },
+    'Other Hotel':        { icon: '<i class="bi bi-building"></i>', short: 'Other Hotels', order: 7 },
+    'Residential':        { icon: '<i class="bi bi-house"></i>', short: 'Residential', order: 8 },
+    'Other':              { icon: '<i class="bi bi-geo-alt"></i>', short: 'Other', order: 9 },
+  };
+
+  // ── Stats strip (unchanged) ──
+  function renderStats(legs) {
+    const s = computeStats(legs);
+    const covT = s.coverage.inhouse + s.coverage.affiliate + s.coverage.unassigned;
+    const iPct = covT ? Math.round(s.coverage.inhouse / covT * 100) : 0;
+    const aPct = covT ? Math.round(s.coverage.affiliate / covT * 100) : 0;
+    const uPct = covT ? 100 - iPct - aPct : 0;
+    document.getElementById('statsStrip').innerHTML = `
+      <div class="lo-stat"><span class="num">${s.total}</span><span class="lbl">Total</span></div>
+      <div class="lo-stat"><span class="num" style="color:#00e676">${s.active}</span><span class="lbl">Active</span></div>
+      <div class="lo-stat"><span class="num" style="color:#666">${s.completed}</span><span class="lbl">Done</span></div>
+      <div class="lo-stat-divider"></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--st-confirmed)"></span><span class="num" style="font-size:.9rem">${s.by_status['confirmed']||0}</span><span class="lbl">Conf</span></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--st-otw)"></span><span class="num" style="font-size:.9rem">${s.by_status['on-the-way']||0}</span><span class="lbl">OTW</span></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--st-on-location)"></span><span class="num" style="font-size:.9rem">${s.by_status['on-location']||0}</span><span class="lbl">OL</span></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--st-picked-up)"></span><span class="num" style="font-size:.9rem">${s.by_status['picked-up']||0}</span><span class="lbl">PU</span></div>
+      <div class="lo-stat-divider"></div>
+      <div class="lo-stat" style="gap:.3rem">
+        <span class="lbl" style="color:#66bb6a">${s.coverage.inhouse} IH</span>
+        <span class="lbl" style="color:#ffa726">${s.coverage.affiliate} AF</span>
+        <span class="lbl" style="color:#ef5350">${s.coverage.unassigned} UA</span>
+        <div class="lo-coverage-bar-sm">
+          <div class="seg" style="width:${iPct}%;background:#66bb6a"></div>
+          <div class="seg" style="width:${aPct}%;background:#ffa726"></div>
+          <div class="seg" style="width:${uPct}%;background:#ef5350"></div>
+        </div>
+      </div>
+      <div class="lo-stat-divider"></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--tt-arrival)"></span><span class="num" style="font-size:.9rem">${s.by_trip_type.arrival||0}</span><span class="lbl">Arr</span></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--tt-return)"></span><span class="num" style="font-size:.9rem">${s.by_trip_type['return']||0}</span><span class="lbl">Ret</span></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--tt-cruise)"></span><span class="num" style="font-size:.9rem">${s.by_trip_type.cruise||0}</span><span class="lbl">Cru</span></div>
+      <div class="lo-stat"><span class="lo-sdot" style="background:var(--tt-other)"></span><span class="num" style="font-size:.9rem">${s.by_trip_type.other||0}</span><span class="lbl">Oth</span></div>
+    `;
+  }
+
+  function computeStats(legs) {
+    const activeStatuses = ['confirmed','in-progress','on-the-way','on-location','picked-up'];
+    const active = legs.filter(l => activeStatuses.includes(l.status));
+    const completed = legs.filter(l => l.status === 'completed');
+    const byStatus = {};
+    ['confirmed','on-the-way','on-location','picked-up'].forEach(s => { byStatus[s] = legs.filter(l => l.status === s).length; });
+    const byTT = {arrival:0,'return':0,cruise:0,other:0};
+    legs.forEach(l => { byTT[l.trip_type] = (byTT[l.trip_type]||0)+1; });
+    const cov = {inhouse:0,affiliate:0,unassigned:0};
+    legs.forEach(l => { if(!l.driver_id) cov.unassigned++; else if(l.driver_type==='affiliate') cov.affiliate++; else cov.inhouse++; });
+    return {total:legs.length, active:active.length, completed:completed.length, by_status:byStatus, by_trip_type:byTT, coverage:cov};
+  }
+
+  // ── Zone Board ──
+
+  function buildFlightHtml(leg) {
+    if (!leg.flight) return '';
+    const f = leg.flight;
+    const flightCode = f.iata || ((f.airline || '') + (f.number || ''));
+    const statusLower = (f.status || '').toLowerCase();
+    const statusClass = statusLower.includes('land') ? 'landed' : (statusLower.includes('delay') ? 'delayed' : '');
+    const parts = [];
+    if (f.status) parts.push(`<span class="fl-status ${statusClass}">${f.status}</span>`);
+    if (f.arrival) parts.push(`<span class="fl-time">${f.arrival}</span>`);
+    const extras = [];
+    if (f.terminal) extras.push(`T${f.terminal}`);
+    if (f.gate) extras.push(`G${f.gate}`);
+    if (f.baggage) extras.push(`Bag ${f.baggage}`);
+    if (extras.length) parts.push(`<span style="opacity:.6">${extras.join(' · ')}</span>`);
+    return `<div class="lo-zrow-flight"><span class="fl-icon"><i class="bi bi-airplane"></i></span><span class="fl-number">${flightCode}</span>${parts.join('')}</div>`;
+  }
+
+  // Build a map: driver_id → next confirmed/upcoming leg after a given leg
+  function buildDriverNextJobMap(legs) {
+    // Group legs by driver, sorted by pickup time
+    const byDriver = {};
+    legs.forEach(l => {
+      if (!l.driver_id) return;
+      if (!byDriver[l.driver_id]) byDriver[l.driver_id] = [];
+      byDriver[l.driver_id].push(l);
+    });
+    // For each driver, sort by pickup_minutes
+    Object.values(byDriver).forEach(arr => arr.sort((a,b) => a.pickup_minutes - b.pickup_minutes));
+    // Map: leg.id → next leg for that driver
+    const nextMap = {};
+    Object.values(byDriver).forEach(arr => {
+      for (let i = 0; i < arr.length; i++) {
+        const cur = arr[i];
+        // Find the next leg that is confirmed/upcoming (not the same active one)
+        for (let j = i + 1; j < arr.length; j++) {
+          if (arr[j].status === 'confirmed' || arr[j].status === 'in-progress') {
+            nextMap[cur.id] = arr[j];
+            break;
+          }
+        }
+      }
+    });
+    return nextMap;
+  }
+
+  function buildNextJobHtml(leg, nextMap) {
+    const next = nextMap[leg.id];
+    if (!next) {
+      // No next job — driver is free after clearing
+      if (leg.estimated_clear) {
+        return `<div class="lo-zrow-next"><span class="next-label">After this:</span><span class="next-gap free">Free</span><span class="next-loc">No more jobs today</span></div>`;
+      }
+      return '';
+    }
+    // Calculate gap between clear time and next pickup
+    let gapHtml = '';
+    if (leg.clear_minutes && next.pickup_minutes) {
+      const gapMin = next.pickup_minutes - leg.clear_minutes;
+      const gapClass = gapMin < 15 ? 'tight' : gapMin < 45 ? 'ok' : 'free';
+      const gapLabel = gapMin <= 0 ? 'OVERLAP' : gapMin + ' min gap';
+      gapHtml = `<span class="next-gap ${gapClass}">${gapLabel}</span>`;
+    }
+    const nextZone = ZONE_META[next.pickup_area]?.short || next.pickup_area || '';
+    return `<div class="lo-zrow-next"><span class="next-label">Next:</span><span>${next.pickup_time}</span>${gapHtml}<span class="next-loc">${nextZone} — ${next.dropoff_area ? ZONE_META[next.dropoff_area]?.short || next.dropoff_area : ''}</span></div>`;
+  }
+
+  function renderZoneBoard(legs) {
+    const nonCompleted = legs.filter(l => l.status !== 'completed');
+    const activeStatuses = ['on-the-way','on-location','picked-up'];
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const nextMap = buildDriverNextJobMap(legs);
+
+    // Build zone data
+    const zones = {};
+
+    nonCompleted.forEach(leg => {
+      const puZone = leg.pickup_area || 'Other';
+      const doZone = leg.dropoff_area || 'Other';
+      const isActive = activeStatuses.includes(leg.status);
+
+      // Active pickups FROM this zone
+      if (isActive) {
+        if (!zones[puZone]) zones[puZone] = { active: [], clearing: [], upcoming: [] };
+        zones[puZone].active.push(leg);
+      }
+
+      // Drivers clearing INTO this zone (dropoff area) — active trips heading there
+      if (isActive && leg.estimated_clear) {
+        if (!zones[doZone]) zones[doZone] = { active: [], clearing: [], upcoming: [] };
+        // Only show as "clearing" if not already in the active list for this zone
+        if (doZone !== puZone) {
+          zones[doZone].clearing.push(leg);
+        }
+      }
+
+      // Upcoming confirmed pickups FROM this zone
+      if (leg.status === 'confirmed' || leg.status === 'in-progress') {
+        if (!zones[puZone]) zones[puZone] = { active: [], clearing: [], upcoming: [] };
+        zones[puZone].upcoming.push(leg);
+      }
+    });
+
+    // Sort zones: busiest first, but keep defined order for ties
+    const sortedZones = Object.entries(zones).sort((a, b) => {
+      const aTotal = a[1].active.length + a[1].upcoming.length;
+      const bTotal = b[1].active.length + b[1].upcoming.length;
+      if (bTotal !== aTotal) return bTotal - aTotal;
+      return (ZONE_META[a[0]]?.order || 99) - (ZONE_META[b[0]]?.order || 99);
+    });
+
+    let html = '';
+    sortedZones.forEach(([zone, data]) => {
+      const meta = ZONE_META[zone] || { icon: '<i class="bi bi-geo-alt"></i>', short: zone, order: 99 };
+      const hasActive = data.active.length > 0;
+      const hasUnassigned = data.upcoming.some(l => !l.driver_id);
+      const zoneClass = hasUnassigned ? 'has-unassigned' : (hasActive ? 'has-active' : '');
+
+      let bodyHtml = '';
+
+      // ── ACTIVE NOW ──
+      if (data.active.length) {
+        bodyHtml += `<div class="lo-zsec"><span class="lo-sdot" style="background:#00e676"></span> Active Now</div>`;
+        data.active.forEach(l => {
+          const stColor = STATUS_COLORS[l.status] || '#90a4ae';
+          const stLabel = l.status === 'on-the-way' ? 'OTW' : l.status === 'on-location' ? 'OL' : 'PU';
+          bodyHtml += `
+            <div class="lo-zrow" style="border-left-color:${stColor}" onclick="openLeg(${l.id})">
+              <div class="lo-zrow-top">
+                <span class="z-driver ${l.driver_id ? '' : 'unassigned'}">${l.driver_name}</span>
+                <span class="z-badge" style="background:${stColor}22;color:${stColor}">${stLabel}</span>
+                <span class="z-time">${l.status_since || l.pickup_time}</span>
+              </div>
+              <div class="lo-zrow-route">
+                <span class="route-from">${l.pickup_location}</span>
+                <span class="route-arrow"><i class="bi bi-arrow-right"></i></span>
+                <span class="route-to">${l.dropoff_location}</span>
+              </div>
+              ${buildFlightHtml(l)}
+              <div class="lo-zrow-meta">
+                ${l.estimated_clear ? '<span class="meta-clear">Clear ~' + l.estimated_clear + '</span>' : ''}
+                ${l.customer_name ? '<span>' + l.customer_name + '</span>' : ''}
+                ${l.vehicle_type ? '<span>' + l.vehicle_type + '</span>' : ''}
+              </div>
+              ${buildNextJobHtml(l, nextMap)}
+            </div>
+          `;
+        });
+      }
+
+      // ── CLEARING SOON (drivers finishing trips that drop off here) ──
+      if (data.clearing.length) {
+        const sorted = [...data.clearing].sort((a,b) => (a.clear_minutes||9999) - (b.clear_minutes||9999));
+        bodyHtml += `<div class="lo-zsec"><span class="lo-sdot" style="background:var(--lo-accent)"></span> Clearing Here Soon</div>`;
+        sorted.forEach(l => {
+          const clearStr = l.estimated_clear || '?';
+          const stColor = STATUS_COLORS[l.status] || '#90a4ae';
+          const stLabel = STATUS_LABELS[l.status] || l.status;
+          bodyHtml += `
+            <div class="lo-zrow clearing" onclick="openLeg(${l.id})">
+              <div class="lo-zrow-top">
+                <span class="z-driver">${l.driver_name}</span>
+                <span class="z-badge" style="background:${stColor}22;color:${stColor}">${stLabel}</span>
+                <span class="z-time">Clear ~${clearStr}</span>
+              </div>
+              <div class="lo-zrow-route">
+                <span class="route-from">${l.pickup_location}</span>
+                <span class="route-arrow"><i class="bi bi-arrow-right"></i></span>
+                <span class="route-to">${l.dropoff_location}</span>
+              </div>
+              ${buildFlightHtml(l)}
+              ${buildNextJobHtml(l, nextMap)}
+            </div>
+          `;
+        });
+      }
+
+      // ── UPCOMING PICKUPS ──
+      if (data.upcoming.length) {
+        const sorted = [...data.upcoming].sort((a,b) => a.pickup_minutes - b.pickup_minutes);
+        bodyHtml += `<div class="lo-zsec"><span class="lo-sdot" style="background:var(--st-confirmed)"></span> Upcoming Pickups</div>`;
+        sorted.forEach(l => {
+          const isUnassigned = !l.driver_id;
+          const driverDisplay = isUnassigned ? 'UNASSIGNED' : l.driver_name;
+          bodyHtml += `
+            <div class="lo-zrow" style="border-left-color:${isUnassigned ? '#ef5350' : 'var(--st-confirmed)'}" onclick="openLeg(${l.id})">
+              <div class="lo-zrow-top">
+                <span class="z-driver ${isUnassigned ? 'unassigned' : ''}">${driverDisplay}</span>
+                <span class="z-time">${l.pickup_time}</span>
+              </div>
+              <div class="lo-zrow-route">
+                <span class="route-from">${l.pickup_location}</span>
+                <span class="route-arrow"><i class="bi bi-arrow-right"></i></span>
+                <span class="route-to">${l.dropoff_location}</span>
+              </div>
+              ${buildFlightHtml(l)}
+              <div class="lo-zrow-meta">
+                ${l.customer_name ? '<span>' + l.customer_name + '</span>' : ''}
+                ${l.vehicle_type ? '<span>' + l.vehicle_type + '</span>' : ''}
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      if (!bodyHtml) {
+        bodyHtml = '<div class="lo-zone-empty">No activity</div>';
+      }
+
+      // Count badges
+      const activeBadge = data.active.length ? `<span class="zc" style="background:rgba(0,230,118,.12);color:#00e676">${data.active.length} active</span>` : '';
+      const clearBadge = data.clearing.length ? `<span class="zc" style="background:rgba(201,162,39,.12);color:var(--lo-accent)">${data.clearing.length} clearing</span>` : '';
+      const upBadge = data.upcoming.length ? `<span class="zc" style="background:rgba(64,196,255,.12);color:#40c4ff">${data.upcoming.length} upcoming</span>` : '';
+
+      html += `
+        <div class="lo-zone ${zoneClass}">
+          <div class="lo-zone-head">
+            <span class="lo-zone-name"><span class="zone-icon">${meta.icon}</span>${meta.short}</span>
+            <div class="lo-zone-counts">${activeBadge}${clearBadge}${upBadge}</div>
+          </div>
+          <div class="lo-zone-body">${bodyHtml}</div>
+        </div>
+      `;
+    });
+
+    if (!html) {
+      html = '<div style="grid-column:1/-1;text-align:center;padding:3rem;color:var(--lo-muted);font-size:0.9rem;">No trips for this date</div>';
+    }
+
+    document.getElementById('zoneBoard').innerHTML = html;
+  }
+
+  // ── Timeline ──
+
+  function renderTimeline(legs) {
+    const allLegs = legs.filter(l => l.status !== 'completed');
+    const driverMap = {};
+    allLegs.forEach(l => {
+      const key = l.driver_id || 'unassigned_' + l.id;
+      if (!driverMap[key]) driverMap[key] = { name: l.driver_name, type: l.driver_type, legs: [] };
+      driverMap[key].legs.push(l);
+    });
+    const drivers = Object.entries(driverMap).sort((a,b) => {
+      const aUn = String(a[0]).startsWith('unassigned');
+      const bUn = String(b[0]).startsWith('unassigned');
+      if (aUn && !bUn) return -1;
+      if (!aUn && bUn) return 1;
+      return a[1].name.localeCompare(b[1].name);
+    });
+    let minMin = 1440, maxMin = 0;
+    allLegs.forEach(l => {
+      if (l.pickup_minutes < minMin) minMin = l.pickup_minutes;
+      const end = l.clear_minutes || (l.pickup_minutes + 60);
+      if (end > maxMin) maxMin = end;
+    });
+    const startHour = Math.max(0, Math.floor(minMin / 60) - 1);
+    const endHour = Math.min(24, Math.ceil(maxMin / 60) + 1);
+    const totalMin = (endHour - startHour) * 60;
+    const pct = (minutes) => ((minutes - startHour * 60) / totalMin * 100);
+    let hoursHtml = '', gridHtml = '';
+    for (let h = startHour; h <= endHour; h++) {
+      const p = pct(h * 60);
+      const label = h === 0 ? '12A' : h < 12 ? h + 'A' : h === 12 ? '12P' : (h-12) + 'P';
+      hoursHtml += `<span class="hour-mark" style="left:${p}%">${label}</span>`;
+      gridHtml += `<div class="lo-tl-grid-line" style="left:${p}%"></div>`;
+    }
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const nowPct = pct(nowMin);
+    const nowHtml = (nowPct >= 0 && nowPct <= 100) ? `<div class="lo-tl-now" style="left:${nowPct}%"></div>` : '';
+    let rowsHtml = '';
+    drivers.forEach(([key, drv]) => {
+      const isUn = String(key).startsWith('unassigned');
+      const dtypeClass = isUn ? 'un' : (drv.type === 'affiliate' ? 'af' : 'ih');
+      const dtypeLabel = isUn ? 'UA' : (drv.type === 'affiliate' ? 'AF' : 'IH');
+      let barsHtml = gridHtml + nowHtml;
+      drv.legs.forEach(l => {
+        const left = pct(l.pickup_minutes);
+        const endMin = l.clear_minutes || (l.pickup_minutes + 45);
+        const width = Math.max(pct(endMin) - left, 1.5);
+        const bgColor = TT_COLORS[l.trip_type] || '#ab47bc';
+        const stClass = 'st-' + l.status;
+        const shortPU = (l.pickup_location||'').split(',')[0].substring(0,15);
+        const shortDO = (l.dropoff_location||'').split(',')[0].substring(0,15);
+        barsHtml += `<div class="lo-tl-bar ${stClass}" data-leg-id="${l.id}" style="left:${left}%;width:${width}%;background:${bgColor}" onmouseenter="showTlTooltip(event,${l.id})" onmouseleave="hideTlTooltip()" onclick="openLeg(${l.id})"><span class="bar-route">${shortPU} → ${shortDO}</span><span class="bar-time">${l.pickup_time}</span></div>`;
+      });
+      rowsHtml += `<div class="lo-tl-row"><div class="lo-tl-driver"><span class="dtype ${dtypeClass}">${dtypeLabel}</span>${drv.name}</div><div class="lo-tl-track">${barsHtml}</div></div>`;
+    });
+    document.getElementById('tlBody').innerHTML = `<div class="lo-tl-hours" style="margin-left:140px;position:sticky;top:0;z-index:4;background:var(--lo-surface);height:22px;border-bottom:1px solid var(--lo-border);">${hoursHtml}</div>${rowsHtml}`;
+    document.getElementById('tlDriverCount').textContent = `${drivers.length} drivers · ${allLegs.length} active`;
+  }
+
+  // ── Timeline tooltip + interactions ──
+
+  window.showTlTooltip = function(evt, legId) {
+    const leg = LEGS.find(l => l.id === legId);
+    if (!leg) return;
+    const tip = document.getElementById('tlTooltip');
+    let flightHtml = '';
+    if (leg.flight) {
+      const f = leg.flight;
+      flightHtml = `<div class="tt-flight">✈ ${f.iata||f.airline+f.number} ${f.status||''} ${f.arrival?'· '+f.arrival:''}</div>`;
+    }
+    tip.innerHTML = `
+      <div class="tt-driver">${leg.driver_name}</div>
+      <div class="tt-route">${leg.pickup_location} → ${leg.dropoff_location}</div>
+      <div class="tt-time">PU: ${leg.pickup_time}${leg.estimated_clear ? '  Clear: ~'+leg.estimated_clear : ''}${leg.live_eta_minutes ? '  ETA: '+leg.live_eta_minutes+'m' : ''}</div>
+      <div class="tt-status" style="color:${STATUS_COLORS[leg.status]||'#aaa'}">${STATUS_LABELS[leg.status]||leg.status} ${leg.status_since?'· '+leg.status_since:''}</div>
+      ${flightHtml}
+      <div style="font-size:.65rem;color:var(--lo-muted);margin-top:3px">${leg.customer_name}${leg.vehicle_type?' · '+leg.vehicle_type:''}</div>
+    `;
+    tip.style.display = 'block';
+    tip.style.left = Math.min(evt.clientX + 12, window.innerWidth - 300) + 'px';
+    tip.style.top = Math.max(evt.clientY - 80, 10) + 'px';
+  };
+  window.hideTlTooltip = function() { document.getElementById('tlTooltip').style.display = 'none'; };
+  window.openLeg = function(legId) {
+    const leg = LEGS.find(l => l.id === legId);
+    if (leg) window.open('/dispatching/reservation/' + leg.reservation_id, '_blank');
+  };
+
+  // ── Timeline resize ──
+  (function() {
+    const pane = document.getElementById('timelinePane');
+    const handle = document.getElementById('tlResize');
+    let startY, startH;
+    handle.addEventListener('mousedown', e => {
+      startY = e.clientY; startH = pane.offsetHeight;
+      const onMove = e2 => { pane.style.height = Math.max(120, startH - (e2.clientY - startY)) + 'px'; };
+      const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+    });
+  })();
+
+  // ── Controls ──
+  window.setRefreshInterval = function(secs) {
+    refreshInterval = secs;
+    document.querySelectorAll('[data-interval]').forEach(b => b.classList.toggle('active', parseInt(b.dataset.interval) === secs));
+    document.getElementById('refreshIndicator').classList.toggle('paused', secs === 0);
+    clearInterval(refreshTimer);
+    if (secs > 0) refreshTimer = setInterval(refreshData, secs * 1000);
+  };
+  function updateTimestamp() {
+    document.getElementById('lastRefresh').textContent = new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+  }
+  document.getElementById('dateSelector').addEventListener('change', function() {
+    window.location.href = '/dispatching/live-ops/?date=' + this.value;
+  });
+
+  // ── Data refresh ──
+  async function refreshData() {
+    try {
+      const date = document.getElementById('dateSelector').value;
+      const resp = await fetch(`/dispatching/live-ops/data/?date=${date}`);
+      const data = await resp.json();
+      if (data.success) { LEGS = data.legs; render(); }
+    } catch(e) { console.error('Refresh failed:', e); }
+  }
+
+  // ── Master render ──
+  function render() {
+    renderStats(LEGS);
+    renderZoneBoard(LEGS);
+    renderTimeline(LEGS);
+    updateTimestamp();
+  }
+
+  // ── Init ──
+  render();
+  if (refreshInterval > 0) refreshTimer = setInterval(refreshData, refreshInterval * 1000);
+  setInterval(() => { renderTimeline(LEGS); }, 30000);
+})();
+</script>
+{% endblock %}

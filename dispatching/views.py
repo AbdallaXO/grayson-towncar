@@ -201,8 +201,8 @@ def index(request):
         .all()
     )
     inhouse_drivers = sorted(
-        [d for d in drivers if d.driver_type == "inhouse"],
-        key=lambda d: (d.profile.first_name, d.profile.last_name, d.profile.username),
+        [d for d in drivers if d.driver_type == "inhouse" and d.profile is not None],
+        key=lambda d: (d.profile.first_name or '', d.profile.last_name or '', d.profile.username or ''),
     )
     inhouse_assignments = DriverVehicleAssignment.objects.filter(
         date=selected_date, driver__in=inhouse_drivers
@@ -236,11 +236,10 @@ def index(request):
             vehicle_number = assignment.vehicle.vehicle_number.lstrip("#").strip()
         if vehicle_number:
             try:
-                vehicle_number = int(vehicle_number)
+                return (off_bucket, 0, int(vehicle_number), '')
             except ValueError:
-                pass
-            return (off_bucket, vehicle_number)
-        return (off_bucket + 1, str(row["driver"]))
+                return (off_bucket, 0, 0, vehicle_number)
+        return (off_bucket + 1, 0, 0, str(row["driver"]))
 
     inhouse_driver_rows.sort(key=_inhouse_vehicle_sort_key)
 
@@ -9939,3 +9938,223 @@ def cancel_duplicate_reservation(request):
         return JsonResponse(
             {"success": False, "error": str(e)}, status=500
         )
+
+
+# ── Live Operations Dashboard ──────────────────────────────────────────
+
+def _build_live_ops_data(selected_date):
+    """
+    Build the data payload for the live ops dashboard.
+    Returns (stats_dict, legs_list_of_dicts).
+    """
+    from dispatching.scheduler import estimate_job_end_time, preload_timing_cache
+    from dispatching.analytics import categorize_location
+    from drivers.views import _annotate_legs_with_live_eta
+
+    preload_timing_cache()
+
+    all_legs = list(
+        Leg.objects.filter(pickup_date=selected_date)
+        .exclude(reservation__status='cancelled').exclude(status='cancelled')
+        .select_related(
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "driver", "driver__profile", "flight_information", "cruise_information",
+        )
+        .prefetch_related(
+            Prefetch(
+                "status_history",
+                queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by'),
+            )
+        )
+        .order_by("pickup_time")
+    )
+
+    # Annotate with estimated clear times
+    for leg in all_legs:
+        try:
+            leg._estimated_end_dt = estimate_job_end_time(leg, selected_date)
+        except Exception:
+            leg._estimated_end_dt = None
+
+    # Annotate with live ETA for en-route legs
+    today = timezone.localdate()
+    if selected_date == today:
+        _annotate_legs_with_live_eta(all_legs)
+
+    # Build status map
+    _now = timezone.now()
+    _leg_status_map = {}
+    for leg in all_legs:
+        sh_list = list(leg.status_history.all())
+        if sh_list:
+            latest = sh_list[0]
+            local_ts = timezone.localtime(latest.timestamp)
+            ago_secs = int((_now - latest.timestamp).total_seconds())
+            if ago_secs < 60:
+                ago_str = "just now"
+            elif ago_secs < 3600:
+                ago_str = f"{ago_secs // 60} min ago"
+            else:
+                hrs = ago_secs // 3600
+                mins = (ago_secs % 3600) // 60
+                ago_str = f"{hrs}h {mins}m ago" if mins else f"{hrs}h ago"
+            status_label = dict(LegStatus.STATUS_CHOICES).get(latest.status, latest.status).title()
+            _leg_status_map[leg.id] = {
+                'status_label': status_label,
+                'status_time': local_ts.strftime('%I:%M %p').lstrip('0'),
+                'status_ago': ago_str,
+                'status_epoch': int(latest.timestamp.timestamp()),
+            }
+
+    # Compute stats
+    active_statuses = ['confirmed', 'in-progress', 'on-the-way', 'on-location', 'picked-up']
+    active_legs = [l for l in all_legs if l.status in active_statuses]
+    completed_legs = [l for l in all_legs if l.status == 'completed']
+
+    by_status = {}
+    for s in ['confirmed', 'on-the-way', 'on-location', 'picked-up']:
+        by_status[s] = sum(1 for l in all_legs if l.status == s)
+
+    by_trip_type = {'arrival': 0, 'return': 0, 'cruise': 0, 'other': 0}
+    for leg in all_legs:
+        tt = leg.get_trip_type()
+        by_trip_type[tt] = by_trip_type.get(tt, 0) + 1
+
+    coverage = {'inhouse': 0, 'affiliate': 0, 'unassigned': 0}
+    for leg in all_legs:
+        if not leg.driver:
+            coverage['unassigned'] += 1
+        elif leg.driver.driver_type == 'affiliate':
+            coverage['affiliate'] += 1
+        else:
+            coverage['inhouse'] += 1
+
+    stats = {
+        'total': len(all_legs),
+        'active': len(active_legs),
+        'completed': len(completed_legs),
+        'by_status': by_status,
+        'by_trip_type': by_trip_type,
+        'coverage': coverage,
+    }
+
+    # Serialize legs
+    legs_data = []
+    for leg in all_legs:
+        sinfo = _leg_status_map.get(leg.id, {})
+        trip_type = leg.get_trip_type()
+
+        # Flight info
+        flight = None
+        if leg.flight_information:
+            fi = leg.flight_information
+            arrival_time = None
+            for t in [fi.actual_arrival_local, fi.estimated_arrival_local, fi.scheduled_arrival_local]:
+                if t:
+                    arrival_time = t.strftime('%I:%M %p').lstrip('0')
+                    break
+            flight = {
+                'airline': fi.airline_display_name or fi.airline or '',
+                'number': fi.flight_number or '',
+                'iata': fi.flight_iata or '',
+                'status': fi.status or '',
+                'arrival': arrival_time,
+                'terminal': fi.terminal or '',
+                'gate': fi.gate or '',
+                'baggage': fi.baggage_claim or '',
+            }
+
+        # Estimated clear time
+        estimated_clear = None
+        if leg._estimated_end_dt:
+            estimated_clear = leg._estimated_end_dt.strftime('%I:%M %p').lstrip('0')
+
+        # Vehicle type
+        vtype = ''
+        if leg.reservation and leg.reservation.vehicle:
+            vtype = getattr(leg.reservation.vehicle, 'vehicle_type', '') or ''
+
+        # Minutes since midnight for timeline positioning
+        pickup_min = leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0
+        clear_min = None
+        if leg._estimated_end_dt:
+            clear_min = leg._estimated_end_dt.hour * 60 + leg._estimated_end_dt.minute
+
+        # Area categorization for zone board
+        pickup_area = categorize_location(leg.pickup_location)
+        dropoff_area = categorize_location(leg.dropoff_location)
+
+        legs_data.append({
+            'id': leg.id,
+            'reservation_id': str(leg.reservation.uuid) if leg.reservation else '',
+            'driver_name': str(leg.driver) if leg.driver else 'Unassigned',
+            'driver_type': leg.driver.driver_type if leg.driver else None,
+            'driver_id': leg.driver_id,
+            'pickup_location': leg.pickup_location or '',
+            'dropoff_location': leg.dropoff_location or '',
+            'pickup_area': pickup_area,
+            'dropoff_area': dropoff_area,
+            'pickup_time': leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else '',
+            'pickup_minutes': pickup_min,
+            'clear_minutes': clear_min,
+            'status': leg.status or '',
+            'status_label': sinfo.get('status_label', ''),
+            'status_since': sinfo.get('status_ago', ''),
+            'status_timestamp': sinfo.get('status_time', ''),
+            'status_epoch': sinfo.get('status_epoch', 0),
+            'trip_type': trip_type,
+            'customer_name': leg.reservation.customer.get_full_name() if leg.reservation and leg.reservation.customer else '',
+            'vehicle_type': vtype,
+            'estimated_clear': estimated_clear,
+            'flight': flight,
+            'live_eta_minutes': getattr(leg, 'live_eta_minutes', None),
+        })
+
+    return stats, legs_data
+
+
+@login_required(login_url="login")
+def live_ops_dashboard(request):
+    """Live Operations Dashboard - real-time view of today's active trips."""
+    if not request.user.is_staff:
+        return redirect("home")
+
+    selected_date = request.GET.get("date")
+    try:
+        selected_date = (
+            datetime.strptime(selected_date, "%Y-%m-%d").date()
+            if selected_date
+            else timezone.localdate()
+        )
+    except (ValueError, TypeError):
+        selected_date = timezone.localdate()
+
+    stats, legs_data = _build_live_ops_data(selected_date)
+
+    context = {
+        'stats': stats,
+        'legs_json': json.dumps(legs_data),
+        'selected_date': selected_date,
+        'today': timezone.localdate(),
+    }
+    return render(request, "dispatching/live_ops_dashboard.html", context)
+
+
+@login_required(login_url="login")
+def live_ops_data(request):
+    """JSON endpoint for live ops auto-refresh."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Forbidden"}, status=403)
+
+    selected_date = request.GET.get("date")
+    try:
+        selected_date = (
+            datetime.strptime(selected_date, "%Y-%m-%d").date()
+            if selected_date
+            else timezone.localdate()
+        )
+    except (ValueError, TypeError):
+        selected_date = timezone.localdate()
+
+    stats, legs_data = _build_live_ops_data(selected_date)
+    return JsonResponse({"success": True, "stats": stats, "legs": legs_data})
