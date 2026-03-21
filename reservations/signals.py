@@ -11,8 +11,8 @@ from .models import Reservation, Lead
 
 logger = logging.getLogger(__name__)  # Get a logger instance
 
-# Store old values before save to compare in post_save
-_lead_old_values = {}
+# Old values are now stored on each model instance as _pre_save_old_values
+# to avoid thread-safety issues with module-level dicts.
 
 
 
@@ -65,23 +65,21 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
     Handles commission-related fields: pending and unpaid
     """
     if instance.travel_agent:
+        # PERF TEMP START
+        _t0 = time.monotonic()
+        # PERF TEMP END
         agent = instance.travel_agent
         update_fields = []
 
-        # Track if status changed
+        # Track if status changed — use values already captured by
+        # store_reservation_old_values pre_save (stored on instance, thread-safe)
         status_changed = False
         old_status = None
-        if (
-            not created
-            and hasattr(instance, "_changed_fields")
-            and "status" in instance._changed_fields
-        ):
-            try:
-                old_instance = Reservation.objects.get(pk=instance.pk)
-                old_status = old_instance.status
+        old_vals = getattr(instance, '_pre_save_old_values', None)
+        if not created and old_vals:
+            old_status = old_vals.get("status")
+            if old_status != instance.status:
                 status_changed = True
-            except Reservation.DoesNotExist:
-                pass
 
         # Handle status changes specifically
         if status_changed:
@@ -102,10 +100,12 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
                 logger.info(
                     f"Reservation #{instance.id} cancelled - adjusting commission data"
                 )
-                # No commissions for cancelled reservations
-                instance.commission_amount = Decimal("0.00")
-                # This will save the instance again, but that's OK
-                instance.save(update_fields=["commission_amount"])
+                # No commissions for cancelled reservations — use queryset.update()
+                # to avoid re-triggering post_save signals (was causing recursion)
+                Reservation.objects.filter(pk=instance.pk).update(
+                    commission_amount=Decimal("0.00")
+                )
+                instance.commission_amount = Decimal("0.00")  # keep in-memory object in sync
 
         # Calculate pending commissions (confirmed but not completed)
         pending_total = Reservation.objects.filter(
@@ -136,6 +136,13 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
         # Save agent if any fields were updated
         if update_fields:
             agent.save(update_fields=update_fields)
+
+        # PERF TEMP START
+        logger.info(
+            "PERF update_agent_commission_data: %.0fms (res #%s, agent %s)",
+            (time.monotonic() - _t0) * 1000, instance.pk, agent,
+        )
+        # PERF TEMP END
 
 
 @receiver(pre_delete, sender=Reservation)
@@ -373,12 +380,11 @@ def store_lead_old_values(sender, instance, **kwargs):
     if instance.pk:
         try:
             old_instance = Lead.objects.get(pk=instance.pk)
-            _lead_old_values[instance.pk] = {
+            instance._pre_save_old_values = {
                 'status': old_instance.status,
                 'ghl_contact_id': old_instance.ghl_contact_id,
             }
         except Lead.DoesNotExist:
-            # New instance, no old values
             pass
 
 
@@ -397,22 +403,20 @@ def sync_lead_status_to_ghl(sender, instance, created, **kwargs):
     if created:
         return
     
-    # Get old values from pre_save signal
-    old_values = _lead_old_values.get(instance.pk)
+    # Get old values from pre_save signal (stored on instance, thread-safe)
+    old_values = getattr(instance, '_pre_save_old_values', None)
     if not old_values:
         # No old values stored, skip (might be first save or signal didn't fire)
         return
-    
+
     # Check if status changed (converted is part of status now)
     status_changed = old_values.get('status') != instance.status
-    
+
     # Also check if ghl_contact_id was just set (newly synced contact)
     contact_id_changed = old_values.get('ghl_contact_id') != instance.ghl_contact_id
-    
+
     if not (status_changed or contact_id_changed):
         # No relevant changes, skip sync
-        # Clean up old values
-        _lead_old_values.pop(instance.pk, None)
         return
     
     # Run in background thread to avoid blocking
@@ -448,8 +452,9 @@ def sync_lead_status_to_ghl(sender, instance, created, **kwargs):
                 exc_info=True
             )
         finally:
-            # Clean up old values
-            _lead_old_values.pop(instance.pk, None)
+            # Clean up old values from instance
+            if hasattr(instance, '_pre_save_old_values'):
+                del instance._pre_save_old_values
     
     # Start background thread (non-blocking)
     thread = Thread(target=sync_status_in_background, daemon=True)
@@ -458,9 +463,7 @@ def sync_lead_status_to_ghl(sender, instance, created, **kwargs):
 
 # ======== AUDIT LOGGING ========
 
-# Store old values for comparison
-_reservation_old_values = {}
-_leg_old_values = {}
+# Old values stored on instance._pre_save_old_values (thread-safe)
 
 
 def get_request_user():
@@ -530,11 +533,11 @@ def store_reservation_old_values(sender, instance, **kwargs):
     if instance.pk:
         try:
             old_instance = Reservation.objects.get(pk=instance.pk)
-            _reservation_old_values[instance.pk] = {
+            instance._pre_save_old_values = {
                 'status': old_instance.status,
                 'total_price': old_instance.total_price,
                 'base_price': old_instance.base_price,
-                'modified_by': old_instance.modified_by_id,  # Store ID to compare properly
+                'modified_by': old_instance.modified_by_id,
             }
         except Reservation.DoesNotExist:
             pass
@@ -568,7 +571,7 @@ def log_reservation_changes(sender, instance, created, **kwargs):
             )
         else:
             # Reservation updated - check what changed
-            old_values = _reservation_old_values.get(instance.pk, {})
+            old_values = getattr(instance, '_pre_save_old_values', {})
             
             # Only log if something meaningful changed
             has_meaningful_change = False
@@ -637,8 +640,9 @@ def log_reservation_changes(sender, instance, created, **kwargs):
             #             notes="Reservation modified by user"
             #         )
             
-            # Clean up old values
-            _reservation_old_values.pop(instance.pk, None)
+            # Clean up old values from instance
+            if hasattr(instance, '_pre_save_old_values'):
+                del instance._pre_save_old_values
     except Exception as e:
         logger.error(f"Error logging reservation changes: {e}", exc_info=True)
 
@@ -656,7 +660,7 @@ def store_leg_old_values(sender, instance, **kwargs):
         return
     try:
         old_instance = Leg.objects.get(pk=instance.pk)
-        _leg_old_values[instance.pk] = {
+        instance._pre_save_old_values = {
             'driver_id': old_instance.driver_id if old_instance.driver else None,
             'status': old_instance.status,
         }
@@ -691,7 +695,7 @@ def log_leg_changes(sender, instance, created, **kwargs):
             )
         else:
             # Leg updated - check what changed
-            old_values = _leg_old_values.get(instance.pk, {})
+            old_values = getattr(instance, '_pre_save_old_values', {})
             
             # Track driver assignment changes
             old_driver_id = old_values.get('driver_id')
@@ -731,7 +735,8 @@ def log_leg_changes(sender, instance, created, **kwargs):
                     notes=f"Status changed from {old_values['status']} to {instance.status}"
                 )
             
-            # Clean up old values
-            _leg_old_values.pop(instance.pk, None)
+            # Clean up old values from instance
+            if hasattr(instance, '_pre_save_old_values'):
+                del instance._pre_save_old_values
     except Exception as e:
         logger.error(f"Error logging leg changes: {e}", exc_info=True)

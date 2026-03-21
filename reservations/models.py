@@ -899,7 +899,31 @@ class Leg(models.Model):
             except Exception:
                 pass
 
+    # Fields that require expensive calculations (route, pay, profit).
+    # When save(update_fields=...) is called with only fields NOT in this set,
+    # we skip all the expensive work (route lookup, pay calc, profit calc).
+    _EXPENSIVE_FIELDS = frozenset({
+        'route', 'revenue_share', 'pickup_location', 'dropoff_location',
+        'driver_base_pay', 'driver_gratuity', 'driver_additional',
+        'driver_pay_amount', 'profit_estimate',
+    })
+
     def save(self, *args, **kwargs):
+        # PERF TEMP START
+        import time as _time; _t0 = _time.monotonic()
+        # PERF TEMP END
+
+        # Fast path: if update_fields is specified and contains only simple
+        # fields (e.g. driver assignment, status), skip expensive calculations.
+        _uf = kwargs.get('update_fields')
+        if _uf is not None and not (set(_uf) & self._EXPENSIVE_FIELDS):
+            super().save(*args, **kwargs)
+            # PERF TEMP START
+            import logging as _logging
+            _logging.getLogger('perf').debug("Leg.save FAST path: %.1fms (fields=%s)", (_time.monotonic()-_t0)*1000, _uf)
+            # PERF TEMP END
+            return
+
         # Attempt to match a route from pickup/dropoff when not set
         self._assign_route_from_locations()
 
@@ -976,6 +1000,10 @@ class Leg(models.Model):
             self.profit_estimate = self.calculate_profit()
 
         super().save(*args, **kwargs)
+        # PERF TEMP START
+        import logging as _logging
+        _logging.getLogger('perf').debug("Leg.save FULL path: %.1fms (leg #%s)", (_time.monotonic()-_t0)*1000, self.pk)
+        # PERF TEMP END
 
     history = HistoricalRecords()
 

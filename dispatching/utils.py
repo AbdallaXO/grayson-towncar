@@ -273,12 +273,111 @@ def calculate_driver_statistics(legs):
     return driver_stats_list, len(active_drivers)
 
 
-def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None, 
+def _compute_all_statistics_single_pass(all_legs):
+    """Compute vehicle, trip type, status, driver, and revenue stats in ONE pass."""
+    thirty_days_ago = timezone.localdate() - timedelta(days=30)
+    total_revenue = Decimal("0.00")
+
+    # accumulators
+    vehicle_stats = {}
+    trip_type_stats = {"arrival": 0, "return": 0, "cruise": 0, "other": 0}
+    status_stats = {
+        "completed": 0, "in-progress": 0, "confirmed": 0,
+        "on-the-way": 0, "picked-up": 0, "on-location": 0, "cancelled": 0,
+    }
+    driver_stats = {}
+    active_drivers = set()
+
+    for leg in all_legs:
+        trip_type = leg.get_trip_type()
+        reservation = leg.reservation
+        res_price = reservation.total_price if reservation else Decimal("0.00")
+
+        # -- total revenue --
+        if reservation:
+            total_revenue += res_price
+
+        # -- trip type --
+        trip_type_stats[trip_type] = trip_type_stats.get(trip_type, 0) + 1
+
+        # -- status --
+        if leg.status and leg.status in status_stats:
+            status_stats[leg.status] += 1
+
+        # -- vehicle --
+        if reservation and reservation.vehicle:
+            vt = reservation.vehicle.vehicle_type
+            if vt not in vehicle_stats:
+                vehicle_stats[vt] = {
+                    'name': reservation.vehicle.get_vehicle_type_display(),
+                    'vehicle_type': vt,
+                    'total': 0, 'arrivals': 0, 'returns': 0, 'other': 0,
+                    'completed': 0, 'in_progress': 0, 'picked_up': 0, 'on_location': 0,
+                    'revenue': Decimal("0.00"),
+                    'arrival_revenue': Decimal("0.00"),
+                    'return_revenue': Decimal("0.00"),
+                    'other_revenue': Decimal("0.00"),
+                }
+            vs = vehicle_stats[vt]
+            vs['total'] += 1
+            if trip_type == 'arrival':
+                vs['arrivals'] += 1
+                vs['arrival_revenue'] += res_price
+            elif trip_type == 'return':
+                vs['returns'] += 1
+                vs['return_revenue'] += res_price
+            else:
+                vs['other'] += 1
+                vs['other_revenue'] += res_price
+            if leg.status == 'completed':
+                vs['completed'] += 1
+            elif leg.status == 'in-progress':
+                vs['in_progress'] += 1
+            elif leg.status == 'picked-up':
+                vs['picked_up'] += 1
+            elif leg.status == 'on-location':
+                vs['on_location'] += 1
+            vs['revenue'] += res_price
+
+        # -- driver --
+        if leg.driver:
+            did = leg.driver.id
+            if did not in driver_stats:
+                driver_stats[did] = {
+                    'driver_id': did,
+                    'name': str(leg.driver),
+                    'total_legs': 0, 'completed_legs': 0,
+                    'revenue': Decimal("0.00"), 'is_active': False,
+                }
+            ds = driver_stats[did]
+            ds['total_legs'] += 1
+            if leg.status == 'completed':
+                ds['completed_legs'] += 1
+            ds['revenue'] += res_price
+            if leg.pickup_date >= thirty_days_ago:
+                ds['is_active'] = True
+                active_drivers.add(did)
+
+    # sort results
+    vehicle_stats_list = sorted(vehicle_stats.values(), key=lambda x: -x['total'])
+    driver_stats_list = sorted(driver_stats.values(), key=lambda x: -x['total_legs'])
+
+    return {
+        'vehicle_stats': vehicle_stats_list,
+        'trip_type_stats': trip_type_stats,
+        'status_stats': status_stats,
+        'driver_stats': driver_stats_list,
+        'active_drivers_count': len(active_drivers),
+        'total_revenue': total_revenue,
+    }
+
+
+def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
                                 status_filter=None, time_filter="all", driver_filter=None,
                                 group_by='day', page=1, per_page=50):
     """
     Get comprehensive statistics for the statistics page.
-    
+
     Args:
         date_filter: Single date filter
         date_from: Start date for range filter
@@ -289,39 +388,25 @@ def get_comprehensive_statistics(date_filter=None, date_from=None, date_to=None,
         group_by: Group daily stats by 'day', 'week', or 'month'
         page: Page number for pagination
         per_page: Items per page
-    
+
     Returns:
         Dictionary with all statistics
     """
     # Get filtered legs with optimized queries for statistics
     legs_query = get_filtered_legs_queryset(
-        date_filter, date_from, date_to, status_filter, time_filter, driver_filter, 
+        date_filter, date_from, date_to, status_filter, time_filter, driver_filter,
         optimize_for_stats=True
     )
     all_legs = list(legs_query)
-    
-    # Calculate all statistics using optimized methods
-    vehicle_stats = calculate_vehicle_statistics(all_legs)
-    trip_type_stats = calculate_trip_type_statistics(all_legs)
-    status_stats = calculate_status_statistics(all_legs)
-    driver_stats, active_drivers_count = calculate_driver_statistics(all_legs)
+
+    # Single-pass computation of vehicle/trip/status/driver/revenue stats
+    stats = _compute_all_statistics_single_pass(all_legs)
+
+    # Daily stats still needs its own grouping pass
     daily_stats = calculate_daily_leg_statistics(all_legs, group_by, page, per_page)
-    
-    # Calculate total revenue using cached data
-    total_revenue = sum(
-        leg.reservation.total_price for leg in all_legs if leg.reservation
-    )
-    
-    return {
-        'vehicle_stats': vehicle_stats,
-        'trip_type_stats': trip_type_stats,
-        'status_stats': status_stats,
-        'driver_stats': driver_stats,
-        'daily_stats': daily_stats,
-        'active_drivers_count': active_drivers_count,
-        'total_legs': len(all_legs),
-        'total_revenue': total_revenue,
-    }
+    stats['daily_stats'] = daily_stats
+    stats['total_legs'] = len(all_legs)
+    return stats
 
 
 def calculate_daily_leg_statistics(legs, group_by='day', page=1, per_page=50):

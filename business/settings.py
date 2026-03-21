@@ -154,6 +154,24 @@ else:
     }
 
 
+# Cache
+# Use Redis if REDIS_URL is set (production), otherwise LocMemCache (dev)
+_redis_url = os.environ.get("REDIS_URL")
+if _redis_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _redis_url,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
@@ -396,7 +414,7 @@ LOGGING = {
     "loggers": {
         "perf": {
             "handlers": ["console"],
-            "level": "WARNING",
+            "level": "INFO",  # Lowered from WARNING to capture PERF TEMP instrumentation
             "propagate": False,
         },
     },

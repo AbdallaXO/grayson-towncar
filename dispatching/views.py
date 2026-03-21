@@ -103,7 +103,10 @@ def index(request):
     if not request.user.is_staff:
         return redirect("home")
 
+    # PERF TEMP START — dispatching index checkpoints
     import time as _time; _t0 = _time.monotonic()
+    import logging as _logging; _perf = _logging.getLogger('perf')
+    # PERF TEMP END
 
     selected_date = request.GET.get("date")
     driver_filter = request.GET.get("driver")
@@ -154,7 +157,13 @@ def index(request):
     )
 
     # Evaluate once — all legs for the day (used by timeline + gap suggestions + vehicle counts)
+    # PERF TEMP START
+    _t_qs = _time.monotonic()
+    # PERF TEMP END
     _all_day_legs = list(_base_legs_qs)
+    # PERF TEMP START
+    _perf.info("DASHBOARD queryset eval: %.0fms (%d legs)", (_time.monotonic()-_t_qs)*1000, len(_all_day_legs))
+    # PERF TEMP END
 
     # Apply filters in Python to avoid a second DB query
     legs = _all_day_legs
@@ -407,7 +416,13 @@ def index(request):
     # Reuse _all_day_legs (already fetched with all select_related + prefetch) — no extra query
     _all_legs_for_timeline = _all_day_legs
     _all_inhouse = [row["driver"] for row in inhouse_driver_rows if not row.get("is_off_today")]
+    # PERF TEMP START
+    _t_sched = _time.monotonic()
+    # PERF TEMP END
     _driver_schedules = build_driver_schedules(_all_legs_for_timeline, _all_inhouse, selected_date)
+    # PERF TEMP START
+    _perf.info("DASHBOARD build_driver_schedules: %.0fms", (_time.monotonic()-_t_sched)*1000)
+    # PERF TEMP END
 
     # Build leg-id → latest status info map for timeline popup
     _leg_status_map = {}
@@ -585,10 +600,15 @@ def index(request):
         "timeline_hours": timeline_hours,
     }
 
+    # PERF TEMP START
     _t1 = _time.monotonic()
     _response = render(request, "dispatching/legs_filter.html", context)
     _t2 = _time.monotonic()
-    print(f"\n⏱ Dashboard: view={(_t1-_t0)*1000:.0f}ms  template={(_t2-_t1)*1000:.0f}ms  total={(_t2-_t0)*1000:.0f}ms\n")
+    _perf.info(
+        "DASHBOARD total: view=%.0fms template=%.0fms total=%.0fms",
+        (_t1-_t0)*1000, (_t2-_t1)*1000, (_t2-_t0)*1000,
+    )
+    # PERF TEMP END
     return _response
 
 
@@ -1411,7 +1431,7 @@ def update_leg_assignment(request):
                     # Track who assigned the driver and when
                     leg.driver_assigned_by = request.user
                     leg.driver_assigned_at = timezone.now()
-                    leg.save()
+                    leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                     cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
                     logger.info(
                         f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
@@ -1440,7 +1460,7 @@ def update_leg_assignment(request):
                 # Track who unassigned the driver
                 leg.driver_assigned_by = request.user
                 leg.driver_assigned_at = timezone.now()
-                leg.save()
+                leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                 logger.info(f"Removed driver from leg {leg_id} by {request.user.username}")
                 cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
         elif field == "status":
@@ -1460,7 +1480,7 @@ def update_leg_assignment(request):
                     # Track who changed the status and when
                     leg.status_changed_by = request.user
                     leg.status_changed_at = timezone.now()
-                    leg.save()
+                    leg.save(update_fields=['status', 'status_changed_by', 'status_changed_at'])
                     logger.info(f"Updated leg {leg_id} status to {value} by {request.user.username}")
 
                     # Create a LegStatus entry to track this status change
@@ -5657,7 +5677,7 @@ def process_refund(request):
                 leg.status = 'cancelled'
                 leg.payment_status = 'canceled'
                 leg.driver = None
-                leg.save()
+                leg.save(update_fields=['status', 'payment_status', 'driver'])
 
             rr.status = 'completed'
             rr.processed_by = request.user
@@ -5678,7 +5698,7 @@ def process_refund(request):
                     leg.status = 'cancelled'
                     leg.payment_status = 'canceled'
                     leg.driver = None
-                    leg.save()
+                    leg.save(update_fields=['status', 'payment_status', 'driver'])
 
             reservation.status = 'cancelled'
 
@@ -6415,6 +6435,11 @@ def auto_assign_drivers(request):
         # ── Apply mode: save assignments to DB ──
         _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
 
+        # PERF TEMP START
+        import time as _time; _t_assign = _time.monotonic()
+        import logging as _logging; _perf = _logging.getLogger('perf')
+        # PERF TEMP END
+        now = timezone.now()
         saved = 0
         for lid, did in final_assignments.items():
             leg = legs_by_id[lid]
@@ -6422,12 +6447,19 @@ def auto_assign_drivers(request):
             try:
                 leg.driver = driver
                 leg.driver_assigned_by = request.user
-                leg.driver_assigned_at = timezone.now()
-                leg.save()
+                leg.driver_assigned_at = now
+                # Use update_fields to skip expensive pay/route calculations
+                # in Leg.save() — these are just driver assignments.
+                leg.save(update_fields=[
+                    'driver', 'driver_assigned_by', 'driver_assigned_at',
+                ])
                 saved += 1
             except Exception:
                 continue
 
+        # PERF TEMP START
+        _perf.info("AUTO-ASSIGN apply: %d legs saved in %.0fms", saved, (_time.monotonic()-_t_assign)*1000)
+        # PERF TEMP END
         cache.delete(f"capacity_planner_{target_date.isoformat()}")
         return JsonResponse({
             "success": True,
@@ -6964,7 +6996,7 @@ def smart_schedule_builder(request):
                     leg.driver = driver
                     leg.driver_assigned_by = request.user
                     leg.driver_assigned_at = timezone.now()
-                    leg.save()
+                    leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
                     assigned += 1
             except Leg.DoesNotExist:
                 continue
@@ -8693,7 +8725,7 @@ def execute_swap(request):
                 leg.driver = driver
                 leg.driver_assigned_by = request.user
                 leg.driver_assigned_at = timezone.now()
-                leg.save()
+                leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
     except Leg.DoesNotExist:
         return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
     except Driver.DoesNotExist:
@@ -8738,7 +8770,7 @@ def execute_takeback(request):
             leg.driver = driver
             leg.driver_assigned_by = request.user
             leg.driver_assigned_at = timezone.now()
-            leg.save()
+            leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
     except Leg.DoesNotExist:
         return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
     except Driver.DoesNotExist:

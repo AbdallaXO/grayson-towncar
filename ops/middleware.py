@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # In-memory dedup cache: (user_id, path) → last_recorded_at
 _recent_views = {}
-DEDUP_SECONDS = 300  # 5 minutes
+DEDUP_SECONDS = 1800  # 30 minutes — reduced DB writes (was 5 min)
 
 
 def _cleanup_stale_entries():
