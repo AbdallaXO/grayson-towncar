@@ -12,40 +12,155 @@
           max-width: 200px !important;
           margin: 0 !important;
       }
+      .travel-agent-booking .badge { animation: none !important; transition: none !important; font-size: 0.7rem !important; padding: 0.2rem 0.4rem !important; margin-bottom: 0.25rem !important; }
+      .travel-agent-booking .small { font-size: 0.75rem !important; line-height: 1.2 !important; color: #000000 !important; font-weight: bold !important; }
+      .travel-agent-booking .text-muted { color: #000000 !important; font-weight: bold !important; }
+      .travel-agent-booking .fw-semibold { color: #000000 !important; font-weight: bold !important; }
+      .driver-pay-input { width: 100%; text-align: center; }
+      .status-badge { font-size: 0.75rem; }
 
-      .travel-agent-booking .badge {
-          animation: none !important;
-          transition: none !important;
-          font-size: 0.7rem !important;
-          padding: 0.2rem 0.4rem !important;
-          margin-bottom: 0.25rem !important;
-      }
-
-      .travel-agent-booking .small {
-          font-size: 0.75rem !important;
-          line-height: 1.2 !important;
-          color: #000000 !important;
-          font-weight: bold !important;
-      }
-
-      .travel-agent-booking .text-muted {
-          color: #000000 !important;
-          font-weight: bold !important;
-      }
-
-      .travel-agent-booking .fw-semibold {
-          color: #000000 !important;
-          font-weight: bold !important;
-      }
-
-      .driver-pay-input {
-          width: 100%;
+      /* ── Overview Dashboard ── */
+      .pay-overview-stat {
           text-align: center;
+          padding: 1.25rem 0.75rem;
       }
-
-      .status-badge {
+      .pay-overview-stat .stat-value {
+          font-size: 1.75rem;
+          font-weight: 700;
+          line-height: 1.1;
+      }
+      .pay-overview-stat .stat-label {
           font-size: 0.75rem;
+          font-weight: 500;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #6c757d;
+          margin-top: 0.25rem;
       }
+      .pay-driver-table {
+          font-size: 0.9rem;
+      }
+      .pay-driver-table thead th {
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: #6c757d;
+          border-bottom: 2px solid #dee2e6;
+          padding: 0.6rem 0.75rem;
+          background: #f8f9fa;
+      }
+      .pay-driver-table tbody td {
+          padding: 0.75rem;
+          vertical-align: middle;
+      }
+      .pay-driver-row {
+          cursor: pointer;
+          transition: background 0.15s ease, box-shadow 0.15s ease;
+      }
+      .pay-driver-row:hover {
+          background: rgba(201, 162, 39, 0.06) !important;
+      }
+      .pay-driver-row.overdue {
+          border-left: 4px solid #dc3545;
+      }
+      .pay-driver-row:not(.overdue) {
+          border-left: 4px solid transparent;
+      }
+      .pay-section-header {
+          padding: 0.75rem 1rem;
+          font-weight: 600;
+          font-size: 0.95rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+      .pay-section-header .section-total {
+          font-size: 1.1rem;
+          font-weight: 700;
+      }
+      .pay-btn {
+          background: #0d1117;
+          color: #fff;
+          border: none;
+          padding: 0.3rem 0.9rem;
+          border-radius: 4px;
+          font-size: 0.78rem;
+          font-weight: 600;
+          transition: background 0.2s ease;
+          text-decoration: none;
+      }
+      .pay-btn:hover {
+          background: #C9A227;
+          color: #fff;
+      }
+      .driver-name-cell {
+          font-weight: 600;
+          color: #1a1d21;
+      }
+      .driver-name-cell .method-tag {
+          font-size: 0.65rem;
+          font-weight: 500;
+          color: #999;
+          display: block;
+          margin-top: 2px;
+      }
+      .overview-empty {
+          padding: 2rem;
+          text-align: center;
+          color: #999;
+      }
+      .overview-empty i {
+          font-size: 2rem;
+          color: #28a745;
+          display: block;
+          margin-bottom: 0.5rem;
+      }
+      /* Detail header polish */
+      .detail-header {
+          background: linear-gradient(135deg, #0d1117 0%, #1a2332 100%);
+          color: #fff;
+          border-radius: 8px 8px 0 0;
+      }
+      .detail-header .last-paid-badge {
+          font-size: 0.75rem;
+          font-weight: 500;
+          padding: 0.3rem 0.6rem;
+          border-radius: 4px;
+      }
+      /* Overdue alert */
+      .overdue-banner {
+          background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+          color: #fff;
+          border-radius: 6px;
+          padding: 0.65rem 1rem;
+          font-weight: 600;
+          font-size: 0.9rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          box-shadow: 0 2px 8px rgba(220,53,69,0.25);
+      }
+      .overdue-banner i { font-size: 1.1rem; }
+
+      /* Mobile overview cards */
+      @media (max-width: 991.98px) {
+          .pay-driver-table { display: none; }
+          .mobile-driver-cards { display: block !important; }
+      }
+      @media (min-width: 992px) {
+          .mobile-driver-cards { display: none !important; }
+      }
+      .mobile-driver-card {
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
+          padding: 0.85rem;
+          margin-bottom: 0.5rem;
+          transition: background 0.15s ease;
+          cursor: pointer;
+      }
+      .mobile-driver-card:hover { background: rgba(201,162,39,0.06); }
+      .mobile-driver-card.overdue { border-left: 4px solid #dc3545; }
   </style>
 {% endblock extra_css %}
 
@@ -87,12 +202,26 @@
                   <label for="driverSelect" class="form-label fw-semibold mb-1">Driver</label>
                   <select name="driver" class="form-select" id="driverSelect" required>
                     <option value="">Select a driver...</option>
-                    {% for driver in drivers %}
-                      <option value="{{ driver.id }}"
-                              {% if selected_driver_id == driver.id|stringformat:"s" %}selected{% endif %}>
-                        {% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %}
-                      </option>
-                    {% endfor %}
+                    {% if inhouse_drivers %}
+                      <optgroup label="Inhouse">
+                        {% for driver in inhouse_drivers %}
+                          <option value="{{ driver.id }}"
+                                  {% if selected_driver_id == driver.id|stringformat:"s" %}selected{% endif %}>
+                            {% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %}
+                          </option>
+                        {% endfor %}
+                      </optgroup>
+                    {% endif %}
+                    {% if affiliate_drivers %}
+                      <optgroup label="Affiliate">
+                        {% for driver in affiliate_drivers %}
+                          <option value="{{ driver.id }}"
+                                  {% if selected_driver_id == driver.id|stringformat:"s" %}selected{% endif %}>
+                            {% if driver.profile %}{{ driver.profile.get_full_name|default:driver.profile.username }}{% else %}Driver #{{ driver.id }}{% endif %}
+                          </option>
+                        {% endfor %}
+                      </optgroup>
+                    {% endif %}
                   </select>
                 </div>
                 <div class="col-md-2">
@@ -129,64 +258,83 @@
     </div>
 
     {% if selected_driver %}
+      <!-- Back to overview -->
+      <div class="row mb-3">
+        <div class="col-12">
+          <a href="{% url 'driver_payment_management' %}" class="text-decoration-none" style="color:#C9A227; font-weight:500; font-size:0.9rem;">
+            <i class="bi bi-arrow-left me-1"></i>All drivers
+          </a>
+        </div>
+      </div>
+
       <!-- Driver Summary -->
       <div class="row mb-4">
         <div class="col-12">
-          <div class="card border-0 shadow-sm">
-            <div class="card-header bg-primary text-white py-2">
-              <h5 class="mb-0">
-                <i class="bi bi-person-check me-2"></i>{% if selected_driver and selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% elif selected_driver %}Driver #{{ selected_driver.id }}{% else %}No Driver Selected{% endif %}
+          <div class="card border-0 shadow-sm overflow-hidden">
+            <div class="detail-header px-3 py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <h5 class="mb-0 d-flex align-items-center gap-2">
+                <i class="bi bi-person-check"></i>
+                {% if selected_driver.profile %}{{ selected_driver.profile.get_full_name|default:selected_driver.profile.username }}{% else %}Driver #{{ selected_driver.id }}{% endif %}
+                {% if selected_driver.driver_type == 'inhouse' %}
+                  <span class="badge" style="background:rgba(255,255,255,0.15); font-size:0.65rem; font-weight:500;">INHOUSE</span>
+                {% else %}
+                  <span class="badge" style="background:#7c3aed; font-size:0.65rem; font-weight:500;">AFFILIATE</span>
+                {% endif %}
               </h5>
+              {% if last_payment_info %}
+                <span class="last-paid-badge" style="background:rgba(255,255,255,0.1);">
+                  <i class="bi bi-clock-history me-1"></i>Last paid {{ last_payment_info.date|date:"M j, Y" }} &mdash; ${{ last_payment_info.amount|floatformat:2 }}
+                </span>
+              {% else %}
+                <span class="last-paid-badge" style="background:rgba(220,53,69,0.3);">
+                  <i class="bi bi-exclamation-triangle me-1"></i>Never paid
+                </span>
+              {% endif %}
             </div>
-            <div class="card-body">
-              <div class="row text-center">
-                <div class="col-md-2">
-                  <div class="d-flex flex-column">
-                    <div class="text-secondary">Total Legs:</div>
-                    <div class="fw-bold fs-4 text-primary">{{ leg_count }}</div>
+            <div class="card-body py-3">
+              <div class="row g-3 text-center">
+                <div class="col-6 col-md">
+                  <div class="pay-overview-stat" style="padding:0.75rem 0;">
+                    <div class="stat-value" style="font-size:1.5rem; color:#0d6efd;">{{ leg_count }}</div>
+                    <div class="stat-label">Total Legs</div>
                   </div>
                 </div>
-                <div class="col-md-2">
-                  <div class="d-flex flex-column">
-                    <div class="text-secondary">Completed Legs:</div>
-                    <div class="fw-bold fs-4 text-success">{{ completed_leg_count }}</div>
+                <div class="col-6 col-md">
+                  <div class="pay-overview-stat" style="padding:0.75rem 0;">
+                    <div class="stat-value" style="font-size:1.5rem; color:#198754;">{{ completed_leg_count }}</div>
+                    <div class="stat-label">Completed</div>
                   </div>
                 </div>
-                <div class="col-md-2">
-                  <div class="d-flex flex-column">
-                    <div class="text-secondary">Total Driver Pay:</div>
-                    <div class="fw-bold fs-4 text-dark">${{ total_pay|floatformat:2 }}</div>
+                <div class="col-6 col-md">
+                  <div class="pay-overview-stat" style="padding:0.75rem 0;">
+                    <div class="stat-value" style="font-size:1.5rem; color:#1a1d21;">${{ total_pay|floatformat:2 }}</div>
+                    <div class="stat-label">Total Pay</div>
                   </div>
                 </div>
-                <div class="col-md-2">
-                  <div class="d-flex flex-column">
-                    <div class="text-secondary">Completed Legs Pay:</div>
-                    <div class="fw-bold fs-4 text-success">${{ total_pay_completed|floatformat:2 }}</div>
+                <div class="col-6 col-md">
+                  <div class="pay-overview-stat" style="padding:0.75rem 0;">
+                    <div class="stat-value" style="font-size:1.5rem; color:#C9A227;">${{ total_pay_completed|floatformat:2 }}</div>
+                    <div class="stat-label">Ready to Process</div>
                   </div>
                 </div>
-                <div class="col-md-2">
-                  <div class="d-flex flex-column">
-                    <div class="text-secondary">Payment Method:</div>
-                    <div class="fw-bold">{{ selected_driver.payment_method|title }}</div>
+                <div class="col-6 col-md">
+                  <div class="pay-overview-stat" style="padding:0.75rem 0;">
+                    <div style="font-size:0.85rem; font-weight:500; color:#333;">{{ selected_driver.payment_method|title }}</div>
+                    <div class="stat-label">Method</div>
                   </div>
                 </div>
-                <div class="col-md-2">
-                  <div class="d-flex flex-column align-items-center justify-content-center h-100">
-                    {% if total_pay_completed > 0 %}
-                      <button type="button" 
-                              class="btn btn-success btn-lg w-100" 
-                              id="processPaymentBtn"
-                              data-driver-id="{{ selected_driver.id }}">
-                        <i class="bi bi-cash-coin me-2"></i>Process Payment
-                      </button>
-                      <small class="text-muted mt-2">Process all completed unpaid legs with pay amounts</small>
-                    {% else %}
-                      <div class="alert alert-warning mb-0">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        No completed legs with pay amounts
-                      </div>
-                    {% endif %}
-                  </div>
+                <div class="col-6 col-md d-flex align-items-center justify-content-center">
+                  {% if total_pay_completed > 0 %}
+                    <button type="button"
+                            class="btn btn-success w-100"
+                            id="processPaymentBtn"
+                            data-driver-id="{{ selected_driver.id }}"
+                            style="font-weight:600;">
+                      <i class="bi bi-cash-coin me-1"></i>Process Payment
+                    </button>
+                  {% else %}
+                    <span class="text-muted small"><i class="bi bi-hourglass me-1"></i>No completed legs with pay</span>
+                  {% endif %}
                 </div>
               </div>
             </div>
@@ -219,6 +367,39 @@
       {% endif %}
 
       {% if legs %}
+        <!-- Bulk Action Bar (hidden until checkboxes selected) -->
+        <div class="row mb-3" id="bulkActionBar" style="display:none;">
+          <div class="col-12">
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #0d1117, #1a2332);">
+              <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="text-white fw-bold" style="font-size:0.9rem;">
+                    <i class="bi bi-check2-square me-1"></i><span id="bulkSelectedCount">0</span> leg(s) selected
+                  </span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <select id="bulkStatusSelect" class="form-select form-select-sm" style="width:auto; font-size:0.85rem;">
+                    <option value="">Change status to...</option>
+                    <option value="completed">Completed</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="on-the-way">On The Way</option>
+                    <option value="on-location">On Location</option>
+                    <option value="picked-up">Picked Up</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-warning fw-bold" id="bulkApplyBtn" disabled>
+                    <i class="bi bi-arrow-repeat me-1"></i>Apply
+                  </button>
+                  <button type="button" class="btn btn-sm btn-outline-light" id="bulkClearBtn" style="font-size:0.8rem;">
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Legs Table -->
         <div class="card border-0 shadow-sm">
           <div class="card-header bg-light py-2 px-3">
@@ -235,21 +416,31 @@
               <table class="table table-hover table-bordered mb-0 fs-5 fw-semibold">
                 <thead class="table-dark">
                   <tr>
-                    <th style="width: 12%;">Customer</th>
+                    <th style="width:3%;" class="text-center">
+                      <div class="d-flex align-items-center justify-content-center gap-1">
+                        <input type="checkbox" id="selectAllLegs" class="form-check-input" title="Select / deselect all" style="cursor:pointer;">
+                        <span class="d-none d-xl-inline" style="font-size:0.6rem; font-weight:400; opacity:0.7;">All</span>
+                      </div>
+                    </th>
+                    <th style="width: 11%;">Customer</th>
                     <th style="width: 8%;">Date & Time</th>
-                    <th style="width: 18%;">Locations</th>
-                    <th style="width: 12%;">Vehicle & Passengers</th>
-                    <th style="width: 8%;">Payment</th>
-                    <th style="width: 12%;">Notes</th>
+                    <th style="width: 17%;">Locations</th>
+                    <th style="width: 11%;">Vehicle & Passengers</th>
+                    <th style="width: 7%;">Payment</th>
+                    <th style="width: 11%;">Notes</th>
                     <th style="width: 8%;">Status</th>
                     <th style="width: 10%;">Driver Notes</th>
                     <th style="width: 14%;">Driver Pay</th>
-                    <th style="width: 8%;">Total</th>
+                    <th style="width: 6%;">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for leg in legs %}
                     <tr class="align-middle{% if leg.is_zero_pay %} table-danger{% elif leg.needs_review %} table-warning{% endif %}">
+                      <!-- Checkbox -->
+                      <td class="text-center">
+                        <input type="checkbox" class="form-check-input leg-checkbox" value="{{ leg.id }}" data-leg-status="{{ leg.status }}">
+                      </td>
                       <!-- Customer -->
                       <td>
                         <div class="d-flex flex-column">
@@ -506,6 +697,9 @@
                   <div class="col-12">
                     <div class="card shadow-sm{% if leg.is_zero_pay %} border-danger{% elif leg.needs_review %} border-warning{% endif %}">
                       <div class="card-header {% if leg.is_zero_pay %}bg-danger bg-opacity-10{% elif leg.needs_review %}bg-warning bg-opacity-10{% else %}bg-light{% endif %} p-2">
+                        <div class="d-flex align-items-start gap-2 mb-1">
+                          <input type="checkbox" class="form-check-input leg-checkbox mt-1" value="{{ leg.id }}" data-leg-status="{{ leg.status }}">
+                          <div class="flex-grow-1">
                         {% if leg.needs_review %}
                           <div class="mb-1">
                             {% if leg.is_zero_pay %}<span class="badge bg-danger me-1">$0 PAY</span>{% endif %}
@@ -545,6 +739,8 @@
                             </div>
                           </div>
                         {% endif %}
+                          </div>{# close flex-grow-1 #}
+                        </div>{# close checkbox wrapper #}
                       </div>
 
                       <div class="card-body p-2">
@@ -756,10 +952,249 @@
         </div>
       {% endif %}
     {% else %}
-      <div class="alert alert-light" role="alert">
-        <div class="d-flex align-items-center">
-          <i class="bi bi-person-plus fs-4 me-3 text-secondary"></i>
-          <span>Please select a driver to view their unpaid legs and set driver pay amounts.</span>
+      {# ── Overview Dashboard ── #}
+
+      {# Summary stats row #}
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="pay-overview-stat">
+              <div class="stat-value" style="color:#C9A227;">${{ total_inhouse_owed|floatformat:0|default:"0" }}</div>
+              <div class="stat-label">Inhouse Owed</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="pay-overview-stat">
+              <div class="stat-value" style="color:#6f42c1;">${{ total_affiliate_owed|floatformat:0|default:"0" }}</div>
+              <div class="stat-label">Affiliate Owed</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="pay-overview-stat">
+              <div class="stat-value text-dark">{{ inhouse_drivers|length|add:affiliate_drivers|length }}</div>
+              <div class="stat-label">Drivers to Pay</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="pay-overview-stat">
+              <div class="stat-value {% if overdue_count %}text-danger{% else %}text-success{% endif %}">{{ overdue_count }}</div>
+              <div class="stat-label">Overdue (14+ days)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Overdue banner #}
+      {% if overdue_count %}
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="overdue-banner">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              {{ overdue_count }} driver{{ overdue_count|pluralize }} {{ overdue_count|pluralize:"has,have" }} unpaid legs older than 14 days
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {# ── Inhouse Drivers ── #}
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm overflow-hidden">
+            <div class="pay-section-header" style="background:#0d1117; color:#fff;">
+              <span><i class="bi bi-people-fill me-2"></i>Inhouse Drivers</span>
+              <span class="section-total" style="color:#C9A227;">${{ total_inhouse_owed|floatformat:2 }}</span>
+            </div>
+            {% if inhouse_drivers %}
+              <div class="table-responsive">
+                <table class="table pay-driver-table mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width:25%;">Driver</th>
+                      <th class="text-center" style="width:10%;">Unpaid</th>
+                      <th class="text-center" style="width:10%;">Ready</th>
+                      <th class="text-end" style="width:15%;">Owed</th>
+                      <th style="width:12%;">Oldest</th>
+                      <th style="width:12%;">Last Paid</th>
+                      <th class="text-end" style="width:16%;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for d in inhouse_drivers %}
+                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
+                        <td class="driver-name-cell">
+                          {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.8rem;"></i>{% endif %}
+                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                          <span class="method-tag">{{ d.payment_method|default:"Direct Deposit" }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="badge rounded-pill" style="background:#dee2e6; color:#333;">{{ d.unpaid_count }}</span>
+                        </td>
+                        <td class="text-center">
+                          {% if d.completed_unpaid_count %}
+                            <span class="badge rounded-pill bg-success">{{ d.completed_unpaid_count }}</span>
+                          {% else %}
+                            <span style="color:#ccc;">0</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-end fw-bold">${{ d.total_owed|floatformat:2 }}</td>
+                        <td>
+                          {% if d.oldest_unpaid_date %}{{ d.oldest_unpaid_date|date:"M j" }} <span class="{% if d.days_since_oldest > 14 %}text-danger fw-bold{% else %}text-muted{% endif %}" style="font-size:0.75rem;">({{ d.days_since_oldest }}d)</span>{% else %}<span style="color:#ccc;">-</span>{% endif %}
+                        </td>
+                        <td>
+                          {% if d.days_since_last_paid != None %}
+                            <span class="{% if d.days_since_last_paid > 14 %}text-danger fw-bold{% endif %}">{{ d.days_since_last_paid }}d ago</span>
+                          {% else %}
+                            <span class="text-danger fw-bold">Never</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-end">
+                          <a href="?driver={{ d.id }}" class="pay-btn" onclick="event.stopPropagation();">
+                            <i class="bi bi-arrow-right me-1"></i>Pay
+                          </a>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {# Mobile cards #}
+              <div class="mobile-driver-cards p-2">
+                {% for d in inhouse_drivers %}
+                  <div class="mobile-driver-card {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <div class="fw-bold">
+                          {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.75rem;"></i>{% endif %}
+                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                        </div>
+                        <div class="text-muted" style="font-size:0.75rem;">{{ d.payment_method|default:"Direct Deposit" }}</div>
+                      </div>
+                      <div class="text-end">
+                        <div class="fw-bold">${{ d.total_owed|floatformat:2 }}</div>
+                        <div style="font-size:0.75rem;">
+                          <span class="badge rounded-pill" style="background:#dee2e6; color:#333;">{{ d.unpaid_count }} legs</span>
+                          {% if d.completed_unpaid_count %}<span class="badge rounded-pill bg-success">{{ d.completed_unpaid_count }} ready</span>{% endif %}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2" style="font-size:0.75rem; color:#999;">
+                      <span>Oldest: {% if d.oldest_unpaid_date %}{{ d.oldest_unpaid_date|date:"M j" }}{% else %}-{% endif %}</span>
+                      <span>Last paid: {% if d.days_since_last_paid != None %}<span class="{% if d.days_since_last_paid > 14 %}text-danger fw-bold{% endif %}">{{ d.days_since_last_paid }}d ago</span>{% else %}<span class="text-danger fw-bold">Never</span>{% endif %}</span>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="overview-empty">
+                <i class="bi bi-check-circle-fill"></i>
+                All caught up! No inhouse drivers with unpaid legs.
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      {# ── Affiliate Drivers ── #}
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card border-0 shadow-sm overflow-hidden">
+            <div class="pay-section-header" style="background: linear-gradient(135deg, #5a2d82, #7c3aed); color:#fff;">
+              <span><i class="bi bi-person-badge me-2"></i>Affiliate Drivers</span>
+              <span class="section-total">${{ total_affiliate_owed|floatformat:2 }}</span>
+            </div>
+            {% if affiliate_drivers %}
+              <div class="table-responsive">
+                <table class="table pay-driver-table mb-0">
+                  <thead>
+                    <tr>
+                      <th style="width:25%;">Driver</th>
+                      <th class="text-center" style="width:10%;">Unpaid</th>
+                      <th class="text-center" style="width:10%;">Ready</th>
+                      <th class="text-end" style="width:15%;">Owed</th>
+                      <th style="width:12%;">Oldest</th>
+                      <th style="width:12%;">Last Paid</th>
+                      <th class="text-end" style="width:16%;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for d in affiliate_drivers %}
+                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
+                        <td class="driver-name-cell">
+                          {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.8rem;"></i>{% endif %}
+                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                          <span class="method-tag">{{ d.payment_method|default:"Direct Deposit" }}</span>
+                        </td>
+                        <td class="text-center">
+                          <span class="badge rounded-pill" style="background:#dee2e6; color:#333;">{{ d.unpaid_count }}</span>
+                        </td>
+                        <td class="text-center">
+                          {% if d.completed_unpaid_count %}
+                            <span class="badge rounded-pill bg-success">{{ d.completed_unpaid_count }}</span>
+                          {% else %}
+                            <span style="color:#ccc;">0</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-end fw-bold">${{ d.total_owed|floatformat:2 }}</td>
+                        <td>
+                          {% if d.oldest_unpaid_date %}{{ d.oldest_unpaid_date|date:"M j" }} <span class="{% if d.days_since_oldest > 14 %}text-danger fw-bold{% else %}text-muted{% endif %}" style="font-size:0.75rem;">({{ d.days_since_oldest }}d)</span>{% else %}<span style="color:#ccc;">-</span>{% endif %}
+                        </td>
+                        <td>
+                          {% if d.days_since_last_paid != None %}
+                            <span class="{% if d.days_since_last_paid > 14 %}text-danger fw-bold{% endif %}">{{ d.days_since_last_paid }}d ago</span>
+                          {% else %}
+                            <span class="text-danger fw-bold">Never</span>
+                          {% endif %}
+                        </td>
+                        <td class="text-end">
+                          <a href="?driver={{ d.id }}" class="pay-btn" onclick="event.stopPropagation();">
+                            <i class="bi bi-arrow-right me-1"></i>Pay
+                          </a>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {# Mobile cards #}
+              <div class="mobile-driver-cards p-2">
+                {% for d in affiliate_drivers %}
+                  <div class="mobile-driver-card {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <div class="fw-bold">
+                          {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.75rem;"></i>{% endif %}
+                          {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
+                        </div>
+                        <div class="text-muted" style="font-size:0.75rem;">{{ d.payment_method|default:"Direct Deposit" }}</div>
+                      </div>
+                      <div class="text-end">
+                        <div class="fw-bold">${{ d.total_owed|floatformat:2 }}</div>
+                        <div style="font-size:0.75rem;">
+                          <span class="badge rounded-pill" style="background:#dee2e6; color:#333;">{{ d.unpaid_count }} legs</span>
+                          {% if d.completed_unpaid_count %}<span class="badge rounded-pill bg-success">{{ d.completed_unpaid_count }} ready</span>{% endif %}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2" style="font-size:0.75rem; color:#999;">
+                      <span>Oldest: {% if d.oldest_unpaid_date %}{{ d.oldest_unpaid_date|date:"M j" }}{% else %}-{% endif %}</span>
+                      <span>Last paid: {% if d.days_since_last_paid != None %}<span class="{% if d.days_since_last_paid > 14 %}text-danger fw-bold{% endif %}">{{ d.days_since_last_paid }}d ago</span>{% else %}<span class="text-danger fw-bold">Never</span>{% endif %}</span>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="overview-empty">
+                <i class="bi bi-check-circle-fill"></i>
+                All caught up! No affiliate drivers with unpaid legs.
+              </div>
+            {% endif %}
+          </div>
         </div>
       </div>
     {% endif %}
@@ -1115,6 +1550,102 @@
                   });
               });
           }
+
+          // ── Bulk status update ──
+          (function() {
+          const bar = document.getElementById('bulkActionBar');
+          const countEl = document.getElementById('bulkSelectedCount');
+          const selectAll = document.getElementById('selectAllLegs');
+          const statusSelect = document.getElementById('bulkStatusSelect');
+          const applyBtn = document.getElementById('bulkApplyBtn');
+          const clearBtn = document.getElementById('bulkClearBtn');
+          if (!bar) return; // not on detail page
+
+          function getChecked() {
+              // Only count visible checkboxes (avoid double-counting desktop + mobile)
+              const all = document.querySelectorAll('.leg-checkbox:checked');
+              const seen = new Set();
+              const unique = [];
+              all.forEach(cb => {
+                  if (!seen.has(cb.value)) { seen.add(cb.value); unique.push(cb); }
+              });
+              return unique;
+          }
+          function updateBar() {
+              const checked = getChecked();
+              const count = checked.length;
+              countEl.textContent = count;
+              bar.style.display = count > 0 ? '' : 'none';
+              applyBtn.disabled = !statusSelect.value || count === 0;
+          }
+
+          // Checkbox events — sync duplicates (desktop + mobile share same leg ID)
+          document.querySelectorAll('.leg-checkbox').forEach(cb => {
+              cb.addEventListener('change', function() {
+                  // Sync all checkboxes with the same leg value
+                  document.querySelectorAll(`.leg-checkbox[value="${cb.value}"]`).forEach(dup => {
+                      dup.checked = cb.checked;
+                  });
+                  updateBar();
+              });
+          });
+          if (selectAll) {
+              selectAll.addEventListener('change', function() {
+                  document.querySelectorAll('.leg-checkbox').forEach(cb => {
+                      cb.checked = selectAll.checked;
+                  });
+                  updateBar();
+              });
+          }
+          if (statusSelect) {
+              statusSelect.addEventListener('change', updateBar);
+          }
+          if (clearBtn) {
+              clearBtn.addEventListener('click', function() {
+                  document.querySelectorAll('.leg-checkbox').forEach(cb => { cb.checked = false; });
+                  if (selectAll) selectAll.checked = false;
+                  updateBar();
+              });
+          }
+
+          if (applyBtn) {
+              applyBtn.addEventListener('click', function() {
+                  const checked = getChecked();
+                  const ids = Array.from(checked).map(cb => cb.value);
+                  const newStatus = statusSelect.value;
+                  if (!ids.length || !newStatus) return;
+
+                  const label = statusSelect.options[statusSelect.selectedIndex].text;
+                  if (!confirm(`Mark ${ids.length} leg(s) as "${label}"?`)) return;
+
+                  applyBtn.disabled = true;
+                  applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+
+                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+                  fetch('{% url "bulk_update_leg_status" %}', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken.value },
+                      body: JSON.stringify({ leg_ids: ids, status: newStatus })
+                  })
+                  .then(r => r.json())
+                  .then(data => {
+                      if (data.success) {
+                          alert(data.message);
+                          window.location.reload();
+                      } else {
+                          alert('Error: ' + (data.error || 'Unknown'));
+                          applyBtn.disabled = false;
+                          applyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Apply';
+                      }
+                  })
+                  .catch(err => {
+                      alert('Error: ' + err.message);
+                      applyBtn.disabled = false;
+                      applyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Apply';
+                  });
+              });
+          }
+          })();
       });
   </script>
 {% endblock %}

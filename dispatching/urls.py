@@ -165,6 +165,11 @@ urlpatterns = [
         name="process_driver_payment",
     ),
     path(
+        "bulk-update-leg-status/",
+        views.bulk_update_leg_status,
+        name="bulk_update_leg_status",
+    ),
+    path(
         "driver-pay-rates/",
         views.driver_pay_rates,
         name="driver_pay_rates",

@@ -134,6 +134,7 @@ def index(request):
             "reservation__travel_agent__user",
             "driver",
             "driver__profile",
+            "driver_assigned_by",
             "flight_information",
             "cruise_information",
         )
@@ -564,17 +565,16 @@ def index(request):
     next_date = selected_date + timedelta(days=1)
 
     # Oldest flight refresh timestamp for arrival legs on this date
-    from django.db.models import Min
-    _arrival_flights_agg = (
-        Leg.objects.filter(
-            pickup_date=selected_date,
-            flight_information__isnull=False,
-        )
-        .exclude(status__in=["completed", "cancelled"])
-        .exclude(reservation__status="cancelled")
-        .aggregate(oldest_refresh=Min("flight_information__last_updated"))
-    )
-    oldest_flight_refresh = _arrival_flights_agg.get("oldest_refresh")
+    # Computed from already-fetched _all_day_legs (avoids extra DB query)
+    oldest_flight_refresh = None
+    for _tleg in _all_day_legs:
+        if (
+            _tleg.flight_information
+            and _tleg.flight_information.last_updated
+            and _tleg.status not in ("completed", "cancelled")
+        ):
+            if oldest_flight_refresh is None or _tleg.flight_information.last_updated < oldest_flight_refresh:
+                oldest_flight_refresh = _tleg.flight_information.last_updated
 
     context = {
         "legs": legs,
@@ -4591,9 +4591,15 @@ def add_leg_to_reservation(request):
 @login_required(login_url="login")
 def driver_payment_management(request):
     """
-    Driver Payment Management Dashboard
-    Shows legs for selected driver with ability to set driver pay amounts
+    Driver Payment Management Dashboard.
+    Overview mode (no driver param): shows all drivers with unpaid legs,
+    split by inhouse / affiliate, with key metrics.
+    Detail mode (?driver=ID): shows legs for selected driver with pay editing.
     """
+    from django.db.models import Min, Max, Count, Sum, Q, Value, DecimalField
+    from django.db.models.functions import Coalesce
+    from drivers.models import DriverPayment
+
     if not request.user.is_staff:
         return redirect("home")
 
@@ -4605,33 +4611,92 @@ def driver_payment_management(request):
     total_pay = 0
     total_pay_completed = 0
     completed_leg_count = 0
+    zero_pay_count = 0
+    review_count = 0
 
-    # Get only drivers who have unpaid legs for dropdown
-    drivers = Driver.objects.select_related("profile").filter(
-        legs__payment_status='unpaid'
-    ).distinct().order_by("profile__first_name", "profile__last_name")
+    # ── Build annotated driver list (used for both overview + dropdown) ──
+    today = timezone.localdate()
+    drivers_with_unpaid = (
+        Driver.objects.filter(legs__payment_status='unpaid')
+        .select_related('profile')
+        .annotate(
+            unpaid_count=Count('legs', filter=Q(legs__payment_status='unpaid')),
+            completed_unpaid_count=Count(
+                'legs',
+                filter=Q(legs__payment_status='unpaid', legs__status='completed'),
+            ),
+            total_owed=Sum(
+                Coalesce('legs__driver_base_pay', Value(0, output_field=DecimalField()))
+                + Coalesce('legs__driver_gratuity', Value(0, output_field=DecimalField()))
+                + Coalesce('legs__driver_additional', Value(0, output_field=DecimalField())),
+                filter=Q(legs__payment_status='unpaid'),
+                output_field=DecimalField(),
+            ),
+            oldest_unpaid_date=Min(
+                'legs__pickup_date', filter=Q(legs__payment_status='unpaid'),
+            ),
+            last_payment_date=Max('payments__payment_date'),
+        )
+        .distinct()
+        .order_by('profile__first_name', 'profile__last_name')
+    )
 
+    # Compute derived fields in Python
+    overdue_count = 0
+    for d in drivers_with_unpaid:
+        d.total_owed = d.total_owed or 0
+        if d.last_payment_date:
+            d.days_since_last_paid = (today - d.last_payment_date.date()).days
+        else:
+            d.days_since_last_paid = None  # never paid
+        # Days since oldest unpaid leg
+        if d.oldest_unpaid_date:
+            d.days_since_oldest = (today - d.oldest_unpaid_date).days
+        else:
+            d.days_since_oldest = None
+        # Overdue if oldest unpaid leg is >14 days old
+        if d.days_since_oldest is not None and d.days_since_oldest > 14:
+            d.is_overdue = True
+            overdue_count += 1
+        else:
+            d.is_overdue = False
+
+    inhouse_drivers = [d for d in drivers_with_unpaid if d.driver_type == 'inhouse']
+    affiliate_drivers = [d for d in drivers_with_unpaid if d.driver_type == 'affiliate']
+    total_inhouse_owed = sum(d.total_owed for d in inhouse_drivers)
+    total_affiliate_owed = sum(d.total_owed for d in affiliate_drivers)
+
+    # ── Detail mode: load legs for selected driver ──
+    last_payment_info = None
     if selected_driver_id:
         try:
             selected_driver = get_object_or_404(Driver.objects.select_related('profile'), id=selected_driver_id)
 
+            # Last payment info for detail header
+            last_pmt = DriverPayment.objects.filter(driver=selected_driver).order_by('-payment_date').first()
+            if last_pmt:
+                last_payment_info = {
+                    'date': last_pmt.payment_date,
+                    'amount': last_pmt.amount,
+                }
+
             # Get only unpaid legs for the driver with optimized queries
             legs_qs = (
-                    Leg.objects
-                    .select_related(
-                        "reservation",
-                        "reservation__customer",
-                        "reservation__vehicle",
-                        "reservation__travel_agent",
-                        "reservation__travel_agent__user",
-                        "flight_information",
-                        "cruise_information",
-                    )
-                    .prefetch_related(
-                        Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
-                    )
-                    .filter(driver=selected_driver, payment_status='unpaid')
+                Leg.objects
+                .select_related(
+                    "reservation",
+                    "reservation__customer",
+                    "reservation__vehicle",
+                    "reservation__travel_agent",
+                    "reservation__travel_agent__user",
+                    "flight_information",
+                    "cruise_information",
                 )
+                .prefetch_related(
+                    Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+                )
+                .filter(driver=selected_driver, payment_status='unpaid')
+            )
 
             # Apply date range filter if provided
             if date_from:
@@ -4651,8 +4716,6 @@ def driver_payment_management(request):
             # Flag legs that need rate review
             SANFORD_KEYWORDS = ["sfb", "sanford", "orlando sanford"]
             CRUISE_PORT_KEYWORDS = ["port canaveral", "canaveral", "cruise port", "cruise terminal", "cruise ship"]
-            zero_pay_count = 0
-            review_count = 0
             for leg in legs:
                 loc = f"{leg.pickup_location} {leg.dropoff_location}".lower()
                 leg.is_cruise = bool(leg.cruise_information_id) or any(kw in loc for kw in CRUISE_PORT_KEYWORDS)
@@ -4669,9 +4732,18 @@ def driver_payment_management(request):
             selected_driver = None
 
     context = {
-        "drivers": drivers,
+        # Overview data (always available)
+        "inhouse_drivers": inhouse_drivers,
+        "affiliate_drivers": affiliate_drivers,
+        "total_inhouse_owed": total_inhouse_owed,
+        "total_affiliate_owed": total_affiliate_owed,
+        "overdue_count": overdue_count,
+        # Legacy "drivers" for dropdown (keep compat) — combined list
+        "drivers": drivers_with_unpaid,
+        # Detail data
         "selected_driver": selected_driver,
         "selected_driver_id": selected_driver_id,
+        "last_payment_info": last_payment_info,
         "date_from": date_from,
         "date_to": date_to,
         "legs": legs,
@@ -4679,8 +4751,8 @@ def driver_payment_management(request):
         "total_pay_completed": total_pay_completed,
         "leg_count": len(legs),
         "completed_leg_count": completed_leg_count,
-        "zero_pay_count": zero_pay_count if selected_driver_id else 0,
-        "review_count": review_count if selected_driver_id else 0,
+        "zero_pay_count": zero_pay_count,
+        "review_count": review_count,
     }
 
     return render(request, "dispatching/driver_payment_management.html", context)
@@ -4786,6 +4858,56 @@ def update_driver_pay_amount(request):
     except Exception as e:
         logger.error(f"Error updating driver pay amount: {str(e)}")
         return JsonResponse({"success": False, "error": f"Server error: {str(e)}"}, status=500)
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
+def bulk_update_leg_status(request):
+    """Bulk-update the status of multiple legs (e.g. mark as completed)."""
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        leg_ids = data.get("leg_ids", [])
+        new_status = data.get("status", "")
+
+        valid_statuses = [
+            "confirmed", "in-progress", "on-the-way",
+            "on-location", "picked-up", "completed", "cancelled",
+        ]
+        if new_status not in valid_statuses:
+            return JsonResponse({"success": False, "error": f"Invalid status: {new_status}"}, status=400)
+        if not leg_ids:
+            return JsonResponse({"success": False, "error": "No legs selected"}, status=400)
+
+        from reservations.models import LegStatus
+
+        now = timezone.now()
+        updated = 0
+        for leg in Leg.objects.filter(id__in=leg_ids):
+            if leg.status != new_status:
+                leg.status = new_status
+                leg.status_changed_by = request.user
+                leg.status_changed_at = now
+                leg.save(update_fields=['status', 'status_changed_by', 'status_changed_at'])
+                LegStatus.objects.create(
+                    leg=leg, status=new_status,
+                    updated_by=request.user,
+                    notes=f"Bulk status update from driver payment page",
+                )
+                updated += 1
+
+        return JsonResponse({
+            "success": True,
+            "updated": updated,
+            "message": f"{updated} leg{'s' if updated != 1 else ''} marked as {new_status}.",
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        logger.error(f"Error in bulk_update_leg_status: {e}")
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
 @login_required(login_url="login")
