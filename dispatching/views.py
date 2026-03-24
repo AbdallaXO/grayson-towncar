@@ -494,12 +494,33 @@ def index(request):
     timeline_hours = list(range(display_start, display_end + 1))
     total_display_minutes = (display_end - display_start + 1) * 60
 
-    # Map driver ID → vehicle number for timeline display
+    # Map driver ID → vehicle number + type for timeline display
     _driver_vehicle_map = {}
+    _driver_vehicle_type_map = {}
     for _row in inhouse_driver_rows:
         _a = _row.get("assignment")
-        if _a and _a.vehicle and _a.vehicle.vehicle_number:
-            _driver_vehicle_map[_row["driver"].id] = _a.vehicle.vehicle_number
+        if _a and _a.vehicle:
+            if _a.vehicle.vehicle_number:
+                _driver_vehicle_map[_row["driver"].id] = _a.vehicle.vehicle_number
+            if _a.vehicle.vehicle_type:
+                _driver_vehicle_type_map[_row["driver"].id] = str(_a.vehicle.vehicle_type)
+
+    # Get previous day's last leg per driver (for overnight turnaround display)
+    _prev_day = selected_date - timedelta(days=1)
+    _prev_day_last = {}
+    _prev_legs = (
+        Leg.objects.filter(pickup_date=_prev_day, driver__in=_all_inhouse)
+        .exclude(status="cancelled")
+        .select_related("driver")
+        .order_by("driver_id", "-pickup_time")
+    )
+    for _pl in _prev_legs:
+        if _pl.driver_id not in _prev_day_last:
+            try:
+                _end = estimate_job_end_time(_pl, _prev_day)
+                _prev_day_last[_pl.driver_id] = _end.strftime('%I:%M %p').lstrip('0')
+            except Exception:
+                _prev_day_last[_pl.driver_id] = _pl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
 
     inhouse_timeline = []
     for _driver in _all_inhouse:
@@ -559,6 +580,45 @@ def index(request):
             'gaps': _gaps,
             'total_legs': _sched.total_legs,
             'vehicle_number': _driver_vehicle_map.get(_driver.id, ''),
+            'vehicle_type_label': _driver_vehicle_type_map.get(_driver.id, ''),
+            'prev_night_cleared': _prev_day_last.get(_driver.id, ''),
+        })
+
+    # Build unassigned timeline slots for drag-and-drop
+    _leg_by_id = {_l.id: _l for _l in _all_legs_for_timeline}  # O(1) lookup
+    _unassigned_timeline_slots = []
+    for _gc in _gap_candidates:
+        if _gc['source'] != 'unassigned':
+            continue
+        _pt = _gc['pickup_time']
+        _slot_start_min = (_pt.hour - display_start) * 60 + _pt.minute
+        _uleg = _leg_by_id.get(_gc['leg_id'])
+        _end_dt = getattr(_uleg, '_estimated_end_dt', None) if _uleg else None
+        if _end_dt:
+            _slot_end_min = (_end_dt.hour - display_start) * 60 + _end_dt.minute
+        else:
+            _slot_end_min = _slot_start_min + 45  # default 45 min estimate
+        _duration = max(_slot_end_min - _slot_start_min, 15)
+        _pos = round(max(0, _slot_start_min / total_display_minutes * 100), 1)
+        _wid = round(min(_duration / total_display_minutes * 100, 100 - _pos), 1)
+        _sinfo = _leg_status_map.get(_gc['leg_id'])
+        _unassigned_timeline_slots.append({
+            'leg_id': _gc['leg_id'],
+            'trip_type': _gc['trip_type'],
+            'pickup_display': _gc['pickup_display'],
+            'pickup_time_raw': _gc['pickup_time'].strftime('%I:%M').lstrip('0') if _gc['pickup_time'] else '',
+            'customer': _gc['customer'],
+            'pickup_location': _gc['pickup_location'],
+            'dropoff_location': _gc['dropoff_location'],
+            'vehicle_type': _gc['vehicle_type'],
+            'flight_info': _gc['flight_info'],
+            'status': _gc['status'],
+            'position_pct': _pos,
+            'width_pct': _wid,
+            'end_time_display': _end_dt.strftime('%I:%M').lstrip('0') if _end_dt else '',
+            'status_label': _sinfo['status_label'] if _sinfo else '',
+            'status_time': _sinfo['status_time'] if _sinfo else '',
+            'status_ago': _sinfo['status_ago'] if _sinfo else '',
         })
 
     prev_date = selected_date - timedelta(days=1)
@@ -598,6 +658,7 @@ def index(request):
         "inhouse_assigned_count": inhouse_assigned_count,
         "inhouse_timeline": inhouse_timeline,
         "timeline_hours": timeline_hours,
+        "unassigned_timeline_slots": _unassigned_timeline_slots,
     }
 
     # PERF TEMP START
@@ -610,6 +671,264 @@ def index(request):
     )
     # PERF TEMP END
     return _response
+
+
+@login_required(login_url="login")
+def schedule_board(request):
+    """
+    Lightweight Schedule Board: drag-and-drop driver timeline only.
+    No legs table, no mobile cards — just the timeline for fast reshuffling.
+    """
+    if not request.user.is_staff:
+        return redirect("home")
+
+    from dispatching.scheduler import (
+        build_driver_schedules, estimate_job_end_time,
+        preload_timing_cache as _preload_cache,
+    )
+    from drivers.models import DriverVehicleAssignment
+
+    selected_date = request.GET.get("date")
+    try:
+        selected_date = (
+            datetime.strptime(selected_date, "%Y-%m-%d").date()
+            if selected_date
+            else timezone.localdate()
+        )
+    except ValueError:
+        selected_date = timezone.localdate()
+
+    prev_date = selected_date - timedelta(days=1)
+    next_date = selected_date + timedelta(days=1)
+
+    # Fetch all legs for the date (single query)
+    all_legs = list(
+        Leg.objects.filter(pickup_date=selected_date)
+        .exclude(reservation__status="cancelled")
+        .exclude(status="cancelled")
+        .select_related(
+            "driver", "reservation", "reservation__customer",
+            "reservation__vehicle", "flight_information", "cruise_information",
+        )
+        .prefetch_related(
+            Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp"))
+        )
+        .order_by("pickup_time")
+    )
+
+    # Pre-compute end times
+    _preload_cache()
+    for leg in all_legs:
+        try:
+            leg._estimated_end_dt = estimate_job_end_time(leg, selected_date)
+        except Exception:
+            leg._estimated_end_dt = None
+
+    # Get inhouse drivers with vehicle assignments
+    inhouse_drivers = list(
+        Driver.objects.filter(driver_type="inhouse")
+        .select_related("profile")
+        .order_by("profile__first_name")
+    )
+    assignments = {
+        a.driver_id: a
+        for a in DriverVehicleAssignment.objects.filter(
+            driver__in=inhouse_drivers, date=selected_date
+        ).select_related("vehicle", "vehicle__vehicle_type")
+    }
+
+    # Build schedules
+    _driver_schedules = build_driver_schedules(all_legs, inhouse_drivers, selected_date)
+
+    # Timeline hours range
+    _hours_with_legs = set()
+    for leg in all_legs:
+        _hours_with_legs.add(leg.pickup_time.hour)
+    display_start = min(_hours_with_legs) if _hours_with_legs else 6
+    display_end = max(_hours_with_legs) + 1 if _hours_with_legs else 22
+    display_start = min(display_start, 6)
+    display_end = max(display_end, 22)
+    timeline_hours = list(range(display_start, display_end + 1))
+    total_display_minutes = (display_end - display_start + 1) * 60
+
+    # Build half-hour ticks for the schedule board grid
+    _timeline_ticks = []
+    for h in range(display_start, display_end + 1):
+        # Full hour tick
+        _min_offset = (h - display_start) * 60
+        _pct = round(_min_offset / total_display_minutes * 100, 2)
+        if h == 0:
+            _lbl = '12a'
+        elif h < 12:
+            _lbl = f'{h}a'
+        elif h == 12:
+            _lbl = '12p'
+        else:
+            _lbl = f'{h-12}p'
+        _timeline_ticks.append({'pct': _pct, 'label': _lbl, 'is_hour': True})
+        # Half-hour tick
+        _half_min = _min_offset + 30
+        if _half_min < total_display_minutes:
+            _half_pct = round(_half_min / total_display_minutes * 100, 2)
+            _timeline_ticks.append({'pct': _half_pct, 'label': '', 'is_hour': False})
+
+    # Status map
+    _now = timezone.now()
+    _leg_status_map = {}
+    for leg in all_legs:
+        _sh_list = list(leg.status_history.all())
+        if _sh_list:
+            _latest = _sh_list[0]
+            _local_ts = timezone.localtime(_latest.timestamp)
+            _ago_secs = int((_now - _latest.timestamp).total_seconds())
+            if _ago_secs < 60:
+                _ago_str = "just now"
+            elif _ago_secs < 3600:
+                _ago_str = f"{_ago_secs // 60} min ago"
+            else:
+                _hrs = _ago_secs // 3600
+                _mins = (_ago_secs % 3600) // 60
+                _ago_str = f"{_hrs}h {_mins}m ago" if _mins else f"{_hrs}h ago"
+            _status_label = dict(LegStatus.STATUS_CHOICES).get(_latest.status, _latest.status).title()
+            _leg_status_map[leg.id] = {
+                'status_label': _status_label,
+                'status_time': _local_ts.strftime('%I:%M %p').lstrip('0'),
+                'status_ago': _ago_str,
+            }
+
+    # Get previous day's last leg per driver (for overnight turnaround display)
+    prev_day = selected_date - timedelta(days=1)
+    _prev_day_last = {}
+    _prev_legs = (
+        Leg.objects.filter(pickup_date=prev_day, driver__in=inhouse_drivers)
+        .exclude(status="cancelled")
+        .select_related("driver")
+        .order_by("driver_id", "-pickup_time")
+    )
+    for _pl in _prev_legs:
+        if _pl.driver_id not in _prev_day_last:
+            try:
+                _end = estimate_job_end_time(_pl, prev_day)
+                _prev_day_last[_pl.driver_id] = _end.strftime('%I:%M %p').lstrip('0')
+            except Exception:
+                _prev_day_last[_pl.driver_id] = _pl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
+
+    # Build inhouse timeline
+    inhouse_timeline = []
+    for driver in inhouse_drivers:
+        sched = _driver_schedules.get(driver.id)
+        if not sched or not sched.slots:
+            continue
+        assignment = assignments.get(driver.id)
+        vehicle_number = ''
+        vehicle_type_label = ''
+        if assignment and assignment.vehicle:
+            vehicle_number = assignment.vehicle.vehicle_number or ''
+            if assignment.vehicle.vehicle_type:
+                vehicle_type_label = str(assignment.vehicle.vehicle_type)
+        for slot in sched.slots:
+            _start_min = (slot.pickup_time.hour - display_start) * 60 + slot.pickup_time.minute
+            _end_min = (slot.estimated_end_time.hour - display_start) * 60 + slot.estimated_end_time.minute
+            _dur = max(_end_min - _start_min, 15)
+            slot.position_pct = round(max(0, _start_min / total_display_minutes * 100), 1)
+            slot.width_pct = round(min(_dur / total_display_minutes * 100, 100 - slot.position_pct), 1)
+            slot.end_time_display = slot.estimated_end_time.strftime('%I:%M').lstrip('0')
+            _sinfo = _leg_status_map.get(slot.leg_id)
+            slot.status_label = _sinfo['status_label'] if _sinfo else ''
+            slot.status_time = _sinfo['status_time'] if _sinfo else ''
+            slot.status_ago = _sinfo['status_ago'] if _sinfo else ''
+        inhouse_timeline.append({
+            'driver': driver,
+            'schedule': sched,
+            'total_legs': sched.total_legs,
+            'vehicle_number': vehicle_number,
+            'vehicle_type_label': vehicle_type_label,
+            'prev_night_cleared': _prev_day_last.get(driver.id, ''),
+        })
+
+    # Build unassigned timeline slots
+    _leg_by_id = {l.id: l for l in all_legs}
+    unassigned_timeline_slots = []
+    for leg in all_legs:
+        if leg.driver is not None:
+            continue
+        pt = leg.pickup_time
+        _start_min = (pt.hour - display_start) * 60 + pt.minute
+        _end_dt = getattr(leg, '_estimated_end_dt', None)
+        if _end_dt:
+            _end_min = (_end_dt.hour - display_start) * 60 + _end_dt.minute
+        else:
+            _end_min = _start_min + 45
+        _dur = max(_end_min - _start_min, 15)
+        _pos = round(max(0, _start_min / total_display_minutes * 100), 1)
+        _wid = round(min(_dur / total_display_minutes * 100, 100 - _pos), 1)
+        _sinfo = _leg_status_map.get(leg.id)
+        _trip = leg.get_trip_type() if hasattr(leg, 'get_trip_type') else 'other'
+        _customer = str(leg.reservation.customer) if leg.reservation and leg.reservation.customer else ''
+        _flight_str = ''
+        if leg.flight_information:
+            _fi = leg.flight_information
+            _flight_str = f"{_fi.airline or ''} {_fi.flight_number or ''}".strip()
+        _vtype = getattr(leg.reservation.vehicle, 'vehicle_type', '') if leg.reservation and leg.reservation.vehicle else ''
+        unassigned_timeline_slots.append({
+            'leg_id': leg.id,
+            'trip_type': _trip,
+            'pickup_display': pt.strftime('%I:%M %p').lstrip('0'),
+            'customer': _customer,
+            'pickup_location': leg.pickup_location or '',
+            'dropoff_location': leg.dropoff_location or '',
+            'vehicle_type': str(_vtype) if _vtype else '',
+            'flight_info': _flight_str,
+            'status': leg.status or '',
+            'position_pct': _pos,
+            'width_pct': _wid,
+            'end_time_display': _end_dt.strftime('%I:%M').lstrip('0') if _end_dt else '',
+            'status_label': _sinfo['status_label'] if _sinfo else '',
+            'status_time': _sinfo['status_time'] if _sinfo else '',
+            'status_ago': _sinfo['status_ago'] if _sinfo else '',
+        })
+
+    # Assign lanes to unassigned slots so overlapping jobs stack vertically
+    _lane_slot_height = 18  # px per lane row (matches CSS)
+    _lane_gap = 2
+    _lane_ends = []  # tracks end position_pct of each lane
+    for _us in unassigned_timeline_slots:
+        _left = _us['position_pct']
+        _right = _left + _us['width_pct']
+        # Find first lane where this slot doesn't overlap
+        placed = False
+        for i, lane_end in enumerate(_lane_ends):
+            if _left >= lane_end:
+                _us['lane'] = i
+                _lane_ends[i] = _right
+                placed = True
+                break
+        if not placed:
+            _us['lane'] = len(_lane_ends)
+            _lane_ends.append(_right)
+        _us['lane_top'] = _us['lane'] * (_lane_slot_height + _lane_gap) + 2
+    _num_lanes = max(len(_lane_ends), 1)
+    _unassigned_lane_height = _num_lanes * (_lane_slot_height + _lane_gap) + 4
+
+    # Summary counts
+    total_legs = len(all_legs)
+    assigned_count = sum(1 for l in all_legs if l.driver)
+    unassigned_count = total_legs - assigned_count
+
+    context = {
+        "selected_date": selected_date,
+        "prev_date": prev_date,
+        "next_date": next_date,
+        "inhouse_timeline": inhouse_timeline,
+        "timeline_hours": timeline_hours,
+        "timeline_ticks": _timeline_ticks,
+        "unassigned_timeline_slots": unassigned_timeline_slots,
+        "unassigned_lane_height": _unassigned_lane_height,
+        "total_legs": total_legs,
+        "assigned_count": assigned_count,
+        "unassigned_count": unassigned_count,
+    }
+    return render(request, "dispatching/schedule_board.html", context)
 
 
 @login_required(login_url="login")
@@ -1573,13 +1892,15 @@ def check_driver_feasibility(request):
         vehicle_mismatch_detail = ""
         required_type = getattr(leg.reservation.vehicle, 'vehicle_type', None) if leg.reservation.vehicle else None
         if required_type and driver.driver_type == "inhouse":
+            from dispatching.scheduler import get_compatible_vehicle_types
             try:
                 assignment = DriverVehicleAssignment.objects.select_related(
                     "vehicle", "vehicle__vehicle_type"
                 ).get(driver=driver, date=target_date)
                 if assignment.vehicle and assignment.vehicle.vehicle_type:
                     assigned_type = assignment.vehicle.vehicle_type.vehicle_type
-                    if assigned_type != required_type:
+                    compatible_types = get_compatible_vehicle_types(assigned_type)
+                    if str(required_type) not in compatible_types:
                         vehicle_match = False
                         vehicle_mismatch_detail = f"Driver's vehicle is {assigned_type}, reservation requires {required_type}"
                 else:
@@ -6300,6 +6621,23 @@ def capacity_planner(request):
                 'status_ago': _ago_str,
             }
 
+    # Get previous day's last leg per driver (for overnight turnaround display)
+    _cp_prev_day = selected_date - timedelta(days=1)
+    _cp_prev_day_last = {}
+    _cp_prev_legs = (
+        Leg.objects.filter(pickup_date=_cp_prev_day, driver__in=eligible_drivers)
+        .exclude(status="cancelled")
+        .select_related("driver")
+        .order_by("driver_id", "-pickup_time")
+    )
+    for _cpl in _cp_prev_legs:
+        if _cpl.driver_id not in _cp_prev_day_last:
+            try:
+                _cp_end = estimate_job_end_time(_cpl, _cp_prev_day)
+                _cp_prev_day_last[_cpl.driver_id] = _cp_end.strftime('%I:%M %p').lstrip('0')
+            except Exception:
+                _cp_prev_day_last[_cpl.driver_id] = _cpl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
+
     # Build in-house timeline data — only drivers with vehicles assigned for the day
     inhouse_timeline = []
     for driver in eligible_drivers:
@@ -6354,12 +6692,22 @@ def capacity_planner(request):
                 'width_pct': gap_width,
             })
 
+        _cp_assign = assignment_map.get(driver.id)
+        _cp_vnum = ''
+        _cp_vtype = ''
+        if _cp_assign and _cp_assign.vehicle:
+            _cp_vnum = _cp_assign.vehicle.vehicle_number or ''
+            if _cp_assign.vehicle.vehicle_type:
+                _cp_vtype = str(_cp_assign.vehicle.vehicle_type)
         inhouse_timeline.append({
             'driver': driver,
             'schedule': sched,
             'gaps': gaps,
             'total_legs': sched.total_legs,
             'total_revenue': sched.total_revenue,
+            'vehicle_number': _cp_vnum,
+            'vehicle_type_label': _cp_vtype,
+            'prev_night_cleared': _cp_prev_day_last.get(driver.id, ''),
         })
 
     # Build per-driver availability for the selected date (for auto-assign modal defaults)

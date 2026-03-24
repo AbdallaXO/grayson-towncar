@@ -229,6 +229,7 @@
           animation: none !important;
           transition: none !important;
       }
+
   </style>
 {% endblock extra_css %}
 
@@ -3039,10 +3040,11 @@
           function scheduleHide() {
               if (pinned) return;
               keepOpen();
+              // Reset flag immediately so hover popups aren't blocked during the hide delay
+              window._gapPopupActive = false;
               hideTimer = setTimeout(function() {
                   gapPopup.classList.remove('visible');
                   activeGapEl = null;
-                  window._gapPopupActive = false;
               }, 450);
           }
           function forceHide() {
@@ -3228,6 +3230,16 @@
           // Escape key closes
           document.addEventListener('keydown', function(e) {
               if (e.key === 'Escape') forceHide();
+          });
+
+          // Safety: if user hovers a timeline slot while gap popup flag is stuck,
+          // check if mouse is actually over the gap popup — if not, force-clear
+          document.addEventListener('mouseover', function(e) {
+              if (!window._gapPopupActive) return;
+              var slot = e.target.closest('[data-tl-popup]');
+              if (slot && !gapPopup.contains(e.target) && e.target !== activeGapEl) {
+                  forceHide();
+              }
           });
       })();
 
@@ -3569,6 +3581,7 @@
           border: 1px solid #7dd3fc;
       }
   </style>
+
 {% endblock %}
 
 {% block footer %}{% endblock %}

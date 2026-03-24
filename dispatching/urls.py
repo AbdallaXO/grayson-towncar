@@ -37,6 +37,7 @@ urlpatterns = [
     path("execute-swap/", views.execute_swap, name="execute_swap"),
     path("execute-takeback/", views.execute_takeback, name="execute_takeback"),
     path("swap-tester/", views.swap_tester, name="swap_tester"),
+    path("schedule-board/", views.schedule_board, name="schedule_board"),
     path("reset-schedule/", views.reset_schedule, name="reset_schedule"),
     path("save-snapshot/", views.save_schedule_snapshot, name="save_schedule_snapshot"),
     path("list-snapshots/", views.list_schedule_snapshots, name="list_schedule_snapshots"),

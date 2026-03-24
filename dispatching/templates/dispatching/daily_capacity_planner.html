@@ -611,7 +611,12 @@
                 <div class="driver-timeline-row">
                     <div class="driver-name-col">
                         <strong>{{ data.driver }}</strong>
-                        <small class="text-muted">{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}</small>
+                        <small class="text-muted">
+                            {% if data.vehicle_number %}<span style="color:#0d6efd;font-weight:600;">#{{ data.vehicle_number }}</span>{% if data.vehicle_type_label %} <span style="color:#aaa;">{{ data.vehicle_type_label }}</span>{% endif %} &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}
+                        </small>
+                        {% if data.prev_night_cleared %}
+                            <small style="color:#ff9100;font-size:0.58rem;display:block;" title="Previous day last job cleared"><i class="bi bi-moon-stars"></i> Cleared {{ data.prev_night_cleared }}</small>
+                        {% endif %}
                     </div>
                     <div class="timeline-bar">
                         {% for slot in data.schedule.slots %}
