@@ -1,33 +1,26 @@
 """
 StaffActivity tracking middleware.
 Records page views on dispatching URLs for staff users,
-deduplicated to 5-minute windows per path.
+deduplicated to 5-minute windows per path using Django's cache.
 """
 
+import hashlib
 import logging
+
+from django.core.cache import cache
 from django.utils import timezone
-from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
-# In-memory dedup cache: (user_id, path) → last_recorded_at
-_recent_views = {}
 DEDUP_SECONDS = 1800  # 30 minutes — reduced DB writes (was 5 min)
-
-
-def _cleanup_stale_entries():
-    """Remove entries older than 10 minutes to prevent memory growth."""
-    cutoff = timezone.now() - timedelta(seconds=DEDUP_SECONDS * 2)
-    stale = [k for k, v in _recent_views.items() if v < cutoff]
-    for k in stale:
-        del _recent_views[k]
 
 
 class StaffActivityMiddleware:
     """
     Passively tracks staff page views on dispatching URLs.
     Only records GET requests from authenticated staff users.
-    Deduplicates within 5-minute windows to avoid noise.
+    Deduplicates within 5-minute windows using Django cache
+    (works correctly across multiple gunicorn workers).
     """
 
     # Only track views under these URL prefixes
@@ -60,18 +53,13 @@ class StaffActivityMiddleware:
         if "application/json" in content_type:
             return response
 
-        # Dedup check
-        now = timezone.now()
-        key = (request.user.id, path)
-        last = _recent_views.get(key)
-        if last and (now - last).total_seconds() < DEDUP_SECONDS:
+        # Dedup check via cache (works across workers)
+        path_hash = hashlib.md5(path.encode()).hexdigest()[:10]
+        cache_key = f"staff_act_{request.user.id}_{path_hash}"
+        if cache.get(cache_key):
             return response
 
-        _recent_views[key] = now
-
-        # Periodic cleanup
-        if len(_recent_views) > 500:
-            _cleanup_stale_entries()
+        cache.set(cache_key, True, timeout=DEDUP_SECONDS)
 
         # Record the page view
         try:

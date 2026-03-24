@@ -307,6 +307,12 @@ ADMIN_DATETIME_FORMAT = "g:i A"
 ADMIN_DATE_FORMAT = "m/d/Y"  #
 ADMIN_TIME_FORMAT = "g:i A"
 
+# ── Session settings ──
+# Keep drivers and staff logged in for 90 days
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 90  # 90 days in seconds
+SESSION_SAVE_EVERY_REQUEST = True         # Reset expiry on every request (rolling window)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False   # Persist across browser restarts
+
 CKEDITOR_UPLOAD_PATH = "uploads/"
 CKEDITOR_JQUERY_URL = "https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"
 

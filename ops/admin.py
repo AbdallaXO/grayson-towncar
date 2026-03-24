@@ -10,6 +10,7 @@ class CommunicationAttemptInline(admin.TabularInline):
 
 @admin.register(OperationalTask)
 class OperationalTaskAdmin(admin.ModelAdmin):
+    show_full_result_count = False
     list_display = (
         "id",
         "task_type",

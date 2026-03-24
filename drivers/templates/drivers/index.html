@@ -382,36 +382,12 @@
                   </div>
                 </div>
 
-                {% if leg.drive_info %}
-                  <hr class="mt-1 mb-2" style="border-color:var(--gt-border);opacity:0.4;">
-                  <div class="gt-drive-estimate mb-3" data-leg-id="{{ leg.id }}">
-                    <span class="gt-drive-icon">🚗</span>
-                    <div class="gt-drive-main">
-                      <div class="gt-drive-stats">
-                        <span class="gt-drive-time">{{ leg.drive_info.duration_text }}</span>
-                        <span class="gt-drive-distance">· {{ leg.drive_info.distance_text }}</span>
-                        <span class="gt-drive-traffic">live traffic</span>
-                      </div>
-                      <div class="gt-drive-meta">
-                        <span class="gt-drive-label">Pickup → Dropoff</span>
-                        {% if leg.estimated_done %}<span class="gt-drive-done">Cleared ~{{ leg.estimated_done }}</span>{% endif %}
-                      </div>
-                    </div>
-                    <button class="gt-drive-refresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
-                  </div>
-                {% endif %}
+                {# Live traffic hidden for drivers — dispatch only #}
 
 
 
 
-                {% if leg.live_eta_minutes %}
-                  <div class="gt-live-eta mb-3">
-                    <i class="bi bi-broadcast me-1"></i>
-                    <strong>~{{ leg.live_eta_minutes }} min</strong>
-                    {% if leg.live_eta_status == "on-the-way" or leg.live_eta_status == "on-location" %}drive to pickup{% elif leg.live_eta_status == "picked-up" %}drive to dropoff{% endif %}
-                    {% if leg.live_eta_age_mins > 0 %}<span class="gt-live-eta-age">({{ leg.live_eta_age_mins }}m ago)</span>{% endif %}
-                  </div>
-                {% endif %}
+                {# Live ETA hidden for drivers — dispatch only #}
 
                 {% if leg.get_trip_type != "return" and leg.reservation.store_stop %}
                   <div class="gt-store-stop mb-3">
@@ -421,25 +397,30 @@
                 {% endif %}
 
                 <!-- Trip Details -->
-                <div class="gt-card gt-trip-details-card mb-3">
-                  <div style="padding:12px 14px;">
-                    <div class="d-flex flex-wrap gap-2 mb-1 align-items-center">
-                      <span class="gt-chip gt-chip-vehicle" style="font-size:0.8125rem;font-weight:700;padding:5px 12px;">
-                        <i class="bi bi-car-front-fill me-1"></i>{{ leg.reservation.vehicle }}
-                      </span>
-                      <span class="gt-chip gt-chip-pax" style="font-size:0.8125rem;font-weight:700;padding:5px 12px;">
-                        <i class="bi bi-people-fill me-1"></i>{{ leg.reservation.passenger_count }} Passengers
-                      </span>
-                      <span style="font-size:0.8125rem;"><i class="bi bi-briefcase-fill me-1" style="color:var(--gt-text-secondary);"></i><strong>{{ leg.reservation.luggage_count }}</strong> Bags{% if leg.reservation.luggage_type %} <span style="font-size:0.75rem;color:var(--gt-text-secondary);">· {{ leg.reservation.get_luggage_type_display|cut:" / Not Sure" }}</span>{% endif %}</span>
-                    </div>
-                    {% if leg.reservation.display_carseats and leg.reservation.display_carseats != "0" %}
-                      <div class="gt-carseat-badge mt-2" style="font-size:1.0625rem;">
-                        <i class="bi bi-shield-check me-1" style="font-size:1.125rem;"></i>
-                        <strong>Car Seats: {{ leg.reservation.display_carseats }}</strong>
-                      </div>
-                    {% endif %}
+                <div style="display:flex;align-items:stretch;gap:4px;margin-bottom:8px;">
+                  <div style="flex:1.2;background:var(--gt-dark);color:#fff;border-radius:6px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
+                    <div style="font-size:1rem;font-weight:800;line-height:1.1;">{{ leg.reservation.vehicle }}</div>
+                    <div style="font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:rgba(255,255,255,0.4);margin-top:2px;">Vehicle</div>
                   </div>
+                  <div style="flex:0;min-width:48px;background:#f0eeea;border-radius:6px;padding:6px 10px;text-align:center;">
+                    <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.reservation.passenger_count }}</div>
+                    <div style="font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#999;margin-top:2px;">PAX</div>
+                  </div>
+                  <div style="flex:0;min-width:48px;background:#f0eeea;border-radius:6px;padding:6px 10px;text-align:center;">
+                    <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.reservation.luggage_count }}</div>
+                    <div style="font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#999;margin-top:2px;">Bags</div>
+                  </div>
+                  {% if leg.reservation.luggage_type %}
+                    <div style="flex:0;background:#4a6fa5;border-radius:6px;padding:6px 10px;text-align:center;display:flex;align-items:center;">
+                      <div style="font-size:0.7rem;font-weight:700;color:#fff;white-space:nowrap;">{{ leg.reservation.get_luggage_type_display }}</div>
+                    </div>
+                  {% endif %}
                 </div>
+                {% if leg.reservation.display_carseats and leg.reservation.display_carseats != "0" %}
+                  <div style="background:#e65100;border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:1rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;">
+                    <i class="bi bi-shield-fill-check" style="font-size:1.2rem;"></i> Child Seats: {{ leg.reservation.display_carseats }}
+                  </div>
+                {% endif %}
 
                 <!-- Progression Button -->
                 {% if leg.status == "in-progress" %}

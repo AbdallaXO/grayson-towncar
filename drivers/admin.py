@@ -303,76 +303,86 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
     profit_performance.short_description = "Profit (Margin)"
 
     def profit_summary(self, obj):
-        """Detailed profit information for this driver"""
-        legs = obj.legs.all()
-        if not legs:
+        """Detailed profit information for this driver — single aggregate query."""
+        legs_qs = obj.legs.all()
+
+        # One query: overall counts + sums + per-status breakdown
+        agg = legs_qs.aggregate(
+            total_legs=Count("id"),
+            completed_legs=Count(Case(When(status="completed", then=1))),
+            total_revenue=Coalesce(Sum("revenue_share"), Value(Decimal("0.00"))),
+            total_driver_pay=Coalesce(
+                Sum(
+                    Case(
+                        When(
+                            Q(driver_base_pay__isnull=False)
+                            | Q(driver_gratuity__isnull=False)
+                            | Q(driver_additional__isnull=False),
+                            then=(
+                                Coalesce(F("driver_base_pay"), Value(Decimal("0.00")))
+                                + Coalesce(F("driver_gratuity"), Value(Decimal("0.00")))
+                                + Coalesce(F("driver_additional"), Value(Decimal("0.00")))
+                            ),
+                        ),
+                        default=Coalesce(F("driver_pay_amount"), Value(Decimal("0.00"))),
+                        output_field=DecimalField(),
+                    )
+                ),
+                Value(Decimal("0.00")),
+            ),
+            total_profit=Coalesce(Sum("profit_estimate"), Value(Decimal("0.00"))),
+        )
+
+        total_legs = agg["total_legs"]
+        if not total_legs:
             return "No legs assigned to this driver"
 
-        # Calculate various profit metrics
-        total_legs = legs.count()
-        completed_legs = legs.filter(status="completed").count()
-        total_revenue = sum(leg.revenue_share or 0 for leg in legs)
-        total_driver_pay = sum(leg.total_driver_pay for leg in legs)
-        total_profit = sum(leg.profit_estimate or 0 for leg in legs)
-        avg_profit_per_leg = total_profit / total_legs if total_legs > 0 else 0
+        completed_legs = agg["completed_legs"]
+        total_revenue = agg["total_revenue"]
+        total_driver_pay = agg["total_driver_pay"]
+        total_profit = agg["total_profit"]
+        avg_profit_per_leg = total_profit / total_legs
 
-        # Calculate profit by status
+        # Per-status breakdown — one query with conditional aggregation
+        status_choices = [c[0] for c in Leg._meta.get_field("status").choices]
+        status_agg_kwargs = {}
+        for s in status_choices:
+            safe = s.replace("-", "_")
+            status_agg_kwargs[f"cnt_{safe}"] = Count(Case(When(status=s, then=1)))
+            status_agg_kwargs[f"profit_{safe}"] = Coalesce(
+                Sum(Case(When(status=s, then=F("profit_estimate")))),
+                Value(Decimal("0.00")),
+            )
+        status_data = legs_qs.aggregate(**status_agg_kwargs)
+
         status_profits = {}
-        for status_choice in [
-            choice[0] for choice in Leg._meta.get_field("status").choices
-        ]:
-            status_legs = legs.filter(status=status_choice)
-            if status_legs.exists():
-                status_profit = sum(leg.profit_estimate or 0 for leg in status_legs)
-                status_profits[status_choice] = (status_legs.count(), status_profit)
+        for s in status_choices:
+            safe = s.replace("-", "_")
+            cnt = status_data[f"cnt_{safe}"]
+            if cnt:
+                status_profits[s] = (cnt, status_data[f"profit_{safe}"])
 
-        # Create HTML for display
+        # Build HTML
+        def _color(val):
+            if val >= 0:
+                return f'<span style="color: green;">${val}</span>'
+            return f'<span style="color: red;">${abs(val)}</span>'
+
         html = "<h3>Profit Summary</h3>"
         html += '<table style="width: 100%; border-collapse: collapse;">'
-
-        # Overall stats
         html += '<tr style="background-color: #f0f0f0;"><th colspan="2">Overall Statistics</th></tr>'
         html += f"<tr><td>Total Legs:</td><td>{total_legs}</td></tr>"
         html += f"<tr><td>Completed Legs:</td><td>{completed_legs}</td></tr>"
         html += f"<tr><td>Total Revenue Share:</td><td>${total_revenue}</td></tr>"
+        html += f"<tr><td>Total Driver Pay:</td><td>{_color(total_driver_pay)}</td></tr>"
+        html += f"<tr><td>Total Profit:</td><td>{_color(total_profit)}</td></tr>"
+        html += f"<tr><td>Average Profit per Leg:</td><td>{_color(avg_profit_per_leg)}</td></tr>"
 
-        # Format driver pay with color
-        if total_driver_pay >= 0:
-            driver_pay_html = f'<span style="color: green;">${total_driver_pay}</span>'
-        else:
-            driver_pay_html = (
-                f'<span style="color: red;">${abs(total_driver_pay)}</span>'
-            )
-        html += f"<tr><td>Total Driver Pay:</td><td>{driver_pay_html}</td></tr>"
-
-        # Format total profit with color
-        if total_profit >= 0:
-            profit_html = f'<span style="color: green;">${total_profit}</span>'
-        else:
-            profit_html = f'<span style="color: red;">${abs(total_profit)}</span>'
-        html += f"<tr><td>Total Profit:</td><td>{profit_html}</td></tr>"
-
-        # Format avg profit with color
-        if avg_profit_per_leg >= 0:
-            avg_profit_html = (
-                f'<span style="color: green;">${avg_profit_per_leg}</span>'
-            )
-        else:
-            avg_profit_html = (
-                f'<span style="color: red;">${abs(avg_profit_per_leg)}</span>'
-            )
-        html += f"<tr><td>Average Profit per Leg:</td><td>{avg_profit_html}</td></tr>"
-
-        # Profit by status
         if status_profits:
             html += '<tr style="background-color: #f0f0f0;"><th colspan="2">Profit by Status</th></tr>'
             for status, (count, profit) in status_profits.items():
                 status_display = status.title() if status else "Unknown"
-                if profit >= 0:
-                    profit_html = f'<span style="color: green;">${profit}</span>'
-                else:
-                    profit_html = f'<span style="color: red;">${abs(profit)}</span>'
-                html += f"<tr><td>{status_display} ({count}):</td><td>{profit_html}</td></tr>"
+                html += f"<tr><td>{status_display} ({count}):</td><td>{_color(profit)}</td></tr>"
 
         html += "</table>"
         return mark_safe(html)
@@ -736,6 +746,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
 
 @admin.register(DriverPayment)
 class DriverPaymentAdmin(admin.ModelAdmin):
+    show_full_result_count = False
     list_display = [
         "id",
         "driver_link",

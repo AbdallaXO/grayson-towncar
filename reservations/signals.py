@@ -62,80 +62,71 @@ from django.db.models import Sum
 def update_agent_commission_data(sender, instance, created, **kwargs):
     """
     Update the travel agent's commission data when a reservation is saved.
-    Handles commission-related fields: pending and unpaid
+    Handles commission-related fields: pending and unpaid.
+    Only recalculates when commission-relevant fields actually changed.
     """
-    if instance.travel_agent:
-        # PERF TEMP START
-        _t0 = time.monotonic()
-        # PERF TEMP END
-        agent = instance.travel_agent
-        update_fields = []
+    if not instance.travel_agent:
+        return
 
-        # Track if status changed — use values already captured by
-        # store_reservation_old_values pre_save (stored on instance, thread-safe)
-        status_changed = False
-        old_status = None
-        old_vals = getattr(instance, '_pre_save_old_values', None)
-        if not created and old_vals:
-            old_status = old_vals.get("status")
-            if old_status != instance.status:
-                status_changed = True
+    # If update_fields is specified and doesn't include commission-relevant fields, skip
+    save_update_fields = kwargs.get("update_fields")
+    COMMISSION_FIELDS = {"status", "commission_amount", "commission_paid", "travel_agent"}
+    if save_update_fields is not None and not COMMISSION_FIELDS.intersection(save_update_fields):
+        return
 
-        # Handle status changes specifically
-        if status_changed:
+    # PERF TEMP START
+    _t0 = time.monotonic()
+    # PERF TEMP END
+
+    agent = instance.travel_agent
+    update_fields = []
+
+    # Track if status changed — use values already captured by
+    # store_reservation_old_values pre_save (stored on instance, thread-safe)
+    old_vals = getattr(instance, '_pre_save_old_values', None)
+    if not created and old_vals:
+        old_status = old_vals.get("status")
+        status_changed = old_status != instance.status
+        # If status didn't change and no explicit update_fields, skip recalc
+        if not status_changed and save_update_fields is None:
+            return
+
+        # If changed to cancelled, ensure commission is properly handled
+        if instance.status == "cancelled":
             logger.info(
-                f"Reservation #{instance.id} status changed from {old_status} to {instance.status}"
+                f"Reservation #{instance.id} cancelled - adjusting commission data"
             )
-
-            # If changed from confirmed to something else, recalculate pending
-            if old_status == "confirmed":
-                recalculate_pending = True
-
-            # If changed from completed to something else, recalculate unpaid
-            if old_status == "completed" and not instance.commission_paid:
-                recalculate_unpaid = True
-
-            # If changed to cancelled, ensure commission is properly handled
-            if instance.status == "cancelled":
-                logger.info(
-                    f"Reservation #{instance.id} cancelled - adjusting commission data"
-                )
-                # No commissions for cancelled reservations — use queryset.update()
-                # to avoid re-triggering post_save signals (was causing recursion)
-                Reservation.objects.filter(pk=instance.pk).update(
-                    commission_amount=Decimal("0.00")
-                )
-                instance.commission_amount = Decimal("0.00")  # keep in-memory object in sync
-
-        # Calculate pending commissions (confirmed but not completed)
-        pending_total = Reservation.objects.filter(
-            travel_agent=agent, status="confirmed"
-        ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
-
-        # Update pending commissions if changed
-        if agent.pending_commissions != pending_total:
-            logger.info(
-                f"Updating agent {agent} pending commissions from ${agent.pending_commissions} to ${pending_total}"
+            Reservation.objects.filter(pk=instance.pk).update(
+                commission_amount=Decimal("0.00")
             )
-            agent.pending_commissions = pending_total
-            update_fields.append("pending_commissions")
+            instance.commission_amount = Decimal("0.00")
 
-        # Calculate unpaid commissions (completed but not paid)
-        unpaid_total = Reservation.objects.filter(
-            travel_agent=agent, commission_paid=False, status="completed"
-        ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+    # Calculate pending commissions (confirmed but not completed)
+    pending_total = Reservation.objects.filter(
+        travel_agent=agent, status="confirmed"
+    ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
 
-        # Update unpaid commissions if changed
-        if agent.unpaid_commissions != unpaid_total:
-            logger.info(
-                f"Updating agent {agent} unpaid commissions from ${agent.unpaid_commissions} to ${unpaid_total}"
-            )
-            agent.unpaid_commissions = unpaid_total
-            update_fields.append("unpaid_commissions")
+    if agent.pending_commissions != pending_total:
+        logger.info(
+            f"Updating agent {agent} pending commissions from ${agent.pending_commissions} to ${pending_total}"
+        )
+        agent.pending_commissions = pending_total
+        update_fields.append("pending_commissions")
 
-        # Save agent if any fields were updated
-        if update_fields:
-            agent.save(update_fields=update_fields)
+    # Calculate unpaid commissions (completed but not paid)
+    unpaid_total = Reservation.objects.filter(
+        travel_agent=agent, commission_paid=False, status="completed"
+    ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+
+    if agent.unpaid_commissions != unpaid_total:
+        logger.info(
+            f"Updating agent {agent} unpaid commissions from ${agent.unpaid_commissions} to ${unpaid_total}"
+        )
+        agent.unpaid_commissions = unpaid_total
+        update_fields.append("unpaid_commissions")
+
+    if update_fields:
+        agent.save(update_fields=update_fields)
 
         # PERF TEMP START
         logger.info(
@@ -209,30 +200,14 @@ def auto_convert_lead_on_reservation(sender, instance, created, **kwargs):
                 status__in=['new', 'contacted', 'interested', 'future_contact']
             ).first()
 
-        # If no match by email, try by phone (digits-only comparison)
+        # If no match by email, try by phone using normalized_phone index
         if not matching_lead and customer.phone_number:
-            # First try exact match (fast, handles most cases)
-            matching_lead = Lead.objects.filter(
-                phone__iexact=customer.phone_number,
-                status__in=['new', 'contacted', 'interested', 'future_contact']
-            ).first()
-
-            # If no exact match, normalize to digits and narrow with DB filter
-            if not matching_lead:
-                customer_digits = ''.join(filter(str.isdigit, customer.phone_number))
-                if len(customer_digits) >= 10:
-                    customer_last10 = customer_digits[-10:]
-                    # Use last 4 digits as a fast DB contains filter (very selective)
-                    last4 = customer_last10[-4:]
-                    candidates = Lead.objects.filter(
-                        status__in=['new', 'contacted', 'interested', 'future_contact'],
-                        phone__contains=last4,
-                    ).exclude(phone__isnull=True).exclude(phone='')
-                    for candidate in candidates:
-                        cand_digits = ''.join(filter(str.isdigit, candidate.phone))
-                        if len(cand_digits) >= 10 and cand_digits[-10:] == customer_last10:
-                            matching_lead = candidate
-                            break
+            norm = Lead.normalize_phone(customer.phone_number)
+            if norm:
+                matching_lead = Lead.objects.filter(
+                    normalized_phone=norm,
+                    status__in=['new', 'contacted', 'interested', 'future_contact'],
+                ).first()
         
         # If we found a matching lead, convert it
         if matching_lead:
@@ -659,11 +634,12 @@ def store_leg_old_values(sender, instance, **kwargs):
     if update_fields is not None and 'status' not in update_fields and 'driver' not in update_fields:
         return
     try:
-        old_instance = Leg.objects.get(pk=instance.pk)
-        instance._pre_save_old_values = {
-            'driver_id': old_instance.driver_id if old_instance.driver else None,
-            'status': old_instance.status,
-        }
+        old_vals = Leg.objects.filter(pk=instance.pk).values('status', 'driver_id').first()
+        if old_vals:
+            instance._pre_save_old_values = {
+                'driver_id': old_vals['driver_id'],
+                'status': old_vals['status'],
+            }
     except Exception:
         pass
 

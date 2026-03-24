@@ -4937,24 +4937,40 @@ def driver_payment_management(request):
 
     # ── Build annotated driver list (used for both overview + dropdown) ──
     today = timezone.localdate()
+    from django.db.models import Case, When
+
+    # Exclude cancelled legs from all unpaid counts/sums
+    _unpaid_not_cancelled = Q(legs__payment_status='unpaid') & ~Q(legs__status='cancelled')
+
     drivers_with_unpaid = (
         Driver.objects.filter(legs__payment_status='unpaid')
+        .exclude(legs__status='cancelled', legs__payment_status='unpaid')
         .select_related('profile')
         .annotate(
-            unpaid_count=Count('legs', filter=Q(legs__payment_status='unpaid')),
+            unpaid_count=Count('legs', filter=_unpaid_not_cancelled),
             completed_unpaid_count=Count(
                 'legs',
                 filter=Q(legs__payment_status='unpaid', legs__status='completed'),
             ),
+            # Match Leg.total_driver_pay logic: use base+gratuity+additional when
+            # driver_base_pay is set, otherwise fall back to driver_pay_amount
             total_owed=Sum(
-                Coalesce('legs__driver_base_pay', Value(0, output_field=DecimalField()))
-                + Coalesce('legs__driver_gratuity', Value(0, output_field=DecimalField()))
-                + Coalesce('legs__driver_additional', Value(0, output_field=DecimalField())),
-                filter=Q(legs__payment_status='unpaid'),
-                output_field=DecimalField(),
+                Case(
+                    When(
+                        legs__driver_base_pay__isnull=False,
+                        then=(
+                            Coalesce('legs__driver_base_pay', Value(0, output_field=DecimalField()))
+                            + Coalesce('legs__driver_gratuity', Value(0, output_field=DecimalField()))
+                            + Coalesce('legs__driver_additional', Value(0, output_field=DecimalField()))
+                        ),
+                    ),
+                    default=Coalesce('legs__driver_pay_amount', Value(0, output_field=DecimalField())),
+                    output_field=DecimalField(),
+                ),
+                filter=_unpaid_not_cancelled,
             ),
             oldest_unpaid_date=Min(
-                'legs__pickup_date', filter=Q(legs__payment_status='unpaid'),
+                'legs__pickup_date', filter=_unpaid_not_cancelled,
             ),
             last_payment_date=Max('payments__payment_date'),
         )
@@ -7530,7 +7546,7 @@ def route_timing_reference(request):
     if not request.user.is_staff:
         return redirect("dashboard")
 
-    from dispatching.scheduler import DRIVE_TIME_ESTIMATES
+    from dispatching.scheduler import DRIVE_TIME_ESTIMATES, DEFAULT_DRIVE_TIME
     from dispatching.analytics import (
         categorize_location, categorize_time_of_day, categorize_day_type,
         calculate_airport_dwell_time, calculate_drive_time,
@@ -7778,6 +7794,143 @@ def route_timing_reference(request):
 
     route_groups = sorted(grouped.values(), key=lambda g: -sum(r['sample_count'] for r in g['rows']))
 
+    # --- P0 enhancements: heatmap, deltas, gaps, insights ---
+
+    # 1. Heatmap matrix: overall P75 drive per (pickup, dropoff)
+    heatmap_data = {}  # {(pickup, dropoff): {'p75': X, 'samples': N, 'confidence': str}}
+    for g in grouped.values():
+        all_drive = []
+        total_samp = 0
+        for r in g['rows']:
+            total_samp += r['sample_count']
+            if r['drive'].get('p75'):
+                all_drive.extend([r['drive']['p75']] * r['sample_count'])
+            elif r['drive'].get('avg'):
+                all_drive.extend([r['drive']['avg']] * r['sample_count'])
+        overall_p75 = round(statistics.quantiles(all_drive, n=4)[2]) if len(all_drive) >= 4 else (round(statistics.median(all_drive)) if len(all_drive) >= 2 else (round(all_drive[0]) if all_drive else None))
+        conf = 'high' if total_samp >= 20 else ('medium' if total_samp >= 10 else ('low' if total_samp >= 5 else 'none'))
+        heatmap_data[(g['pickup_cat'], g['dropoff_cat'])] = {
+            'p75': overall_p75, 'samples': total_samp, 'confidence': conf,
+        }
+
+    # All location categories that appear in the data
+    heatmap_cats = sorted(set(
+        [k[0] for k in heatmap_data] + [k[1] for k in heatmap_data]
+    ))
+    # Build matrix rows for template
+    heatmap_matrix = []
+    for pickup in heatmap_cats:
+        row_cells = []
+        for dropoff in heatmap_cats:
+            cell = heatmap_data.get((pickup, dropoff))
+            row_cells.append({
+                'pickup': pickup, 'dropoff': dropoff,
+                'p75': cell['p75'] if cell else None,
+                'samples': cell['samples'] if cell else 0,
+                'confidence': cell['confidence'] if cell else 'none',
+                'hardcoded': DRIVE_TIME_ESTIMATES.get((pickup, dropoff)),
+            })
+        heatmap_matrix.append({'label': pickup, 'cells': row_cells})
+
+    # 2. P75 vs fallback deltas on each route group
+    for g in route_groups:
+        all_p75 = [r['drive']['p75'] for r in g['rows'] if r['drive'].get('p75')]
+        if all_p75:
+            # Weighted by sample count
+            weighted = []
+            for r in g['rows']:
+                if r['drive'].get('p75'):
+                    weighted.extend([r['drive']['p75']] * r['sample_count'])
+            g['best_p75'] = round(statistics.median(weighted)) if weighted else None
+        else:
+            g['best_p75'] = None
+        hc = g.get('hardcoded_drive_time')
+        if g['best_p75'] is not None and hc is not None:
+            g['delta'] = g['best_p75'] - hc
+        else:
+            g['delta'] = None
+
+    # 3. Data gaps: routes with low confidence
+    data_gaps = []
+    for g in route_groups:
+        total_samp = sum(r['sample_count'] for r in g['rows'])
+        if total_samp < 10:
+            data_gaps.append({
+                'route': f"{g['pickup_cat']} → {g['dropoff_cat']}",
+                'samples': total_samp,
+            })
+    # Also add hardcoded routes that have NO data at all
+    routes_with_data = set((g['pickup_cat'], g['dropoff_cat']) for g in route_groups)
+    for route_pair, mins in DRIVE_TIME_ESTIMATES.items():
+        if route_pair not in routes_with_data and (route_pair[1], route_pair[0]) not in routes_with_data:
+            data_gaps.append({
+                'route': f"{route_pair[0]} → {route_pair[1]}",
+                'samples': 0,
+            })
+    data_gaps.sort(key=lambda x: x['samples'])
+    data_gap_count = len(data_gaps)
+
+    # 4. Auto-generated insights (short, scannable text)
+    insights = []
+    # a) Fallback too generous or too tight
+    for g in route_groups:
+        if g['delta'] is not None:
+            route = f"{g['pickup_cat']} → {g['dropoff_cat']}"
+            if g['delta'] >= 8:
+                insights.append({
+                    'icon': 'bi-exclamation-triangle',
+                    'severity': 'danger',
+                    'text': f"{route} — P75 is {g['best_p75']}m, fallback says {g['hardcoded_drive_time']}m (+{g['delta']}m off)",
+                })
+            elif g['delta'] <= -8:
+                insights.append({
+                    'icon': 'bi-graph-down-arrow',
+                    'severity': 'success',
+                    'text': f"{route} — P75 is {g['best_p75']}m, fallback says {g['hardcoded_drive_time']}m (could tighten by {abs(g['delta'])}m)",
+                })
+    # b) Rush hour impact: routes where max P75 - min P75 > 8 min
+    for g in route_groups:
+        p75s = [(r['time_label'], r['drive']['p75']) for r in g['rows'] if r['drive'].get('p75')]
+        if len(p75s) >= 2:
+            slowest = max(p75s, key=lambda x: x[1])
+            fastest = min(p75s, key=lambda x: x[1])
+            diff = slowest[1] - fastest[1]
+            if diff >= 8:
+                # Shorten time label: "Morning Rush (7-10 AM)" → "Morning Rush"
+                slow_short = slowest[0].split('(')[0].strip()
+                fast_short = fastest[0].split('(')[0].strip()
+                insights.append({
+                    'icon': 'bi-clock-history',
+                    'severity': 'warning',
+                    'text': f"{g['pickup_cat']} → {g['dropoff_cat']} — {slow_short} +{diff}m vs {fast_short}",
+                })
+    # c) Routes with no fallback defined
+    no_fallback = [g for g in route_groups if g['hardcoded_drive_time'] is None]
+    if no_fallback:
+        names = ', '.join(f"{g['pickup_cat']} → {g['dropoff_cat']}" for g in no_fallback[:3])
+        suffix = f" +{len(no_fallback) - 3} more" if len(no_fallback) > 3 else ""
+        insights.append({
+            'icon': 'bi-question-circle',
+            'severity': 'info',
+            'text': f"{len(no_fallback)} route{'s' if len(no_fallback) != 1 else ''} using {DEFAULT_DRIVE_TIME}m default — {names}{suffix}",
+        })
+
+    # 5. Chart data per route group (JSON for Chart.js)
+    import json as _json
+    for g in route_groups:
+        chart_rows = []
+        for r in g['rows']:
+            chart_rows.append({
+                'time': r['time_label'], 'day': r['day_label'],
+                'p75_drive': r['drive'].get('p75'),
+                'med_drive': r['drive'].get('median'),
+                'avg_drive': r['drive'].get('avg'),
+                'p75_dwell': r['dwell'].get('p75'),
+                'samples': r['sample_count'],
+                'trip_type': r['trip_type'],
+            })
+        g['chart_data_json'] = _json.dumps(chart_rows)
+
     context = {
         'route_groups': route_groups,
         'pickup_categories': pickup_categories,
@@ -7800,6 +7953,12 @@ def route_timing_reference(request):
         'skipped_incomplete': skipped_incomplete,
         'skipped_excluded': skipped_excluded,
         'fallback_total_only': fallback_total_only,
+        # P0 enhancements
+        'heatmap_matrix': heatmap_matrix,
+        'heatmap_cats': heatmap_cats,
+        'data_gaps': data_gaps[:8],
+        'data_gap_count': data_gap_count,
+        'insights': insights,
     }
 
     return render(request, 'dispatching/route_timing_reference.html', context)
@@ -10388,7 +10547,7 @@ def duplicate_reservations(request):
 @require_POST
 @login_required(login_url="login")
 def cancel_duplicate_reservation(request):
-    """Cancel an unpaid duplicate reservation via AJAX."""
+    """Delete an unpaid duplicate reservation via AJAX."""
     if not request.user.is_superuser:
         return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
 
@@ -10403,32 +10562,26 @@ def cancel_duplicate_reservation(request):
 
         reservation = get_object_or_404(Reservation, uuid=reservation_uuid)
 
-        # Safety: don't cancel paid reservations
+        # Safety: don't delete paid reservations
         if reservation.payment_status == "paid":
             return JsonResponse(
-                {"success": False, "error": "Cannot cancel a paid reservation from this page. Use the refund workflow instead."},
+                {"success": False, "error": "Cannot delete a paid reservation from this page. Use the refund workflow instead."},
                 status=400,
             )
 
-        # Safety: don't cancel already-cancelled
-        if reservation.status == "cancelled":
-            return JsonResponse(
-                {"success": False, "error": "Reservation is already cancelled."},
-                status=400,
-            )
-
-        reservation.status = "cancelled"
-        reservation.save(update_fields=["status"])
+        res_id = reservation.id
+        res_name = reservation.customer.get_full_name()
+        reservation.delete()
 
         logger.info(
-            f"Cancelled duplicate reservation #{reservation.id} "
-            f"({reservation.customer.get_full_name()}) by {request.user.username}"
+            f"Deleted duplicate reservation #{res_id} "
+            f"({res_name}) by {request.user.username}"
         )
 
         return JsonResponse(
             {
                 "success": True,
-                "message": f"Reservation #{reservation.id} cancelled.",
+                "message": f"Reservation #{res_id} deleted.",
             }
         )
 

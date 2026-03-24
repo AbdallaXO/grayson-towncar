@@ -58,7 +58,12 @@ class AeroAPIService:
             return self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
 
         now = django_timezone.now().astimezone(ZoneInfo('America/New_York'))
-        hours_until = (datetime.combine(target, datetime.min.time()) - datetime.combine(now.date(), datetime.min.time())).total_seconds() / 3600
+        # Use end of target date (midnight of target+1) so a Mar 17 flight viewed at
+        # any time on Mar 15 stays above the 48h threshold and routes to /schedules/.
+        target_end = datetime.combine(target + timedelta(days=1), datetime.min.time()).replace(
+            tzinfo=ZoneInfo('America/New_York')
+        )
+        hours_until = (target_end - now).total_seconds() / 3600
 
         if hours_until > self.SCHEDULE_THRESHOLD_HOURS:
             logger.info(f"Flight {flight_ident} is {hours_until:.0f}h away — using /schedules/ endpoint")
@@ -89,9 +94,10 @@ class AeroAPIService:
         except ValueError:
             return {'error': f'Invalid date format: {flight_date}', 'status': 'error'}
 
-        # date_end must be the next day to cover the full target date
+        # date_end must be +2 days: AeroAPI uses UTC dates, and a US evening departure
+        # (e.g. 8:40 PM EDT on Mar 17 = 00:40 AM UTC Mar 18) falls outside a +1 window.
         date_start = target.isoformat()
-        date_end = (target + timedelta(days=1)).isoformat()
+        date_end = (target + timedelta(days=2)).isoformat()
 
         # Build query params — filter by airline + flight_number + airport
         params = {
@@ -132,26 +138,42 @@ class AeroAPIService:
             if not scheduled_flights:
                 return {'error': f'No scheduled flights found for {flight_ident} on {flight_date}', 'status': 'not_found'}
 
-            # Find the matching flight (prefer actual flight over codeshares)
-            best = None
-            for sched in scheduled_flights:
-                iata = sched.get('ident_iata', '') or ''
-                actual_iata = sched.get('actual_ident_iata', '') or ''
-                # Primary flight: ident_iata matches and it's not a codeshare
-                if iata == flight_ident and not actual_iata:
-                    best = sched
-                    break
-                # Codeshare pointing to our flight
-                if actual_iata == flight_ident:
-                    best = sched
-                    break
-                # Fallback: any matching ident
-                if iata == flight_ident and best is None:
-                    best = sched
+            # Select the correct flight from the results.
+            # The request ident may be ICAO (e.g. JBU351) while ident_iata in the
+            # response is the IATA code (B6351), so ident string matching is
+            # unreliable.  Instead, pick by departure date in Eastern time: the
+            # flight whose scheduled_out converts to `target` in Eastern is the one
+            # the customer booked, regardless of what the ident strings say.
+            eastern = ZoneInfo('America/New_York')
 
-            if not best:
-                # Use first result as last resort
-                best = scheduled_flights[0]
+            def _depart_date_eastern(sched):
+                """Return the Eastern date of scheduled_out, or None."""
+                sout = sched.get('scheduled_out')
+                if not sout:
+                    return None
+                try:
+                    dt = datetime.fromisoformat(sout.replace('Z', '+00:00'))
+                    return dt.astimezone(eastern).date()
+                except Exception:
+                    return None
+
+            # Sort all results by departure date ascending so deterministic
+            on_target = [s for s in scheduled_flights if _depart_date_eastern(s) == target]
+            if on_target:
+                best = on_target[0]
+                logger.info(f"Schedules: selected flight departing {target} Eastern (of {len(scheduled_flights)} results)")
+            else:
+                # Nothing departs on target date — pick the soonest flight after target
+                after_target = sorted(
+                    [s for s in scheduled_flights if (_depart_date_eastern(s) or date.min) > target],
+                    key=lambda s: _depart_date_eastern(s) or date.max,
+                )
+                if after_target:
+                    best = after_target[0]
+                    logger.warning(f"Schedules: no flight departing {target} Eastern, using next available: {_depart_date_eastern(best)}")
+                else:
+                    best = scheduled_flights[0]
+                    logger.warning(f"Schedules: falling back to first result for {flight_ident}")
 
             return self._parse_scheduled_data(best, trip_type=trip_type)
 

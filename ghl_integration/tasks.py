@@ -66,23 +66,21 @@ def sync_lead_to_ghl_and_send_sms(lead_id, _attempt=1, _max_retries=3):
             # Skip if another lead with same phone already has an active sequence
             # or was already contacted (prevents spamming the same person twice)
             if lead.phone:
-                digits = ''.join(filter(str.isdigit, lead.phone))
-                if len(digits) >= 10:
-                    last10 = digits[-10:]
-                    other_contacted = Lead.objects.filter(
+                norm = Lead.normalize_phone(lead.phone)
+                if norm:
+                    dupe = Lead.objects.filter(
+                        normalized_phone=norm,
                         initial_sms_sent=True,
-                    ).exclude(id=lead.id).exclude(phone__isnull=True).exclude(phone="")
-                    for other in other_contacted:
-                        other_digits = ''.join(filter(str.isdigit, other.phone))
-                        if len(other_digits) >= 10 and other_digits[-10:] == last10:
-                            logger.info(
-                                f"Lead #{lead_id} shares phone with Lead #{other.id} "
-                                f"(already contacted), skipping duplicate SMS"
-                            )
-                            lead.initial_sms_sent = True  # Mark so it doesn't get retried
-                            lead.initial_sms_sent_at = timezone.now()
-                            lead.save(update_fields=["initial_sms_sent", "initial_sms_sent_at"])
-                            return {"status": "skipped", "reason": "duplicate_phone", "lead_id": lead_id}
+                    ).exclude(id=lead.id).only("id").first()
+                    if dupe:
+                        logger.info(
+                            f"Lead #{lead_id} shares phone with Lead #{dupe.id} "
+                            f"(already contacted), skipping duplicate SMS"
+                        )
+                        lead.initial_sms_sent = True  # Mark so it doesn't get retried
+                        lead.initial_sms_sent_at = timezone.now()
+                        lead.save(update_fields=["initial_sms_sent", "initial_sms_sent_at"])
+                        return {"status": "skipped", "reason": "duplicate_phone", "lead_id": lead_id}
 
             if not lead.phone:
                 # No phone number — go straight to email fallback

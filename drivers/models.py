@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 from reservations.models import Leg
 from decimal import Decimal
@@ -50,14 +51,30 @@ class Driver(models.Model):
         return self.legs.filter(payment_status="unpaid")
 
     def get_total_unpaid_amount(self):
-        """Calculate total unpaid amount for this driver"""
-        total = Decimal("0.00")
-        for leg in self.get_unpaid_legs():
-            if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None:
-                total += (leg.driver_base_pay or Decimal("0.00")) + (leg.driver_gratuity or Decimal("0.00")) + (leg.driver_additional or Decimal("0.00"))
-            else:
-                total += leg.driver_pay_amount or Decimal("0.00")
-        return total
+        """Calculate total unpaid amount for this driver using a single DB aggregate."""
+        from django.db.models import Case, When, Sum, Value, F
+        from django.db.models.functions import Coalesce
+
+        result = self.get_unpaid_legs().aggregate(
+            total=Sum(
+                Case(
+                    When(
+                        # New-style: any of base/gratuity/additional is set
+                        Q(driver_base_pay__isnull=False)
+                        | Q(driver_gratuity__isnull=False)
+                        | Q(driver_additional__isnull=False),
+                        then=(
+                            Coalesce(F("driver_base_pay"), Value(Decimal("0.00")))
+                            + Coalesce(F("driver_gratuity"), Value(Decimal("0.00")))
+                            + Coalesce(F("driver_additional"), Value(Decimal("0.00")))
+                        ),
+                    ),
+                    # Legacy fallback
+                    default=Coalesce(F("driver_pay_amount"), Value(Decimal("0.00"))),
+                )
+            )
+        )
+        return result["total"] or Decimal("0.00")
 
     def get_leg_history(self, start_date=None, end_date=None):
         """
@@ -375,58 +392,43 @@ class DriverPayment(models.Model):
 
             logger.info(f"Created payment ID: {payment.id}")
 
-            # Create the leg payment records
+            # Build leg payment records in bulk
+            leg_payment_objects = []
+            leg_ids = []
             for leg in legs:
-                try:
-                    # Get base pay, gratuity, and additional from leg
-                    if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None:
-                        leg_base = leg.driver_base_pay or Decimal("0.00")
-                        leg_gratuity = leg.driver_gratuity or Decimal("0.00")
-                        leg_additional = leg.driver_additional or Decimal("0.00")
-                        leg_amount = leg_base + leg_gratuity + leg_additional
-                    else:
-                        # Fallback to legacy field
-                        leg_amount = leg.driver_pay_amount or Decimal("0.00")
-                        leg_base = None
-                        leg_gratuity = None
-                        leg_additional = None
+                if leg.driver_base_pay is not None or leg.driver_gratuity is not None or leg.driver_additional is not None:
+                    leg_base = leg.driver_base_pay or Decimal("0.00")
+                    leg_gratuity = leg.driver_gratuity or Decimal("0.00")
+                    leg_additional = leg.driver_additional or Decimal("0.00")
+                    leg_amount = leg_base + leg_gratuity + leg_additional
+                else:
+                    leg_amount = leg.driver_pay_amount or Decimal("0.00")
+                    leg_base = None
+                    leg_gratuity = None
+                    leg_additional = None
 
-                    # Log leg details before creating the payment
-                    logger.info(
-                        f"Processing leg ID: {leg.id}, Amount: ${leg_amount}, "
-                        f"Base: ${leg_base}, Gratuity: ${leg_gratuity}, Additional: ${leg_additional}"
-                    )
+                logger.info(
+                    f"Processing leg ID: {leg.id}, Amount: ${leg_amount}, "
+                    f"Base: ${leg_base}, Gratuity: ${leg_gratuity}, Additional: ${leg_additional}"
+                )
 
-                    # Create the leg payment record explicitly
-                    leg_payment = LegPayment(
-                        payment=payment,
-                        leg=leg,
-                        amount=leg_amount,
-                        base_pay=leg_base,
-                        gratuity=leg_gratuity,
-                        additional=leg_additional,
-                    )
-                    leg_payment.save()
+                leg_payment_objects.append(LegPayment(
+                    payment=payment,
+                    leg=leg,
+                    amount=leg_amount,
+                    base_pay=leg_base,
+                    gratuity=leg_gratuity,
+                    additional=leg_additional,
+                ))
+                leg_ids.append(leg.id)
 
-                    logger.info(f"Created LegPayment ID: {leg_payment.id}")
+            # Bulk insert all LegPayment records (1 INSERT instead of N)
+            LegPayment.objects.bulk_create(leg_payment_objects)
+            logger.info(f"Bulk-created {len(leg_payment_objects)} LegPayment records")
 
-                except Exception as e:
-                    logger.error(
-                        f"Error creating LegPayment for leg {leg.id}: {e}",
-                        exc_info=True,
-                    )
-                    # Re-raise the exception to trigger transaction rollback
-                    raise
-
-                # Update leg status directly to avoid triggering signals
-                try:
-                    Leg.objects.filter(id=leg.id).update(payment_status="paid")
-                    logger.info(f"Updated leg {leg.id} to paid status")
-                except Exception as e:
-                    logger.error(
-                        f"Error updating leg {leg.id} status: {e}", exc_info=True
-                    )
-                    raise
+            # Bulk update all legs to paid status (1 UPDATE instead of N)
+            Leg.objects.filter(id__in=leg_ids).update(payment_status="paid")
+            logger.info(f"Updated {len(leg_ids)} legs to paid status")
 
             # Verify all LegPayment records were created
             payment_refresh = cls.objects.get(id=payment.id)

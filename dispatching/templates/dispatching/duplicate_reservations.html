@@ -28,7 +28,7 @@
           <div class="d-flex gap-2 align-items-center">
             {% if total_unpaid > 0 %}
             <button class="btn btn-sm btn-danger" id="cancelAllBtn" onclick="cancelAll()">
-              <i class="bi bi-x-circle me-1"></i>Cancel All {{ total_unpaid }} Unpaid
+              <i class="bi bi-trash me-1"></i>Delete All {{ total_unpaid }} Unpaid
             </button>
             {% endif %}
             <a href="{% url 'dashboard' %}" class="btn btn-sm btn-dark">
@@ -149,7 +149,7 @@
                   <button class="btn btn-sm btn-outline-danger cancel-btn py-0 px-2"
                           style="font-size: 0.75rem;"
                           onclick="cancelOne(this, '{{ res.uuid }}', {{ res.id }})">
-                    <i class="bi bi-x-circle me-1"></i>Cancel
+                    <i class="bi bi-trash me-1"></i>Delete
                   </button>
                 </td>
               </tr>
@@ -176,14 +176,14 @@
     <div class="modal-dialog modal-sm">
       <div class="modal-content">
         <div class="modal-header py-2">
-          <h6 class="modal-title">Confirm Cancellation</h6>
+          <h6 class="modal-title">Confirm Deletion</h6>
           <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body py-2" id="confirmModalBody" style="font-size: 0.88rem;">
         </div>
         <div class="modal-footer py-1">
           <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">No, keep it</button>
-          <button type="button" class="btn btn-sm btn-danger" id="confirmModalYes">Yes, cancel it</button>
+          <button type="button" class="btn btn-sm btn-danger" id="confirmModalYes">Yes, delete it</button>
         </div>
       </div>
     </div>
@@ -197,8 +197,8 @@ const csrfToken = '{{ csrf_token }}';
 function cancelOne(btn, uuid, resId) {
   const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
   document.getElementById('confirmModalBody').innerHTML =
-    `Cancel Reservation <strong>#${resId}</strong>?<br>
-     <small class="text-muted">Sets status to "cancelled". Reversible.</small>`;
+    `Delete Reservation <strong>#${resId}</strong>?<br>
+     <small class="text-danger">This is permanent and cannot be undone.</small>`;
 
   document.getElementById('confirmModalYes').onclick = async function() {
     modal.hide();
@@ -243,8 +243,8 @@ function cancelAll() {
 
   const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
   document.getElementById('confirmModalBody').innerHTML =
-    `Cancel <strong>all ${rows.length} unpaid duplicates</strong>?<br>
-     <small class="text-muted">Each set to "cancelled". Reversible.</small>`;
+    `Delete <strong>all ${rows.length} unpaid duplicates</strong>?<br>
+     <small class="text-danger">This is permanent and cannot be undone.</small>`;
 
   document.getElementById('confirmModalYes').onclick = async function() {
     modal.hide();
@@ -283,7 +283,7 @@ function cancelAll() {
       }
     }
 
-    cancelAllBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>${success} cancelled${fail ? ', ' + fail + ' failed' : ''}`;
+    cancelAllBtn.innerHTML = `<i class="bi bi-check-circle me-1"></i>${success} deleted${fail ? ', ' + fail + ' failed' : ''}`;
     cancelAllBtn.classList.replace('btn-danger', 'btn-success');
   };
   modal.show();

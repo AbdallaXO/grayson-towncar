@@ -261,6 +261,7 @@ class Reservation(models.Model):
             models.Index(fields=["created_at"]),
             models.Index(fields=["status"]),
             models.Index(fields=["refund_status"]),
+            models.Index(fields=["travel_agent", "status"]),
         ]
 
     def save(self, *args, **kwargs):
@@ -535,7 +536,7 @@ class Reservation(models.Model):
         
         if all_completed:
             self.status = 'completed'
-            self.save()
+            self.save(update_fields=['status'])
             return True
             
         return False
@@ -821,7 +822,7 @@ class Leg(models.Model):
         # Round to 2 decimal places
         return revenue_share.quantize(Decimal("0.01"))
 
-    @property
+    @cached_property
     def total_driver_pay(self):
         """
         Calculate total driver pay from base_pay + gratuity + additional, or fallback to driver_pay_amount
@@ -1452,6 +1453,10 @@ class Lead(models.Model):
     last_name = models.CharField(max_length=100, blank=True)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    normalized_phone = models.CharField(
+        max_length=10, blank=True, db_index=True,
+        help_text="Last 10 digits of phone (auto-populated on save). Used for fast dedup lookups.",
+    )
 
     # Trip Details
     vehicle = models.ForeignKey(
@@ -1548,6 +1553,24 @@ class Lead(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Lead"
         verbose_name_plural = "Leads"
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["pickup_date"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["status", "pickup_date"]),
+        ]
+
+    @staticmethod
+    def normalize_phone(raw):
+        """Extract last 10 digits from a phone string."""
+        if not raw:
+            return ""
+        digits = "".join(filter(str.isdigit, raw))
+        return digits[-10:] if len(digits) >= 10 else ""
+
+    def save(self, *args, **kwargs):
+        self.normalized_phone = self.normalize_phone(self.phone)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         name = f"{self.first_name} {self.last_name}".strip()

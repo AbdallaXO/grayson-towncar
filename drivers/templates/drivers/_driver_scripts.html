@@ -31,6 +31,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // Prevent browser from restoring scroll position on reload
+    if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+    }
+
     const csrfToken = "{{ csrf_token }}";
     let currentLegId = null;
 
@@ -60,12 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.head.appendChild(style);
     }
 
-    // ── Maps navigation helper ──
+    // ── Maps navigation helper (always Google Maps) ──
     window.getNavUrl = function(address) {
-        const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        return ios
-            ? 'https://maps.apple.com/?daddr=' + encodeURIComponent(address)
-            : 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
+        return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address);
     };
 
     // Wire up all navigate buttons (use anchor click to avoid iOS Safari blank page)
@@ -117,33 +119,39 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify({ status: newStatus, ...extraData })
-        }).then(res => res.json());
+        }).then(res => {
+            if (!res.ok) throw new Error('Server error ' + res.status);
+            return res.json();
+        });
     }
 
     function sendStatusWithGPS(legId, newStatus) {
-        return new Promise((resolve) => {
-            if (!GPS_STATUSES.includes(newStatus) || !navigator.geolocation) {
-                sendStatusUpdate(legId, newStatus).then(resolve);
-                return;
-            }
-            // Try to capture GPS (5s timeout), send with or without it
+        // Fire status update immediately — never wait for GPS
+        const statusPromise = sendStatusUpdate(legId, newStatus);
+
+        // Capture GPS in the background and send separately if available
+        if (GPS_STATUSES.includes(newStatus) && navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    sendStatusUpdate(legId, newStatus, {
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        accuracy: pos.coords.accuracy,
-                        heading: pos.coords.heading,
-                        speed: pos.coords.speed,
-                    }).then(resolve);
+                    fetch("{% url 'driver_report_location' %}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify({
+                            leg_id: legId,
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude,
+                            accuracy: pos.coords.accuracy,
+                            heading: pos.coords.heading,
+                            speed: pos.coords.speed,
+                        })
+                    }).catch(() => {}); // best-effort, don't block
                 },
-                () => {
-                    // GPS denied or failed — send without coordinates
-                    sendStatusUpdate(legId, newStatus).then(resolve);
-                },
-                { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+                () => {}, // GPS failed — that's fine
+                { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
             );
-        });
+        }
+
+        return statusPromise;
     }
 
     // ── Status select change handler ──
@@ -155,13 +163,12 @@ document.addEventListener('DOMContentLoaded', () => {
             sendStatusWithGPS(legId, newStatus)
             .then(data => {
                 if (data.success) {
-                    // Start or stop GPS tracking based on new status
                     if (GPS_STATUSES.includes(newStatus)) { startTracking(legId, false); } else { stopTracking(legId); }
                     showToast(`Status updated to ${newStatus.replace(/-/g, ' ')}`, 'success');
-                    setTimeout(() => window.location.reload(), 800);
+                    setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
                 } else {
                     showToast('Error: ' + (data.error || 'Unknown error'), 'danger');
-                    window.location.reload();
+                    setTimeout(() => window.location.reload(), 1000);
                 }
             })
             .catch(() => {
@@ -187,12 +194,16 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = true;
             btn.style.opacity = '0.7';
 
+            // Failsafe: if anything hangs, force reload after 10s
+            const failsafe = setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 10000);
+
             sendStatusWithGPS(legId, nextStatus)
             .then(data => {
+                clearTimeout(failsafe);
                 if (data.success) {
                     if (GPS_STATUSES.includes(nextStatus)) { startTracking(legId); } else { stopTracking(legId); }
                     showToast(`Status updated to ${nextStatus.replace(/-/g, ' ')}`, 'success');
-                    setTimeout(() => window.location.reload(), 800);
+                    setTimeout(() => { window.scrollTo(0,0); window.location.reload(); }, 600);
                 } else {
                     btn.innerHTML = originalHtml;
                     btn.disabled = false;
@@ -201,6 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             })
             .catch(error => {
+                clearTimeout(failsafe);
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
                 btn.style.opacity = '1';
@@ -521,6 +533,8 @@ document.addEventListener('DOMContentLoaded', () => {
         var current = document.documentElement.getAttribute('data-theme') || 'light';
         var next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
+        document.documentElement.style.backgroundColor = '';
+        document.documentElement.style.colorScheme = next;
         localStorage.setItem('gt-theme', next);
         updateThemeIcons(next);
     }

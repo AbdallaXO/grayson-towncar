@@ -6,8 +6,12 @@
     var saved = localStorage.getItem('gt-theme');
     if (!saved) saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', saved);
+    // Set bg immediately to prevent white flash on dark mode
+    document.documentElement.style.backgroundColor = saved === 'dark' ? '#111318' : '#f4f5f7';
+    document.documentElement.style.colorScheme = saved;
 })();
 </script>
+<style>html{transition:background-color 0s}body{transition:background-color .15s ease,color .15s ease}</style>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

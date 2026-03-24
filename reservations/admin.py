@@ -6,7 +6,7 @@ from django.contrib import admin
 from django import forms
 from django.utils.html import format_html
 from django.utils import timezone
-from django.db.models import Min, Count, Q, Max, Subquery, OuterRef
+from django.db.models import Min, Count, Q, Max, Subquery, OuterRef, Case, When
 from django.urls import reverse
 from django.contrib.admin import SimpleListFilter
 from django.contrib.admin.actions import delete_selected
@@ -883,6 +883,7 @@ class CustomerAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
 
 @admin.register(Reservation)
 class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportModelAdmin):
+    show_full_result_count = False
     ordering = ("-id",)
     resource_class = ReservationResource
     inlines = [LegInline]
@@ -1269,6 +1270,7 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
 
 @admin.register(Leg)
 class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
+    show_full_result_count = False
     resource_class = LegResource
     form = LegAdminForm
     list_display = (
@@ -1615,13 +1617,14 @@ except ImportError:
 class LeadAdmin(admin.ModelAdmin):
     """
     Lead management with automatic conversion tracking.
-    
+
     Features:
     - Automatic conversion when reservations are created (matching by email/phone)
     - Visual status indicators with background colors
     - Bulk actions for lead management
     - Conversion tracking and analytics
     """
+    show_full_result_count = False
     inlines = [QuoteInline] + ([FollowUpTaskInline] if _FOLLOWUP_INLINE_AVAILABLE else [])
     list_display = (
         "full_name",
@@ -1770,64 +1773,59 @@ class LeadAdmin(admin.ModelAdmin):
         return qs
 
     def changelist_view(self, request, extra_context=None):
-        """Customize the changelist view with additional context"""
+        """Customize the changelist view with additional context — single aggregate query."""
         extra_context = extra_context or {}
-        
-        # Get stats from ALL leads (not just the current page)
+
         today = timezone.now().date()
-        
-        # Use the base model manager to get ALL leads, not filtered by admin
         from .models import Lead
-        all_leads = Lead.objects.all()
-        
-        # Calculate summary statistics from all leads
-        # Lead source breakdown
-        meta_fbclid_count = all_leads.filter(fbclid__isnull=False).count()
-        google_gclid_count = all_leads.filter(gclid__isnull=False).count()
-        facebook_utm_count = all_leads.filter(
-            Q(utm_source__icontains="facebook") | Q(utm_source__icontains="fb")
-        ).exclude(fbclid__isnull=False).count()  # Exclude ones already counted by fbclid
-        meta_utm_count = all_leads.filter(utm_source__icontains="meta").exclude(fbclid__isnull=False).count()
-        total_meta_leads = meta_fbclid_count + facebook_utm_count + meta_utm_count
-        
-        extra_context.update({
-            "total_leads": all_leads.count(),
-            "leads_tomorrow": all_leads.filter(pickup_date=today + timedelta(days=1)).count(),
-            "leads_this_week": all_leads.filter(
-                pickup_date__gte=today,
-                pickup_date__lte=today + timedelta(days=6)
-            ).count(),
-            "leads_next_week": all_leads.filter(
-                pickup_date__gte=today + timedelta(days=7),
-                pickup_date__lte=today + timedelta(days=13)
-            ).count(),
-            "leads_next_30_days": all_leads.filter(
-                pickup_date__gte=today,
-                pickup_date__lte=today + timedelta(days=30)
-            ).exclude(status__in=["converted", "lost"]).count(),
-            "leads_next_60_days": all_leads.filter(
-                pickup_date__gte=today,
-                pickup_date__lte=today + timedelta(days=60)
-            ).exclude(status__in=["converted", "lost"]).count(),
-            "urgent_leads": all_leads.filter(
-                pickup_date__gte=today,
-                pickup_date__lte=today + timedelta(days=7)
-            ).exclude(status__in=["converted", "lost"]).count(),
-            "contacted_leads": all_leads.filter(status="contacted").count(),
-            "new_leads": all_leads.filter(status="new").count(),
-            "converted_leads": all_leads.filter(status="converted").count(),
-            "lost_leads": all_leads.filter(status="lost").count(),
-            "conversion_rate": round(
-                (all_leads.filter(status="converted").count() / max(all_leads.count(), 1)) * 100, 1
-            ),
-            # Lead source statistics
-            "meta_fbclid_leads": meta_fbclid_count,
-            "google_gclid_leads": google_gclid_count,
-            "facebook_utm_leads": facebook_utm_count,
-            "meta_utm_leads": meta_utm_count,
-            "total_meta_leads": total_meta_leads,
-        })
-        
+
+        active_excl = ~Q(status__in=["converted", "lost"])
+
+        # One query instead of ~15 separate .count() calls
+        stats = Lead.objects.aggregate(
+            total_leads=Count("id"),
+            leads_tomorrow=Count(Case(When(pickup_date=today + timedelta(days=1), then=1))),
+            leads_this_week=Count(Case(When(
+                pickup_date__gte=today, pickup_date__lte=today + timedelta(days=6), then=1
+            ))),
+            leads_next_week=Count(Case(When(
+                pickup_date__gte=today + timedelta(days=7), pickup_date__lte=today + timedelta(days=13), then=1
+            ))),
+            leads_next_30_days=Count(Case(When(
+                active_excl, pickup_date__gte=today, pickup_date__lte=today + timedelta(days=30), then=1
+            ))),
+            leads_next_60_days=Count(Case(When(
+                active_excl, pickup_date__gte=today, pickup_date__lte=today + timedelta(days=60), then=1
+            ))),
+            urgent_leads=Count(Case(When(
+                active_excl, pickup_date__gte=today, pickup_date__lte=today + timedelta(days=7), then=1
+            ))),
+            contacted_leads=Count(Case(When(status="contacted", then=1))),
+            new_leads=Count(Case(When(status="new", then=1))),
+            converted_leads=Count(Case(When(status="converted", then=1))),
+            lost_leads=Count(Case(When(status="lost", then=1))),
+            # Lead source stats
+            meta_fbclid_leads=Count(Case(When(fbclid__isnull=False, then=1))),
+            google_gclid_leads=Count(Case(When(gclid__isnull=False, then=1))),
+            facebook_utm_leads=Count(Case(When(
+                Q(utm_source__icontains="facebook") | Q(utm_source__icontains="fb"),
+                fbclid__isnull=True, then=1
+            ))),
+            meta_utm_leads=Count(Case(When(
+                utm_source__icontains="meta", fbclid__isnull=True, then=1
+            ))),
+        )
+
+        total = stats["total_leads"] or 1
+        converted = stats["converted_leads"] or 0
+        meta_fbclid = stats["meta_fbclid_leads"] or 0
+        facebook_utm = stats["facebook_utm_leads"] or 0
+        meta_utm = stats["meta_utm_leads"] or 0
+
+        stats["conversion_rate"] = round((converted / max(total, 1)) * 100, 1)
+        stats["total_meta_leads"] = meta_fbclid + facebook_utm + meta_utm
+
+        extra_context.update(stats)
         return super().changelist_view(request, extra_context)
 
     # Display Methods
