@@ -85,7 +85,7 @@
       .timeline-slot .tl-status-strip {
           position: absolute;
           bottom: 0; left: 0; right: 0;
-          height: 4px;
+          height: 5px;
           border-radius: 0 0 3px 3px;
       }
       .timeline-slot .tl-status-strip.st-completed { background: #fff; }
@@ -95,6 +95,28 @@
       .timeline-slot .tl-status-strip.st-confirmed { background: #40c4ff; }
       .timeline-slot .tl-status-strip.st-in-progress { background: rgba(255,255,255,0.25); }
       .timeline-slot .tl-status-strip.st-cancelled { background: #ff1744; }
+      /* Status abbreviation badge inside slot */
+      .timeline-slot .tl-status-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.42rem;
+          font-weight: 800;
+          letter-spacing: 0.03em;
+          line-height: 1;
+          padding: 2px 3px;
+          border-radius: 3px;
+          margin-left: 3px;
+          vertical-align: middle;
+          text-transform: uppercase;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+      }
+      .tl-status-badge.stb-picked-up { background: #00e676; color: #0a3d1e; }
+      .tl-status-badge.stb-on-location { background: #ffea00; color: #3d3500; }
+      .tl-status-badge.stb-on-the-way { background: #ff9100; color: #fff; }
+      .tl-status-badge.stb-confirmed { background: #40c4ff; color: #003148; }
+      .tl-status-badge.stb-completed { background: rgba(0,0,0,0.25); color: #fff; }
+      .tl-status-badge.stb-cancelled { background: #ff1744; color: #fff; }
       .timeline-hour-markers {
           display: flex;
           padding-left: 120px;
@@ -776,25 +798,46 @@
                           <!-- Key Flight Details (Always Visible) -->
                           <div class="mb-2">
 
-                            {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
+                            {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
                               <div class="d-flex flex-column gap-1">
-                                {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                  <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-muted small me-2">Scheduled Arrival:</span>
-                                    <span class="fw-semibold">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
-                                  </div>
-                                {% endif %}
                                 {% if leg.flight_information.actual_gate_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-success small me-2 fw-bold">Arrived:</span>
+                                    <span class="text-success small me-2 fw-bold"><i class="bi bi-check-circle me-1"></i>Arrived:</span>
                                     <span class="fw-bold text-success">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
+                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                    <div class="d-flex flex-wrap align-items-center">
+                                      <span class="text-muted me-2" style="font-size:0.8rem;">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                    </div>
+                                  {% endif %}
                                 {% elif leg.flight_information.estimated_gate_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
                                     <span class="text-primary small me-2 fw-bold">
                                       <i class="bi bi-clock-history me-1"></i>Arriving:
                                     </span>
                                     <span class="fw-bold text-primary">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
+                                  </div>
+                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                    <div class="d-flex flex-wrap align-items-center">
+                                      <span class="text-muted me-2" style="font-size:0.8rem;">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                    </div>
+                                  {% endif %}
+                                {% elif leg.flight_information.estimated_arrival_local %}
+                                  <div class="d-flex flex-wrap align-items-center">
+                                    <span class="text-primary small me-2 fw-bold">
+                                      <i class="bi bi-clock-history me-1"></i>Arriving:
+                                    </span>
+                                    <span class="fw-bold text-primary">{{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</span>
+                                  </div>
+                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                    <div class="d-flex flex-wrap align-items-center">
+                                      <span class="text-muted me-2" style="font-size:0.8rem;">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                    </div>
+                                  {% endif %}
+                                {% elif leg.flight_information.scheduled_gate_arrival_local %}
+                                  <div class="d-flex flex-wrap align-items-center">
+                                    <span class="text-muted small me-2">Scheduled Arrival:</span>
+                                    <span class="fw-semibold">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% endif %}
                               </div>
@@ -3128,6 +3171,7 @@
               window._gapPopupActive = false;
               hideTimer = setTimeout(function() {
                   gapPopup.classList.remove('visible');
+                  gapPopup.style.pointerEvents = 'none';
                   activeGapEl = null;
               }, 450);
           }
@@ -3135,6 +3179,7 @@
               keepOpen();
               pinned = false;
               gapPopup.classList.remove('visible');
+              gapPopup.style.pointerEvents = 'none';
               activeGapEl = null;
               window._gapPopupActive = false;
           }
@@ -3183,6 +3228,7 @@
 
           function showGapPopup(el, fromClick) {
               keepOpen();
+              gapPopup.style.pointerEvents = '';
               if (activeGapEl === el && !fromClick) return;
               activeGapEl = el;
               window._gapPopupActive = true;

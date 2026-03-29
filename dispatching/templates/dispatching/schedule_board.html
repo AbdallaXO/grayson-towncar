@@ -49,7 +49,7 @@
       .timeline-slot.other { background: #6a1b9a; }
       .timeline-slot .tl-status-strip {
           position: absolute; bottom: 0; left: 0; right: 0;
-          height: 4px; border-radius: 0 0 3px 3px;
+          height: 5px; border-radius: 0 0 3px 3px;
       }
       .timeline-slot .tl-status-strip.st-completed { background: #fff; }
       .timeline-slot .tl-status-strip.st-picked-up { background: #00e676; }
@@ -58,6 +58,20 @@
       .timeline-slot .tl-status-strip.st-confirmed { background: #40c4ff; }
       .timeline-slot .tl-status-strip.st-in-progress { background: rgba(255,255,255,0.25); }
       .timeline-slot .tl-status-strip.st-cancelled { background: #ff1744; }
+      /* Status abbreviation badge inside slot */
+      .timeline-slot .tl-status-badge {
+          display: inline-flex; align-items: center; justify-content: center;
+          font-size: 0.42rem; font-weight: 800; letter-spacing: 0.03em;
+          line-height: 1; padding: 2px 3px; border-radius: 3px;
+          margin-left: 3px; vertical-align: middle; text-transform: uppercase;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+      }
+      .tl-status-badge.stb-picked-up { background: #00e676; color: #0a3d1e; }
+      .tl-status-badge.stb-on-location { background: #ffea00; color: #3d3500; }
+      .tl-status-badge.stb-on-the-way { background: #ff9100; color: #fff; }
+      .tl-status-badge.stb-confirmed { background: #40c4ff; color: #003148; }
+      .tl-status-badge.stb-completed { background: rgba(0,0,0,0.25); color: #fff; }
+      .tl-status-badge.stb-cancelled { background: #ff1744; color: #fff; }
       .timeline-hour-markers {
           position: relative; height: 18px;
           margin-left: 160px; margin-bottom: 2px;
@@ -203,7 +217,7 @@
                          data-status-ago="{{ uslot.status_ago }}"
                          data-flight="{{ uslot.flight_info|default:'' }}"
                          data-vehicle="{{ uslot.vehicle_type|default:'' }}">
-                      {{ uslot.pickup_display }}
+                      {{ uslot.pickup_display }}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -242,7 +256,7 @@
                          data-status-ago="{{ slot.status_ago }}"
                          data-flight="{{ slot.flight_info|default:'' }}"
                          data-vehicle="{{ slot.vehicle_type|default:'' }}">
-                      {{ slot.pickup_time|time:"g:i" }}
+                      {{ slot.pickup_time|time:"g:i" }}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -259,10 +273,10 @@
           <small><span style="display:inline-block;width:10px;height:10px;background:#e65100;border-radius:2px;"></span> Cruise</small>
           <small><span style="display:inline-block;width:10px;height:10px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
           <small class="text-muted">|</small>
-          <small><span style="display:inline-block;width:10px;height:4px;background:#00e676;border-radius:1px;vertical-align:middle;"></span> Picked Up</small>
-          <small><span style="display:inline-block;width:10px;height:4px;background:#ffea00;border-radius:1px;vertical-align:middle;"></span> On Location</small>
-          <small><span style="display:inline-block;width:10px;height:4px;background:#ff9100;border-radius:1px;vertical-align:middle;"></span> On the Way</small>
-          <small><span style="display:inline-block;width:10px;height:4px;background:#40c4ff;border-radius:1px;vertical-align:middle;"></span> Confirmed</small>
+          <small><span style="display:inline-block;width:10px;height:5px;background:#00e676;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-picked-up" style="font-size:0.5rem;">PU</span> Picked Up</small>
+          <small><span style="display:inline-block;width:10px;height:5px;background:#ffea00;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-on-location" style="font-size:0.5rem;">OL</span> On Location</small>
+          <small><span style="display:inline-block;width:10px;height:5px;background:#ff9100;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-on-the-way" style="font-size:0.5rem;">OTW</span> On the Way</small>
+          <small><span style="display:inline-block;width:10px;height:5px;background:#40c4ff;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-confirmed" style="font-size:0.5rem;">C</span> Confirmed</small>
           <small class="text-muted">|</small>
           <small class="text-muted"><i class="bi bi-grip-vertical"></i> Drag jobs between drivers</small>
         </div>

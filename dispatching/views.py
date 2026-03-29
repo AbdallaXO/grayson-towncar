@@ -3107,14 +3107,31 @@ def refresh_flight_data(request):
         elif scheduled_gate_arrival and scheduled_gate_arrival > now:
             is_future_flight = True
 
-        if is_future_flight:
-            # For future flights, clear actual AND estimated times — they may be stale
-            # from a previous day's instance of the same recurring flight number
+        # Check if scheduled on a different day (truly future, not just later today)
+        ref_dt = scheduled_gate_arrival or scheduled_arrival
+        is_different_day = ref_dt and ref_dt.date() != now.date()
+
+        if is_future_flight and is_different_day:
+            # Different-day future flight: clear actuals AND estimated to prevent stale
+            # data from a previous day's instance of the same recurring flight number
             flight.estimated_arrival_local = None
             flight.estimated_gate_arrival_local = None
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
-            logger.info(f"Cleared stale actual/estimated arrival times for future flight (leg {leg.id})")
+            logger.info(f"Cleared stale actual/estimated arrival times for future flight on different day (leg {leg.id})")
+        elif is_future_flight:
+            # Same-day future flight (hasn't landed yet): update estimated from AeroAPI,
+            # clear actuals only
+            estimated_arrival = flight_data.get('estimated_arrival_local')
+            if estimated_arrival is not None:
+                flight.estimated_arrival_local = estimated_arrival
+
+            estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
+            if estimated_gate_arrival is not None:
+                flight.estimated_gate_arrival_local = estimated_gate_arrival
+
+            flight.actual_arrival_local = None
+            flight.actual_gate_arrival_local = None
         else:
             # For past/current flights, update estimated and actual times if provided
             estimated_arrival = flight_data.get('estimated_arrival_local')
@@ -3560,7 +3577,7 @@ def _refresh_single_flight(leg):
         flight.scheduled_gate_arrival_local = flight_data.get("scheduled_gate_arrival_local")
         flight.estimated_gate_arrival_local = flight_data.get("estimated_gate_arrival_local")
 
-        # Handle actual arrival times - always update to clear old data
+        # Handle actual arrival times based on flight timing
         now = timezone.now()
         scheduled_arrival = flight.scheduled_arrival_local
         scheduled_gate_arrival = flight.scheduled_gate_arrival_local
@@ -3571,18 +3588,29 @@ def _refresh_single_flight(leg):
         elif scheduled_gate_arrival and scheduled_gate_arrival > now:
             is_future_flight = True
 
-        if is_future_flight:
-            # Clear actual AND estimated times for future flights — prevents stale data
-            # from a previous day's instance of the same recurring flight number
+        # Check if scheduled on a different day (truly future, not just later today)
+        is_different_day = False
+        ref_dt = scheduled_gate_arrival or scheduled_arrival
+        if ref_dt and ref_dt.date() != now.date():
+            is_different_day = True
+
+        if is_future_flight and is_different_day:
+            # Different-day future flight: clear actuals AND estimated to prevent stale
+            # data from a previous day's instance of the same recurring flight number
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
             flight.estimated_arrival_local = None
             flight.estimated_gate_arrival_local = None
             logger.info(
-                f"Cleared stale actual/estimated arrival times for future flight (leg {leg.id})"
+                f"Cleared stale actual/estimated arrival times for future flight on different day (leg {leg.id})"
             )
+        elif is_future_flight:
+            # Same-day future flight (hasn't landed yet): clear actuals only,
+            # keep estimated times from AeroAPI so "Arriving:" time is displayed
+            flight.actual_arrival_local = None
+            flight.actual_gate_arrival_local = None
         else:
-            # For past/current flights, always update (even if None to clear old data)
+            # Past/current flights: update actuals from AeroAPI data
             flight.actual_arrival_local = flight_data.get("actual_runway_arrival_local")
             flight.actual_gate_arrival_local = flight_data.get("actual_gate_arrival_local")
 
