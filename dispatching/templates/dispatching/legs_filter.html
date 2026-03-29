@@ -8,6 +8,42 @@
       /* Ensure interactive elements show pointer cursor */
       .form-select, .btn { cursor: pointer; }
 
+      /* Dim completed/cancelled jobs */
+      body.dim-done tr[data-leg-status="completed"],
+      body.dim-done tr[data-leg-status="cancelled"],
+      body.dim-done [data-leg-status="completed"],
+      body.dim-done [data-leg-status="cancelled"] {
+          opacity: 0.35;
+          position: relative;
+          transition: opacity 0.2s;
+      }
+      body.dim-done tr[data-leg-status="completed"]:hover,
+      body.dim-done tr[data-leg-status="cancelled"]:hover,
+      body.dim-done [data-leg-status="completed"]:hover,
+      body.dim-done [data-leg-status="cancelled"]:hover {
+          opacity: 0.7;
+      }
+      body.dim-done tr[data-leg-status="completed"] td:first-child::before,
+      body.dim-done tr[data-leg-status="cancelled"] td:first-child::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: repeating-linear-gradient(
+              -45deg,
+              transparent,
+              transparent 6px,
+              rgba(0,0,0,0.04) 6px,
+              rgba(0,0,0,0.04) 7px
+          );
+          pointer-events: none;
+          z-index: 1;
+      }
+      #dimCompletedBtn.active {
+          background: #1a2332;
+          color: #fff;
+          border-color: #1a2332;
+      }
+
       @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
@@ -676,6 +712,11 @@
             </a>
             <!-- Secondary actions: expand/collapse + export in dropdown on smaller screens -->
             <div class="d-none d-xl-flex gap-2">
+              <button id="dimCompletedBtn"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Dim completed jobs to focus on active ones">
+                <i class="bi bi-eye-slash me-1"></i><span class="dim-btn-text">Dim Done</span>
+              </button>
               <button id="expandAllFlightsBtn"
                       class="btn btn-sm btn-outline-secondary"
                       title="Expand all flight details">
@@ -697,6 +738,8 @@
                 <i class="bi bi-three-dots"></i>
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
+                <li><button class="dropdown-item dim-completed-dropdown" type="button"><i class="bi bi-eye-slash me-2"></i><span class="dim-btn-text-mobile">Dim Completed</span></button></li>
+                <li><hr class="dropdown-divider"></li>
                 <li><button class="dropdown-item expand-all-flights-dropdown" type="button"><i class="bi bi-chevron-down me-2"></i>Expand All Flights</button></li>
                 <li><button class="dropdown-item collapse-all-flights-dropdown" type="button"><i class="bi bi-chevron-up me-2"></i>Collapse All Flights</button></li>
                 <li><hr class="dropdown-divider"></li>
@@ -731,6 +774,7 @@
                 {% with mismatch=leg.get_flight_time_mismatch_display %}
                   <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %}"
                       id="leg-row-{{ leg.id }}"
+                      data-leg-status="{{ leg.status }}"
                       {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
                     <!-- Customer -->
                     <td>
@@ -1335,7 +1379,7 @@
           <div class="row g-3 p-2">
             {% for leg in legs %}
               {% with mismatch=leg.get_flight_time_mismatch_display %}
-                <div class="col-12">
+                <div class="col-12" data-leg-status="{{ leg.status }}">
                   <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' %}border-warning{% endif %}">
                     <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                       <div class="d-flex justify-content-between align-items-center">
@@ -2257,6 +2301,42 @@
                       });
               });
           });
+
+          // Dim Completed toggle
+          (function() {
+              const btn = document.getElementById('dimCompletedBtn');
+              const mobileBtn = document.querySelector('.dim-completed-dropdown');
+              const KEY = 'legsDashboardDimDone';
+
+              function applyState(on) {
+                  document.body.classList.toggle('dim-done', on);
+                  if (btn) {
+                      btn.classList.toggle('active', on);
+                      const txt = btn.querySelector('.dim-btn-text');
+                      if (txt) txt.textContent = on ? 'Show Done' : 'Dim Done';
+                      const icon = btn.querySelector('i');
+                      if (icon) { icon.className = on ? 'bi bi-eye me-1' : 'bi bi-eye-slash me-1'; }
+                  }
+                  if (mobileBtn) {
+                      const txt = mobileBtn.querySelector('.dim-btn-text-mobile');
+                      if (txt) txt.textContent = on ? 'Show Completed' : 'Dim Completed';
+                      const icon = mobileBtn.querySelector('i');
+                      if (icon) { icon.className = on ? 'bi bi-eye me-2' : 'bi bi-eye-slash me-2'; }
+                  }
+              }
+
+              function toggle() {
+                  const on = !document.body.classList.contains('dim-done');
+                  localStorage.setItem(KEY, on ? '1' : '0');
+                  applyState(on);
+              }
+
+              // Restore from localStorage
+              if (localStorage.getItem(KEY) === '1') applyState(true);
+
+              if (btn) btn.addEventListener('click', toggle);
+              if (mobileBtn) mobileBtn.addEventListener('click', toggle);
+          })();
 
           // Expand All / Collapse All functionality
           const expandAllBtn = document.getElementById('expandAllFlightsBtn');
