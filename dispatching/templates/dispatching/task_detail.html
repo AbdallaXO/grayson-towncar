@@ -414,33 +414,132 @@ body {
 .dv-ok { color: var(--ops-green) !important; }
 
 /* ── Contact Card ── */
-.contact-info { padding: .65rem .85rem; }
-.contact-name {
+/* ── Contact Form Card ── */
+.cf-card { padding: 0; }
+.cf-card .cf-body { padding: 1.25rem 1.5rem; }
+.cf-card .cf-name {
+  font-size: 1.2rem;
   font-weight: 700;
-  font-size: .85rem;
   color: var(--ops-white);
-  margin-bottom: .35rem;
+  margin-bottom: .15rem;
 }
-.contact-row {
+.cf-card .cf-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .15rem .6rem;
+  font-size: .85rem;
+  color: var(--ops-text-dim);
+  margin-bottom: 1rem;
+}
+.cf-card .cf-meta i { font-size: .75rem; color: var(--ops-text-muted); }
+.cf-card .cf-meta a { color: var(--ops-blue); text-decoration: none; }
+.cf-card .cf-meta a:hover { text-decoration: underline; }
+.cf-status-pill {
+  display: inline-block;
+  font-size: .6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.cf-status-pill.pending { background: rgba(234,179,8,.15); color: #b8860b; }
+.cf-status-pill.contacted { background: rgba(34,197,94,.15); color: #16a34a; }
+.cf-status-pill.closed { background: rgba(156,163,175,.15); color: #6b7280; }
+
+.cf-card .cf-message-label {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--ops-text-muted);
+  margin-top: .85rem;
+  margin-bottom: .3rem;
+}
+.cf-card .cf-message-text {
+  font-size: .95rem;
+  line-height: 1.7;
+  color: var(--ops-white);
+  word-break: break-word;
+  padding: .75rem 1rem;
+  border-left: 3px solid var(--ops-border-lt, #d1d5db);
+  background: var(--ops-surface-2, #f9fafb);
+  border-radius: 0 6px 6px 0;
+}
+.cf-card .cf-contacted-note {
+  margin-top: .75rem;
+  font-size: .8rem;
+  color: #16a34a;
+}
+
+/* Action bar */
+.cf-action-bar {
   display: flex;
   align-items: center;
   gap: .5rem;
-  font-size: .78rem;
-  margin-bottom: .2rem;
-}
-.contact-row i { color: var(--ops-text-muted); width: 14px; text-align: center; font-size: .72rem; }
-.contact-row a { color: var(--ops-blue); text-decoration: none; }
-.contact-row a:hover { text-decoration: underline; }
-.contact-row span { color: var(--ops-text-dim); }
-
-.contact-extra {
-  margin-top: .5rem;
-  padding-top: .5rem;
+  padding: .85rem 1.5rem;
   border-top: 1px solid var(--ops-border);
-  font-size: .75rem;
-  color: var(--ops-text-dim);
-  line-height: 1.4;
+  background: var(--ops-surface-2, #f9fafb);
+  border-radius: 0 0 12px 12px;
 }
+.cf-action-bar .cf-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all .15s;
+}
+.cf-action-bar .cf-btn:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.cf-btn-contacted { background: #22c55e; color: #fff; }
+.cf-btn-closed { background: #e5e7eb; color: #374151; }
+.cf-btn-delete { background: transparent; color: #ef4444; border: 1px solid #fecaca !important; margin-left: auto; }
+.cf-btn-delete:hover { background: #fef2f2 !important; }
+
+/* Inline confirm overlay */
+.cf-confirm {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,.97);
+  border-radius: 12px;
+  z-index: 5;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  text-align: center;
+}
+.cf-confirm.active { display: flex; }
+.cf-confirm .cf-confirm-text {
+  font-size: .95rem;
+  font-weight: 600;
+  color: #111827;
+}
+.cf-confirm .cf-confirm-sub {
+  font-size: .8rem;
+  color: #6b7280;
+}
+.cf-confirm .cf-confirm-btns {
+  display: flex;
+  gap: .5rem;
+  margin-top: .25rem;
+}
+.cf-confirm .cf-confirm-btns button {
+  padding: 8px 24px;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all .15s;
+}
+.cf-confirm .cf-confirm-btns button:hover { transform: translateY(-1px); }
+.cf-confirm-yes { background: #22c55e; color: #fff; }
+.cf-confirm-yes.danger { background: #ef4444; }
+.cf-confirm-no { background: #e5e7eb; color: #374151; }
 
 /* ── Assignee chip ── */
 .assigned-chip {
@@ -2291,6 +2390,71 @@ body {
         {% endif %}
         {% endif %}
 
+        {% if task.contact_form %}
+        <!-- ═══ Contact Form ═══ -->
+        <div class="ops-card cf-card" style="position: relative; overflow: hidden;">
+
+          <!-- Inline confirmation overlay -->
+          <div class="cf-confirm" id="cfConfirm">
+            <div class="cf-confirm-text" id="cfConfirmText"></div>
+            <div class="cf-confirm-sub" id="cfConfirmSub"></div>
+            <div class="cf-confirm-btns">
+              <button class="cf-confirm-no" id="cfConfirmNo">Cancel</button>
+              <button class="cf-confirm-yes" id="cfConfirmYes">Confirm</button>
+            </div>
+          </div>
+
+          <div class="cf-body">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: .25rem;">
+              <div class="cf-name">{{ task.contact_form.first_name }} {{ task.contact_form.last_name }}</div>
+              <span class="cf-status-pill {{ task.contact_form.status }}">{{ task.contact_form.get_status_display }}</span>
+            </div>
+
+            <div class="cf-meta">
+              {% if task.contact_form.phone_number %}
+              <span><i class="bi bi-telephone-fill"></i> <a href="tel:{{ task.contact_form.phone_number }}">{{ task.contact_form.phone_number }}</a></span>
+              {% endif %}
+              {% if task.contact_form.email %}
+              <span><i class="bi bi-envelope-fill"></i> <a href="mailto:{{ task.contact_form.email }}">{{ task.contact_form.email }}</a></span>
+              {% endif %}
+              {% if task.contact_form.contact_method %}
+              <span><i class="bi bi-chat-dots-fill"></i> Prefers {{ task.contact_form.get_contact_method_display }}</span>
+              {% endif %}
+              {% if task.contact_form.created_at %}
+              <span><i class="bi bi-clock"></i> {{ task.contact_form.created_at|timesince }} ago</span>
+              {% endif %}
+            </div>
+
+            {% if task.contact_form.about %}
+            <div class="cf-message-label">Message</div>
+            <div class="cf-message-text">{{ task.contact_form.about|striptags|truncatewords:200 }}</div>
+            {% endif %}
+
+            {% if task.contact_form.contacted_at %}
+            <div class="cf-contacted-note">
+              <i class="bi bi-check2-circle"></i> Contacted {{ task.contact_form.contacted_at|timesince }} ago
+            </div>
+            {% endif %}
+          </div>
+
+          <div class="cf-action-bar">
+            {% if task.contact_form.status != 'contacted' %}
+            <button class="cf-btn cf-btn-contacted" data-cf-action="contacted">
+              <i class="bi bi-check-circle"></i> Mark Contacted
+            </button>
+            {% endif %}
+            {% if task.contact_form.status != 'closed' %}
+            <button class="cf-btn cf-btn-closed" data-cf-action="closed">
+              <i class="bi bi-x-circle"></i> Close
+            </button>
+            {% endif %}
+            <button class="cf-btn cf-btn-delete" data-cf-action="delete">
+              <i class="bi bi-trash3"></i> Delete Spam
+            </button>
+          </div>
+        </div>
+        {% endif %}
+
         <!-- Log Communication Form -->
         {% if task.is_open %}
         <div class="ops-card">
@@ -2373,6 +2537,7 @@ body {
             {% endif %}
           </div>
         </div>
+
       </div>
 
       <!-- ═══ Sidebar ═══ -->
@@ -2484,37 +2649,6 @@ body {
               <i class="bi bi-envelope-fill"></i>
               <a href="mailto:{{ task.lead.email }}">{{ task.lead.email }}</a>
             </div>
-            {% endif %}
-          </div>
-        </div>
-        {% elif task.contact_form %}
-        <div class="ops-card">
-          <div class="ops-card-head">
-            <i class="bi bi-envelope-paper-fill" style="color: var(--ops-green);"></i>
-            <h6>Contact Form</h6>
-          </div>
-          <div class="contact-info">
-            <div class="contact-name">{{ task.contact_form.first_name }} {{ task.contact_form.last_name }}</div>
-            {% if task.contact_form.phone_number %}
-            <div class="contact-row">
-              <i class="bi bi-telephone-fill"></i>
-              <a href="tel:{{ task.contact_form.phone_number }}">{{ task.contact_form.phone_number }}</a>
-            </div>
-            {% endif %}
-            {% if task.contact_form.email %}
-            <div class="contact-row">
-              <i class="bi bi-envelope-fill"></i>
-              <a href="mailto:{{ task.contact_form.email }}">{{ task.contact_form.email }}</a>
-            </div>
-            {% endif %}
-            {% if task.contact_form.contact_method %}
-            <div class="contact-row">
-              <i class="bi bi-chat-dots-fill"></i>
-              <span>Prefers: {{ task.contact_form.get_contact_method_display }}</span>
-            </div>
-            {% endif %}
-            {% if task.contact_form.about %}
-            <div class="contact-extra">{{ task.contact_form.about|truncatewords:40 }}</div>
             {% endif %}
           </div>
         </div>
@@ -2730,5 +2864,76 @@ document.getElementById('btnSendPaymentReminder')?.addEventListener('click', fun
     alert('Error: ' + err);
   });
 });
+
+/* ── Contact Form Actions (inline confirm) ── */
+(function() {
+  const overlay = document.getElementById('cfConfirm');
+  const txtEl = document.getElementById('cfConfirmText');
+  const subEl = document.getElementById('cfConfirmSub');
+  const yesBtn = document.getElementById('cfConfirmYes');
+  const noBtn = document.getElementById('cfConfirmNo');
+  if (!overlay) return;
+
+  let pendingAction = null;
+
+  function showConfirm(text, sub, isDanger, onConfirm) {
+    txtEl.textContent = text;
+    subEl.textContent = sub;
+    yesBtn.className = 'cf-confirm-yes' + (isDanger ? ' danger' : '');
+    yesBtn.textContent = isDanger ? 'Delete' : 'Confirm';
+    pendingAction = onConfirm;
+    overlay.classList.add('active');
+  }
+
+  noBtn.addEventListener('click', () => { overlay.classList.remove('active'); pendingAction = null; });
+
+  yesBtn.addEventListener('click', () => {
+    if (pendingAction) pendingAction();
+    yesBtn.textContent = 'Working...';
+    yesBtn.style.opacity = '.6';
+    yesBtn.style.pointerEvents = 'none';
+  });
+
+  function cfFetch(url, body, redirectOnSuccess) {
+    fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(body),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (redirectOnSuccess) window.location.href = redirectOnSuccess;
+        else location.reload();
+      } else {
+        overlay.classList.remove('active');
+        yesBtn.style.opacity = ''; yesBtn.style.pointerEvents = '';
+        alert(data.error);
+      }
+    })
+    .catch(err => { overlay.classList.remove('active'); alert('Error: ' + err); });
+  }
+
+  document.querySelectorAll('[data-cf-action]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const action = this.dataset.cfAction;
+      const formId = {{ task.contact_form.id|default:"0" }};
+
+      if (action === 'contacted') {
+        showConfirm('Mark as Contacted?', 'This updates the form status and timestamps it.', false, () => {
+          cfFetch('{% url "contact_form_update_status" %}', {form_id: formId, status: 'contacted'});
+        });
+      } else if (action === 'closed') {
+        showConfirm('Close this form?', 'Any open tasks linked to this form will also be closed.', false, () => {
+          cfFetch('{% url "contact_form_update_status" %}', {form_id: formId, status: 'closed'});
+        });
+      } else if (action === 'delete') {
+        showConfirm('Delete this submission?', 'This permanently removes the form and cancels linked tasks. Cannot be undone.', true, () => {
+          cfFetch('{% url "contact_form_delete" %}', {form_id: formId}, '{% url "task_queue" %}');
+        });
+      }
+    });
+  });
+})();
 </script>
 {% endblock %}

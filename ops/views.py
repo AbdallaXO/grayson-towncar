@@ -317,6 +317,67 @@ def task_cancel(request):
 @login_required(login_url="login")
 @user_passes_test(_is_superuser, login_url="login")
 @require_POST
+def contact_form_update_status(request):
+    """Update a contact form's status (contacted/closed) and optionally close its task."""
+    from users.models import ContactUsForm
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    form_id = data.get("form_id")
+    new_status = data.get("status")
+
+    if new_status not in ("contacted", "closed"):
+        return JsonResponse({"success": False, "error": "Invalid status"}, status=400)
+
+    form = get_object_or_404(ContactUsForm, id=form_id)
+    form.status = new_status
+    if new_status == "contacted" and not form.contacted_at:
+        form.contacted_at = timezone.now()
+    form.save(update_fields=["status", "contacted_at"])
+
+    # If closed, also close any open ops tasks linked to this form
+    if new_status == "closed":
+        open_tasks = OperationalTask.objects.filter(
+            contact_form=form, status__in=["open", "snoozed"]
+        )
+        for task in open_tasks:
+            close_task(task, resolved_by=request.user, resolution_notes="Contact form closed")
+
+    return JsonResponse({"success": True, "status": new_status})
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+@require_POST
+def contact_form_delete(request):
+    """Delete a spam contact form and cancel its associated task."""
+    from users.models import ContactUsForm
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    form_id = data.get("form_id")
+    form = get_object_or_404(ContactUsForm, id=form_id)
+
+    # Cancel any open tasks linked to this form
+    open_tasks = OperationalTask.objects.filter(
+        contact_form=form, status__in=["open", "snoozed"]
+    )
+    for task in open_tasks:
+        cancel_task(task, reason="Contact form deleted (spam)")
+
+    form.delete()
+    return JsonResponse({"success": True, "redirect": True})
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+@require_POST
 def task_log_comm(request):
     """Log a communication attempt on a task."""
     try:
@@ -373,13 +434,19 @@ def task_create_manual(request):
     priority = int(data.get("priority", OperationalTask.Priority.MEDIUM))
     description = data.get("description", "")
 
-    # Parse due_at or default to now
+    # Parse due_at or default to end of today
     due_at_str = data.get("due_at")
     if due_at_str:
         from django.utils.dateparse import parse_datetime
         due_at = parse_datetime(due_at_str) or timezone.now()
     else:
-        due_at = timezone.now()
+        # Default to 5 PM today (end of business) so it's not immediately overdue
+        import pytz
+        eastern = pytz.timezone("US/Eastern")
+        today_eod = timezone.now().astimezone(eastern).replace(hour=17, minute=0, second=0, microsecond=0)
+        if today_eod <= timezone.now():
+            today_eod += timedelta(days=1)
+        due_at = today_eod
 
     task = create_task(
         task_type=OperationalTask.TaskType.MANUAL,

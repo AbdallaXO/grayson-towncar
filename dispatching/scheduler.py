@@ -307,6 +307,16 @@ class FeasibilityResult:
 
 
 @dataclass
+class AlternativeDriver:
+    """A ranked alternative driver for assignment."""
+    driver_id: int
+    driver_name: str
+    score: float
+    feasibility: FeasibilityResult
+    reason: str
+
+
+@dataclass
 class AssignmentSuggestion:
     """Suggested driver for an unassigned leg."""
     leg_id: int
@@ -315,6 +325,7 @@ class AssignmentSuggestion:
     feasibility: Optional[FeasibilityResult]
     reason: str
     priority: int  # 1=best fit, 0=no fit
+    alternatives: List[AlternativeDriver] = field(default_factory=list)
 
 
 @dataclass
@@ -918,6 +929,8 @@ def suggest_assignments(
         best_reserved_id = None
         best_reserved_score = -1
         best_reserved_feasibility = None
+        # Collect all scored candidates for alternatives
+        all_candidates = []
         pickup_cat = categorize_location(leg.pickup_location)
         leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
         eligible_drivers = scarcity_map.get(leg.id, len(working))
@@ -1066,6 +1079,9 @@ def suggest_assignments(
                     best_id = did
                     best_feasibility = feas
 
+            # Track all candidates for alternatives list
+            all_candidates.append((did, score, feas, is_reserved_mismatch))
+
         # Fallback: if no non-reserved driver fits, use the best reserved one.
         # This prevents jobs from going unassigned when only reserved drivers
         # are available, while still preferring non-reserved drivers first.
@@ -1079,6 +1095,28 @@ def suggest_assignments(
             if working[best_id].slots and working[best_id].slots[-1].dropoff_category == pickup_cat:
                 same_area = " (same area)"
 
+            # Build alternatives list: top candidates excluding the best pick
+            alternatives = []
+            sorted_candidates = sorted(all_candidates, key=lambda c: c[1], reverse=True)
+            for cand_id, cand_score, cand_feas, cand_reserved in sorted_candidates:
+                if cand_id == best_id:
+                    continue
+                if len(alternatives) >= 4:
+                    break
+                cand_area = ""
+                if working[cand_id].slots and working[cand_id].slots[-1].dropoff_category == pickup_cat:
+                    cand_area = " (same area)"
+                cand_reason = cand_feas.reason + cand_area if cand_feas.buffer_minutes < 999 else f"Available{cand_area}"
+                if cand_reserved:
+                    cand_reason += " [reserved]"
+                alternatives.append(AlternativeDriver(
+                    driver_id=cand_id,
+                    driver_name=working[cand_id].driver_name,
+                    score=cand_score,
+                    feasibility=cand_feas,
+                    reason=cand_reason,
+                ))
+
             suggestion = AssignmentSuggestion(
                 leg_id=leg.id,
                 suggested_driver_id=best_id,
@@ -1086,6 +1124,7 @@ def suggest_assignments(
                 feasibility=best_feasibility,
                 reason=best_feasibility.reason + same_area if best_feasibility.buffer_minutes < 999 else f"Available{same_area}",
                 priority=1,
+                alternatives=alternatives,
             )
 
             # Simulate the assignment

@@ -1382,6 +1382,10 @@ body {
             </select>
           </div>
           <div class="mb-3">
+            <label class="form-label">Due</label>
+            <input type="datetime-local" id="newTaskDueAt" class="form-control">
+          </div>
+          <div class="mb-3">
             <label class="form-label">Description</label>
             <textarea id="newTaskDescription" class="form-control" rows="2" placeholder="Optional details..."></textarea>
           </div>
@@ -1542,12 +1546,16 @@ document.getElementById('btnSubmitComm').addEventListener('click', function() {
 /* ── Create Task ── */
 document.getElementById('btnCreateTask').addEventListener('click', function() {
   const assigneeVal = document.getElementById('newTaskAssignee').value;
+  const dueVal = document.getElementById('newTaskDueAt').value;
   const data = {
     title: document.getElementById('newTaskTitle').value,
     priority: parseInt(document.getElementById('newTaskPriority').value),
     description: document.getElementById('newTaskDescription').value,
     assigned_to: assigneeVal ? parseInt(assigneeVal) : null,
   };
+  if (dueVal) {
+    data.due_at = new Date(dueVal).toISOString();
+  }
   if (!data.title.trim()) { showToast('Title is required', 'error'); return; }
   fetch('{% url "task_create_manual" %}', {
     method: 'POST',

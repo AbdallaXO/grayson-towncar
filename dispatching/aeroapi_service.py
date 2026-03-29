@@ -468,12 +468,12 @@ class AeroAPIService:
                         # For past dates, pick the latest flight on that date
                         now = django_timezone.now()
                         now_eastern = now.astimezone(ZoneInfo('America/New_York'))
-                        
+
                         def sort_key(candidate):
                             scheduled_dt = candidate[0]
                             if not scheduled_dt:
                                 return datetime.max.replace(tzinfo=ZoneInfo('America/New_York'))
-                            
+
                             # If scheduled time is in the future, prioritize it
                             # If scheduled time is in the past, deprioritize it
                             if scheduled_dt > now_eastern:
@@ -482,20 +482,34 @@ class AeroAPIService:
                             else:
                                 # Past flight - add large offset to deprioritize
                                 return scheduled_dt.replace(year=2100)
-                        
+
                         candidates.sort(key=sort_key)
                         logger.info(f"Found {len(candidates)} candidates for {target_date}, selected: {candidates[0][0] if candidates[0][0] else 'unknown time'}")
                     flight_data = candidates[0][1]
                     logger.info(f"Selected flight: {flight_data.get('ident_iata', 'Unknown')}")
+                elif target_date:
+                    # No flight found for the target date. Do NOT fall back to a
+                    # different day's instance — recurring flights (e.g. WN4744 daily)
+                    # would silently use a past day's data, causing wrong badges like
+                    # "Coming 72 hr early".
+                    logger.warning(
+                        f"No Orlando-area flight found for {flight_ident} on {target_date} "
+                        f"via /flights/ endpoint ({len(flights)} total flights returned). "
+                        f"No fallback used — returning not_found."
+                    )
+                    return {
+                        'error': f'No flight found for {flight_ident} on {target_date}',
+                        'status': 'not_found',
+                    }
                 else:
-                    # If no Orlando-area flight found for the date, use first matching flight as fallback
+                    # No target_date filter — use first matching Orlando-area flight
                     orlando_fallback = None
                     for flight in flights:
                         origin = flight.get('origin', {})
                         destination = flight.get('destination', {})
                         origin_code = origin.get('code_iata', '') if isinstance(origin, dict) else ''
                         dest_code = destination.get('code_iata', '') if isinstance(destination, dict) else ''
-                        
+
                         is_arrival = dest_code in ORLANDO_AIRPORT_CODES
                         is_departure = origin_code in ORLANDO_AIRPORT_CODES
 
@@ -507,14 +521,14 @@ class AeroAPIService:
                         if origin_code in ORLANDO_AIRPORT_CODES or dest_code in ORLANDO_AIRPORT_CODES:
                             orlando_fallback = flight
                             break
-                    
+
                     if orlando_fallback:
                         flight_data = orlando_fallback
-                        logger.warning(f"No Orlando-area flight found for date {target_date}, using first match: {flight_data.get('ident_iata', 'Unknown')}")
+                        logger.warning(f"No date filter, using first Orlando-area match: {flight_data.get('ident_iata', 'Unknown')}")
                     else:
                         if desired_direction:
                             return {
-                                'error': f'No Orlando-area (MCO/SFB) {desired_direction} flight found for date {target_date}',
+                                'error': f'No Orlando-area (MCO/SFB) {desired_direction} flight found',
                                 'status': 'not_found'
                             }
                         # Last resort: use first flight

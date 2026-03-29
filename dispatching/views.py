@@ -266,6 +266,13 @@ def index(request):
         1 for row in inhouse_driver_rows if row["assignment"] and row["assignment"].vehicle
     )
 
+    # Build map: vehicle_id → driver name (for "taken by X" in dropdowns)
+    vehicle_taken_map = {}
+    for row in inhouse_driver_rows:
+        a = row.get("assignment")
+        if a and a.vehicle_id:
+            vehicle_taken_map[a.vehicle_id] = str(row["driver"])
+
     inhouse_drivers_list = []
     affiliate_drivers_list = []
     for driver in drivers:
@@ -656,6 +663,7 @@ def index(request):
         "inhouse_driver_rows": inhouse_driver_rows,
         "inhouse_vehicles": inhouse_vehicles,
         "inhouse_assigned_count": inhouse_assigned_count,
+        "vehicle_taken_map": vehicle_taken_map,
         "inhouse_timeline": inhouse_timeline,
         "timeline_hours": timeline_hours,
         "unassigned_timeline_slots": _unassigned_timeline_slots,
@@ -3084,49 +3092,43 @@ def refresh_flight_data(request):
         if flight_status:
             flight.status = flight_status
         
-        # Handle datetime fields - only set if not None
+        # Handle datetime fields — always set scheduled times (even to None to clear stale data)
         scheduled_arrival = flight_data.get('scheduled_arrival_local')
-        if scheduled_arrival is not None:
-            flight.scheduled_arrival_local = scheduled_arrival
-        elif scheduled_arrival is None and flight_data.get('scheduled_arrival_local') is None:
-            # Keep existing value if new value is None
-            pass
-        
-        estimated_arrival = flight_data.get('estimated_arrival_local')
-        if estimated_arrival is not None:
-            flight.estimated_arrival_local = estimated_arrival
-        
-        # Handle gate arrival times
+        flight.scheduled_arrival_local = scheduled_arrival
+
         scheduled_gate_arrival = flight_data.get('scheduled_gate_arrival_local')
-        if scheduled_gate_arrival is not None:
-            flight.scheduled_gate_arrival_local = scheduled_gate_arrival
-        
-        estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
-        if estimated_gate_arrival is not None:
-            flight.estimated_gate_arrival_local = estimated_gate_arrival
-        
-        # Handle actual arrival times (prioritize actual over estimated)
-        # BUT: Clear old actual times if flight is scheduled for the future (stale data from previous flights)
-        now = timezone.now()
-        actual_arrival = flight_data.get('actual_runway_arrival_local')
-        actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
-        
+        flight.scheduled_gate_arrival_local = scheduled_gate_arrival
+
         # Check if flight is scheduled for the future
+        now = timezone.now()
         is_future_flight = False
         if scheduled_arrival and scheduled_arrival > now:
             is_future_flight = True
         elif scheduled_gate_arrival and scheduled_gate_arrival > now:
             is_future_flight = True
-        
+
         if is_future_flight:
-            # For future flights, clear any actual arrival times (they're from old flight data)
+            # For future flights, clear actual AND estimated times — they may be stale
+            # from a previous day's instance of the same recurring flight number
+            flight.estimated_arrival_local = None
+            flight.estimated_gate_arrival_local = None
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
-            logger.info(f"Cleared stale actual arrival times for future flight (leg {leg.id})")
+            logger.info(f"Cleared stale actual/estimated arrival times for future flight (leg {leg.id})")
         else:
-            # For past/current flights, use actual times if provided
+            # For past/current flights, update estimated and actual times if provided
+            estimated_arrival = flight_data.get('estimated_arrival_local')
+            if estimated_arrival is not None:
+                flight.estimated_arrival_local = estimated_arrival
+
+            estimated_gate_arrival = flight_data.get('estimated_gate_arrival_local')
+            if estimated_gate_arrival is not None:
+                flight.estimated_gate_arrival_local = estimated_gate_arrival
+
+            actual_arrival = flight_data.get('actual_runway_arrival_local')
             if actual_arrival is not None:
                 flight.actual_arrival_local = actual_arrival
+            actual_gate_arrival = flight_data.get('actual_gate_arrival_local')
             if actual_gate_arrival is not None:
                 flight.actual_gate_arrival_local = actual_gate_arrival
         
@@ -3570,11 +3572,14 @@ def _refresh_single_flight(leg):
             is_future_flight = True
 
         if is_future_flight:
-            # Clear actual times for future flights (prevents old data from showing)
+            # Clear actual AND estimated times for future flights — prevents stale data
+            # from a previous day's instance of the same recurring flight number
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
+            flight.estimated_arrival_local = None
+            flight.estimated_gate_arrival_local = None
             logger.info(
-                f"Cleared stale actual arrival times for future flight (leg {leg.id})"
+                f"Cleared stale actual/estimated arrival times for future flight (leg {leg.id})"
             )
         else:
             # For past/current flights, always update (even if None to clear old data)
@@ -6524,14 +6529,35 @@ def capacity_planner(request):
 
     # Fleet vehicles for quick-assign panel
     inhouse_vehicles = FleetVehicle.objects.select_related("vehicle_type").all().order_by("vehicle_number")
-    vehicle_assign_rows = [
-        {"driver": d, "assignment": assignment_map.get(d.id)}
-        for d in inhouse_drivers
-    ]
-    # Sort: assigned drivers first (by vehicle number), then unassigned
+
+    # Build vehicle_assign_rows with off-today and leg count info
+    _planner_dow = selected_date.weekday()
+    _planner_leg_counts = {}
+    for _leg in legs_list:
+        if _leg.driver_id:
+            _planner_leg_counts[_leg.driver_id] = _planner_leg_counts.get(_leg.driver_id, 0) + 1
+
+    vehicle_assign_rows = []
+    for d in inhouse_drivers:
+        _is_off = False
+        for _entry in d.weekly_schedule.all():
+            if _entry.day_of_week == _planner_dow:
+                _is_off = not _entry.is_available
+                break
+        _assignment = assignment_map.get(d.id)
+        if _is_off and _assignment and _assignment.vehicle_id:
+            _is_off = False
+        vehicle_assign_rows.append({
+            "driver": d,
+            "assignment": _assignment,
+            "is_off_today": _is_off,
+            "leg_count": _planner_leg_counts.get(d.id, 0),
+        })
+
+    # Sort: assigned drivers first (by vehicle number), then unassigned, off last
     vehicle_assign_rows.sort(
         key=lambda r: (
-            r["assignment"] is None,
+            2 if r["is_off_today"] else (1 if r["assignment"] is None else 0),
             r["assignment"].vehicle.vehicle_number if r["assignment"] and r["assignment"].vehicle else "",
         )
     )

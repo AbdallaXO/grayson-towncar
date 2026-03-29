@@ -1153,7 +1153,8 @@ def _apply_flight_update(flight, flight_data):
             setattr(flight, field_name, val)
             update_fields.append(field_name)
 
-    # Actual arrival times — clear for future flights to avoid stale data
+    # Actual + estimated arrival times — clear for future flights to avoid stale data
+    # from a previous day's instance of the same recurring flight number
     now = tz.now()
     scheduled = flight_data.get("scheduled_arrival_local") or flight_data.get(
         "scheduled_gate_arrival_local"
@@ -1163,7 +1164,12 @@ def _apply_flight_update(flight, flight_data):
     if is_future:
         flight.actual_arrival_local = None
         flight.actual_gate_arrival_local = None
-        update_fields.extend(["actual_arrival_local", "actual_gate_arrival_local"])
+        flight.estimated_arrival_local = None
+        flight.estimated_gate_arrival_local = None
+        update_fields.extend([
+            "actual_arrival_local", "actual_gate_arrival_local",
+            "estimated_arrival_local", "estimated_gate_arrival_local",
+        ])
     else:
         actual_runway = flight_data.get("actual_runway_arrival_local")
         if actual_runway is not None:

@@ -504,11 +504,18 @@
             <span class="text-white text-opacity-75 small">{{ selected_date|date:'l, F j' }}</span>
           </div>
           <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button id="copyFromPrevDay"
+                    class="btn btn-sm btn-light btn-outline-light text-dark"
+                    type="button"
+                    title="Copy vehicle assignments from the most recent previous day"
+                    style="font-size:0.78rem;">
+              <i class="bi bi-arrow-repeat me-1"></i>Use Previous Day
+            </button>
             <button id="copyInhouseAssignments"
                     class="btn btn-sm btn-light btn-outline-light text-dark"
                     type="button"
                     style="font-size:0.78rem;">
-              <i class="bi bi-clipboard me-1"></i>Copy Assignments
+              <i class="bi bi-clipboard me-1"></i>Copy Text
             </button>
             <a href="{% url 'inhouse_schedule' %}"
                class="btn btn-sm btn-light btn-outline-light text-dark"
@@ -531,87 +538,80 @@
       <div class="collapse" id="inhouseVehiclesCollapse">
         <div class="px-0 py-0">
           {% if inhouse_driver_rows %}
-            <div class="inhouse-driver-grid">
-              {% for row in inhouse_driver_rows %}
-                <div class="inhouse-driver-row
-                            {% if row.is_off_today %}idr-off
-                            {% elif not row.assignment or not row.assignment.vehicle %}idr-unassigned
-                            {% else %}idr-assigned{% endif %}"
-                     data-driver-name="{{ row.driver }}"
-                     data-driver-first-name="{{ row.driver.profile.first_name|default:row.driver.profile.username }}"
-                     data-driver-schedule="{{ row.driver.get_schedule_display|default_if_none:'' }}">
 
-                  <!-- Driver name + status badge -->
-                  <div class="idr-name-col">
-                    <span class="idr-name">{{ row.driver }}</span>
-                    {% if row.is_off_today %}
-                      <span class="idr-badge off-badge" id="off-badge-{{ row.driver.id }}">
-                        <i class="bi bi-moon me-1"></i>Off today
-                      </span>
-                    {% elif row.leg_count > 0 %}
-                      <a href="?date={{ selected_date|date:'Y-m-d' }}&driver={{ row.driver.id }}"
-                         class="idr-badge legs-badge text-decoration-none">
-                        {{ row.leg_count }} leg{{ row.leg_count|pluralize }}
-                      </a>
-                    {% endif %}
-                  </div>
-
-                  <!-- Vehicle selector -->
-                  <div class="idr-vehicle-col" id="vehicle-col-{{ row.driver.id }}">
-                    {% if row.is_off_today %}
-                      <span class="idr-off-msg text-muted small fst-italic">
-                        Scheduled off
-                        <button class="btn btn-link btn-sm p-0 ms-2 text-primary idr-override-btn"
-                                style="font-size:0.78rem;vertical-align:baseline;"
-                                data-driver-id="{{ row.driver.id }}"
-                                onclick="overrideOff({{ row.driver.id }}, this)">
-                          <i class="bi bi-person-check me-1"></i>Working today?
-                        </button>
-                      </span>
-                      <div class="idr-override-select d-none">
-                        <select class="form-select form-select-sm inhouse-vehicle-select"
-                                data-driver-id="{{ row.driver.id }}">
-                          <option value="">— Unassigned —</option>
-                          {% for vehicle in inhouse_vehicles %}
-                            <option value="{{ vehicle.id }}">
-                              #{{ vehicle.vehicle_number }} &mdash; {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }}
-                            </option>
-                          {% endfor %}
-                        </select>
-                      </div>
-                    {% else %}
-                      <select class="form-select form-select-sm inhouse-vehicle-select
-                                     {% if row.assignment and row.assignment.vehicle %}idr-select-assigned{% endif %}"
-                              data-driver-id="{{ row.driver.id }}">
-                        <option value="">— Unassigned —</option>
-                        {% for vehicle in inhouse_vehicles %}
-                          <option value="{{ vehicle.id }}"
-                                  {% if row.assignment and row.assignment.vehicle_id == vehicle.id %}selected{% endif %}>
-                            #{{ vehicle.vehicle_number }} &mdash; {{ vehicle.year }} {{ vehicle.make }} {{ vehicle.model }}
-                          </option>
-                        {% endfor %}
-                      </select>
-                    {% endif %}
-                  </div>
-
-                  <!-- Save status -->
-                  <div class="idr-status-col">
-                    <div class="inhouse-vehicle-status small"
-                         data-driver-id="{{ row.driver.id }}"></div>
-                    {% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.notes %}
-                      <div class="text-muted" style="font-size:0.7rem;">{{ row.assignment.vehicle.notes }}</div>
-                    {% endif %}
-                  </div>
-
+            <!-- Vehicle cards (draggable) -->
+            <div class="va-vehicles-row px-3 pt-3 pb-2">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="text-muted small fw-semibold"><i class="bi bi-grip-vertical me-1"></i>Drag a vehicle onto a driver</span>
+              </div>
+              <div class="d-flex flex-wrap gap-2" id="vaVehiclePool">
+                {% for vehicle in inhouse_vehicles %}
+                <div class="va-veh-card"
+                     draggable="true"
+                     data-vehicle-id="{{ vehicle.id }}"
+                     data-vehicle-num="{{ vehicle.vehicle_number }}"
+                     data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}"
+                     data-vehicle-label="#{{ vehicle.vehicle_number }} {{ vehicle.vehicle_type|default:'' }}">
+                  <span class="va-veh-num">#{{ vehicle.vehicle_number }}</span>
+                  {% if vehicle.vehicle_type %}
+                  <span class="va-veh-type va-vtype-{{ vehicle.vehicle_type|lower }}">{{ vehicle.vehicle_type }}</span>
+                  {% endif %}
+                  <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
                 </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <hr class="my-0" style="border-color: rgba(0,0,0,.08);">
+
+            <!-- Driver slots (drop targets) -->
+            <div class="va-drivers-grid px-3 py-2" id="vaDriverGrid">
+              {% for row in inhouse_driver_rows %}
+              <div class="va-driver-slot {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}"
+                   data-driver-id="{{ row.driver.id }}"
+                   data-driver-name="{{ row.driver }}"
+                   data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
+                <div class="va-drv-name">
+                  {{ row.driver }}
+                  {% if row.is_off_today %}
+                  <span class="va-off-badge">Off</span>
+                  {% elif row.leg_count > 0 %}
+                  <span class="va-legs-badge">{{ row.leg_count }} leg{{ row.leg_count|pluralize }}</span>
+                  {% endif %}
+                </div>
+                <div class="va-drv-vehicle" id="va-slot-{{ row.driver.id }}">
+                  {% if row.is_off_today %}
+                    <span class="va-off-msg">
+                      Day off
+                      <button class="va-override-btn" onclick="vaOverrideOff({{ row.driver.id }}, this)">
+                        <i class="bi bi-person-check"></i> Work today
+                      </button>
+                    </span>
+                  {% elif row.assignment and row.assignment.vehicle %}
+                    <div class="va-assigned-chip"
+                         draggable="true"
+                         data-vehicle-id="{{ row.assignment.vehicle_id }}"
+                         data-vehicle-num="{{ row.assignment.vehicle.vehicle_number }}"
+                         data-vehicle-type="{{ row.assignment.vehicle.vehicle_type|default_if_none:'' }}"
+                         data-from-driver="{{ row.driver.id }}">
+                      <span class="va-veh-num">#{{ row.assignment.vehicle.vehicle_number }}</span>
+                      {% if row.assignment.vehicle.vehicle_type %}
+                      <span class="va-veh-type va-vtype-{{ row.assignment.vehicle.vehicle_type|lower }}">{{ row.assignment.vehicle.vehicle_type }}</span>
+                      {% endif %}
+                      <button class="va-remove-btn" onclick="vaRemove({{ row.driver.id }})" title="Remove">&times;</button>
+                    </div>
+                  {% else %}
+                    <span class="va-drop-hint">Drop vehicle here</span>
+                  {% endif %}
+                </div>
+              </div>
               {% endfor %}
             </div>
+
             <div class="px-3 py-2 border-top" style="background:#f8f9fa;">
               <span class="text-muted small">
-                <i class="bi bi-info-circle me-1"></i>
-                Change dropdown to auto-save &nbsp;&bull;&nbsp;
-                <span class="badge idr-badge off-badge" style="font-size:.65rem;vertical-align:middle;">Off today</span> = scheduled day off &nbsp;&bull;&nbsp;
-                <span class="badge" style="background:#fff3cd;color:#856404;font-size:.65rem;vertical-align:middle;">Unassigned</span> = needs a vehicle
+                <i class="bi bi-grip-horizontal me-1"></i>
+                Drag vehicles to assign &nbsp;&bull;&nbsp; Drag between drivers to swap &nbsp;&bull;&nbsp; Click &times; to remove
               </span>
             </div>
           {% else %}
@@ -2710,22 +2710,16 @@
           const copyInhouseBtn = document.getElementById('copyInhouseAssignments');
           if (copyInhouseBtn) {
               copyInhouseBtn.addEventListener('click', function() {
-                  const rows = document.querySelectorAll('.inhouse-driver-row');
+                  const slots = document.querySelectorAll('.va-driver-slot');
                   const lines = [];
-                  rows.forEach((row) => {
-                      const select = row.querySelector('.inhouse-vehicle-select');
-                      const selectedText = select && select.selectedOptions.length
-                          ? select.selectedOptions[0].textContent.trim()
-                          : '';
-                      const selectedValue = select ? select.value : '';
-                      if (!selectedValue || selectedText.toLowerCase().includes('unassigned')) return;
-
-                      const vehicleNumber = selectedText.split('—')[0].trim().replace('#', '');
-                      const driverName = row.getAttribute('data-driver-first-name')
-                          || row.getAttribute('data-driver-name')
-                          || '';
-                      if (vehicleNumber && driverName) {
-                          lines.push(`${vehicleNumber}: ${driverName}`);
+                  slots.forEach(slot => {
+                      const vid = slot.dataset.assignedVehicleId;
+                      if (!vid) return;
+                      const chip = slot.querySelector('.va-assigned-chip');
+                      const vNum = chip ? chip.dataset.vehicleNum : vid;
+                      const driverName = slot.dataset.driverName || '';
+                      if (vNum && driverName) {
+                          lines.push(`${vNum}: ${driverName}`);
                       }
                   });
 
@@ -2740,103 +2734,193 @@
                       copyInhouseBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied';
                       setTimeout(() => {
                           copyInhouseBtn.classList.remove('btn-success');
-                          copyInhouseBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Assignments';
+                          copyInhouseBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Text';
                       }, 2000);
                   }).catch(() => {
                       copyInhouseBtn.classList.add('btn-danger');
                       copyInhouseBtn.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i>Copy failed';
                       setTimeout(() => {
                           copyInhouseBtn.classList.remove('btn-danger');
-                          copyInhouseBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Assignments';
+                          copyInhouseBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy Text';
                       }, 2000);
                   });
               });
           }
 
-          window.overrideOff = function(driverId, btn) {
-              const vehicleCol = document.getElementById('vehicle-col-' + driverId);
-              const driverRow  = vehicleCol ? vehicleCol.closest('.inhouse-driver-row') : null;
-              const offBadge   = document.getElementById('off-badge-' + driverId);
-              if (!vehicleCol) return;
+          // ── Copy from Previous Day ──
+          const copyPrevBtn = document.getElementById('copyFromPrevDay');
+          if (copyPrevBtn) {
+              copyPrevBtn.addEventListener('click', function() {
+                  if (!confirm('Copy vehicle assignments from the most recent previous day? This will overwrite any current assignments.')) return;
 
-              // Hide the "Scheduled off / Working today?" message, show the dropdown
-              const offMsg = vehicleCol.querySelector('.idr-off-msg');
-              const overrideDiv = vehicleCol.querySelector('.idr-override-select');
-              if (offMsg)      offMsg.classList.add('d-none');
-              if (overrideDiv) overrideDiv.classList.remove('d-none');
+                  copyPrevBtn.disabled = true;
+                  copyPrevBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Copying...';
 
-              // Update row to unassigned style + swap badge
-              if (driverRow) {
-                  driverRow.classList.remove('idr-off');
-                  driverRow.classList.add('idr-unassigned');
-              }
-              const nameEl = driverRow ? driverRow.querySelector('.idr-name') : null;
-              if (nameEl) nameEl.style.textDecoration = 'none';
-              if (offBadge) offBadge.style.display = 'none';
-          };
-
-          function saveInhouseVehicle(driverId) {
-              const select = document.querySelector(`.inhouse-vehicle-select[data-driver-id="${driverId}"]`);
-              const status = document.querySelector(`.inhouse-vehicle-status[data-driver-id="${driverId}"]`);
-              if (!select || !status) return;
-
-              const vehicleId = select.value;
-              status.innerHTML = '<span class="text-muted">Saving...</span>';
-
-              fetch('/dispatching/update-inhouse-vehicle-assignment/', {
+                  fetch('{% url "copy_vehicle_assignments" %}', {
                       method: 'POST',
-                      headers: {
-                          'Content-Type': 'application/json',
-                          'X-CSRFToken': '{{ csrf_token }}'
-                      },
-                      body: JSON.stringify({
-                          driver_id: driverId,
-                          date: '{{ selected_date|date:"Y-m-d" }}',
-                          vehicle_id: vehicleId
-                      })
+                      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                      body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}'}),
                   })
-                  .then(response => {
-                      if (!response.ok) {
-                          return response.json().then(data => {
-                              throw new Error(data.error || 'Server error: ' + response.status);
-                          });
-                      }
-                      return response.json();
-                  })
+                  .then(r => r.json())
                   .then(data => {
                       if (data.success) {
-                          const icon = vehicleId ? '<i class="bi bi-check2-circle text-success"></i>' : '<i class="bi bi-x-circle text-muted"></i>';
-                          status.innerHTML = icon;
-                          setTimeout(() => { status.innerHTML = ''; }, 2500);
-                          // Update row state and select style
-                          const driverRow = select.closest('.inhouse-driver-row');
-                          if (vehicleId) {
-                              select.classList.add('idr-select-assigned');
-                              if (driverRow) {
-                                  driverRow.classList.remove('idr-unassigned');
-                                  driverRow.classList.add('idr-assigned');
-                              }
-                          } else {
-                              select.classList.remove('idr-select-assigned');
-                              if (driverRow) {
-                                  driverRow.classList.remove('idr-assigned');
-                                  driverRow.classList.add('idr-unassigned');
-                              }
-                          }
+                          copyPrevBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied from ' + data.source_date;
+                          copyPrevBtn.classList.add('btn-success');
+                          copyPrevBtn.classList.remove('btn-light', 'btn-outline-light', 'text-dark');
+                          // Reload to reflect all changes in the DnD board
+                          setTimeout(() => location.reload(), 800);
                       } else {
-                          status.innerHTML = '<span class="text-danger small">Failed</span>';
+                          alert(data.error || 'Failed to copy assignments');
+                          copyPrevBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
+                          copyPrevBtn.disabled = false;
                       }
                   })
-                  .catch(error => {
-                      status.innerHTML = '<span class="text-danger small">Error</span>';
+                  .catch(err => {
+                      alert('Error: ' + err);
+                      copyPrevBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
+                      copyPrevBtn.disabled = false;
                   });
+              });
           }
 
-          document.querySelectorAll('.inhouse-vehicle-select').forEach(select => {
-              select.addEventListener('change', function() {
-                  saveInhouseVehicle(this.dataset.driverId);
+          /* ── Vehicle Assignment DnD ── */
+          let vaDragData = null; // {vehicleId, fromDriverId}
+
+          function vaMarkInUse() {
+              // Mark pool vehicles that are assigned to a driver
+              const assigned = new Set();
+              document.querySelectorAll('.va-driver-slot[data-assigned-vehicle-id]').forEach(slot => {
+                  const vid = slot.dataset.assignedVehicleId;
+                  if (vid) assigned.add(vid);
+              });
+              document.querySelectorAll('#vaVehiclePool .va-veh-card').forEach(card => {
+                  card.classList.toggle('va-in-use', assigned.has(card.dataset.vehicleId));
+              });
+          }
+          vaMarkInUse();
+
+          // Drag from pool
+          document.querySelectorAll('#vaVehiclePool .va-veh-card').forEach(card => {
+              card.addEventListener('dragstart', e => {
+                  vaDragData = {vehicleId: card.dataset.vehicleId, fromDriverId: null};
+                  card.classList.add('va-dragging');
+                  e.dataTransfer.effectAllowed = 'move';
+              });
+              card.addEventListener('dragend', () => { card.classList.remove('va-dragging'); vaDragData = null; });
+          });
+
+          // Drag from assigned chip (swap between drivers)
+          document.querySelectorAll('.va-assigned-chip[draggable]').forEach(chip => {
+              chip.addEventListener('dragstart', e => {
+                  vaDragData = {vehicleId: chip.dataset.vehicleId, fromDriverId: chip.dataset.fromDriver};
+                  chip.classList.add('va-dragging');
+                  e.dataTransfer.effectAllowed = 'move';
+              });
+              chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); vaDragData = null; });
+          });
+
+          // Drop targets
+          document.querySelectorAll('.va-driver-slot').forEach(slot => {
+              slot.addEventListener('dragover', e => {
+                  if (!vaDragData) return;
+                  if (slot.classList.contains('va-off')) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  slot.classList.add('va-drag-over');
+              });
+              slot.addEventListener('dragleave', () => slot.classList.remove('va-drag-over'));
+              slot.addEventListener('drop', e => {
+                  e.preventDefault();
+                  slot.classList.remove('va-drag-over');
+                  if (!vaDragData) return;
+
+                  const driverId = slot.dataset.driverId;
+                  const vehicleId = vaDragData.vehicleId;
+                  const fromDriverId = vaDragData.fromDriverId;
+
+                  // If dropping on same driver, ignore
+                  if (fromDriverId === driverId) return;
+
+                  // If from another driver, clear that driver first
+                  if (fromDriverId) {
+                      vaSaveAssignment(fromDriverId, null);
+                  }
+
+                  vaSaveAssignment(driverId, vehicleId);
+                  vaDragData = null;
               });
           });
+
+          function vaSaveAssignment(driverId, vehicleId) {
+              fetch('/dispatching/update-inhouse-vehicle-assignment/', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                  body: JSON.stringify({
+                      driver_id: parseInt(driverId),
+                      date: '{{ selected_date|date:"Y-m-d" }}',
+                      vehicle_id: vehicleId ? parseInt(vehicleId) : null,
+                  }),
+              })
+              .then(r => r.json())
+              .then(data => {
+                  if (data.success) {
+                      // Update the slot visually
+                      const slot = document.querySelector(`.va-driver-slot[data-driver-id="${driverId}"]`);
+                      if (!slot) return;
+                      const vehicleArea = slot.querySelector('.va-drv-vehicle');
+                      if (!vehicleArea) return;
+
+                      if (vehicleId) {
+                          // Find vehicle info from pool
+                          const poolCard = document.querySelector(`#vaVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
+                          const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
+                          const vType = poolCard ? poolCard.dataset.vehicleType : '';
+                          const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
+
+                          vehicleArea.innerHTML = `<div class="va-assigned-chip" draggable="true"
+                              data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
+                              data-vehicle-type="${vType}" data-from-driver="${driverId}">
+                              <span class="va-veh-num">#${vNum}</span>
+                              ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
+                              <button class="va-remove-btn" onclick="vaRemove(${driverId})" title="Remove">&times;</button>
+                          </div>`;
+                          slot.dataset.assignedVehicleId = vehicleId;
+                          slot.classList.remove('va-empty');
+                          slot.classList.add('va-has');
+
+                          // Re-attach drag events to new chip
+                          const newChip = vehicleArea.querySelector('.va-assigned-chip');
+                          newChip.addEventListener('dragstart', e => {
+                              vaDragData = {vehicleId: newChip.dataset.vehicleId, fromDriverId: newChip.dataset.fromDriver};
+                              newChip.classList.add('va-dragging');
+                              e.dataTransfer.effectAllowed = 'move';
+                          });
+                          newChip.addEventListener('dragend', () => { newChip.classList.remove('va-dragging'); vaDragData = null; });
+                      } else {
+                          vehicleArea.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+                          slot.dataset.assignedVehicleId = '';
+                          slot.classList.remove('va-has');
+                          slot.classList.add('va-empty');
+                      }
+                      vaMarkInUse();
+                  }
+              });
+          }
+
+          window.vaRemove = function(driverId) {
+              vaSaveAssignment(driverId, null);
+          };
+
+          window.vaOverrideOff = function(driverId, btn) {
+              const slot = document.querySelector(`.va-driver-slot[data-driver-id="${driverId}"]`);
+              if (!slot) return;
+              slot.classList.remove('va-off');
+              slot.classList.add('va-empty');
+              const nameEl = slot.querySelector('.va-drv-name');
+              if (nameEl) { nameEl.style.textDecoration = 'none'; nameEl.style.color = ''; }
+              const vehicleArea = slot.querySelector('.va-drv-vehicle');
+              if (vehicleArea) vehicleArea.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+          };
       });
 
       // Status History Modal (timeline) functionality
@@ -3514,72 +3598,138 @@
       }
 
       /* Driver row grid */
-      .inhouse-driver-grid {
-          display: flex;
-          flex-direction: column;
+      /* ── Vehicle Assignment DnD Board ── */
+      .va-veh-card, .va-assigned-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.35rem 0.65rem;
+          border-radius: 8px;
+          background: #fff;
+          border: 1.5px solid #d0d5dd;
+          cursor: grab;
+          font-size: 0.8rem;
+          transition: all .15s;
+          user-select: none;
       }
-      .inhouse-driver-row {
+      .va-veh-card:hover { border-color: #98a2b3; box-shadow: 0 2px 6px rgba(0,0,0,.08); transform: translateY(-1px); }
+      .va-veh-card.va-dragging { opacity: .4; }
+      .va-veh-card.va-in-use {
+          opacity: .45;
+          border-style: dashed;
+      }
+      .va-veh-num { font-weight: 700; font-size: 0.85rem; }
+      .va-veh-type {
+          font-size: 0.62rem;
+          font-weight: 700;
+          padding: 0.1rem 0.35rem;
+          border-radius: 4px;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+      }
+      .va-vtype-towncar  { background: #1e293b; color: #fff; }
+      .va-vtype-suv      { background: #1d4ed8; color: #fff; }
+      .va-vtype-mini_van { background: #7c3aed; color: #fff; }
+      .va-vtype-van, .va-vtype-van14 { background: #0d9488; color: #fff; }
+      .va-veh-model { font-size: 0.72rem; color: #6b7280; }
+
+      /* Driver grid */
+      .va-drivers-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          gap: 0.5rem;
+      }
+      .va-driver-slot {
+          border-radius: 10px;
+          padding: 0.55rem 0.7rem;
+          border: 2px solid #e5e7eb;
+          background: #fafafa;
+          transition: all .15s;
+          min-height: 62px;
+      }
+      .va-driver-slot.va-has {
+          background: #f0fdf4;
+          border-color: #86efac;
+      }
+      .va-driver-slot.va-empty {
+          background: #fffbeb;
+          border-color: #fcd34d;
+          border-style: dashed;
+      }
+      .va-driver-slot.va-off {
+          background: #fff1f2;
+          border-color: #fecaca;
+          opacity: .75;
+      }
+      .va-driver-slot.va-drag-over {
+          border-color: #16a34a !important;
+          border-style: solid !important;
+          background: #dcfce7 !important;
+          box-shadow: 0 0 0 3px rgba(22,163,74,.15);
+      }
+      .va-drv-name {
+          font-weight: 600;
+          font-size: 0.82rem;
+          margin-bottom: 0.3rem;
           display: flex;
           align-items: center;
-          gap: 0.75rem;
-          padding: 0.5rem 1rem;
-          border-bottom: 1px solid rgba(0,0,0,.06);
-          flex-wrap: wrap;
-          transition: background .12s;
+          gap: 0.35rem;
       }
-      .inhouse-driver-row:last-child { border-bottom: none; }
-
-      /* State colours */
-      .idr-assigned   { background: #f0fdf4; }
-      .idr-unassigned { background: #fffbeb; }
-      .idr-off        { background: #fff1f2; opacity: .82; }
-
-      .idr-name-col {
-          min-width: 160px;
+      .va-off .va-drv-name { color: #9ca3af; text-decoration: line-through; }
+      .va-off-badge {
+          font-size: 0.6rem;
+          padding: 0.1rem 0.35rem;
+          border-radius: 999px;
+          background: #fee2e2;
+          color: #b91c1c;
+          font-weight: 600;
+      }
+      .va-legs-badge {
+          font-size: 0.6rem;
+          padding: 0.1rem 0.35rem;
+          border-radius: 999px;
+          background: #e0f2fe;
+          color: #0369a1;
+          font-weight: 600;
+      }
+      .va-drop-hint {
+          font-size: 0.75rem;
+          color: #9ca3af;
+          font-style: italic;
+      }
+      .va-off-msg {
+          font-size: 0.75rem;
+          color: #9ca3af;
           display: flex;
           align-items: center;
           gap: 0.4rem;
-          flex-wrap: wrap;
       }
-      .idr-name {
-          font-weight: 600;
-          font-size: 0.88rem;
+      .va-override-btn {
+          font-size: 0.7rem;
+          border: 1px solid #93c5fd;
+          background: #eff6ff;
+          color: #1d4ed8;
+          border-radius: 4px;
+          padding: 0.1rem 0.4rem;
+          cursor: pointer;
       }
-      .idr-off .idr-name {
-          text-decoration: line-through;
+      .va-override-btn:hover { background: #dbeafe; }
+      .va-assigned-chip {
+          border-color: #16a34a;
+          background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+      }
+      .va-assigned-chip.va-dragging { opacity: .4; }
+      .va-remove-btn {
+          border: none;
+          background: none;
           color: #9ca3af;
+          font-size: 1rem;
+          line-height: 1;
+          cursor: pointer;
+          padding: 0 0.1rem;
+          margin-left: 0.2rem;
       }
-
-      .idr-vehicle-col { flex: 1; min-width: 200px; }
-      .idr-vehicle-col .form-select {
-          font-size: 0.82rem;
-          border-radius: 6px;
-      }
-      .idr-select-assigned {
-          border-color: #16a34a !important;
-          background-color: #f0fdf4 !important;
-      }
-
-      .idr-status-col { min-width: 60px; font-size: 0.78rem; }
-
-      /* Badges */
-      .idr-badge {
-          font-size: 0.68rem;
-          padding: 0.18rem 0.45rem;
-          border-radius: 999px;
-          font-weight: 600;
-          white-space: nowrap;
-      }
-      .off-badge {
-          background: #fee2e2;
-          color: #b91c1c;
-          border: 1px solid #fca5a5;
-      }
-      .legs-badge {
-          background: #e0f2fe;
-          color: #0369a1;
-          border: 1px solid #7dd3fc;
-      }
+      .va-remove-btn:hover { color: #dc2626; }
   </style>
 
 {% endblock %}

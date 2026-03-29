@@ -215,6 +215,69 @@
         border-radius: 0.375rem;
         padding: 0.5rem 0.75rem;
     }
+    .suggested-driver .sg-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    .sg-assign-btn {
+        padding: 3px 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #2e7d32;
+        color: #fff;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+    .sg-assign-btn:hover { background: #1b5e20; transform: translateY(-1px); }
+    .sg-assign-btn.assigning { opacity: 0.5; pointer-events: none; }
+    .sg-alt-toggle {
+        display: inline-block;
+        font-size: 0.7rem;
+        color: #666;
+        cursor: pointer;
+        margin-top: 4px;
+        border: none;
+        background: none;
+        padding: 0;
+        text-decoration: underline;
+        text-decoration-style: dotted;
+    }
+    .sg-alt-toggle:hover { color: #333; }
+    .sg-alternatives {
+        display: none;
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid #d4edda;
+    }
+    .sg-alternatives.open { display: block; }
+    .sg-alt-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0;
+        font-size: 0.75rem;
+    }
+    .sg-alt-item + .sg-alt-item { border-top: 1px dashed #e8f5e9; }
+    .sg-alt-name { font-weight: 600; color: #333; }
+    .sg-alt-reason { color: #777; font-size: 0.68rem; }
+    .sg-alt-assign {
+        padding: 2px 8px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        border: 1px solid #2e7d32;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #fff;
+        color: #2e7d32;
+        white-space: nowrap;
+        transition: all 0.15s;
+    }
+    .sg-alt-assign:hover { background: #2e7d32; color: #fff; }
 
     .no-fit {
         background: #fff5f5;
@@ -421,23 +484,67 @@
         color: var(--dark);
     }
 
-    /* ── Vehicle Assignment Panel ── */
-    .va-card {
-        background: #f9f9fb; border-radius: 10px; padding: 0.65rem 0.8rem;
-        border: 1.5px solid #e8e8ec; transition: all 0.15s;
+    /* ── Vehicle Assignment DnD Board ── */
+    .va-veh-card, .va-assigned-chip {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.35rem 0.65rem; border-radius: 8px;
+        background: #fff; border: 1.5px solid #d0d5dd;
+        cursor: grab; font-size: 0.8rem; transition: all .15s; user-select: none;
     }
-    .va-card.va-has-vehicle {
-        background: linear-gradient(135deg, #fffdf5 0%, #fff9e6 100%);
-        border-color: var(--gold-light, #e8d48a);
+    .va-veh-card:hover { border-color: #98a2b3; box-shadow: 0 2px 6px rgba(0,0,0,.08); transform: translateY(-1px); }
+    .va-veh-card.va-dragging, .va-assigned-chip.va-dragging { opacity: .4; }
+    .va-veh-card.va-in-use { opacity: .45; border-style: dashed; }
+    .va-veh-num { font-weight: 700; font-size: 0.85rem; }
+    .va-veh-type {
+        font-size: 0.62rem; font-weight: 700; padding: 0.1rem 0.35rem;
+        border-radius: 4px; text-transform: uppercase; letter-spacing: 0.02em;
     }
-    .va-driver-name { font-size: 0.82rem; font-weight: 600; color: var(--dark); margin-bottom: 0.3rem; }
-    .va-select {
-        font-size: 0.78rem; padding: 0.3rem 0.45rem; border-radius: 6px;
-        border: 1px solid #d0d0d5; background: #fff; width: 100%;
-        color: #555; cursor: pointer; appearance: auto;
+    .va-vtype-towncar { background: #1e293b; color: #fff; }
+    .va-vtype-suv { background: #1d4ed8; color: #fff; }
+    .va-vtype-mini_van { background: #7c3aed; color: #fff; }
+    .va-vtype-van, .va-vtype-van14 { background: #0d9488; color: #fff; }
+    .va-veh-model { font-size: 0.72rem; color: #6b7280; }
+    .va-drivers-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem;
     }
-    .va-select:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201,162,39,0.15); outline: none; }
-    .va-select option { font-size: 0.78rem; }
+    .va-driver-slot {
+        border-radius: 10px; padding: 0.55rem 0.7rem;
+        border: 2px solid #e5e7eb; background: #fafafa;
+        transition: all .15s; min-height: 62px;
+    }
+    .va-driver-slot.va-has { background: #f0fdf4; border-color: #86efac; }
+    .va-driver-slot.va-empty { background: #fffbeb; border-color: #fcd34d; border-style: dashed; }
+    .va-driver-slot.va-off { background: #fff1f2; border-color: #fecaca; opacity: .75; }
+    .va-driver-slot.va-drag-over {
+        border-color: #16a34a !important; border-style: solid !important;
+        background: #dcfce7 !important; box-shadow: 0 0 0 3px rgba(22,163,74,.15);
+    }
+    .va-drv-name {
+        font-weight: 600; font-size: 0.82rem; margin-bottom: 0.3rem;
+        display: flex; align-items: center; gap: 0.35rem;
+    }
+    .va-off .va-drv-name { color: #9ca3af; text-decoration: line-through; }
+    .va-off-badge {
+        font-size: 0.6rem; padding: 0.1rem 0.35rem; border-radius: 999px;
+        background: #fee2e2; color: #b91c1c; font-weight: 600;
+    }
+    .va-legs-badge {
+        font-size: 0.6rem; padding: 0.1rem 0.35rem; border-radius: 999px;
+        background: #e0f2fe; color: #0369a1; font-weight: 600;
+    }
+    .va-drop-hint { font-size: 0.75rem; color: #9ca3af; font-style: italic; }
+    .va-off-msg { font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.4rem; }
+    .va-override-btn {
+        font-size: 0.7rem; border: 1px solid #93c5fd; background: #eff6ff;
+        color: #1d4ed8; border-radius: 4px; padding: 0.1rem 0.4rem; cursor: pointer;
+    }
+    .va-override-btn:hover { background: #dbeafe; }
+    .va-assigned-chip { border-color: #16a34a; background: linear-gradient(135deg, #f0fdf4, #dcfce7); }
+    .va-remove-btn {
+        border: none; background: none; color: #9ca3af;
+        font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 0.1rem; margin-left: 0.2rem;
+    }
+    .va-remove-btn:hover { color: #dc2626; }
 </style>
 {% endblock %}
 
@@ -534,40 +641,92 @@
     </div>
     {% else %}
 
-    <!-- Vehicle Assignments -->
+    <!-- Vehicle Assignments (DnD Board) -->
     <div class="chart-container">
         <div class="chart-title d-flex justify-content-between align-items-center">
             <div>
-                <a href="#vaPanel" data-bs-toggle="collapse" class="text-decoration-none" style="color:inherit;">
-                    <i class="bi bi-truck me-2" style="color: var(--gold);"></i>Vehicle Assignments
-                    <small class="text-muted fw-normal ms-2" id="vaCount">
-                        ({{ eligible_drivers|length }} of {{ inhouse_drivers|length }} assigned)
-                    </small>
-                    <i class="bi bi-chevron-down ms-2" style="font-size:0.85rem; color: var(--gold);"></i>
-                </a>
+                <i class="bi bi-truck me-2" style="color: var(--gold);"></i>Vehicle Assignments
+                <small class="text-muted fw-normal ms-2" id="vaCount">
+                    ({{ eligible_drivers|length }} of {{ inhouse_drivers|length }} assigned)
+                </small>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm px-3 py-1" id="vaCopyPrev"
+                        style="background: var(--dark); color: var(--gold); font-weight: 600; font-size: 0.78rem; border: 1px solid var(--gold); border-radius: 6px;"
+                        title="Copy from most recent previous day">
+                    <i class="bi bi-arrow-repeat me-1"></i>Use Previous Day
+                </button>
             </div>
         </div>
-        <div class="collapse" id="vaPanel">
-            <div class="row g-2 mt-2">
-                {% for row in vehicle_assign_rows %}
-                <div class="col-sm-6 col-lg-4 col-xl-3">
-                    <div class="va-card {% if row.assignment %}va-has-vehicle{% endif %} va-row" data-driver-id="{{ row.driver.id }}">
-                        <div class="va-driver-name">{{ row.driver }}</div>
-                        <select class="va-select"
-                                data-driver-id="{{ row.driver.id }}"
-                                onchange="vaAssignVehicle(this)">
-                            <option value="">Not assigned</option>
-                            {% for v in inhouse_vehicles %}
-                            <option value="{{ v.id }}"
-                                    {% if row.assignment and row.assignment.vehicle_id == v.id %}selected{% endif %}>
-                                #{{ v.vehicle_number }} — {{ v.year }} {{ v.make }} {{ v.model }}{% if v.vehicle_type %} ({{ v.vehicle_type }}){% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-                {% endfor %}
+
+        <!-- Vehicle pool (draggable) -->
+        <div class="d-flex align-items-center gap-2 mt-3 mb-2">
+            <span class="text-muted small fw-semibold"><i class="bi bi-grip-vertical me-1"></i>Drag a vehicle onto a driver</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mb-3" id="pVehiclePool">
+            {% for vehicle in inhouse_vehicles %}
+            <div class="va-veh-card"
+                 draggable="true"
+                 data-vehicle-id="{{ vehicle.id }}"
+                 data-vehicle-num="{{ vehicle.vehicle_number }}"
+                 data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}">
+              <span class="va-veh-num">#{{ vehicle.vehicle_number }}</span>
+              {% if vehicle.vehicle_type %}
+              <span class="va-veh-type va-vtype-{{ vehicle.vehicle_type|lower }}">{{ vehicle.vehicle_type }}</span>
+              {% endif %}
+              <span class="va-veh-model">{{ vehicle.year }} {{ vehicle.make }}</span>
             </div>
+            {% endfor %}
+        </div>
+
+        <!-- Driver slots (drop targets) -->
+        <div class="va-drivers-grid" id="pDriverGrid">
+            {% for row in vehicle_assign_rows %}
+            <div class="va-driver-slot {% if row.is_off_today %}va-off{% elif row.assignment and row.assignment.vehicle %}va-has{% else %}va-empty{% endif %}"
+                 data-driver-id="{{ row.driver.id }}"
+                 data-driver-name="{{ row.driver }}"
+                 data-assigned-vehicle-id="{{ row.assignment.vehicle_id|default_if_none:'' }}">
+              <div class="va-drv-name">
+                {{ row.driver }}
+                {% if row.is_off_today %}
+                <span class="va-off-badge">Off</span>
+                {% elif row.leg_count > 0 %}
+                <span class="va-legs-badge">{{ row.leg_count }} leg{{ row.leg_count|pluralize }}</span>
+                {% endif %}
+              </div>
+              <div class="va-drv-vehicle" id="p-va-slot-{{ row.driver.id }}">
+                {% if row.is_off_today %}
+                  <span class="va-off-msg">
+                    Day off
+                    <button class="va-override-btn" onclick="pVaOverrideOff({{ row.driver.id }})">
+                      <i class="bi bi-person-check"></i> Work today
+                    </button>
+                  </span>
+                {% elif row.assignment and row.assignment.vehicle %}
+                  <div class="va-assigned-chip"
+                       draggable="true"
+                       data-vehicle-id="{{ row.assignment.vehicle_id }}"
+                       data-vehicle-num="{{ row.assignment.vehicle.vehicle_number }}"
+                       data-vehicle-type="{{ row.assignment.vehicle.vehicle_type|default_if_none:'' }}"
+                       data-from-driver="{{ row.driver.id }}">
+                    <span class="va-veh-num">#{{ row.assignment.vehicle.vehicle_number }}</span>
+                    {% if row.assignment.vehicle.vehicle_type %}
+                    <span class="va-veh-type va-vtype-{{ row.assignment.vehicle.vehicle_type|lower }}">{{ row.assignment.vehicle.vehicle_type }}</span>
+                    {% endif %}
+                    <button class="va-remove-btn" onclick="pVaRemove({{ row.driver.id }})" title="Remove">&times;</button>
+                  </div>
+                {% else %}
+                  <span class="va-drop-hint">Drop vehicle here</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-2">
+            <span class="text-muted" style="font-size:0.72rem;">
+                <i class="bi bi-grip-horizontal me-1"></i>
+                Drag vehicles to assign &bull; Drag between drivers to swap &bull; Click &times; to remove
+            </span>
         </div>
     </div>
 
@@ -727,13 +886,43 @@
                             {% with suggestion=suggestion_map|dict_lookup:leg.id %}
                             {% if suggestion and suggestion.suggested_driver_name %}
                             <div class="suggested-driver">
-                                <small class="text-muted">Suggested:</small>
-                                <div class="fw-bold" style="color: #2e7d32;">{{ suggestion.suggested_driver_name }}</div>
-                                <small class="text-muted">{{ suggestion.reason }}</small>
+                                <div class="sg-top">
+                                    <div>
+                                        <small class="text-muted">Best fit:</small>
+                                        <div class="fw-bold" style="color: #2e7d32;">{{ suggestion.suggested_driver_name }}</div>
+                                        <small class="text-muted">{{ suggestion.reason }}</small>
+                                    </div>
+                                    <button class="sg-assign-btn" onclick="quickAssign(this, {{ leg.id }}, {{ suggestion.suggested_driver_id }})">
+                                        <i class="bi bi-check-lg"></i> Assign
+                                    </button>
+                                </div>
                                 {% if suggestion.feasibility.warnings %}
                                 {% for w in suggestion.feasibility.warnings %}
                                 <div><small style="color: #e65100;"><i class="bi bi-exclamation-triangle"></i> {{ w }}</small></div>
                                 {% endfor %}
+                                {% endif %}
+                                {% if suggestion.alternatives %}
+                                <button class="sg-alt-toggle" onclick="this.nextElementSibling.classList.toggle('open'); this.textContent = this.nextElementSibling.classList.contains('open') ? 'Hide options' : '{{ suggestion.alternatives|length }} more option{{ suggestion.alternatives|pluralize }}';">
+                                    {{ suggestion.alternatives|length }} more option{{ suggestion.alternatives|pluralize }}
+                                </button>
+                                <div class="sg-alternatives">
+                                    {% for alt in suggestion.alternatives %}
+                                    <div class="sg-alt-item">
+                                        <div>
+                                            <span class="sg-alt-name">{{ alt.driver_name }}</span>
+                                            <div class="sg-alt-reason">{{ alt.reason }}</div>
+                                            {% if alt.feasibility.warnings %}
+                                            {% for w in alt.feasibility.warnings %}
+                                            <div><small style="color: #e65100; font-size: .65rem;"><i class="bi bi-exclamation-triangle"></i> {{ w }}</small></div>
+                                            {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                        <button class="sg-alt-assign" onclick="quickAssign(this, {{ leg.id }}, {{ alt.driver_id }})">
+                                            Assign
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                                 {% endif %}
                             </div>
                             {% else %}
@@ -1598,6 +1787,42 @@
     document.getElementById('datePicker').addEventListener('change', function() {
         window.location.href = '?date=' + this.value;
     });
+
+    /* ── Quick Assign from suggestion ── */
+    function quickAssign(btn, legId, driverId) {
+        btn.classList.add('assigning');
+        const origText = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Assigning...';
+
+        fetch('{% url "update_leg_assignment" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({leg_id: legId, field: 'driver', value: driverId}),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success || data.status === 'success') {
+                btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Done';
+                btn.style.background = '#1b5e20';
+                // Fade out the whole suggestion card and reload after a beat
+                const card = btn.closest('.suggested-driver') || btn.closest('.sg-alt-item');
+                if (card) card.style.opacity = '0.5';
+                setTimeout(() => location.reload(), 800);
+            } else {
+                btn.classList.remove('assigning');
+                btn.innerHTML = origText;
+                alert(data.error || data.message || 'Assignment failed');
+            }
+        })
+        .catch(err => {
+            btn.classList.remove('assigning');
+            btn.innerHTML = origText;
+            alert('Network error: ' + err);
+        });
+    }
 
     // Auto-Assign: Step 1 (driver hours) → Step 2 (interactive preview) → Apply
     const autoBtn = document.getElementById('autoAssignBtn');
@@ -3071,34 +3296,146 @@
         });
     });
 
-    // ── Vehicle Assignments ──
-    function vaAssignVehicle(select) {
-        const driverId = select.dataset.driverId;
-        const vehicleId = select.value ? parseInt(select.value) : null;
-        const card = select.closest('.va-card');
+    /* ── Vehicle Assignment DnD (Planner) ── */
+    let pVaDrag = null;
 
-        // Update visual state
-        if (card) card.classList.toggle('va-has-vehicle', !!vehicleId);
+    function pVaMarkInUse() {
+        const assigned = new Set();
+        document.querySelectorAll('#pDriverGrid .va-driver-slot[data-assigned-vehicle-id]').forEach(s => {
+            if (s.dataset.assignedVehicleId) assigned.add(s.dataset.assignedVehicleId);
+        });
+        document.querySelectorAll('#pVehiclePool .va-veh-card').forEach(c => {
+            c.classList.toggle('va-in-use', assigned.has(c.dataset.vehicleId));
+        });
+        // Update count
+        const total = document.querySelectorAll('#pDriverGrid .va-driver-slot:not(.va-off)').length;
+        const has = document.querySelectorAll('#pDriverGrid .va-driver-slot.va-has').length;
+        const el = document.getElementById('vaCount');
+        if (el) el.textContent = '(' + has + ' of ' + total + ' assigned)';
+    }
+    pVaMarkInUse();
 
+    // Drag from pool
+    document.querySelectorAll('#pVehiclePool .va-veh-card').forEach(card => {
+        card.addEventListener('dragstart', e => {
+            pVaDrag = {vehicleId: card.dataset.vehicleId, fromDriverId: null};
+            card.classList.add('va-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        card.addEventListener('dragend', () => { card.classList.remove('va-dragging'); pVaDrag = null; });
+    });
+
+    // Drag from assigned chip
+    document.querySelectorAll('#pDriverGrid .va-assigned-chip[draggable]').forEach(chip => {
+        chip.addEventListener('dragstart', e => {
+            pVaDrag = {vehicleId: chip.dataset.vehicleId, fromDriverId: chip.dataset.fromDriver};
+            chip.classList.add('va-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); pVaDrag = null; });
+    });
+
+    // Drop targets
+    document.querySelectorAll('#pDriverGrid .va-driver-slot').forEach(slot => {
+        slot.addEventListener('dragover', e => {
+            if (!pVaDrag || slot.classList.contains('va-off')) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            slot.classList.add('va-drag-over');
+        });
+        slot.addEventListener('dragleave', () => slot.classList.remove('va-drag-over'));
+        slot.addEventListener('drop', e => {
+            e.preventDefault();
+            slot.classList.remove('va-drag-over');
+            if (!pVaDrag) return;
+            const driverId = slot.dataset.driverId;
+            if (pVaDrag.fromDriverId === driverId) return;
+            if (pVaDrag.fromDriverId) pVaSave(pVaDrag.fromDriverId, null);
+            pVaSave(driverId, pVaDrag.vehicleId);
+            pVaDrag = null;
+        });
+    });
+
+    function pVaSave(driverId, vehicleId) {
         fetch("{% url 'update_inhouse_vehicle_assignment' %}", {
-            method: "POST",
-            headers: {"Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}"},
-            body: JSON.stringify({
-                driver_id: parseInt(driverId),
-                date: "{{ selected_date|date:'Y-m-d' }}",
-                vehicle_id: vehicleId,
-            }),
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify({driver_id: parseInt(driverId), date: '{{ selected_date|date:"Y-m-d" }}', vehicle_id: vehicleId ? parseInt(vehicleId) : null}),
         }).then(r => r.json()).then(data => {
-            if (!data.success) console.error("Vehicle assign failed:", data.error);
-            vaUpdateCount();
+            if (!data.success) return;
+            const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
+            if (!slot) return;
+            const area = slot.querySelector('.va-drv-vehicle');
+            if (vehicleId) {
+                const poolCard = document.querySelector(`#pVehiclePool .va-veh-card[data-vehicle-id="${vehicleId}"]`);
+                const vNum = poolCard ? poolCard.dataset.vehicleNum : vehicleId;
+                const vType = poolCard ? poolCard.dataset.vehicleType : '';
+                const typeClass = 'va-vtype-' + (vType || '').toLowerCase();
+                area.innerHTML = `<div class="va-assigned-chip" draggable="true"
+                    data-vehicle-id="${vehicleId}" data-vehicle-num="${vNum}"
+                    data-vehicle-type="${vType}" data-from-driver="${driverId}">
+                    <span class="va-veh-num">#${vNum}</span>
+                    ${vType ? `<span class="va-veh-type ${typeClass}">${vType}</span>` : ''}
+                    <button class="va-remove-btn" onclick="pVaRemove(${driverId})" title="Remove">&times;</button>
+                </div>`;
+                slot.dataset.assignedVehicleId = vehicleId;
+                slot.classList.remove('va-empty'); slot.classList.add('va-has');
+                // Re-attach drag
+                const chip = area.querySelector('.va-assigned-chip');
+                chip.addEventListener('dragstart', e => {
+                    pVaDrag = {vehicleId: chip.dataset.vehicleId, fromDriverId: chip.dataset.fromDriver};
+                    chip.classList.add('va-dragging'); e.dataTransfer.effectAllowed = 'move';
+                });
+                chip.addEventListener('dragend', () => { chip.classList.remove('va-dragging'); pVaDrag = null; });
+            } else {
+                area.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+                slot.dataset.assignedVehicleId = '';
+                slot.classList.remove('va-has'); slot.classList.add('va-empty');
+            }
+            pVaMarkInUse();
         });
     }
 
-    function vaUpdateCount() {
-        const total = document.querySelectorAll('.va-row').length;
-        const assigned = document.querySelectorAll('.va-card.va-has-vehicle').length;
-        const el = document.getElementById('vaCount');
-        if (el) el.textContent = '(' + assigned + ' of ' + total + ' assigned)';
+    window.pVaRemove = function(driverId) { pVaSave(driverId, null); };
+    window.pVaOverrideOff = function(driverId) {
+        const slot = document.querySelector(`#pDriverGrid .va-driver-slot[data-driver-id="${driverId}"]`);
+        if (!slot) return;
+        slot.classList.remove('va-off'); slot.classList.add('va-empty');
+        const name = slot.querySelector('.va-drv-name');
+        if (name) { name.style.textDecoration = 'none'; name.style.color = ''; }
+        const area = slot.querySelector('.va-drv-vehicle');
+        if (area) area.innerHTML = '<span class="va-drop-hint">Drop vehicle here</span>';
+    };
+
+    // Close on outside click
+    document.addEventListener('click', () => {});
+
+    // Copy from Previous Day
+    const vaCopyBtn = document.getElementById('vaCopyPrev');
+    if (vaCopyBtn) {
+        vaCopyBtn.addEventListener('click', function() {
+            if (!confirm('Copy vehicle assignments from the most recent previous day?')) return;
+            vaCopyBtn.disabled = true;
+            vaCopyBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Copying...';
+            fetch('{% url "copy_vehicle_assignments" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}'}),
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    vaCopyBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied from ' + data.source_date;
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    alert(data.error || 'Failed to copy');
+                    vaCopyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
+                    vaCopyBtn.disabled = false;
+                }
+            }).catch(err => {
+                alert('Error: ' + err);
+                vaCopyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
+                vaCopyBtn.disabled = false;
+            });
+        });
     }
 
     // ============ Timeline Hover Popup ============
