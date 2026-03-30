@@ -529,6 +529,17 @@ def index(request):
             except Exception:
                 _prev_day_last[_pl.driver_id] = _pl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
 
+    # Get previous day's vehicle assignments (for showing which vehicle driver used)
+    _prev_day_vehicle = {}
+    _prev_day_assigns = DriverVehicleAssignment.objects.filter(
+        date=_prev_day, driver__in=_all_inhouse
+    ).select_related('vehicle', 'vehicle__vehicle_type')
+    for _pda in _prev_day_assigns:
+        if _pda.vehicle:
+            _vn = _pda.vehicle.vehicle_number or ''
+            _vt = str(_pda.vehicle.vehicle_type) if _pda.vehicle.vehicle_type else ''
+            _prev_day_vehicle[_pda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
+
     inhouse_timeline = []
     for _driver in _all_inhouse:
         _sched = _driver_schedules.get(_driver.id)
@@ -589,6 +600,7 @@ def index(request):
             'vehicle_number': _driver_vehicle_map.get(_driver.id, ''),
             'vehicle_type_label': _driver_vehicle_type_map.get(_driver.id, ''),
             'prev_night_cleared': _prev_day_last.get(_driver.id, ''),
+            'prev_night_vehicle': _prev_day_vehicle.get(_driver.id, ''),
         })
 
     # Build unassigned timeline slots for drag-and-drop
@@ -821,6 +833,17 @@ def schedule_board(request):
             except Exception:
                 _prev_day_last[_pl.driver_id] = _pl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
 
+    # Get previous day's vehicle assignments
+    _sb_prev_day_vehicle = {}
+    _sb_prev_assigns = DriverVehicleAssignment.objects.filter(
+        date=prev_day, driver__in=inhouse_drivers
+    ).select_related('vehicle', 'vehicle__vehicle_type')
+    for _sbpda in _sb_prev_assigns:
+        if _sbpda.vehicle:
+            _vn = _sbpda.vehicle.vehicle_number or ''
+            _vt = str(_sbpda.vehicle.vehicle_type) if _sbpda.vehicle.vehicle_type else ''
+            _sb_prev_day_vehicle[_sbpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
+
     # Build inhouse timeline
     inhouse_timeline = []
     for driver in inhouse_drivers:
@@ -852,6 +875,7 @@ def schedule_board(request):
             'vehicle_number': vehicle_number,
             'vehicle_type_label': vehicle_type_label,
             'prev_night_cleared': _prev_day_last.get(driver.id, ''),
+            'prev_night_vehicle': _sb_prev_day_vehicle.get(driver.id, ''),
         })
 
     # Build unassigned timeline slots
@@ -2051,7 +2075,13 @@ def update_inhouse_vehicle_assignment(request):
 @login_required
 @require_POST
 def copy_vehicle_assignments(request):
-    """Copy vehicle assignments from the most recent previous date to a target date."""
+    """
+    Copy vehicle assignments from the most recent previous date to a target date.
+
+    Two modes:
+    - preview=true: returns what WOULD be copied, with off-day flags, for review modal
+    - preview=false (default): performs the copy, respecting exclude_driver_ids
+    """
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
@@ -2069,6 +2099,8 @@ def copy_vehicle_assignments(request):
     except ValueError:
         return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
 
+    is_preview = data.get("preview", False)
+
     # Find the most recent previous date with assignments
     prev = (
         DriverVehicleAssignment.objects.filter(date__lt=target_date)
@@ -2079,10 +2111,45 @@ def copy_vehicle_assignments(request):
     if not prev:
         return JsonResponse({"success": False, "error": "No previous assignments found"})
 
-    prev_assignments = DriverVehicleAssignment.objects.filter(date=prev).select_related("driver", "vehicle")
+    prev_assignments = (
+        DriverVehicleAssignment.objects.filter(date=prev)
+        .select_related("driver", "driver__profile", "vehicle")
+        .prefetch_related("driver__weekly_schedule")
+    )
+
+    # Build driver list with off-day status
+    target_dow = target_date.weekday()
+    drivers_list = []
+    for a in prev_assignments:
+        is_off = False
+        for entry in a.driver.weekly_schedule.all():
+            if entry.day_of_week == target_dow:
+                is_off = not entry.is_available
+                break
+        vnum = a.vehicle.vehicle_number if a.vehicle else ''
+        vtype = str(a.vehicle.vehicle_type) if a.vehicle and a.vehicle.vehicle_type else ''
+        drivers_list.append({
+            "driver_id": a.driver_id,
+            "driver_name": a.driver.profile.first_name if a.driver.profile else str(a.driver),
+            "vehicle_number": vnum,
+            "vehicle_type": vtype,
+            "is_off_today": is_off,
+        })
+
+    if is_preview:
+        return JsonResponse({
+            "success": True,
+            "source_date": prev.strftime("%Y-%m-%d"),
+            "drivers": drivers_list,
+        })
+
+    # Perform the copy — respect exclude list
+    exclude_ids = set(data.get("exclude_driver_ids", []))
     copied = 0
     result_map = {}
     for a in prev_assignments:
+        if a.driver_id in exclude_ids:
+            continue
         obj, created = DriverVehicleAssignment.objects.get_or_create(
             driver=a.driver, date=target_date,
             defaults={"vehicle": a.vehicle},
@@ -3100,7 +3167,11 @@ def refresh_flight_data(request):
         flight.scheduled_gate_arrival_local = scheduled_gate_arrival
 
         # Check if flight is scheduled for the future
+        # Compare in Eastern time since flight times are Eastern-local
+        from zoneinfo import ZoneInfo
+        eastern = ZoneInfo('America/New_York')
         now = timezone.now()
+        now_eastern = now.astimezone(eastern)
         is_future_flight = False
         if scheduled_arrival and scheduled_arrival > now:
             is_future_flight = True
@@ -3108,20 +3179,17 @@ def refresh_flight_data(request):
             is_future_flight = True
 
         # Check if scheduled on a different day (truly future, not just later today)
+        # Must compare in Eastern time — UTC date can differ from local date at night
         ref_dt = scheduled_gate_arrival or scheduled_arrival
-        is_different_day = ref_dt and ref_dt.date() != now.date()
+        if ref_dt:
+            ref_date_eastern = ref_dt.astimezone(eastern).date() if ref_dt.tzinfo else ref_dt.date()
+            is_different_day = ref_date_eastern != now_eastern.date()
+        else:
+            is_different_day = False
 
-        if is_future_flight and is_different_day:
-            # Different-day future flight: clear actuals AND estimated to prevent stale
-            # data from a previous day's instance of the same recurring flight number
-            flight.estimated_arrival_local = None
-            flight.estimated_gate_arrival_local = None
-            flight.actual_arrival_local = None
-            flight.actual_gate_arrival_local = None
-            logger.info(f"Cleared stale actual/estimated arrival times for future flight on different day (leg {leg.id})")
-        elif is_future_flight:
-            # Same-day future flight (hasn't landed yet): update estimated from AeroAPI,
-            # clear actuals only
+        if is_future_flight:
+            # Future flight (same-day or different-day): clear actuals, keep estimates
+            # AeroAPI provides predictions up to ~48hrs out
             estimated_arrival = flight_data.get('estimated_arrival_local')
             if estimated_arrival is not None:
                 flight.estimated_arrival_local = estimated_arrival
@@ -3199,14 +3267,11 @@ def refresh_flight_data(request):
 def _best_flight_arrival_time(flight):
     """
     Pick the best arrival time for matching pickup to flight.
-    Uses the same priority as the scheduler: actual > estimated > scheduled.
+    Always uses scheduled gate time — estimates fluctuate and are unreliable
+    for setting pickup times. Falls back to scheduled runway if no gate time.
     """
     return (
-        flight.actual_gate_arrival_local
-        or flight.estimated_gate_arrival_local
-        or flight.actual_arrival_local
-        or flight.estimated_arrival_local
-        or flight.scheduled_gate_arrival_local
+        flight.scheduled_gate_arrival_local
         or flight.scheduled_arrival_local
     )
 
@@ -3571,14 +3636,16 @@ def _refresh_single_flight(leg):
         if flight_status:
             flight.status = flight_status
 
-        # Handle datetime fields - always update to clear old data from previous flights
+        # Handle datetime fields - always update scheduled times
         flight.scheduled_arrival_local = flight_data.get("scheduled_arrival_local")
-        flight.estimated_arrival_local = flight_data.get("estimated_arrival_local")
         flight.scheduled_gate_arrival_local = flight_data.get("scheduled_gate_arrival_local")
-        flight.estimated_gate_arrival_local = flight_data.get("estimated_gate_arrival_local")
 
-        # Handle actual arrival times based on flight timing
+        # Handle actual/estimated arrival times based on flight timing
+        # Compare in Eastern time since flight times are Eastern-local
+        from zoneinfo import ZoneInfo
+        eastern = ZoneInfo('America/New_York')
         now = timezone.now()
+        now_eastern = now.astimezone(eastern)
         scheduled_arrival = flight.scheduled_arrival_local
         scheduled_gate_arrival = flight.scheduled_gate_arrival_local
 
@@ -3589,30 +3656,31 @@ def _refresh_single_flight(leg):
             is_future_flight = True
 
         # Check if scheduled on a different day (truly future, not just later today)
+        # Must compare in Eastern time — UTC date can differ from local date at night
         is_different_day = False
         ref_dt = scheduled_gate_arrival or scheduled_arrival
-        if ref_dt and ref_dt.date() != now.date():
-            is_different_day = True
+        if ref_dt:
+            ref_date_eastern = ref_dt.astimezone(eastern).date() if ref_dt.tzinfo else ref_dt.date()
+            is_different_day = ref_date_eastern != now_eastern.date()
 
-        if is_future_flight and is_different_day:
-            # Different-day future flight: clear actuals AND estimated to prevent stale
-            # data from a previous day's instance of the same recurring flight number
+        if is_future_flight:
+            # Future flight (same-day or different-day): clear actuals, keep estimates
+            # AeroAPI provides predictions up to ~48hrs out
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
-            flight.estimated_arrival_local = None
-            flight.estimated_gate_arrival_local = None
-            logger.info(
-                f"Cleared stale actual/estimated arrival times for future flight on different day (leg {leg.id})"
-            )
-        elif is_future_flight:
-            # Same-day future flight (hasn't landed yet): clear actuals only,
-            # keep estimated times from AeroAPI so "Arriving:" time is displayed
-            flight.actual_arrival_local = None
-            flight.actual_gate_arrival_local = None
+            flight.estimated_arrival_local = flight_data.get("estimated_arrival_local")
+            flight.estimated_gate_arrival_local = flight_data.get("estimated_gate_arrival_local")
         else:
             # Past/current flights: update actuals from AeroAPI data
             flight.actual_arrival_local = flight_data.get("actual_runway_arrival_local")
             flight.actual_gate_arrival_local = flight_data.get("actual_gate_arrival_local")
+            # Only update estimated if AeroAPI returns a value — don't wipe
+            # existing estimates (e.g. landed/taxiing: runway actual exists but
+            # gate estimate may still be useful until actual gate arrival)
+            if flight_data.get("estimated_arrival_local"):
+                flight.estimated_arrival_local = flight_data["estimated_arrival_local"]
+            if flight_data.get("estimated_gate_arrival_local"):
+                flight.estimated_gate_arrival_local = flight_data["estimated_gate_arrival_local"]
 
         # Update terminal, gate, and baggage claim - always update to clear old data
         flight.terminal = flight_data.get("terminal") or ""
@@ -6554,6 +6622,17 @@ def capacity_planner(request):
     assignment_map = {a.driver_id: a for a in inhouse_assignments}
     eligible_driver_ids = set(assignment_map.keys())
     eligible_drivers = [d for d in inhouse_drivers if d.id in eligible_driver_ids]
+    # Sort by vehicle number (same order as legs dashboard)
+    def _cp_vehicle_sort_key(d):
+        a = assignment_map.get(d.id)
+        if a and a.vehicle and a.vehicle.vehicle_number:
+            vn = a.vehicle.vehicle_number.lstrip('#').strip()
+            try:
+                return (0, int(vn))
+            except ValueError:
+                return (0, vn)
+        return (1, str(d))
+    eligible_drivers.sort(key=_cp_vehicle_sort_key)
 
     # Fleet vehicles for quick-assign panel
     inhouse_vehicles = FleetVehicle.objects.select_related("vehicle_type").all().order_by("vehicle_number")
@@ -6708,6 +6787,17 @@ def capacity_planner(request):
             except Exception:
                 _cp_prev_day_last[_cpl.driver_id] = _cpl.pickup_time.strftime('%I:%M %p').lstrip('0') + '?'
 
+    # Get previous day's vehicle assignments
+    _cp_prev_day_vehicle = {}
+    _cp_prev_assigns = DriverVehicleAssignment.objects.filter(
+        date=_cp_prev_day, driver__in=eligible_drivers
+    ).select_related('vehicle', 'vehicle__vehicle_type')
+    for _cpda in _cp_prev_assigns:
+        if _cpda.vehicle:
+            _vn = _cpda.vehicle.vehicle_number or ''
+            _vt = str(_cpda.vehicle.vehicle_type) if _cpda.vehicle.vehicle_type else ''
+            _cp_prev_day_vehicle[_cpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
+
     # Build in-house timeline data — only drivers with vehicles assigned for the day
     inhouse_timeline = []
     for driver in eligible_drivers:
@@ -6778,6 +6868,7 @@ def capacity_planner(request):
             'vehicle_number': _cp_vnum,
             'vehicle_type_label': _cp_vtype,
             'prev_night_cleared': _cp_prev_day_last.get(driver.id, ''),
+            'prev_night_vehicle': _cp_prev_day_vehicle.get(driver.id, ''),
         })
 
     # Build per-driver availability for the selected date (for auto-assign modal defaults)

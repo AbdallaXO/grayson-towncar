@@ -842,46 +842,33 @@
                           <!-- Key Flight Details (Always Visible) -->
                           <div class="mb-2">
 
-                            {% if leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.estimated_arrival_local or leg.flight_information.scheduled_gate_arrival_local %}
+                            {% if leg.flight_information.scheduled_gate_arrival_local or leg.flight_information.actual_gate_arrival_local or leg.flight_information.estimated_gate_arrival_local or leg.flight_information.actual_arrival_local or leg.flight_information.estimated_arrival_local %}
                               <div class="d-flex flex-column gap-1">
+                                {% if leg.flight_information.scheduled_gate_arrival_local %}
+                                  <div class="d-flex flex-wrap align-items-center">
+                                    <span class="small me-2 fw-bold"><i class="bi bi-clock me-1"></i>Scheduled:</span>
+                                    <span class="fw-bold">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
+                                  </div>
+                                {% endif %}
                                 {% if leg.flight_information.actual_gate_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-success small me-2 fw-bold"><i class="bi bi-check-circle me-1"></i>Arrived:</span>
+                                    <span class="text-success small me-2 fw-bold"><i class="bi bi-check-circle me-1"></i>At Gate:</span>
                                     <span class="fw-bold text-success">{{ leg.flight_information.actual_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
-                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                    <div class="d-flex flex-wrap align-items-center">
-                                      <span class="text-muted me-2" style="font-size:0.8rem;">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% endif %}
+                                {% elif leg.flight_information.actual_arrival_local %}
+                                  <div class="d-flex flex-wrap align-items-center">
+                                    <span class="text-warning small me-2 fw-bold"><i class="bi bi-airplane-fill me-1"></i>Landed:</span>
+                                    <span class="fw-bold text-warning">{{ leg.flight_information.actual_arrival_local|date:"g:i A" }}</span>
+                                  </div>
                                 {% elif leg.flight_information.estimated_gate_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-primary small me-2 fw-bold">
-                                      <i class="bi bi-clock-history me-1"></i>Arriving:
-                                    </span>
+                                    <span class="text-primary small me-2 fw-bold"><i class="bi bi-clock-history me-1"></i>Arriving:</span>
                                     <span class="fw-bold text-primary">{{ leg.flight_information.estimated_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
-                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                    <div class="d-flex flex-wrap align-items-center">
-                                      <span class="text-muted me-2" style="font-size:0.8rem;">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% endif %}
                                 {% elif leg.flight_information.estimated_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-primary small me-2 fw-bold">
-                                      <i class="bi bi-clock-history me-1"></i>Arriving:
-                                    </span>
+                                    <span class="text-primary small me-2 fw-bold"><i class="bi bi-clock-history me-1"></i>Arriving:</span>
                                     <span class="fw-bold text-primary">{{ leg.flight_information.estimated_arrival_local|date:"g:i A" }}</span>
-                                  </div>
-                                  {% if leg.flight_information.scheduled_gate_arrival_local %}
-                                    <div class="d-flex flex-wrap align-items-center">
-                                      <span class="text-muted me-2" style="font-size:0.8rem;">Scheduled: {{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
-                                    </div>
-                                  {% endif %}
-                                {% elif leg.flight_information.scheduled_gate_arrival_local %}
-                                  <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-muted small me-2">Scheduled Arrival:</span>
-                                    <span class="fw-semibold">{{ leg.flight_information.scheduled_gate_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% endif %}
                               </div>
@@ -2026,28 +2013,28 @@
                       }
                   }
 
-                  // Show "Arrived" if available, otherwise "Landing" (Estimated)
+                  // Show best available arrival info: At Gate > Arriving (estimated gate) > Landed (runway) > Arriving (estimated runway)
+                  // First clear any existing dynamic spans
+                  const existingSuccess = arrivalTimeContainer.querySelector('.text-success[style*="font-size"]');
+                  const existingPrimary = arrivalTimeContainer.querySelector('.text-primary[style*="font-size"]');
+                  const existingWarning = arrivalTimeContainer.querySelector('.text-warning[style*="font-size"]');
+                  if (existingSuccess) existingSuccess.style.display = 'none';
+                  if (existingPrimary) existingPrimary.style.display = 'none';
+                  if (existingWarning) existingWarning.style.display = 'none';
+
                   if (flightData.actual_gate_arrival_local) {
-                      let actualTimeSpan = arrivalTimeContainer.querySelector('.text-success[style*="font-size"]');
-                      if (!actualTimeSpan) {
-                          actualTimeSpan = document.createElement('span');
+                      let actualTimeSpan = existingSuccess || document.createElement('span');
+                      if (!existingSuccess) {
                           actualTimeSpan.className = 'ms-2 fw-bold text-success';
                           actualTimeSpan.style.fontSize = '0.95rem';
                           actualTimeSpan.style.fontWeight = '700';
                           arrivalTimeContainer.appendChild(actualTimeSpan);
                       }
-                      actualTimeSpan.innerHTML = `<i class="bi bi-check-circle me-1"></i><strong>Arrived:</strong> ${flightData.actual_gate_arrival_local}`;
+                      actualTimeSpan.innerHTML = `<i class="bi bi-check-circle me-1"></i><strong>At Gate:</strong> ${flightData.actual_gate_arrival_local}`;
                       actualTimeSpan.style.display = '';
-                      actualTimeSpan.style.fontSize = '0.95rem';
-                      actualTimeSpan.style.fontWeight = '700';
-
-                      // Hide estimated if actual is shown
-                      const estimatedTimeSpan = arrivalTimeContainer.querySelector('.text-primary[style*="font-size"]');
-                      if (estimatedTimeSpan) estimatedTimeSpan.style.display = 'none';
                   } else if (flightData.estimated_gate_arrival_local) {
-                      let estimatedTimeSpan = arrivalTimeContainer.querySelector('.text-primary[style*="font-size"]');
-                      if (!estimatedTimeSpan) {
-                          estimatedTimeSpan = document.createElement('span');
+                      let estimatedTimeSpan = existingPrimary || document.createElement('span');
+                      if (!existingPrimary) {
                           estimatedTimeSpan.className = 'ms-2 fw-bold text-primary';
                           estimatedTimeSpan.style.fontSize = '0.95rem';
                           estimatedTimeSpan.style.fontWeight = '700';
@@ -2055,8 +2042,26 @@
                       }
                       estimatedTimeSpan.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Arriving:</strong> ${flightData.estimated_gate_arrival_local}`;
                       estimatedTimeSpan.style.display = '';
-                      estimatedTimeSpan.style.fontSize = '0.95rem';
-                      estimatedTimeSpan.style.fontWeight = '700';
+                  } else if (flightData.actual_arrival_local) {
+                      let landedTimeSpan = existingWarning || document.createElement('span');
+                      if (!existingWarning) {
+                          landedTimeSpan.className = 'ms-2 fw-bold text-warning';
+                          landedTimeSpan.style.fontSize = '0.95rem';
+                          landedTimeSpan.style.fontWeight = '700';
+                          arrivalTimeContainer.appendChild(landedTimeSpan);
+                      }
+                      landedTimeSpan.innerHTML = `<i class="bi bi-airplane-fill me-1"></i><strong>Landed:</strong> ${flightData.actual_arrival_local}`;
+                      landedTimeSpan.style.display = '';
+                  } else if (flightData.estimated_arrival_local) {
+                      let estRunwaySpan = existingPrimary || document.createElement('span');
+                      if (!existingPrimary) {
+                          estRunwaySpan.className = 'ms-2 fw-bold text-primary';
+                          estRunwaySpan.style.fontSize = '0.95rem';
+                          estRunwaySpan.style.fontWeight = '700';
+                          arrivalTimeContainer.appendChild(estRunwaySpan);
+                      }
+                      estRunwaySpan.innerHTML = `<i class="bi bi-clock-history me-1"></i><strong>Arriving:</strong> ${flightData.estimated_arrival_local}`;
+                      estRunwaySpan.style.display = '';
                   }
               }
 
@@ -2841,8 +2846,9 @@
                       const chip = slot.querySelector('.va-assigned-chip');
                       const vNum = chip ? chip.dataset.vehicleNum : vid;
                       const driverName = slot.dataset.driverName || '';
-                      if (vNum && driverName) {
-                          lines.push(`${vNum}: ${driverName}`);
+                      const firstName = driverName.split(' ')[0];
+                      if (vNum && firstName) {
+                          lines.push(`${vNum}: ${firstName}`);
                       }
                   });
 
@@ -2870,33 +2876,94 @@
               });
           }
 
-          // ── Copy from Previous Day ──
+          // ── Copy from Previous Day (preview → modal → confirm) ──
           const copyPrevBtn = document.getElementById('copyFromPrevDay');
           if (copyPrevBtn) {
               copyPrevBtn.addEventListener('click', function() {
-                  if (!confirm('Copy vehicle assignments from the most recent previous day? This will overwrite any current assignments.')) return;
-
                   copyPrevBtn.disabled = true;
-                  copyPrevBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Copying...';
+                  copyPrevBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Loading...';
 
+                  // Step 1: Preview — fetch what would be copied
                   fetch('{% url "copy_vehicle_assignments" %}', {
                       method: 'POST',
                       headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-                      body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}'}),
+                      body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', preview: true}),
                   })
                   .then(r => r.json())
                   .then(data => {
-                      if (data.success) {
-                          copyPrevBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied from ' + data.source_date;
-                          copyPrevBtn.classList.add('btn-success');
-                          copyPrevBtn.classList.remove('btn-light', 'btn-outline-light', 'text-dark');
-                          // Reload to reflect all changes in the DnD board
-                          setTimeout(() => location.reload(), 800);
-                      } else {
-                          alert(data.error || 'Failed to copy assignments');
-                          copyPrevBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
-                          copyPrevBtn.disabled = false;
+                      copyPrevBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Use Previous Day';
+                      copyPrevBtn.disabled = false;
+                      if (!data.success) { alert(data.error || 'Failed'); return; }
+
+                      // Step 2: Build review modal
+                      var hasOff = data.drivers.some(d => d.is_off_today);
+                      var overlay = document.createElement('div');
+                      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                      var modal = document.createElement('div');
+                      modal.style.cssText = 'background:#fff;border-radius:12px;padding:0;max-width:480px;width:90%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);';
+
+                      var header = '<div style="padding:14px 20px;border-bottom:1px solid #e9ecef;background:#f8f9fa;border-radius:12px 12px 0 0;">'
+                          + '<div style="font-weight:700;font-size:0.95rem;"><i class="bi bi-arrow-repeat me-2"></i>Copy from ' + data.source_date + '</div>'
+                          + '<div style="font-size:0.75rem;color:#6c757d;">' + data.drivers.length + ' driver' + (data.drivers.length !== 1 ? 's' : '') + ' · Uncheck any to skip</div>'
+                          + '</div>';
+
+                      var body = '<div style="padding:12px 20px;overflow-y:auto;flex:1;">';
+                      if (hasOff) {
+                          body += '<div style="background:#fff3cd;border:1px solid #ffecb5;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:#664d03;">'
+                              + '<i class="bi bi-exclamation-triangle me-1"></i><strong>Some drivers are off today</strong> — they are unchecked by default.</div>';
                       }
+                      data.drivers.forEach(function(d) {
+                          var checked = !d.is_off_today;
+                          body += '<label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:0.82rem;">'
+                              + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' value="' + d.driver_id + '" style="width:16px;height:16px;accent-color:#198754;">'
+                              + '<span style="flex:1;font-weight:' + (d.is_off_today ? '400' : '600') + ';' + (d.is_off_today ? 'color:#999;' : '') + '">' + d.driver_name + '</span>'
+                              + '<span style="color:#0d6efd;font-weight:600;font-size:0.75rem;">#' + d.vehicle_number + ' <span style="color:#aaa;font-weight:400;">' + d.vehicle_type + '</span></span>'
+                              + (d.is_off_today ? '<span style="background:#dc3545;color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:3px;font-weight:700;">OFF</span>' : '')
+                              + '</label>';
+                      });
+                      body += '</div>';
+
+                      var footer = '<div style="padding:12px 20px;border-top:1px solid #e9ecef;display:flex;gap:8px;justify-content:flex-end;">'
+                          + '<button class="btn btn-sm btn-outline-secondary copy-cancel-btn" style="font-size:0.8rem;">Cancel</button>'
+                          + '<button class="btn btn-sm btn-primary copy-confirm-btn" style="font-size:0.8rem;"><i class="bi bi-check2 me-1"></i>Copy Selected</button>'
+                          + '</div>';
+
+                      modal.innerHTML = header + body + footer;
+                      overlay.appendChild(modal);
+                      document.body.appendChild(overlay);
+
+                      // Cancel
+                      overlay.querySelector('.copy-cancel-btn').addEventListener('click', function() { overlay.remove(); });
+                      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+                      // Confirm
+                      overlay.querySelector('.copy-confirm-btn').addEventListener('click', function() {
+                          var checkboxes = modal.querySelectorAll('input[type="checkbox"]');
+                          var excludeIds = [];
+                          checkboxes.forEach(function(cb) { if (!cb.checked) excludeIds.push(parseInt(cb.value)); });
+
+                          var confirmBtn = overlay.querySelector('.copy-confirm-btn');
+                          confirmBtn.disabled = true;
+                          confirmBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Copying...';
+
+                          fetch('{% url "copy_vehicle_assignments" %}', {
+                              method: 'POST',
+                              headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                              body: JSON.stringify({date: '{{ selected_date|date:"Y-m-d" }}', exclude_driver_ids: excludeIds}),
+                          })
+                          .then(r => r.json())
+                          .then(result => {
+                              if (result.success) {
+                                  confirmBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Done! Reloading...';
+                                  confirmBtn.classList.replace('btn-primary', 'btn-success');
+                                  setTimeout(() => location.reload(), 800);
+                              } else {
+                                  alert(result.error || 'Failed');
+                                  confirmBtn.disabled = false;
+                                  confirmBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copy Selected';
+                              }
+                          });
+                      });
                   })
                   .catch(err => {
                       alert('Error: ' + err);

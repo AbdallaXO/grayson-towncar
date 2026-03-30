@@ -48,7 +48,7 @@
                   {% if data.vehicle_number %}<span style="color:#0d6efd;font-weight:600;">#{{ data.vehicle_number }}</span>{% if data.vehicle_type_label %} <span style="color:#aaa;">{{ data.vehicle_type_label }}</span>{% endif %} &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                 </small>
                 {% if data.prev_night_cleared %}
-                  <small style="color:#ff9100;font-size:0.58rem;display:block;" title="Previous day last job cleared"><i class="bi bi-moon-stars"></i> Cleared {{ data.prev_night_cleared }}</small>
+                  <div style="color:#ff9100;font-size:0.78rem;font-weight:600;margin-top:2px;" title="Previous day last job cleared"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
                 {% endif %}
               </div>
               <div class="timeline-bar">
