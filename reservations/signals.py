@@ -470,6 +470,9 @@ def create_audit_log(model_name, object_id, action, user=None, field_name=None,
     
     try:
         username = None
+        # Resolve user: AnonymousUser and non-User objects must be treated as None
+        if user and hasattr(user, 'is_authenticated') and not user.is_authenticated:
+            user = None
         if user:
             username = user.username if hasattr(user, 'username') else str(user)
         elif request and hasattr(request, 'user') and request.user.is_authenticated:
