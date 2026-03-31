@@ -3605,8 +3605,9 @@
 
         let dsData = null;
 
-        function hourSelect(cls, val) {
-            let html = `<select class="form-select form-select-sm ${cls}" style="font-size:0.75rem;">`;
+        function hourSelect(cls, val, extraAttrs) {
+            extraAttrs = extraAttrs || '';
+            let html = `<select class="form-select form-select-sm ${cls}" style="font-size:0.75rem;" ${extraAttrs}>`;
             for (let h = 0; h < 24; h++) {
                 html += `<option value="${h}"${h === val ? ' selected' : ''}>${hourLabels[h]}</option>`;
             }
@@ -3630,20 +3631,25 @@
                 html += `<thead style="background:#f5f5f5;"><tr>`;
                 html += `<th style="padding:0.3rem 0.5rem;width:70px;">Day</th>`;
                 html += `<th style="padding:0.3rem 0.5rem;width:50px;text-align:center;">Off</th>`;
-                html += `<th style="padding:0.3rem 0.5rem;width:120px;">Start</th>`;
-                html += `<th style="padding:0.3rem 0.5rem;width:120px;">End</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:55px;text-align:center;" title="Flexible = no hard time limits, planner builds a reasonable shift">Flex</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:110px;">Start</th>`;
+                html += `<th style="padding:0.3rem 0.5rem;width:110px;">End</th>`;
                 html += `<th style="padding:0.3rem 0.5rem;width:150px;">Preference</th>`;
                 html += `</tr></thead><tbody>`;
 
                 for (let day = 0; day < 7; day++) {
-                    const entry = d.weekly[day] || { is_available: true, start_hour: d.default_start_hour, end_hour: d.default_end_hour, preference: d.default_preference };
+                    const entry = d.weekly[day] || { is_available: true, start_hour: d.default_start_hour, end_hour: d.default_end_hour, flexible: d.default_flexible, preference: d.default_preference };
                     const off = !entry.is_available;
+                    const flex = entry.flexible !== false;
                     const rowStyle = off ? 'opacity:0.4;' : '';
+                    const startEndDisabled = flex ? 'disabled' : '';
+                    const startEndOpacity = flex ? 'opacity:0.35;' : '';
                     html += `<tr class="ds-day-row" data-day="${day}" style="${rowStyle}">`;
                     html += `<td style="padding:0.3rem 0.5rem;font-weight:500;">${dayAbbr[day]}</td>`;
                     html += `<td style="padding:0.3rem 0.5rem;text-align:center;"><input type="checkbox" class="form-check-input ds-off" ${off ? 'checked' : ''}></td>`;
-                    html += `<td style="padding:0.3rem 0.5rem;">${hourSelect('ds-start', entry.start_hour)}</td>`;
-                    html += `<td style="padding:0.3rem 0.5rem;">${hourSelect('ds-end', entry.end_hour)}</td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;text-align:center;"><input type="checkbox" class="form-check-input ds-flex" ${flex ? 'checked' : ''} title="Flexible: no hard time limits"></td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;${startEndOpacity}" class="ds-start-cell">${hourSelect('ds-start', entry.start_hour, startEndDisabled)}</td>`;
+                    html += `<td style="padding:0.3rem 0.5rem;${startEndOpacity}" class="ds-end-cell">${hourSelect('ds-end', entry.end_hour, startEndDisabled)}</td>`;
                     html += `<td style="padding:0.3rem 0.5rem;">${prefSelect('ds-pref', entry.preference)}</td>`;
                     html += `</tr>`;
                 }
@@ -3655,14 +3661,41 @@
             document.querySelectorAll('.ds-off').forEach(cb => {
                 cb.addEventListener('change', function() {
                     const row = this.closest('tr');
-                    row.querySelectorAll('select').forEach(s => { s.disabled = this.checked; });
-                    row.style.opacity = this.checked ? '0.4' : '1';
+                    const isOff = this.checked;
+                    row.style.opacity = isOff ? '0.4' : '1';
+                    row.querySelector('.ds-flex').disabled = isOff;
+                    row.querySelector('.ds-pref').disabled = isOff;
+                    // When off, disable everything
+                    if (isOff) {
+                        row.querySelectorAll('select').forEach(s => { s.disabled = true; });
+                    } else {
+                        // Re-apply flex state
+                        const flex = row.querySelector('.ds-flex').checked;
+                        row.querySelector('.ds-start').disabled = flex;
+                        row.querySelector('.ds-end').disabled = flex;
+                        row.querySelector('.ds-start').closest('td').style.opacity = flex ? '0.35' : '1';
+                        row.querySelector('.ds-end').closest('td').style.opacity = flex ? '0.35' : '1';
+                        row.querySelector('.ds-pref').disabled = false;
+                    }
                 });
                 // Apply initial state
                 if (cb.checked) {
                     const row = cb.closest('tr');
                     row.querySelectorAll('select').forEach(s => { s.disabled = true; });
+                    row.querySelector('.ds-flex').disabled = true;
                 }
+            });
+
+            // Wire up flex checkboxes — toggle Start/End enabled state
+            document.querySelectorAll('.ds-flex').forEach(cb => {
+                cb.addEventListener('change', function() {
+                    const row = this.closest('tr');
+                    const flex = this.checked;
+                    row.querySelector('.ds-start').disabled = flex;
+                    row.querySelector('.ds-end').disabled = flex;
+                    row.querySelector('.ds-start').closest('td').style.opacity = flex ? '0.35' : '1';
+                    row.querySelector('.ds-end').closest('td').style.opacity = flex ? '0.35' : '1';
+                });
             });
         }
 
@@ -3678,6 +3711,7 @@
                         is_available: !row.querySelector('.ds-off').checked,
                         start_hour: parseInt(row.querySelector('.ds-start').value),
                         end_hour: parseInt(row.querySelector('.ds-end').value),
+                        flexible: row.querySelector('.ds-flex').checked,
                         preference: row.querySelector('.ds-pref').value,
                     };
                 });
@@ -3685,6 +3719,7 @@
                     id: did,
                     default_start_hour: orig ? orig.default_start_hour : 6,
                     default_end_hour: orig ? orig.default_end_hour : 23,
+                    default_flexible: orig ? orig.default_flexible : true,
                     default_preference: orig ? orig.default_preference : '',
                     weekly: weekly,
                 });

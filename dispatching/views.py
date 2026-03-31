@@ -744,7 +744,7 @@ def schedule_board(request):
         except Exception:
             leg._estimated_end_dt = None
 
-    # Get inhouse drivers with vehicle assignments
+    # Get inhouse drivers with vehicle assignments, sorted by vehicle number
     inhouse_drivers = list(
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
@@ -756,6 +756,13 @@ def schedule_board(request):
             driver__in=inhouse_drivers, date=selected_date
         ).select_related("vehicle", "vehicle__vehicle_type")
     }
+    # Sort drivers: those with vehicle assignments first (by vehicle number), then unassigned
+    inhouse_drivers.sort(
+        key=lambda d: (
+            0 if d.id in assignments else 1,
+            assignments[d.id].vehicle.vehicle_number if d.id in assignments else 999,
+        )
+    )
 
     # Build schedules
     _driver_schedules = build_driver_schedules(all_legs, inhouse_drivers, selected_date)
@@ -2130,7 +2137,7 @@ def copy_vehicle_assignments(request):
         vtype = str(a.vehicle.vehicle_type) if a.vehicle and a.vehicle.vehicle_type else ''
         drivers_list.append({
             "driver_id": a.driver_id,
-            "driver_name": a.driver.profile.first_name if a.driver.profile else str(a.driver),
+            "driver_name": (a.driver.profile.first_name or str(a.driver)) if a.driver.profile else str(a.driver),
             "vehicle_number": vnum,
             "vehicle_type": vtype,
             "is_off_today": is_off,
@@ -3266,12 +3273,22 @@ def refresh_flight_data(request):
 
 def _best_flight_arrival_time(flight):
     """
-    Pick the best arrival time for matching pickup to flight.
-    Always uses scheduled gate time — estimates fluctuate and are unreliable
-    for setting pickup times. Falls back to scheduled runway if no gate time.
+    Pick the best available arrival time for matching pickup to flight.
+
+    Priority (most accurate first):
+    1. Actual gate arrival (flight has landed and reached the gate)
+    2. Estimated gate arrival (airline's latest estimate, accounts for delays)
+    3. Actual runway arrival (landed but no gate time yet)
+    4. Estimated runway arrival (in-air estimate)
+    5. Scheduled gate arrival (original plan — fallback)
+    6. Scheduled runway arrival (last resort)
     """
     return (
-        flight.scheduled_gate_arrival_local
+        flight.actual_gate_arrival_local
+        or flight.estimated_gate_arrival_local
+        or flight.actual_arrival_local
+        or flight.estimated_arrival_local
+        or flight.scheduled_gate_arrival_local
         or flight.scheduled_arrival_local
     )
 
@@ -6557,7 +6574,7 @@ def capacity_planner(request):
     from drivers.models import Driver
     from dispatching.scheduler import (
         build_driver_schedules,
-        suggest_assignments,
+        suggest_assignments_clustered,
         get_coverage_stats,
         preload_timing_cache,
         clear_timing_cache,
@@ -6682,7 +6699,7 @@ def capacity_planner(request):
     else:
         driver_schedules = build_driver_schedules(legs_list, all_drivers, selected_date)
         _inhouse_for_suggestions = {did: s for did, s in driver_schedules.items() if s.driver_type == 'inhouse'}
-        suggestions = suggest_assignments(_unassigned_legs, _inhouse_for_suggestions, selected_date)
+        suggestions = suggest_assignments_clustered(_unassigned_legs, _inhouse_for_suggestions, selected_date)
         coverage = get_coverage_stats(legs_list)
         cache.set(_sched_cache_key, (driver_schedules, suggestions, coverage), 60)
 
@@ -6874,12 +6891,13 @@ def capacity_planner(request):
     # Build per-driver availability for the selected date (for auto-assign modal defaults)
     driver_availability = {}
     for d in eligible_drivers:
-        is_avail, start_h, end_h, pref = d.get_availability_for_date(selected_date)
+        is_avail, start_h, end_h, pref, flex = d.get_availability_for_date(selected_date)
         driver_availability[d.id] = {
             "is_available": is_avail,
             "start_hour": start_h,
             "end_hour": end_h,
             "preference": pref,
+            "flexible": flex,
         }
 
     context = {
@@ -6972,7 +6990,7 @@ def auto_assign_drivers(request):
 
     from datetime import datetime as dt
     from dispatching.scheduler import (
-        build_driver_schedules, suggest_assignments,
+        build_driver_schedules, suggest_assignments_clustered,
         ScheduleSlot, estimate_job_end_time,
     )
     from dispatching.analytics import categorize_location
@@ -7006,7 +7024,18 @@ def auto_assign_drivers(request):
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
     # Parse per-driver time windows: {driver_id: (start_hour, end_hour)}
+    # Start with driver availability defaults, then apply frontend overrides
     driver_hours = {}
+    flexible_drivers = set()
+    for d in inhouse_drivers:
+        avail = d.get_availability_for_date(target_date)
+        is_avail, sh, eh, pref, flex = avail
+        if is_avail:
+            driver_hours[d.id] = (sh, eh)
+            if flex:
+                flexible_drivers.add(d.id)
+
+    # Frontend overrides take precedence
     for did_str, hours in raw_driver_hours.items():
         try:
             driver_hours[int(did_str)] = (int(hours["start"]), int(hours["end"]))
@@ -7014,7 +7043,13 @@ def auto_assign_drivers(request):
             continue
 
     # Parse per-driver trip preferences: {driver_id: "prefer_arrival"}
+    # Start with driver availability defaults, then apply frontend overrides
     driver_preferences = {}
+    for d in inhouse_drivers:
+        avail = d.get_availability_for_date(target_date)
+        if avail[3]:  # preference
+            driver_preferences[d.id] = avail[3]
+
     for did_str, pref in raw_preferences.items():
         try:
             if pref:
@@ -7042,9 +7077,10 @@ def auto_assign_drivers(request):
     auto_unassigned = [l for l in unassigned if l.id not in manual_leg_ids]
 
     # Run suggestion engine on remaining unassigned legs
-    suggestions = suggest_assignments(auto_unassigned, schedules, target_date,
-                                      driver_hours=driver_hours or None,
-                                      driver_preferences=driver_preferences or None) if auto_unassigned else []
+    suggestions = suggest_assignments_clustered(auto_unassigned, schedules, target_date,
+                                                driver_hours=driver_hours or None,
+                                                driver_preferences=driver_preferences or None,
+                                                flexible_drivers=flexible_drivers or None) if auto_unassigned else []
 
     # Merge: auto suggestions + manual overrides
     valid_suggestions = [
@@ -8641,6 +8677,7 @@ def get_driver_weekly_schedules(request):
                 "is_available": entry.is_available,
                 "start_hour": entry.start_hour,
                 "end_hour": entry.end_hour,
+                "flexible": entry.flexible,
                 "preference": entry.preference,
             }
         result.append({
@@ -8648,6 +8685,7 @@ def get_driver_weekly_schedules(request):
             "name": str(d),
             "default_start_hour": d.default_start_hour,
             "default_end_hour": d.default_end_hour,
+            "default_flexible": d.default_flexible,
             "default_preference": d.default_preference,
             "weekly": entries,
         })
@@ -8682,10 +8720,11 @@ def save_driver_weekly_schedules(request):
         # Update driver defaults + notes
         driver.default_start_hour = int(d_data.get("default_start_hour", 6))
         driver.default_end_hour = int(d_data.get("default_end_hour", 23))
+        driver.default_flexible = d_data.get("default_flexible", True)
         driver.default_preference = d_data.get("default_preference", "")
         if "notes" in d_data:
             driver.notes = d_data["notes"].strip() or None
-        driver.save(update_fields=["default_start_hour", "default_end_hour", "default_preference", "notes"])
+        driver.save(update_fields=["default_start_hour", "default_end_hour", "default_flexible", "default_preference", "notes"])
 
         # Update weekly entries
         weekly = d_data.get("weekly", {})
@@ -8698,6 +8737,7 @@ def save_driver_weekly_schedules(request):
                     "is_available": entry.get("is_available", True),
                     "start_hour": int(entry.get("start_hour", 6)),
                     "end_hour": int(entry.get("end_hour", 23)),
+                    "flexible": entry.get("flexible", True),
                     "preference": entry.get("preference", ""),
                 },
             )
@@ -8847,7 +8887,7 @@ def driver_schedules_dashboard(request):
     for driver in inhouse_drivers:
         days = []
         for i, date in enumerate(week_dates):
-            is_avail, sh, eh, pref = driver.get_availability_for_date(date)
+            is_avail, sh, eh, pref, _flex = driver.get_availability_for_date(date)
             hours = (eh - sh) if is_avail and eh > sh else 0
             days.append({
                 "day_idx": i,
@@ -9238,7 +9278,7 @@ def driver_schedules_dashboard(request):
         avail_count = 0
         avail_by_hour = {h: 0 for h in range(24)}
         for driver in inhouse_drivers:
-            is_avail, sh, eh, _ = driver.get_availability_for_date(current)
+            is_avail, sh, eh, _, _flex = driver.get_availability_for_date(current)
             if is_avail:
                 avail_count += 1
                 for h in range(sh, eh):
@@ -9563,7 +9603,7 @@ def swap_tester(request):
         return redirect("dashboard")
 
     from dispatching.scheduler import (
-        build_driver_schedules, suggest_assignments,
+        build_driver_schedules, suggest_assignments_clustered,
         preload_timing_cache, load_all_driver_vtypes,
         check_feasibility, get_compatible_vehicle_types,
     )
@@ -9606,7 +9646,7 @@ def swap_tester(request):
     # Build schedules and suggestions (pass driver_vtypes to avoid re-query)
     schedules = build_driver_schedules(legs, inhouse_drivers, selected_date)
     unassigned_legs = [l for l in legs if not l.driver]
-    suggestions = suggest_assignments(
+    suggestions = suggest_assignments_clustered(
         unassigned_legs, schedules, selected_date, driver_vtypes=driver_vtypes
     ) if unassigned_legs else []
     suggestion_map = {s.leg_id: s for s in suggestions}

@@ -7,24 +7,32 @@
   <style>
       .driver-timeline-row {
           display: flex; align-items: center;
-          border-bottom: 1px solid #eee; padding: 3px 0;
+          border-bottom: 1px solid #e8e8e8; padding: 4px 0;
+          min-height: 42px;
       }
+      .driver-timeline-row:nth-child(even) { background: rgba(0,0,0,0.015); }
       .driver-timeline-row:last-child { border-bottom: none; }
       .driver-name-col {
-          width: 160px; min-width: 160px;
-          padding: 0 8px; overflow: hidden;
-          font-size: 0.75rem;
+          width: 170px; min-width: 170px;
+          padding: 0 10px; overflow: hidden;
+          font-size: 0.78rem;
       }
-      .driver-name-col small { font-size: 0.65rem; }
+      .driver-name-col small { font-size: 0.68rem; }
+      .driver-name-col .vehicle-num {
+          display: inline-flex; align-items: center; justify-content: center;
+          background: #0d6efd; color: #fff; font-weight: 700;
+          font-size: 0.62rem; min-width: 20px; height: 16px;
+          border-radius: 3px; padding: 0 4px; margin-right: 4px;
+      }
       .timeline-bar {
-          flex: 1; height: 32px;
+          flex: 1; height: 34px;
           background: #f8f9fa; border-radius: 4px;
           position: relative; overflow: visible;
       }
       .timeline-grid-wrapper { position: relative; }
       .timeline-grid-lines {
           position: absolute; top: 0; bottom: 0;
-          left: 160px; right: 0;
+          left: 170px; right: 0;
           pointer-events: none; z-index: 2;
       }
       .timeline-grid-line {
@@ -36,20 +44,21 @@
       }
       .timeline-rows { position: relative; }
       .timeline-slot {
-          position: absolute; top: 2px; height: 28px;
-          border-radius: 3px; display: flex; align-items: center;
-          padding: 0 5px; font-size: 0.6rem; font-weight: 600;
+          position: absolute; top: 2px; height: 30px;
+          border-radius: 4px; display: flex; align-items: center;
+          padding: 0 6px; font-size: 0.65rem; font-weight: 700;
           color: #fff; overflow: hidden; white-space: nowrap;
-          cursor: pointer; transition: opacity 0.15s; z-index: 3;
+          cursor: pointer; transition: opacity 0.15s, box-shadow 0.15s; z-index: 3;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
       }
-      .timeline-slot:hover { opacity: 0.85; }
+      .timeline-slot:hover { opacity: 0.9; box-shadow: 0 2px 6px rgba(0,0,0,0.25); }
       .timeline-slot.arrival { background: #1565c0; }
       .timeline-slot.return { background: #2e7d32; }
       .timeline-slot.cruise { background: #e65100; }
       .timeline-slot.other { background: #6a1b9a; }
       .timeline-slot .tl-status-strip {
           position: absolute; bottom: 0; left: 0; right: 0;
-          height: 5px; border-radius: 0 0 3px 3px;
+          height: 5px; border-radius: 0 0 4px 4px;
       }
       .timeline-slot .tl-status-strip.st-completed { background: #fff; }
       .timeline-slot .tl-status-strip.st-picked-up { background: #00e676; }
@@ -61,9 +70,9 @@
       /* Status abbreviation badge inside slot */
       .timeline-slot .tl-status-badge {
           display: inline-flex; align-items: center; justify-content: center;
-          font-size: 0.42rem; font-weight: 800; letter-spacing: 0.03em;
-          line-height: 1; padding: 2px 3px; border-radius: 3px;
-          margin-left: 3px; vertical-align: middle; text-transform: uppercase;
+          font-size: 0.45rem; font-weight: 800; letter-spacing: 0.03em;
+          line-height: 1; padding: 2px 4px; border-radius: 3px;
+          margin-left: 4px; vertical-align: middle; text-transform: uppercase;
           box-shadow: 0 1px 2px rgba(0,0,0,0.15);
       }
       .tl-status-badge.stb-picked-up { background: #00e676; color: #0a3d1e; }
@@ -73,15 +82,15 @@
       .tl-status-badge.stb-completed { background: rgba(0,0,0,0.25); color: #fff; }
       .tl-status-badge.stb-cancelled { background: #ff1744; color: #fff; }
       .timeline-hour-markers {
-          position: relative; height: 18px;
-          margin-left: 160px; margin-bottom: 2px;
+          position: relative; height: 20px;
+          margin-left: 170px; margin-bottom: 2px;
       }
       .timeline-hour-markers .tick-label {
-          position: absolute; font-size: 0.6rem; color: #999;
+          position: absolute; font-size: 0.65rem; color: #999;
           transform: translateX(-50%); white-space: nowrap;
           font-weight: 500;
       }
-      .timeline-hour-markers .tick-label.hour { color: #666; font-weight: 600; }
+      .timeline-hour-markers .tick-label.hour { color: #555; font-weight: 700; }
       /* Timeline hover popup */
       .tl-popup {
           position: fixed; z-index: 9999;
@@ -117,17 +126,17 @@
       .driver-timeline-row.dnd-infeasible { box-shadow: inset 4px 0 0 #dc3545; background: rgba(220,53,69,0.06); }
       .driver-timeline-row.dnd-warning { box-shadow: inset 4px 0 0 #ff9100; background: rgba(255,145,0,0.06); }
       .dnd-unassigned-row {
-          border-bottom: 2px solid rgba(201,162,39,0.25); margin-bottom: 6px;
-          padding-bottom: 6px; align-items: flex-start;
+          border-bottom: 2px solid rgba(201,162,39,0.3); margin-bottom: 8px;
+          padding-bottom: 8px; align-items: flex-start;
       }
       .dnd-unassigned-row .driver-name-col { padding-top: 4px; }
       .dnd-unassigned-row .timeline-bar {
-          background: rgba(201,162,39,0.03); overflow-y: auto; max-height: 200px;
-          border-radius: 4px; border: 1px solid rgba(201,162,39,0.12);
+          background: rgba(201,162,39,0.04); overflow-y: auto; max-height: 200px;
+          border-radius: 4px; border: 1px dashed rgba(201,162,39,0.25);
       }
       .dnd-unassigned-row .timeline-slot {
-          height: 18px; font-size: 0.52rem; opacity: 0.85;
-          border-radius: 2px;
+          height: 20px; font-size: 0.55rem; opacity: 0.85;
+          border-radius: 3px;
       }
       .dnd-unassigned-row .timeline-slot:hover { opacity: 1; }
       .dnd-undo-toast {
@@ -229,9 +238,12 @@
             {% for data in inhouse_timeline %}
               <div class="driver-timeline-row" data-driver-id="{{ data.driver.id }}" data-driver-name="{{ data.driver }}">
                 <div class="driver-name-col">
-                  <strong>{{ data.driver }}</strong>
+                  <div class="d-flex align-items-center">
+                    {% if data.vehicle_number %}<span class="vehicle-num">#{{ data.vehicle_number }}</span>{% endif %}
+                    <strong>{{ data.driver }}</strong>
+                  </div>
                   <small class="text-muted">
-                    {% if data.vehicle_number %}<span style="color:#0d6efd;font-weight:600;">#{{ data.vehicle_number }}</span>{% if data.vehicle_type_label %} <span style="color:#aaa;">{{ data.vehicle_type_label }}</span>{% endif %} &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
+                    {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                   </small>
                   {% if data.prev_night_cleared %}
                     <div style="color:#ff9100;font-size:0.78rem;font-weight:600;margin-top:2px;" title="Last job cleared previous night"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>

@@ -23,6 +23,10 @@ class Driver(models.Model):
         default=23,
         help_text="Default latest hour this driver works until (0-23). Used as default in auto-assign."
     )
+    default_flexible = models.BooleanField(
+        default=True,
+        help_text="Flexible = no hard time limits, planner builds a reasonable shift. Uncheck only if driver has strict start/end constraints."
+    )
     default_preference = models.CharField(
         max_length=30, blank=True, default="",
         help_text="Default trip type preference for auto-assign (e.g., prefer_arrival, only_return)."
@@ -135,9 +139,13 @@ class Driver(models.Model):
 
     def get_availability_for_date(self, target_date):
         """
-        Return (is_available, start_hour, end_hour, preference) for a given date.
+        Return (is_available, start_hour, end_hour, preference, flexible) for a given date.
         Checks DriverWeeklySchedule first, then falls back to default_* fields.
         Works efficiently with prefetched weekly_schedule data.
+
+        flexible=True means the driver has no hard time limits — the planner
+        uses start/end as hints for cluster assignment but doesn't filter jobs
+        outside the window.
         """
         day_of_week = target_date.weekday()  # 0=Monday, 6=Sunday
         # Use prefetched cache if available (iterate in Python to avoid extra DB hit)
@@ -148,8 +156,9 @@ class Driver(models.Model):
                     entry.start_hour,
                     entry.end_hour,
                     entry.preference,
+                    entry.flexible,
                 )
-        return (True, self.default_start_hour, self.default_end_hour, self.default_preference)
+        return (True, self.default_start_hour, self.default_end_hour, self.default_preference, self.default_flexible)
 
     def __str__(self):
         if self.profile.first_name:
@@ -186,6 +195,10 @@ class DriverWeeklySchedule(models.Model):
     is_available = models.BooleanField(default=True)
     start_hour = models.IntegerField(default=6)
     end_hour = models.IntegerField(default=23)
+    flexible = models.BooleanField(
+        default=True,
+        help_text="Flexible = no hard time limits, planner builds a reasonable shift. Uncheck only if driver has strict start/end constraints."
+    )
     preference = models.CharField(max_length=30, blank=True, default="", choices=PREFERENCE_CHOICES)
 
     class Meta:

@@ -769,6 +769,178 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
     return schedules
 
 
+def cluster_legs_by_time(legs, target_date: date, gap_minutes: int = 120) -> List[list]:
+    """Group legs into natural time clusters using gap-based splitting.
+
+    Sorts legs by pickup_time and starts a new cluster when the gap
+    between consecutive legs exceeds gap_minutes.
+
+    Returns list of clusters, each a list of legs sorted by pickup_time.
+    """
+    if not legs:
+        return []
+    sorted_by_time = sorted(legs, key=lambda l: l.pickup_time)
+    clusters = [[sorted_by_time[0]]]
+    for leg in sorted_by_time[1:]:
+        prev = clusters[-1][-1]
+        gap = (datetime.combine(target_date, leg.pickup_time) -
+               datetime.combine(target_date, prev.pickup_time)).total_seconds() / 60
+        if gap > gap_minutes:
+            clusters.append([leg])
+        else:
+            clusters[-1].append(leg)
+    return clusters
+
+
+def assign_drivers_to_clusters(
+    clusters: List[list],
+    working: Dict[int, DriverDaySchedule],
+    driver_hours: Dict[int, tuple],
+    driver_vtypes: Dict[int, str],
+    target_date: date,
+) -> Dict[int, List[int]]:
+    """Assign drivers to time clusters based on availability overlap and vehicle compatibility.
+
+    Returns {driver_id: [cluster_indices]} — which clusters each driver
+    should preferentially work in. Drivers may appear in multiple clusters
+    if their availability spans them.
+    """
+    if not clusters or not working:
+        return {}
+
+    # Compute each cluster's hour span
+    cluster_hours = []
+    for cluster in clusters:
+        start_h = cluster[0].pickup_time.hour
+        last_end = max(estimate_job_end_time(l, target_date) for l in cluster)
+        end_h = last_end.hour
+        cluster_hours.append((start_h, end_h))
+
+    # Count how many drivers can cover each cluster (cluster supply)
+    cluster_supply = [0] * len(clusters)
+    driver_eligible_clusters = {}  # {did: [(cluster_idx, compatible_job_count)]}
+
+    for did in working:
+        if driver_hours and did in driver_hours:
+            dh_start, dh_end = driver_hours[did]
+        else:
+            dh_start, dh_end = 0, 23
+
+        dvtype = driver_vtypes.get(did)
+        compatible = get_compatible_vehicle_types(dvtype) if dvtype else None
+
+        eligible = []
+        for ci, (cs_h, ce_h) in enumerate(cluster_hours):
+            # Driver must be available during the cluster's time span
+            if dh_start > ce_h or dh_end < cs_h:
+                continue
+            # Count vehicle-compatible legs in this cluster
+            match_count = 0
+            for leg in clusters[ci]:
+                leg_vtype = getattr(
+                    getattr(getattr(leg, 'reservation', None), 'vehicle', None),
+                    'vehicle_type', None
+                )
+                if not compatible or not leg_vtype or leg_vtype in compatible:
+                    match_count += 1
+            if match_count > 0:
+                eligible.append((ci, match_count))
+                cluster_supply[ci] += 1
+
+        driver_eligible_clusters[did] = eligible
+
+    # Greedy assignment: for each cluster (prioritizing scarce ones),
+    # assign the best-fit drivers. Each driver gets their top cluster(s).
+    # Sort clusters by supply (scarce first)
+    cluster_order = sorted(range(len(clusters)), key=lambda ci: cluster_supply[ci])
+
+    result = {did: [] for did in working}
+    driver_assigned_count = {did: 0 for did in working}
+
+    for ci in cluster_order:
+        demand = len(clusters[ci])
+        # Estimate how many drivers we need for this cluster
+        # (~3-4 jobs per driver is a reasonable target)
+        needed = max(1, (demand + 2) // 3)
+
+        # Rank drivers for this cluster: prefer those with fewer assignments
+        # and more compatible jobs
+        candidates = []
+        for did in working:
+            for eci, match_count in driver_eligible_clusters.get(did, []):
+                if eci == ci:
+                    candidates.append((did, match_count, driver_assigned_count[did]))
+                    break
+
+        # Sort: fewer existing assignments first, then more compatible jobs
+        candidates.sort(key=lambda x: (x[2], -x[1]))
+
+        assigned = 0
+        for did, _mc, _ac in candidates:
+            if assigned >= needed:
+                break
+            if ci not in result[did]:
+                result[did].append(ci)
+                driver_assigned_count[did] += 1
+                assigned += 1
+
+    return result
+
+
+def suggest_assignments_clustered(
+    unassigned_legs,
+    inhouse_schedules: Dict[int, DriverDaySchedule],
+    target_date: date,
+    driver_hours: Dict[int, tuple] = None,
+    driver_preferences: Dict[int, str] = None,
+    driver_vtypes: Dict[int, str] = None,
+    flexible_drivers: set = None,
+) -> List[AssignmentSuggestion]:
+    """Cluster-aware assignment wrapper.
+
+    Groups legs into time clusters, assigns drivers to clusters for shift
+    coherence, then runs the enhanced greedy suggest_assignments() with
+    cluster hints so drivers are preferentially scored for jobs in their
+    assigned time blocks.
+
+    Falls back to standard mode for single-cluster days.
+    """
+    from dispatching.models import SchedulerSettings
+    cfg = SchedulerSettings.get_settings()
+
+    gap_minutes = getattr(cfg, 'cluster_gap_minutes', 120)
+    clusters = cluster_legs_by_time(unassigned_legs, target_date, gap_minutes=gap_minutes)
+
+    if len(clusters) <= 1:
+        # Single cluster or empty: no shift modeling needed
+        return suggest_assignments(
+            unassigned_legs, inhouse_schedules, target_date,
+            driver_hours=driver_hours, driver_preferences=driver_preferences,
+            driver_vtypes=driver_vtypes, flexible_drivers=flexible_drivers,
+        )
+
+    if driver_vtypes is None:
+        driver_vtypes = load_all_driver_vtypes(target_date)
+
+    # Build working driver set (same filter as suggest_assignments)
+    working_dids = {did for did in inhouse_schedules if did in driver_vtypes}
+
+    cluster_hints = assign_drivers_to_clusters(
+        clusters,
+        {did: inhouse_schedules[did] for did in working_dids},
+        driver_hours,
+        driver_vtypes,
+        target_date,
+    )
+
+    return suggest_assignments(
+        unassigned_legs, inhouse_schedules, target_date,
+        driver_hours=driver_hours, driver_preferences=driver_preferences,
+        driver_vtypes=driver_vtypes, cluster_hints=cluster_hints,
+        clusters=clusters, flexible_drivers=flexible_drivers,
+    )
+
+
 def suggest_assignments(
     unassigned_legs,
     inhouse_schedules: Dict[int, DriverDaySchedule],
@@ -776,11 +948,22 @@ def suggest_assignments(
     driver_hours: Dict[int, tuple] = None,
     driver_preferences: Dict[int, str] = None,
     driver_vtypes: Dict[int, str] = None,
+    cluster_hints: Dict[int, List[int]] = None,
+    clusters: List[list] = None,
+    flexible_drivers: set = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
     Legs that don't fit any in-house driver are marked for affiliate.
     Vehicle-aware: only assigns legs that match the driver's vehicle tier.
+
+    Optional cluster_hints: {driver_id: [cluster_indices]} from
+    suggest_assignments_clustered(). When provided, drivers get a shift
+    coherence bonus for jobs in their assigned clusters.
+
+    Optional flexible_drivers: set of driver IDs that skip the hard time
+    window filter. Their schedules are kept compact via scoring penalties
+    (idle gap, span) rather than hard cutoffs.
     """
     from dispatching.analytics import categorize_location
     from dispatching.models import SchedulerSettings
@@ -884,8 +1067,33 @@ def suggest_assignments(
                     count += 1
         driver_reserved_count[did] = count
 
-    # ── Two-pass processing order ────────────────────────────────────
-    # Pass 1: Legs whose vehicle type is TRULY scarce — few exact-type
+    # ── Pre-compute time scarcity: demand/supply ratio per hour ────
+    # Hours with more legs than available drivers are "time-scarce" and
+    # should be processed before slack hours to prevent early-bird drivers
+    # from being wasted on afternoon work.
+    _hour_demand = {}
+    for _leg in sorted_legs:
+        h = _leg.pickup_time.hour
+        _hour_demand[h] = _hour_demand.get(h, 0) + 1
+
+    _hour_supply = {}
+    for _did in working:
+        if driver_hours and _did in driver_hours:
+            _dh_start, _dh_end = driver_hours[_did]
+        else:
+            _dh_start, _dh_end = 0, 23
+        for h in range(_dh_start, _dh_end + 1):
+            _hour_supply[h] = _hour_supply.get(h, 0) + 1
+
+    time_scarcity_map = {}
+    for _leg in sorted_legs:
+        h = _leg.pickup_time.hour
+        demand = _hour_demand.get(h, 0)
+        supply = max(_hour_supply.get(h, 1), 1)
+        time_scarcity_map[_leg.id] = demand / supply
+
+    # ── Three-pass processing order ───────────────────────────────────
+    # Pass 0: Legs whose vehicle type is TRULY scarce — few exact-type
     #   drivers AND few total eligible drivers. This ensures specialized
     #   drivers (e.g., the only Van driver) get their matching jobs BEFORE
     #   being consumed as fallback for general jobs.
@@ -894,40 +1102,51 @@ def suggest_assignments(
     #   a) Exact-type driver count ≤ reserve_max_scarcity (few drivers ARE this type)
     #   b) Total eligible drivers ≤ half the fleet (few drivers CAN do this type)
     #
-    #   Example: mini_van has 1 exact driver but ALL 8 drivers are eligible
-    #   → NOT Pass 1 (condition b fails). Van has 1 exact driver and only
-    #   3 eligible → Pass 1 (both conditions met).
+    # Pass 1: Time-scarce legs (demand/supply > 1.5). These hours have
+    #   more jobs than comfortably available drivers, so assigning them
+    #   first prevents constrained drivers from being consumed by slack hours.
     #
-    # Pass 2: Everything else (types with many eligible drivers).
+    # Pass 2: Everything else (types with many eligible drivers, slack hours).
     #
     # Within each pass, the original sort order is preserved:
     #   (hour, type_priority [returns→cruise→other→arrivals], pickup_time)
     _TYPE_PRIORITY_REF = _TYPE_PRIORITY
     half_fleet = max(len(working) // 2, 3)
 
-    def _two_pass_sort_key(leg):
+    def _multi_pass_sort_key(leg):
         trip_type = leg.get_trip_type()
         leg_vtype = getattr(
             getattr(getattr(leg, 'reservation', None), 'vehicle', None),
             'vehicle_type', None
         )
-        pass_priority = 1  # Pass 2 (normal)
+        pass_priority = 2  # Pass 2 (normal)
+        # Check vehicle scarcity (Pass 0)
         if leg_vtype:
             exact_count = exact_type_driver_counts.get(str(leg_vtype), 0)
             eligible = scarcity_map.get(leg.id, len(working))
             if 0 < exact_count <= cfg.reserve_max_scarcity and eligible <= half_fleet:
-                pass_priority = 0  # Pass 1 (truly scarce)
+                pass_priority = 0  # Pass 0 (vehicle-scarce)
+        # Check time scarcity (Pass 1) — only if not already Pass 0
+        if pass_priority == 2 and time_scarcity_map.get(leg.id, 0) > 1.5:
+            pass_priority = 1  # Pass 1 (time-scarce)
         return (pass_priority, leg.pickup_time.hour, _TYPE_PRIORITY_REF.get(trip_type, 2), leg.pickup_time)
 
-    sorted_legs = sorted(sorted_legs, key=_two_pass_sort_key)
+    sorted_legs = sorted(sorted_legs, key=_multi_pass_sort_key)
+
+    # Pre-compute leg-to-cluster mapping for shift coherence scoring
+    _leg_cluster_map = {}  # {leg_id: cluster_index}
+    if cluster_hints and clusters:
+        for ci, cluster in enumerate(clusters):
+            for cl_leg in cluster:
+                _leg_cluster_map[cl_leg.id] = ci
 
     for leg in sorted_legs:
         best_id = None
-        best_score = -1
+        best_score = float('-inf')
         best_feasibility = None
         # Fallback: reserved-mismatch drivers (only used if no non-reserved driver fits)
         best_reserved_id = None
-        best_reserved_score = -1
+        best_reserved_score = float('-inf')
         best_reserved_feasibility = None
         # Collect all scored candidates for alternatives
         all_candidates = []
@@ -936,11 +1155,12 @@ def suggest_assignments(
         eligible_drivers = scarcity_map.get(leg.id, len(working))
 
         for did, sched in working.items():
-            # Per-driver time window check
+            # Per-driver time window check (flexible drivers skip this)
             if driver_hours and did in driver_hours:
-                dh_start, dh_end = driver_hours[did]
-                if leg.pickup_time < time(dh_start, 0) or leg.pickup_time > time(dh_end, 59):
-                    continue
+                if not (flexible_drivers and did in flexible_drivers):
+                    dh_start, dh_end = driver_hours[did]
+                    if leg.pickup_time < time(dh_start, 0) or leg.pickup_time > time(dh_end, 59):
+                        continue
 
             # Vehicle compatibility check
             driver_vtype = driver_vtypes.get(did)
@@ -1046,8 +1266,75 @@ def suggest_assignments(
             elif chains == 1:
                 score += cfg.chain_1
 
-            # Load balance
-            score -= len(sched.slots) * cfg.load_balance_multiplier
+            # Backward chain: does this driver's existing schedule chain INTO this job?
+            backward_bonus = getattr(cfg, 'backward_chain_bonus', 40)
+            if sched.slots and backward_bonus > 0:
+                last_slot = sorted(sched.slots, key=lambda s: s.pickup_time)[-1]
+                last_dropoff = last_slot.dropoff_category
+                if last_dropoff == pickup_cat:
+                    drive_to_pickup = 0
+                else:
+                    drive_to_pickup = DRIVE_TIME_ESTIMATES.get(
+                        (last_dropoff, pickup_cat), DEFAULT_DRIVE_TIME
+                    )
+                if drive_to_pickup <= cfg.chain_drive_threshold:
+                    gap_from_last = (datetime.combine(target_date, leg.pickup_time) - last_slot.estimated_end_time).total_seconds() / 60
+                    if cfg.chain_time_min <= gap_from_last <= cfg.chain_time_max:
+                        score += backward_bonus
+
+            # Shift coherence: bonus when job is in driver's assigned cluster
+            if cluster_hints and _leg_cluster_map:
+                leg_cluster = _leg_cluster_map.get(leg.id)
+                driver_clusters = cluster_hints.get(did, [])
+                if leg_cluster is not None and leg_cluster in driver_clusters:
+                    score += getattr(cfg, 'shift_coherence_bonus', 50)
+
+            # Load balance (exponential: heavier penalty as jobs accumulate)
+            n_jobs = len(sched.slots)
+            if n_jobs > 0:
+                score -= int(cfg.load_balance_multiplier * (n_jobs ** getattr(cfg, 'load_balance_exponent', 1.5)))
+
+            # Idle gap penalty: penalize large gaps between consecutive jobs
+            idle_threshold = getattr(cfg, 'idle_gap_threshold', 120)
+            idle_penalty_rate = getattr(cfg, 'idle_gap_penalty_per_min', 2)
+            if sched.slots and idle_threshold > 0:
+                new_pickup_dt_gap = datetime.combine(target_date, leg.pickup_time)
+                new_end_dt_gap = estimate_job_end_time(leg, target_date)
+                sorted_slots_gap = sorted(sched.slots, key=lambda s: s.pickup_time)
+                # Find insertion point
+                insert_idx = len(sorted_slots_gap)
+                for idx_g, slot_g in enumerate(sorted_slots_gap):
+                    if datetime.combine(target_date, slot_g.pickup_time) > new_pickup_dt_gap:
+                        insert_idx = idx_g
+                        break
+                # Check gap from preceding slot to new leg
+                if insert_idx > 0:
+                    prev_slot = sorted_slots_gap[insert_idx - 1]
+                    gap_before = (new_pickup_dt_gap - prev_slot.estimated_end_time).total_seconds() / 60
+                    if gap_before > idle_threshold:
+                        score -= int((gap_before - idle_threshold) * idle_penalty_rate)
+                # Check gap from new leg to following slot
+                if insert_idx < len(sorted_slots_gap):
+                    next_slot = sorted_slots_gap[insert_idx]
+                    next_pickup_dt = datetime.combine(target_date, next_slot.pickup_time)
+                    gap_after = (next_pickup_dt - new_end_dt_gap).total_seconds() / 60
+                    if gap_after > idle_threshold:
+                        score -= int((gap_after - idle_threshold) * idle_penalty_rate)
+
+            # Schedule span penalty: penalize overly long driver days
+            span_threshold = getattr(cfg, 'span_threshold_hours', 13)
+            span_penalty_rate = getattr(cfg, 'span_penalty_per_hour', 30)
+            if sched.slots and span_threshold > 0:
+                sorted_slots_span = sorted(sched.slots, key=lambda s: s.pickup_time)
+                first_start = datetime.combine(target_date, sorted_slots_span[0].pickup_time)
+                last_end = sorted_slots_span[-1].estimated_end_time
+                new_pickup_dt_span = datetime.combine(target_date, leg.pickup_time)
+                new_end_dt_span = estimate_job_end_time(leg, target_date)
+                effective_start = min(first_start, new_pickup_dt_span)
+                effective_end = max(last_end, new_end_dt_span)
+                span_hours = (effective_end - effective_start).total_seconds() / 3600
+                if span_hours > span_threshold:
+                    score -= int((span_hours - span_threshold) * span_penalty_rate)
 
             # Per-driver trip type preference
             if driver_preferences and did in driver_preferences:

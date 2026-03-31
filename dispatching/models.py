@@ -79,7 +79,26 @@ class SchedulerSettings(models.Model):
     reserve_max_scarcity = models.IntegerField(default=2, help_text="Max eligible drivers for a job to count as 'needs saving'")
 
     # ── Load Balance ──────────────────────────────────────────────
-    load_balance_multiplier = models.IntegerField(default=5, help_text="Penalty per existing leg on driver")
+    load_balance_multiplier = models.IntegerField(default=10, help_text="Base multiplier for load balance penalty")
+    load_balance_exponent = models.FloatField(default=1.5, help_text="Exponent for load balance: multiplier * (n ^ exponent)")
+
+    # ── Idle Gap Penalty ──────────────────────────────────────────
+    idle_gap_threshold = models.IntegerField(default=120, help_text="Minutes of gap before idle penalty applies")
+    idle_gap_penalty_per_min = models.IntegerField(default=2, help_text="Penalty per minute over idle threshold")
+
+    # ── Schedule Span Penalty ─────────────────────────────────────
+    span_threshold_hours = models.IntegerField(default=13, help_text="Max shift span hours before penalty")
+    span_penalty_per_hour = models.IntegerField(default=30, help_text="Penalty per hour over span threshold")
+
+    # ── Backward Chain ────────────────────────────────────────────
+    backward_chain_bonus = models.IntegerField(default=40, help_text="Bonus when driver's last dropoff chains into this pickup")
+
+    # ── Cluster / Shift Coherence ─────────────────────────────────
+    shift_coherence_bonus = models.IntegerField(default=50, help_text="Bonus when job is in driver's assigned time cluster")
+    cluster_gap_minutes = models.IntegerField(default=120, help_text="Time gap in minutes to split into new cluster")
+
+    # ── Time Scarcity ─────────────────────────────────────────────
+    time_scarcity_bonus = models.IntegerField(default=30, help_text="Bonus for legs in time-scarce hours (demand > supply)")
 
     # ── Global ────────────────────────────────────────────────────
     inter_job_buffer = models.IntegerField(default=5, help_text="Minutes between jobs (break + buffer)")

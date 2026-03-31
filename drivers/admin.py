@@ -14,7 +14,7 @@ class DriverWeeklyScheduleInline(admin.TabularInline):
     model = DriverWeeklySchedule
     extra = 0
     max_num = 7
-    fields = ["day_of_week", "is_available", "start_hour", "end_hour", "preference"]
+    fields = ["day_of_week", "is_available", "start_hour", "end_hour", "flexible", "preference"]
 
 
 class DriverPayRateInline(admin.TabularInline):
@@ -76,9 +76,12 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
                 "fields": (
                     "default_start_hour",
                     "default_end_hour",
+                    "default_flexible",
                     "default_preference",
                 ),
                 "description": "Default working hours and preferences for auto-assign. "
+                               "Flexible = no hard time limits, planner builds a reasonable shift. "
+                               "Uncheck Flexible only if driver has strict start/end constraints. "
                                "Per-day overrides can be set in the Weekly Schedule section below.",
             },
         ),
