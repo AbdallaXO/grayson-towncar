@@ -1789,7 +1789,17 @@ def update_leg_assignment(request):
                     # Track who assigned the driver and when
                     leg.driver_assigned_by = request.user
                     leg.driver_assigned_at = timezone.now()
+                    # Fast save for assignment fields, then full save for pay calc
                     leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
+                    # Trigger pay auto-fill: clear stale pay, re-save with full path
+                    leg.driver_base_pay = None
+                    leg.driver_gratuity = None
+                    leg.driver_additional = None
+                    leg.driver_pay_amount = None
+                    leg.save(update_fields=[
+                        'driver_base_pay', 'driver_gratuity', 'driver_additional',
+                        'driver_pay_amount', 'profit_estimate',
+                    ])
                     cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
                     logger.info(
                         f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
@@ -7115,10 +7125,18 @@ def auto_assign_drivers(request):
                 leg.driver = driver
                 leg.driver_assigned_by = request.user
                 leg.driver_assigned_at = now
-                # Use update_fields to skip expensive pay/route calculations
-                # in Leg.save() — these are just driver assignments.
+                # Fast save for assignment fields
                 leg.save(update_fields=[
                     'driver', 'driver_assigned_by', 'driver_assigned_at',
+                ])
+                # Trigger pay auto-fill: clear stale pay, re-save with full path
+                leg.driver_base_pay = None
+                leg.driver_gratuity = None
+                leg.driver_additional = None
+                leg.driver_pay_amount = None
+                leg.save(update_fields=[
+                    'driver_base_pay', 'driver_gratuity', 'driver_additional',
+                    'driver_pay_amount', 'profit_estimate',
                 ])
                 saved += 1
             except Exception:
