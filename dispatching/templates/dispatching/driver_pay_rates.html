@@ -292,7 +292,8 @@
                     <thead>
                       <tr>
                         <th style="font-size:0.75rem;">Vehicle</th>
-                        <th class="text-center" style="width:120px;font-size:0.75rem;">Price</th>
+                        <th class="text-center" style="width:120px;font-size:0.75rem;">Forward</th>
+                        <th class="text-center pv-rev-col" style="width:120px;font-size:0.75rem;display:none;">Reverse</th>
                       </tr>
                     </thead>
                     <tbody id="grid-body"></tbody>
@@ -578,7 +579,7 @@ if (routeCheckboxes && routeCheckboxes.length) {
       } else {
         flatContainer.style.display = 'none';
         perVehicleContainer.style.display = '';
-        // Build vehicle grid rows
+        // Build vehicle grid rows with forward + reverse columns
         gridBody.innerHTML = '';
         vehicles.forEach(function(v) {
           var tr = document.createElement('tr');
@@ -587,7 +588,14 @@ if (routeCheckboxes && routeCheckboxes.length) {
             '<td class="text-center">' +
               '<div class="input-group input-group-sm justify-content-center">' +
                 '<span class="input-group-text">$</span>' +
-                '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-price"' +
+                '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-fwd-price"' +
+                       ' data-vehicle="' + v.id + '" placeholder="0.00">' +
+              '</div>' +
+            '</td>' +
+            '<td class="text-center pv-rev-col" style="display:none;">' +
+              '<div class="input-group input-group-sm justify-content-center">' +
+                '<span class="input-group-text">$</span>' +
+                '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-rev-price"' +
                        ' data-vehicle="' + v.id + '" placeholder="0.00">' +
               '</div>' +
             '</td>';
@@ -597,7 +605,7 @@ if (routeCheckboxes && routeCheckboxes.length) {
     });
   });
 
-  // "Same both ways" checkbox toggles reverse field visibility
+  // "Same both ways" checkbox toggles reverse field visibility (flat mode)
   var flatSame = document.getElementById('flat-same');
   var flatFwd = document.getElementById('flat-fwd');
   var flatRev = document.getElementById('flat-rev');
@@ -606,6 +614,16 @@ if (routeCheckboxes && routeCheckboxes.length) {
   if (flatSame) {
     flatSame.addEventListener('change', function() {
       if (flatRevCol) flatRevCol.style.display = this.checked ? 'none' : '';
+    });
+  }
+
+  // "Same both ways" checkbox toggles reverse column (per-vehicle mode)
+  var pvSame = document.getElementById('pv-same');
+  if (pvSame) {
+    pvSame.addEventListener('change', function() {
+      document.querySelectorAll('.pv-rev-col').forEach(function(el) {
+        el.style.display = pvSame.checked ? 'none' : '';
+      });
     });
   }
 
@@ -637,14 +655,22 @@ if (routeCheckboxes && routeCheckboxes.length) {
       } else {
         // Per-vehicle mode
         var hasAny = false;
+        var pvSameBoth = pvSame ? pvSame.checked : true;
         gridBody.querySelectorAll('tr').forEach(function(tr) {
-          var input = tr.querySelector('.grid-price');
-          var vehicleId = input.dataset.vehicle;
-          var val = input.value;
-          if (!val) return;
+          var fwdInput = tr.querySelector('.grid-fwd-price');
+          var revInput = tr.querySelector('.grid-rev-price');
+          var vehicleId = fwdInput.dataset.vehicle;
+          var fwdVal = fwdInput.value;
+          var revVal = revInput ? revInput.value : '';
+          if (!fwdVal && !revVal) return;
           hasAny = true;
           selectedRoutes.forEach(function(route) {
-            rates.push({route_id: route.id, vehicle_id: vehicleId, direction: 'both', base_pay: val});
+            if (pvSameBoth && fwdVal) {
+              rates.push({route_id: route.id, vehicle_id: vehicleId, direction: 'both', base_pay: fwdVal});
+            } else {
+              if (fwdVal) rates.push({route_id: route.id, vehicle_id: vehicleId, direction: 'forward', base_pay: fwdVal});
+              if (revVal) rates.push({route_id: route.id, vehicle_id: vehicleId, direction: 'reverse', base_pay: revVal});
+            }
           });
         });
         if (!hasAny) { alert('Enter at least one vehicle price.'); return; }
