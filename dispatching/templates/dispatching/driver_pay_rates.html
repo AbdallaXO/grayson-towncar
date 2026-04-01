@@ -21,6 +21,8 @@
   .route-group-header:hover { background: #e9ecef !important; }
   .route-group-header[aria-expanded="true"] .route-group-preview { display: none; }
   .route-group-header .badge { font-size: 0.7rem; font-weight: 500; }
+  .route-label:hover { background: #f0f4ff; }
+  .route-label:has(input:checked) { background: #e8f0fe; border: 1px solid #4285f4; border-radius: 4px; }
 </style>
 {% endblock extra_css %}
 
@@ -214,98 +216,105 @@
 
       {% if selected_driver.driver_type == 'affiliate' %}
       {# ── Quick Setup (Affiliate only) ──────────────────────────── #}
-      <div class="card card-body bg-light mb-3" id="quick-setup">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h6 class="mb-0">Quick Setup</h6>
+      <div class="card mb-3" id="quick-setup">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center" style="background:var(--dark);color:#fff;">
+          <h6 class="mb-0" style="font-size:0.9rem;"><i class="bi bi-lightning-fill me-1" style="color:var(--gold,#f0c040);"></i>Quick Setup</h6>
+          <small style="opacity:0.7;">Select routes &rarr; set price &rarr; save</small>
         </div>
-        <div class="row g-2 align-items-end mb-3">
-          <div class="col-auto">
-            <label class="form-label small mb-0">Route</label>
-            <select id="grid-route" class="form-select form-select-sm" style="width:320px">
-              <option value="">-- Select Route --</option>
-              {% for route in routes %}
-              <option value="{{ route.id }}"
-                      data-origin="{{ route.origin.name }}"
-                      data-dest="{{ route.destination.name }}">
-                {{ route.origin.name }} &harr; {{ route.destination.name }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
+        <div class="card-body p-3">
 
-        <div id="grid-container" style="display:none">
-          {# ── Mode toggle ── #}
-          <div class="d-flex gap-3 mb-3">
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="grid-mode" id="mode-flat" value="flat" checked>
-              <label class="form-check-label small" for="mode-flat">Same price for all vehicles</label>
-            </div>
-            <div class="form-check">
-              <input class="form-check-input" type="radio" name="grid-mode" id="mode-per-vehicle" value="per-vehicle">
-              <label class="form-check-label small" for="mode-per-vehicle">Different price per vehicle</label>
-            </div>
-          </div>
-
-          {# ── Flat mode: single row ── #}
-          <div id="flat-container">
-            <div class="row g-2 align-items-end">
-              <div class="col-auto">
-                <label class="form-label small mb-0" id="flat-fwd-label">Forward</label>
-                <div class="input-group input-group-sm" style="width:120px">
-                  <span class="input-group-text">$</span>
-                  <input type="number" step="0.01" min="0" id="flat-fwd" class="form-control form-control-sm" placeholder="0.00">
+          {# ── Step 1: Route selection ── #}
+          <div class="row">
+            <div class="col-lg-6 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label small mb-0 fw-bold">1. Select Routes</label>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-outline-dark btn-sm py-0 px-2" type="button" id="routes-select-all" style="font-size:0.7rem;">All</button>
+                  <button class="btn btn-outline-dark btn-sm py-0 px-2" type="button" id="routes-select-none" style="font-size:0.7rem;">None</button>
                 </div>
               </div>
-              <div class="col-auto">
-                <label class="form-label small mb-0" id="flat-rev-label">Reverse</label>
-                <div class="input-group input-group-sm" style="width:120px">
-                  <span class="input-group-text">$</span>
-                  <input type="number" step="0.01" min="0" id="flat-rev" class="form-control form-control-sm" placeholder="0.00">
-                </div>
+              <div id="route-checkboxes" style="max-height:220px;overflow-y:auto;border:1px solid #dee2e6;border-radius:6px;padding:0.5rem;">
+                {% for route in routes %}
+                <label class="d-flex align-items-center gap-2 py-1 px-2 rounded route-label" style="font-size:0.82rem;cursor:pointer;margin:0;">
+                  <input class="form-check-input route-cb mt-0" type="checkbox" value="{{ route.id }}"
+                         data-origin="{{ route.origin.name }}" data-dest="{{ route.destination.name }}">
+                  <span>{{ route.origin.name }} <span style="color:#999;">&harr;</span> {{ route.destination.name }}</span>
+                </label>
+                {% endfor %}
               </div>
-              <div class="col-auto">
-                <div class="form-check" style="margin-bottom:0.3rem">
-                  <input class="form-check-input" type="checkbox" id="flat-same" checked>
-                  <label class="form-check-label small" for="flat-same">Same both ways</label>
+              <div class="mt-1 small text-muted" id="routes-selected-count">0 routes selected</div>
+            </div>
+
+            {# ── Step 2: Price setup ── #}
+            <div class="col-lg-6 mb-3">
+              <div id="grid-container" style="display:none;">
+                <label class="form-label small mb-2 fw-bold">2. Set Price</label>
+
+                {# Mode toggle #}
+                <div class="d-flex gap-3 mb-3">
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="grid-mode" id="mode-flat" value="flat" checked>
+                    <label class="form-check-label small" for="mode-flat">Same for all vehicles</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="radio" name="grid-mode" id="mode-per-vehicle" value="per-vehicle">
+                    <label class="form-check-label small" for="mode-per-vehicle">Per vehicle</label>
+                  </div>
                 </div>
+
+                {# Flat mode #}
+                <div id="flat-container">
+                  <div class="d-flex gap-3 align-items-end">
+                    <div>
+                      <label class="form-label small mb-0">Price</label>
+                      <div class="input-group input-group-sm" style="width:130px">
+                        <span class="input-group-text">$</span>
+                        <input type="number" step="0.01" min="0" id="flat-fwd" class="form-control form-control-sm" placeholder="0.00">
+                      </div>
+                    </div>
+                    <div id="flat-rev-col" style="display:none;">
+                      <label class="form-label small mb-0">Reverse</label>
+                      <div class="input-group input-group-sm" style="width:130px">
+                        <span class="input-group-text">$</span>
+                        <input type="number" step="0.01" min="0" id="flat-rev" class="form-control form-control-sm" placeholder="0.00">
+                      </div>
+                    </div>
+                    <div class="form-check" style="margin-bottom:0.35rem;">
+                      <input class="form-check-input" type="checkbox" id="flat-same" checked>
+                      <label class="form-check-label small" for="flat-same">Same both ways</label>
+                    </div>
+                  </div>
+                </div>
+
+                {# Per-vehicle mode #}
+                <div id="per-vehicle-container" style="display:none">
+                  <table class="table table-sm table-bordered grid-table mb-0" style="max-width:300px;">
+                    <thead>
+                      <tr>
+                        <th style="font-size:0.75rem;">Vehicle</th>
+                        <th class="text-center" style="width:120px;font-size:0.75rem;">Price</th>
+                      </tr>
+                    </thead>
+                    <tbody id="grid-body"></tbody>
+                  </table>
+                  <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="pv-same" checked>
+                    <label class="form-check-label small" for="pv-same">Same both ways</label>
+                  </div>
+                </div>
+
+                <button class="btn btn-primary btn-sm mt-3" id="grid-save-btn">
+                  <i class="bi bi-check2-all me-1"></i>Save Rates for Selected Routes
+                </button>
+                <span id="grid-save-status" class="text-success small ms-2" style="display:none">All saved!</span>
+              </div>
+
+              <div id="grid-placeholder" class="text-muted small mt-4" style="display:block;">
+                <i class="bi bi-arrow-left me-1"></i>Select routes to set prices
               </div>
             </div>
           </div>
 
-          {# ── Per-vehicle mode: full grid ── #}
-          <div id="per-vehicle-container" style="display:none">
-            <table class="table table-sm table-bordered grid-table mb-2">
-              <thead>
-                <tr>
-                  <th style="width:140px">Vehicle</th>
-                  <th class="text-center" id="grid-fwd-header" style="width:120px">
-                    <span class="grid-arrow">Forward &rarr;</span>
-                  </th>
-                  <th class="text-center" style="width:40px"></th>
-                  <th class="text-center" id="grid-rev-header" style="width:120px">
-                    <span class="grid-arrow">&larr; Reverse</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="grid-body">
-                {# Populated by JS #}
-              </tbody>
-            </table>
-
-            <div class="d-flex gap-2 align-items-center mb-2">
-              <button class="btn btn-sm btn-outline-secondary" id="grid-copy-fwd-btn" title="Copy all Forward prices to Reverse">
-                Copy Forward &rarr; Reverse
-              </button>
-            </div>
-          </div>
-
-          <div class="d-flex gap-2 align-items-center mt-3">
-            <button class="btn btn-sm btn-primary" id="grid-save-btn">
-              <i class="bi bi-check2-all me-1"></i>Save Rates
-            </button>
-            <span id="grid-save-status" class="text-success small" style="display:none">All saved!</span>
-          </div>
         </div>
       </div>
       {% endif %}
@@ -525,19 +534,41 @@ if (addBtn) {
   });
 }
 
-// ── Quick Setup (Affiliate) ────────────────────────────────────────
-const gridRoute = document.getElementById('grid-route');
+// ── Quick Setup (Affiliate) — Multi-route ─────────────────────────
 const gridContainer = document.getElementById('grid-container');
 const gridBody = document.getElementById('grid-body');
 const flatContainer = document.getElementById('flat-container');
 const perVehicleContainer = document.getElementById('per-vehicle-container');
+const routeCheckboxes = document.querySelectorAll('.route-cb');
+const routeCountEl = document.getElementById('routes-selected-count');
+
+function getSelectedRoutes() {
+  return routeCheckboxes ? Array.from(routeCheckboxes).filter(cb => cb.checked).map(cb => ({
+    id: cb.value, origin: cb.dataset.origin, dest: cb.dataset.dest
+  })) : [];
+}
+
+function updateRouteCount() {
+  const selected = getSelectedRoutes();
+  if (routeCountEl) routeCountEl.textContent = selected.length + ' route' + (selected.length !== 1 ? 's' : '') + ' selected';
+  if (gridContainer) gridContainer.style.display = selected.length > 0 ? 'block' : 'none';
+  var ph = document.getElementById('grid-placeholder');
+  if (ph) ph.style.display = selected.length > 0 ? 'none' : 'block';
+}
 
 function getGridMode() {
   var el = document.querySelector('input[name="grid-mode"]:checked');
   return el ? el.value : 'flat';
 }
 
-if (gridRoute) {
+if (routeCheckboxes && routeCheckboxes.length) {
+  // Select All / Clear buttons
+  var selAllBtn = document.getElementById('routes-select-all');
+  var selNoneBtn = document.getElementById('routes-select-none');
+  if (selAllBtn) selAllBtn.addEventListener('click', function() { routeCheckboxes.forEach(cb => { cb.checked = true; }); updateRouteCount(); });
+  if (selNoneBtn) selNoneBtn.addEventListener('click', function() { routeCheckboxes.forEach(cb => { cb.checked = false; }); updateRouteCount(); });
+  routeCheckboxes.forEach(cb => cb.addEventListener('change', updateRouteCount));
+
   // Mode toggle: switch between flat and per-vehicle
   document.querySelectorAll('input[name="grid-mode"]').forEach(function(radio) {
     radio.addEventListener('change', function() {
@@ -547,164 +578,80 @@ if (gridRoute) {
       } else {
         flatContainer.style.display = 'none';
         perVehicleContainer.style.display = '';
+        // Build vehicle grid rows
+        gridBody.innerHTML = '';
+        vehicles.forEach(function(v) {
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td class="grid-vehicle-label">' + v.name + '</td>' +
+            '<td class="text-center">' +
+              '<div class="input-group input-group-sm justify-content-center">' +
+                '<span class="input-group-text">$</span>' +
+                '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-price"' +
+                       ' data-vehicle="' + v.id + '" placeholder="0.00">' +
+              '</div>' +
+            '</td>';
+          gridBody.appendChild(tr);
+        });
       }
     });
   });
 
-  // "Same both ways" checkbox syncs reverse to forward
+  // "Same both ways" checkbox toggles reverse field visibility
   var flatSame = document.getElementById('flat-same');
   var flatFwd = document.getElementById('flat-fwd');
   var flatRev = document.getElementById('flat-rev');
+  var flatRevCol = document.getElementById('flat-rev-col');
 
-  flatSame.addEventListener('change', function() {
-    if (this.checked) {
-      flatRev.value = flatFwd.value;
-      flatRev.disabled = true;
-    } else {
-      flatRev.disabled = false;
-    }
-  });
-  flatFwd.addEventListener('input', function() {
-    if (flatSame.checked) flatRev.value = this.value;
-  });
-  // Init: disable reverse since "same" is checked by default
-  flatRev.disabled = true;
-
-  gridRoute.addEventListener('change', function() {
-    var routeId = this.value;
-    if (!routeId) {
-      gridContainer.style.display = 'none';
-      return;
-    }
-
-    var opt = this.options[this.selectedIndex];
-    var origin = opt.dataset.origin;
-    var dest = opt.dataset.dest;
-
-    // Update flat labels
-    document.getElementById('flat-fwd-label').textContent = origin + ' → ' + dest;
-    document.getElementById('flat-rev-label').textContent = dest + ' → ' + origin;
-
-    // Pre-fill flat from existing "all/both" rate
-    var bothKey = routeId + '-all-both';
-    var fwdAllKey = routeId + '-all-forward';
-    var revAllKey = routeId + '-all-reverse';
-    if (existingRates[bothKey]) {
-      flatFwd.value = existingRates[bothKey];
-      flatRev.value = existingRates[bothKey];
-      flatSame.checked = true;
-      flatRev.disabled = true;
-    } else if (existingRates[fwdAllKey] || existingRates[revAllKey]) {
-      flatFwd.value = existingRates[fwdAllKey] || '';
-      flatRev.value = existingRates[revAllKey] || '';
-      flatSame.checked = (flatFwd.value === flatRev.value && flatFwd.value !== '');
-      flatRev.disabled = flatSame.checked;
-    } else {
-      flatFwd.value = '';
-      flatRev.value = '';
-    }
-
-    // Update per-vehicle column headers
-    var fwdHeader = document.getElementById('grid-fwd-header');
-    var revHeader = document.getElementById('grid-rev-header');
-    if (fwdHeader) fwdHeader.innerHTML = '<span class="grid-arrow">' + origin + ' &rarr; ' + dest + '</span>';
-    if (revHeader) revHeader.innerHTML = '<span class="grid-arrow">' + dest + ' &rarr; ' + origin + '</span>';
-
-    // Build per-vehicle grid rows
-    gridBody.innerHTML = '';
-    vehicles.forEach(function(v) {
-      var fwdKey = routeId + '-' + v.id + '-forward';
-      var revKey = routeId + '-' + v.id + '-reverse';
-      var fwdVal = existingRates[fwdKey] || '';
-      var revVal = existingRates[revKey] || '';
-
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td class="grid-vehicle-label">' + v.name + '</td>' +
-        '<td class="text-center">' +
-          '<div class="input-group input-group-sm justify-content-center">' +
-            '<span class="input-group-text">$</span>' +
-            '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-fwd"' +
-                   ' data-route="' + routeId + '" data-vehicle="' + v.id + '"' +
-                   ' value="' + fwdVal + '" placeholder="&#8212;">' +
-          '</div>' +
-        '</td>' +
-        '<td class="text-center">' +
-          '<button class="btn btn-outline-secondary copy-btn copy-row-btn" title="Copy forward to reverse">&rarr;</button>' +
-        '</td>' +
-        '<td class="text-center">' +
-          '<div class="input-group input-group-sm justify-content-center">' +
-            '<span class="input-group-text">$</span>' +
-            '<input type="number" step="0.01" min="0" class="form-control form-control-sm grid-input grid-rev"' +
-                   ' data-route="' + routeId + '" data-vehicle="' + v.id + '"' +
-                   ' value="' + revVal + '" placeholder="&#8212;">' +
-          '</div>' +
-        '</td>';
-      gridBody.appendChild(tr);
-
-      tr.querySelector('.copy-row-btn').addEventListener('click', function() {
-        var fwd = tr.querySelector('.grid-fwd');
-        var rev = tr.querySelector('.grid-rev');
-        if (fwd.value) {
-          rev.value = fwd.value;
-          rev.classList.add('border-success');
-          setTimeout(function() { rev.classList.remove('border-success'); }, 600);
-        }
-      });
-    });
-
-    gridContainer.style.display = 'block';
-  });
-
-  // Copy ALL forward to reverse (per-vehicle mode)
-  var copyAllBtn = document.getElementById('grid-copy-fwd-btn');
-  if (copyAllBtn) {
-    copyAllBtn.addEventListener('click', function() {
-      gridBody.querySelectorAll('tr').forEach(function(tr) {
-        var fwd = tr.querySelector('.grid-fwd');
-        var rev = tr.querySelector('.grid-rev');
-        if (fwd && rev && fwd.value) rev.value = fwd.value;
-      });
+  if (flatSame) {
+    flatSame.addEventListener('change', function() {
+      if (flatRevCol) flatRevCol.style.display = this.checked ? 'none' : '';
     });
   }
 
-  // Save — works for both modes
+  // Save — applies to ALL selected routes
   var gridSaveBtn = document.getElementById('grid-save-btn');
   if (gridSaveBtn) {
     gridSaveBtn.addEventListener('click', function() {
-      var routeId = gridRoute.value;
-      if (!routeId) return;
+      var selectedRoutes = getSelectedRoutes();
+      if (selectedRoutes.length === 0) { alert('Please select at least one route.'); return; }
 
       var rates = [];
       var mode = getGridMode();
+      var sameBothWays = flatSame ? flatSame.checked : true;
+      var pvSame = document.getElementById('pv-same');
 
       if (mode === 'flat') {
-        // Flat mode: save as "All Vehicles / Both" or separate fwd/rev
-        var fwdVal = flatFwd.value;
-        var revVal = flatRev.value;
-        if (!fwdVal && !revVal) return;
+        var price = flatFwd.value;
+        var revPrice = flatRev ? flatRev.value : '';
+        if (!price && !revPrice) { alert('Enter a price.'); return; }
 
-        if (flatSame.checked && fwdVal) {
-          rates.push({route_id: routeId, vehicle_id: null, direction: 'both', base_pay: fwdVal});
-        } else {
-          if (fwdVal) rates.push({route_id: routeId, vehicle_id: null, direction: 'forward', base_pay: fwdVal});
-          if (revVal) rates.push({route_id: routeId, vehicle_id: null, direction: 'reverse', base_pay: revVal});
-        }
+        selectedRoutes.forEach(function(route) {
+          if (sameBothWays && price) {
+            rates.push({route_id: route.id, vehicle_id: null, direction: 'both', base_pay: price});
+          } else {
+            if (price) rates.push({route_id: route.id, vehicle_id: null, direction: 'forward', base_pay: price});
+            if (revPrice) rates.push({route_id: route.id, vehicle_id: null, direction: 'reverse', base_pay: revPrice});
+          }
+        });
       } else {
         // Per-vehicle mode
+        var hasAny = false;
         gridBody.querySelectorAll('tr').forEach(function(tr) {
-          var fwd = tr.querySelector('.grid-fwd');
-          var rev = tr.querySelector('.grid-rev');
-          var vehicleId = fwd.dataset.vehicle;
-          if (fwd.value) rates.push({route_id: routeId, vehicle_id: vehicleId, direction: 'forward', base_pay: fwd.value});
-          if (rev.value) rates.push({route_id: routeId, vehicle_id: vehicleId, direction: 'reverse', base_pay: rev.value});
+          var input = tr.querySelector('.grid-price');
+          var vehicleId = input.dataset.vehicle;
+          var val = input.value;
+          if (!val) return;
+          hasAny = true;
+          selectedRoutes.forEach(function(route) {
+            rates.push({route_id: route.id, vehicle_id: vehicleId, direction: 'both', base_pay: val});
+          });
         });
+        if (!hasAny) { alert('Enter at least one vehicle price.'); return; }
       }
 
-      if (rates.length === 0) return;
-
       gridSaveBtn.disabled = true;
-      gridSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving...';
+      gridSaveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving ' + rates.length + ' rates...';
 
       fetch('{% url "bulk_update_pay_rates" %}', {
         method: 'POST',
@@ -715,24 +662,18 @@ if (gridRoute) {
       .then(function(data) {
         var status = document.getElementById('grid-save-status');
         if (data.success) {
-          status.textContent = data.saved + ' rate(s) saved!';
+          status.textContent = data.saved + ' rate(s) saved across ' + selectedRoutes.length + ' routes! Reloading...';
           status.className = 'text-success small';
           status.style.display = 'inline';
-
-          // Update local existingRates map
-          rates.forEach(function(r) {
-            var vid = r.vehicle_id || 'all';
-            existingRates[r.route_id + '-' + vid + '-' + r.direction] = r.base_pay;
-          });
+          setTimeout(function() { location.reload(); }, 1000);
         } else {
           status.textContent = data.error || 'Error saving rates';
           status.className = 'text-danger small';
           status.style.display = 'inline';
         }
-        setTimeout(function() { status.style.display = 'none'; }, 3000);
       }).finally(function() {
         gridSaveBtn.disabled = false;
-        gridSaveBtn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Save Rates';
+        gridSaveBtn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Save Rates for Selected Routes';
       });
     });
   }
