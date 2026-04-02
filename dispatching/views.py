@@ -8578,16 +8578,47 @@ def affiliate_payments(request):
     search = request.GET.get("q", "").strip()
     show = request.GET.get("show", "owing")  # owing | all
     sort = request.GET.get("sort", "amount")  # amount | name | date
+    pay_method = request.GET.get("pay_method", "").strip()  # filter by payment method
 
     # --- Agencies with unpaid balances ---
+    from django.db.models import F, ExpressionWrapper, DecimalField, Subquery, OuterRef, Value
+    from django.db.models.functions import Coalesce as CoalesceFunc
+
     agencies_qs = Agency.objects.filter(is_active=True).prefetch_related("heads")
 
+    # Annotate agencies with live-calculated unpaid totals from reservations
+    from reservations.models import Reservation as AgencyRes
+    agency_unpaid_subquery = AgencyRes.objects.filter(
+        commission_paid=False, status="completed",
+        travel_agent__agency=OuterRef("pk"),
+        travel_agent__agency_handles_payment=True,
+    ).annotate(
+        calc_commission=ExpressionWrapper(
+            F("base_price") * F("travel_agent__commission_rate") / Value(Decimal("100.00")),
+            output_field=DecimalField(max_digits=12, decimal_places=4),
+        )
+    ).values("travel_agent__agency").annotate(
+        total=Sum("calc_commission")
+    ).values("total")
+
+    agencies_qs = agencies_qs.annotate(
+        unpaid_total=CoalesceFunc(
+            Subquery(agency_unpaid_subquery),
+            Decimal("0"),
+        ),
+        owing_agent_count=Count(
+            "agents",
+            filter=Q(
+                agents__agency_handles_payment=True,
+                agents__reservations__commission_paid=False,
+                agents__reservations__status="completed",
+            ),
+            distinct=True,
+        ),
+    )
+
     if show == "owing":
-        # Agencies that have agents with unpaid commissions where agency handles payment
-        agencies_qs = agencies_qs.filter(
-            agents__unpaid_commissions__gt=0,
-            agents__agency_handles_payment=True,
-        ).distinct()
+        agencies_qs = agencies_qs.filter(unpaid_total__gt=0)
 
     if search:
         agencies_qs = agencies_qs.filter(
@@ -8596,33 +8627,40 @@ def affiliate_payments(request):
             | Q(agents__user__email__icontains=search)
         ).distinct()
 
-    # Annotate agencies with totals
-    agencies_qs = agencies_qs.annotate(
-        unpaid_total=Sum(
-            "agents__unpaid_commissions",
-            filter=Q(agents__agency_handles_payment=True),
-        ),
-        owing_agent_count=Count(
-            "agents",
-            filter=Q(agents__unpaid_commissions__gt=0, agents__agency_handles_payment=True),
-        ),
-    )
-
     if sort == "amount":
         agencies_qs = agencies_qs.order_by("-unpaid_total")
     elif sort == "name":
         agencies_qs = agencies_qs.order_by("name")
 
     # --- Individual agents (no agency, or agency_handles_payment=False) ---
-    agents_qs = TravelAgent.objects.filter(is_active=True).select_related("user", "agency")
+    from django.db.models import F, ExpressionWrapper, DecimalField, Value
+    from django.db.models.functions import Coalesce as CoalesceFunc
 
-    if show == "owing":
-        agents_qs = agents_qs.filter(unpaid_commissions__gt=0)
+    agents_qs = TravelAgent.objects.filter(is_active=True).select_related("user", "agency")
 
     # Only agents who are paid directly (not through agency)
     agents_qs = agents_qs.filter(
         Q(agency__isnull=True) | Q(agency_handles_payment=False)
     )
+
+    # Annotate with live-calculated unpaid commissions from completed, unpaid reservations
+    # Sum at full precision first, then the Coalesce handles NULL -> 0
+    agents_qs = agents_qs.annotate(
+        live_unpaid=CoalesceFunc(
+            Sum(
+                ExpressionWrapper(
+                    F("reservations__base_price") * F("commission_rate") / Value(Decimal("100.00")),
+                    output_field=DecimalField(max_digits=12, decimal_places=4),
+                ),
+                filter=Q(reservations__commission_paid=False, reservations__status="completed"),
+            ),
+            Decimal("0"),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        ),
+    )
+
+    if show == "owing":
+        agents_qs = agents_qs.filter(live_unpaid__gt=0)
 
     if search:
         agents_qs = agents_qs.filter(
@@ -8631,8 +8669,16 @@ def affiliate_payments(request):
             | Q(agency__name__icontains=search)
         )
 
+    # Payment method filter
+    if pay_method == "no_agency":
+        agents_qs = agents_qs.exclude(payment_method="agency")
+    elif pay_method == "none":
+        agents_qs = agents_qs.filter(Q(payment_method__isnull=True) | Q(payment_method=""))
+    elif pay_method:
+        agents_qs = agents_qs.filter(payment_method=pay_method)
+
     if sort == "amount":
-        agents_qs = agents_qs.order_by("-unpaid_commissions")
+        agents_qs = agents_qs.order_by("-live_unpaid")
     elif sort == "name":
         agents_qs = agents_qs.order_by("agent_name")
     elif sort == "date":
@@ -8656,9 +8702,18 @@ def affiliate_payments(request):
     except (PageNotAnInteger, EmptyPage):
         agents_page_obj = agents_paginator.page(1)
 
-    # Attach unpaid res counts
+    # Attach unpaid res counts and recalculate live_unpaid in Python for precision
+    from reservations.models import Reservation as UnpaidRes
     for agent in agents_page_obj:
         agent.unpaid_res_count = agent_unpaid_counts.get(agent.id, 0)
+        # Python Decimal calculation — no SQL rounding issues
+        unpaid_qs = UnpaidRes.objects.filter(
+            travel_agent=agent, commission_paid=False, status="completed"
+        )
+        rate = agent.commission_rate / Decimal("100")
+        agent.live_unpaid = sum(
+            (r.base_price or Decimal("0")) * rate for r in unpaid_qs
+        ).quantize(Decimal("0.01"))
 
     # Agency unpaid reservation counts
     agency_res_counts = {}
@@ -8680,30 +8735,49 @@ def affiliate_payments(request):
     for agency in agencies_qs:
         agency.unpaid_res_count = agency_res_counts.get(agency.id, 0)
 
-    # Summary stats
-    total_owing_agents = TravelAgent.objects.filter(
-        unpaid_commissions__gt=0, is_active=True
+    # Summary stats — use live calculation from reservations, not stored field
+    from reservations.models import Reservation as SummaryRes
+
+    # Live unpaid for direct agents
+    direct_agent_unpaid = SummaryRes.objects.filter(
+        commission_paid=False, status="completed",
+        travel_agent__is_active=True,
     ).filter(
-        Q(agency__isnull=True) | Q(agency_handles_payment=False)
-    ).aggregate(
-        total=Sum("unpaid_commissions"),
-        count=Count("id"),
+        Q(travel_agent__agency__isnull=True) | Q(travel_agent__agency_handles_payment=False)
+    ).annotate(
+        calc_commission=ExpressionWrapper(
+            F("base_price") * F("travel_agent__commission_rate") / Value(Decimal("100.00")),
+            output_field=DecimalField(max_digits=12, decimal_places=4),
+        )
+    ).aggregate(total=Sum("calc_commission"), count=Count("travel_agent", distinct=True))
+
+    total_owing_agents = {
+        "total": direct_agent_unpaid["total"] or Decimal("0"),
+        "count": direct_agent_unpaid["count"] or 0,
+    }
+
+    # Live unpaid for agency-handled agents
+    agency_handled_unpaid = SummaryRes.objects.filter(
+        commission_paid=False, status="completed",
+        travel_agent__is_active=True,
+        travel_agent__agency_handles_payment=True,
+        travel_agent__agency__isnull=False,
+    ).annotate(
+        calc_commission=ExpressionWrapper(
+            F("base_price") * F("travel_agent__commission_rate") / Value(Decimal("100.00")),
+            output_field=DecimalField(max_digits=12, decimal_places=4),
+        )
     )
 
-    total_owing_agencies = Agency.objects.filter(
-        is_active=True,
-        agents__unpaid_commissions__gt=0,
-        agents__agency_handles_payment=True,
+    total_owing_agencies = agency_handled_unpaid.values(
+        "travel_agent__agency"
     ).distinct().count()
 
-    agency_owing_amount = TravelAgent.objects.filter(
-        is_active=True,
-        unpaid_commissions__gt=0,
-        agency_handles_payment=True,
-        agency__isnull=False,
-    ).aggregate(total=Sum("unpaid_commissions"))["total"] or Decimal("0")
+    agency_owing_amount = agency_handled_unpaid.aggregate(
+        total=Sum("calc_commission")
+    )["total"] or Decimal("0")
 
-    total_owing = (total_owing_agents["total"] or Decimal("0")) + agency_owing_amount
+    total_owing = total_owing_agents["total"] + agency_owing_amount
 
     # --- Payout history ---
     history_tab = request.GET.get("history_tab", "agency")  # agency | agent
@@ -8741,6 +8815,7 @@ def affiliate_payments(request):
         "search": search,
         "show": show,
         "sort": sort,
+        "pay_method": pay_method,
         "total_owing": total_owing,
         "total_owing_agencies": total_owing_agencies,
         "total_owing_agents": total_owing_agents["count"] or 0,
@@ -8989,7 +9064,8 @@ def process_agent_payout_view(request):
 
         agent = TravelAgent.objects.select_related("user", "agency").get(id=agent_id)
 
-        if agent.unpaid_commissions <= 0:
+        live_unpaid = agent.calculate_unpaid_commissions()
+        if live_unpaid <= 0:
             return JsonResponse({"success": False, "error": "No unpaid commissions for this agent."})
 
         payout, amount, agency_payout = svc_process_agent_payout(

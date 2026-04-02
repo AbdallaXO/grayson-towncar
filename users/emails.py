@@ -80,7 +80,7 @@ def send_reservation_confirmation(reservation):
             context = {
                 "reservation": reservation,
                 "legs": legs,
-                "date": timezone.now().date(),
+                "date": timezone.localdate(),
                 "has_return_trip": has_return_trip,
             }
 
@@ -132,7 +132,7 @@ def send_reservation_confirmation_custom_recipient(reservation, recipient_email,
         context = {
             "reservation": reservation,
             "legs": legs,
-            "date": timezone.now().date(),
+            "date": timezone.localdate(),
             "has_return_trip": has_return_trip,
             "sender_name": sender_name,
             "recipient_email": recipient_email,
@@ -357,7 +357,7 @@ def send_internal_confirmation(reservation):
             context = {
                 "reservation": reservation,
                 "legs": reservation.legs.all(),
-                "date": timezone.now().date(),
+                "date": timezone.localdate(),
             }
 
             subject = "Reservation Submission"
@@ -425,7 +425,7 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email):
             "payment": payment,
             "legs": legs,
             "leg_payments": leg_payments,
-            "date": timezone.now().date(),
+            "date": timezone.localdate(),
             "pay_period_start": pay_period_start,
             "pay_period_end": pay_period_end,
         }
@@ -519,7 +519,7 @@ def send_agent_commission_statement(agent, payout, recipient_email):
             "total_gratuity": total_gratuity,
             "total_additional": total_additional,
             "total_charged": total_charged,
-            "date": timezone.now().date(),
+            "date": timezone.localdate(),
         }
 
         subject = (
@@ -582,7 +582,7 @@ def send_agency_commission_statement(agency, payout, recipient_email):
             "total_agents": total_agents,
             "total_reservations": total_reservations,
             "average_commission": average_commission,
-            "date": timezone.now().date(),
+            "date": timezone.localdate(),
         }
 
         subject = (

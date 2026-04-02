@@ -4,7 +4,7 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from .models import Reservation, Leg
 from users.emails import send_reservation_confirmation
-from django.db import transaction
+from django.db import models, transaction
 from decimal import Decimal
 from django.utils import timezone
 from .models import Reservation, Lead
@@ -107,10 +107,30 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
                 # This will save the instance again, but that's OK
                 instance.save(update_fields=["commission_amount"])
 
+        # Ensure commission_amount is populated on the current reservation
+        if instance.travel_agent and instance.commission_amount is None and instance.base_price:
+            commission_rate = agent.commission_rate / Decimal("100") if agent.commission_rate else Decimal("0.10")
+            instance.commission_amount = instance.base_price * commission_rate
+            Reservation.objects.filter(pk=instance.pk).update(commission_amount=instance.commission_amount)
+
         # Calculate pending commissions (confirmed but not completed)
+        # Use Coalesce to handle reservations where commission_amount is NULL
+        from django.db.models import F, ExpressionWrapper
+        from django.db.models.functions import Coalesce
+
+        commission_expr = Coalesce(
+            "commission_amount",
+            ExpressionWrapper(
+                F("base_price") * (agent.commission_rate / Decimal("100")),
+                output_field=models.DecimalField(max_digits=10, decimal_places=2),
+            ),
+        )
+
         pending_total = Reservation.objects.filter(
             travel_agent=agent, status="confirmed"
-        ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+        ).annotate(
+            effective_commission=commission_expr
+        ).aggregate(total=Sum("effective_commission"))["total"] or Decimal("0")
 
         # Update pending commissions if changed
         if agent.pending_commissions != pending_total:
@@ -123,7 +143,9 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
         # Calculate unpaid commissions (completed but not paid)
         unpaid_total = Reservation.objects.filter(
             travel_agent=agent, commission_paid=False, status="completed"
-        ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+        ).annotate(
+            effective_commission=commission_expr
+        ).aggregate(total=Sum("effective_commission"))["total"] or Decimal("0")
 
         # Update unpaid commissions if changed
         if agent.unpaid_commissions != unpaid_total:

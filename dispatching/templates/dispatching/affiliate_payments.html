@@ -113,20 +113,20 @@
   }
   .paid-state .amount-lg { color: var(--gt-green); }
 
-  /* Payment badges */
+  /* Payment badges — bold, high-contrast for quick scanning */
   .payment-badge {
     display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700;
     letter-spacing: 0.3px;
   }
-  .payment-badge.venmo { background: #e8f4fd; color: #008CFF; }
-  .payment-badge.zelle { background: #f0e6ff; color: #6D2FBF; }
-  .payment-badge.paypal { background: #fff4e0; color: #003087; }
-  .payment-badge.cashapp { background: #e6ffe6; color: #00C244; }
-  .payment-badge.bank { background: #f0f0f0; color: #333; }
-  .payment-badge.check { background: #f5f5f5; color: #555; }
-  .payment-badge.other { background: #f5f5f5; color: #555; }
-  .payment-badge.agency { background: var(--gt-gold-soft); color: #9a7b1a; }
+  .payment-badge.venmo { background: #008CFF; color: #fff; }
+  .payment-badge.zelle { background: #6D2FBF; color: #fff; }
+  .payment-badge.paypal { background: #003087; color: #fff; }
+  .payment-badge.cashapp { background: #00C244; color: #fff; }
+  .payment-badge.bank { background: #2c3e50; color: #fff; }
+  .payment-badge.check { background: #7f8c8d; color: #fff; }
+  .payment-badge.other { background: #95a5a6; color: #fff; }
+  .payment-badge.agency { background: var(--gt-gold); color: #fff; }
 
   /* Buttons */
   .btn-dark {
@@ -259,16 +259,30 @@
         </select>
       </div>
       <div class="col-md-2">
+        <select name="pay_method" class="form-select form-select-sm">
+          <option value="" {% if not pay_method %}selected{% endif %}>All Methods</option>
+          <option value="venmo" {% if pay_method == "venmo" %}selected{% endif %}>Venmo</option>
+          <option value="zelle" {% if pay_method == "zelle" %}selected{% endif %}>Zelle</option>
+          <option value="paypal" {% if pay_method == "paypal" %}selected{% endif %}>PayPal</option>
+          <option value="cashapp" {% if pay_method == "cashapp" %}selected{% endif %}>Cash App</option>
+          <option value="bank" {% if pay_method == "bank" %}selected{% endif %}>Bank Transfer</option>
+          <option value="check" {% if pay_method == "check" %}selected{% endif %}>Check</option>
+          <option value="other" {% if pay_method == "other" %}selected{% endif %}>Other</option>
+          <option value="no_agency" {% if pay_method == "no_agency" %}selected{% endif %}>-- Exclude Agency --</option>
+          <option value="none" {% if pay_method == "none" %}selected{% endif %}>-- No Method Set --</option>
+        </select>
+      </div>
+      <div class="col-md-2">
         <select name="sort" class="form-select form-select-sm">
           <option value="amount" {% if sort == "amount" %}selected{% endif %}>Sort: Amount</option>
           <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
           <option value="date" {% if sort == "date" %}selected{% endif %}>Sort: Last Paid</option>
         </select>
       </div>
-      <div class="col-md-2">
+      <div class="col-md-1">
         <button type="submit" class="btn btn-dark btn-sm w-100"><i class="bi bi-funnel me-1"></i>Filter</button>
       </div>
-      <div class="col-md-2">
+      <div class="col-md-1">
         <a href="{% url 'affiliate_payments' %}" class="btn btn-outline-secondary btn-sm w-100">Reset</a>
       </div>
     </form>
@@ -349,14 +363,14 @@
         </div>
       </div>
       <div class="entity-actions" onclick="event.stopPropagation();">
-        <span class="amount-lg">${{ agent.unpaid_commissions|floatformat:2 }}</span>
+        <span class="amount-lg">${{ agent.live_unpaid|floatformat:2 }}</span>
         <button class="btn btn-outline-primary btn-sm" onclick="showPreview('agent', {{ agent.id }}, '{{ agent.agent_name|default:agent.user.username|escapejs }}')">
           <i class="bi bi-eye me-1"></i>Preview
         </button>
-        {% if agent.unpaid_commissions > 0 %}
+        {% if agent.live_unpaid > 0 %}
         <div class="btn-group">
           <button type="button" class="btn btn-dark btn-sm" onclick="processPayout('agent', {{ agent.id }}, false)">
-            Pay ${{ agent.unpaid_commissions|floatformat:2 }}
+            Pay ${{ agent.live_unpaid|floatformat:2 }}
           </button>
           <button type="button" class="btn btn-dark btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
             <span class="visually-hidden">Toggle Dropdown</span>
@@ -385,7 +399,7 @@
     <ul class="pagination pagination-sm justify-content-center">
       {% if agents_page_obj.has_previous %}
         <li class="page-item">
-          <a class="page-link" href="?agents_page={{ agents_page_obj.previous_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}">&laquo;</a>
+          <a class="page-link" href="?agents_page={{ agents_page_obj.previous_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&laquo;</a>
         </li>
       {% endif %}
       {% for num in agents_page_obj.paginator.page_range %}
@@ -393,13 +407,13 @@
           <li class="page-item active"><span class="page-link">{{ num }}</span></li>
         {% elif num > agents_page_obj.number|add:"-3" and num < agents_page_obj.number|add:"3" %}
           <li class="page-item">
-            <a class="page-link" href="?agents_page={{ num }}&q={{ search }}&show={{ show }}&sort={{ sort }}">{{ num }}</a>
+            <a class="page-link" href="?agents_page={{ num }}&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">{{ num }}</a>
           </li>
         {% endif %}
       {% endfor %}
       {% if agents_page_obj.has_next %}
         <li class="page-item">
-          <a class="page-link" href="?agents_page={{ agents_page_obj.next_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}">&raquo;</a>
+          <a class="page-link" href="?agents_page={{ agents_page_obj.next_page_number }}&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&raquo;</a>
         </li>
       {% endif %}
     </ul>
@@ -476,7 +490,7 @@
       <nav>
         <ul class="pagination pagination-sm justify-content-center">
           {% if agency_payouts_page_obj.has_previous %}
-            <li class="page-item"><a class="page-link" href="?ap_page={{ agency_payouts_page_obj.previous_page_number }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}">&laquo;</a></li>
+            <li class="page-item"><a class="page-link" href="?ap_page={{ agency_payouts_page_obj.previous_page_number }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&laquo;</a></li>
           {% endif %}
           {% for num in agency_payouts_page_obj.paginator.page_range %}
             {% if agency_payouts_page_obj.number == num %}
@@ -486,7 +500,7 @@
             {% endif %}
           {% endfor %}
           {% if agency_payouts_page_obj.has_next %}
-            <li class="page-item"><a class="page-link" href="?ap_page={{ agency_payouts_page_obj.next_page_number }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}">&raquo;</a></li>
+            <li class="page-item"><a class="page-link" href="?ap_page={{ agency_payouts_page_obj.next_page_number }}&history_tab=agency&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&raquo;</a></li>
           {% endif %}
         </ul>
       </nav>
@@ -541,7 +555,7 @@
       <nav>
         <ul class="pagination pagination-sm justify-content-center">
           {% if agent_payouts_page_obj.has_previous %}
-            <li class="page-item"><a class="page-link" href="?cp_page={{ agent_payouts_page_obj.previous_page_number }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}">&laquo;</a></li>
+            <li class="page-item"><a class="page-link" href="?cp_page={{ agent_payouts_page_obj.previous_page_number }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&laquo;</a></li>
           {% endif %}
           {% for num in agent_payouts_page_obj.paginator.page_range %}
             {% if agent_payouts_page_obj.number == num %}
@@ -551,7 +565,7 @@
             {% endif %}
           {% endfor %}
           {% if agent_payouts_page_obj.has_next %}
-            <li class="page-item"><a class="page-link" href="?cp_page={{ agent_payouts_page_obj.next_page_number }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}">&raquo;</a></li>
+            <li class="page-item"><a class="page-link" href="?cp_page={{ agent_payouts_page_obj.next_page_number }}&history_tab=agent&q={{ search }}&show={{ show }}&sort={{ sort }}&pay_method={{ pay_method }}">&raquo;</a></li>
           {% endif %}
         </ul>
       </nav>
@@ -729,22 +743,45 @@ function showPreview(type, id, name) {
 }
 
 function processPayout(type, id, sendEmail) {
-  // Show confirmation modal
+  // Fetch live preview to get accurate amount before confirming
   const card = document.getElementById(`${type}-card-${id}`);
   const name = card.querySelector('.entity-name').textContent;
-  const amount = card.querySelector('.amount-lg').textContent;
+  const previewUrl = type === 'agency' ? URLS.previewAgency : URLS.previewAgent;
 
-  pendingPayment = { type, id, sendEmail };
-
-  let msg = `<p>Process commission payout for <strong>${name}</strong>?</p>`;
-  msg += `<p class="h4 text-success">${amount}</p>`;
-  if (sendEmail) {
-    msg += '<p class="text-muted"><i class="bi bi-envelope me-1"></i>A statement email will be sent automatically.</p>';
-  }
-
-  document.getElementById('confirmPayBody').innerHTML = msg;
+  // Show loading state
+  document.getElementById('confirmPayBody').innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-1"></span> Calculating...</div>';
   const confirmModal = new bootstrap.Modal(document.getElementById('confirmPayModal'));
   confirmModal.show();
+
+  fetch(previewUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+    body: JSON.stringify({ id }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    const amount = data.total ? `$${parseFloat(data.total).toFixed(2)}` : card.querySelector('.amount-lg').textContent;
+    pendingPayment = { type, id, sendEmail };
+
+    let msg = `<p>Process commission payout for <strong>${name}</strong>?</p>`;
+    msg += `<p class="h4 text-success">${amount}</p>`;
+    if (sendEmail) {
+      msg += '<p class="text-muted"><i class="bi bi-envelope me-1"></i>A statement email will be sent automatically.</p>';
+    }
+    document.getElementById('confirmPayBody').innerHTML = msg;
+  })
+  .catch(() => {
+    // Fallback to card amount if preview fails
+    const amount = card.querySelector('.amount-lg').textContent;
+    pendingPayment = { type, id, sendEmail };
+
+    let msg = `<p>Process commission payout for <strong>${name}</strong>?</p>`;
+    msg += `<p class="h4 text-success">${amount}</p>`;
+    if (sendEmail) {
+      msg += '<p class="text-muted"><i class="bi bi-envelope me-1"></i>A statement email will be sent automatically.</p>';
+    }
+    document.getElementById('confirmPayBody').innerHTML = msg;
+  });
 }
 
 function executePayment() {
