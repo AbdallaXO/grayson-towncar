@@ -332,10 +332,6 @@
         </div>
         {% endif %}
         {% endif %}
-        <div class="breakdown-row total">
-          <span>Total Customer Charges</span>
-          <span>${{ total_charged|floatformat:2 }}</span>
-        </div>
       </div>
 
       <h3 class="section-heading">Reservation Details</h3>
@@ -387,12 +383,6 @@
       <p style="margin-top: 8px; font-size: 11px; color: #999999;">
         <span class="badge-nc">N/C</span> = Non-Commissionable &mdash; Gratuity and additional charges are not included in commission calculations.
       </p>
-
-      {% if payout.notes %}
-      <div style="margin-top: 20px; padding: 12px; background-color: #fff3cd; border-radius: 6px; font-size: 13px;">
-        <strong>Notes:</strong> {{ payout.notes }}
-      </div>
-      {% endif %}
 
       <div class="footer">
         <p>Thank you for your partnership with Grayson Towncar!</p>

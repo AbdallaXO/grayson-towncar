@@ -101,10 +101,31 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
             )
             instance.commission_amount = Decimal("0.00")
 
+    # Ensure commission_amount is populated on the current reservation
+    if instance.travel_agent and instance.commission_amount is None and instance.base_price:
+        commission_rate = agent.commission_rate / Decimal("100") if agent.commission_rate else Decimal("0.10")
+        instance.commission_amount = instance.base_price * commission_rate
+        Reservation.objects.filter(pk=instance.pk).update(commission_amount=instance.commission_amount)
+
+    # Calculate pending/unpaid using Coalesce to handle NULL commission_amount
+    from django.db.models import F, ExpressionWrapper
+    from django.db.models.functions import Coalesce
+    from django.db import models as db_models
+
+    commission_expr = Coalesce(
+        "commission_amount",
+        ExpressionWrapper(
+            F("base_price") * (agent.commission_rate / Decimal("100")),
+            output_field=db_models.DecimalField(max_digits=10, decimal_places=2),
+        ),
+    )
+
     # Calculate pending commissions (confirmed but not completed)
     pending_total = Reservation.objects.filter(
         travel_agent=agent, status="confirmed"
-    ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+    ).annotate(
+        effective_commission=commission_expr
+    ).aggregate(total=Sum("effective_commission"))["total"] or Decimal("0")
 
     if agent.pending_commissions != pending_total:
         logger.info(
@@ -116,7 +137,9 @@ def update_agent_commission_data(sender, instance, created, **kwargs):
     # Calculate unpaid commissions (completed but not paid)
     unpaid_total = Reservation.objects.filter(
         travel_agent=agent, commission_paid=False, status="completed"
-    ).aggregate(total=Sum("commission_amount"))["total"] or Decimal("0")
+    ).annotate(
+        effective_commission=commission_expr
+    ).aggregate(total=Sum("effective_commission"))["total"] or Decimal("0")
 
     if agent.unpaid_commissions != unpaid_total:
         logger.info(
