@@ -129,6 +129,11 @@
                           <i class="bi bi-exclamation-triangle me-1"></i>Flight not verified
                         </span>
                       {% endif %}
+                      {% if row.unpaid %}
+                        <span class="badge bg-danger" title="Reservation has not been paid. Verify payment before sending confirmation.">
+                          <i class="bi bi-currency-dollar me-1"></i>Unpaid
+                        </span>
+                      {% endif %}
                     </td>
                     <td class="text-end">
                       <div class="btn-group btn-group-sm">

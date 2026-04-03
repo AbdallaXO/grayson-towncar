@@ -3580,6 +3580,16 @@ def confirmations_view(request):
     except Exception:
         pass
 
+    # Check which reservations are unpaid
+    unpaid_reservation_ids = set()
+    reservation_ids = {leg.reservation_id for leg in legs if leg.reservation_id}
+    if reservation_ids:
+        from reservations.models import Reservation
+        reservations = Reservation.objects.filter(id__in=reservation_ids).prefetch_related("payments")
+        for res in reservations:
+            if res.payment_status == "unpaid":
+                unpaid_reservation_ids.add(res.id)
+
     rows = []
     for leg in legs:
         row = leg_to_row(leg)
@@ -3587,6 +3597,7 @@ def confirmations_view(request):
         row["leg"] = leg
         row["already_sent"] = bool(getattr(leg, "confirmation_sms_sent_at", None))
         row["flight_unverified"] = leg.id in flight_unverified_leg_ids
+        row["unpaid"] = leg.reservation_id in unpaid_reservation_ids
         rows.append(row)
 
     legs_filter_url = reverse("dashboard") + f"?date={selected_date.isoformat()}"
@@ -10756,7 +10767,9 @@ def duplicate_reservations(request):
             Prefetch("payments", queryset=Payment.objects.all()),
             Prefetch(
                 "legs",
-                queryset=Leg.objects.order_by("pickup_date", "pickup_time"),
+                queryset=Leg.objects.select_related(
+                    "flight_information", "cruise_information"
+                ).order_by("pickup_date", "pickup_time"),
             ),
         )
         .distinct()
@@ -10785,8 +10798,8 @@ def duplicate_reservations(request):
         if len(unique) < 2:
             continue
 
-        paid = [r for r in unique if r.payment_status == "paid"]
-        unpaid = [r for r in unique if r.payment_status != "paid"]
+        paid = [r for r in unique if r.payment_status in ("paid", "card_saved")]
+        unpaid = [r for r in unique if r.payment_status not in ("paid", "card_saved")]
 
         if not paid or not unpaid:
             continue

@@ -3,14 +3,16 @@
 
 {% block extra_css %}
 <style>
-  .dupe-table { font-size: 0.82rem; }
-  .dupe-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.35rem 0.5rem; }
-  .dupe-table td { padding: 0.3rem 0.5rem; vertical-align: middle; }
-  .dupe-table .badge { font-size: 0.68rem; }
   .dupe-card .card-header { padding: 0.45rem 0.75rem; font-size: 0.85rem; }
-  .loc-text { font-size: 0.78rem; color: #555; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dupe-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; padding: 0.35rem 0.5rem; }
+  .dupe-table td { padding: 0.5rem 0.6rem; vertical-align: top; }
+  .dupe-keep { background-color: #d4edda !important; }
+  .dupe-unpaid { background-color: #fff3cd !important; }
+  .dupe-done { background-color: #e2e3e5 !important; }
 </style>
 {% endblock extra_css %}
+
+{% block newsletter %}{% endblock newsletter %}
 
 {% block content %}
   {% block navbar %}
@@ -37,7 +39,7 @@
           </div>
         </div>
         <small class="text-muted">
-          Same customer, same day &mdash; one paid, one unpaid. Sorted by upcoming dates first.
+          Same customer, same day &mdash; one paid, one unpaid. Card-saved reservations are excluded. Sorted by upcoming dates first.
         </small>
       </div>
     </div>
@@ -64,7 +66,7 @@
 
     {% if duplicate_groups %}
     {% for group in duplicate_groups %}
-    <div class="card shadow-sm mb-2 dupe-card" id="group-{{ forloop.counter }}">
+    <div class="card shadow-sm mb-3 dupe-card" id="group-{{ forloop.counter }}">
       <div class="card-header bg-light d-flex justify-content-between align-items-center">
         <div>
           <strong class="me-2">{{ group.customer.first_name }} {{ group.customer.last_name }}</strong>
@@ -76,83 +78,270 @@
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-hover mb-0 dupe-table">
+          <table class="table table-bordered mb-0 dupe-table">
             <thead class="table-light">
               <tr>
-                <th style="width: 45px;"></th>
-                <th>Res #</th>
-                <th>Type</th>
-                <th>Vehicle</th>
-                <th>Pickup</th>
-                <th>Dropoff</th>
-                <th>Time</th>
-                <th>Details</th>
-                <th>Price</th>
+                <th style="width: 50px;"></th>
+                <th>Customer</th>
+                <th>Trip Details</th>
+                <th>Pickup / Dropoff</th>
+                <th>Vehicle & Passengers</th>
                 <th>Payment</th>
-                <th>Created</th>
-                <th style="width: 90px;"></th>
+                <th>Notes</th>
+                <th style="width: 80px;"></th>
               </tr>
             </thead>
             <tbody>
               {% for res in group.paid %}
-              <tr class="table-success">
-                <td><span class="badge bg-success">KEEP</span></td>
-                <td>
-                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="fw-bold text-decoration-none">
-                    #{{ res.id }}
-                  </a>
+              {% with legs=res.legs.all leg_count=res.legs.all|length %}
+              {% for leg in legs %}
+              <tr class="dupe-keep">
+                {% if forloop.first %}
+                <td class="text-center" rowspan="{{ leg_count }}">
+                  <span class="badge bg-success">KEEP</span>
                 </td>
-                <td>
-                  <span class="badge bg-info text-dark">{{ res.trip_type|title }}</span>
+                <!-- Customer -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="d-flex align-items-center mb-1">
+                    <h6 class="mb-0 fw-bold" style="font-size: 0.85rem;">{{ res.customer.get_full_name }}</h6>
+                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank"
+                       class="badge bg-warning text-dark ms-2 text-decoration-none">#{{ res.id }}</a>
+                  </div>
+                  <div class="text-muted small"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
+                  <div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ res.customer.phone_number }}</div>
                 </td>
-                <td>{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</td>
-                {% with leg=res.legs.all.0 %}
-                <td><span class="loc-text" title="{{ leg.pickup_location }}">{% if leg %}{{ leg.pickup_location }}{% else %}&mdash;{% endif %}</span></td>
-                <td><span class="loc-text" title="{{ leg.dropoff_location }}">{% if leg %}{{ leg.dropoff_location }}{% else %}&mdash;{% endif %}</span></td>
-                <td>{% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}</td>
-                {% endwith %}
+                {% endif %}
+                <!-- Trip Details (per-leg) -->
                 <td>
-                  <small>{{ res.passenger_count }} pax, {{ res.luggage_count }} bag{{ res.luggage_count|pluralize }}</small>
-                  {% if res.need_carseats %}<br><small class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats</small>{% endif %}
+                  <div class="d-flex align-items-center gap-1 mb-1">
+                    <span class="badge bg-info text-dark" style="font-size: 0.65rem;">{{ res.trip_type|title }}</span>
+                    <span class="badge bg-secondary" style="font-size: 0.65rem;">Leg {{ forloop.counter }}/{{ leg_count }}</span>
+                  </div>
+                  {% if leg.flight_information %}
+                    <div class="text-primary mb-1 small">
+                      <i class="bi bi-airplane me-1"></i>
+                      {% if leg.flight_information.airline_display_name %}
+                        {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
+                      {% else %}
+                        {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                      {% endif %}
+                      {% if leg.flight_information.flight_iata %}
+                        <span class="text-muted">({{ leg.flight_information.flight_iata }})</span>
+                      {% endif %}
+                    </div>
+                    {% if leg.flight_information.status %}
+                      <span class="badge bg-secondary mb-1" style="font-size: 0.65rem;">{{ leg.flight_information.status }}</span>
+                    {% endif %}
+                  {% endif %}
+                  {% if leg.cruise_information %}
+                    <div class="mb-1">
+                      <span class="badge bg-dark text-white" style="font-size: 0.7rem;">
+                        <i class="bi bi-ship me-1"></i>
+                        {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                          {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                        {% elif leg.cruise_information.cruise_line %}
+                          {{ leg.cruise_information.cruise_line }}
+                        {% elif leg.cruise_information.ship_name %}
+                          {{ leg.cruise_information.ship_name }}
+                        {% endif %}
+                      </span>
+                    </div>
+                  {% endif %}
+                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
+                  <div class="fw-bold">{{ leg.pickup_time|time:"g:i A" }}</div>
+                  {% if leg.cleared_time %}
+                    <div class="small text-muted mt-1">
+                      <i class="bi bi-clock"></i> Clearing ~{{ leg.cleared_time }}
+                      {% if leg.duration_display %}({{ leg.duration_display }}){% endif %}
+                    </div>
+                  {% endif %}
                 </td>
-                <td class="fw-bold">${{ res.total_price }}</td>
-                <td><span class="badge bg-success">{{ res.payment_status }}</span></td>
-                <td>{{ res.created_at|date:"M d, g:i A" }}</td>
-                <td><small class="text-muted">Paid</small></td>
+                <!-- Locations (per-leg) -->
+                <td>
+                  <div class="small mb-1">
+                    <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
+                  </div>
+                  <div class="small">
+                    <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
+                  </div>
+                  {% if leg.private_notes %}
+                    <div class="small mt-1 text-muted"><strong>Leg Notes:</strong> {{ leg.private_notes }}</div>
+                  {% endif %}
+                </td>
+                {% if forloop.first %}
+                <!-- Vehicle & Passengers -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="small">
+                    <div class="fw-bold mb-1">{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</div>
+                    <div>{{ res.passenger_count }} Passengers</div>
+                    <div>{{ res.luggage_count }} Suitcases
+                      {% if res.luggage_type %}
+                        <span class="badge {% if res.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %}" style="font-size: .6rem;">{{ res.get_luggage_type_display }}</span>
+                      {% endif %}
+                    </div>
+                    {% if res.need_carseats %}
+                      <div class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats: {{ res.display_carseats }}</div>
+                    {% else %}
+                      <div class="text-muted"><em>No car seats</em></div>
+                    {% endif %}
+                  </div>
+                </td>
+                <!-- Payment -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="fw-bold">${{ res.total_price }}</div>
+                  <span class="badge bg-success">{{ res.payment_status|title }}</span>
+                </td>
+                <!-- Notes -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="small">
+                    {% if res.special_requests %}
+                      <div><strong>Customer:</strong> {{ res.special_requests }}</div>
+                    {% endif %}
+                    {% if res.private_notes %}
+                      <div><strong>Private:</strong> {{ res.private_notes }}</div>
+                    {% endif %}
+                    {% if res.store_stop %}
+                      <span class="badge bg-success text-white mt-1"><i class="bi bi-shop me-1"></i>Publix Stop</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <!-- Actions -->
+                <td class="text-center" rowspan="{{ leg_count }}">
+                  <small class="text-success fw-bold">Paid</small>
+                  <div class="text-muted" style="font-size: 0.68rem;">{{ res.created_at|date:"M d, g:i A" }}</div>
+                </td>
+                {% endif %}
               </tr>
               {% endfor %}
+              {% endwith %}
+              {% endfor %}
+
               {% for res in group.unpaid %}
-              <tr class="unpaid-row" data-uuid="{{ res.uuid }}">
-                <td><span class="badge bg-danger">DUPE</span></td>
-                <td>
-                  <a href="{% url 'reservation_details' res.uuid %}" target="_blank" class="fw-bold text-decoration-none">
-                    #{{ res.id }}
-                  </a>
+              {% with legs=res.legs.all leg_count=res.legs.all|length %}
+              {% for leg in legs %}
+              <tr class="{% if forloop.first %}dupe-unpaid unpaid-row{% else %}dupe-unpaid{% endif %}" {% if forloop.first %}data-uuid="{{ res.uuid }}"{% endif %}>
+                {% if forloop.first %}
+                <td class="text-center" rowspan="{{ leg_count }}">
+                  <span class="badge bg-danger">DUPE</span>
                 </td>
-                <td>
-                  <span class="badge bg-info text-dark">{{ res.trip_type|title }}</span>
+                <!-- Customer -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="d-flex align-items-center mb-1">
+                    <h6 class="mb-0 fw-bold" style="font-size: 0.85rem;">{{ res.customer.get_full_name }}</h6>
+                    <a href="{% url 'reservation_details' res.uuid %}" target="_blank"
+                       class="badge bg-warning text-dark ms-2 text-decoration-none">#{{ res.id }}</a>
+                  </div>
+                  <div class="text-muted small"><i class="bi bi-envelope me-1"></i>{{ res.customer.email }}</div>
+                  <div class="text-muted small"><i class="bi bi-telephone me-1"></i>{{ res.customer.phone_number }}</div>
                 </td>
-                <td>{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</td>
-                {% with leg=res.legs.all.0 %}
-                <td><span class="loc-text" title="{{ leg.pickup_location }}">{% if leg %}{{ leg.pickup_location }}{% else %}&mdash;{% endif %}</span></td>
-                <td><span class="loc-text" title="{{ leg.dropoff_location }}">{% if leg %}{{ leg.dropoff_location }}{% else %}&mdash;{% endif %}</span></td>
-                <td>{% if leg %}{{ leg.pickup_time|time:"g:i A" }}{% else %}&mdash;{% endif %}</td>
-                {% endwith %}
+                {% endif %}
+                <!-- Trip Details (per-leg) -->
                 <td>
-                  <small>{{ res.passenger_count }} pax, {{ res.luggage_count }} bag{{ res.luggage_count|pluralize }}</small>
-                  {% if res.need_carseats %}<br><small class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats</small>{% endif %}
+                  <div class="d-flex align-items-center gap-1 mb-1">
+                    <span class="badge bg-info text-dark" style="font-size: 0.65rem;">{{ res.trip_type|title }}</span>
+                    <span class="badge bg-secondary" style="font-size: 0.65rem;">Leg {{ forloop.counter }}/{{ leg_count }}</span>
+                  </div>
+                  {% if leg.flight_information %}
+                    <div class="text-primary mb-1 small">
+                      <i class="bi bi-airplane me-1"></i>
+                      {% if leg.flight_information.airline_display_name %}
+                        {{ leg.flight_information.airline_display_name }} {{ leg.flight_information.flight_number }}
+                      {% else %}
+                        {{ leg.flight_information.airline }} {{ leg.flight_information.flight_number }}
+                      {% endif %}
+                      {% if leg.flight_information.flight_iata %}
+                        <span class="text-muted">({{ leg.flight_information.flight_iata }})</span>
+                      {% endif %}
+                    </div>
+                    {% if leg.flight_information.status %}
+                      <span class="badge bg-secondary mb-1" style="font-size: 0.65rem;">{{ leg.flight_information.status }}</span>
+                    {% endif %}
+                  {% endif %}
+                  {% if leg.cruise_information %}
+                    <div class="mb-1">
+                      <span class="badge bg-dark text-white" style="font-size: 0.7rem;">
+                        <i class="bi bi-ship me-1"></i>
+                        {% if leg.cruise_information.cruise_line and leg.cruise_information.ship_name %}
+                          {{ leg.cruise_information.cruise_line }} - {{ leg.cruise_information.ship_name }}
+                        {% elif leg.cruise_information.cruise_line %}
+                          {{ leg.cruise_information.cruise_line }}
+                        {% elif leg.cruise_information.ship_name %}
+                          {{ leg.cruise_information.ship_name }}
+                        {% endif %}
+                      </span>
+                    </div>
+                  {% endif %}
+                  <div class="fw-bold">{{ leg.pickup_date|date:"l, F d" }}</div>
+                  <div class="fw-bold">{{ leg.pickup_time|time:"g:i A" }}</div>
+                  {% if leg.cleared_time %}
+                    <div class="small text-muted mt-1">
+                      <i class="bi bi-clock"></i> Clearing ~{{ leg.cleared_time }}
+                      {% if leg.duration_display %}({{ leg.duration_display }}){% endif %}
+                    </div>
+                  {% endif %}
                 </td>
-                <td class="fw-bold">${{ res.total_price }}</td>
-                <td><span class="badge bg-secondary">{{ res.payment_status }}</span></td>
-                <td>{{ res.created_at|date:"M d, g:i A" }}</td>
+                <!-- Locations (per-leg) -->
                 <td>
+                  <div class="small mb-1">
+                    <span class="fw-bold">P/U:</span> {{ leg.pickup_location }}
+                  </div>
+                  <div class="small">
+                    <span class="fw-bold">D/O:</span> {{ leg.dropoff_location }}
+                  </div>
+                  {% if leg.private_notes %}
+                    <div class="small mt-1 text-muted"><strong>Leg Notes:</strong> {{ leg.private_notes }}</div>
+                  {% endif %}
+                </td>
+                {% if forloop.first %}
+                <!-- Vehicle & Passengers -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="small">
+                    <div class="fw-bold mb-1">{% if res.vehicle %}{{ res.vehicle }}{% else %}&mdash;{% endif %}</div>
+                    <div>{{ res.passenger_count }} Passengers</div>
+                    <div>{{ res.luggage_count }} Suitcases
+                      {% if res.luggage_type %}
+                        <span class="badge {% if res.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %}" style="font-size: .6rem;">{{ res.get_luggage_type_display }}</span>
+                      {% endif %}
+                    </div>
+                    {% if res.need_carseats %}
+                      <div class="text-warning"><i class="bi bi-car-front me-1"></i>Car seats: {{ res.display_carseats }}</div>
+                    {% else %}
+                      <div class="text-muted"><em>No car seats</em></div>
+                    {% endif %}
+                  </div>
+                </td>
+                <!-- Payment -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="fw-bold">${{ res.total_price }}</div>
+                  <span class="badge bg-warning text-dark">{{ res.payment_status|title }}</span>
+                </td>
+                <!-- Notes -->
+                <td rowspan="{{ leg_count }}">
+                  <div class="small">
+                    {% if res.special_requests %}
+                      <div><strong>Customer:</strong> {{ res.special_requests }}</div>
+                    {% endif %}
+                    {% if res.private_notes %}
+                      <div><strong>Private:</strong> {{ res.private_notes }}</div>
+                    {% endif %}
+                    {% if res.store_stop %}
+                      <span class="badge bg-success text-white mt-1"><i class="bi bi-shop me-1"></i>Publix Stop</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <!-- Actions -->
+                <td class="text-center" rowspan="{{ leg_count }}">
                   <button class="btn btn-sm btn-outline-danger cancel-btn py-0 px-2"
                           style="font-size: 0.75rem;"
                           onclick="cancelOne(this, '{{ res.uuid }}', {{ res.id }})">
                     <i class="bi bi-trash me-1"></i>Delete
                   </button>
+                  <div class="text-muted mt-1" style="font-size: 0.68rem;">{{ res.created_at|date:"M d, g:i A" }}</div>
                 </td>
+                {% endif %}
               </tr>
+              {% endfor %}
+              {% endwith %}
               {% endfor %}
             </tbody>
           </table>
@@ -214,10 +403,20 @@ function cancelOne(btn, uuid, resId) {
       const data = await resp.json();
 
       if (data.success) {
-        const row = btn.closest('tr');
-        row.classList.remove('unpaid-row');
-        row.classList.add('table-secondary');
-        const firstBadge = row.querySelector('td:first-child .badge');
+        // Update all rows belonging to this reservation (multi-leg)
+        const mainRow = btn.closest('tr');
+        const allRows = mainRow.closest('tbody').querySelectorAll('tr');
+        // Find the main row index and mark subsequent sibling leg rows too
+        let found = false;
+        for (const row of allRows) {
+          if (row === mainRow) { found = true; }
+          else if (found && row.dataset.uuid) { break; } // next reservation
+          if (found) {
+            row.classList.remove('unpaid-row', 'dupe-unpaid');
+            row.classList.add('dupe-done');
+          }
+        }
+        const firstBadge = mainRow.querySelector('td:first-child .badge');
         if (firstBadge) {
           firstBadge.className = 'badge bg-secondary';
           firstBadge.textContent = 'DONE';
@@ -267,8 +466,8 @@ function cancelAll() {
         const data = await resp.json();
         if (data.success) {
           success++;
-          row.classList.remove('unpaid-row');
-          row.classList.add('table-secondary');
+          row.classList.remove('unpaid-row', 'dupe-unpaid');
+          row.classList.add('dupe-done');
           const firstBadge = row.querySelector('td:first-child .badge');
           if (firstBadge) {
             firstBadge.className = 'badge bg-secondary';

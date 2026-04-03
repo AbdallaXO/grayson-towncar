@@ -285,6 +285,10 @@ a.sd-row:hover { color: inherit; }
           <span style="font-size: .7rem; font-weight: 500; color: rgba(241,245,249,.5); margin-left: .25rem;">
             {{ view_date|date:"M j, Y" }}
           </span>
+          {% elif custom_from %}
+          <span style="font-size: .7rem; font-weight: 500; color: rgba(241,245,249,.5); margin-left: .25rem;">
+            {{ custom_from|date:"M j" }} &ndash; {{ custom_to|date:"M j, Y" }}
+          </span>
           {% endif %}
         </h1>
         <div class="date-nav">
@@ -292,9 +296,15 @@ a.sd-row:hover { color: inherit; }
           <a href="?date={{ yesterday|date:'Y-m-d' }}" class="date-nav-btn {% if view_date == yesterday %}active{% endif %}">Yesterday</a>
           <input type="date" value="{{ view_date|date:'Y-m-d' }}" onchange="location.href='?date='+this.value" title="Pick a date">
           <span class="date-nav-sep"></span>
-          <a href="?range=7" class="date-nav-btn {% if not view_date and range_days == 7 %}active{% endif %}">7d</a>
-          <a href="?range=30" class="date-nav-btn {% if not view_date and range_days == 30 %}active{% endif %}">30d</a>
-          <a href="?range=90" class="date-nav-btn {% if not view_date and range_days == 90 %}active{% endif %}">90d</a>
+          <a href="?range=14" class="date-nav-btn {% if not view_date and not custom_from and range_days == 14 %}active{% endif %}">14d</a>
+          <a href="?range=30" class="date-nav-btn {% if not view_date and not custom_from and range_days == 30 %}active{% endif %}">30d</a>
+          <a href="?range=90" class="date-nav-btn {% if not view_date and not custom_from and range_days == 90 %}active{% endif %}">90d</a>
+          <span class="date-nav-sep"></span>
+          <span style="font-size: .68rem; color: rgba(255,255,255,.5); font-weight: 600;">From</span>
+          <input type="date" id="customFrom" value="{{ custom_from|date:'Y-m-d' }}" title="From date">
+          <span style="font-size: .68rem; color: rgba(255,255,255,.5); font-weight: 600;">To</span>
+          <input type="date" id="customTo" value="{{ custom_to|date:'Y-m-d' }}" title="To date">
+          <button class="date-nav-btn {% if custom_from %}active{% endif %}" onclick="applyCustomRange()" style="padding: .25rem .5rem;">Go</button>
         </div>
       </div>
     </div>
@@ -567,7 +577,7 @@ a.sd-row:hover { color: inherit; }
             <ul class="staff-nav">
               {% for u in all_staff %}
               <li>
-                <a href="{% url 'staff_detail' u.id %}?{% if view_date %}date={{ view_date|date:'Y-m-d' }}{% else %}range={{ range_days }}{% endif %}" class="staff-nav-item {% if u.id == staff_user.id %}active{% endif %}">
+                <a href="{% url 'staff_detail' u.id %}?{% if custom_from %}from={{ custom_from|date:'Y-m-d' }}&to={{ custom_to|date:'Y-m-d' }}{% elif view_date %}date={{ view_date|date:'Y-m-d' }}{% else %}range={{ range_days }}{% endif %}" class="staff-nav-item {% if u.id == staff_user.id %}active{% endif %}">
                   <span class="nav-dot"></span>
                   {{ u.get_full_name|default:u.username }}
                 </a>
@@ -590,6 +600,20 @@ document.addEventListener('DOMContentLoaded', function() {
   const data = JSON.parse(raw);
   if (!data.length) return;
 
+  // Custom date range handler
+  window.applyCustomRange = function() {
+    const from = document.getElementById('customFrom').value;
+    const to = document.getElementById('customTo').value;
+    if (from && to) {
+      location.href = '?from=' + from + '&to=' + to;
+    } else if (from) {
+      location.href = '?from=' + from + '&to=' + from;
+    }
+  };
+  // Allow Enter key on the date inputs
+  document.getElementById('customFrom').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyCustomRange(); });
+  document.getElementById('customTo').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyCustomRange(); });
+
   const ctx = document.getElementById('resTrendChart');
   if (!ctx) return;
 
@@ -606,6 +630,7 @@ document.addEventListener('DOMContentLoaded', function() {
           data: data.map(d => d.count),
           backgroundColor: 'rgba(37, 99, 235, 0.7)',
           borderRadius: 3,
+          maxBarThickness: 28,
           yAxisID: 'y',
         },
         {
@@ -627,7 +652,7 @@ document.addEventListener('DOMContentLoaded', function() {
       interaction: { intersect: false, mode: 'index' },
       plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
       scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Bookings', font: { size: 10 } } },
+        y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: 'Bookings', font: { size: 10 } } },
         y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Revenue ($)', font: { size: 10 } } },
       },
     },

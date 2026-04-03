@@ -1656,15 +1656,32 @@ def staff_detail_view(request, user_id):
     now = timezone.now()
     today = timezone.localdate()
 
-    # Support two modes: ?date=2026-03-15 (single day) or ?range=30 (range)
+    # Support three modes:
+    #   ?date=2026-03-15           (single day)
+    #   ?from=2026-04-01&to=2026-04-05  (custom range)
+    #   ?range=30                  (rolling N days, default)
     from datetime import date as date_type
     date_param = request.GET.get("date", "")
+    from_param = request.GET.get("from", "")
+    to_param = request.GET.get("to", "")
     view_date = None
+    custom_from = None
+    custom_to = None
+
     if date_param:
         try:
             view_date = date_type.fromisoformat(date_param)
         except ValueError:
             pass
+
+    if from_param and to_param:
+        try:
+            custom_from = date_type.fromisoformat(from_param)
+            custom_to = date_type.fromisoformat(to_param)
+            if custom_from > custom_to:
+                custom_from, custom_to = custom_to, custom_from
+        except ValueError:
+            custom_from = custom_to = None
 
     if view_date:
         # Single-day mode
@@ -1674,12 +1691,23 @@ def staff_detail_view(request, user_id):
         )
         range_end = range_start + timedelta(days=1)
         days_back = 0  # signals single-day mode in template
+    elif custom_from and custom_to:
+        # Custom date range mode
+        range_start = timezone.make_aware(
+            timezone.datetime.combine(custom_from, timezone.datetime.min.time()),
+            timezone.get_current_timezone(),
+        )
+        range_end = timezone.make_aware(
+            timezone.datetime.combine(custom_to + timedelta(days=1), timezone.datetime.min.time()),
+            timezone.get_current_timezone(),
+        )
+        days_back = (custom_to - custom_from).days + 1
     else:
-        range_param = request.GET.get("range", "30")
+        range_param = request.GET.get("range", "14")
         try:
             days_back = int(range_param)
         except ValueError:
-            days_back = 30
+            days_back = 14
         days_back = min(days_back, 365)
         range_start = now - timedelta(days=days_back)
         range_end = now
@@ -1699,23 +1727,32 @@ def staff_detail_view(request, user_id):
     # Recent reservations (last 25)
     recent_reservations = list(staff_res[:25])
 
-    # Daily reservation trend
-    daily_res = dict(
+    # Daily reservation trend — single query, build both dicts
+    daily_stats = (
         staff_res.annotate(day=TruncDate("created_at"))
         .values("day")
-        .annotate(count=Count("id"), rev=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()))
-        .values_list("day", "count")
+        .annotate(
+            count=Count("id"),
+            rev=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
+        )
+        .order_by("day")
     )
-    daily_rev = dict(
-        staff_res.annotate(day=TruncDate("created_at"))
-        .values("day")
-        .annotate(rev=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()))
-        .values_list("day", "rev")
-    )
+    daily_res = {}
+    daily_rev = {}
+    for row in daily_stats:
+        daily_res[row["day"]] = row["count"]
+        daily_rev[row["day"]] = row["rev"]
+
+    if custom_from and custom_to:
+        trend_start = custom_from
+    elif view_date:
+        trend_start = view_date
+    else:
+        trend_start = today - timedelta(days=days_back - 1)
 
     res_trend = []
     for i in range(days_back):
-        d = today - timedelta(days=days_back - 1 - i)
+        d = trend_start + timedelta(days=i)
         res_trend.append({
             "day": d.isoformat(),
             "count": daily_res.get(d, 0),
@@ -1878,6 +1915,8 @@ def staff_detail_view(request, user_id):
         "range_days": days_back,
         "range_start": range_start,
         "view_date": view_date,
+        "custom_from": custom_from,
+        "custom_to": custom_to,
         "today": today,
         "yesterday": yesterday,
         # Reservations
