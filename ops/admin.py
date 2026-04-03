@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import OperationalTask, CommunicationAttempt, StaffActivity
+from .models import OperationalTask, CommunicationAttempt, StaffActivity, EmailLog
 
 
 class CommunicationAttemptInline(admin.TabularInline):
@@ -45,3 +45,12 @@ class StaffActivityAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at",)
     raw_id_fields = ("user", "task")
     date_hierarchy = "created_at"
+
+
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "email_type", "sent_by", "recipient_email", "reservation", "success", "sent_at")
+    list_filter = ("email_type", "success", "sent_by")
+    readonly_fields = ("sent_at",)
+    raw_id_fields = ("sent_by", "reservation")
+    date_hierarchy = "sent_at"

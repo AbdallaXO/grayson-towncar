@@ -18,6 +18,24 @@ import time
 logger = logging.getLogger(__name__)
 
 
+def log_email_sent(email_type, recipient_email, subject="", sent_by=None,
+                   reservation=None, success=True, metadata=None):
+    """Log an email send to the EmailLog model for staff metrics tracking."""
+    try:
+        from ops.models import EmailLog
+        EmailLog.objects.create(
+            email_type=email_type,
+            sent_by=sent_by,
+            recipient_email=recipient_email,
+            subject=subject,
+            reservation=reservation,
+            success=success,
+            metadata=metadata or {},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to log email send: {e}")
+
+
 def _send_email_with_retry(email_func, max_retries=3):
     """Send email with retry logic in background thread"""
     def background_send():
@@ -54,8 +72,8 @@ def send_reservation_confirmation_ajax(request):
         if not request.user.is_staff:
             return JsonResponse({"success": False, "error": "Permission denied"})
         
-        send_reservation_confirmation(reservation)
-        
+        send_reservation_confirmation(reservation, sent_by=request.user)
+
         return JsonResponse({"success": True})
     
     except Exception as e:
@@ -63,20 +81,21 @@ def send_reservation_confirmation_ajax(request):
         return JsonResponse({"success": False, "error": str(e)})
 
 
-def send_reservation_confirmation(reservation):
+def send_reservation_confirmation(reservation, sent_by=None):
     """This Reservation is Called in the View
     When a Reservation is created with the reservation Object
     Renders a nicely formatted HTML and emails a Confirmation"""
     logger.info(
         f"Preparing to send reservation confirmation for {reservation.customer}"
     )
+    subject = "Thank you for booking with Grayson Towncar!"
 
     def _send_email():
         try:
             legs = reservation.legs.all()
             # Check if any leg is a return trip
             has_return_trip = any(leg.get_trip_type() == 'return' for leg in legs)
-            
+
             context = {
                 "reservation": reservation,
                 "legs": legs,
@@ -84,13 +103,9 @@ def send_reservation_confirmation(reservation):
                 "has_return_trip": has_return_trip,
             }
 
-            subject = "Thank you for booking with Grayson Towncar!"
             from_email = "reservations@graysontowncar.com"
             to = [reservation.customer.email]
-            logger.info(f"Email subject: {subject}")
-            logger.info(f"Sending to: {to}")
             html_content = render_to_string("users/confirmation_email.html", context)
-            logger.info("HTML content rendered successfully")
 
             msg = EmailMultiAlternatives(subject, "", from_email, to)
             msg.attach_alternative(html_content, "text/html")
@@ -98,6 +113,13 @@ def send_reservation_confirmation(reservation):
 
             logger.info(
                 f"Confirmation email sent successfully for reservation {reservation.uuid}"
+            )
+            log_email_sent(
+                email_type="confirmation",
+                recipient_email=reservation.customer.email,
+                subject=subject,
+                sent_by=sent_by,
+                reservation=reservation,
             )
 
         except Exception as e:
@@ -110,7 +132,7 @@ def send_reservation_confirmation(reservation):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
-def send_reservation_confirmation_custom_recipient(reservation, recipient_email, sender_name=None):
+def send_reservation_confirmation_custom_recipient(reservation, recipient_email, sender_name=None, sent_by=None):
     """
     Send reservation confirmation email to a custom recipient.
     Returns True if the send is queued successfully, False otherwise.
@@ -150,6 +172,13 @@ def send_reservation_confirmation_custom_recipient(reservation, recipient_email,
                 msg.send()
                 logger.info(
                     f"Custom confirmation email sent for reservation {reservation.uuid} to {recipient_email}"
+                )
+                log_email_sent(
+                    email_type="confirmation",
+                    recipient_email=recipient_email,
+                    subject=subject,
+                    sent_by=sent_by,
+                    reservation=reservation,
                 )
             except Exception as e:
                 logger.exception(
@@ -197,6 +226,13 @@ def send_payment_reminder_ajax(request):
         msg.send()
 
         logger.info(f"Payment reminder sent for reservation {reservation.uuid} to {reservation.customer.email} by {request.user}")
+        log_email_sent(
+            email_type="payment_reminder",
+            recipient_email=reservation.customer.email,
+            subject=subject,
+            sent_by=request.user,
+            reservation=reservation,
+        )
 
         # Log communication attempt against any open payment_chase task
         try:
@@ -386,7 +422,7 @@ def send_internal_confirmation(reservation):
     _send_email_with_retry(_send_email, max_retries=3)
 
 
-def send_driver_payment_statement(driver, payment, legs, recipient_email):
+def send_driver_payment_statement(driver, payment, legs, recipient_email, sent_by=None):
     """
     Send a driver payment statement email.
     Returns True if queued successfully, False otherwise.
@@ -449,6 +485,13 @@ def send_driver_payment_statement(driver, payment, legs, recipient_email):
                 logger.info(
                     f"Driver payment statement sent to {recipient_email} for payment {payment.id}"
                 )
+                log_email_sent(
+                    email_type="driver_statement",
+                    recipient_email=recipient_email,
+                    subject=subject,
+                    sent_by=sent_by,
+                    metadata={"driver_id": driver.id, "payment_id": payment.id},
+                )
             except Exception as e:
                 logger.exception(
                     f"Error sending driver payment statement for payment {payment.id}: {e}"
@@ -486,7 +529,7 @@ def thankyou_email(instance):
         logger.error(f"Error sending thank you email: {e}")
 
 
-def send_agent_commission_statement(agent, payout, recipient_email):
+def send_agent_commission_statement(agent, payout, recipient_email, sent_by=None):
     """
     Send a commission statement email to a travel agent.
     Returns True if queued successfully, False otherwise.
@@ -538,6 +581,13 @@ def send_agent_commission_statement(agent, payout, recipient_email):
                 logger.info(
                     f"Agent commission statement sent to {recipient_email} for payout {payout.id}"
                 )
+                log_email_sent(
+                    email_type="agent_commission",
+                    recipient_email=recipient_email,
+                    subject=subject,
+                    sent_by=sent_by,
+                    metadata={"agent_id": agent.id, "payout_id": payout.id},
+                )
             except Exception as e:
                 logger.exception(
                     f"Error sending agent commission statement for payout {payout.id}: {e}"
@@ -551,7 +601,7 @@ def send_agent_commission_statement(agent, payout, recipient_email):
         return False
 
 
-def send_agency_commission_statement(agency, payout, recipient_email):
+def send_agency_commission_statement(agency, payout, recipient_email, sent_by=None):
     """
     Send a commission statement email to a travel agency.
     Returns True if queued successfully, False otherwise.
@@ -600,6 +650,13 @@ def send_agency_commission_statement(agency, payout, recipient_email):
                 msg.send()
                 logger.info(
                     f"Agency commission statement sent to {recipient_email} for payout {payout.id}"
+                )
+                log_email_sent(
+                    email_type="agency_commission",
+                    recipient_email=recipient_email,
+                    subject=subject,
+                    sent_by=sent_by,
+                    metadata={"agency_id": agency.id, "payout_id": payout.id},
                 )
             except Exception as e:
                 logger.exception(

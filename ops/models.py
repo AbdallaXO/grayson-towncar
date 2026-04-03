@@ -7,6 +7,7 @@ Three models:
 - StaffActivity: passive tracking for owner visibility into staff behavior
 """
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -346,3 +347,47 @@ class StaffActivity(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.get_action_type_display()} @ {self.created_at:%H:%M}"
+
+
+class EmailLog(models.Model):
+    """
+    Tracks every email sent from the system for staff metrics and auditing.
+    """
+
+    class EmailType(models.TextChoices):
+        CONFIRMATION = "confirmation", "Reservation Confirmation"
+        PAYMENT_REMINDER = "payment_reminder", "Payment Reminder"
+        DRIVER_STATEMENT = "driver_statement", "Driver Payment Statement"
+        AGENT_COMMISSION = "agent_commission", "Agent Commission Statement"
+        AGENCY_COMMISSION = "agency_commission", "Agency Commission Statement"
+        LEAD_QUOTE = "lead_quote", "Lead Quote"
+        ADMIN_REPORT = "admin_report", "Admin Commission Report"
+        OTHER = "other", "Other"
+
+    email_type = models.CharField(
+        max_length=30, choices=EmailType.choices, default=EmailType.OTHER,
+    )
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="emails_sent",
+        help_text="Staff member who triggered the send",
+    )
+    recipient_email = models.EmailField()
+    subject = models.CharField(max_length=255, blank=True, default="")
+    reservation = models.ForeignKey(
+        "reservations.Reservation", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="email_logs",
+    )
+    success = models.BooleanField(default=True)
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-sent_at"]
+        indexes = [
+            models.Index(fields=["sent_by", "-sent_at"], name="idx_email_user_time"),
+            models.Index(fields=["email_type", "-sent_at"], name="idx_email_type_time"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_email_type_display()} → {self.recipient_email} @ {self.sent_at:%Y-%m-%d %H:%M}"

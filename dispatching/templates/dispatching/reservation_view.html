@@ -1096,6 +1096,17 @@
                     No payments recorded yet. Click "Process Payment" to get started.
                   </div>
                 {% endif %}
+
+                {% if payment_reminders_sent %}
+                <div class="mt-3">
+                  {% for reminder in payment_reminders_sent %}
+                  <div class="d-flex align-items-center text-muted small mb-1">
+                    <i class="bi bi-envelope-check text-warning me-2"></i>
+                    <span>Payment Reminder Sent by <strong>{{ reminder.sent_by.first_name|default:reminder.sent_by.username }}</strong> on {{ reminder.sent_at|date:"M d, Y" }} @ {{ reminder.sent_at|date:"g:i A" }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
               </div>
             </div>
 

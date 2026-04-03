@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import get_user_model
-from django.db.models import Count, Avg, Q, F
+from django.db.models import Count, Avg, Q, F, Min, Max
 from django.db.models.functions import TruncDate
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 from django.contrib import messages
 
-from .models import OperationalTask, CommunicationAttempt, StaffActivity
+from .models import OperationalTask, CommunicationAttempt, StaffActivity, EmailLog
 from .services import close_task, cancel_task, log_communication, create_task
 
 User = get_user_model()
@@ -1546,15 +1546,15 @@ def staff_metrics_view(request):
     avg_response_min = round(sum(response_times) / len(response_times), 1) if response_times else None
     median_response_min = round(sorted(response_times)[len(response_times) // 2], 1) if response_times else None
 
-    # ── Today's staff activity timeline ──
+    # ── Staff activity timeline (full range, not just today) ──
     today_start = now.astimezone(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_activities = list(
+    range_activities = list(
         StaffActivity.objects.filter(
-            created_at__gte=today_start,
+            created_at__gte=range_start,
         )
         .exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
         .select_related("user", "task")
-        .order_by("-created_at")[:50]
+        .order_by("-created_at")[:200]
     )
 
     # ── Task type performance ──
@@ -1580,11 +1580,162 @@ def staff_metrics_view(request):
     for pv in page_views_today:
         pv["name"] = pv["user__first_name"] or pv["user__username"]
 
-    # ── Reservations created per staff (in range) ──
-    from reservations.models import Reservation
+    # ── First / last active per staff (today) ──
+    staff_active_times = {
+        row["user__id"]: row
+        for row in StaffActivity.objects.filter(
+            created_at__gte=today_start,
+        )
+        .values("user__id", "user__first_name", "user__username")
+        .annotate(first_active=Min("created_at"), last_active=Max("created_at"))
+        .order_by("first_active")
+    }
+    for row in staff_active_times.values():
+        row["name"] = row["user__first_name"] or row["user__username"]
+
+    # ── AuditLog actions per staff (in range) ──
+    from reservations.models import AuditLog
+    audit_actions = list(
+        AuditLog.objects.filter(
+            timestamp__gte=range_start,
+            user__isnull=False,
+        )
+        .values("user__id", "user__first_name", "user__username")
+        .annotate(
+            driver_assignments=Count("id", filter=Q(action="driver_assigned")),
+            payment_actions=Count("id", filter=Q(action="payment_processed")),
+            status_changes=Count("id", filter=Q(action="status_changed")),
+            total_actions=Count("id"),
+        )
+        .order_by("-total_actions")
+    )
+    for row in audit_actions:
+        row["name"] = row["user__first_name"] or row["user__username"]
+
+    # ── Emails sent per staff (in range) ──
+    from .models import EmailLog
+    staff_emails = list(
+        EmailLog.objects.filter(
+            sent_at__gte=range_start,
+            sent_by__isnull=False,
+        )
+        .values("sent_by__id", "sent_by__first_name", "sent_by__username")
+        .annotate(
+            total=Count("id"),
+            confirmations=Count("id", filter=Q(email_type="confirmation")),
+            payment_reminders=Count("id", filter=Q(email_type="payment_reminder")),
+            statements=Count("id", filter=Q(
+                email_type__in=["driver_statement", "agent_commission", "agency_commission"]
+            )),
+        )
+        .order_by("-total")
+    )
+    for row in staff_emails:
+        row["name"] = row["sent_by__first_name"] or row["sent_by__username"]
+
+    # ── Reservations / Legs modified per staff (in range) ──
+    from reservations.models import Reservation, Leg
     from django.db.models import Sum, DecimalField
     from django.db.models.functions import Coalesce
     from decimal import Decimal
+
+    staff_modifications = {}
+    # Count distinct legs modified per staff
+    leg_mods = (
+        Leg.history.filter(
+            history_date__gte=range_start,
+            history_type="~",
+            history_user__isnull=False,
+        )
+        .values("history_user__id", "history_user__first_name", "history_user__username")
+        .annotate(legs_modified=Count("id", distinct=True))
+    )
+    for row in leg_mods:
+        uid = row["history_user__id"]
+        staff_modifications[uid] = {
+            "user_id": uid,
+            "name": row["history_user__first_name"] or row["history_user__username"],
+            "legs_modified": row["legs_modified"],
+            "reservations_modified": 0,
+        }
+    # Count distinct reservations modified per staff
+    res_mods = (
+        Reservation.history.filter(
+            history_date__gte=range_start,
+            history_type="~",
+            history_user__isnull=False,
+        )
+        .values("history_user__id", "history_user__first_name", "history_user__username")
+        .annotate(res_modified=Count("id", distinct=True))
+    )
+    for row in res_mods:
+        uid = row["history_user__id"]
+        if uid in staff_modifications:
+            staff_modifications[uid]["reservations_modified"] = row["res_modified"]
+        else:
+            staff_modifications[uid] = {
+                "user_id": uid,
+                "name": row["history_user__first_name"] or row["history_user__username"],
+                "legs_modified": 0,
+                "reservations_modified": row["res_modified"],
+            }
+    staff_modifications_list = sorted(
+        staff_modifications.values(),
+        key=lambda x: x["legs_modified"] + x["reservations_modified"],
+        reverse=True,
+    )
+
+    # ── Correction / override detection ──
+    # Find cases where the same field on the same Leg was changed by different
+    # users within 24 hours (indicating a correction or management override).
+    corrections = []
+    CORRECTION_FIELDS = {
+        "pickup_time", "pickup_date", "pickup_location", "dropoff_location",
+        "driver", "status", "total_price", "base_price", "gratuity_amount",
+        "passenger_count", "private_notes",
+    }
+    leg_history_in_range = (
+        Leg.history.filter(
+            history_date__gte=range_start,
+            history_type="~",
+            history_user__isnull=False,
+        )
+        .select_related("history_user")
+        .order_by("id", "history_date")[:500]
+    )
+    # Group history records by leg id
+    from itertools import groupby
+    leg_records_by_id = defaultdict(list)
+    for rec in leg_history_in_range:
+        leg_records_by_id[rec.id].append(rec)
+
+    for leg_id, records in leg_records_by_id.items():
+        for i in range(1, len(records)):
+            rec = records[i]
+            prev = records[i - 1]
+            # Different users and within 24 hours
+            if (
+                rec.history_user_id != prev.history_user_id
+                and (rec.history_date - prev.history_date).total_seconds() < 86400
+            ):
+                try:
+                    delta = rec.diff_against(prev)
+                except Exception:
+                    continue
+                for change in delta.changes:
+                    if change.field in CORRECTION_FIELDS:
+                        corrections.append({
+                            "timestamp": rec.history_date,
+                            "model": "Leg",
+                            "object_id": leg_id,
+                            "field": change.field,
+                            "original_by": prev.history_user.first_name or prev.history_user.username,
+                            "corrected_by": rec.history_user.first_name or rec.history_user.username,
+                            "old": str(change.old) if change.old is not None else "",
+                            "new": str(change.new) if change.new is not None else "",
+                            "reservation_id": rec.reservation_id,
+                        })
+    corrections.sort(key=lambda x: x["timestamp"], reverse=True)
 
     staff_reservations = list(
         Reservation.objects.filter(
@@ -1623,8 +1774,8 @@ def staff_metrics_view(request):
         "avg_response_min": avg_response_min,
         "median_response_min": median_response_min,
         "response_count": len(response_times),
-        # Today
-        "today_activities": today_activities,
+        # Activity timeline (full range)
+        "range_activities": range_activities,
         "page_views_today": page_views_today,
         # Type performance
         "type_performance": type_performance,
@@ -1634,6 +1785,16 @@ def staff_metrics_view(request):
         "staff_reservations": staff_reservations,
         "total_staff_reservations": total_staff_reservations,
         "total_staff_revenue": total_staff_revenue,
+        # First/last active today
+        "staff_active_times": staff_active_times,
+        # AuditLog actions per staff
+        "audit_actions": audit_actions,
+        # Modifications per staff
+        "staff_modifications": staff_modifications_list,
+        # Corrections / overrides
+        "corrections": corrections,
+        # Emails sent per staff
+        "staff_emails": staff_emails,
     }
     return render(request, "dispatching/staff_metrics.html", context)
 
@@ -1786,6 +1947,9 @@ def staff_detail_view(request, user_id):
         .select_related("reservation", "reservation__customer", "leg")
         .order_by("priority", "due_at")[:20]
     )
+    # Add age_days for staleness badges in template
+    for task in assigned_tasks:
+        task.age_days = (now - task.created_at).days
 
     # ── Communication attempts by this staff ──
     staff_comms = CommunicationAttempt.objects.filter(
@@ -1806,6 +1970,22 @@ def staff_detail_view(request, user_id):
     )
     recent_comms = list(
         staff_comms.select_related("task").order_by("-created_at")[:25]
+    )
+
+    # ── Emails sent by this staff ──
+    staff_email_qs = EmailLog.objects.filter(
+        sent_by=staff_user,
+        sent_at__gte=range_start,
+        sent_at__lt=range_end,
+    )
+    emails_total = staff_email_qs.count()
+    emails_by_type = dict(
+        staff_email_qs.values_list("email_type")
+        .annotate(c=Count("id"))
+        .values_list("email_type", "c")
+    )
+    recent_emails = list(
+        staff_email_qs.select_related("reservation").order_by("-sent_at")[:25]
     )
 
     # ── Activity timeline (last 50) ──
@@ -1832,7 +2012,69 @@ def staff_detail_view(request, user_id):
         "flight_information",
     }
 
+    # Fields auto-set by signals when a trigger field changes — suppress from
+    # change history so only the real staff action (e.g. driver reassignment)
+    # is shown.
+    SIGNAL_CASCADED_PAIRS = {
+        "driver": {"driver_base_pay", "driver_gratuity", "driver_additional"},
+    }
+
     change_history = []
+
+    # Pre-load driver names for resolving FK IDs in change history
+    from drivers.models import Driver
+    driver_name_map = dict(
+        Driver.objects.values_list("id", "profile__first_name")
+    )
+    # Fallback: also get last names for drivers without first names
+    driver_last_map = dict(
+        Driver.objects.values_list("id", "profile__last_name")
+    )
+
+    def _resolve_driver(val):
+        """Convert a driver FK ID to a display name."""
+        if not val:
+            return ""
+        try:
+            did = int(val)
+        except (ValueError, TypeError):
+            return str(val)
+        name = driver_name_map.get(did, "")
+        if name:
+            last = driver_last_map.get(did, "")
+            return f"{name} {last}".strip() if last else name
+        return f"Driver #{did}"
+
+    def _format_time(val):
+        """Convert military time string (HH:MM:SS) to 12-hour format."""
+        if not val:
+            return ""
+        s = str(val)
+        try:
+            from datetime import time as time_type
+            if isinstance(val, time_type):
+                return val.strftime("%I:%M %p").lstrip("0")
+            # Parse string like "22:45:00"
+            parts = s.split(":")
+            h, m = int(parts[0]), int(parts[1])
+            t = time_type(h, m)
+            return t.strftime("%I:%M %p").lstrip("0")
+        except Exception:
+            return s
+
+    def _format_value(field, val):
+        """Format a change value based on field type."""
+        if not val and val != 0:
+            return ""
+        if field == "driver":
+            return _resolve_driver(val)
+        if field == "pickup_time":
+            return _format_time(val)
+        return str(val)
+
+    # Pre-load reservation UUIDs for linking
+    # Collect all reservation IDs we'll need, then batch-fetch UUIDs
+    _res_ids_needed = set()
 
     # Leg changes by this user
     leg_changes = (
@@ -1853,16 +2095,26 @@ def staff_detail_view(request, user_id):
             delta = rec.diff_against(prev)
         except Exception:
             continue
+        # Collect all changed field names in this record to detect signal cascades
+        changed_fields = {c.field for c in delta.changes}
+        suppressed = set()
+        for trigger, cascaded in SIGNAL_CASCADED_PAIRS.items():
+            if trigger in changed_fields:
+                suppressed |= cascaded
         for change in delta.changes:
             if change.field not in INTERESTING_FIELDS:
                 continue
+            if change.field in suppressed:
+                continue
+            if rec.reservation_id:
+                _res_ids_needed.add(rec.reservation_id)
             change_history.append({
                 "timestamp": rec.history_date,
                 "model": "Leg",
                 "object_id": rec.id,
                 "field": change.field,
-                "old": str(change.old) if change.old is not None else "",
-                "new": str(change.new) if change.new is not None else "",
+                "old": _format_value(change.field, change.old),
+                "new": _format_value(change.field, change.new),
                 "reservation_id": rec.reservation_id,
             })
 
@@ -1885,6 +2137,7 @@ def staff_detail_view(request, user_id):
             delta = rec.diff_against(prev)
         except Exception:
             continue
+        _res_ids_needed.add(rec.id)
         for change in delta.changes:
             if change.field not in INTERESTING_FIELDS:
                 continue
@@ -1893,10 +2146,17 @@ def staff_detail_view(request, user_id):
                 "model": "Reservation",
                 "object_id": rec.id,
                 "field": change.field,
-                "old": str(change.old) if change.old is not None else "",
-                "new": str(change.new) if change.new is not None else "",
+                "old": _format_value(change.field, change.old),
+                "new": _format_value(change.field, change.new),
                 "reservation_id": rec.id,
             })
+
+    # Batch-fetch reservation UUIDs for clickable links
+    res_uuid_map = dict(
+        Res.objects.filter(id__in=_res_ids_needed).values_list("id", "uuid")
+    )
+    for entry in change_history:
+        entry["reservation_uuid"] = str(res_uuid_map.get(entry["reservation_id"], ""))
 
     # Sort all changes by timestamp descending
     change_history.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -1935,6 +2195,11 @@ def staff_detail_view(request, user_id):
         "comms_by_channel": comms_by_channel,
         "comms_by_outcome": comms_by_outcome,
         "recent_comms": recent_comms,
+        # Emails
+        "emails_total": emails_total,
+        "emails_by_type": emails_by_type,
+        "recent_emails": recent_emails,
+        "email_type_labels": dict(EmailLog.EmailType.choices),
         # Activity & Changes
         "recent_activities": recent_activities,
         "change_history": change_history,

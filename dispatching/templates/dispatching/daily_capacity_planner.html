@@ -1200,6 +1200,7 @@
                                         {% if leg.get_trip_type == 'arrival' %}Arrival{% elif leg.get_trip_type == 'return' %}Return{% elif leg.get_trip_type == 'cruise' %}Cruise{% else %}Other{% endif %}
                                     </span>
                                     {% if leg.reservation and leg.reservation.vehicle %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.reservation.vehicle.vehicle_type|upper }}</span>{% endif %}
+                                    {% if leg.reservation and leg.reservation.store_stop %}<span class="badge" style="font-size:0.55rem; padding:0.1rem 0.3rem; background:#2e7d32; color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>{% endif %}
                                     <span class="text-muted" style="font-size:0.8rem;">
                                         {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}
                                     </span>
@@ -1770,13 +1771,21 @@
                     </button>
                 </div>
                 <!-- Step 2 footer (hidden initially) -->
-                <div id="aaFooter2" class="d-none">
+                <div id="aaFooter2" class="d-none d-flex align-items-center gap-2 w-100 justify-content-between">
                     <button type="button" id="aaBackBtn" class="btn btn-outline-light btn-sm">
                         <i class="bi bi-arrow-left me-1"></i>Back
                     </button>
-                    <button type="button" id="aaApplyBtn" class="btn btn-sm px-4" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600; border: none;">
-                        <i class="bi bi-check2-all me-1"></i>Apply All Assignments
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-light btn-sm" onclick="document.querySelectorAll('.aa-driver-check').forEach(c=>{c.checked=true;});aaUpdateApplyBtn();" title="Select all drivers">
+                            All
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" onclick="document.querySelectorAll('.aa-driver-check').forEach(c=>{c.checked=false;});aaUpdateApplyBtn();" title="Deselect all drivers">
+                            None
+                        </button>
+                        <button type="button" id="aaApplyBtn" class="btn btn-sm px-4" style="background: linear-gradient(135deg, var(--gold), var(--gold-light)); color: var(--dark); font-weight: 600; border: none;">
+                            <i class="bi bi-check2-all me-1"></i>Apply Selected
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2097,14 +2106,18 @@
 
             // Driver schedule cards
             data.driver_schedules.forEach(function(driver) {
+                const hasNew = driver.new_legs > 0;
                 html += '<div class="mb-3" style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;overflow:hidden;">';
                 html += '<div class="d-flex justify-content-between align-items-center px-3 py-2" style="background:var(--dark);color:#fff;">';
-                html += '<div>';
+                html += '<div class="d-flex align-items-center gap-2">';
+                if (hasNew) {
+                    html += '<input type="checkbox" class="form-check-input aa-driver-check" data-driver-id="' + driver.driver_id + '" checked style="cursor:pointer;margin:0;width:1.1rem;height:1.1rem;" title="Include this driver in apply">';
+                }
                 html += '<strong style="font-size:0.95rem;">' + driver.driver_name + '</strong>';
-                html += '<span class="ms-2" style="font-size:0.75rem;opacity:0.7;">' + driver.first_pickup + ' &mdash; ' + driver.last_end + '</span>';
+                html += '<span style="font-size:0.75rem;opacity:0.7;">' + driver.first_pickup + ' &mdash; ' + driver.last_end + '</span>';
                 html += '</div>';
                 html += '<div class="d-flex gap-2 align-items-center">';
-                if (driver.new_legs > 0) {
+                if (hasNew) {
                     html += '<span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.7rem;">+' + driver.new_legs + ' new</span>';
                 }
                 html += '<span style="font-size:0.8rem;opacity:0.8;">' + driver.total_legs + ' legs</span>';
@@ -2187,25 +2200,57 @@
             }
 
             driversDiv.innerHTML = html;
+
+            // Attach checkbox change listeners
+            driversDiv.querySelectorAll('.aa-driver-check').forEach(function(cb) {
+                cb.addEventListener('change', function() { aaUpdateApplyBtn(); });
+            });
+            aaUpdateApplyBtn();
         }
+
+        // Update apply button label with count
+        window.aaUpdateApplyBtn = function() {
+            const checks = document.querySelectorAll('.aa-driver-check');
+            const checked = document.querySelectorAll('.aa-driver-check:checked');
+            const btn = document.getElementById('aaApplyBtn');
+            if (checks.length === 0) {
+                btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply All';
+            } else if (checked.length === checks.length) {
+                btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply All (' + checked.length + ' drivers)';
+            } else {
+                btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply Selected (' + checked.length + '/' + checks.length + ')';
+            }
+            btn.disabled = checks.length > 0 && checked.length === 0;
+        };
 
         // Apply button
         document.getElementById('aaApplyBtn').addEventListener('click', function() {
             const btn = this;
             const dateVal = document.getElementById('datePicker').value;
+            // Collect selected driver IDs
+            const checks = document.querySelectorAll('.aa-driver-check');
+            let applyDriverIds = null;
+            if (checks.length > 0) {
+                const checked = document.querySelectorAll('.aa-driver-check:checked');
+                if (checked.length === 0) { alert('No drivers selected'); return; }
+                applyDriverIds = Array.from(checked).map(c => parseInt(c.dataset.driverId));
+            }
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Applying...';
+
+            const payload = {
+                date: dateVal, apply: true,
+                driver_hours: aaDriverHours,
+                driver_preferences: aaDriverPrefs,
+                excluded_leg_ids: aaExcluded,
+                manual_assignments: aaManual,
+            };
+            if (applyDriverIds !== null) payload.apply_driver_ids = applyDriverIds;
 
             fetch('{% url "auto_assign_drivers" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-                body: JSON.stringify({
-                    date: dateVal, apply: true,
-                    driver_hours: aaDriverHours,
-                    driver_preferences: aaDriverPrefs,
-                    excluded_leg_ids: aaExcluded,
-                    manual_assignments: aaManual,
-                }),
+                body: JSON.stringify(payload),
             })
             .then(r => r.json())
             .then(data => {
@@ -2215,13 +2260,13 @@
                 } else {
                     alert(data.error || 'Error applying assignments');
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply All Assignments';
+                    aaUpdateApplyBtn();
                 }
             })
             .catch(err => {
                 alert('Network error: ' + err.message);
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>Apply All Assignments';
+                aaUpdateApplyBtn();
             });
         });
     }
@@ -2518,6 +2563,7 @@
                 h += '<strong>' + alt.pickup_time + '</strong> ';
                 h += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + alt.trip_type.charAt(0).toUpperCase() + alt.trip_type.slice(1) + '</span> ';
                 if (alt.vehicle_type) h += '<span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;opacity:0.85;">' + alt.vehicle_type + '</span> ';
+                if (alt.store_stop) h += '<span class="badge" style="font-size:0.55rem;padding:0.08rem 0.25rem;background:#2e7d32;color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span> ';
                 let dets = [];
                 if (alt.passengers) dets.push('<i class="bi bi-people-fill"></i>' + alt.passengers);
                 if (alt.luggage) dets.push('<i class="bi bi-luggage-fill"></i>' + alt.luggage);

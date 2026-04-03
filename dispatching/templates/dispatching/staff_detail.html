@@ -221,17 +221,17 @@ a.sd-row:hover { color: inherit; }
 .ch-field { font-weight: 600; color: var(--ops-white); }
 .ch-model { font-size: .62rem; color: var(--ops-text-muted); }
 .ch-diff {
-  display: flex; align-items: center; gap: .3rem;
+  display: flex; align-items: flex-start; gap: .3rem; flex-wrap: wrap;
   margin-top: .1rem; font-size: .72rem;
 }
 .ch-old {
   color: var(--ops-text-muted); text-decoration: line-through;
-  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  word-break: break-word;
 }
-.ch-arrow { color: var(--ops-text-muted); font-size: .6rem; }
+.ch-arrow { color: var(--ops-text-muted); font-size: .6rem; flex-shrink: 0; }
 .ch-new {
   color: var(--ops-white); font-weight: 600;
-  max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  word-break: break-word;
 }
 
 /* ── Date nav ── */
@@ -364,6 +364,7 @@ a.sd-row:hover { color: inherit; }
                 <div class="sd-row-title">{{ task.title }}</div>
                 <div class="sd-row-sub">{{ task.get_task_type_display }}</div>
               </div>
+              <span class="sd-row-age badge {% if task.age_days >= 3 %}bg-danger{% elif task.age_days >= 1 %}bg-warning text-dark{% else %}bg-success{% endif %}" title="Age: {{ task.created_at|timesince }}">{{ task.created_at|timesince }} old</span>
               <span class="sd-row-date">{{ task.due_at|date:"M j g:i A" }}</span>
             </a>
             {% endfor %}
@@ -487,6 +488,46 @@ a.sd-row:hover { color: inherit; }
           {% endif %}
         </div>
 
+        <!-- Emails Sent -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-envelope" style="color: var(--ops-blue);"></i>
+            <h6>Emails Sent</h6>
+            <span class="head-ct">{{ emails_total }}</span>
+          </div>
+          {% if recent_emails %}
+          <div style="padding: .5rem .85rem;">
+            <div class="stat-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: .5rem; margin-bottom: .5rem;">
+              {% for type_code, label in email_type_labels.items %}
+                {% for k, v in emails_by_type.items %}
+                  {% if k == type_code %}
+                  <div style="text-align: center; padding: .3rem; background: rgba(255,255,255,.06); border-radius: 6px;">
+                    <div style="font-size: 1rem; font-weight: 700; color: var(--ops-white);">{{ v }}</div>
+                    <div style="font-size: .6rem; color: var(--ops-text-muted);">{{ label }}</div>
+                  </div>
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            </div>
+          </div>
+          <div>
+            {% for email in recent_emails %}
+            <div class="sd-row" style="cursor: default;">
+              <div class="sd-row-main">
+                <div class="sd-row-title">{{ email.get_email_type_display }}</div>
+                <div class="sd-row-sub">{{ email.recipient_email }}{% if email.reservation %} &middot; Res #{{ email.reservation.id }}{% endif %}</div>
+              </div>
+              <span class="sd-row-date">{{ email.sent_at|date:"M j g:i A" }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="ops-card-body" style="text-align: center;">
+            <span style="font-size: .78rem; color: var(--ops-text-muted);">No emails sent in this period.</span>
+          </div>
+          {% endif %}
+        </div>
+
         <!-- Change History (from django-simple-history) -->
         {% if change_history %}
         <div class="ops-card">
@@ -505,7 +546,7 @@ a.sd-row:hover { color: inherit; }
               <div class="ch-detail">
                 <div>
                   <span class="ch-field">{{ ch.field|title }}</span>
-                  <span class="ch-model">{{ ch.model }} #{{ ch.object_id }}</span>
+                  {% if ch.reservation_uuid %}<a href="{% url 'reservation_details' ch.reservation_uuid %}" class="ch-model" style="text-decoration:none;" target="_blank">{{ ch.model }} #{{ ch.object_id }}</a>{% else %}<span class="ch-model">{{ ch.model }} #{{ ch.object_id }}</span>{% endif %}
                 </div>
                 <div class="ch-diff">
                   {% if ch.old %}<span class="ch-old">{{ ch.old }}</span>{% else %}<span class="ch-old">(empty)</span>{% endif %}

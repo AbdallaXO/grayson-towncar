@@ -106,6 +106,16 @@ def categorize_location(location_text: str) -> str:
     if any(keyword in location_lower for keyword in airport_hotel_keywords):
         return 'Airport Hotel'
 
+    # Port Canaveral & Cocoa Beach Area — check BEFORE MCO terminals
+    # because cruise terminals have "Terminal A/B" which would falsely match MCO
+    port_keywords = [
+        'port canaveral', 'canaveral', 'cruise port', 'cruise terminal',
+        'cocoa beach', 'cape canaveral', 'cove terminal', 'cruise ship',
+        'jetty park', 'cocoa', 'brevard'
+    ]
+    if any(keyword in location_lower for keyword in port_keywords):
+        return 'Port Canaveral Area'
+
     # Airport TERMINALS (actual pickup/dropoff at terminals)
     mco_terminal_keywords = ['terminal a', 'terminal b', 'terminal c', 'gate ', 'baggage claim']
     if any(keyword in location_lower for keyword in mco_terminal_keywords):
@@ -132,15 +142,6 @@ def categorize_location(location_text: str) -> str:
     # Catch "sanford" + airport-related context
     if 'sanford' in location_lower and any(kw in location_lower for kw in ['airport', 'intl', 'airline']):
         return 'SFB Terminal'
-
-    # Port Canaveral & Cocoa Beach Area
-    port_keywords = [
-        'port canaveral', 'canaveral', 'cruise port', 'cruise terminal',
-        'cocoa beach', 'cape canaveral', 'cove terminal', 'cruise ship',
-        'jetty park', 'cocoa', 'brevard'
-    ]
-    if any(keyword in location_lower for keyword in port_keywords):
-        return 'Port Canaveral Area'
 
     # Disney properties
     disney_keywords = [

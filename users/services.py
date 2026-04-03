@@ -15,7 +15,7 @@ from users.emails import send_agent_commission_statement, send_agency_commission
 logger = logging.getLogger(__name__)
 
 
-def process_agent_payout(agent, send_email=False, recipient_email=None):
+def process_agent_payout(agent, send_email=False, recipient_email=None, sent_by=None):
     """
     Process payout for a single agent, optionally email statement.
     Returns (payout, amount, agency_payout).
@@ -24,12 +24,12 @@ def process_agent_payout(agent, send_email=False, recipient_email=None):
 
     if payout and send_email:
         email = recipient_email or agent.user.email
-        _run_in_background(send_agent_commission_statement, agent, payout, email)
+        _run_in_background(send_agent_commission_statement, agent, payout, email, sent_by=sent_by)
 
     return payout, amount, agency_payout
 
 
-def process_agency_payout(agency, send_email=False, recipient_email=None):
+def process_agency_payout(agency, send_email=False, recipient_email=None, sent_by=None):
     """
     Process payout for entire agency, optionally email statement.
     Returns (payout, amount).
@@ -42,7 +42,7 @@ def process_agency_payout(agency, send_email=False, recipient_email=None):
             first_head = agency.heads.first()
             email = first_head.email if first_head else None
         if email:
-            _run_in_background(send_agency_commission_statement, agency, payout, email)
+            _run_in_background(send_agency_commission_statement, agency, payout, email, sent_by=sent_by)
 
     return payout, amount
 

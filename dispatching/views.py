@@ -1283,6 +1283,17 @@ def reservation_details(request, id):
     else:
         logger.info(f"Stripe public key is configured ✅")
 
+    # Payment reminder emails sent for this reservation
+    from ops.models import EmailLog
+    payment_reminders_sent = list(
+        EmailLog.objects.filter(
+            reservation=reservation,
+            email_type="payment_reminder",
+        )
+        .select_related("sent_by")
+        .order_by("-sent_at")
+    )
+
     context = {
         "reservation": reservation,
         "total_legs": len(reservation.legs.all()),
@@ -1296,6 +1307,7 @@ def reservation_details(request, id):
             "total": reservation.total_price,
         },
         "STRIPE_PUBLIC_KEY": stripe_key,
+        "payment_reminders_sent": payment_reminders_sent,
     }
 
     return render(request, "dispatching/reservation_view.html", context)
@@ -2719,7 +2731,7 @@ def dispatcher_payment_portal(request, reservation_id):
                             payment.save()
 
                         # Send confirmation email after successful payment (non-blocking)
-                        _run_in_background(send_reservation_confirmation, reservation)
+                        _run_in_background(send_reservation_confirmation, reservation, sent_by=request.user)
                         logger.info(f"Confirmation email queued for dispatcher payment on reservation {reservation.uuid}")
 
                         # Send purchase event to Meta in background (matches webhook.py pattern)
@@ -5515,6 +5527,7 @@ def process_driver_payment(request):
                     payment=payment,
                     legs=list(unpaid_legs),
                     recipient_email=recipient_email,
+                    sent_by=request.user,
                 )
                 if not email_sent:
                     email_error = "Unable to send statement email"
@@ -7008,6 +7021,7 @@ def auto_assign_drivers(request):
     excluded_leg_ids = data.get("excluded_leg_ids", [])  # legs to skip
     raw_manual = data.get("manual_assignments", {})  # {leg_id_str: driver_id} overrides
     raw_preferences = data.get("driver_preferences", {})  # {driver_id_str: "prefer_arrival"}
+    apply_driver_ids = data.get("apply_driver_ids", None)  # optional: only apply for these drivers
 
     from datetime import datetime as dt
     from dispatching.scheduler import (
@@ -7122,6 +7136,11 @@ def auto_assign_drivers(request):
     if apply_mode:
         # ── Apply mode: save assignments to DB ──
         _create_schedule_snapshot(target_date, request.user, 'before_auto_assign')
+
+        # Filter to selected drivers only if specified
+        if apply_driver_ids is not None:
+            selected_dids = set(int(d) for d in apply_driver_ids)
+            final_assignments = {lid: did for lid, did in final_assignments.items() if did in selected_dids}
 
         # PERF TEMP START
         import time as _time; _t_assign = _time.monotonic()
@@ -7660,6 +7679,7 @@ def smart_schedule_builder(request):
             'luggage': res.luggage_count if res else 0,
             'carseats': ", ".join(alt_cs),
             'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
+            'store_stop': res.store_stop if res else False,
         })
 
     response = {
@@ -10571,7 +10591,7 @@ def process_agent_payout_view(request):
             return JsonResponse({"success": False, "error": "No unpaid commissions for this agent."})
 
         payout, amount, agency_payout = svc_process_agent_payout(
-            agent, send_email=send_email, recipient_email=agent.user.email
+            agent, send_email=send_email, recipient_email=agent.user.email, sent_by=request.user
         )
 
         if not payout:
@@ -10624,7 +10644,7 @@ def process_agency_payout_view(request):
             recipient_email = first_head.email if first_head else None
 
         payout, amount = svc_process_agency_payout(
-            agency, send_email=send_email, recipient_email=recipient_email
+            agency, send_email=send_email, recipient_email=recipient_email, sent_by=request.user
         )
 
         if not payout:
