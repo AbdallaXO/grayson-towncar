@@ -60,6 +60,27 @@
       </div>
     </div>
 
+    <!-- Suggested Rate -->
+    {% if suggested_price %}
+    <div class="card mb-4 border-warning" id="suggested-rate-card">
+      <div class="card-body py-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <i class="fas fa-lightbulb text-warning me-2"></i>
+            <strong>Suggested Rate:</strong>
+            <span class="fs-5 fw-bold text-success ms-1">${{ suggested_price }}</span>
+            <span class="text-muted ms-2">
+              {{ vehicle.get_vehicle_type_display }} &middot; {{ suggested_route_label }} &middot; {{ suggested_trip_type }}
+            </span>
+          </div>
+          <button type="button" class="btn btn-warning btn-sm fw-bold" id="use-suggested-btn">
+            <i class="fas fa-check me-1"></i> Use Suggested
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Pricing Section -->
     <div class="card mb-4">
       <div class="card-header">
@@ -302,6 +323,24 @@
 
           // Initialize state from form value (handles back-button pre-population)
           setGratuityOption(currentOption);
+
+          // Suggested rate auto-fill
+          const suggestedBtn = document.getElementById('use-suggested-btn');
+          if (suggestedBtn) {
+              suggestedBtn.addEventListener('click', function() {
+                  basePriceInput.value = '{{ suggested_price|default:"" }}';
+                  basePriceInput.dispatchEvent(new Event('input'));
+                  basePriceInput.focus();
+                  // Visual feedback
+                  const card = document.getElementById('suggested-rate-card');
+                  card.classList.remove('border-warning');
+                  card.classList.add('border-success');
+                  this.innerHTML = '<i class="fas fa-check me-1"></i> Applied!';
+                  this.classList.remove('btn-warning');
+                  this.classList.add('btn-success');
+                  this.disabled = true;
+              });
+          }
 
           // Form validation
           const form = document.querySelector('form');

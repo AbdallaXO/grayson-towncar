@@ -290,4 +290,7 @@ urlpatterns = [
     # Duplicate Reservation Cleanup
     path("duplicate-reservations/", views.duplicate_reservations, name="duplicate_reservations"),
     path("cancel-duplicate-reservation/", views.cancel_duplicate_reservation, name="cancel_duplicate_reservation"),
+    # Quote Calculator
+    path("quote-calculator/", views.quote_calculator, name="quote_calculator"),
+    path("quote-calculator/calculate/", views.quote_calculator_api, name="quote_calculator_api"),
 ]

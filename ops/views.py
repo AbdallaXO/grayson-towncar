@@ -1459,6 +1459,8 @@ def staff_metrics_view(request):
     days_back = min(days_back, 90)
 
     range_start = now - timedelta(days=days_back)
+    prior_start = range_start - timedelta(days=days_back)
+    prior_end = range_start
 
     # ── Queue Health (current snapshot) ──
     open_tasks = OperationalTask.objects.filter(
@@ -1474,132 +1476,228 @@ def staff_metrics_view(request):
     total_open = sum(queue_by_type.values())
     escalated_count = open_tasks.filter(status="escalated").count()
 
-    # ── Tasks completed per staff (in range) ──
-    completed_in_range = OperationalTask.objects.filter(
-        status="completed",
-        resolved_at__gte=range_start,
-    )
-    staff_completions = list(
-        completed_in_range.filter(resolved_by__isnull=False)
-        .values("resolved_by__id", "resolved_by__first_name", "resolved_by__username")
-        .annotate(count=Count("id"))
-        .order_by("-count")
-    )
-    for s in staff_completions:
-        s["name"] = s["resolved_by__first_name"] or s["resolved_by__username"]
+    # ── Imports for this view ──
+    from reservations.models import Reservation, Leg, AuditLog
+    from django.db.models import Sum, DecimalField
+    from django.db.models.functions import Coalesce, TruncDate as _TruncDate
+    from decimal import Decimal
+    from itertools import groupby
 
-    auto_closed_count = completed_in_range.filter(resolved_by__isnull=True).count()
+    # ═══════════════════════════════════════════════════════════════════
+    # DAILY STAFF SUMMARY — 7 queries grouped by (day, user).
+    # These are the SINGLE SOURCE for per-staff metrics; overview totals
+    # are derived by summing across days (no duplicate queries).
+    # ═══════════════════════════════════════════════════════════════════
 
-    # ── Communication volume per staff (in range) ──
-    comms_in_range = CommunicationAttempt.objects.filter(created_at__gte=range_start)
-    staff_comms = list(
-        comms_in_range.values("staff_user__id", "staff_user__first_name", "staff_user__username")
+    # Helper: build (day_str, uid) → value map from a queryset
+    def _day_user_map(qs, day_field, user_field, val_field):
+        result = {}
+        for row in qs:
+            key = (row[day_field].isoformat(), row[user_field])
+            result[key] = row[val_field]
+        return result
+
+    # 1. First/last active per staff per day (StaffActivity)
+    activity_by_day = list(
+        StaffActivity.objects.filter(created_at__gte=range_start)
+        .annotate(day=_TruncDate("created_at"))
+        .values("day", "user__id", "user__first_name", "user__username")
+        .annotate(first_active=Min("created_at"), last_active=Max("created_at"))
+    )
+    staff_names = {}
+    activity_first = {}
+    activity_last = {}
+    for row in activity_by_day:
+        uid = row["user__id"]
+        staff_names[uid] = row["user__first_name"] or row["user__username"]
+        key = (row["day"].isoformat(), uid)
+        activity_first[key] = row["first_active"]
+        activity_last[key] = row["last_active"]
+
+    # 2. Reservations created per day per staff
+    res_by_day = list(
+        Reservation.objects.filter(created_at__gte=range_start, created_by__isnull=False)
+        .annotate(day=_TruncDate("created_at"))
+        .values("day", "created_by__id", "created_by__first_name", "created_by__username")
+        .annotate(count=Count("id"), revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()))
+    )
+    res_count_map = {}
+    res_rev_map = {}
+    for row in res_by_day:
+        key = (row["day"].isoformat(), row["created_by__id"])
+        res_count_map[key] = row["count"]
+        res_rev_map[key] = float(row["revenue"])
+        staff_names.setdefault(row["created_by__id"], row["created_by__first_name"] or row["created_by__username"])
+
+    # 3. Tasks resolved per day per staff
+    tasks_by_day = _day_user_map(
+        OperationalTask.objects.filter(status="completed", resolved_at__gte=range_start, resolved_by__isnull=False)
+        .annotate(day=_TruncDate("resolved_at"))
+        .values("day", "resolved_by__id")
+        .annotate(count=Count("id")),
+        "day", "resolved_by__id", "count"
+    )
+
+    # 4. Driver assignments per day per staff (AuditLog)
+    assigns_by_day = _day_user_map(
+        AuditLog.objects.filter(timestamp__gte=range_start, action="driver_assigned", user__isnull=False)
+        .annotate(day=_TruncDate("timestamp"))
+        .values("day", "user__id")
+        .annotate(count=Count("id")),
+        "day", "user__id", "count"
+    )
+
+    # 5. Legs modified per day per staff
+    legs_mod_by_day = _day_user_map(
+        Leg.history.filter(history_date__gte=range_start, history_type="~", history_user__isnull=False)
+        .annotate(day=_TruncDate("history_date"))
+        .values("day", "history_user__id")
+        .annotate(count=Count("id", distinct=True)),
+        "day", "history_user__id", "count"
+    )
+
+    # 6. Comms per day per staff (with channel breakdown for overview table)
+    comms_by_day_detail = list(
+        CommunicationAttempt.objects.filter(created_at__gte=range_start)
+        .annotate(day=_TruncDate("created_at"))
+        .values("day", "staff_user__id", "staff_user__first_name", "staff_user__username")
         .annotate(
-            total=Count("id"),
+            count=Count("id"),
             calls=Count("id", filter=Q(channel="call")),
             sms=Count("id", filter=Q(channel="sms")),
             emails=Count("id", filter=Q(channel="email")),
         )
-        .order_by("-total")
     )
-    for s in staff_comms:
-        s["name"] = s["staff_user__first_name"] or s["staff_user__username"]
+    comms_by_day = {}
+    for row in comms_by_day_detail:
+        key = (row["day"].isoformat(), row["staff_user__id"])
+        comms_by_day[key] = row["count"]
+        staff_names.setdefault(row["staff_user__id"], row["staff_user__first_name"] or row["staff_user__username"])
 
-    # ── Daily task creation/completion trend (for chart) ──
-    daily_created = dict(
-        OperationalTask.objects.filter(created_at__gte=range_start)
-        .annotate(day=TruncDate("created_at"))
-        .values("day")
-        .annotate(count=Count("id"))
-        .values_list("day", "count")
-    )
-    daily_completed = dict(
-        completed_in_range.annotate(day=TruncDate("resolved_at"))
-        .values("day")
-        .annotate(count=Count("id"))
-        .values_list("day", "count")
-    )
-
-    trend_data = []
-    for i in range(days_back):
-        d = today - timedelta(days=days_back - 1 - i)
-        trend_data.append({
-            "day": d.isoformat(),
-            "created": daily_created.get(d, 0),
-            "completed": daily_completed.get(d, 0),
-        })
-
-    # ── Lead response times (in range) ──
-    # Average time from task creation to first communication attempt
-    lead_tasks = OperationalTask.objects.filter(
-        task_type="lead_response",
-        created_at__gte=range_start,
-    ).prefetch_related("comm_attempts")
-
-    response_times = []
-    for task in lead_tasks:
-        first_comm = task.comm_attempts.order_by("created_at").first()
-        if first_comm:
-            delta = (first_comm.created_at - task.created_at).total_seconds() / 60
-            response_times.append(delta)
-
-    avg_response_min = round(sum(response_times) / len(response_times), 1) if response_times else None
-    median_response_min = round(sorted(response_times)[len(response_times) // 2], 1) if response_times else None
-
-    # ── Staff activity timeline (full range, not just today) ──
-    today_start = now.astimezone(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
-    range_activities = list(
-        StaffActivity.objects.filter(
-            created_at__gte=range_start,
-        )
-        .exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
-        .select_related("user", "task")
-        .order_by("-created_at")[:200]
-    )
-
-    # ── Task type performance ──
-    type_performance = list(
-        completed_in_range.values("task_type")
+    # 7. Emails per day per staff (with type breakdown for overview table)
+    emails_by_day_detail = list(
+        EmailLog.objects.filter(sent_at__gte=range_start, sent_by__isnull=False)
+        .annotate(day=_TruncDate("sent_at"))
+        .values("day", "sent_by__id", "sent_by__first_name", "sent_by__username")
         .annotate(
             count=Count("id"),
-            avg_attempts=Avg("attempts"),
+            confirmations=Count("id", filter=Q(email_type="confirmation")),
+            payment_reminders=Count("id", filter=Q(email_type="payment_reminder")),
+            statements=Count("id", filter=Q(
+                email_type__in=["driver_statement", "agent_commission", "agency_commission"]
+            )),
         )
-        .order_by("-count")
+    )
+    emails_by_day = {}
+    for row in emails_by_day_detail:
+        key = (row["day"].isoformat(), row["sent_by__id"])
+        emails_by_day[key] = row["count"]
+        staff_names.setdefault(row["sent_by__id"], row["sent_by__first_name"] or row["sent_by__username"])
+
+    # ═══════════════════════════════════════════════════════════════════
+    # DERIVE OVERVIEW TOTALS from daily summary data (no extra queries)
+    # ═══════════════════════════════════════════════════════════════════
+
+    # Tasks completed per staff — sum tasks_by_day across days
+    _completions_by_uid = defaultdict(int)
+    for (day_str, uid), cnt in tasks_by_day.items():
+        _completions_by_uid[uid] += cnt
+        staff_names.setdefault(uid, f"User #{uid}")
+    staff_completions = sorted(
+        [{"resolved_by__id": uid, "name": staff_names.get(uid, f"User #{uid}"), "count": cnt}
+         for uid, cnt in _completions_by_uid.items()],
+        key=lambda x: x["count"], reverse=True,
+    )
+    completed_in_range = OperationalTask.objects.filter(status="completed", resolved_at__gte=range_start)
+    auto_closed_count = completed_in_range.filter(resolved_by__isnull=True).count()
+
+    # Communication volume per staff — sum comms_by_day_detail across days
+    _comms_by_uid = defaultdict(lambda: {"total": 0, "calls": 0, "sms": 0, "emails": 0})
+    for row in comms_by_day_detail:
+        uid = row["staff_user__id"]
+        _comms_by_uid[uid]["total"] += row["count"]
+        _comms_by_uid[uid]["calls"] += row["calls"]
+        _comms_by_uid[uid]["sms"] += row["sms"]
+        _comms_by_uid[uid]["emails"] += row["emails"]
+    staff_comms = sorted(
+        [{"staff_user__id": uid, "name": staff_names.get(uid, f"User #{uid}"), **vals}
+         for uid, vals in _comms_by_uid.items()],
+        key=lambda x: x["total"], reverse=True,
     )
 
-    # ── Page view counts per staff (today) ──
-    page_views_today = list(
-        StaffActivity.objects.filter(
-            action_type=StaffActivity.ActionType.PAGE_VIEW,
-            created_at__gte=today_start,
-        )
-        .values("user__id", "user__first_name", "user__username")
-        .annotate(views=Count("id"))
-        .order_by("-views")
+    # Emails sent per staff — sum emails_by_day_detail across days
+    _emails_by_uid = defaultdict(lambda: {"total": 0, "confirmations": 0, "payment_reminders": 0, "statements": 0})
+    for row in emails_by_day_detail:
+        uid = row["sent_by__id"]
+        _emails_by_uid[uid]["total"] += row["count"]
+        _emails_by_uid[uid]["confirmations"] += row["confirmations"]
+        _emails_by_uid[uid]["payment_reminders"] += row["payment_reminders"]
+        _emails_by_uid[uid]["statements"] += row["statements"]
+    staff_emails = sorted(
+        [{"sent_by__id": uid, "name": staff_names.get(uid, f"User #{uid}"), **vals}
+         for uid, vals in _emails_by_uid.items()],
+        key=lambda x: x["total"], reverse=True,
     )
-    for pv in page_views_today:
-        pv["name"] = pv["user__first_name"] or pv["user__username"]
 
-    # ── First / last active per staff (today) ──
-    staff_active_times = {
-        row["user__id"]: row
-        for row in StaffActivity.objects.filter(
-            created_at__gte=today_start,
+    # Reservations per staff — sum res_by_day across days
+    _res_by_uid = defaultdict(lambda: {"count": 0, "revenue": Decimal("0")})
+    for row in res_by_day:
+        uid = row["created_by__id"]
+        _res_by_uid[uid]["count"] += row["count"]
+        _res_by_uid[uid]["revenue"] += row["revenue"]
+    staff_reservations = sorted(
+        [{"created_by__id": uid, "name": staff_names.get(uid, f"User #{uid}"),
+          "count": vals["count"], "revenue": vals["revenue"]}
+         for uid, vals in _res_by_uid.items()],
+        key=lambda x: x["revenue"], reverse=True,
+    )
+    total_staff_reservations = sum(s["count"] for s in staff_reservations)
+    total_staff_revenue = sum(s["revenue"] for s in staff_reservations)
+
+    # Legs/reservations modified per staff — sum legs_mod_by_day + res history
+    _legs_by_uid = defaultdict(int)
+    for (day_str, uid), cnt in legs_mod_by_day.items():
+        _legs_by_uid[uid] += cnt
+    # Reservation modifications — still need one query (not in daily data above)
+    res_mods = (
+        Reservation.history.filter(
+            history_date__gte=range_start, history_type="~", history_user__isnull=False,
         )
-        .values("user__id", "user__first_name", "user__username")
-        .annotate(first_active=Min("created_at"), last_active=Max("created_at"))
-        .order_by("first_active")
-    }
-    for row in staff_active_times.values():
-        row["name"] = row["user__first_name"] or row["user__username"]
+        .values("history_user__id", "history_user__first_name", "history_user__username")
+        .annotate(res_modified=Count("id", distinct=True))
+    )
+    _res_mods_by_uid = {}
+    for row in res_mods:
+        uid = row["history_user__id"]
+        _res_mods_by_uid[uid] = row["res_modified"]
+        staff_names.setdefault(uid, row["history_user__first_name"] or row["history_user__username"])
+    all_mod_uids = set(_legs_by_uid) | set(_res_mods_by_uid)
+    staff_modifications_list = sorted(
+        [{"user_id": uid, "name": staff_names.get(uid, f"User #{uid}"),
+          "legs_modified": _legs_by_uid.get(uid, 0),
+          "reservations_modified": _res_mods_by_uid.get(uid, 0)}
+         for uid in all_mod_uids],
+        key=lambda x: x["legs_modified"] + x["reservations_modified"], reverse=True,
+    )
 
-    # ── AuditLog actions per staff (in range) ──
-    from reservations.models import AuditLog
+    # First/last active today — derive from activity_by_day
+    today_str = today.isoformat()
+    staff_active_times = {}
+    for row in activity_by_day:
+        if row["day"].isoformat() == today_str:
+            uid = row["user__id"]
+            staff_active_times[uid] = {
+                "user__id": uid,
+                "name": staff_names.get(uid, f"User #{uid}"),
+                "first_active": row["first_active"],
+                "last_active": row["last_active"],
+            }
+    # Sort by first_active
+    staff_active_times = dict(sorted(staff_active_times.items(), key=lambda x: x[1]["first_active"]))
+
+    # AuditLog actions per staff (overview needs full breakdown — still one query)
     audit_actions = list(
-        AuditLog.objects.filter(
-            timestamp__gte=range_start,
-            user__isnull=False,
-        )
+        AuditLog.objects.filter(timestamp__gte=range_start, user__isnull=False)
         .values("user__id", "user__first_name", "user__username")
         .annotate(
             driver_assignments=Count("id", filter=Q(action="driver_assigned")),
@@ -1612,82 +1710,74 @@ def staff_metrics_view(request):
     for row in audit_actions:
         row["name"] = row["user__first_name"] or row["user__username"]
 
-    # ── Emails sent per staff (in range) ──
-    from .models import EmailLog
-    staff_emails = list(
-        EmailLog.objects.filter(
-            sent_at__gte=range_start,
-            sent_by__isnull=False,
-        )
-        .values("sent_by__id", "sent_by__first_name", "sent_by__username")
-        .annotate(
-            total=Count("id"),
-            confirmations=Count("id", filter=Q(email_type="confirmation")),
-            payment_reminders=Count("id", filter=Q(email_type="payment_reminder")),
-            statements=Count("id", filter=Q(
-                email_type__in=["driver_statement", "agent_commission", "agency_commission"]
-            )),
-        )
-        .order_by("-total")
-    )
-    for row in staff_emails:
-        row["name"] = row["sent_by__first_name"] or row["sent_by__username"]
+    # ═══════════════════════════════════════════════════════════════════
+    # REMAINING QUERIES (unique data, can't derive from daily summary)
+    # ═══════════════════════════════════════════════════════════════════
 
-    # ── Reservations / Legs modified per staff (in range) ──
-    from reservations.models import Reservation, Leg
-    from django.db.models import Sum, DecimalField
-    from django.db.models.functions import Coalesce
-    from decimal import Decimal
+    # ── Daily task creation/completion trend (chart needs day-level, not per-user) ──
+    daily_created = dict(
+        OperationalTask.objects.filter(created_at__gte=range_start)
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(count=Count("id"))
+        .values_list("day", "count")
+    )
+    # daily_completed — derive from tasks_by_day (sum across users per day)
+    _daily_completed = defaultdict(int)
+    for (day_str, uid), cnt in tasks_by_day.items():
+        _daily_completed[day_str] += cnt
 
-    staff_modifications = {}
-    # Count distinct legs modified per staff
-    leg_mods = (
-        Leg.history.filter(
-            history_date__gte=range_start,
-            history_type="~",
-            history_user__isnull=False,
+    trend_data = []
+    for i in range(days_back):
+        d = today - timedelta(days=days_back - 1 - i)
+        trend_data.append({
+            "day": d.isoformat(),
+            "created": daily_created.get(d, 0),
+            "completed": _daily_completed.get(d.isoformat(), 0),
+        })
+
+    # ── Lead response times ──
+    lead_tasks = OperationalTask.objects.filter(
+        task_type="lead_response", created_at__gte=range_start,
+    ).prefetch_related("comm_attempts")
+    response_times = []
+    for task in lead_tasks:
+        first_comm = task.comm_attempts.order_by("created_at").first()
+        if first_comm:
+            delta = (first_comm.created_at - task.created_at).total_seconds() / 60
+            response_times.append(delta)
+    avg_response_min = round(sum(response_times) / len(response_times), 1) if response_times else None
+    median_response_min = round(sorted(response_times)[len(response_times) // 2], 1) if response_times else None
+
+    # ── Staff activity timeline (full range, for the timeline section) ──
+    today_start = now.astimezone(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
+    range_activities = list(
+        StaffActivity.objects.filter(created_at__gte=range_start)
+        .exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
+        .select_related("user", "task")
+        .order_by("-created_at")[:200]
+    )
+
+    # ── Task type performance ──
+    type_performance = list(
+        completed_in_range.values("task_type")
+        .annotate(count=Count("id"), avg_attempts=Avg("attempts"))
+        .order_by("-count")
+    )
+
+    # ── Page view counts per staff (today) ──
+    page_views_today = list(
+        StaffActivity.objects.filter(
+            action_type=StaffActivity.ActionType.PAGE_VIEW, created_at__gte=today_start,
         )
-        .values("history_user__id", "history_user__first_name", "history_user__username")
-        .annotate(legs_modified=Count("id", distinct=True))
+        .values("user__id", "user__first_name", "user__username")
+        .annotate(views=Count("id"))
+        .order_by("-views")
     )
-    for row in leg_mods:
-        uid = row["history_user__id"]
-        staff_modifications[uid] = {
-            "user_id": uid,
-            "name": row["history_user__first_name"] or row["history_user__username"],
-            "legs_modified": row["legs_modified"],
-            "reservations_modified": 0,
-        }
-    # Count distinct reservations modified per staff
-    res_mods = (
-        Reservation.history.filter(
-            history_date__gte=range_start,
-            history_type="~",
-            history_user__isnull=False,
-        )
-        .values("history_user__id", "history_user__first_name", "history_user__username")
-        .annotate(res_modified=Count("id", distinct=True))
-    )
-    for row in res_mods:
-        uid = row["history_user__id"]
-        if uid in staff_modifications:
-            staff_modifications[uid]["reservations_modified"] = row["res_modified"]
-        else:
-            staff_modifications[uid] = {
-                "user_id": uid,
-                "name": row["history_user__first_name"] or row["history_user__username"],
-                "legs_modified": 0,
-                "reservations_modified": row["res_modified"],
-            }
-    staff_modifications_list = sorted(
-        staff_modifications.values(),
-        key=lambda x: x["legs_modified"] + x["reservations_modified"],
-        reverse=True,
-    )
+    for pv in page_views_today:
+        pv["name"] = pv["user__first_name"] or pv["user__username"]
 
     # ── Correction / override detection ──
-    # Find cases where the same field on the same Leg was changed by different
-    # users within 24 hours (indicating a correction or management override).
     corrections = []
     CORRECTION_FIELDS = {
         "pickup_time", "pickup_date", "pickup_location", "dropoff_location",
@@ -1695,25 +1785,17 @@ def staff_metrics_view(request):
         "passenger_count", "private_notes",
     }
     leg_history_in_range = (
-        Leg.history.filter(
-            history_date__gte=range_start,
-            history_type="~",
-            history_user__isnull=False,
-        )
+        Leg.history.filter(history_date__gte=range_start, history_type="~", history_user__isnull=False)
         .select_related("history_user")
         .order_by("id", "history_date")[:500]
     )
-    # Group history records by leg id
-    from itertools import groupby
     leg_records_by_id = defaultdict(list)
     for rec in leg_history_in_range:
         leg_records_by_id[rec.id].append(rec)
-
     for leg_id, records in leg_records_by_id.items():
         for i in range(1, len(records)):
             rec = records[i]
             prev = records[i - 1]
-            # Different users and within 24 hours
             if (
                 rec.history_user_id != prev.history_user_id
                 and (rec.history_date - prev.history_date).total_seconds() < 86400
@@ -1737,23 +1819,109 @@ def staff_metrics_view(request):
                         })
     corrections.sort(key=lambda x: x["timestamp"], reverse=True)
 
-    staff_reservations = list(
-        Reservation.objects.filter(
-            created_at__gte=range_start,
-            created_by__isnull=False,
-        )
-        .values("created_by__id", "created_by__first_name", "created_by__username")
-        .annotate(
-            count=Count("id"),
-            revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
-        )
-        .order_by("-revenue")
-    )
-    for s in staff_reservations:
-        s["name"] = s["created_by__first_name"] or s["created_by__username"]
+    # ═══════════════════════════════════════════════════════════════════
+    # TREND INDICATORS — 4 prior-period queries + assembly
+    # ═══════════════════════════════════════════════════════════════════
 
-    total_staff_reservations = sum(s["count"] for s in staff_reservations)
-    total_staff_revenue = sum(s["revenue"] for s in staff_reservations)
+    def _build_trend(current_val, prior_val):
+        if prior_val and prior_val > 0:
+            pct = round(((current_val - prior_val) / prior_val) * 100)
+            direction = "up" if current_val > prior_val else ("down" if current_val < prior_val else "flat")
+        elif current_val > 0:
+            pct = 100
+            direction = "up"
+        else:
+            pct = 0
+            direction = "flat"
+        return {"current": current_val, "prior": prior_val, "pct": pct, "direction": direction}
+
+    prior_completions_map = dict(
+        OperationalTask.objects.filter(
+            status="completed", resolved_at__gte=prior_start, resolved_at__lt=prior_end,
+            resolved_by__isnull=False,
+        )
+        .values_list("resolved_by__id")
+        .annotate(c=Count("id"))
+        .values_list("resolved_by__id", "c")
+    )
+    prior_comms_map = dict(
+        CommunicationAttempt.objects.filter(
+            created_at__gte=prior_start, created_at__lt=prior_end,
+        )
+        .values_list("staff_user__id")
+        .annotate(c=Count("id"))
+        .values_list("staff_user__id", "c")
+    )
+    prior_res_map = {}
+    prior_rev_map = {}
+    for row in Reservation.objects.filter(
+        created_at__gte=prior_start, created_at__lt=prior_end, created_by__isnull=False,
+    ).values("created_by__id").annotate(
+        count=Count("id"),
+        revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
+    ):
+        prior_res_map[row["created_by__id"]] = row["count"]
+        prior_rev_map[row["created_by__id"]] = row["revenue"]
+    prior_emails_map = dict(
+        EmailLog.objects.filter(
+            sent_at__gte=prior_start, sent_at__lt=prior_end, sent_by__isnull=False,
+        )
+        .values_list("sent_by__id")
+        .annotate(c=Count("id"))
+        .values_list("sent_by__id", "c")
+    )
+
+    trends = {}
+    for s in staff_completions:
+        uid = s["resolved_by__id"]
+        trends[(uid, "completions")] = _build_trend(s["count"], prior_completions_map.get(uid, 0))
+    for s in staff_comms:
+        uid = s["staff_user__id"]
+        trends[(uid, "comms")] = _build_trend(s["total"], prior_comms_map.get(uid, 0))
+    for s in staff_reservations:
+        uid = s["created_by__id"]
+        trends[(uid, "reservations")] = _build_trend(s["count"], prior_res_map.get(uid, 0))
+        trends[(uid, "revenue")] = _build_trend(float(s["revenue"]), float(prior_rev_map.get(uid, Decimal("0"))))
+    for s in staff_emails:
+        uid = s["sent_by__id"]
+        trends[(uid, "emails")] = _build_trend(s["total"], prior_emails_map.get(uid, 0))
+    trends_dict = {f"{uid}_{metric}": t for (uid, metric), t in trends.items()}
+
+    # Merge into daily_summary: list of {date, staff: [{name, ...metrics}]}
+    # Collect all (day, uid) pairs
+    all_day_uids = set()
+    for m in [activity_first, res_count_map, tasks_by_day, assigns_by_day, legs_mod_by_day, comms_by_day, emails_by_day]:
+        all_day_uids.update(m.keys())
+
+    daily_data = defaultdict(dict)  # day_str → uid → metrics
+    for (day_str, uid) in all_day_uids:
+        key = (day_str, uid)
+        daily_data[day_str][uid] = {
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "user_id": uid,
+            "first_in": activity_first.get(key, "").isoformat() if activity_first.get(key) else "",
+            "last_out": activity_last.get(key, "").isoformat() if activity_last.get(key) else "",
+            "reservations": res_count_map.get(key, 0),
+            "revenue": res_rev_map.get(key, 0),
+            "tasks": tasks_by_day.get(key, 0),
+            "assigns": assigns_by_day.get(key, 0),
+            "legs_modified": legs_mod_by_day.get(key, 0),
+            "comms": comms_by_day.get(key, 0),
+            "emails": emails_by_day.get(key, 0),
+        }
+
+    daily_summary = []
+    for day_str in sorted(daily_data.keys(), reverse=True):
+        staff_list = sorted(daily_data[day_str].values(), key=lambda x: x["name"])
+        total = sum(
+            s["reservations"] + s["tasks"] + s["assigns"] + s["legs_modified"] + s["comms"] + s["emails"]
+            for s in staff_list
+        )
+        daily_summary.append({
+            "date": day_str,
+            "total_actions": total,
+            "staff": staff_list,
+        })
 
     context = {
         "range_days": days_back,
@@ -1795,6 +1963,10 @@ def staff_metrics_view(request):
         "corrections": corrections,
         # Emails sent per staff
         "staff_emails": staff_emails,
+        # Trend indicators
+        "trends": trends_dict,
+        # Daily staff summary
+        "daily_summary_json": json.dumps(daily_summary),
     }
     return render(request, "dispatching/staff_metrics.html", context)
 
@@ -2161,6 +2333,86 @@ def staff_detail_view(request, user_id):
     # Sort all changes by timestamp descending
     change_history.sort(key=lambda x: x["timestamp"], reverse=True)
 
+    # ── Unified chronological action feed ──
+    from reservations.models import AuditLog as _AL
+    unified_feed = []
+
+    # 1. Staff activities (excl page views — already filtered)
+    for act in recent_activities:
+        unified_feed.append({
+            "ts": act.created_at.isoformat(),
+            "type": "activity",
+            "icon": "clipboard-check",
+            "color": "text-muted",
+            "text": act.get_action_type_display(),
+            "detail": act.task.title[:60] if act.task else "",
+            "link": f"/dispatching/tasks/{act.task.id}/" if act.task else "",
+        })
+
+    # 2. Communications
+    for comm in recent_comms:
+        unified_feed.append({
+            "ts": comm.created_at.isoformat(),
+            "type": "comm",
+            "icon": "chat-dots",
+            "color": "text-purple",
+            "text": f"{comm.get_channel_display()} — {comm.get_outcome_display()}",
+            "detail": comm.contact_value or "",
+            "link": f"/dispatching/tasks/{comm.task.id}/" if comm.task else "",
+        })
+
+    # 3. Emails
+    for email in recent_emails:
+        unified_feed.append({
+            "ts": email.sent_at.isoformat(),
+            "type": "email",
+            "icon": "envelope",
+            "color": "text-primary",
+            "text": email.get_email_type_display(),
+            "detail": email.recipient_email,
+            "link": f"/dispatching/reservation/{email.reservation.uuid}/" if email.reservation_id else "",
+        })
+
+    # 4. Change history entries
+    for ch in change_history:
+        link = f"/dispatching/reservation/{ch['reservation_uuid']}/" if ch.get("reservation_uuid") else ""
+        unified_feed.append({
+            "ts": ch["timestamp"].isoformat(),
+            "type": "change",
+            "icon": "pencil-square",
+            "color": "text-warning",
+            "text": f"{ch['field'].replace('_', ' ').title()} on {ch['model']} #{ch['object_id']}",
+            "detail": f"{ch['old'] or '(empty)'} → {ch['new']}" if ch.get("new") else "",
+            "link": link,
+        })
+
+    # 5. AuditLog entries for this user
+    audit_entries = _AL.objects.filter(
+        user=staff_user,
+        timestamp__gte=range_start,
+        timestamp__lt=range_end,
+    ).order_by("-timestamp")[:50]
+    for entry in audit_entries:
+        unified_feed.append({
+            "ts": entry.timestamp.isoformat(),
+            "type": "audit",
+            "icon": "shield-check",
+            "color": "text-info",
+            "text": entry.get_action_display(),
+            "detail": f"{entry.model_name} #{entry.object_id}" + (f" — {entry.field_name}" if entry.field_name else ""),
+            "link": "",
+        })
+
+    # Sort and cap
+    unified_feed.sort(key=lambda x: x["ts"], reverse=True)
+    unified_feed = unified_feed[:200]
+
+    # Count by type for filter badges
+    feed_type_counts = defaultdict(int)
+    for item in unified_feed:
+        feed_type_counts[item["type"]] += 1
+    feed_type_counts = dict(feed_type_counts)
+
     # ── All staff users (for sidebar navigation) ──
     all_staff = list(
         User.objects.filter(is_staff=True, is_active=True)
@@ -2203,6 +2455,9 @@ def staff_detail_view(request, user_id):
         # Activity & Changes
         "recent_activities": recent_activities,
         "change_history": change_history,
+        # Unified feed
+        "unified_feed_json": json.dumps(unified_feed),
+        "feed_type_counts": feed_type_counts,
         # Navigation
         "all_staff": all_staff,
     }

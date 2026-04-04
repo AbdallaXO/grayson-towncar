@@ -1,7 +1,29 @@
 {% extends 'main.html' %}
 {% load static %}
 {% load humanize %}
+{% load ops_filters %}
 {% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.trend-up { color: #059669; font-size: .7rem; font-weight: 600; margin-left: .25rem; white-space: nowrap; }
+.trend-down { color: #dc2626; font-size: .7rem; font-weight: 600; margin-left: .25rem; white-space: nowrap; }
+.trend-flat { color: #9ca3af; font-size: .7rem; font-weight: 600; margin-left: .25rem; }
+.trend-up i, .trend-down i { font-size: .8rem; vertical-align: middle; }
+/* Daily summary accordion */
+.ds-day { border-bottom: 1px solid #e5e7eb; }
+.ds-day:last-child { border-bottom: none; }
+.ds-day-header {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .55rem .85rem; cursor: pointer; transition: background .1s;
+  font-size: .82rem;
+}
+.ds-day-header:hover { background: #f9fafb; }
+.ds-day-chevron { color: #9ca3af; font-size: .7rem; width: 16px; text-align: center; }
+.ds-day-date { font-weight: 700; color: #374151; }
+.ds-day-total { margin-left: auto; font-size: .72rem; color: #9ca3af; font-weight: 600; }
+</style>
+{% endblock %}
 
 {% block content %}
   {% block navbar %}{% endblock %}
@@ -138,7 +160,12 @@
                 {% for s in staff_completions %}
                 <tr>
                   <td><a href="{% url 'staff_detail' s.resolved_by__id %}?range={{ range_days }}" class="text-decoration-none">{{ s.name }}</a></td>
-                  <td class="text-end fw-bold">{{ s.count }}</td>
+                  <td class="text-end fw-bold">
+                    {{ s.count }}
+                    {% with tkey=s.resolved_by__id|trend_key:"completions" %}{% with t=trends|get_trend:tkey %}{% if t %}
+                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
+                    {% endif %}{% endwith %}{% endwith %}
+                  </td>
                 </tr>
                 {% endfor %}
                 <tr class="table-light">
@@ -171,7 +198,12 @@
                   <td class="text-end">{{ s.calls }}</td>
                   <td class="text-end">{{ s.sms }}</td>
                   <td class="text-end">{{ s.emails }}</td>
-                  <td class="text-end fw-bold">{{ s.total }}</td>
+                  <td class="text-end fw-bold">
+                    {{ s.total }}
+                    {% with tkey=s.staff_user__id|trend_key:"comms" %}{% with t=trends|get_trend:tkey %}{% if t %}
+                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
+                    {% endif %}{% endwith %}{% endwith %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -202,7 +234,12 @@
                   <td class="text-end">{{ row.confirmations }}</td>
                   <td class="text-end">{{ row.payment_reminders }}</td>
                   <td class="text-end">{{ row.statements }}</td>
-                  <td class="text-end fw-bold">{{ row.total }}</td>
+                  <td class="text-end fw-bold">
+                    {{ row.total }}
+                    {% with tkey=row.sent_by__id|trend_key:"emails" %}{% with t=trends|get_trend:tkey %}{% if t %}
+                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
+                    {% endif %}{% endwith %}{% endwith %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -233,8 +270,18 @@
                 {% for s in staff_reservations %}
                 <tr>
                   <td><a href="{% url 'staff_detail' s.created_by__id %}?range={{ range_days }}" class="text-decoration-none">{{ s.name }}</a></td>
-                  <td class="text-end">{{ s.count }}</td>
-                  <td class="text-end fw-bold text-success">${{ s.revenue|floatformat:0|intcomma }}</td>
+                  <td class="text-end">
+                    {{ s.count }}
+                    {% with tkey=s.created_by__id|trend_key:"reservations" %}{% with t=trends|get_trend:tkey %}{% if t %}
+                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: {{ t.prior }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
+                    {% endif %}{% endwith %}{% endwith %}
+                  </td>
+                  <td class="text-end fw-bold text-success">
+                    ${{ s.revenue|floatformat:0|intcomma }}
+                    {% with tkey=s.created_by__id|trend_key:"revenue" %}{% with t=trends|get_trend:tkey %}{% if t %}
+                      <span class="trend-{{ t.direction }}" title="Prior {{ range_days }}d: ${{ t.prior|floatformat:0 }}">{% if t.direction == "up" %}<i class="bi bi-arrow-up-short"></i>+{{ t.pct }}%{% elif t.direction == "down" %}<i class="bi bi-arrow-down-short"></i>{{ t.pct }}%{% else %}&mdash;{% endif %}</span>
+                    {% endif %}{% endwith %}{% endwith %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -366,6 +413,17 @@
       </div>
     </div>
     {% endif %}
+
+    <!-- Daily Staff Summary -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h6 class="mb-0"><i class="bi bi-calendar3 me-1"></i>Daily Staff Summary ({{ range_days }}d)</h6>
+        <span class="text-muted small" id="dailySummaryToggle" style="cursor:pointer;" onclick="toggleAllDays()">Expand All</span>
+      </div>
+      <div class="card-body p-0" id="dailySummaryContainer">
+        <p class="text-muted text-center py-3 mb-0" id="dailySummaryEmpty" style="display:none;">No activity data in this period.</p>
+      </div>
+    </div>
 
     <!-- AuditLog Actions by Staff & Modifications by Staff -->
     <div class="row g-3 mb-4">
@@ -561,6 +619,137 @@ document.addEventListener('DOMContentLoaded', function() {
       },
     },
   });
+
+  // ── Daily Staff Summary Accordion ──
+  const dailyRaw = '{{ daily_summary_json|escapejs }}';
+  const dailyData = dailyRaw ? JSON.parse(dailyRaw) : [];
+  const container = document.getElementById('dailySummaryContainer');
+  const emptyMsg = document.getElementById('dailySummaryEmpty');
+  const rangeDays = {{ range_days }};
+
+  if (!dailyData.length) {
+    if (emptyMsg) emptyMsg.style.display = '';
+  } else {
+    const maxShow = rangeDays > 30 ? 30 : dailyData.length;
+    const expandFirst = rangeDays <= 30;
+
+    dailyData.slice(0, maxShow).forEach(function(day, idx) {
+      const isOpen = expandFirst && idx === 0;
+      const dayEl = document.createElement('div');
+      dayEl.className = 'ds-day';
+
+      // Format date
+      const dt = new Date(day.date + 'T00:00:00');
+      const dateLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+      // Header
+      const header = document.createElement('div');
+      header.className = 'ds-day-header';
+      header.innerHTML = '<span class="ds-day-chevron"><i class="bi bi-chevron-right"></i></span>' +
+        '<span class="ds-day-date">' + dateLabel + '</span>' +
+        '<span class="ds-day-total">' + day.total_actions + ' actions</span>';
+      header.onclick = function() {
+        const body = dayEl.querySelector('.ds-day-body');
+        const chev = header.querySelector('.ds-day-chevron i');
+        if (body.style.display === 'none') {
+          body.style.display = '';
+          chev.className = 'bi bi-chevron-down';
+        } else {
+          body.style.display = 'none';
+          chev.className = 'bi bi-chevron-right';
+        }
+      };
+      dayEl.appendChild(header);
+
+      // Body (table)
+      const body = document.createElement('div');
+      body.className = 'ds-day-body';
+      body.style.display = isOpen ? '' : 'none';
+      if (isOpen) header.querySelector('.ds-day-chevron i').className = 'bi bi-chevron-down';
+
+      let html = '<table class="table table-sm mb-0" style="font-size:.78rem;">' +
+        '<thead class="table-light"><tr>' +
+        '<th>Staff</th><th class="text-end">First In</th><th class="text-end">Last Out</th>' +
+        '<th class="text-end">Res</th><th class="text-end">Revenue</th><th class="text-end">Tasks</th>' +
+        '<th class="text-end">Assigns</th><th class="text-end">Legs</th><th class="text-end">Comms</th><th class="text-end">Emails</th>' +
+        '</tr></thead><tbody>';
+
+      day.staff.forEach(function(s) {
+        const firstIn = s.first_in ? new Date(s.first_in).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
+        const lastOut = s.last_out ? new Date(s.last_out).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
+        const rev = s.revenue ? '$' + Math.round(s.revenue).toLocaleString() : '-';
+        html += '<tr>' +
+          '<td><a href="/dispatching/staff-metrics/' + s.user_id + '/?date=' + day.date + '" class="text-decoration-none">' + s.name + '</a></td>' +
+          '<td class="text-end"><span class="badge bg-success bg-opacity-10 text-success">' + firstIn + '</span></td>' +
+          '<td class="text-end"><span class="badge bg-secondary bg-opacity-10 text-secondary">' + lastOut + '</span></td>' +
+          '<td class="text-end">' + (s.reservations || '-') + '</td>' +
+          '<td class="text-end fw-bold text-success">' + rev + '</td>' +
+          '<td class="text-end">' + (s.tasks || '-') + '</td>' +
+          '<td class="text-end">' + (s.assigns || '-') + '</td>' +
+          '<td class="text-end">' + (s.legs_modified || '-') + '</td>' +
+          '<td class="text-end">' + (s.comms || '-') + '</td>' +
+          '<td class="text-end">' + (s.emails || '-') + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      body.innerHTML = html;
+      dayEl.appendChild(body);
+      container.appendChild(dayEl);
+    });
+
+    // "Show more" if truncated
+    if (dailyData.length > maxShow) {
+      const more = document.createElement('div');
+      more.className = 'text-center py-2';
+      more.innerHTML = '<button class="btn btn-sm btn-outline-secondary" onclick="this.parentElement.style.display=\'none\'; document.querySelectorAll(\'.ds-day-hidden\').forEach(e=>e.style.display=\'\');">Show ' + (dailyData.length - maxShow) + ' more days</button>';
+      container.appendChild(more);
+      dailyData.slice(maxShow).forEach(function(day) {
+        const dt = new Date(day.date + 'T00:00:00');
+        const dateLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const dayEl = document.createElement('div');
+        dayEl.className = 'ds-day ds-day-hidden';
+        dayEl.style.display = 'none';
+        const header = document.createElement('div');
+        header.className = 'ds-day-header';
+        header.innerHTML = '<span class="ds-day-chevron"><i class="bi bi-chevron-right"></i></span>' +
+          '<span class="ds-day-date">' + dateLabel + '</span>' +
+          '<span class="ds-day-total">' + day.total_actions + ' actions</span>';
+        header.onclick = function() {
+          const body = dayEl.querySelector('.ds-day-body');
+          const chev = header.querySelector('.ds-day-chevron i');
+          if (body.style.display === 'none') { body.style.display = ''; chev.className = 'bi bi-chevron-down'; }
+          else { body.style.display = 'none'; chev.className = 'bi bi-chevron-right'; }
+        };
+        dayEl.appendChild(header);
+        const body = document.createElement('div');
+        body.className = 'ds-day-body';
+        body.style.display = 'none';
+        let html = '<table class="table table-sm mb-0" style="font-size:.78rem;"><thead class="table-light"><tr><th>Staff</th><th class="text-end">First In</th><th class="text-end">Last Out</th><th class="text-end">Res</th><th class="text-end">Revenue</th><th class="text-end">Tasks</th><th class="text-end">Assigns</th><th class="text-end">Legs</th><th class="text-end">Comms</th><th class="text-end">Emails</th></tr></thead><tbody>';
+        day.staff.forEach(function(s) {
+          const firstIn = s.first_in ? new Date(s.first_in).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
+          const lastOut = s.last_out ? new Date(s.last_out).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '-';
+          const rev = s.revenue ? '$' + Math.round(s.revenue).toLocaleString() : '-';
+          html += '<tr><td><a href="/dispatching/staff-metrics/' + s.user_id + '/?date=' + day.date + '" class="text-decoration-none">' + s.name + '</a></td><td class="text-end"><span class="badge bg-success bg-opacity-10 text-success">' + firstIn + '</span></td><td class="text-end"><span class="badge bg-secondary bg-opacity-10 text-secondary">' + lastOut + '</span></td><td class="text-end">' + (s.reservations || '-') + '</td><td class="text-end fw-bold text-success">' + rev + '</td><td class="text-end">' + (s.tasks || '-') + '</td><td class="text-end">' + (s.assigns || '-') + '</td><td class="text-end">' + (s.legs_modified || '-') + '</td><td class="text-end">' + (s.comms || '-') + '</td><td class="text-end">' + (s.emails || '-') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        body.innerHTML = html;
+        dayEl.appendChild(body);
+        container.appendChild(dayEl);
+      });
+    }
+  }
 });
+
+function toggleAllDays() {
+  const bodies = document.querySelectorAll('.ds-day-body');
+  const toggle = document.getElementById('dailySummaryToggle');
+  const anyHidden = Array.from(bodies).some(b => b.style.display === 'none');
+  bodies.forEach(function(b) {
+    b.style.display = anyHidden ? '' : 'none';
+    const chev = b.previousElementSibling.querySelector('.ds-day-chevron i');
+    if (chev) chev.className = anyHidden ? 'bi bi-chevron-down' : 'bi bi-chevron-right';
+  });
+  toggle.textContent = anyHidden ? 'Collapse All' : 'Expand All';
+}
 </script>
 {% endblock %}

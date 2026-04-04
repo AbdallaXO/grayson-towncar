@@ -262,6 +262,47 @@ a.sd-row:hover { color: inherit; }
 @media (max-width: 991px) {
   .kpi-row { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Unified Feed ── */
+.feed-filter {
+  padding: .2rem .5rem; border-radius: 4px; border: 1px solid var(--ops-border);
+  background: transparent; color: var(--ops-text-dim); font-size: .68rem;
+  font-weight: 600; cursor: pointer; transition: all .12s;
+  display: inline-flex; align-items: center; gap: .2rem;
+}
+.feed-filter:hover { background: var(--ops-surface-2); color: var(--ops-white); }
+.feed-filter.active { background: var(--ops-blue); color: #fff; border-color: var(--ops-blue); }
+.feed-filter-ct {
+  font-family: var(--ops-mono); font-size: .6rem; font-weight: 700;
+  background: rgba(255,255,255,.2); padding: 0 .25rem; border-radius: 3px;
+}
+.feed-filter.active .feed-filter-ct { background: rgba(255,255,255,.3); }
+.feed-item {
+  display: flex; gap: .5rem; align-items: flex-start;
+  padding: .4rem .85rem; border-bottom: 1px solid var(--ops-border);
+  font-size: .75rem; transition: background .1s;
+}
+.feed-item:last-child { border-bottom: none; }
+.feed-item:hover { background: var(--ops-surface-2); }
+.feed-time {
+  font-family: var(--ops-mono); font-size: .62rem; font-weight: 600;
+  color: var(--ops-text-muted); min-width: 62px; padding-top: .05rem; white-space: nowrap;
+}
+.feed-dot {
+  width: 20px; height: 20px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; font-size: .55rem; flex-shrink: 0;
+}
+.feed-dot-change { background: rgba(217,119,6,.1); color: var(--ops-amber); }
+.feed-dot-email { background: rgba(37,99,235,.1); color: var(--ops-blue); }
+.feed-dot-comm { background: rgba(124,58,237,.1); color: var(--ops-purple); }
+.feed-dot-activity { background: rgba(107,122,141,.1); color: var(--ops-text-dim); }
+.feed-dot-audit { background: rgba(8,145,178,.1); color: var(--ops-cyan); }
+.feed-body { flex: 1; min-width: 0; }
+.feed-text { font-weight: 600; color: var(--ops-white); }
+.feed-detail { font-size: .68rem; color: var(--ops-text-muted); word-break: break-word; }
+.feed-link { font-size: .6rem; color: var(--ops-blue); text-decoration: none; }
+.feed-link:hover { text-decoration: underline; }
+.text-purple { color: #7c3aed; }
 </style>
 {% endblock %}
 
@@ -332,6 +373,26 @@ a.sd-row:hover { color: inherit; }
           <div class="kpi-card">
             <div class="kpi-value kpi-cyan">{{ comms_total }}</div>
             <div class="kpi-label">Communications</div>
+          </div>
+        </div>
+
+        <!-- Unified Action Feed -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-activity" style="color: var(--ops-blue);"></i>
+            <h6>All Activity</h6>
+            <span class="head-ct" id="feedTotalBadge">0</span>
+          </div>
+          <div style="padding: .4rem .85rem .2rem; display: flex; gap: .3rem; flex-wrap: wrap;">
+            <button class="feed-filter active" data-filter="all" onclick="filterFeed('all', this)">All</button>
+            {% if feed_type_counts.change %}<button class="feed-filter" data-filter="change" onclick="filterFeed('change', this)"><i class="bi bi-pencil-square"></i> Changes <span class="feed-filter-ct">{{ feed_type_counts.change }}</span></button>{% endif %}
+            {% if feed_type_counts.email %}<button class="feed-filter" data-filter="email" onclick="filterFeed('email', this)"><i class="bi bi-envelope"></i> Emails <span class="feed-filter-ct">{{ feed_type_counts.email }}</span></button>{% endif %}
+            {% if feed_type_counts.comm %}<button class="feed-filter" data-filter="comm" onclick="filterFeed('comm', this)"><i class="bi bi-chat-dots"></i> Comms <span class="feed-filter-ct">{{ feed_type_counts.comm }}</span></button>{% endif %}
+            {% if feed_type_counts.activity %}<button class="feed-filter" data-filter="activity" onclick="filterFeed('activity', this)"><i class="bi bi-clipboard-check"></i> Tasks <span class="feed-filter-ct">{{ feed_type_counts.activity }}</span></button>{% endif %}
+            {% if feed_type_counts.audit %}<button class="feed-filter" data-filter="audit" onclick="filterFeed('audit', this)"><i class="bi bi-shield-check"></i> Audits <span class="feed-filter-ct">{{ feed_type_counts.audit }}</span></button>{% endif %}
+          </div>
+          <div id="unifiedFeedContainer" style="max-height: 400px; overflow-y: auto;">
+            <p class="text-center py-3 mb-0" style="font-size: .78rem; color: var(--ops-text-muted);" id="feedEmpty">No activity in this period.</p>
           </div>
         </div>
 
@@ -698,6 +759,56 @@ document.addEventListener('DOMContentLoaded', function() {
       },
     },
   });
+
+  // ── Unified Action Feed ──
+  const feedRaw = '{{ unified_feed_json|escapejs }}';
+  const feedData = feedRaw ? JSON.parse(feedRaw) : [];
+  const feedContainer = document.getElementById('unifiedFeedContainer');
+  const feedEmpty = document.getElementById('feedEmpty');
+  const feedBadge = document.getElementById('feedTotalBadge');
+
+  if (feedBadge) feedBadge.textContent = feedData.length;
+
+  if (feedData.length) {
+    if (feedEmpty) feedEmpty.style.display = 'none';
+    feedData.forEach(function(item) {
+      const el = document.createElement('div');
+      el.className = 'feed-item';
+      el.setAttribute('data-feed-type', item.type);
+
+      const ts = new Date(item.ts);
+      const timeStr = ts.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+      let html = '<span class="feed-time">' + timeStr + '</span>' +
+        '<span class="feed-dot feed-dot-' + item.type + '"><i class="bi bi-' + item.icon + '"></i></span>' +
+        '<div class="feed-body">' +
+          '<span class="feed-text">' + item.text + '</span>';
+      if (item.detail) {
+        html += ' <span class="feed-detail">' + item.detail + '</span>';
+      }
+      if (item.link) {
+        html += ' <a href="' + item.link + '" class="feed-link" target="_blank">View</a>';
+      }
+      html += '</div>';
+      el.innerHTML = html;
+      feedContainer.appendChild(el);
+    });
+  }
 });
+
+function filterFeed(type, btn) {
+  // Toggle active state
+  document.querySelectorAll('.feed-filter').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+
+  // Filter items
+  document.querySelectorAll('.feed-item').forEach(function(el) {
+    if (type === 'all') {
+      el.style.display = '';
+    } else {
+      el.style.display = el.getAttribute('data-feed-type') === type ? '' : 'none';
+    }
+  });
+}
 </script>
 {% endblock %}

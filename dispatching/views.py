@@ -45,7 +45,7 @@ from drivers.models import (
     DriverWeeklySchedule,
 )
 from payment.utils import get_or_create_stripe_customer
-from rates.models import Vehicle, Rate
+from rates.models import Vehicle, Rate, Location
 from users.emails import send_reservation_confirmation
 from reservations.conversions import send_purchase_event
 from payment.webhook import save_card_to_customer
@@ -4537,7 +4537,53 @@ def dispatcher_booking_pricing(request):
     vehicle = None
     if reservation_data.get('manual_vehicle'):
         vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
-    
+
+    # --- Suggested rate lookup ---
+    suggested_rate = None
+    suggested_price = None
+    suggested_route_label = None
+    if vehicle and booking_data.get('legs_data'):
+        first_leg = booking_data['legs_data'][0]
+        pickup_text = (first_leg.get('pickup_location') or '').lower()
+        dropoff_text = (first_leg.get('dropoff_location') or '').lower()
+        if pickup_text and dropoff_text:
+            locations = Location.objects.all()
+            pickup_match = None
+            dropoff_match = None
+            for loc in locations:
+                keywords = [loc.name.lower()]
+                if loc.aliases:
+                    keywords += [a.strip().lower() for a in loc.aliases.split(',')]
+                for kw in keywords:
+                    if kw and kw in pickup_text:
+                        pickup_match = loc
+                        break
+                for kw in keywords:
+                    if kw and kw in dropoff_text:
+                        dropoff_match = loc
+                        break
+            if pickup_match and dropoff_match:
+                trip_type = booking_data.get('trip_type', 'one_way')
+                rate = Rate.objects.filter(
+                    vehicle=vehicle,
+                    route__origin=pickup_match,
+                    route__destination=dropoff_match,
+                ).select_related('route', 'route__origin', 'route__destination').first()
+                # Try reverse direction if not found
+                if not rate:
+                    rate = Rate.objects.filter(
+                        vehicle=vehicle,
+                        route__origin=dropoff_match,
+                        route__destination=pickup_match,
+                    ).select_related('route', 'route__origin', 'route__destination').first()
+                if rate:
+                    suggested_rate = rate
+                    if trip_type == 'round_trip':
+                        suggested_price = rate.round_trip_price
+                    else:
+                        suggested_price = rate.oneway_price
+                    suggested_route_label = f"{rate.route.origin.name} to {rate.route.destination.name}"
+
     context = {
         'form': form,
         'customer': customer,
@@ -4547,9 +4593,12 @@ def dispatcher_booking_pricing(request):
         'step': 5,
         'step_title': 'Pricing & Notes',
         'step_description': 'Set pricing and add any final notes',
-        'booking_data': booking_data
+        'booking_data': booking_data,
+        'suggested_price': suggested_price,
+        'suggested_route_label': suggested_route_label,
+        'suggested_trip_type': 'Round Trip' if booking_data.get('trip_type') == 'round_trip' else 'One Way',
     }
-    
+
     return render(request, 'dispatching/booking/step_pricing.html', context)
 
 
@@ -10899,3 +10948,171 @@ def cancel_duplicate_reservation(request):
         return JsonResponse(
             {"success": False, "error": str(e)}, status=500
         )
+
+
+# ── Quote Calculator ────────────────────────────────────────────────
+# Formula constants per vehicle type: (base_fee, per_mile_rate, rt_multiplier)
+# These are CUSTOM/RESIDENTIAL rates (higher than standard hotel zone rates
+# because the driver has a dead leg back). Prices rounded to nearest $5.
+QUOTE_FORMULA = {
+    "towncar":      (Decimal("55"),  Decimal("3.35"), Decimal("1.90")),
+    "mini_van":     (Decimal("60"),  Decimal("3.55"), Decimal("1.85")),
+    "suv":          (Decimal("65"),  Decimal("3.85"), Decimal("1.90")),
+    "van":          (Decimal("70"),  Decimal("4.25"), Decimal("1.93")),
+    "Van(14 Pax)":  (Decimal("85"),  Decimal("5.85"), Decimal("1.95")),
+}
+# Minimum one-way price per vehicle — short trips can't go below this
+QUOTE_MINIMUMS = {
+    "towncar":      Decimal("135"),
+    "mini_van":     Decimal("135"),
+    "suv":          Decimal("170"),
+    "van":          Decimal("175"),
+    "Van(14 Pax)":  Decimal("220"),
+}
+# Display/iteration order: cheapest to most expensive
+VEHICLE_TIER_ORDER = ["towncar", "mini_van", "suv", "van", "Van(14 Pax)"]
+VEHICLE_LABELS = {
+    "towncar": "Towncar",
+    "suv": "SUV",
+    "mini_van": "Mini Van",
+    "van": "Van",
+    "Van(14 Pax)": "Van (14 Pax)",
+}
+
+
+def _round_to_5(price):
+    """Round a Decimal price to the nearest $5."""
+    return Decimal(5) * round(price / Decimal(5))
+
+
+@login_required(login_url="login")
+def quote_calculator(request):
+    """Quote calculator page — admin only (under review)."""
+    if not request.user.is_superuser:
+        return redirect("dashboard")
+    vehicles = Vehicle.objects.all()
+    formula_display = [
+        (vt, VEHICLE_LABELS.get(vt, vt), str(base), str(pm))
+        for vt, (base, pm, _rt) in QUOTE_FORMULA.items()
+    ]
+    context = {
+        "vehicles": vehicles,
+        "formula_display": formula_display,
+        "google_maps_key": getattr(settings, "GOOGLE_MAPS_API_KEY", ""),
+    }
+    return render(request, "dispatching/quote_calculator.html", context)
+
+
+@login_required(login_url="login")
+@require_POST
+def quote_calculator_api(request):
+    """AJAX endpoint: calculate quote from pickup/dropoff addresses."""
+    if not request.user.is_superuser:
+        return JsonResponse({"error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid request"}, status=400)
+
+    pickup = data.get("pickup", "").strip()
+    dropoff = data.get("dropoff", "").strip()
+    vehicle_type = data.get("vehicle", "towncar")
+    trip_type = data.get("trip_type", "oneway")
+
+    if not pickup or not dropoff:
+        return JsonResponse({"error": "Both addresses are required."})
+
+    # Get distance from Google Distance Matrix
+    from drivers.utils import get_drive_time
+    drive_info = get_drive_time(pickup, dropoff)
+    if not drive_info:
+        return JsonResponse({
+            "error": "Could not calculate distance. Check the addresses and try again."
+        })
+
+    # Parse miles from distance_text (e.g. "45.2 mi")
+    distance_text = drive_info.get("distance_text", "0 mi")
+    try:
+        miles = Decimal(distance_text.replace(",", "").split()[0])
+    except Exception:
+        return JsonResponse({"error": "Could not parse distance."})
+
+    # Calculate for selected vehicle
+    base_fee, per_mile, rt_mult = QUOTE_FORMULA.get(vehicle_type, QUOTE_FORMULA["towncar"])
+    min_ow = QUOTE_MINIMUMS.get(vehicle_type, Decimal("100"))
+    oneway_price = max(_round_to_5(base_fee + per_mile * miles), min_ow)
+    roundtrip_price = _round_to_5(oneway_price * rt_mult)
+
+    if trip_type == "roundtrip":
+        suggested_price = roundtrip_price
+    else:
+        suggested_price = oneway_price
+
+    mileage_fee = _round_to_5(per_mile * miles)
+
+    # Calculate for ALL vehicles
+    all_vehicles = []
+    for vt in VEHICLE_TIER_ORDER:
+        vb, vpm, vrt = QUOTE_FORMULA[vt]
+        v_min = QUOTE_MINIMUMS.get(vt, Decimal("100"))
+        v_ow = max(_round_to_5(vb + vpm * miles), v_min)
+        v_rt = _round_to_5(v_ow * vrt)
+        all_vehicles.append({
+            "vehicle_type": vt,
+            "label": VEHICLE_LABELS.get(vt, vt),
+            "oneway": str(v_ow),
+            "roundtrip": str(v_rt),
+        })
+
+    # Check if an existing Rate matches this route
+    existing_rate = None
+    pickup_lower = pickup.lower()
+    dropoff_lower = dropoff.lower()
+    locations = Location.objects.all()
+    pickup_match = None
+    dropoff_match = None
+    for loc in locations:
+        keywords = [loc.name.lower()]
+        if loc.aliases:
+            keywords += [a.strip().lower() for a in loc.aliases.split(",")]
+        for kw in keywords:
+            if kw and kw in pickup_lower:
+                pickup_match = loc
+                break
+        for kw in keywords:
+            if kw and kw in dropoff_lower:
+                dropoff_match = loc
+                break
+
+    if pickup_match and dropoff_match:
+        rate = Rate.objects.filter(
+            vehicle__vehicle_type=vehicle_type,
+            route__origin=pickup_match,
+            route__destination=dropoff_match,
+        ).select_related("route__origin", "route__destination").first()
+        if not rate:
+            rate = Rate.objects.filter(
+                vehicle__vehicle_type=vehicle_type,
+                route__origin=dropoff_match,
+                route__destination=pickup_match,
+            ).select_related("route__origin", "route__destination").first()
+        if rate:
+            existing_rate = {
+                "route": f"{rate.route.origin.name} → {rate.route.destination.name}",
+                "oneway": str(rate.oneway_price),
+                "roundtrip": str(rate.round_trip_price),
+            }
+
+    return JsonResponse({
+        "suggested_price": str(suggested_price),
+        "trip_type_label": "Round Trip" if trip_type == "roundtrip" else "One Way",
+        "vehicle_type": vehicle_type,
+        "vehicle_label": VEHICLE_LABELS.get(vehicle_type, vehicle_type),
+        "distance_text": distance_text,
+        "duration_text": drive_info.get("duration_text", "N/A"),
+        "base_fee": str(base_fee),
+        "mileage_fee": str(mileage_fee),
+        "all_vehicles": all_vehicles,
+        "existing_rate": existing_rate,
+    })

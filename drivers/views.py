@@ -369,7 +369,15 @@ def update_leg_status(request, leg_id):
             if settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "on-location", "picked-up"):
                 # on-the-way/on-location → ETA to pickup, picked-up → ETA to dropoff
                 dest = leg.dropoff_location if new_status == "picked-up" else leg.pickup_location
-                _run_in_background(_compute_location_eta, location.id, dest)
+                # Fallback origin: use pickup address if GPS coords don't resolve
+                fallback = leg.pickup_location if new_status == "picked-up" else None
+                _run_in_background(_compute_location_eta, location.id, dest, fallback)
+
+        elif settings.GOOGLE_MAPS_API_KEY and new_status in ("on-the-way", "on-location", "picked-up"):
+            # No GPS coords at all — compute ETA from known addresses as fallback
+            from reservations.utils import _run_in_background
+            dest = leg.dropoff_location if new_status == "picked-up" else leg.pickup_location
+            _run_in_background(_compute_fallback_eta, leg, dest)
 
         # Check if reservation should be auto-completed
         if new_status == "completed":
@@ -392,32 +400,70 @@ def update_leg_status(request, leg_id):
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 
-def _compute_location_eta(location_id, destination_address):
-    """Background: compute ETA from GPS snapshot to destination via Google Maps."""
+def _parse_duration_to_minutes(duration_text):
+    """Parse Google Maps duration like '25 mins' or '1 hour 10 mins' into minutes."""
+    import re
+    text = duration_text.lower()
+    minutes = 0
+    if "hour" in text:
+        parts = text.split("hour")
+        minutes += int(parts[0].strip()) * 60
+        text = parts[1] if len(parts) > 1 else ""
+    if "min" in text:
+        nums = re.findall(r'\d+', text)
+        if nums:
+            minutes += int(nums[0])
+    return minutes
+
+
+def _compute_location_eta(location_id, destination_address, fallback_origin=None):
+    """Background: compute ETA from GPS snapshot to destination via Google Maps.
+    If GPS-based lookup fails, falls back to fallback_origin (e.g. pickup address)."""
     try:
         from reservations.models import DriverLocation
         loc = DriverLocation.objects.get(id=location_id)
         origin = f"{loc.latitude},{loc.longitude}"
         result = google_drive_time(origin, destination_address)
+
+        # Fallback: if GPS coords didn't resolve, try the address-based origin
+        if not result or not result.get("duration_text"):
+            if fallback_origin:
+                result = google_drive_time(fallback_origin, destination_address)
+
         if result and result.get("duration_text"):
-            # Parse "25 mins" or "1 hour 10 mins" into minutes
-            text = result["duration_text"].lower()
-            minutes = 0
-            if "hour" in text:
-                parts = text.split("hour")
-                minutes += int(parts[0].strip()) * 60
-                text = parts[1] if len(parts) > 1 else ""
-            if "min" in text:
-                import re
-                nums = re.findall(r'\d+', text)
-                if nums:
-                    minutes += int(nums[0])
+            minutes = _parse_duration_to_minutes(result["duration_text"])
             if minutes > 0:
                 loc.eta_minutes = minutes
                 loc.eta_destination = destination_address
                 loc.save(update_fields=["eta_minutes", "eta_destination"])
     except Exception:
         pass  # Non-critical — ETA just won't be available
+
+
+def _compute_fallback_eta(leg, destination_address):
+    """Compute ETA using leg's pickup/dropoff address when no GPS is available.
+    Creates a DriverLocation record with the fallback ETA so it shows up on dashboards."""
+    try:
+        from reservations.models import DriverLocation
+
+        # For picked-up: origin is pickup location, dest is dropoff
+        # For on-the-way/on-location: origin is some known point, dest is pickup
+        origin = leg.pickup_location
+        result = google_drive_time(origin, destination_address)
+        if result and result.get("duration_text"):
+            minutes = _parse_duration_to_minutes(result["duration_text"])
+            if minutes > 0:
+                DriverLocation.objects.create(
+                    leg=leg,
+                    driver=leg.driver,
+                    status=leg.status,
+                    latitude=0,
+                    longitude=0,
+                    eta_minutes=minutes,
+                    eta_destination=destination_address,
+                )
+    except Exception:
+        pass
 
 
 @login_required
@@ -434,15 +480,41 @@ def get_driver_eta(request, leg_id):
 
     latest = DriverLocation.objects.filter(leg=leg).first()
     if not latest:
+        # No GPS data — compute fallback ETA from leg addresses
+        if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "on-location", "picked-up"):
+            dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
+            origin = leg.pickup_location
+            result = google_drive_time(origin, dest)
+            if result and result.get("duration_text"):
+                minutes = _parse_duration_to_minutes(result["duration_text"])
+                if minutes > 0:
+                    return JsonResponse({
+                        "has_location": False,
+                        "eta_minutes": minutes,
+                        "is_fallback": True,
+                        "status": leg.status,
+                    })
         return JsonResponse({"has_location": False})
 
     age_seconds = (timezone.now() - latest.timestamp).total_seconds()
+
+    # If GPS-based ETA is missing, compute fallback from addresses
+    eta_minutes = latest.eta_minutes
+    is_fallback = False
+    if eta_minutes is None and settings.GOOGLE_MAPS_API_KEY:
+        dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
+        origin = leg.pickup_location
+        result = google_drive_time(origin, dest)
+        if result and result.get("duration_text"):
+            eta_minutes = _parse_duration_to_minutes(result["duration_text"])
+            is_fallback = True
 
     return JsonResponse({
         "has_location": True,
         "latitude": float(latest.latitude),
         "longitude": float(latest.longitude),
-        "eta_minutes": latest.eta_minutes,
+        "eta_minutes": eta_minutes,
+        "is_fallback": is_fallback,
         "status": latest.status,
         "timestamp": latest.timestamp.isoformat(),
         "age_seconds": int(age_seconds),
@@ -485,7 +557,9 @@ def report_location(request):
         # Compute ETA in background
         if settings.GOOGLE_MAPS_API_KEY and leg.status in ("on-the-way", "on-location", "picked-up"):
             dest = leg.dropoff_location if leg.status == "picked-up" else leg.pickup_location
-            _run_in_background(_compute_location_eta, location.id, dest)
+            # Fallback: use pickup address if GPS coords don't resolve
+            fallback = leg.pickup_location if leg.status == "picked-up" else None
+            _run_in_background(_compute_location_eta, location.id, dest, fallback)
 
         return JsonResponse({"success": True})
 

@@ -107,7 +107,7 @@
         </li>
         <!-- Admin dropdown -->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'lead_analytics' or request.resolver_match.url_name == 'affiliate_payments' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'duplicate_reservations' %}active{% endif %}"
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'lead_analytics' or request.resolver_match.url_name == 'affiliate_payments' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'duplicate_reservations' or request.resolver_match.url_name == 'quote_calculator' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-shield-lock me-1"></i>Admin</a>
           <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
@@ -126,6 +126,11 @@
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'duplicate_reservations' %}active{% endif %}"
                  href="{% url 'duplicate_reservations' %}"><i class="bi bi-files me-2"></i>Duplicates</a>
+            </li>
+            <li><hr class="dropdown-divider" style="border-color: rgba(255,255,255,0.1);"></li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'quote_calculator' %}active{% endif %}"
+                 href="{% url 'quote_calculator' %}"><i class="bi bi-calculator me-2"></i>Quote Calculator</a>
             </li>
           </ul>
         </li>

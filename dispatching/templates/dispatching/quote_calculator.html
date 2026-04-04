@@ -1,0 +1,365 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+  {% block navbar %}
+  {% endblock navbar %}
+  {% include "dispatching/dispatcher_navbar.html" %}
+
+  <div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-3">
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+          <h1 class="mb-0 fs-2 fw-bold">
+            <i class="fas fa-calculator me-2"></i>Quote Calculator
+          </h1>
+          <a href="{% url 'dispatcher_booking_start' %}" class="btn btn-dark">
+            <i class="fas fa-plus me-1"></i>New Booking
+          </a>
+        </div>
+        <p class="text-muted mt-1 mb-0">Estimate prices for custom or long-distance trips</p>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Left: Input Form -->
+      <div class="col-lg-7">
+        <div class="card shadow-sm">
+          <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Trip Details</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label fw-bold">Pickup Address</label>
+                <input type="text" class="form-control form-control-lg" id="pickup-address"
+                       placeholder="e.g., Orlando International Airport (MCO)" autocomplete="off">
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-bold">Drop-off Address</label>
+                <input type="text" class="form-control form-control-lg" id="dropoff-address"
+                       placeholder="e.g., 123 Main St, Tampa, FL" autocomplete="off">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Vehicle Type</label>
+                <select class="form-select form-select-lg" id="vehicle-type">
+                  {% for vehicle in vehicles %}
+                    <option value="{{ vehicle.vehicle_type }}"
+                            {% if vehicle.vehicle_type == "towncar" %}selected{% endif %}>
+                      {{ vehicle.get_vehicle_type_display }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Trip Type</label>
+                <div class="d-flex gap-2 mt-1">
+                  <button type="button" class="btn btn-outline-dark trip-type-btn active flex-fill" data-value="oneway">
+                    One Way
+                  </button>
+                  <button type="button" class="btn btn-outline-dark trip-type-btn flex-fill" data-value="roundtrip">
+                    Round Trip
+                  </button>
+                </div>
+              </div>
+              <div class="col-12">
+                <button type="button" class="btn btn-warning btn-lg w-100 fw-bold" id="calculate-btn">
+                  <i class="fas fa-calculator me-2"></i>Calculate Quote
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rate Card Reference -->
+        <div class="card shadow-sm mt-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0">
+              <i class="fas fa-info-circle me-2"></i>How It Works
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row text-center">
+              <div class="col-4">
+                <div class="fs-3 text-warning mb-1"><i class="fas fa-route"></i></div>
+                <small class="text-muted">Google Maps calculates distance</small>
+              </div>
+              <div class="col-4">
+                <div class="fs-3 text-warning mb-1"><i class="fas fa-cogs"></i></div>
+                <small class="text-muted">Formula applies base + per-mile rate</small>
+              </div>
+              <div class="col-4">
+                <div class="fs-3 text-warning mb-1"><i class="fas fa-dollar-sign"></i></div>
+                <small class="text-muted">You get a suggested price to use or adjust</small>
+              </div>
+            </div>
+            <hr>
+            <div class="small text-muted">
+              <strong>Vehicle base rates (per mile):</strong>
+              <div class="row mt-2">
+                {% for vt, label, base, per_mile in formula_display %}
+                <div class="col-6 col-md-3 mb-1">
+                  <span class="badge bg-dark">{{ label }}</span>
+                  ${{ base }} + ${{ per_mile }}/mi
+                </div>
+                {% endfor %}
+              </div>
+              <div class="mt-2">Round trip multiplier varies by vehicle &nbsp;|&nbsp; Prices rounded to nearest $5</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Results -->
+      <div class="col-lg-5">
+        <!-- Loading spinner -->
+        <div id="calc-loading" class="d-none">
+          <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+              <div class="spinner-border text-warning mb-3" role="status"></div>
+              <p class="text-muted mb-0">Calculating distance via Google Maps...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results card (hidden until calculated) -->
+        <div id="calc-results" class="d-none">
+          <div class="card shadow-sm border-success">
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Suggested Quote</h5>
+            </div>
+            <div class="card-body">
+              <!-- Big price -->
+              <div class="text-center mb-4">
+                <div class="display-3 fw-bold text-success" id="result-price">$0</div>
+                <span class="badge bg-dark fs-6" id="result-trip-type">One Way</span>
+                <span class="badge fs-6" id="result-vehicle" style="background-color: #c8a84e; color: #fff;">Towncar</span>
+              </div>
+
+              <!-- Trip details -->
+              <div class="border rounded p-3 bg-light mb-3">
+                <div class="row g-2">
+                  <div class="col-6">
+                    <small class="text-dark fw-semibold d-block">Distance</small>
+                    <strong class="fs-5" id="result-distance">--</strong>
+                  </div>
+                  <div class="col-6">
+                    <small class="text-dark fw-semibold d-block">Drive Time</small>
+                    <strong class="fs-5" id="result-duration">--</strong>
+                  </div>
+                  <div class="col-6">
+                    <small class="text-dark fw-semibold d-block">Base Fee</small>
+                    <strong class="fs-5" id="result-base">--</strong>
+                  </div>
+                  <div class="col-6">
+                    <small class="text-dark fw-semibold d-block">Mileage Fee</small>
+                    <strong class="fs-5" id="result-mileage">--</strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- All vehicle comparison -->
+              <h6 class="fw-bold mb-2"><i class="fas fa-car me-1"></i> All Vehicle Options</h6>
+              <table class="table table-sm table-bordered mb-3">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Vehicle</th>
+                    <th class="text-end">One Way</th>
+                    <th class="text-end">Round Trip</th>
+                  </tr>
+                </thead>
+                <tbody id="result-all-vehicles"></tbody>
+              </table>
+
+              <!-- Existing rate match -->
+              <div id="existing-rate-match" class="d-none">
+                <div class="alert alert-info mb-0 py-2">
+                  <i class="fas fa-database me-1"></i>
+                  <strong>Existing rate found:</strong> <span id="existing-rate-text"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error card -->
+        <div id="calc-error" class="d-none">
+          <div class="card shadow-sm border-danger">
+            <div class="card-body text-center py-4">
+              <i class="fas fa-exclamation-triangle text-danger fs-1 mb-2"></i>
+              <p class="mb-0" id="error-message">Something went wrong</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div id="calc-empty">
+          <div class="card shadow-sm">
+            <div class="card-body text-center py-5">
+              <i class="fas fa-calculator text-muted" style="font-size: 4rem;"></i>
+              <p class="text-muted mt-3 mb-0">Enter pickup & drop-off addresses and hit Calculate</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+      const pickupInput = document.getElementById('pickup-address');
+      const dropoffInput = document.getElementById('dropoff-address');
+      const vehicleSelect = document.getElementById('vehicle-type');
+      const calculateBtn = document.getElementById('calculate-btn');
+      const tripTypeBtns = document.querySelectorAll('.trip-type-btn');
+      let tripType = 'oneway';
+
+      // Google Places Autocomplete
+      function initAutocomplete() {
+          if (typeof google !== 'undefined' && google.maps && google.maps.places) {
+              new google.maps.places.Autocomplete(pickupInput, {
+                  types: ['geocode', 'establishment'],
+                  componentRestrictions: { country: 'us' }
+              });
+              new google.maps.places.Autocomplete(dropoffInput, {
+                  types: ['geocode', 'establishment'],
+                  componentRestrictions: { country: 'us' }
+              });
+          }
+      }
+      // Try init immediately or wait for maps to load
+      if (typeof google !== 'undefined') {
+          initAutocomplete();
+      } else {
+          window.initQuoteAutocomplete = initAutocomplete;
+      }
+
+      // Trip type toggle
+      tripTypeBtns.forEach(btn => {
+          btn.addEventListener('click', function() {
+              tripTypeBtns.forEach(b => b.classList.remove('active'));
+              this.classList.add('active');
+              tripType = this.dataset.value;
+          });
+      });
+
+      // Calculate
+      calculateBtn.addEventListener('click', function() {
+          const pickup = pickupInput.value.trim();
+          const dropoff = dropoffInput.value.trim();
+          const vehicle = vehicleSelect.value;
+
+          if (!pickup || !dropoff) {
+              showError('Please enter both pickup and drop-off addresses.');
+              return;
+          }
+
+          showLoading();
+
+          fetch("{% url 'quote_calculator_api' %}", {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': '{{ csrf_token }}',
+              },
+              body: JSON.stringify({
+                  pickup: pickup,
+                  dropoff: dropoff,
+                  vehicle: vehicle,
+                  trip_type: tripType,
+              })
+          })
+          .then(r => r.json())
+          .then(data => {
+              if (data.error) {
+                  showError(data.error);
+              } else {
+                  showResults(data);
+              }
+          })
+          .catch(() => showError('Network error. Please try again.'));
+      });
+
+      // Also calculate on Enter key
+      [pickupInput, dropoffInput].forEach(input => {
+          input.addEventListener('keydown', function(e) {
+              if (e.key === 'Enter') {
+                  e.preventDefault();
+                  calculateBtn.click();
+              }
+          });
+      });
+
+      function showLoading() {
+          document.getElementById('calc-empty').classList.add('d-none');
+          document.getElementById('calc-results').classList.add('d-none');
+          document.getElementById('calc-error').classList.add('d-none');
+          document.getElementById('calc-loading').classList.remove('d-none');
+      }
+
+      function showError(msg) {
+          document.getElementById('calc-empty').classList.add('d-none');
+          document.getElementById('calc-results').classList.add('d-none');
+          document.getElementById('calc-loading').classList.add('d-none');
+          document.getElementById('calc-error').classList.remove('d-none');
+          document.getElementById('error-message').textContent = msg;
+      }
+
+      function showResults(data) {
+          document.getElementById('calc-empty').classList.add('d-none');
+          document.getElementById('calc-loading').classList.add('d-none');
+          document.getElementById('calc-error').classList.add('d-none');
+          document.getElementById('calc-results').classList.remove('d-none');
+
+          document.getElementById('result-price').textContent = '$' + data.suggested_price;
+          document.getElementById('result-trip-type').textContent = data.trip_type_label;
+          document.getElementById('result-vehicle').textContent = data.vehicle_label;
+          document.getElementById('result-distance').textContent = data.distance_text;
+          document.getElementById('result-duration').textContent = data.duration_text;
+          document.getElementById('result-base').textContent = '$' + data.base_fee;
+          document.getElementById('result-mileage').textContent = '$' + data.mileage_fee;
+
+          // All vehicles table
+          const tbody = document.getElementById('result-all-vehicles');
+          tbody.innerHTML = '';
+          data.all_vehicles.forEach(v => {
+              const row = document.createElement('tr');
+              if (v.vehicle_type === data.vehicle_type) {
+                  row.classList.add('table-success');
+              }
+              row.innerHTML = `
+                  <td>${v.label}</td>
+                  <td class="text-end fw-bold">$${v.oneway}</td>
+                  <td class="text-end fw-bold">$${v.roundtrip}</td>
+              `;
+              tbody.appendChild(row);
+          });
+
+          // Existing rate match
+          const existingDiv = document.getElementById('existing-rate-match');
+          if (data.existing_rate) {
+              existingDiv.classList.remove('d-none');
+              document.getElementById('existing-rate-text').textContent =
+                  data.existing_rate.route + ' — $' + data.existing_rate.oneway + ' OW / $' + data.existing_rate.roundtrip + ' RT';
+          } else {
+              existingDiv.classList.add('d-none');
+          }
+      }
+  });
+  </script>
+
+  {% if google_maps_key %}
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places&callback=initQuoteAutocomplete" async defer></script>
+  {% endif %}
+
+  <style>
+    .trip-type-btn.active {
+        background-color: #212529 !important;
+        color: #fff !important;
+        border-color: #212529 !important;
+    }
+  </style>
+{% endblock %}

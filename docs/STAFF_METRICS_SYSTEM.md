@@ -42,6 +42,14 @@ All of these use data that was already being recorded but not surfaced.
 
 **Email types tracked:** Reservation Confirmation, Payment Reminder, Driver Payment Statement, Agent Commission Statement, Agency Commission Statement, Lead Quote, Admin Report
 
+### Phase 3: Enhanced Views
+
+| Feature | Description | Files |
+|---------|-------------|-------|
+| **Per-Staff Trend Indicators** | Each staff table row (completions, comms, reservations, emails) shows a green/red arrow with percentage change comparing current period to prior equivalent period. Tooltip shows prior count. | `ops/views.py`, `staff_metrics.html`, `ops/templatetags/ops_filters.py` |
+| **Daily Staff Summary Card** | JS-driven accordion on overview: each day in the range expands to a compact table showing per-staff first/last active, reservations, revenue, tasks resolved, driver assigns, legs modified, comms, emails. Most recent day expanded by default. "Show more" toggle for ranges > 30 days. | `ops/views.py`, `staff_metrics.html` |
+| **Unified Chronological Action Feed** | On staff detail page, merges StaffActivity, CommunicationAttempt, EmailLog, change history, and AuditLog into one scrollable timeline sorted by timestamp. Filter pills (All, Changes, Emails, Comms, Tasks, Audits) with count badges. | `ops/views.py`, `staff_detail.html` |
+
 ---
 
 ## Architecture
@@ -57,6 +65,7 @@ All of these use data that was already being recorded but not surfaced.
 | `ops/tasks.py` | Automated scanners that generate operational tasks every 30 min |
 | `ops/services.py` | Task creation/closure helpers, commission payout orchestration |
 | `ops/admin.py` | Django admin for all ops models |
+| `ops/templatetags/ops_filters.py` | Template filters: `get_item`, `trend_key`, `get_trend` |
 | `ops/management/commands/seed_staff_metrics.py` | Seed realistic test data |
 | `reservations/models.py` | `AuditLog` model, `Reservation`/`Leg` with django-simple-history |
 | `reservations/signals.py` | Creates `AuditLog` entries on Reservation/Leg save |
@@ -98,18 +107,13 @@ All of these use data that was already being recorded but not surfaced.
 | Does someone have stale unresolved work? | Yes | Staleness badges on assigned tasks |
 | What's the team's task creation vs completion trend? | Yes | Task Trend chart |
 | How fast are leads being contacted? | Yes | Lead Response Times |
+| Is someone trending up or down? | Yes | Trend indicators (arrows + % vs prior period) |
+| What did each staff member do on a specific day? | Yes | Daily Staff Summary accordion |
+| What's the full chronological story of someone's work? | Yes | Unified Action Feed on staff detail (filterable) |
 
 ---
 
 ## What's Next
-
-### Phase 3: Enhanced Views
-
-| Feature | Description | Effort | Value |
-|---------|-------------|--------|-------|
-| **Daily Staff Summary Card** | For each day in range, show one compact row per staff: first/last active, reservations created + revenue, legs modified, driver assigns, tasks resolved, comms, emails sent. Expandable for details. | Medium | High — "did they have a productive day?" at a glance |
-| **Per-Staff Trend Indicators** | On the overview, show sparklines or arrows comparing this period to prior period. Example: "Tasks completed: 24 (up 15% vs prior 7 days)" | Medium | High — shows consistency over time |
-| **Unified Chronological Action Feed** | On staff detail, merge StaffActivity + AuditLog + CommunicationAttempt + EmailLog + history changes into one timeline sorted by timestamp. Filter by action type. | Large | High — tells the real story of what someone did in order |
 
 ### Phase 4: Accountability & Quality
 

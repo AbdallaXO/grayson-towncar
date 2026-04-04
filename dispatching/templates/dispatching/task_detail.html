@@ -795,9 +795,9 @@ body {
 }
 .tl-end-time {
   font-family: var(--ops-mono);
-  font-size: .68rem;
-  font-weight: 500;
-  color: var(--ops-text-dim);
+  font-size: .70rem;
+  font-weight: 600;
+  color: #374151;
 }
 
 .tl-bar {
@@ -917,6 +917,19 @@ body {
 }
 .tl-status-done i { font-size: .65rem; color: #059669; }
 .tl-status-done .tl-status-text { color: var(--ops-text-muted); }
+
+.tl-status-badge.tl-status-confirmed {
+  background: rgba(37, 99, 235, .08);
+  border-color: rgba(37, 99, 235, .25);
+}
+.tl-status-confirmed i { font-size: .65rem; color: #2563eb; }
+.tl-status-confirmed .tl-status-text { color: #1d4ed8; }
+
+.tl-status-badge.tl-status-other {
+  background: rgba(107, 114, 128, .08);
+  border-color: rgba(107, 114, 128, .2);
+}
+.tl-status-other .tl-status-text { color: #4b5563; }
 
 /* ── Timing Detail Row ── */
 .tl-timing-row {
@@ -1780,6 +1793,15 @@ body {
                   <div class="tl-status-badge tl-status-done">
                     <i class="bi bi-check-circle-fill"></i>
                     <span class="tl-status-text">Completed</span>
+                  </div>
+                  {% elif entry.leg_status == "confirmed" %}
+                  <div class="tl-status-badge tl-status-confirmed">
+                    <i class="bi bi-check2-circle"></i>
+                    <span class="tl-status-text">Confirmed</span>
+                  </div>
+                  {% elif entry.leg_status %}
+                  <div class="tl-status-badge tl-status-other">
+                    <span class="tl-status-text">{{ entry.leg_status_display }}</span>
                   </div>
                   {% endif %}
                   <!-- Timing details -->

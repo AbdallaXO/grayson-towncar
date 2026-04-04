@@ -339,6 +339,15 @@
         }
         if (el.dataset.customer) html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">'+el.dataset.customer+'</span></div>';
         if (el.dataset.flight) html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">'+el.dataset.flight+'</span></div>';
+        // Status with time and ago
+        if (el.dataset.statusLabel) {
+          let statusHtml = '<span style="font-weight:600;">'+el.dataset.statusLabel+'</span>';
+          if (el.dataset.statusTime) statusHtml += ' at '+el.dataset.statusTime;
+          if (el.dataset.statusAgo) statusHtml += ' <span style="opacity:0.7;">('+el.dataset.statusAgo+' ago)</span>';
+          const statusColors = {'picked-up':'#059669','on-location':'#d97706','on-the-way':'#ea580c','confirmed':'#2563eb','completed':'#6b7280'};
+          const sc = statusColors[el.dataset.status] || '#374151';
+          html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="color:'+sc+';">'+statusHtml+'</span></div>';
+        }
         html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~'+(el.dataset.cleared||'')+'</span></div>';
         html += '</div>';
         popup.innerHTML = html;
