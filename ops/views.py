@@ -107,6 +107,7 @@ def task_queue_view(request):
     priority_groups = []
     for pval, key, label, hint in priority_config:
         group_tasks = [t for t in remaining_tasks if t.priority == pval]
+        group_tasks.sort(key=lambda t: t.task_type)
         priority_groups.append({
             "priority": pval,
             "key": key,
