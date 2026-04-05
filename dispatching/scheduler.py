@@ -279,6 +279,11 @@ class ScheduleSlot:
     position_pct: float = 0
     width_pct: float = 0
 
+    @property
+    def vehicle_abbr(self) -> str:
+        _map = {'towncar': 'TC', 'suv': 'SUV', 'mini_van': 'MV', 'van': 'VAN', 'Van(14 Pax)': 'V14'}
+        return _map.get(self.vehicle_type or '', '')
+
 
 @dataclass
 class DriverDaySchedule:

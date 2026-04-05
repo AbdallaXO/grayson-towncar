@@ -909,6 +909,8 @@ def schedule_board(request):
             _fi = leg.flight_information
             _flight_str = f"{_fi.airline or ''} {_fi.flight_number or ''}".strip()
         _vtype = getattr(leg.reservation.vehicle, 'vehicle_type', '') if leg.reservation and leg.reservation.vehicle else ''
+        _vabbr_map = {'towncar': 'TC', 'suv': 'SUV', 'mini_van': 'MV', 'van': 'VAN', 'Van(14 Pax)': 'V14'}
+        _vabbr = _vabbr_map.get(str(_vtype), '') if _vtype else ''
         unassigned_timeline_slots.append({
             'leg_id': leg.id,
             'trip_type': _trip,
@@ -917,6 +919,7 @@ def schedule_board(request):
             'pickup_location': leg.pickup_location or '',
             'dropoff_location': leg.dropoff_location or '',
             'vehicle_type': str(_vtype) if _vtype else '',
+            'vehicle_abbr': _vabbr,
             'flight_info': _flight_str,
             'status': leg.status or '',
             'position_pct': _pos,
@@ -926,6 +929,10 @@ def schedule_board(request):
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
         })
+
+    # Sort unassigned slots: bigger vehicles first, then by pickup time
+    _vehicle_sort_order = {'Van(14 Pax)': 0, 'van': 1, 'suv': 2, 'mini_van': 3, 'towncar': 4, '': 5}
+    unassigned_timeline_slots.sort(key=lambda s: (_vehicle_sort_order.get(s['vehicle_type'], 5), s['position_pct']))
 
     # Assign lanes to unassigned slots so overlapping jobs stack vertically
     _lane_slot_height = 18  # px per lane row (matches CSS)
