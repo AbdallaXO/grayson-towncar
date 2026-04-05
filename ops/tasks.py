@@ -47,6 +47,14 @@ _PRIORITY_MATRIX = {
     ("major", "distant"): OperationalTask.Priority.LOW,
 }
 
+# Due-date offsets per priority (how long staff has to address)
+_DUE_DELAYS = {
+    OperationalTask.Priority.CRITICAL: timedelta(hours=0),
+    OperationalTask.Priority.HIGH: timedelta(hours=4),
+    OperationalTask.Priority.MEDIUM: timedelta(hours=8),
+    OperationalTask.Priority.LOW: timedelta(hours=24),
+}
+
 # Escalation delays per priority level
 _ESCALATION_DELAYS = {
     OperationalTask.Priority.CRITICAL: timedelta(hours=0),
@@ -400,13 +408,14 @@ def _handle_future_mismatch(leg, mismatch, customer_name, flight_label, days_unt
     Returns 1 if task created, 0 otherwise.
     """
     priority = _get_flight_priority(mismatch["minutes"], days_until)
+    due_delay = _DUE_DELAYS.get(priority, timedelta(hours=8))
     escalate_delay = _ESCALATION_DELAYS.get(priority, timedelta(hours=8))
     severity = _get_severity_tier(mismatch["minutes"])
 
     task = create_task(
         task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
         title=f"Flight mismatch: {customer_name} — {flight_label} {mismatch['label']}",
-        due_at=now,
+        due_at=now + due_delay,
         priority=priority,
         description=(
             f"Booked pickup {leg.pickup_time:%I:%M %p} — flight {mismatch['label']}."
@@ -446,7 +455,7 @@ def _scan_uncontacted_forms():
         task = create_task(
             task_type=OperationalTask.TaskType.CONTACT_FORM,
             title=f"Contact form: {name}",
-            due_at=now,
+            due_at=now + _DUE_DELAYS[OperationalTask.Priority.HIGH],
             priority=OperationalTask.Priority.HIGH,
             description=form.about[:200] if form.about else "",
             contact_form=form,
@@ -729,10 +738,11 @@ def _scan_unpaid_reservations():
             priority = OperationalTask.Priority.LOW
 
         customer_name = res.customer.get_full_name()
+        due_delay = _DUE_DELAYS.get(priority, timedelta(hours=8))
         task = create_task(
             task_type=OperationalTask.TaskType.PAYMENT_CHASE,
             title=f"Unpaid ${amount_owed}: {customer_name} — trip {earliest_leg.pickup_date:%b %d}",
-            due_at=now,
+            due_at=now + due_delay,
             priority=priority,
             description=f"Total: ${res.total_price}, Paid: ${res.total_paid}, Owed: ${amount_owed}",
             reservation=res,
@@ -1124,6 +1134,7 @@ def _apply_flight_update(flight, flight_data):
 
     update_fields = []
 
+    # Basic flight info
     if flight_data.get("flight_iata"):
         flight.flight_iata = flight_data["flight_iata"]
         update_fields.append("flight_iata")
@@ -1136,41 +1147,47 @@ def _apply_flight_update(flight, flight_data):
         flight.destination = flight_data["destination"]
         update_fields.append("destination")
 
-    flight_status = flight_data.get("flight_status") or flight_data.get("status", "")
+    # Flight status (e.g. Scheduled, En Route, Landed)
+    # Use flight_status only — never fall back to "status" which is "success"
+    flight_status = flight_data.get("flight_status", "")
     if flight_status:
         flight.status = flight_status
         update_fields.append("status")
 
-    # Datetime fields
-    for field_name in [
-        "scheduled_arrival_local",
-        "estimated_arrival_local",
-        "scheduled_gate_arrival_local",
-        "estimated_gate_arrival_local",
-    ]:
-        val = flight_data.get(field_name)
-        if val is not None:
-            setattr(flight, field_name, val)
-            update_fields.append(field_name)
+    # Scheduled times — always update (even to None to clear stale data)
+    scheduled_arrival = flight_data.get("scheduled_arrival_local")
+    flight.scheduled_arrival_local = scheduled_arrival
+    update_fields.append("scheduled_arrival_local")
 
-    # Actual + estimated arrival times — clear for future flights to avoid stale data
-    # from a previous day's instance of the same recurring flight number
+    scheduled_gate_arrival = flight_data.get("scheduled_gate_arrival_local")
+    flight.scheduled_gate_arrival_local = scheduled_gate_arrival
+    update_fields.append("scheduled_gate_arrival_local")
+
+    # Determine if flight is in the future
     now = tz.now()
-    scheduled = flight_data.get("scheduled_arrival_local") or flight_data.get(
-        "scheduled_gate_arrival_local"
-    )
-    is_future = scheduled and scheduled > now
+    is_future = False
+    if scheduled_arrival and scheduled_arrival > now:
+        is_future = True
+    elif scheduled_gate_arrival and scheduled_gate_arrival > now:
+        is_future = True
 
     if is_future:
+        # Future flight: clear actuals (stale from previous day's recurring flight),
+        # but keep/update estimated times (AeroAPI predictions for en-route flights)
         flight.actual_arrival_local = None
         flight.actual_gate_arrival_local = None
-        flight.estimated_arrival_local = None
-        flight.estimated_gate_arrival_local = None
-        update_fields.extend([
-            "actual_arrival_local", "actual_gate_arrival_local",
-            "estimated_arrival_local", "estimated_gate_arrival_local",
-        ])
+        update_fields.extend(["actual_arrival_local", "actual_gate_arrival_local"])
+
+        est_arrival = flight_data.get("estimated_arrival_local")
+        if est_arrival is not None:
+            flight.estimated_arrival_local = est_arrival
+            update_fields.append("estimated_arrival_local")
+        est_gate = flight_data.get("estimated_gate_arrival_local")
+        if est_gate is not None:
+            flight.estimated_gate_arrival_local = est_gate
+            update_fields.append("estimated_gate_arrival_local")
     else:
+        # Past/current flight: update actuals and estimates from AeroAPI
         actual_runway = flight_data.get("actual_runway_arrival_local")
         if actual_runway is not None:
             flight.actual_arrival_local = actual_runway
@@ -1180,17 +1197,28 @@ def _apply_flight_update(flight, flight_data):
             flight.actual_gate_arrival_local = actual_gate
             update_fields.append("actual_gate_arrival_local")
 
-    for field_name in ["terminal", "gate", "baggage_claim"]:
-        val = flight_data.get(field_name)
-        if val:
-            setattr(flight, field_name, val)
-            update_fields.append(field_name)
+        # Keep estimated times too (useful while taxiing — runway actual exists
+        # but gate estimate may still be needed until actual gate arrival)
+        est_arrival = flight_data.get("estimated_arrival_local")
+        if est_arrival is not None:
+            flight.estimated_arrival_local = est_arrival
+            update_fields.append("estimated_arrival_local")
+        est_gate = flight_data.get("estimated_gate_arrival_local")
+        if est_gate is not None:
+            flight.estimated_gate_arrival_local = est_gate
+            update_fields.append("estimated_gate_arrival_local")
+
+    # Terminal, gate, baggage — always update to clear stale values
+    flight.terminal = flight_data.get("terminal") or ""
+    update_fields.append("terminal")
+    flight.gate = flight_data.get("gate") or ""
+    update_fields.append("gate")
+    flight.baggage_claim = flight_data.get("baggage_claim") or ""
+    update_fields.append("baggage_claim")
 
     # Always update last_updated
     flight.last_updated = tz.now()
     update_fields.append("last_updated")
 
-    if update_fields:
-        # Deduplicate
-        update_fields = list(set(update_fields))
-        flight.save(update_fields=update_fields)
+    # Deduplicate and save
+    flight.save(update_fields=list(set(update_fields)))

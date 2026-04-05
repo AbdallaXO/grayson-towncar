@@ -58,12 +58,10 @@ class AeroAPIService:
             return self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
 
         now = django_timezone.now().astimezone(ZoneInfo('America/New_York'))
-        # Use end of target date (midnight of target+1) so a Mar 17 flight viewed at
-        # any time on Mar 15 stays above the 48h threshold and routes to /schedules/.
-        target_end = datetime.combine(target + timedelta(days=1), datetime.min.time()).replace(
-            tzinfo=ZoneInfo('America/New_York')
-        )
-        hours_until = (target_end - now).total_seconds() / 3600
+        # Use start-of-day for the threshold: how many days from today to the target?
+        # This keeps flights within ~2 days on /flights/ (live data with real status)
+        # and only pushes 3+ days out to /schedules/ (schedule-only, always "Scheduled").
+        hours_until = (datetime.combine(target, datetime.min.time()) - datetime.combine(now.date(), datetime.min.time())).total_seconds() / 3600
 
         if hours_until > self.SCHEDULE_THRESHOLD_HOURS:
             logger.info(f"Flight {flight_ident} is {hours_until:.0f}h away — using /schedules/ endpoint")
@@ -73,7 +71,17 @@ class AeroAPIService:
             # Fall back to live endpoint if schedules fails
             logger.warning(f"Schedules endpoint failed for {flight_ident}, falling back to /flights/")
 
-        return self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+        result = self.get_flight_info(flight_ident, flight_date=flight_date, trip_type=trip_type)
+
+        # If /flights/ returned not_found (e.g. date matching failed), try /schedules/
+        # so we at least get schedule data rather than leaving status stale.
+        if result.get('status') == 'not_found':
+            logger.info(f"Flight {flight_ident} not found via /flights/, trying /schedules/ fallback")
+            sched_result = self.get_scheduled_flight(flight_ident, flight_date, trip_type=trip_type)
+            if sched_result.get('status') == 'success':
+                return sched_result
+
+        return result
 
     def get_scheduled_flight(self, flight_ident: str, flight_date: str,
                              trip_type: Optional[str] = None) -> Dict[str, Any]:
@@ -401,15 +409,15 @@ class AeroAPIService:
                     
                     # If we have a target date, check if this flight matches
                     if target_date:
-                        # For arrivals, check scheduled_on (arrival time)
-                        # For departures, check scheduled_off (departure time)
+                        # For arrivals, check scheduled_on (runway) or scheduled_in (gate)
+                        # For departures, check scheduled_off (runway) or scheduled_out (gate)
                         scheduled_time = None
-                        
+
                         if is_arrival:
-                            scheduled_time = flight.get('scheduled_on')
+                            scheduled_time = flight.get('scheduled_on') or flight.get('scheduled_in')
                         elif is_departure:
-                            scheduled_time = flight.get('scheduled_off')
-                        
+                            scheduled_time = flight.get('scheduled_off') or flight.get('scheduled_out')
+
                         if not scheduled_time:
                             continue
                         

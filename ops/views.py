@@ -11,7 +11,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Avg, Q, F, Min, Max
 from django.db.models.functions import TruncDate
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
@@ -1595,6 +1595,45 @@ def staff_metrics_view(request):
         staff_names.setdefault(row["sent_by__id"], row["sent_by__first_name"] or row["sent_by__username"])
 
     # ═══════════════════════════════════════════════════════════════════
+    # FILTER: Only show dispatchers (exclude drivers, travel agents, non-staff)
+    # ═══════════════════════════════════════════════════════════════════
+    from users.models import UserProfile
+    all_uids = set(staff_names.keys())
+    excluded_uids = set()
+    if all_uids:
+        # Exclude users flagged as drivers or travel agents
+        non_dispatcher_uids = set(
+            UserProfile.objects.filter(
+                user_id__in=all_uids,
+            ).filter(
+                Q(is_driver=True) | Q(is_travel_agent=True)
+            ).values_list("user_id", flat=True)
+        )
+        # Also exclude users who are not staff (e.g. customers who somehow appear)
+        from django.contrib.auth.models import User as AuthUser
+        non_staff_uids = set(
+            AuthUser.objects.filter(id__in=all_uids, is_staff=False).values_list("id", flat=True)
+        )
+        excluded_uids = non_dispatcher_uids | non_staff_uids
+
+        # Remove from staff_names
+        for uid in excluded_uids:
+            staff_names.pop(uid, None)
+
+        # Filter daily data maps
+        for m in [activity_first, activity_last, res_count_map, res_rev_map,
+                  tasks_by_day, assigns_by_day, legs_mod_by_day, comms_by_day, emails_by_day]:
+            for key in list(m.keys()):
+                if key[1] in excluded_uids:
+                    del m[key]
+
+        # Filter detail lists
+        comms_by_day_detail = [r for r in comms_by_day_detail if r["staff_user__id"] not in excluded_uids]
+        emails_by_day_detail = [r for r in emails_by_day_detail if r["sent_by__id"] not in excluded_uids]
+        res_by_day = [r for r in res_by_day if r["created_by__id"] not in excluded_uids]
+        activity_by_day = [r for r in activity_by_day if r["user__id"] not in excluded_uids]
+
+    # ═══════════════════════════════════════════════════════════════════
     # DERIVE OVERVIEW TOTALS from daily summary data (no extra queries)
     # ═══════════════════════════════════════════════════════════════════
 
@@ -1659,10 +1698,13 @@ def staff_metrics_view(request):
     for (day_str, uid), cnt in legs_mod_by_day.items():
         _legs_by_uid[uid] += cnt
     # Reservation modifications — still need one query (not in daily data above)
+    res_mods_qs = Reservation.history.filter(
+        history_date__gte=range_start, history_type="~", history_user__isnull=False,
+    )
+    if all_uids and excluded_uids:
+        res_mods_qs = res_mods_qs.exclude(history_user_id__in=excluded_uids)
     res_mods = (
-        Reservation.history.filter(
-            history_date__gte=range_start, history_type="~", history_user__isnull=False,
-        )
+        res_mods_qs
         .values("history_user__id", "history_user__first_name", "history_user__username")
         .annotate(res_modified=Count("id", distinct=True))
     )
@@ -1696,8 +1738,11 @@ def staff_metrics_view(request):
     staff_active_times = dict(sorted(staff_active_times.items(), key=lambda x: x[1]["first_active"]))
 
     # AuditLog actions per staff (overview needs full breakdown — still one query)
+    audit_qs = AuditLog.objects.filter(timestamp__gte=range_start, user__isnull=False)
+    if all_uids and excluded_uids:
+        audit_qs = audit_qs.exclude(user_id__in=excluded_uids)
     audit_actions = list(
-        AuditLog.objects.filter(timestamp__gte=range_start, user__isnull=False)
+        audit_qs
         .values("user__id", "user__first_name", "user__username")
         .annotate(
             driver_assignments=Count("id", filter=Q(action="driver_assigned")),
@@ -1751,11 +1796,11 @@ def staff_metrics_view(request):
 
     # ── Staff activity timeline (full range, for the timeline section) ──
     today_start = now.astimezone(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
+    activity_qs = StaffActivity.objects.filter(created_at__gte=range_start).exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
+    if all_uids and excluded_uids:
+        activity_qs = activity_qs.exclude(user_id__in=excluded_uids)
     range_activities = list(
-        StaffActivity.objects.filter(created_at__gte=range_start)
-        .exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
-        .select_related("user", "task")
-        .order_by("-created_at")[:200]
+        activity_qs.select_related("user", "task").order_by("-created_at")[:200]
     )
 
     # ── Task type performance ──
@@ -1766,10 +1811,13 @@ def staff_metrics_view(request):
     )
 
     # ── Page view counts per staff (today) ──
+    pv_qs = StaffActivity.objects.filter(
+        action_type=StaffActivity.ActionType.PAGE_VIEW, created_at__gte=today_start,
+    )
+    if all_uids and excluded_uids:
+        pv_qs = pv_qs.exclude(user_id__in=excluded_uids)
     page_views_today = list(
-        StaffActivity.objects.filter(
-            action_type=StaffActivity.ActionType.PAGE_VIEW, created_at__gte=today_start,
-        )
+        pv_qs
         .values("user__id", "user__first_name", "user__username")
         .annotate(views=Count("id"))
         .order_by("-views")
@@ -1784,10 +1832,11 @@ def staff_metrics_view(request):
         "driver", "status", "total_price", "base_price", "gratuity_amount",
         "passenger_count", "private_notes",
     }
+    leg_hist_qs = Leg.history.filter(history_date__gte=range_start, history_type="~", history_user__isnull=False)
+    if all_uids and excluded_uids:
+        leg_hist_qs = leg_hist_qs.exclude(history_user_id__in=excluded_uids)
     leg_history_in_range = (
-        Leg.history.filter(history_date__gte=range_start, history_type="~", history_user__isnull=False)
-        .select_related("history_user")
-        .order_by("id", "history_date")[:500]
+        leg_hist_qs.select_related("history_user").order_by("id", "history_date")[:500]
     )
     leg_records_by_id = defaultdict(list)
     for rec in leg_history_in_range:
@@ -1984,7 +2033,15 @@ def staff_detail_view(request, user_id):
     from django.db.models.functions import Coalesce, TruncDate
     from decimal import Decimal
 
-    staff_user = get_object_or_404(User, id=user_id)
+    staff_user = get_object_or_404(User, id=user_id, is_staff=True)
+    # Block detail view for drivers/travel agents
+    from users.models import UserProfile
+    try:
+        profile = staff_user.profile
+        if profile.is_driver or profile.is_travel_agent:
+            raise Http404
+    except UserProfile.DoesNotExist:
+        pass
     eastern = pytz.timezone("US/Eastern")
     now = timezone.now()
     today = timezone.localdate()

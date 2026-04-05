@@ -3170,6 +3170,53 @@ def refresh_flight_data(request):
         if flight_data.get('status') != 'success':
             error_msg = flight_data.get('error', 'Unknown error')
             logger.error(f"AeroAPI error: {error_msg}")
+
+            # Clear ALL stale data from the old flight so nothing lingers
+            if flight_data.get('status') in ('not_found', 'not_orlando'):
+                flight.flight_iata = ''
+                flight.origin = ''
+                flight.destination = ''
+                flight.status = 'Not Found'
+                flight.scheduled_arrival_local = None
+                flight.estimated_arrival_local = None
+                flight.actual_arrival_local = None
+                flight.scheduled_gate_arrival_local = None
+                flight.estimated_gate_arrival_local = None
+                flight.actual_gate_arrival_local = None
+                flight.terminal = ''
+                flight.gate = ''
+                flight.baggage_claim = ''
+                flight.last_updated = timezone.now()
+                flight.save()
+                logger.info(f"Cleared stale flight data for leg {leg.id} (flight {flight_ident} not found)")
+
+                # Create a flight verification task if one doesn't already exist
+                from ops.models import OperationalTask
+                existing_task = OperationalTask.objects.filter(
+                    leg=leg,
+                    task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                    status__in=list(OperationalTask.OPEN_STATUSES),
+                ).first()
+                if not existing_task:
+                    customer = leg.reservation.customer if leg.reservation else None
+                    pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
+                    pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
+                    from datetime import timedelta as _td
+                    OperationalTask.objects.create(
+                        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                        priority=OperationalTask.Priority.HIGH,
+                        title=f"⚠️ Flight not found: {flight_ident}",
+                        description=(
+                            f"Flight {flight_ident} does not exist. "
+                            f"Please verify and correct the flight number.\n"
+                            f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
+                        ),
+                        leg=leg,
+                        reservation=leg.reservation,
+                        due_at=timezone.now() + _td(hours=4),
+                    )
+                    logger.info(f"Created flight verification task for leg {leg.id}")
+
             return JsonResponse({
                 "success": False,
                 "error": error_msg
@@ -3295,15 +3342,11 @@ def refresh_flight_data(request):
 
 def _best_flight_arrival_time(flight):
     """
-    Pick the best available arrival time for matching pickup to flight.
+    Pick the best arrival time for matching pickup to flight.
 
-    Priority (most accurate first):
-    1. Actual gate arrival (flight has landed and reached the gate)
-    2. Estimated gate arrival (airline's latest estimate, accounts for delays)
-    3. Actual runway arrival (landed but no gate time yet)
-    4. Estimated runway arrival (in-air estimate)
-    5. Scheduled gate arrival (original plan — fallback)
-    6. Scheduled runway arrival (last resort)
+    - Landed: use actual gate/runway arrival
+    - En route or delayed (has estimate): use estimated time
+    - Scheduled with no estimate yet: fall back to scheduled time
     """
     return (
         flight.actual_gate_arrival_local
@@ -3668,6 +3711,51 @@ def _refresh_single_flight(leg):
 
         if flight_data.get("status") != "success":
             error_msg = flight_data.get("error", "Unknown error")
+
+            # Clear ALL stale data so nothing lingers after flight number change
+            if flight_data.get("status") in ("not_found", "not_orlando"):
+                flight.flight_iata = ""
+                flight.origin = ""
+                flight.destination = ""
+                flight.status = "Not Found"
+                flight.scheduled_arrival_local = None
+                flight.estimated_arrival_local = None
+                flight.actual_arrival_local = None
+                flight.scheduled_gate_arrival_local = None
+                flight.estimated_gate_arrival_local = None
+                flight.actual_gate_arrival_local = None
+                flight.terminal = ""
+                flight.gate = ""
+                flight.baggage_claim = ""
+                flight.last_updated = timezone.now()
+                flight.save()
+
+                # Create a flight verification task if one doesn't already exist
+                from ops.models import OperationalTask
+                existing_task = OperationalTask.objects.filter(
+                    leg=leg,
+                    task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                    status__in=list(OperationalTask.OPEN_STATUSES),
+                ).first()
+                if not existing_task:
+                    flight_ident = flight.get_flight_ident() or "Unknown"
+                    pickup_date_fmt = leg.pickup_date.strftime('%m/%d/%Y') if leg.pickup_date else 'N/A'
+                    pickup_time_fmt = leg.pickup_time.strftime('%I:%M %p').lstrip('0') if leg.pickup_time else 'N/A'
+                    from datetime import timedelta as _td
+                    OperationalTask.objects.create(
+                        task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+                        priority=OperationalTask.Priority.HIGH,
+                        title=f"⚠️ Flight not found: {flight_ident}",
+                        description=(
+                            f"Flight {flight_ident} does not exist. "
+                            f"Please verify and correct the flight number.\n"
+                            f"Pickup: {pickup_date_fmt} at {pickup_time_fmt}."
+                        ),
+                        leg=leg,
+                        reservation=leg.reservation,
+                        due_at=timezone.now() + _td(hours=4),
+                    )
+
             return {
                 "leg_id": leg.id,
                 "success": False,
@@ -3718,8 +3806,10 @@ def _refresh_single_flight(leg):
             # AeroAPI provides predictions up to ~48hrs out
             flight.actual_arrival_local = None
             flight.actual_gate_arrival_local = None
-            flight.estimated_arrival_local = flight_data.get("estimated_arrival_local")
-            flight.estimated_gate_arrival_local = flight_data.get("estimated_gate_arrival_local")
+            if flight_data.get("estimated_arrival_local") is not None:
+                flight.estimated_arrival_local = flight_data["estimated_arrival_local"]
+            if flight_data.get("estimated_gate_arrival_local") is not None:
+                flight.estimated_gate_arrival_local = flight_data["estimated_gate_arrival_local"]
         else:
             # Past/current flights: update actuals from AeroAPI data
             flight.actual_arrival_local = flight_data.get("actual_runway_arrival_local")

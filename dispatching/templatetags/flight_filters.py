@@ -28,8 +28,8 @@ def flight_status_color(status):
     
     # Red: Problem statuses - delayed, cancelled, diverted, error states
     red_statuses = [
-        'delayed', 'delay', 'cancelled', 'canceled', 'diverted', 
-        'error', 'failed', 'problem', 'issues'
+        'delayed', 'delay', 'cancelled', 'canceled', 'diverted',
+        'error', 'failed', 'problem', 'issues', 'not found'
     ]
     if any(red_word in status_lower for red_word in red_statuses):
         return "bg-danger"
