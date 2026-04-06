@@ -904,7 +904,7 @@ class Leg(models.Model):
     # When save(update_fields=...) is called with only fields NOT in this set,
     # we skip all the expensive work (route lookup, pay calc, profit calc).
     _EXPENSIVE_FIELDS = frozenset({
-        'route', 'revenue_share', 'pickup_location', 'dropoff_location',
+        'driver', 'route', 'revenue_share', 'pickup_location', 'dropoff_location',
         'driver_base_pay', 'driver_gratuity', 'driver_additional',
         'driver_pay_amount', 'profit_estimate',
     })
@@ -1000,7 +1000,22 @@ class Leg(models.Model):
         if self.driver_base_pay is not None or self.driver_gratuity is not None or self.driver_additional is not None or self.driver_pay_amount is not None:
             self.profit_estimate = self.calculate_profit()
 
+        # When update_fields is specified but save() auto-filled pay or cleared
+        # pay due to driver change, expand update_fields so those values persist.
+        if _uf is not None:
+            _pay_fields = {
+                'driver_base_pay', 'driver_gratuity', 'driver_additional',
+                'driver_pay_amount', 'profit_estimate', 'route', 'revenue_share',
+            }
+            _uf_set = set(_uf)
+            if not _uf_set.issuperset(_pay_fields):
+                _uf_set |= _pay_fields
+                kwargs['update_fields'] = list(_uf_set)
+
         super().save(*args, **kwargs)
+        # Keep _original_driver_id in sync so subsequent saves on the same
+        # instance don't re-trigger the driver-change clear.
+        self._original_driver_id = self.driver_id
         # PERF TEMP START
         import logging as _logging
         _logging.getLogger('perf').debug("Leg.save FULL path: %.1fms (leg #%s)", (_time.monotonic()-_t0)*1000, self.pk)

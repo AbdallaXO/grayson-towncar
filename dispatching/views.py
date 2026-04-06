@@ -1808,17 +1808,8 @@ def update_leg_assignment(request):
                     # Track who assigned the driver and when
                     leg.driver_assigned_by = request.user
                     leg.driver_assigned_at = timezone.now()
-                    # Fast save for assignment fields, then full save for pay calc
+                    # Single save: Leg.save() auto-fills pay when driver changes
                     leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
-                    # Trigger pay auto-fill: clear stale pay, re-save with full path
-                    leg.driver_base_pay = None
-                    leg.driver_gratuity = None
-                    leg.driver_additional = None
-                    leg.driver_pay_amount = None
-                    leg.save(update_fields=[
-                        'driver_base_pay', 'driver_gratuity', 'driver_additional',
-                        'driver_pay_amount', 'profit_estimate',
-                    ])
                     cache.delete(f"capacity_planner_{leg.pickup_date.isoformat()}")
                     logger.info(
                         f"Updated leg {leg_id} with driver {driver.profile.username if hasattr(driver, 'profile') else driver.id} by {request.user.username}"
@@ -5496,6 +5487,106 @@ def update_driver_pay_amount(request):
 
 @login_required(login_url="login")
 @require_http_methods(["POST"])
+def recalculate_driver_pay(request):
+    """Recalculate auto-fill pay for legs.
+
+    Accepts JSON body:
+      - driver_id (int, optional): recalc all zero-pay unpaid legs for this driver
+      - leg_ids (list[int], optional): recalc specific legs
+      - force (bool, optional): if true, recalculate even when pay is already set
+
+    By default only touches legs where all pay fields are null/zero.
+    With force=true + leg_ids, overwrites existing values.
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Unauthorized"}, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    driver_id = data.get("driver_id")
+    leg_ids = data.get("leg_ids")
+    force = data.get("force", False)
+
+    if not driver_id and not leg_ids:
+        return JsonResponse({"success": False, "error": "driver_id or leg_ids required"}, status=400)
+
+    from reservations.models import Leg
+    from django.db.models import Q
+
+    # Build queryset
+    if leg_ids:
+        legs_qs = Leg.objects.filter(id__in=leg_ids, driver__isnull=False)
+        if not force:
+            # Only zero-pay legs
+            zero_pay_q = Q(
+                Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0),
+                Q(driver_gratuity__isnull=True) | Q(driver_gratuity=0),
+                Q(driver_additional__isnull=True) | Q(driver_additional=0),
+                Q(driver_pay_amount__isnull=True) | Q(driver_pay_amount=0),
+            )
+            legs_qs = legs_qs.filter(zero_pay_q)
+    else:
+        # driver_id mode: always only zero-pay
+        zero_pay_q = Q(
+            Q(driver_base_pay__isnull=True) | Q(driver_base_pay=0),
+            Q(driver_gratuity__isnull=True) | Q(driver_gratuity=0),
+            Q(driver_additional__isnull=True) | Q(driver_additional=0),
+            Q(driver_pay_amount__isnull=True) | Q(driver_pay_amount=0),
+            driver__isnull=False,
+        )
+        legs_qs = Leg.objects.filter(
+            driver_id=driver_id,
+            payment_status='unpaid',
+        ).filter(zero_pay_q)
+
+    legs = list(
+        legs_qs
+        .select_related('driver', 'reservation', 'reservation__vehicle', 'route')
+        .only(
+            'id', 'driver', 'driver_id', 'route', 'route_id',
+            'pickup_location', 'dropoff_location', 'pickup_time',
+            'driver_base_pay', 'driver_gratuity', 'driver_additional',
+            'driver_pay_amount', 'profit_estimate', 'revenue_share',
+            'reservation__vehicle_id', 'reservation__gratuity_amount',
+            'reservation__gratuity_percentage', 'reservation__base_price',
+        )[:200]  # cap batch size
+    )
+
+    recalculated = 0
+    filled = 0
+    for leg in legs:
+        # Clear route so it re-matches from pickup/dropoff text
+        leg.route = None
+        # Clear all pay fields to trigger auto-fill in save()
+        leg.driver_base_pay = None
+        leg.driver_gratuity = None
+        leg.driver_additional = None
+        leg.driver_pay_amount = None
+        leg.save(update_fields=[
+            'route', 'driver_base_pay', 'driver_gratuity', 'driver_additional',
+            'driver_pay_amount', 'profit_estimate',
+        ])
+        recalculated += 1
+        if leg.driver_base_pay and leg.driver_base_pay > 0:
+            filled += 1
+
+    return JsonResponse({
+        "success": True,
+        "recalculated": recalculated,
+        "filled": filled,
+        "still_zero": recalculated - filled,
+        "message": (
+            f"Recalculated {recalculated} legs: {filled} got pay values, "
+            f"{recalculated - filled} still need manual entry (no matching rate)."
+        ),
+    })
+
+
+@login_required(login_url="login")
+@require_http_methods(["POST"])
 def bulk_update_leg_status(request):
     """Bulk-update the status of multiple legs (e.g. mark as completed)."""
     if not request.user.is_staff:
@@ -7301,18 +7392,9 @@ def auto_assign_drivers(request):
                 leg.driver = driver
                 leg.driver_assigned_by = request.user
                 leg.driver_assigned_at = now
-                # Fast save for assignment fields
+                # Single save: Leg.save() auto-fills pay when driver changes
                 leg.save(update_fields=[
                     'driver', 'driver_assigned_by', 'driver_assigned_at',
-                ])
-                # Trigger pay auto-fill: clear stale pay, re-save with full path
-                leg.driver_base_pay = None
-                leg.driver_gratuity = None
-                leg.driver_additional = None
-                leg.driver_pay_amount = None
-                leg.save(update_fields=[
-                    'driver_base_pay', 'driver_gratuity', 'driver_additional',
-                    'driver_pay_amount', 'profit_estimate',
                 ])
                 saved += 1
             except Exception:

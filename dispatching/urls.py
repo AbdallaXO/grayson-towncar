@@ -161,6 +161,11 @@ urlpatterns = [
         name="update_driver_pay_amount",
     ),
     path(
+        "recalculate-driver-pay/",
+        views.recalculate_driver_pay,
+        name="recalculate_driver_pay",
+    ),
+    path(
         "process-driver-payment/",
         views.process_driver_payment,
         name="process_driver_payment",

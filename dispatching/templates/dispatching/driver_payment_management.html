@@ -342,8 +342,8 @@
         </div>
       </div>
 
-      <!-- Review Alerts -->
-      {% if zero_pay_count or review_count %}
+      <!-- Review Alerts & Recalculate -->
+      {% if zero_pay_count or review_count or selected_driver %}
         <div class="row mb-3">
           {% if zero_pay_count %}
             <div class="col-auto">
@@ -363,6 +363,14 @@
               </div>
             </div>
           {% endif %}
+          {% if selected_driver and legs %}
+            <div class="col-auto ms-auto">
+              <button type="button" class="btn btn-sm btn-outline-primary" id="recalcPayBtn"
+                      data-driver-id="{{ selected_driver.id }}">
+                <i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay
+              </button>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
 
@@ -378,6 +386,10 @@
                   </span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                  <button type="button" class="btn btn-sm btn-info fw-bold" id="bulkRecalcBtn">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay
+                  </button>
+                  <span class="text-white-50">|</span>
                   <select id="bulkStatusSelect" class="form-select form-select-sm" style="width:auto; font-size:0.85rem;">
                     <option value="">Change status to...</option>
                     <option value="completed">Completed</option>
@@ -673,12 +685,19 @@
                           <div class="fw-bold mb-1" id="total-{{ leg.id }}" style="font-size: 0.9rem;">
                             ${{ leg.total_driver_pay|floatformat:2 }}
                           </div>
-                          <div class="d-flex align-items-center">
+                          <div class="d-flex align-items-center gap-1">
                             <button type="button"
                                     class="btn btn-sm btn-outline-success save-pay-btn"
                                     data-leg-id="{{ leg.id }}"
                                     style="display: none; font-size: 0.75rem; padding: 0.2rem 0.4rem;">
                               <i class="bi bi-check"></i> Save
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary recalc-leg-btn"
+                                    data-leg-id="{{ leg.id }}"
+                                    title="Recalculate pay from rates"
+                                    style="font-size: 0.7rem; padding: 0.15rem 0.35rem;">
+                              <i class="bi bi-arrow-clockwise"></i>
                             </button>
                           </div>
                           <div class="update-status mt-1" id="status-{{ leg.id }}"></div>
@@ -1646,6 +1665,68 @@
               });
           }
           })();
+
+          // Helper: call recalculate endpoint and reload on success
+          function doRecalculate(body, btn, originalHtml) {
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Recalculating...';
+
+              fetch("{% url 'recalculate_driver_pay' %}", {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': csrfToken.value,
+                  },
+                  body: JSON.stringify(body),
+              })
+              .then(r => r.json())
+              .then(data => {
+                  if (data.success) {
+                      alert(data.message);
+                      location.reload();
+                  } else {
+                      alert('Error: ' + (data.error || 'Unknown'));
+                      btn.disabled = false;
+                      btn.innerHTML = originalHtml;
+                  }
+              })
+              .catch(err => {
+                  alert('Error: ' + err.message);
+                  btn.disabled = false;
+                  btn.innerHTML = originalHtml;
+              });
+          }
+
+          // Recalculate all zero-pay legs for driver
+          const recalcBtn = document.getElementById('recalcPayBtn');
+          if (recalcBtn) {
+              recalcBtn.addEventListener('click', function() {
+                  const driverId = this.dataset.driverId;
+                  if (!confirm('Recalculate pay for all $0 legs? Manually-entered values will NOT be changed.')) return;
+                  doRecalculate({ driver_id: parseInt(driverId) }, this, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay');
+              });
+          }
+
+          // Bulk recalculate selected legs (overwrites existing values)
+          const bulkRecalcBtn = document.getElementById('bulkRecalcBtn');
+          if (bulkRecalcBtn) {
+              bulkRecalcBtn.addEventListener('click', function() {
+                  const checked = document.querySelectorAll('.leg-checkbox:checked');
+                  const legIds = Array.from(checked).map(cb => parseInt(cb.value));
+                  if (!legIds.length) { alert('No legs selected.'); return; }
+                  if (!confirm('Recalculate pay for ' + legIds.length + ' selected leg(s)? This will overwrite current values with rates from the system.')) return;
+                  doRecalculate({ leg_ids: legIds, force: true }, this, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay');
+              });
+          }
+
+          // Per-row recalculate button
+          document.querySelectorAll('.recalc-leg-btn').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                  const legId = parseInt(this.dataset.legId);
+                  if (!confirm('Recalculate pay for this leg? Current values will be overwritten.')) return;
+                  doRecalculate({ leg_ids: [legId], force: true }, this, '<i class="bi bi-arrow-clockwise"></i>');
+              });
+          });
       });
   </script>
 {% endblock %}
