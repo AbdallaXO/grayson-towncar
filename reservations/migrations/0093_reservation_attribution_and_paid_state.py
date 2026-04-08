@@ -95,6 +95,13 @@ def _noop_reverse(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # Postgres can't CREATE INDEX in the same transaction as an AddField that
+    # backfills a default on a large table — the UPDATE leaves pending trigger
+    # events that block the index creation. Disabling atomic lets each
+    # operation commit independently. Safe here because the RunPython backfill
+    # is idempotent.
+    atomic = False
+
     dependencies = [
         ("reservations", "0092_merge_20260324_1547"),
         ("payment", "0014_payment_refunded_amount_payment_stripe_refund_id_and_more"),
