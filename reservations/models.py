@@ -168,6 +168,66 @@ class Reservation(models.Model):
         max_length=100, blank=True, null=True, help_text="UTM content parameter"
     )
 
+    # Canonical attribution channel — derived from utm_*/click IDs/travel_agent
+    # in reservations.attribution.derive_booking_source(). Persisted on save so
+    # KPI dashboards can GROUP BY it directly without re-deriving.
+    BOOKING_SOURCE_CHOICES = [
+        ("google_ads", "Google Ads"),
+        ("google_organic", "Google Organic"),
+        ("meta_ads", "Meta Ads"),
+        ("meta_organic", "Meta Organic"),
+        ("travel_agent", "Travel Agent"),
+        ("referral", "Referral"),
+        ("direct", "Direct"),
+        ("phone", "Phone / Dispatcher"),
+        ("other", "Other"),
+    ]
+    booking_source = models.CharField(
+        max_length=32,
+        choices=BOOKING_SOURCE_CHOICES,
+        default="direct",
+        db_index=True,
+        help_text="Normalized acquisition channel for KPI reporting",
+    )
+    is_repeat_booking = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True if this customer's email has a prior reservation. Independent of booking_source.",
+    )
+
+    # Persisted paid state — maintained by payment.signals.sync_reservation_paid_state.
+    # These exist so revenue KPIs can be queried with .filter(is_paid=True)
+    # instead of looping in Python over the @cached_property payment_status.
+    is_paid = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True when at least one Payment with status='paid' exists (net of refunds > 0)",
+    )
+    paid_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Net collected revenue (paid payments minus refunded amounts)",
+    )
+    gross_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Sum of paid Payment amounts before refunds",
+    )
+    total_refunded = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Sum of refunded_amount across all paid payments",
+    )
+    first_paid_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Timestamp of the first successful payment — used for revenue trends",
+    )
+
     # Audit fields - track who created/modified and when
     created_by = models.ForeignKey(
         "auth.User",

@@ -11295,3 +11295,382 @@ def quote_calculator_api(request):
         "all_vehicles": all_vehicles,
         "existing_rate": existing_rate,
     })
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# TRAVEL AGENT / AGENCY MANAGEMENT (admin)
+# ─────────────────────────────────────────────────────────────────────────────
+# Improved management UI: see every agent in one place, see every agency in one
+# place, drill into individual agents/agencies, and assign agents to agencies.
+# ═════════════════════════════════════════════════════════════════════════════
+
+
+def _agent_live_unpaid(agent):
+    """Calculate unpaid commission for an agent in pure Python (decimal-safe)."""
+    from reservations.models import Reservation as _R
+    rate = (agent.commission_rate or Decimal("0")) / Decimal("100")
+    qs = _R.objects.filter(
+        travel_agent=agent, commission_paid=False, status="completed"
+    ).only("base_price")
+    return sum(
+        ((r.base_price or Decimal("0")) * rate for r in qs),
+        Decimal("0"),
+    ).quantize(Decimal("0.01"))
+
+
+def _agent_lifetime_stats(agent):
+    """Total reservations, lifetime revenue, lifetime commission for one agent."""
+    from reservations.models import Reservation as _R
+    rate = (agent.commission_rate or Decimal("0")) / Decimal("100")
+    rows = _R.objects.filter(travel_agent=agent).exclude(status="cancelled").only(
+        "base_price", "total_price", "status"
+    )
+    total = 0
+    revenue = Decimal("0")
+    commission = Decimal("0")
+    for r in rows:
+        total += 1
+        revenue += r.total_price or Decimal("0")
+        commission += (r.base_price or Decimal("0")) * rate
+    return {
+        "reservations": total,
+        "revenue": revenue.quantize(Decimal("0.01")),
+        "commission": commission.quantize(Decimal("0.01")),
+    }
+
+
+@login_required
+@staff_member_required
+def admin_travel_agents(request):
+    """All travel agents in one searchable list."""
+    search = (request.GET.get("q") or "").strip()
+    status = request.GET.get("status", "active")  # active | inactive | all
+    agency_filter = request.GET.get("agency", "")  # "<id>" | "none" | ""
+    sort = request.GET.get("sort", "name")  # name | unpaid | recent | rate
+
+    agents_qs = TravelAgent.objects.select_related("user", "agency")
+
+    if status == "active":
+        agents_qs = agents_qs.filter(is_active=True)
+    elif status == "inactive":
+        agents_qs = agents_qs.filter(is_active=False)
+
+    if agency_filter == "none":
+        agents_qs = agents_qs.filter(agency__isnull=True)
+    elif agency_filter.isdigit():
+        agents_qs = agents_qs.filter(agency_id=int(agency_filter))
+
+    if search:
+        agents_qs = agents_qs.filter(
+            Q(agent_name__icontains=search)
+            | Q(agency_name__icontains=search)
+            | Q(agency__name__icontains=search)
+            | Q(user__email__icontains=search)
+            | Q(user__username__icontains=search)
+            | Q(phone__icontains=search)
+        )
+
+    # Sort
+    if sort == "name":
+        agents_qs = agents_qs.order_by("agent_name", "user__email")
+    elif sort == "rate":
+        agents_qs = agents_qs.order_by("-commission_rate", "agent_name")
+    elif sort == "recent":
+        agents_qs = agents_qs.order_by("-created_at")
+
+    # Paginate first, compute live stats per page
+    paginator = Paginator(agents_qs, 30)
+    page_num = request.GET.get("page", 1)
+    try:
+        page = paginator.page(page_num)
+    except (PageNotAnInteger, EmptyPage):
+        page = paginator.page(1)
+
+    from reservations.models import Reservation as _R
+
+    page_agent_ids = [a.id for a in page]
+    res_counts = dict(
+        _R.objects.filter(travel_agent_id__in=page_agent_ids)
+        .exclude(status="cancelled")
+        .values_list("travel_agent")
+        .annotate(c=Count("id"))
+        .values_list("travel_agent", "c")
+    )
+    unpaid_counts = dict(
+        _R.objects.filter(
+            travel_agent_id__in=page_agent_ids,
+            commission_paid=False,
+            status="completed",
+        )
+        .values_list("travel_agent")
+        .annotate(c=Count("id"))
+        .values_list("travel_agent", "c")
+    )
+
+    rows = []
+    for agent in page:
+        live_unpaid = _agent_live_unpaid(agent)
+        rows.append({
+            "agent": agent,
+            "live_unpaid": live_unpaid,
+            "res_count": res_counts.get(agent.id, 0),
+            "unpaid_res_count": unpaid_counts.get(agent.id, 0),
+        })
+
+    if sort == "unpaid":
+        rows.sort(key=lambda r: r["live_unpaid"], reverse=True)
+
+    # Summary across the FULL filtered set (not just this page)
+    total_agents = agents_qs.count()
+    agents_with_agency = agents_qs.filter(agency__isnull=False).count()
+    agents_no_agency = total_agents - agents_with_agency
+
+    # Agencies for the filter dropdown
+    agencies_for_filter = Agency.objects.order_by("name").only("id", "name")
+
+    context = {
+        "rows": rows,
+        "page": page,
+        "paginator": paginator,
+        "search": search,
+        "status_filter": status,
+        "agency_filter": agency_filter,
+        "sort": sort,
+        "total_agents": total_agents,
+        "agents_with_agency": agents_with_agency,
+        "agents_no_agency": agents_no_agency,
+        "agencies_for_filter": agencies_for_filter,
+    }
+    return render(request, "dispatching/travel_agents_list.html", context)
+
+
+@login_required
+@staff_member_required
+def admin_travel_agencies(request):
+    """All travel agencies in one searchable list."""
+    search = (request.GET.get("q") or "").strip()
+    status = request.GET.get("status", "active")
+    sort = request.GET.get("sort", "name")  # name | agents | recent
+
+    agencies_qs = Agency.objects.all()
+
+    if status == "active":
+        agencies_qs = agencies_qs.filter(is_active=True)
+    elif status == "inactive":
+        agencies_qs = agencies_qs.filter(is_active=False)
+
+    if search:
+        agencies_qs = agencies_qs.filter(
+            Q(name__icontains=search)
+            | Q(phone__icontains=search)
+            | Q(agents__agent_name__icontains=search)
+        ).distinct()
+
+    agencies_qs = agencies_qs.annotate(
+        agent_count=Count("agents", distinct=True),
+        active_agent_count=Count(
+            "agents", filter=Q(agents__is_active=True), distinct=True
+        ),
+    )
+
+    if sort == "name":
+        agencies_qs = agencies_qs.order_by("name")
+    elif sort == "agents":
+        agencies_qs = agencies_qs.order_by("-agent_count", "name")
+    elif sort == "recent":
+        agencies_qs = agencies_qs.order_by("-created_at")
+
+    paginator = Paginator(agencies_qs, 30)
+    page_num = request.GET.get("page", 1)
+    try:
+        page = paginator.page(page_num)
+    except (PageNotAnInteger, EmptyPage):
+        page = paginator.page(1)
+
+    from reservations.models import Reservation as _R
+
+    # Per-page lifetime reservation counts and unpaid commission totals
+    page_agency_ids = [a.id for a in page]
+    res_counts = dict(
+        _R.objects.filter(travel_agent__agency_id__in=page_agency_ids)
+        .exclude(status="cancelled")
+        .values_list("travel_agent__agency")
+        .annotate(c=Count("id"))
+        .values_list("travel_agent__agency", "c")
+    )
+
+    rows = []
+    for agency in page:
+        # Live unpaid commission across all the agency's agents
+        live_unpaid = Decimal("0")
+        for agent in agency.agents.all():
+            live_unpaid += _agent_live_unpaid(agent)
+        rows.append({
+            "agency": agency,
+            "live_unpaid": live_unpaid.quantize(Decimal("0.01")),
+            "res_count": res_counts.get(agency.id, 0),
+        })
+
+    total_agencies = agencies_qs.count()
+    total_active = agencies_qs.filter(is_active=True).count()
+
+    context = {
+        "rows": rows,
+        "page": page,
+        "paginator": paginator,
+        "search": search,
+        "status_filter": status,
+        "sort": sort,
+        "total_agencies": total_agencies,
+        "total_active": total_active,
+    }
+    return render(request, "dispatching/travel_agencies_list.html", context)
+
+
+@login_required
+@staff_member_required
+def admin_travel_agent_detail(request, pk):
+    """Per-agent admin detail with assign-agency control."""
+    from reservations.models import Reservation as _R
+
+    agent = get_object_or_404(
+        TravelAgent.objects.select_related("user", "agency"), pk=pk
+    )
+
+    lifetime = _agent_lifetime_stats(agent)
+    live_unpaid = _agent_live_unpaid(agent)
+
+    # Recent reservations (last 25)
+    recent = (
+        _R.objects.filter(travel_agent=agent)
+        .select_related("customer")
+        .order_by("-created_at")[:25]
+    )
+
+    # Status breakdown
+    status_breakdown = list(
+        _R.objects.filter(travel_agent=agent)
+        .values("status")
+        .annotate(count=Count("id"))
+        .order_by("-count")
+    )
+
+    # Recent commission payouts
+    payouts = CommissionPayout.objects.filter(agent=agent).order_by("-paid_at")[:10]
+
+    # All agencies for the assign dropdown
+    all_agencies = Agency.objects.order_by("name")
+
+    context = {
+        "agent": agent,
+        "lifetime": lifetime,
+        "live_unpaid": live_unpaid,
+        "recent_reservations": recent,
+        "status_breakdown": status_breakdown,
+        "payouts": payouts,
+        "all_agencies": all_agencies,
+    }
+    return render(request, "dispatching/travel_agent_detail.html", context)
+
+
+@login_required
+@staff_member_required
+@require_POST
+def admin_travel_agent_set_agency(request, pk):
+    """
+    Assign an agent to an agency. Accepts:
+      - existing_agency: <agency_id> | "" (none = unassign)
+      - new_agency_name: optional — if filled, creates a new Agency and assigns it
+    """
+    agent = get_object_or_404(TravelAgent, pk=pk)
+
+    new_name = (request.POST.get("new_agency_name") or "").strip()
+    existing = (request.POST.get("existing_agency") or "").strip()
+
+    if new_name:
+        # Reuse if a matching agency name already exists (case-insensitive)
+        agency = Agency.objects.filter(name__iexact=new_name).first()
+        created = False
+        if not agency:
+            agency = Agency.objects.create(name=new_name, is_active=True)
+            created = True
+        agent.agency = agency
+        agent.save(update_fields=["agency"])
+        if created:
+            messages.success(
+                request,
+                f"Created agency \"{agency.name}\" and assigned {agent} to it.",
+            )
+        else:
+            messages.success(
+                request,
+                f"Assigned {agent} to existing agency \"{agency.name}\".",
+            )
+    elif existing == "":
+        agent.agency = None
+        agent.save(update_fields=["agency"])
+        messages.success(request, f"Removed {agent} from their agency.")
+    elif existing.isdigit():
+        agency = get_object_or_404(Agency, pk=int(existing))
+        agent.agency = agency
+        agent.save(update_fields=["agency"])
+        messages.success(request, f"Assigned {agent} to {agency.name}.")
+    else:
+        messages.error(request, "No agency selection provided.")
+
+    return redirect("admin_travel_agent_detail", pk=agent.pk)
+
+
+@login_required
+@staff_member_required
+def admin_travel_agency_detail(request, pk):
+    """Per-agency admin detail. Lists all agents under it with quick stats."""
+    from reservations.models import Reservation as _R
+
+    agency = get_object_or_404(Agency, pk=pk)
+
+    agents = list(
+        agency.agents.select_related("user").order_by(
+            "-is_active", "agent_name"
+        )
+    )
+
+    agent_rows = []
+    total_unpaid = Decimal("0")
+    total_revenue = Decimal("0")
+    total_commission = Decimal("0")
+    total_reservations = 0
+    for agent in agents:
+        live_unpaid = _agent_live_unpaid(agent)
+        lifetime = _agent_lifetime_stats(agent)
+        agent_rows.append({
+            "agent": agent,
+            "live_unpaid": live_unpaid,
+            "reservations": lifetime["reservations"],
+            "revenue": lifetime["revenue"],
+            "commission": lifetime["commission"],
+        })
+        total_unpaid += live_unpaid
+        total_revenue += lifetime["revenue"]
+        total_commission += lifetime["commission"]
+        total_reservations += lifetime["reservations"]
+
+    # Recent reservations across the whole agency
+    recent = (
+        _R.objects.filter(travel_agent__agency=agency)
+        .select_related("customer", "travel_agent")
+        .order_by("-created_at")[:20]
+    )
+
+    context = {
+        "agency": agency,
+        "agent_rows": agent_rows,
+        "total_unpaid": total_unpaid.quantize(Decimal("0.01")),
+        "total_revenue": total_revenue.quantize(Decimal("0.01")),
+        "total_commission": total_commission.quantize(Decimal("0.01")),
+        "total_reservations": total_reservations,
+        "active_agent_count": sum(1 for a in agents if a.is_active),
+        "recent_reservations": recent,
+    }
+    return render(request, "dispatching/travel_agency_detail.html", context)
+

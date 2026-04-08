@@ -267,6 +267,32 @@ urlpatterns = [
         views.preview_agency_payout_view,
         name="preview_agency_payout",
     ),
+    # Travel Agent / Agency management (admin)
+    path(
+        "travel-agents/",
+        views.admin_travel_agents,
+        name="admin_travel_agents",
+    ),
+    path(
+        "travel-agents/<int:pk>/",
+        views.admin_travel_agent_detail,
+        name="admin_travel_agent_detail",
+    ),
+    path(
+        "travel-agents/<int:pk>/set-agency/",
+        views.admin_travel_agent_set_agency,
+        name="admin_travel_agent_set_agency",
+    ),
+    path(
+        "travel-agencies/",
+        views.admin_travel_agencies,
+        name="admin_travel_agencies",
+    ),
+    path(
+        "travel-agencies/<int:pk>/",
+        views.admin_travel_agency_detail,
+        name="admin_travel_agency_detail",
+    ),
     # Admin Payout Detail Views
     path(
         "payout/agency/<int:payout_id>/",
@@ -292,6 +318,7 @@ urlpatterns = [
     path("task-queue/<int:task_id>/", ops_views.task_detail_view, name="task_detail"),
     path("staff-metrics/", ops_views.staff_metrics_view, name="staff_metrics"),
     path("staff-kpis/", ops_views.staff_kpis_view, name="staff_kpis"),
+    path("revenue-kpis/", ops_views.revenue_kpis_view, name="revenue_kpis"),
     path("staff-metrics/<int:user_id>/", ops_views.staff_detail_view, name="staff_detail"),
     # Duplicate Reservation Cleanup
     path("duplicate-reservations/", views.duplicate_reservations, name="duplicate_reservations"),

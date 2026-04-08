@@ -2129,6 +2129,132 @@ def staff_metrics_view(request):
 
 @login_required(login_url="login")
 @user_passes_test(_is_superuser, login_url="dashboard")
+def revenue_kpis_view(request):
+    """
+    Revenue & source-attribution dashboard.
+
+    Sister page to staff_kpis_view, but answers a different question:
+    "Where is the actual money coming from?" Every revenue figure on this
+    page is filtered by Reservation.is_paid=True (the persisted column
+    maintained by payment.signals), so unpaid/pending reservations never
+    inflate the totals.
+
+    Window selection (querystring):
+      ?from=YYYY-MM-DD&to=YYYY-MM-DD   custom inclusive date range
+      ?preset=last_month|this_month|last_7|last_30|last_90|ytd
+      ?d=N                             rolling N-day window (legacy/default)
+    """
+    import json as _json
+    from datetime import date as _date, timedelta as _td
+    from decimal import Decimal as _Decimal
+    from ops import kpis as kpi
+
+    today = timezone.localdate()
+
+    # ── Parse window params ──────────────────────────────────
+    from_param = (request.GET.get("from") or "").strip()
+    to_param = (request.GET.get("to") or "").strip()
+    preset = (request.GET.get("preset") or "").strip()
+
+    custom_from = None
+    custom_to = None
+    range_label = ""
+    range_mode = "rolling"
+
+    def _parse(s):
+        try:
+            return _date.fromisoformat(s)
+        except ValueError:
+            return None
+
+    if from_param or to_param:
+        custom_from = _parse(from_param) or today - _td(days=29)
+        custom_to = _parse(to_param) or today
+        if custom_from > custom_to:
+            custom_from, custom_to = custom_to, custom_from
+        range_mode = "custom"
+        range_label = f"{custom_from.isoformat()} → {custom_to.isoformat()}"
+    elif preset == "this_month":
+        custom_from = today.replace(day=1)
+        custom_to = today
+        range_mode = "preset"
+        range_label = f"This month ({custom_from.strftime('%B %Y')})"
+    elif preset == "last_month":
+        first_this = today.replace(day=1)
+        last_prev = first_this - _td(days=1)
+        custom_from = last_prev.replace(day=1)
+        custom_to = last_prev
+        range_mode = "preset"
+        range_label = f"Last month ({custom_from.strftime('%B %Y')})"
+    elif preset == "ytd":
+        custom_from = today.replace(month=1, day=1)
+        custom_to = today
+        range_mode = "preset"
+        range_label = f"Year to date ({today.year})"
+    elif preset in ("last_7", "last_30", "last_90"):
+        days_n = int(preset.split("_")[1])
+        custom_to = today
+        custom_from = today - _td(days=days_n - 1)
+        range_mode = "preset"
+        range_label = f"Last {days_n} days"
+    else:
+        # Legacy ?d=N rolling window
+        try:
+            days_n = int(request.GET.get("d", "30"))
+        except ValueError:
+            days_n = 30
+        days_n = max(1, min(days_n, 365))
+        custom_to = today
+        custom_from = today - _td(days=days_n - 1)
+        preset = f"last_{days_n}" if days_n in (7, 30, 90) else ""
+        range_label = f"Last {days_n} days"
+
+    # Convert the inclusive date pair into the half-open datetime range
+    # the kpi helpers expect.
+    start_dt, end_dt = kpi.resolve_range(start=custom_from, end=custom_to)
+
+    overview = kpi.overview(start_dt, end_dt)
+    sources = kpi.by_source(start_dt, end_dt)
+    agents = kpi.by_travel_agent(start_dt, end_dt)
+    agent_totals = kpi.travel_agent_totals(start_dt, end_dt)
+    routes = kpi.by_route(start_dt, end_dt)
+    vehicles = kpi.by_vehicle(start_dt, end_dt)
+    trend = kpi.revenue_trend(start_dt, end_dt)
+
+    def _ser(value):
+        if isinstance(value, _Decimal):
+            return float(value)
+        return value
+
+    trend_payload = [
+        {
+            "day": row["day"].isoformat() if row["day"] else None,
+            "revenue": _ser(row["paid_revenue"] or 0),
+            "bookings": row["bookings"] or 0,
+        }
+        for row in trend
+    ]
+
+    context = {
+        "range_from": custom_from.isoformat(),
+        "range_to": custom_to.isoformat(),
+        "range_label": range_label,
+        "range_mode": range_mode,
+        "active_preset": preset,
+        "today_iso": today.isoformat(),
+        "overview": overview,
+        "sources": sources,
+        "agents": agents,
+        "agent_totals": agent_totals,
+        "routes": routes,
+        "vehicles": vehicles,
+        "trend_json": _json.dumps(trend_payload),
+    }
+    return render(request, "dispatching/revenue_kpis.html", context)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="dashboard")
 def staff_kpis_view(request):
     """
     Dedicated KPI dashboard for workload balance, per-task-type specialization,

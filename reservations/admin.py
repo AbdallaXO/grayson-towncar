@@ -960,6 +960,26 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
         "update_profit_calculations",
     ]
 
+    def save_model(self, request, obj, form, change):
+        """
+        Tag staff/dispatcher-created reservations as booking_source='phone'.
+
+        New rows created through the admin almost always represent phone-call
+        bookings or manual entries. We only set this on creation (not on edit)
+        so editing an existing Google Ads booking via the admin doesn't
+        clobber its source attribution.
+        """
+        from reservations.attribution import derive_booking_source, derive_is_repeat
+        is_new = obj.pk is None
+        super().save_model(request, obj, form, change)
+        if is_new:
+            obj.booking_source = derive_booking_source(obj, request=request)
+            obj.is_repeat_booking = derive_is_repeat(obj)
+            type(obj).objects.filter(pk=obj.pk).update(
+                booking_source=obj.booking_source,
+                is_repeat_booking=obj.is_repeat_booking,
+            )
+
     fieldsets = (
         (
             "Reservation",
@@ -987,6 +1007,8 @@ class ReservationAdmin(SimpleHistoryAdmin, DispatcherAdminMixin, ImportExportMod
             "Marketing Attribution",
             {
                 "fields": (
+                    "booking_source",
+                    "is_repeat_booking",
                     "utm_source",
                     "utm_campaign",
                     "gclid",

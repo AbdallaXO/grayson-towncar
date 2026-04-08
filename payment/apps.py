@@ -7,4 +7,5 @@ class PaymentConfig(AppConfig):
 
     def ready(self):
         """Import signals when app is ready"""
-        import payment.models
+        import payment.models  # noqa: F401
+        import payment.signals  # noqa: F401

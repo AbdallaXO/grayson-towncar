@@ -1,0 +1,157 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}Travel Agencies{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">Travel Agencies</h1>
+      <div class="tap-subtitle">Every agency in one place — drill in to see its agents and totals.</div>
+    </div>
+    <div class="tap-tab-row">
+      <a href="{% url 'admin_travel_agents' %}" class="tap-tab">
+        <i class="bi bi-person-badge"></i> Agents
+      </a>
+      <a href="{% url 'admin_travel_agencies' %}" class="tap-tab active">
+        <i class="bi bi-building"></i> Agencies
+      </a>
+      <a href="{% url 'affiliate_payments' %}" class="tap-tab">
+        <i class="bi bi-wallet2"></i> Payments
+      </a>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="tap-summary">
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Agencies (filtered)</div>
+      <div class="tap-stat-value">{{ total_agencies }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Active</div>
+      <div class="tap-stat-value gold">{{ total_active }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">On This Page</div>
+      <div class="tap-stat-value">{{ rows|length }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Page</div>
+      <div class="tap-stat-value">{{ page.number }}/{{ paginator.num_pages }}</div>
+    </div>
+  </div>
+
+  <form method="get" class="tap-filter">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-5">
+        <input type="search" name="q" value="{{ search }}" class="form-control"
+               placeholder="Search agency name, phone, or agent…">
+      </div>
+      <div class="col-md-3">
+        <select name="status" class="form-select">
+          <option value="active"   {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          <option value="all"      {% if status_filter == "all" %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select name="sort" class="form-select">
+          <option value="name"   {% if sort == "name" %}selected{% endif %}>Sort: Name</option>
+          <option value="agents" {% if sort == "agents" %}selected{% endif %}>Sort: Agent count</option>
+          <option value="recent" {% if sort == "recent" %}selected{% endif %}>Sort: Recently added</option>
+        </select>
+      </div>
+      <div class="col-md-1 text-end">
+        <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search"></i></button>
+      </div>
+    </div>
+  </form>
+
+  <div class="tap-table-wrap">
+    <table class="tap-table">
+      <thead>
+        <tr>
+          <th>Agency</th>
+          <th>Phone</th>
+          <th class="text-end">Agents</th>
+          <th class="text-end">Reservations</th>
+          <th class="text-end">Unpaid Comm.</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>
+            <a href="{% url 'admin_travel_agency_detail' row.agency.pk %}" class="row-link">
+              <div class="tap-name">{{ row.agency.name }}</div>
+              {% if row.agency.website %}
+                <div class="tap-sub">{{ row.agency.website }}</div>
+              {% endif %}
+            </a>
+          </td>
+          <td class="tap-sub">{{ row.agency.phone|default:"—" }}</td>
+          <td class="text-end">
+            {{ row.agency.active_agent_count }}
+            {% if row.agency.agent_count != row.agency.active_agent_count %}
+              <span class="tap-sub">/ {{ row.agency.agent_count }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">{{ row.res_count }}</td>
+          <td class="text-end tap-money {% if row.live_unpaid > 0 %}red{% endif %}">
+            ${{ row.live_unpaid|floatformat:2|intcomma }}
+          </td>
+          <td>
+            {% if row.agency.is_active %}
+              <span class="tap-pill tap-pill-active"><i class="bi bi-check-circle-fill"></i> Active</span>
+            {% else %}
+              <span class="tap-pill tap-pill-inactive"><i class="bi bi-pause-circle-fill"></i> Inactive</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'admin_travel_agency_detail' row.agency.pk %}" class="tap-action-btn outline">
+              View <i class="bi bi-arrow-right"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7">
+            <div class="tap-empty">
+              <i class="bi bi-building"></i>
+              No agencies match your filters.
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if paginator.num_pages > 1 %}
+  <nav class="mt-3">
+    <ul class="pagination justify-content-center">
+      {% if page.has_previous %}
+      <li class="page-item"><a class="page-link" href="?page={{ page.previous_page_number }}&q={{ search }}&status={{ status_filter }}&sort={{ sort }}">Prev</a></li>
+      {% endif %}
+      <li class="page-item disabled"><span class="page-link">Page {{ page.number }} of {{ paginator.num_pages }}</span></li>
+      {% if page.has_next %}
+      <li class="page-item"><a class="page-link" href="?page={{ page.next_page_number }}&q={{ search }}&status={{ status_filter }}&sort={{ sort }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

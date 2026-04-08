@@ -1,0 +1,234 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}{{ agency.name }} — Travel Agency{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <a href="{% url 'admin_travel_agencies' %}" class="tap-back-link">
+    <i class="bi bi-arrow-left"></i> All travel agencies
+  </a>
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">{{ agency.name }}</h1>
+      <div class="tap-subtitle">
+        {% if agency.is_active %}
+          <span class="tap-pill tap-pill-active"><i class="bi bi-check-circle-fill"></i> Active</span>
+        {% else %}
+          <span class="tap-pill tap-pill-inactive"><i class="bi bi-pause-circle-fill"></i> Inactive</span>
+        {% endif %}
+        · {{ active_agent_count }} active agent{{ active_agent_count|pluralize }}
+        · {{ total_reservations }} lifetime reservation{{ total_reservations|pluralize }}
+      </div>
+    </div>
+    <div class="tap-tab-row">
+      <a href="{% url 'admin:users_agency_change' agency.pk %}" class="tap-action-btn outline" target="_blank">
+        <i class="bi bi-pencil"></i> Edit in Admin
+      </a>
+    </div>
+  </div>
+
+  <!-- Headline stats -->
+  <div class="tap-summary">
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Active Agents</div>
+      <div class="tap-stat-value">{{ active_agent_count }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Lifetime Revenue</div>
+      <div class="tap-stat-value">${{ total_revenue|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Lifetime Commission</div>
+      <div class="tap-stat-value gold">${{ total_commission|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Unpaid (live)</div>
+      <div class="tap-stat-value red">${{ total_unpaid|floatformat:2|intcomma }}</div>
+    </div>
+  </div>
+
+  <div class="tap-grid-2">
+
+    <!-- LEFT: Agents under this agency -->
+    <div>
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-people"></i>
+          <h6>Agents in this Agency</h6>
+          <div class="spacer"></div>
+          <span class="tap-sub">{{ agent_rows|length }} total</span>
+        </div>
+        {% if agent_rows %}
+        <table class="tap-table">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th class="text-end">Rate</th>
+              <th class="text-end">Reservations</th>
+              <th class="text-end">Unpaid</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in agent_rows %}
+            <tr>
+              <td>
+                <a href="{% url 'admin_travel_agent_detail' row.agent.pk %}" class="row-link">
+                  <div class="tap-name">{{ row.agent.agent_name|default:row.agent.user.email }}</div>
+                  <div class="tap-sub">{{ row.agent.user.email }}</div>
+                </a>
+              </td>
+              <td class="text-end tap-money">{{ row.agent.commission_rate }}%</td>
+              <td class="text-end">{{ row.reservations }}</td>
+              <td class="text-end tap-money {% if row.live_unpaid > 0 %}red{% endif %}">
+                ${{ row.live_unpaid|floatformat:2|intcomma }}
+              </td>
+              <td>
+                {% if row.agent.is_active %}
+                  <span class="tap-pill tap-pill-active">Active</span>
+                {% else %}
+                  <span class="tap-pill tap-pill-inactive">Inactive</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <a href="{% url 'admin_travel_agent_detail' row.agent.pk %}" class="tap-action-btn outline">
+                  <i class="bi bi-arrow-right"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="tap-empty">
+          <i class="bi bi-person-x"></i>
+          No agents linked to this agency yet.
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Recent reservations -->
+      {% if recent_reservations %}
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-calendar-check"></i>
+          <h6>Recent Reservations</h6>
+          <div class="spacer"></div>
+          <span class="tap-sub">Last {{ recent_reservations|length }}</span>
+        </div>
+        <table class="tap-table">
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Customer</th>
+              <th>Agent</th>
+              <th class="text-end">Total</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in recent_reservations %}
+            <tr>
+              <td class="tap-sub">{{ r.created_at|date:"M j, Y" }}</td>
+              <td>{% if r.customer %}{{ r.customer.get_full_name }}{% else %}—{% endif %}</td>
+              <td class="tap-sub">{{ r.travel_agent.agent_name|default:"—" }}</td>
+              <td class="text-end tap-money">${{ r.total_price|floatformat:2|intcomma }}</td>
+              <td>
+                {% if r.status == "completed" %}
+                  <span class="tap-pill tap-pill-active">Completed</span>
+                {% elif r.status == "confirmed" %}
+                  <span class="tap-pill tap-pill-info">Confirmed</span>
+                {% elif r.status == "cancelled" %}
+                  <span class="tap-pill tap-pill-inactive">Cancelled</span>
+                {% else %}
+                  <span class="tap-pill tap-pill-muted">{{ r.status|title }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- RIGHT: Agency profile + heads -->
+    <div>
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-info-circle"></i>
+          <h6>Agency Info</h6>
+        </div>
+        <div class="tap-panel-body">
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Phone</div>
+            <div class="tap-detail-value">{{ agency.phone|default:"—" }}</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Website</div>
+            <div class="tap-detail-value {% if not agency.website %}empty{% endif %}">
+              {% if agency.website %}<a href="{{ agency.website }}" target="_blank">{{ agency.website }}</a>{% else %}—{% endif %}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Address</div>
+            <div class="tap-detail-value {% if not agency.address %}empty{% endif %}">
+              {{ agency.address|default:"—"|linebreaksbr }}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Payment Method</div>
+            <div class="tap-detail-value">
+              {% if agency.payment_method %}{{ agency.get_payment_method_display }}{% else %}<span class="empty">Not set</span>{% endif %}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Payment Info</div>
+            <div class="tap-detail-value {% if not agency.payment_info %}empty{% endif %}">
+              {{ agency.payment_info|default:"—" }}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Total Paid</div>
+            <div class="tap-detail-value tap-money green">${{ agency.total_paid_commission|floatformat:2|intcomma }}</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Created</div>
+            <div class="tap-detail-value">{{ agency.created_at|date:"M j, Y" }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% if agency.heads.all %}
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-person-gear"></i>
+          <h6>Agency Heads</h6>
+        </div>
+        <div class="tap-panel-body">
+          {% for head in agency.heads.all %}
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">{{ head.get_full_name|default:head.username }}</div>
+            <div class="tap-detail-value tap-sub">{{ head.email }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}

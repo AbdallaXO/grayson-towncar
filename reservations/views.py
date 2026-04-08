@@ -183,7 +183,8 @@ def reservation_form(
             if reservation.utm_source:
                 reservation.utm_source = _normalize_utm_source(reservation.utm_source)
 
-            # Save the reservation with UTM data
+            # Save the reservation with UTM data (booking_source derived below
+            # AFTER travel_agent assignment so agent attribution wins).
             reservation.save()
 
             # If user is logged in and is a travel agent, tag the reservation
@@ -204,6 +205,19 @@ def reservation_form(
                         reservation.last_modified_at = timezone.now()
                         reservation.save()
                     pass  # User is not a travel agent, continue normally
+
+            # Derive canonical booking_source / repeat-customer flag for KPI
+            # reporting. Done after travel_agent assignment so agent bookings
+            # are correctly attributed. We pass request=None because the
+            # public booking flow should never tag as "phone" — staff bookings
+            # come through ReservationAdmin.save_model.
+            from reservations.attribution import derive_booking_source, derive_is_repeat
+            reservation.booking_source = derive_booking_source(reservation, request=None)
+            reservation.is_repeat_booking = derive_is_repeat(reservation)
+            Reservation.objects.filter(pk=reservation.pk).update(
+                booking_source=reservation.booking_source,
+                is_repeat_booking=reservation.is_repeat_booking,
+            )
 
             leg1 = leg1_form.save(commit=False)
             leg1.reservation = reservation

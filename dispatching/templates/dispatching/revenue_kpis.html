@@ -1,0 +1,346 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-section { margin-bottom: 2rem; }
+.kpi-section .card-header { background: #fff; border-bottom: 1px solid #e5e7eb; }
+.kpi-section h6 { margin: 0; font-weight: 700; color: #374151; }
+.overview-card {
+  border: 1px solid #e5e7eb; border-radius: .6rem; background: #fff;
+  padding: 1rem 1.1rem; height: 100%;
+}
+.overview-card .label {
+  font-size: .68rem; font-weight: 700; color: #6b7280;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.overview-card .value { font-size: 1.55rem; font-weight: 700; color: #111827; margin-top: .15rem; }
+.overview-card .sub { font-size: .72rem; color: #9ca3af; margin-top: .1rem; }
+.overview-card.gold { border-top: 3px solid #C9A227; }
+.overview-card.green { border-top: 3px solid #10b981; }
+
+.kpi-table { font-size: .8rem; }
+.kpi-table th, .kpi-table td { padding: .5rem .65rem; vertical-align: middle; }
+.kpi-table thead th {
+  background: #f9fafb; color: #6b7280; font-weight: 600; font-size: .68rem;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.kpi-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.kpi-table .source-label { font-weight: 600; color: #1f2937; }
+.kpi-table .pct-bar {
+  display: inline-block; height: 6px; background: #e5e7eb; border-radius: 3px;
+  width: 100%; max-width: 120px; vertical-align: middle; margin-right: .4rem;
+}
+.kpi-table .pct-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #C9A227, #d4af37); border-radius: 3px; }
+.kpi-table tfoot td { background: #f9fafb; font-weight: 700; color: #374151; }
+
+.range-toggle .btn { font-weight: 600; }
+.empty-state { color: #9ca3af; font-style: italic; padding: 1.25rem; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+      <div>
+        <h1 class="mb-1 fw-bold"><i class="bi bi-cash-coin me-2"></i>Revenue KPIs</h1>
+        <p class="text-muted mb-0">Paid revenue & source attribution &middot; <span class="fw-bold text-dark">{{ range_label }}</span></p>
+      </div>
+      <div class="d-flex flex-column align-items-end gap-2">
+        <div class="range-toggle btn-group btn-group-sm">
+          <a href="?preset=last_7" class="btn {% if active_preset == 'last_7' %}btn-dark{% else %}btn-outline-dark{% endif %}">7d</a>
+          <a href="?preset=last_30" class="btn {% if active_preset == 'last_30' %}btn-dark{% else %}btn-outline-dark{% endif %}">30d</a>
+          <a href="?preset=last_90" class="btn {% if active_preset == 'last_90' %}btn-dark{% else %}btn-outline-dark{% endif %}">90d</a>
+          <a href="?preset=this_month" class="btn {% if active_preset == 'this_month' %}btn-dark{% else %}btn-outline-dark{% endif %}">This month</a>
+          <a href="?preset=last_month" class="btn {% if active_preset == 'last_month' %}btn-dark{% else %}btn-outline-dark{% endif %}">Last month</a>
+          <a href="?preset=ytd" class="btn {% if active_preset == 'ytd' %}btn-dark{% else %}btn-outline-dark{% endif %}">YTD</a>
+        </div>
+        <form method="get" class="d-flex align-items-center gap-2 small">
+          <label class="text-muted mb-0">From</label>
+          <input type="date" name="from" value="{{ range_from }}" max="{{ today_iso }}" class="form-control form-control-sm" style="width: 150px;" required>
+          <label class="text-muted mb-0">To</label>
+          <input type="date" name="to" value="{{ range_to }}" max="{{ today_iso }}" class="form-control form-control-sm" style="width: 150px;" required>
+          <button type="submit" class="btn btn-sm {% if range_mode == 'custom' %}btn-dark{% else %}btn-outline-dark{% endif %}">Apply</button>
+        </form>
+      </div>
+    </div>
+
+    {# ── Overview cards ─────────────────────────────────────── #}
+    <div class="row g-3 mb-4">
+      <div class="col-md col-6">
+        <div class="overview-card">
+          <div class="label">Bookings Created</div>
+          <div class="value">{{ overview.bookings_created|intcomma }}</div>
+          <div class="sub">all reservations</div>
+        </div>
+      </div>
+      <div class="col-md col-6">
+        <div class="overview-card">
+          <div class="label">Paid Bookings</div>
+          <div class="value">{{ overview.bookings_paid|intcomma }}</div>
+          <div class="sub">money actually collected</div>
+        </div>
+      </div>
+      <div class="col-md col-6">
+        <div class="overview-card">
+          <div class="label">Paid Conv. Rate</div>
+          <div class="value">{{ overview.paid_conv_rate }}%</div>
+          <div class="sub">paid &divide; created</div>
+        </div>
+      </div>
+      <div class="col-md col-6">
+        <div class="overview-card gold">
+          <div class="label">Paid Revenue (net)</div>
+          <div class="value">${{ overview.paid_revenue|floatformat:2|intcomma }}</div>
+          <div class="sub">net of refunds</div>
+        </div>
+      </div>
+      <div class="col-md col-6">
+        <div class="overview-card green">
+          <div class="label">Avg Ticket</div>
+          <div class="value">${{ overview.avg_ticket|floatformat:2|intcomma }}</div>
+          <div class="sub">per paid booking</div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Net vs gross + repeat sidebar row ──────────────────── #}
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="overview-card">
+          <div class="label">Gross Paid (before refunds)</div>
+          <div class="value">${{ overview.gross_paid|floatformat:2|intcomma }}</div>
+          <div class="sub">— ${{ overview.refunded|floatformat:2|intcomma }} refunded</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="overview-card">
+          <div class="label">Repeat Customer Revenue</div>
+          <div class="value">${{ overview.repeat_revenue|floatformat:2|intcomma }}</div>
+          <div class="sub">paid bookings from returning customers</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="overview-card">
+          <div class="label">Travel-Agent Combined</div>
+          <div class="value">${{ agent_totals.paid_revenue|floatformat:2|intcomma }}</div>
+          <div class="sub">{{ agent_totals.paid_bookings }} bookings · ${{ agent_totals.commission|floatformat:2|intcomma }} commissions</div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Revenue by source ──────────────────────────────────── #}
+    <div class="card kpi-section">
+      <div class="card-header"><h6><i class="bi bi-funnel me-2"></i>Revenue by Source</h6></div>
+      <div class="card-body p-0">
+        {% if sources %}
+        <table class="table table-sm kpi-table mb-0">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th class="num">Created</th>
+              <th class="num">Paid</th>
+              <th class="num">Conv %</th>
+              <th class="num">Paid Revenue</th>
+              <th>% of Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sources %}
+            <tr>
+              <td class="source-label">{{ row.label }}</td>
+              <td class="num">{{ row.created|intcomma }}</td>
+              <td class="num">{{ row.paid|intcomma }}</td>
+              <td class="num">{{ row.conv_rate }}%</td>
+              <td class="num">${{ row.paid_revenue|floatformat:2|intcomma }}</td>
+              <td>
+                <span class="pct-bar"><span style="width: {{ row.pct_of_revenue }}%;"></span></span>
+                <small class="text-muted">{{ row.pct_of_revenue }}%</small>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <div class="empty-state">No bookings in this window.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Travel agent leaderboard ───────────────────────────── #}
+    <div class="card kpi-section">
+      <div class="card-header"><h6><i class="bi bi-person-badge me-2"></i>Travel Agent Leaderboard</h6></div>
+      <div class="card-body p-0">
+        {% if agents %}
+        <table class="table table-sm kpi-table mb-0">
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Agency</th>
+              <th class="num">Paid Bookings</th>
+              <th class="num">Avg Ticket</th>
+              <th class="num">Commission</th>
+              <th class="num">Paid Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in agents %}
+            <tr>
+              <td class="source-label">{{ a.travel_agent__agent_name|default:"—" }}</td>
+              <td>{{ a.travel_agent__agency_name|default:"—" }}</td>
+              <td class="num">{{ a.paid_bookings|intcomma }}</td>
+              <td class="num">${{ a.avg_ticket|floatformat:2|intcomma }}</td>
+              <td class="num">${{ a.commission|default_if_none:0|floatformat:2|intcomma }}</td>
+              <td class="num">${{ a.paid_revenue|floatformat:2|intcomma }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">All Travel Agents combined</td>
+              <td class="num">{{ agent_totals.paid_bookings|intcomma }}</td>
+              <td class="num">—</td>
+              <td class="num">${{ agent_totals.commission|floatformat:2|intcomma }}</td>
+              <td class="num">${{ agent_totals.paid_revenue|floatformat:2|intcomma }}</td>
+            </tr>
+          </tfoot>
+        </table>
+        {% else %}
+          <div class="empty-state">No travel-agent paid bookings in this window.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Trend chart ────────────────────────────────────────── #}
+    <div class="card kpi-section">
+      <div class="card-header"><h6><i class="bi bi-graph-up me-2"></i>Daily Paid Revenue Trend</h6></div>
+      <div class="card-body">
+        <canvas id="revenueTrendChart" height="90"></canvas>
+      </div>
+    </div>
+
+    {# ── Operational: routes + vehicles ─────────────────────── #}
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card kpi-section h-100">
+          <div class="card-header"><h6><i class="bi bi-signpost-split me-2"></i>Top Routes by Revenue</h6></div>
+          <div class="card-body p-0">
+            {% if routes %}
+            <table class="table table-sm kpi-table mb-0">
+              <thead>
+                <tr>
+                  <th>Origin</th>
+                  <th>Destination</th>
+                  <th class="num">Paid Bookings</th>
+                  <th class="num">Paid Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in routes %}
+                <tr>
+                  <td class="source-label">{{ r.rate__route__origin__name|default:"—" }}</td>
+                  <td>{{ r.rate__route__destination__name|default:"—" }}</td>
+                  <td class="num">{{ r.paid_bookings|intcomma }}</td>
+                  <td class="num">${{ r.paid_revenue|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+              <div class="empty-state">No paid routes in this window.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="card kpi-section h-100">
+          <div class="card-header"><h6><i class="bi bi-truck me-2"></i>Revenue by Vehicle</h6></div>
+          <div class="card-body p-0">
+            {% if vehicles %}
+            <table class="table table-sm kpi-table mb-0">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th class="num">Paid</th>
+                  <th class="num">Avg</th>
+                  <th class="num">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in vehicles %}
+                <tr>
+                  <td class="source-label">{{ v.vehicle__vehicle_type|default:"—"|title }}</td>
+                  <td class="num">{{ v.paid_bookings|intcomma }}</td>
+                  <td class="num">${{ v.avg_ticket|floatformat:0|intcomma }}</td>
+                  <td class="num">${{ v.paid_revenue|floatformat:2|intcomma }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}
+              <div class="empty-state">No paid bookings in this window.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      const trend = {{ trend_json|safe }};
+      const ctx = document.getElementById('revenueTrendChart');
+      if (!ctx || !trend.length) return;
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: trend.map(r => r.day),
+          datasets: [
+            {
+              label: 'Paid Revenue ($)',
+              data: trend.map(r => r.revenue),
+              borderColor: '#C9A227',
+              backgroundColor: 'rgba(201,162,39,0.12)',
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'y',
+            },
+            {
+              label: 'Paid Bookings',
+              data: trend.map(r => r.bookings),
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99,102,241,0.10)',
+              tension: 0.3,
+              fill: false,
+              yAxisID: 'y2',
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { position: 'bottom' } },
+          scales: {
+            y: {
+              type: 'linear',
+              position: 'left',
+              ticks: { callback: v => '$' + v.toLocaleString() },
+            },
+            y2: {
+              type: 'linear',
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { precision: 0 },
+            },
+          },
+        },
+      });
+    })();
+  </script>
+{% endblock %}

@@ -105,9 +105,25 @@
           <a class="nav-link text-white {% if request.resolver_match.url_name == 'refund_management' %}active{% endif %}"
              href="{% url 'refund_management' %}"><i class="bi bi-currency-exchange me-1"></i>Refunds</a>
         </li>
+        <!-- KPIs dropdown (superuser-only) -->
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'revenue_kpis' or request.resolver_match.url_name == 'staff_kpis' %}active{% endif %}"
+             href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bar-chart-line me-1"></i>KPIs</a>
+          <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'revenue_kpis' %}active{% endif %}"
+                 href="{% url 'revenue_kpis' %}"><i class="bi bi-cash-coin me-2"></i>Revenue KPIs</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'staff_kpis' %}active{% endif %}"
+                 href="{% url 'staff_kpis' %}"><i class="bi bi-people me-2"></i>Staff KPIs</a>
+            </li>
+          </ul>
+        </li>
         <!-- Admin dropdown -->
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'lead_analytics' or request.resolver_match.url_name == 'affiliate_payments' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'staff_kpis' or request.resolver_match.url_name == 'duplicate_reservations' or request.resolver_match.url_name == 'quote_calculator' %}active{% endif %}"
+          <a class="nav-link dropdown-toggle text-white {% if request.resolver_match.url_name == 'lead_analytics' or request.resolver_match.url_name == 'affiliate_payments' or request.resolver_match.url_name == 'admin_travel_agents' or request.resolver_match.url_name == 'admin_travel_agencies' or request.resolver_match.url_name == 'admin_travel_agent_detail' or request.resolver_match.url_name == 'admin_travel_agency_detail' or request.resolver_match.url_name == 'staff_metrics' or request.resolver_match.url_name == 'duplicate_reservations' or request.resolver_match.url_name == 'quote_calculator' %}active{% endif %}"
              href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <i class="bi bi-shield-lock me-1"></i>Admin</a>
           <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
@@ -116,16 +132,20 @@
                  href="{% url 'lead_analytics' %}"><i class="bi bi-funnel me-2"></i>Lead Analytics</a>
             </li>
             <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'admin_travel_agents' or request.resolver_match.url_name == 'admin_travel_agent_detail' %}active{% endif %}"
+                 href="{% url 'admin_travel_agents' %}"><i class="bi bi-person-badge me-2"></i>Travel Agents</a>
+            </li>
+            <li>
+              <a class="dropdown-item {% if request.resolver_match.url_name == 'admin_travel_agencies' or request.resolver_match.url_name == 'admin_travel_agency_detail' %}active{% endif %}"
+                 href="{% url 'admin_travel_agencies' %}"><i class="bi bi-building me-2"></i>Travel Agencies</a>
+            </li>
+            <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'affiliate_payments' %}active{% endif %}"
                  href="{% url 'affiliate_payments' %}"><i class="bi bi-wallet2 me-2"></i>Affiliate Pay</a>
             </li>
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'staff_metrics' %}active{% endif %}"
                  href="{% url 'staff_metrics' %}"><i class="bi bi-activity me-2"></i>Staff Metrics</a>
-            </li>
-            <li>
-              <a class="dropdown-item {% if request.resolver_match.url_name == 'staff_kpis' %}active{% endif %}"
-                 href="{% url 'staff_kpis' %}"><i class="bi bi-bar-chart-line me-2"></i>Staff KPIs</a>
             </li>
             <li>
               <a class="dropdown-item {% if request.resolver_match.url_name == 'duplicate_reservations' %}active{% endif %}"

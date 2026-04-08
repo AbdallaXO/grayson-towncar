@@ -1,0 +1,283 @@
+{% extends 'main.html' %}
+{% load humanize %}
+
+{% block title %}{{ agent.agent_name|default:agent.user.email }} — Travel Agent{% endblock %}
+
+{% block extra_css %}
+{% include "dispatching/_travel_admin_css.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 tap-wrap">
+
+  <a href="{% url 'admin_travel_agents' %}" class="tap-back-link">
+    <i class="bi bi-arrow-left"></i> All travel agents
+  </a>
+
+  <div class="tap-page-head">
+    <div>
+      <h1 class="tap-title">{{ agent.agent_name|default:agent.user.email }}</h1>
+      <div class="tap-subtitle">
+        {% if agent.agency %}
+          <i class="bi bi-building"></i>
+          <a href="{% url 'admin_travel_agency_detail' agent.agency.pk %}" style="color: var(--gt-gold); text-decoration: none;">
+            {{ agent.agency.name }}
+          </a>
+        {% elif agent.agency_name %}
+          <i class="bi bi-building"></i> {{ agent.agency_name }} <span class="tap-pill tap-pill-muted ms-1">unlinked</span>
+        {% else %}
+          <span class="tap-pill tap-pill-muted">Independent — no agency</span>
+        {% endif %}
+        ·
+        {% if agent.is_active %}
+          <span class="tap-pill tap-pill-active"><i class="bi bi-check-circle-fill"></i> Active</span>
+        {% else %}
+          <span class="tap-pill tap-pill-inactive"><i class="bi bi-pause-circle-fill"></i> Inactive</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="tap-tab-row">
+      <a href="{% url 'admin:users_travelagent_change' agent.pk %}" class="tap-action-btn outline" target="_blank">
+        <i class="bi bi-pencil"></i> Edit in Admin
+      </a>
+      <a href="{% url 'agent_detail' agent.pk %}" class="tap-action-btn outline" target="_blank">
+        <i class="bi bi-eye"></i> Agent View
+      </a>
+    </div>
+  </div>
+
+  <!-- Headline stats -->
+  <div class="tap-summary">
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Lifetime Reservations</div>
+      <div class="tap-stat-value">{{ lifetime.reservations }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Lifetime Revenue</div>
+      <div class="tap-stat-value">${{ lifetime.revenue|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Lifetime Commission</div>
+      <div class="tap-stat-value gold">${{ lifetime.commission|floatformat:2|intcomma }}</div>
+    </div>
+    <div class="tap-stat-card">
+      <div class="tap-stat-label">Unpaid (live)</div>
+      <div class="tap-stat-value red">${{ live_unpaid|floatformat:2|intcomma }}</div>
+    </div>
+  </div>
+
+  <div class="tap-grid-2">
+
+    <!-- LEFT COLUMN -->
+    <div>
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-person-circle"></i>
+          <h6>Profile</h6>
+        </div>
+        <div class="tap-panel-body">
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Name</div>
+            <div class="tap-detail-value">{{ agent.agent_name|default:"—" }}</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Email</div>
+            <div class="tap-detail-value">{{ agent.user.email|default:"—" }}</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Phone</div>
+            <div class="tap-detail-value">{{ agent.phone|default:"—" }}</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Commission Rate</div>
+            <div class="tap-detail-value">{{ agent.commission_rate }}%</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Payment Method</div>
+            <div class="tap-detail-value">
+              {% if agent.payment_method %}
+                {{ agent.get_payment_method_display }}
+              {% else %}
+                <span class="tap-detail-value empty">Not set</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Payment Info</div>
+            <div class="tap-detail-value {% if not agent.payment_info %}empty{% endif %}">
+              {{ agent.payment_info|default:"—" }}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Agency Pays</div>
+            <div class="tap-detail-value">
+              {% if agent.agency_handles_payment %}
+                <span class="tap-pill tap-pill-info">Yes — paid via agency</span>
+              {% else %}
+                <span class="tap-pill tap-pill-muted">No — paid directly</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Created</div>
+            <div class="tap-detail-value">{{ agent.created_at|date:"M j, Y"|default:"—" }}</div>
+          </div>
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">Last Payment</div>
+            <div class="tap-detail-value">
+              {% if agent.last_payment_date %}{{ agent.last_payment_date|date:"M j, Y" }}{% else %}<span class="empty">Never</span>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent reservations -->
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-calendar-check"></i>
+          <h6>Recent Reservations</h6>
+          <div class="spacer"></div>
+          <span class="tap-sub">Last {{ recent_reservations|length }}</span>
+        </div>
+        {% if recent_reservations %}
+        <table class="tap-table">
+          <thead>
+            <tr>
+              <th>Created</th>
+              <th>Customer</th>
+              <th>Status</th>
+              <th class="text-end">Total</th>
+              <th>Paid?</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in recent_reservations %}
+            <tr>
+              <td class="tap-sub">{{ r.created_at|date:"M j, Y" }}</td>
+              <td>
+                {% if r.customer %}{{ r.customer.get_full_name }}{% else %}—{% endif %}
+              </td>
+              <td>
+                {% if r.status == "completed" %}
+                  <span class="tap-pill tap-pill-active">Completed</span>
+                {% elif r.status == "confirmed" %}
+                  <span class="tap-pill tap-pill-info">Confirmed</span>
+                {% elif r.status == "cancelled" %}
+                  <span class="tap-pill tap-pill-inactive">Cancelled</span>
+                {% else %}
+                  <span class="tap-pill tap-pill-muted">{{ r.status|title }}</span>
+                {% endif %}
+              </td>
+              <td class="text-end tap-money">${{ r.total_price|floatformat:2|intcomma }}</td>
+              <td>
+                {% if r.commission_paid %}
+                  <span class="tap-pill tap-pill-active">Paid</span>
+                {% else %}
+                  <span class="tap-pill tap-pill-warn">Unpaid</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="tap-empty">
+          <i class="bi bi-calendar-x"></i>
+          No reservations yet.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div>
+
+      <!-- Agency assignment -->
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-building"></i>
+          <h6>Agency Assignment</h6>
+        </div>
+        <div class="tap-panel-body">
+          {% if agent.agency %}
+          <p style="margin-bottom: 14px; font-size: .85rem;">
+            Currently linked to
+            <a href="{% url 'admin_travel_agency_detail' agent.agency.pk %}" style="color: var(--gt-gold); font-weight: 700;">{{ agent.agency.name }}</a>.
+          </p>
+          {% else %}
+          <p style="margin-bottom: 14px; font-size: .85rem; color: var(--gt-muted);">
+            <i class="bi bi-info-circle"></i>
+            This agent is not linked to any agency record.
+            {% if agent.agency_name %}
+              They have <em>"{{ agent.agency_name }}"</em> set as a free-text agency name.
+            {% endif %}
+          </p>
+          {% endif %}
+
+          <form method="post" action="{% url 'admin_travel_agent_set_agency' agent.pk %}">
+            {% csrf_token %}
+            <div class="mb-2">
+              <label class="tap-mini-stat-label">Pick existing agency</label>
+              <select name="existing_agency" class="form-select form-select-sm mt-1">
+                <option value="">— No agency —</option>
+                {% for ag in all_agencies %}
+                <option value="{{ ag.id }}" {% if agent.agency_id == ag.id %}selected{% endif %}>{{ ag.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="tap-mini-stat-label">…or create a new one</label>
+              <input type="text" name="new_agency_name" class="form-control form-control-sm mt-1"
+                     placeholder="New agency name (overrides selection above)">
+            </div>
+            <button type="submit" class="tap-action-btn gold mt-2 w-100 justify-content-center">
+              <i class="bi bi-save"></i> Save Assignment
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Status breakdown -->
+      {% if status_breakdown %}
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-bar-chart"></i>
+          <h6>Reservations by Status</h6>
+        </div>
+        <div class="tap-panel-body">
+          {% for s in status_breakdown %}
+          <div class="tap-detail-row">
+            <div class="tap-detail-label">{{ s.status|title }}</div>
+            <div class="tap-detail-value text-end" style="font-family: 'JetBrains Mono', monospace;">{{ s.count }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Recent payouts -->
+      {% if payouts %}
+      <div class="tap-panel">
+        <div class="tap-panel-head">
+          <i class="bi bi-wallet2"></i>
+          <h6>Recent Payouts</h6>
+        </div>
+        <div class="tap-panel-body" style="padding: 0;">
+          {% for p in payouts %}
+          <div class="tap-detail-row" style="padding: .55rem 18px;">
+            <div class="tap-detail-label">{{ p.paid_at|date:"M j, Y" }}</div>
+            <div class="tap-detail-value text-end tap-money green">${{ p.total_amount|floatformat:2|intcomma }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+{% block newsletter %}{% endblock %}
