@@ -337,6 +337,29 @@
       document.body.appendChild(popup);
       const tripLabels = {arrival:'Arrival','return':'Return',cruise:'Cruise',other:'Other'};
       let _activeSlot = null;
+
+      // Position popup near (clientX, clientY) but flip + clamp so it never
+      // overflows the viewport. Called on initial show AND on every mousemove.
+      function positionPopup(clientX, clientY) {
+        const margin = 8;
+        const r = popup.getBoundingClientRect();
+        let left = clientX + 12;
+        let top  = clientY + 12;
+        // Flip horizontally if it would overflow the right edge
+        if (left + r.width > window.innerWidth - margin) {
+          left = clientX - r.width - 12;
+        }
+        // Flip vertically if it would overflow the bottom edge
+        if (top + r.height > window.innerHeight - margin) {
+          top = clientY - r.height - 12;
+        }
+        // Clamp into viewport — handles popups taller than the cursor's space
+        left = Math.max(margin, Math.min(left, window.innerWidth  - r.width  - margin));
+        top  = Math.max(margin, Math.min(top,  window.innerHeight - r.height - margin));
+        popup.style.left = left + 'px';
+        popup.style.top  = top  + 'px';
+      }
+
       function showPopup(el, e) {
         const trip = el.dataset.trip || 'other';
         let html = '<div class="tl-popup-header '+trip+'">'+tripLabels[trip]+' — '+(el.dataset.time||'')+'</div>';
@@ -361,14 +384,12 @@
         html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~'+(el.dataset.cleared||'')+'</span></div>';
         html += '</div>';
         popup.innerHTML = html;
-        popup.style.left = (e.clientX+12)+'px';
-        popup.style.top = (e.clientY+12)+'px';
         popup.classList.add('visible');
-        requestAnimationFrame(function(){
-          const r = popup.getBoundingClientRect();
-          if(r.right>window.innerWidth-8) popup.style.left=(e.clientX-r.width-12)+'px';
-          if(r.bottom>window.innerHeight-8) popup.style.top=(e.clientY-r.height-12)+'px';
-        });
+        // Place off-screen first so the initial measurement is accurate,
+        // then position once the browser has laid out the new content.
+        popup.style.left = '-9999px';
+        popup.style.top  = '-9999px';
+        requestAnimationFrame(function(){ positionPopup(e.clientX, e.clientY); });
       }
       document.addEventListener('mouseover',function(e){
         const slot = e.target.closest('[data-tl-popup]');
@@ -379,8 +400,7 @@
         if(!popup.classList.contains('visible')) return;
         const slot = e.target.closest('[data-tl-popup]');
         if(slot && slot===_activeSlot){
-          popup.style.left=(e.clientX+12)+'px';
-          popup.style.top=(e.clientY+12)+'px';
+          positionPopup(e.clientX, e.clientY);
         } else if(!slot){popup.classList.remove('visible');_activeSlot=null;}
       });
     })();

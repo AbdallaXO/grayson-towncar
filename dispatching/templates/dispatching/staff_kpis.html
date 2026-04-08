@@ -1,0 +1,561 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+{% load ops_filters %}
+{% load flight_filters %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-section { margin-bottom: 2rem; }
+.kpi-section .card-header { background: #fff; border-bottom: 1px solid #e5e7eb; }
+.kpi-section h6 { margin: 0; font-weight: 700; color: #374151; }
+.matrix-table { font-size: .78rem; }
+.matrix-table th, .matrix-table td { padding: .4rem .5rem; text-align: center; vertical-align: middle; }
+.matrix-table thead th { background: #f9fafb; color: #6b7280; font-weight: 600; font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; }
+.matrix-table .name-col { text-align: left; font-weight: 600; color: #1f2937; }
+.matrix-table .cell-empty { color: #d1d5db; }
+.matrix-table .cell-count { font-weight: 600; color: #1f2937; }
+.matrix-table .cell-avg { display: block; font-size: .68rem; color: #9ca3af; }
+.matrix-table .cell-top-count { background: rgba(99, 102, 241, .08); }
+.matrix-table .cell-top-count .cell-count { color: #4338ca; }
+.matrix-table .cell-fastest .cell-avg { color: #d97706; font-weight: 600; }
+.matrix-table .cell-fastest { background: rgba(251, 191, 36, .08); }
+.matrix-table tfoot td { background: #f9fafb; font-weight: 700; color: #6b7280; font-size: .72rem; }
+.workload-bar { display: flex; align-items: center; gap: .5rem; }
+.workload-bar .label { width: 130px; font-size: .78rem; font-weight: 600; color: #374151; }
+.workload-bar .track { flex: 1; height: 18px; background: #f3f4f6; border-radius: 4px; overflow: hidden; position: relative; }
+.workload-bar .fill { height: 100%; background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%); border-radius: 4px; }
+.workload-bar .fill.over { background: linear-gradient(90deg, #ef4444 0%, #f97316 100%); }
+.workload-bar .count { width: 36px; text-align: right; font-weight: 700; color: #1f2937; font-size: .82rem; }
+.mean-line { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #111827; opacity: .5; }
+.active-bar { display: flex; align-items: center; gap: .5rem; }
+.active-bar .label { width: 130px; font-size: .78rem; font-weight: 600; color: #374151; }
+.active-bar .track { flex: 1; height: 18px; background: #f3f4f6; border-radius: 4px; overflow: hidden; display: flex; }
+.active-bar .seg-active { background: #10b981; height: 100%; }
+.active-bar .seg-idle { background: #d1d5db; height: 100%; }
+.active-bar .hrs { width: 80px; text-align: right; font-size: .72rem; color: #6b7280; font-weight: 600; }
+/* Daily activity accordion */
+.day-block { border-bottom: 1px solid #e5e7eb; }
+.day-block:last-child { border-bottom: none; }
+.day-header {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .55rem .85rem; cursor: pointer; transition: background .1s;
+  font-size: .82rem; user-select: none;
+}
+.day-header:hover { background: #f9fafb; }
+.day-header .chevron { color: #9ca3af; font-size: .7rem; width: 14px; text-align: center; transition: transform .15s; }
+.day-block.open .day-header .chevron { transform: rotate(90deg); }
+.day-header .date { font-weight: 700; color: #1f2937; min-width: 110px; }
+.day-header .weekday { color: #6b7280; font-weight: 600; }
+.day-header .summary { margin-left: auto; color: #9ca3af; font-size: .72rem; font-weight: 600; }
+.day-body { display: none; padding: 0 .85rem .85rem 2rem; }
+.day-block.open .day-body { display: block; }
+.day-body table { font-size: .76rem; margin-bottom: 0; }
+.day-body th { background: #f9fafb; font-weight: 600; color: #6b7280; font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; }
+.idle-gap-chip {
+  display: inline-block; padding: .12rem .4rem; margin: .1rem .15rem .1rem 0;
+  background: #fef3c7; border: 1px solid #fcd34d; border-radius: 3px;
+  font-size: .68rem; color: #92400e; white-space: nowrap;
+}
+.idle-gap-chip.long { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.driveby-badge {
+  display: inline-block; padding: .08rem .4rem; margin-left: .35rem;
+  background: #e5e7eb; color: #6b7280; border-radius: 3px;
+  font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+}
+tr.driveby-row td { background: #fafafa; color: #9ca3af; }
+tr.driveby-row td a { color: #6b7280 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% block navbar %}{% endblock %}
+  {% include 'dispatching/dispatcher_navbar.html' %}
+
+  <div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+      <div>
+        <h1 class="mb-1 fw-bold"><i class="bi bi-bar-chart-line me-2"></i>Staff KPIs</h1>
+        <p class="text-muted mb-0">Workload, specialization, active time &middot; <span class="fw-bold text-dark">{{ range_label }}</span></p>
+      </div>
+      <div class="d-flex flex-column align-items-end gap-2">
+        <div class="btn-group btn-group-sm">
+          <a href="?range=1" class="btn {% if range_mode == 'rolling' and range_days == 1 %}btn-dark{% else %}btn-outline-dark{% endif %}">Today</a>
+          <a href="?range=7" class="btn {% if range_mode == 'rolling' and range_days == 7 %}btn-dark{% else %}btn-outline-dark{% endif %}">7 days</a>
+          <a href="?range=14" class="btn {% if range_mode == 'rolling' and range_days == 14 %}btn-dark{% else %}btn-outline-dark{% endif %}">14 days</a>
+          <a href="?range=30" class="btn {% if range_mode == 'rolling' and range_days == 30 %}btn-dark{% else %}btn-outline-dark{% endif %}">30 days</a>
+          <a href="?range=90" class="btn {% if range_mode == 'rolling' and range_days == 90 %}btn-dark{% else %}btn-outline-dark{% endif %}">90 days</a>
+        </div>
+        <form method="get" class="d-flex align-items-center gap-2 small">
+          <label class="text-muted">Single day</label>
+          <input type="date" name="date" value="{% if range_mode == 'single' %}{{ range_start_date }}{% endif %}" max="{{ today_iso }}" class="form-control form-control-sm" style="width: 150px;" onchange="this.form.submit()">
+        </form>
+        <form method="get" class="d-flex align-items-center gap-2 small">
+          <label class="text-muted">Custom</label>
+          <input type="date" name="from" value="{% if range_mode == 'custom' %}{{ range_start_date }}{% endif %}" max="{{ today_iso }}" class="form-control form-control-sm" style="width: 145px;" required>
+          <span class="text-muted">to</span>
+          <input type="date" name="to" value="{% if range_mode == 'custom' %}{{ range_end_date }}{% endif %}" max="{{ today_iso }}" class="form-control form-control-sm" style="width: 145px;" required>
+          <button type="submit" class="btn btn-sm {% if range_mode == 'custom' %}btn-dark{% else %}btn-outline-dark{% endif %}">Apply</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ═══════════════ SECTION 0 — BOOKINGS & REVENUE (headline KPI) ═══════════════ -->
+    <div class="kpi-section card border-0 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6><i class="bi bi-cash-stack me-2"></i>Bookings &amp; Revenue <span class="text-muted fw-normal small ms-2">({{ range_days }}d per dispatcher)</span></h6>
+        <div class="small text-muted">
+          <strong>{{ booking_totals.count }}</strong> reservations &middot;
+          <strong class="text-success">${{ booking_totals.revenue|floatformat:0|intcomma }}</strong> total
+        </div>
+      </div>
+      <div class="card-body">
+        {% if booking_leaderboard %}
+          <div class="mb-3">
+            <div class="btn-group btn-group-sm mb-2" role="group">
+              <button type="button" class="btn btn-outline-dark active" data-metric="revenues">Revenue</button>
+              <button type="button" class="btn btn-outline-dark" data-metric="counts">Reservations</button>
+            </div>
+            <canvas id="bookingChart" height="80"></canvas>
+          </div>
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Dispatcher</th>
+                <th class="text-end">Reservations</th>
+                <th class="text-end">Revenue</th>
+                <th class="text-end" title="Total revenue ÷ total bookings — average dollar value of one trip they sold">Avg deal</th>
+                <th class="text-end" title="Days the dispatcher booked at least one reservation">Active days</th>
+                <th class="text-end" title="Reservations per active day (excludes off-days)">Avg/day</th>
+                <th class="text-end" title="Revenue per active day (excludes off-days)">$ avg/day</th>
+                <th class="text-end" title="Highest single-day revenue and the date it happened">Best day</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in booking_leaderboard %}
+              <tr>
+                <td><a href="{% url 'staff_detail' r.user_id %}?range={{ range_days }}" class="text-decoration-none fw-bold">{{ r.name }}</a></td>
+                <td class="text-end fw-bold">{{ r.total_count }}</td>
+                <td class="text-end fw-bold text-success">${{ r.total_revenue|floatformat:0|intcomma }}</td>
+                <td class="text-end fw-bold">${{ r.avg_deal_size|floatformat:0|intcomma }}</td>
+                <td class="text-end text-muted">{{ r.active_days }}</td>
+                <td class="text-end">{{ r.avg_per_day }}</td>
+                <td class="text-end">${{ r.avg_rev_per_day|floatformat:0|intcomma }}</td>
+                <td class="text-end small text-muted" title="{{ r.best_day_count }} bookings on {{ r.best_day_iso }}">${{ r.best_day_revenue|floatformat:0|intcomma }} <span class="d-block text-muted" style="font-size: .65rem;">{{ r.best_day_iso }}</span></td>
+              </tr>
+              {% endfor %}
+              <tr class="table-light">
+                <td class="fw-bold">Team total</td>
+                <td class="text-end fw-bold">{{ booking_totals.count }}</td>
+                <td class="text-end fw-bold text-success">${{ booking_totals.revenue|floatformat:0|intcomma }}</td>
+                <td colspan="5"></td>
+              </tr>
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No reservations created in this period.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ═══════════════ SECTION 1 — WORKLOAD BALANCE ═══════════════ -->
+    <div class="kpi-section card border-0 shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6><i class="bi bi-people me-2"></i>Workload Balance <span class="text-muted fw-normal small ms-2">(now)</span></h6>
+        <div class="small text-muted">
+          {{ total_workload }} open across {{ workload_rows|length }} dispatcher{{ workload_rows|length|pluralize }}
+          &middot; mean <strong>{{ mean_workload }}</strong>
+          {% if unassigned_open %}&middot; <span class="text-warning">{{ unassigned_open }} unassigned</span>{% endif %}
+        </div>
+      </div>
+      <div class="card-body">
+        {% if workload_rows %}
+          <div class="mb-3">
+            {% for r in workload_rows %}
+              <div class="workload-bar mb-2">
+                <div class="label">{{ r.name }}</div>
+                <div class="track">
+                  {% widthratio r.open total_workload 100 as pct %}
+                  <div class="fill {% if r.open > mean_workload %}over{% endif %}" style="width: {{ pct }}%;"></div>
+                </div>
+                <div class="count">{{ r.open }}</div>
+              </div>
+            {% endfor %}
+          </div>
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Dispatcher</th>
+                <th class="text-end">Open</th>
+                <th class="text-end">Overdue</th>
+                <th class="text-end">Snoozed</th>
+                <th class="text-end">Oldest</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in workload_rows %}
+              <tr>
+                <td><a href="{% url 'staff_detail' r.user_id %}?range={{ range_days }}" class="text-decoration-none">{{ r.name }}</a></td>
+                <td class="text-end fw-bold">{{ r.open }}</td>
+                <td class="text-end {% if r.overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ r.overdue }}</td>
+                <td class="text-end text-muted">{{ r.snoozed }}</td>
+                <td class="text-end text-muted small">{% if r.oldest %}{{ r.oldest|time_ago }}{% else %}&mdash;{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No open tasks assigned to dispatchers right now.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ═══════════════ SECTION 2 — SPECIALIZATION MATRIX ═══════════════ -->
+    <div class="kpi-section card border-0 shadow-sm">
+      <div class="card-header">
+        <h6><i class="bi bi-grid-3x3-gap me-2"></i>Specialization Matrix <span class="text-muted fw-normal small ms-2">({{ range_days }}d completed tasks)</span></h6>
+      </div>
+      <div class="card-body p-0">
+        {% if matrix_table %}
+        <div class="table-responsive">
+          <table class="table matrix-table mb-0">
+            <thead>
+              <tr>
+                <th class="name-col">Dispatcher</th>
+                {% for code, label in task_type_choices %}
+                  <th>{{ label }}</th>
+                {% endfor %}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in matrix_table %}
+              <tr>
+                <td class="name-col"><a href="{% url 'staff_detail' row.user_id %}?range={{ range_days }}" class="text-decoration-none">{{ row.name }}</a></td>
+                {% for cell in row.cells %}
+                  <td class="{% if cell.is_top_count %}cell-top-count {% endif %}{% if cell.is_fastest %}cell-fastest{% endif %}">
+                    {% if cell.count > 0 %}
+                      <span class="cell-count">{{ cell.count }}</span>
+                      {% if cell.avg_label %}<span class="cell-avg">{{ cell.avg_label }}</span>{% endif %}
+                    {% else %}
+                      <span class="cell-empty">&mdash;</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+                <td class="cell-count">{{ row.total }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td class="name-col">Total</td>
+                {% for code, total in matrix_col_totals %}
+                  <td>{{ total }}</td>
+                {% endfor %}
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="px-3 py-2 small text-muted border-top">
+          <span class="me-3"><span class="badge" style="background: rgba(99, 102, 241, .2); color: #4338ca;">Top count</span> = highest volume in column</span>
+          <span><span class="badge" style="background: rgba(251, 191, 36, .2); color: #d97706;">Fastest</span> = lowest avg completion time in column</span>
+        </div>
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No completed tasks in this period.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ═══════════════ SECTION 3 — ACTIVE HOURS / IDLE ═══════════════ -->
+    <div class="kpi-section card border-0 shadow-sm">
+      <div class="card-header">
+        <h6><i class="bi bi-stopwatch me-2"></i>Active Hours &amp; Idle Detection <span class="text-muted fw-normal small ms-2">({{ range_days }}d &middot; 30-min idle gap &middot; days with &lt;1h active are excluded from avg)</span></h6>
+      </div>
+      <div class="card-body">
+        {% if active_table %}
+          <div class="mb-3">
+            {% for r in active_table %}
+              <div class="active-bar mb-2">
+                <div class="label">{{ r.name }}</div>
+                <div class="track">
+                  {% widthratio r.active_hrs 24 100 as a_pct %}
+                  {% widthratio r.idle_hrs 24 100 as i_pct %}
+                  <div class="seg-active" style="width: {{ a_pct }}%;"></div>
+                  <div class="seg-idle" style="width: {{ i_pct }}%;"></div>
+                </div>
+                <div class="hrs">{{ r.active_hrs }}h / {{ r.idle_hrs }}h</div>
+              </div>
+            {% endfor %}
+          </div>
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Dispatcher</th>
+                <th class="text-end" title="Days with at least 1 hour of active time — used as the divisor for Avg/day">Working days</th>
+                <th class="text-end" title="Sum of active hours across working days only">Active hrs</th>
+                <th class="text-end">Idle hrs</th>
+                <th class="text-end">Active %</th>
+                <th class="text-end" title="Active hrs ÷ working days — fair across part-time and full-time">Avg/day</th>
+                <th class="text-end">Sessions</th>
+                <th class="text-end" title="Days with under 1 hour of activity (excluded from the comparison)">Drive-by days</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in active_table %}
+              <tr>
+                <td><a href="{% url 'staff_detail' r.user_id %}?range={{ range_days }}" class="text-decoration-none">{{ r.name }}</a></td>
+                <td class="text-end">{{ r.working_days }}</td>
+                <td class="text-end fw-bold">{{ r.active_hrs }}</td>
+                <td class="text-end text-muted">{{ r.idle_hrs }}</td>
+                <td class="text-end">{{ r.active_pct }}%</td>
+                <td class="text-end fw-bold">{{ r.avg_per_day }}</td>
+                <td class="text-end text-muted">{{ r.sessions }}</td>
+                <td class="text-end {% if r.driveby_days %}text-warning{% else %}text-muted{% endif %}">{{ r.driveby_days }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No staff activity in this period.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ═══════════════ SECTION 3.5 — DAILY ACTIVITY DETAIL ═══════════════ -->
+    <div class="kpi-section card border-0 shadow-sm">
+      <div class="card-header">
+        <h6><i class="bi bi-calendar3 me-2"></i>Daily Activity Detail <span class="text-muted fw-normal small ms-2">({{ range_days }}d &middot; click any day to expand)</span></h6>
+      </div>
+      <div class="card-body p-0">
+        {% if daily_activity %}
+          {% for day in daily_activity %}
+          <div class="day-block">
+            <div class="day-header" onclick="this.parentElement.classList.toggle('open')">
+              <span class="chevron"><i class="bi bi-chevron-right"></i></span>
+              <span class="date">{{ day.display }}</span>
+              <span class="weekday">{{ day.weekday }}</span>
+              <span class="summary">{{ day.dispatcher_count }} dispatcher{{ day.dispatcher_count|pluralize }} &middot; {{ day.total_active_hrs }}h active</span>
+            </div>
+            <div class="day-body">
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>Dispatcher</th>
+                      <th>First in</th>
+                      <th>Last out</th>
+                      <th class="text-end">Active</th>
+                      <th class="text-end">Idle</th>
+                      <th class="text-end">Sessions</th>
+                      <th>Idle gaps (when they were away)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for r in day.rows %}
+                    <tr {% if not r.is_working_day %}class="driveby-row"{% endif %}>
+                      <td>
+                        <a href="{% url 'staff_detail' r.user_id %}?range={{ range_days }}" class="text-decoration-none fw-bold">{{ r.name }}</a>
+                        {% if not r.is_working_day %}<span class="driveby-badge" title="Less than 1 hour active — excluded from comparison averages">drive-by</span>{% endif %}
+                      </td>
+                      <td>{{ r.first }}</td>
+                      <td>{{ r.last }}</td>
+                      <td class="text-end fw-bold">{{ r.active_hrs }}h</td>
+                      <td class="text-end text-muted">{{ r.idle_hrs }}h</td>
+                      <td class="text-end text-muted">{{ r.sessions }}</td>
+                      <td>
+                        {% for g in r.gaps %}
+                          <span class="idle-gap-chip{% if g.is_long %} long{% endif %}" title="Away for {{ g.duration }}">{{ g.start }}–{{ g.end }} <span class="text-muted">({{ g.duration }})</span></span>
+                        {% empty %}
+                          <span class="text-muted small">No idle gaps</span>
+                        {% endfor %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted text-center py-3 mb-0">No staff activity in this period.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ═══════════════ SECTION 4 — SIDE-BY-SIDE COMPARISON ═══════════════ -->
+    <div class="kpi-section card border-0 shadow-sm">
+      <div class="card-header">
+        <h6><i class="bi bi-radar me-2"></i>Side-by-side Comparison</h6>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-lg-4">
+            <label class="small text-muted fw-bold mb-2">Pick dispatchers to compare</label>
+            <select id="compareSelect" multiple size="10" class="form-select form-select-sm"></select>
+            <div class="small text-muted mt-2">Hold Ctrl/Cmd to select multiple. Defaults to top 3 by Actions/hr.</div>
+          </div>
+          <div class="col-lg-8">
+            <canvas id="compareRadar" height="260"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const palette = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6', '#a855f7'];
+
+  // ── Bookings & Revenue chart (headline KPI) ──
+  const bookingData = JSON.parse('{{ booking_chart_json|escapejs }}');
+  if (bookingData.series && bookingData.series.length) {
+    const bCtx = document.getElementById('bookingChart');
+    let metric = 'revenues';
+    let bChart = null;
+
+    function buildBookingChart() {
+      if (bChart) bChart.destroy();
+      bChart = new Chart(bCtx, {
+        type: 'line',
+        data: {
+          labels: bookingData.labels.map(d => {
+            const dt = new Date(d + 'T00:00:00');
+            return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          }),
+          datasets: bookingData.series.map((s, i) => ({
+            label: s.name,
+            data: s[metric],
+            borderColor: palette[i % palette.length],
+            backgroundColor: palette[i % palette.length] + '22',
+            tension: 0.3,
+            borderWidth: 2,
+            pointRadius: 2,
+            fill: false,
+          })),
+        },
+        options: {
+          responsive: true,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const v = ctx.parsed.y;
+                  return metric === 'revenues'
+                    ? `${ctx.dataset.label}: $${v.toLocaleString()}`
+                    : `${ctx.dataset.label}: ${v}`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return metric === 'revenues' ? '$' + value.toLocaleString() : value;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    document.querySelectorAll('[data-metric]').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('[data-metric]').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        metric = this.dataset.metric;
+        buildBookingChart();
+      });
+    });
+
+    buildBookingChart();
+  }
+
+  // ── Comparison radar ──
+  const payload = JSON.parse('{{ comparison_json|escapejs }}');
+  if (!payload.length) return;
+
+  const axes = [
+    { key: 'revenue_per_day',  label: 'Revenue/day' },
+    { key: 'bookings_per_day', label: 'Bookings/day' },
+    { key: 'avg_deal_size',    label: 'Avg deal $' },
+    { key: 'tasks_per_day',    label: 'Tasks/day' },
+    { key: 'active_per_day',   label: 'Active hrs/day' },
+  ];
+
+  const select = document.getElementById('compareSelect');
+  payload.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.user_id;
+    opt.textContent = p.name;
+    select.appendChild(opt);
+  });
+
+  // Default selection: top 3 by revenue/day (the headline KPI)
+  const sorted = [...payload].sort((a, b) => b.raw.revenue_per_day - a.raw.revenue_per_day);
+  const defaults = sorted.slice(0, Math.min(3, sorted.length)).map(p => String(p.user_id));
+  Array.from(select.options).forEach(opt => {
+    if (defaults.includes(opt.value)) opt.selected = true;
+  });
+
+  const ctx = document.getElementById('compareRadar');
+  let chart = null;
+
+  function render() {
+    const selectedIds = Array.from(select.selectedOptions).map(o => o.value);
+    const datasets = payload
+      .filter(p => selectedIds.includes(String(p.user_id)))
+      .map((p, i) => ({
+        label: p.name,
+        data: axes.map(a => p.norm[a.key]),
+        borderColor: palette[i % palette.length],
+        backgroundColor: palette[i % palette.length] + '22',
+        borderWidth: 2,
+        pointRadius: 3,
+      }));
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'radar',
+      data: { labels: axes.map(a => a.label), datasets },
+      options: {
+        responsive: true,
+        scales: {
+          r: { beginAtZero: true, suggestedMax: 100, ticks: { stepSize: 25, display: false } },
+        },
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                const p = payload.find(x => x.name === ctx.dataset.label);
+                const axisKey = axes[ctx.dataIndex].key;
+                const rawVal = p.raw[axisKey];
+                const isMoney = axisKey === 'revenue_per_day' || axisKey === 'avg_deal_size';
+                const display = isMoney
+                  ? '$' + rawVal.toLocaleString()
+                  : rawVal;
+                return `${ctx.dataset.label}: ${display} (${ctx.raw}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  select.addEventListener('change', render);
+  render();
+});
+</script>
+{% endblock %}

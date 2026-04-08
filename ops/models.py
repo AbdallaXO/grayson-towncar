@@ -28,6 +28,7 @@ class OperationalTask(models.Model):
         FLIGHT_VERIFICATION = "flight_verify", "Flight Verification"
         DRIVER_CONFLICT = "driver_conflict", "Driver Conflict"
         DRIVER_ASSIGNMENT = "driver_assign", "Driver Assignment"
+        CONFIRMATION_TEXTS = "confirmation_texts", "Confirmation Texts"
         CONTACT_FORM = "contact_form", "Contact Us"
         MANUAL = "manual", "Manual Task"
 
@@ -211,6 +212,7 @@ class OperationalTask(models.Model):
         TaskType.FLIGHT_VERIFICATION: "bi-airplane",
         TaskType.DRIVER_CONFLICT: "bi-exclamation-triangle",
         TaskType.DRIVER_ASSIGNMENT: "bi-person-plus",
+        TaskType.CONFIRMATION_TEXTS: "bi-chat-text-fill",
         TaskType.CONTACT_FORM: "bi-envelope-paper",
         TaskType.MANUAL: "bi-pencil-square",
     }
@@ -220,6 +222,7 @@ class OperationalTask(models.Model):
         TaskType.FLIGHT_VERIFICATION: "#3498db",
         TaskType.DRIVER_CONFLICT: "#e74c3c",
         TaskType.DRIVER_ASSIGNMENT: "#9b59b6",
+        TaskType.CONFIRMATION_TEXTS: "#1abc9c",
         TaskType.CONTACT_FORM: "#2ecc71",
         TaskType.MANUAL: "#7f8c8d",
     }

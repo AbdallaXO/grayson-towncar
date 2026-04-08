@@ -1218,7 +1218,6 @@ def _build_driver_assign_context(task):
     """
     from reservations.models import Leg
     from drivers.models import Driver
-    from django.db.models import Count, Q
 
     leg = task.leg
     if not leg:
@@ -1257,25 +1256,17 @@ def _build_driver_assign_context(task):
             profile__is_active=True,
         )
         .select_related("profile")
-        .annotate(
-            day_legs=Count(
-                "legs",
-                filter=Q(
-                    legs__pickup_date=pickup_date,
-                    legs__status__in=["in-progress", "confirmed", "pending"],
-                ) & ~Q(legs__reservation__status="cancelled"),
-            )
-        )
-        .order_by("day_legs", "profile__first_name")
+        .order_by("profile__first_name")
     )
 
-    # Fetch all active legs for all drivers on this day (one query)
+    # Fetch ALL legs (including completed) for these drivers on this day so we
+    # can show the true day load + when each driver started/cleared.
     all_driver_legs = list(
         Leg.objects.filter(
             driver__in=[d.id for d in drivers],
             pickup_date=pickup_date,
         )
-        .exclude(status__in=["completed", "cancelled"])
+        .exclude(status="cancelled")
         .exclude(reservation__status="cancelled")
         .select_related("driver", "reservation", "reservation__customer")
         .order_by("pickup_time")
@@ -1286,61 +1277,90 @@ def _build_driver_assign_context(task):
     for dl in all_driver_legs:
         legs_by_driver.setdefault(dl.driver_id, []).append(dl)
 
-    # This leg's pickup as datetime for overlap checking
+    # This leg's pickup as datetime for overlap / fitness checking
     this_pickup_dt = dt_cls.combine(pickup_date, leg.pickup_time)
+    completed_states = {"completed"}
+
+    def _fmt_time(dtobj):
+        return dtobj.strftime("%I:%M %p").lstrip("0")
 
     driver_list = []
     for d in drivers:
         d_legs = legs_by_driver.get(d.id, [])
+        day_legs_total = len(d_legs)
+        active_legs = [dl for dl in d_legs if dl.status not in completed_states]
 
-        # Build mini-schedule for this driver
-        mini_schedule = []
-        latest_end = None
-        has_overlap = False
+        # Compute end times once
+        end_times = {}
         for dl in d_legs:
             try:
-                end_time = _estimate_leg_end_time(dl, pickup_date)
+                end_times[dl.id] = _estimate_leg_end_time(dl, pickup_date)
             except Exception:
-                end_time = dt_cls.combine(pickup_date, dl.pickup_time) + timedelta(minutes=60)
+                end_times[dl.id] = dt_cls.combine(pickup_date, dl.pickup_time) + timedelta(minutes=60)
+
+        # Day stats: when did the driver start, when do they clear?
+        first_pickup_dt = None
+        latest_end = None              # latest end across ALL legs (incl completed)
+        latest_active_end = None       # latest end across remaining (active) legs
+        has_overlap = False
+        for dl in d_legs:
+            pickup_dt = dt_cls.combine(pickup_date, dl.pickup_time)
+            end_time = end_times[dl.id]
+            if first_pickup_dt is None or pickup_dt < first_pickup_dt:
+                first_pickup_dt = pickup_dt
             if latest_end is None or end_time > latest_end:
                 latest_end = end_time
+            if dl.status not in completed_states:
+                if latest_active_end is None or end_time > latest_active_end:
+                    latest_active_end = end_time
+                # Overlap check only matters for not-yet-done legs
+                if pickup_dt <= this_pickup_dt < end_time:
+                    has_overlap = True
 
+        # Mini-schedule: only show remaining (active) legs, capped at 4 rows
+        mini_schedule = []
+        for dl in active_legs[:4]:
             cust = dl.reservation.customer if dl.reservation else None
             mini_schedule.append({
-                "pickup_str": dl.pickup_time.strftime("%I:%M %p").lstrip("0"),
-                "end_str": end_time.strftime("%I:%M %p").lstrip("0"),
+                "pickup_str": _fmt_time(dt_cls.combine(pickup_date, dl.pickup_time)),
+                "end_str": _fmt_time(end_times[dl.id]),
                 "route": f"{(dl.pickup_location or '')[:25]} → {(dl.dropoff_location or '')[:25]}",
                 "customer": cust.get_full_name() if cust else "Unknown",
             })
+        more_legs = max(0, len(active_legs) - len(mini_schedule))
 
-        # Check for time conflict with the unassigned leg
-        for dl in d_legs:
-            try:
-                end_time = _estimate_leg_end_time(dl, pickup_date)
-            except Exception:
-                end_time = dt_cls.combine(pickup_date, dl.pickup_time) + timedelta(minutes=60)
-            dl_pickup_dt = dt_cls.combine(pickup_date, dl.pickup_time)
-            # Overlap: driver's leg spans across this leg's pickup time
-            if dl_pickup_dt <= this_pickup_dt < end_time:
-                has_overlap = True
-                break
+        # Hours on duty so far (start of first leg → max(now, this pickup))
+        hours_on_duty = 0.0
+        if first_pickup_dt:
+            ref_end = latest_end if latest_end and latest_end > this_pickup_dt else this_pickup_dt
+            hours_on_duty = max(0.0, (ref_end - first_pickup_dt).total_seconds() / 3600.0)
 
-        # Availability status
-        if d.day_legs == 0:
-            avail_status = "free"
-            avail_label = "Available all day"
-        elif has_overlap:
+        # Fitness / availability label
+        # Priority: hard conflict > heavy day > maybe > free
+        HEAVY_HOURS = 11.0   # ~11h on duty by the time of this pickup = overworked
+        if has_overlap:
             avail_status = "conflict"
             avail_label = "Busy at pickup time"
+        elif day_legs_total == 0:
+            avail_status = "free"
+            avail_label = "Available all day"
+        elif latest_active_end and latest_active_end > this_pickup_dt:
+            # Has a remaining leg that ends after this pickup but doesn't overlap
+            # — they're booked elsewhere when we'd need them.
+            avail_status = "maybe"
+            avail_label = f"Booked until {_fmt_time(latest_active_end)}"
+        elif hours_on_duty >= HEAVY_HOURS:
+            avail_status = "maybe"
+            avail_label = f"Heavy day ({hours_on_duty:.1f}h on duty)"
         elif latest_end and latest_end <= this_pickup_dt:
             avail_status = "free"
-            avail_label = f"Free from {latest_end.strftime('%I:%M %p').lstrip('0')}"
-        elif latest_end:
-            avail_status = "maybe"
-            avail_label = f"Clears ~{latest_end.strftime('%I:%M %p').lstrip('0')}"
+            avail_label = f"Free since {_fmt_time(latest_end)}"
         else:
             avail_status = "free"
             avail_label = "Available"
+
+        started_str = _fmt_time(first_pickup_dt) if first_pickup_dt else ""
+        cleared_str = _fmt_time(latest_end) if latest_end else ""
 
         # Vehicle assignment for the day
         va = vehicle_assignments.get(d.id)
@@ -1354,13 +1374,22 @@ def _build_driver_assign_context(task):
             "id": d.id,
             "name": str(d),
             "phone": d.phone_number or "",
-            "day_legs": d.day_legs,
+            "day_legs": day_legs_total,
+            "active_legs": len(active_legs),
+            "started_str": started_str,
+            "cleared_str": cleared_str,
+            "hours_on_duty": round(hours_on_duty, 1),
             "vehicle_label": vehicle_label,
             "mini_schedule": mini_schedule,
+            "more_legs": more_legs,
             "avail_status": avail_status,
             "avail_label": avail_label,
             "has_overlap": has_overlap,
         })
+
+    # Order: free → maybe → conflict, then by day load
+    _order = {"free": 0, "maybe": 1, "conflict": 2}
+    driver_list.sort(key=lambda x: (_order.get(x["avail_status"], 9), x["day_legs"], x["name"]))
 
     return {
         "da_customer_name": customer_name,
@@ -1372,6 +1401,110 @@ def _build_driver_assign_context(task):
         "da_dropoff_location": leg.dropoff_location,
         "da_drivers": driver_list,
         "is_driver_assign": True,
+    }
+
+
+def _build_confirmation_texts_context(task):
+    """
+    Build context for the daily confirmation_texts batch task. Shows totals,
+    a few sample unsent legs, and a link to the existing Confirmations page
+    pre-filtered to the target date.
+    """
+    from datetime import datetime as dt_cls
+    from reservations.models import Leg
+
+    meta = task.metadata or {}
+    target_str = meta.get("target_date")
+    target_date = None
+    if target_str:
+        try:
+            target_date = dt_cls.strptime(target_str, "%Y-%m-%d").date()
+        except ValueError:
+            target_date = None
+    if target_date is None:
+        target_date = timezone.localdate() + timedelta(days=1)
+
+    base_qs = (
+        Leg.objects.filter(pickup_date=target_date)
+        .exclude(status="cancelled")
+        .exclude(reservation__status="cancelled")
+    )
+    total = base_qs.count()
+    unsent_qs = base_qs.filter(confirmation_sms_sent_at__isnull=True).select_related(
+        "reservation", "reservation__customer"
+    ).order_by("pickup_time")
+    unsent_count = unsent_qs.count()
+    sent_count = total - unsent_count
+
+    # ── Step 1: flight verification state for the target date ──
+    # Two signals matter:
+    #   1) Open FLIGHT_VERIFICATION ops tasks for legs on that day
+    #   2) Arrival legs on that day with a flight-time mismatch (raw)
+    open_flight_tasks = list(
+        OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.FLIGHT_VERIFICATION,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+            leg__pickup_date=target_date,
+        )
+        .select_related("leg", "leg__reservation", "leg__reservation__customer")
+        .order_by("leg__pickup_time")
+    )
+    open_flight_task_count = len(open_flight_tasks)
+
+    # Catch arrival legs that mismatch but don't yet have a verify task
+    raw_mismatch_count = 0
+    for lg in base_qs.filter(flight_information__isnull=False).select_related("flight_information"):
+        if hasattr(lg, "has_flight_time_mismatch"):
+            try:
+                if lg.has_flight_time_mismatch(threshold_minutes=30):
+                    raw_mismatch_count += 1
+            except Exception:
+                pass
+
+    flights_clean = (open_flight_task_count == 0 and raw_mismatch_count == 0)
+
+    flight_task_samples = []
+    for ft in open_flight_tasks[:5]:
+        lg = ft.leg
+        cust = lg.reservation.customer if (lg and lg.reservation) else None
+        flight_task_samples.append({
+            "task_id": ft.id,
+            "guest": cust.get_full_name() if cust else "Unknown",
+            "pickup_time_str": lg.pickup_time.strftime("%I:%M %p").lstrip("0") if lg and lg.pickup_time else "",
+            "title": ft.title,
+        })
+    more_flight_tasks = max(0, open_flight_task_count - len(flight_task_samples))
+
+    # ── Step 2: unsent confirmation samples ──
+    sample_legs = []
+    for lg in unsent_qs[:8]:
+        cust = lg.reservation.customer if lg.reservation else None
+        phone = getattr(cust, "phone_number", "") if cust else ""
+        sample_legs.append({
+            "id": lg.id,
+            "guest": cust.get_full_name() if cust else "Unknown",
+            "pickup_time_str": lg.pickup_time.strftime("%I:%M %p").lstrip("0") if lg.pickup_time else "",
+            "trip_type": lg.get_trip_type() if hasattr(lg, "get_trip_type") else "",
+            "from": (lg.pickup_location or "")[:40],
+            "to": (lg.dropoff_location or "")[:40],
+            "phone": phone or "",
+        })
+    more_unsent = max(0, unsent_count - len(sample_legs))
+
+    return {
+        "ct_target_date": target_date,
+        "ct_target_date_str": str(target_date),
+        "ct_total": total,
+        "ct_sent": sent_count,
+        "ct_unsent": unsent_count,
+        "ct_sample_legs": sample_legs,
+        "ct_more_unsent": more_unsent,
+        "ct_open_flight_tasks": open_flight_task_count,
+        "ct_raw_mismatches": raw_mismatch_count,
+        "ct_flights_clean": flights_clean,
+        "ct_flight_task_samples": flight_task_samples,
+        "ct_more_flight_tasks": more_flight_tasks,
+        "is_confirmation_texts": True,
     }
 
 
@@ -1431,6 +1564,8 @@ def task_detail_view(request, task_id):
         context.update(_build_payment_chase_context(task))
     elif task.task_type == OperationalTask.TaskType.DRIVER_ASSIGNMENT and task.leg:
         context.update(_build_driver_assign_context(task))
+    elif task.task_type == OperationalTask.TaskType.CONFIRMATION_TEXTS:
+        context.update(_build_confirmation_texts_context(task))
 
     return render(request, "dispatching/task_detail.html", context)
 
@@ -1483,6 +1618,23 @@ def staff_metrics_view(request):
     from django.db.models.functions import Coalesce, TruncDate as _TruncDate
     from decimal import Decimal
     from itertools import groupby
+    from users.models import UserProfile
+    from django.contrib.auth.models import User as AuthUser
+
+    # ═══════════════════════════════════════════════════════════════════
+    # DISPATCHER ALLOWLIST — compute upfront so every query below filters
+    # to office staff only (excludes drivers, travel agents, non-staff).
+    # ═══════════════════════════════════════════════════════════════════
+    non_dispatcher_profile_uids = set(
+        UserProfile.objects.filter(
+            Q(is_driver=True) | Q(is_travel_agent=True)
+        ).values_list("user_id", flat=True)
+    )
+    dispatcher_uids = set(
+        AuthUser.objects.filter(is_staff=True)
+        .exclude(id__in=non_dispatcher_profile_uids)
+        .values_list("id", flat=True)
+    )
 
     # ═══════════════════════════════════════════════════════════════════
     # DAILY STAFF SUMMARY — 7 queries grouped by (day, user).
@@ -1500,7 +1652,7 @@ def staff_metrics_view(request):
 
     # 1. First/last active per staff per day (StaffActivity)
     activity_by_day = list(
-        StaffActivity.objects.filter(created_at__gte=range_start)
+        StaffActivity.objects.filter(created_at__gte=range_start, user_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("created_at"))
         .values("day", "user__id", "user__first_name", "user__username")
         .annotate(first_active=Min("created_at"), last_active=Max("created_at"))
@@ -1517,7 +1669,7 @@ def staff_metrics_view(request):
 
     # 2. Reservations created per day per staff
     res_by_day = list(
-        Reservation.objects.filter(created_at__gte=range_start, created_by__isnull=False)
+        Reservation.objects.filter(created_at__gte=range_start, created_by_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("created_at"))
         .values("day", "created_by__id", "created_by__first_name", "created_by__username")
         .annotate(count=Count("id"), revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()))
@@ -1532,7 +1684,7 @@ def staff_metrics_view(request):
 
     # 3. Tasks resolved per day per staff
     tasks_by_day = _day_user_map(
-        OperationalTask.objects.filter(status="completed", resolved_at__gte=range_start, resolved_by__isnull=False)
+        OperationalTask.objects.filter(status="completed", resolved_at__gte=range_start, resolved_by_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("resolved_at"))
         .values("day", "resolved_by__id")
         .annotate(count=Count("id")),
@@ -1541,7 +1693,7 @@ def staff_metrics_view(request):
 
     # 4. Driver assignments per day per staff (AuditLog)
     assigns_by_day = _day_user_map(
-        AuditLog.objects.filter(timestamp__gte=range_start, action="driver_assigned", user__isnull=False)
+        AuditLog.objects.filter(timestamp__gte=range_start, action="driver_assigned", user_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("timestamp"))
         .values("day", "user__id")
         .annotate(count=Count("id")),
@@ -1550,7 +1702,7 @@ def staff_metrics_view(request):
 
     # 5. Legs modified per day per staff
     legs_mod_by_day = _day_user_map(
-        Leg.history.filter(history_date__gte=range_start, history_type="~", history_user__isnull=False)
+        Leg.history.filter(history_date__gte=range_start, history_type="~", history_user_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("history_date"))
         .values("day", "history_user__id")
         .annotate(count=Count("id", distinct=True)),
@@ -1559,7 +1711,7 @@ def staff_metrics_view(request):
 
     # 6. Comms per day per staff (with channel breakdown for overview table)
     comms_by_day_detail = list(
-        CommunicationAttempt.objects.filter(created_at__gte=range_start)
+        CommunicationAttempt.objects.filter(created_at__gte=range_start, staff_user_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("created_at"))
         .values("day", "staff_user__id", "staff_user__first_name", "staff_user__username")
         .annotate(
@@ -1577,7 +1729,7 @@ def staff_metrics_view(request):
 
     # 7. Emails per day per staff (with type breakdown for overview table)
     emails_by_day_detail = list(
-        EmailLog.objects.filter(sent_at__gte=range_start, sent_by__isnull=False)
+        EmailLog.objects.filter(sent_at__gte=range_start, sent_by_id__in=dispatcher_uids)
         .annotate(day=_TruncDate("sent_at"))
         .values("day", "sent_by__id", "sent_by__first_name", "sent_by__username")
         .annotate(
@@ -1594,45 +1746,6 @@ def staff_metrics_view(request):
         key = (row["day"].isoformat(), row["sent_by__id"])
         emails_by_day[key] = row["count"]
         staff_names.setdefault(row["sent_by__id"], row["sent_by__first_name"] or row["sent_by__username"])
-
-    # ═══════════════════════════════════════════════════════════════════
-    # FILTER: Only show dispatchers (exclude drivers, travel agents, non-staff)
-    # ═══════════════════════════════════════════════════════════════════
-    from users.models import UserProfile
-    all_uids = set(staff_names.keys())
-    excluded_uids = set()
-    if all_uids:
-        # Exclude users flagged as drivers or travel agents
-        non_dispatcher_uids = set(
-            UserProfile.objects.filter(
-                user_id__in=all_uids,
-            ).filter(
-                Q(is_driver=True) | Q(is_travel_agent=True)
-            ).values_list("user_id", flat=True)
-        )
-        # Also exclude users who are not staff (e.g. customers who somehow appear)
-        from django.contrib.auth.models import User as AuthUser
-        non_staff_uids = set(
-            AuthUser.objects.filter(id__in=all_uids, is_staff=False).values_list("id", flat=True)
-        )
-        excluded_uids = non_dispatcher_uids | non_staff_uids
-
-        # Remove from staff_names
-        for uid in excluded_uids:
-            staff_names.pop(uid, None)
-
-        # Filter daily data maps
-        for m in [activity_first, activity_last, res_count_map, res_rev_map,
-                  tasks_by_day, assigns_by_day, legs_mod_by_day, comms_by_day, emails_by_day]:
-            for key in list(m.keys()):
-                if key[1] in excluded_uids:
-                    del m[key]
-
-        # Filter detail lists
-        comms_by_day_detail = [r for r in comms_by_day_detail if r["staff_user__id"] not in excluded_uids]
-        emails_by_day_detail = [r for r in emails_by_day_detail if r["sent_by__id"] not in excluded_uids]
-        res_by_day = [r for r in res_by_day if r["created_by__id"] not in excluded_uids]
-        activity_by_day = [r for r in activity_by_day if r["user__id"] not in excluded_uids]
 
     # ═══════════════════════════════════════════════════════════════════
     # DERIVE OVERVIEW TOTALS from daily summary data (no extra queries)
@@ -1699,13 +1812,10 @@ def staff_metrics_view(request):
     for (day_str, uid), cnt in legs_mod_by_day.items():
         _legs_by_uid[uid] += cnt
     # Reservation modifications — still need one query (not in daily data above)
-    res_mods_qs = Reservation.history.filter(
-        history_date__gte=range_start, history_type="~", history_user__isnull=False,
-    )
-    if all_uids and excluded_uids:
-        res_mods_qs = res_mods_qs.exclude(history_user_id__in=excluded_uids)
     res_mods = (
-        res_mods_qs
+        Reservation.history.filter(
+            history_date__gte=range_start, history_type="~", history_user_id__in=dispatcher_uids,
+        )
         .values("history_user__id", "history_user__first_name", "history_user__username")
         .annotate(res_modified=Count("id", distinct=True))
     )
@@ -1739,11 +1849,8 @@ def staff_metrics_view(request):
     staff_active_times = dict(sorted(staff_active_times.items(), key=lambda x: x[1]["first_active"]))
 
     # AuditLog actions per staff (overview needs full breakdown — still one query)
-    audit_qs = AuditLog.objects.filter(timestamp__gte=range_start, user__isnull=False)
-    if all_uids and excluded_uids:
-        audit_qs = audit_qs.exclude(user_id__in=excluded_uids)
     audit_actions = list(
-        audit_qs
+        AuditLog.objects.filter(timestamp__gte=range_start, user_id__in=dispatcher_uids)
         .values("user__id", "user__first_name", "user__username")
         .annotate(
             driver_assignments=Count("id", filter=Q(action="driver_assigned")),
@@ -1797,11 +1904,10 @@ def staff_metrics_view(request):
 
     # ── Staff activity timeline (full range, for the timeline section) ──
     today_start = now.astimezone(eastern).replace(hour=0, minute=0, second=0, microsecond=0)
-    activity_qs = StaffActivity.objects.filter(created_at__gte=range_start).exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
-    if all_uids and excluded_uids:
-        activity_qs = activity_qs.exclude(user_id__in=excluded_uids)
     range_activities = list(
-        activity_qs.select_related("user", "task").order_by("-created_at")[:200]
+        StaffActivity.objects.filter(created_at__gte=range_start, user_id__in=dispatcher_uids)
+        .exclude(action_type=StaffActivity.ActionType.PAGE_VIEW)
+        .select_related("user", "task").order_by("-created_at")[:200]
     )
 
     # ── Task type performance ──
@@ -1812,13 +1918,12 @@ def staff_metrics_view(request):
     )
 
     # ── Page view counts per staff (today) ──
-    pv_qs = StaffActivity.objects.filter(
-        action_type=StaffActivity.ActionType.PAGE_VIEW, created_at__gte=today_start,
-    )
-    if all_uids and excluded_uids:
-        pv_qs = pv_qs.exclude(user_id__in=excluded_uids)
     page_views_today = list(
-        pv_qs
+        StaffActivity.objects.filter(
+            action_type=StaffActivity.ActionType.PAGE_VIEW,
+            created_at__gte=today_start,
+            user_id__in=dispatcher_uids,
+        )
         .values("user__id", "user__first_name", "user__username")
         .annotate(views=Count("id"))
         .order_by("-views")
@@ -1833,11 +1938,11 @@ def staff_metrics_view(request):
         "driver", "status", "total_price", "base_price", "gratuity_amount",
         "passenger_count", "private_notes",
     }
-    leg_hist_qs = Leg.history.filter(history_date__gte=range_start, history_type="~", history_user__isnull=False)
-    if all_uids and excluded_uids:
-        leg_hist_qs = leg_hist_qs.exclude(history_user_id__in=excluded_uids)
     leg_history_in_range = (
-        leg_hist_qs.select_related("history_user").order_by("id", "history_date")[:500]
+        Leg.history.filter(
+            history_date__gte=range_start, history_type="~", history_user_id__in=dispatcher_uids,
+        )
+        .select_related("history_user").order_by("id", "history_date")[:500]
     )
     leg_records_by_id = defaultdict(list)
     for rec in leg_history_in_range:
@@ -1888,7 +1993,7 @@ def staff_metrics_view(request):
     prior_completions_map = dict(
         OperationalTask.objects.filter(
             status="completed", resolved_at__gte=prior_start, resolved_at__lt=prior_end,
-            resolved_by__isnull=False,
+            resolved_by_id__in=dispatcher_uids,
         )
         .values_list("resolved_by__id")
         .annotate(c=Count("id"))
@@ -1897,6 +2002,7 @@ def staff_metrics_view(request):
     prior_comms_map = dict(
         CommunicationAttempt.objects.filter(
             created_at__gte=prior_start, created_at__lt=prior_end,
+            staff_user_id__in=dispatcher_uids,
         )
         .values_list("staff_user__id")
         .annotate(c=Count("id"))
@@ -1905,7 +2011,7 @@ def staff_metrics_view(request):
     prior_res_map = {}
     prior_rev_map = {}
     for row in Reservation.objects.filter(
-        created_at__gte=prior_start, created_at__lt=prior_end, created_by__isnull=False,
+        created_at__gte=prior_start, created_at__lt=prior_end, created_by_id__in=dispatcher_uids,
     ).values("created_by__id").annotate(
         count=Count("id"),
         revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
@@ -1914,7 +2020,7 @@ def staff_metrics_view(request):
         prior_rev_map[row["created_by__id"]] = row["revenue"]
     prior_emails_map = dict(
         EmailLog.objects.filter(
-            sent_at__gte=prior_start, sent_at__lt=prior_end, sent_by__isnull=False,
+            sent_at__gte=prior_start, sent_at__lt=prior_end, sent_by_id__in=dispatcher_uids,
         )
         .values_list("sent_by__id")
         .annotate(c=Count("id"))
@@ -2019,6 +2125,541 @@ def staff_metrics_view(request):
         "daily_summary_json": json.dumps(daily_summary),
     }
     return render(request, "dispatching/staff_metrics.html", context)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="dashboard")
+def staff_kpis_view(request):
+    """
+    Dedicated KPI dashboard for workload balance, per-task-type specialization,
+    and active-time / idle-detection across dispatchers. Companion to
+    staff_metrics_view; this page is comparison-focused, not activity-feed.
+    """
+    from reservations.models import Reservation, Leg, AuditLog
+    from users.models import UserProfile
+    from django.contrib.auth.models import User as AuthUser
+    from datetime import date as _date, datetime as _dt
+    import pytz
+
+    eastern = pytz.timezone("US/Eastern")
+    now = timezone.now()
+    today = timezone.localdate()
+
+    # ── Time range — supports three modes ──
+    #   ?date=YYYY-MM-DD             single day
+    #   ?from=YYYY-MM-DD&to=YYYY-MM-DD   custom range (inclusive)
+    #   ?range=N                     rolling N calendar days ending today (default)
+    date_param = request.GET.get("date", "").strip()
+    from_param = request.GET.get("from", "").strip()
+    to_param = request.GET.get("to", "").strip()
+    range_param = request.GET.get("range", "7").strip()
+
+    range_mode = None
+    view_date = None
+    custom_from = None
+    custom_to = None
+
+    if date_param:
+        try:
+            view_date = _date.fromisoformat(date_param)
+            range_mode = "single"
+        except ValueError:
+            pass
+
+    if range_mode is None and from_param and to_param:
+        try:
+            custom_from = _date.fromisoformat(from_param)
+            custom_to = _date.fromisoformat(to_param)
+            if custom_from > custom_to:
+                custom_from, custom_to = custom_to, custom_from
+            range_mode = "custom"
+        except ValueError:
+            pass
+
+    if range_mode is None:
+        try:
+            days_back_param = int(range_param)
+        except ValueError:
+            days_back_param = 7
+        days_back_param = min(max(days_back_param, 1), 90)
+        range_mode = "rolling"
+
+    if range_mode == "single":
+        start_date = view_date
+        end_date_excl = view_date + timedelta(days=1)
+        days_back = 1
+        # Windows-safe day formatting (no %-d)
+        range_label = view_date.strftime("%A, %b ") + str(view_date.day) + view_date.strftime(", %Y")
+    elif range_mode == "custom":
+        start_date = custom_from
+        end_date_excl = custom_to + timedelta(days=1)
+        days_back = (custom_to - custom_from).days + 1
+        range_label = (
+            custom_from.strftime("%b ") + str(custom_from.day) +
+            " – " +
+            custom_to.strftime("%b ") + str(custom_to.day) + custom_to.strftime(", %Y")
+        )
+    else:  # rolling
+        days_back = days_back_param
+        start_date = today - timedelta(days=days_back - 1)
+        end_date_excl = today + timedelta(days=1)
+        range_label = "Today" if days_back == 1 else f"Last {days_back} days"
+
+    range_start = eastern.localize(_dt.combine(start_date, _dt.min.time()))
+    range_end = eastern.localize(_dt.combine(end_date_excl, _dt.min.time()))
+
+    # ── Dispatcher allowlist (mirrors staff_metrics_view pattern) ──
+    non_dispatcher_profile_uids = set(
+        UserProfile.objects.filter(
+            Q(is_driver=True) | Q(is_travel_agent=True)
+        ).values_list("user_id", flat=True)
+    )
+    dispatcher_users = list(
+        AuthUser.objects.filter(is_staff=True)
+        .exclude(id__in=non_dispatcher_profile_uids)
+        .values("id", "first_name", "username")
+    )
+    dispatcher_uids = {u["id"] for u in dispatcher_users}
+    staff_names = {u["id"]: (u["first_name"] or u["username"]) for u in dispatcher_users}
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECTION 0 — BOOKINGS & REVENUE per dispatcher per day  (headline KPI)
+    # ═══════════════════════════════════════════════════════════════════
+    from django.db.models import Sum, DecimalField
+    from django.db.models.functions import Coalesce, TruncDate as _TruncDate
+    from decimal import Decimal
+
+    bookings_qs = (
+        Reservation.objects
+        .filter(
+            created_at__gte=range_start,
+            created_at__lt=range_end,
+            created_by_id__in=dispatcher_uids,
+        )
+        .annotate(day=_TruncDate("created_at"))
+        .values("day", "created_by_id")
+        .annotate(
+            count=Count("id"),
+            revenue=Coalesce(Sum("total_price"), Decimal("0"), output_field=DecimalField()),
+        )
+    )
+
+    # Build complete day list for the range so the chart has zero-fills
+    day_list = [start_date + timedelta(days=i) for i in range(days_back)]
+    day_iso_list = [d.isoformat() for d in day_list]
+
+    # bookings[uid][day_iso] = {"count": int, "revenue": float}
+    bookings = defaultdict(lambda: {di: {"count": 0, "revenue": 0.0} for di in day_iso_list})
+    for row in bookings_qs:
+        uid = row["created_by_id"]
+        day_iso = row["day"].isoformat()
+        if day_iso in bookings[uid]:
+            bookings[uid][day_iso] = {
+                "count": row["count"],
+                "revenue": float(row["revenue"]),
+            }
+
+    booking_leaderboard = []
+    for uid in dispatcher_uids:
+        if uid not in bookings:
+            continue
+        daily = bookings[uid]
+        total_count = sum(d["count"] for d in daily.values())
+        total_rev = sum(d["revenue"] for d in daily.values())
+        if total_count == 0:
+            continue
+        active_days = sum(1 for d in daily.values() if d["count"] > 0)
+        # best day = highest revenue
+        best_day_iso = max(daily.keys(), key=lambda k: daily[k]["revenue"])
+        best_day = daily[best_day_iso]
+        booking_leaderboard.append({
+            "user_id": uid,
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "total_count": total_count,
+            "total_revenue": round(total_rev, 2),
+            "avg_deal_size": round(total_rev / total_count, 2) if total_count > 0 else 0,
+            "active_days": active_days,
+            "avg_per_day": round(total_count / active_days, 1) if active_days > 0 else 0,
+            "avg_rev_per_day": round(total_rev / active_days, 2) if active_days > 0 else 0,
+            "best_day_iso": best_day_iso,
+            "best_day_count": best_day["count"],
+            "best_day_revenue": round(best_day["revenue"], 2),
+        })
+    booking_leaderboard.sort(key=lambda r: r["total_revenue"], reverse=True)
+
+    booking_chart_payload = {
+        "labels": day_iso_list,
+        "series": [
+            {
+                "name": entry["name"],
+                "user_id": entry["user_id"],
+                "counts": [bookings[entry["user_id"]][di]["count"] for di in day_iso_list],
+                "revenues": [round(bookings[entry["user_id"]][di]["revenue"], 2) for di in day_iso_list],
+            }
+            for entry in booking_leaderboard
+        ],
+    }
+    booking_totals = {
+        "count": sum(e["total_count"] for e in booking_leaderboard),
+        "revenue": round(sum(e["total_revenue"] for e in booking_leaderboard), 2),
+    }
+    booking_lookup = {e["user_id"]: e for e in booking_leaderboard}
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECTION 1 — WORKLOAD BALANCE (current snapshot)
+    # ═══════════════════════════════════════════════════════════════════
+    open_qs = OperationalTask.objects.filter(status__in=list(OperationalTask.OPEN_STATUSES))
+
+    open_per_uid = dict(
+        open_qs.filter(assigned_to_id__in=dispatcher_uids)
+        .values("assigned_to_id")
+        .annotate(c=Count("id"))
+        .values_list("assigned_to_id", "c")
+    )
+    overdue_per_uid = dict(
+        open_qs.filter(assigned_to_id__in=dispatcher_uids, due_at__lt=now)
+        .values("assigned_to_id")
+        .annotate(c=Count("id"))
+        .values_list("assigned_to_id", "c")
+    )
+    snoozed_per_uid = dict(
+        OperationalTask.objects.filter(
+            assigned_to_id__in=dispatcher_uids, status=OperationalTask.Status.SNOOZED,
+        )
+        .values("assigned_to_id")
+        .annotate(c=Count("id"))
+        .values_list("assigned_to_id", "c")
+    )
+    oldest_per_uid = dict(
+        open_qs.filter(assigned_to_id__in=dispatcher_uids)
+        .values("assigned_to_id")
+        .annotate(oldest=Min("created_at"))
+        .values_list("assigned_to_id", "oldest")
+    )
+    unassigned_open = open_qs.filter(assigned_to__isnull=True).count()
+
+    workload_rows = []
+    for uid in dispatcher_uids:
+        cnt = open_per_uid.get(uid, 0)
+        if cnt == 0 and overdue_per_uid.get(uid, 0) == 0 and snoozed_per_uid.get(uid, 0) == 0:
+            continue  # skip dispatchers with literally nothing on their plate
+        workload_rows.append({
+            "user_id": uid,
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "open": cnt,
+            "overdue": overdue_per_uid.get(uid, 0),
+            "snoozed": snoozed_per_uid.get(uid, 0),
+            "oldest": oldest_per_uid.get(uid),
+        })
+    workload_rows.sort(key=lambda r: r["open"], reverse=True)
+    total_workload = sum(r["open"] for r in workload_rows)
+    mean_workload = round(total_workload / len(workload_rows), 1) if workload_rows else 0
+
+    workload_chart_json = json.dumps([
+        {"name": r["name"], "open": r["open"], "overdue": r["overdue"]}
+        for r in workload_rows
+    ])
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECTION 2 — SPECIALIZATION MATRIX (range-based)
+    # ═══════════════════════════════════════════════════════════════════
+    matrix_rows_qs = (
+        OperationalTask.objects.filter(
+            status="completed",
+            resolved_at__gte=range_start,
+            resolved_at__lt=range_end,
+            resolved_by_id__in=dispatcher_uids,
+        )
+        .values("resolved_by_id", "task_type")
+        .annotate(
+            count=Count("id"),
+            avg_seconds=Avg(F("resolved_at") - F("created_at")),
+        )
+    )
+
+    task_types = list(OperationalTask.TaskType.choices)  # [(code, label), ...]
+    type_codes = [c for c, _ in task_types]
+
+    # matrix[uid][type_code] = {"count": int, "avg_seconds": float}
+    matrix = defaultdict(lambda: {tc: {"count": 0, "avg_seconds": None} for tc in type_codes})
+    for row in matrix_rows_qs:
+        uid = row["resolved_by_id"]
+        tc = row["task_type"]
+        avg_td = row["avg_seconds"]
+        avg_secs = avg_td.total_seconds() if avg_td else None
+        matrix[uid][tc] = {"count": row["count"], "avg_seconds": avg_secs}
+
+    # Per-row totals + per-column highlight metadata
+    col_max_count = {tc: 0 for tc in type_codes}
+    col_min_avg = {tc: None for tc in type_codes}
+    for uid, cells in matrix.items():
+        for tc in type_codes:
+            cell = cells[tc]
+            if cell["count"] > col_max_count[tc]:
+                col_max_count[tc] = cell["count"]
+            if cell["avg_seconds"] is not None:
+                if col_min_avg[tc] is None or cell["avg_seconds"] < col_min_avg[tc]:
+                    col_min_avg[tc] = cell["avg_seconds"]
+
+    def _fmt_dur(secs):
+        if secs is None:
+            return ""
+        secs = int(secs)
+        if secs < 60:
+            return f"{secs}s"
+        m = secs // 60
+        if m < 60:
+            return f"{m}m"
+        h = m // 60
+        rem_m = m % 60
+        if h < 24:
+            return f"{h}h {rem_m}m" if rem_m else f"{h}h"
+        d = h // 24
+        return f"{d}d {h % 24}h"
+
+    matrix_table = []
+    for uid, cells in matrix.items():
+        row_total = sum(cells[tc]["count"] for tc in type_codes)
+        if row_total == 0:
+            continue
+        row_cells = []
+        for tc in type_codes:
+            cell = cells[tc]
+            row_cells.append({
+                "type_code": tc,
+                "count": cell["count"],
+                "avg_label": _fmt_dur(cell["avg_seconds"]),
+                "is_top_count": cell["count"] > 0 and cell["count"] == col_max_count[tc],
+                "is_fastest": (
+                    cell["avg_seconds"] is not None
+                    and col_min_avg[tc] is not None
+                    and cell["avg_seconds"] == col_min_avg[tc]
+                ),
+            })
+        matrix_table.append({
+            "user_id": uid,
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "cells": row_cells,
+            "total": row_total,
+        })
+    matrix_table.sort(key=lambda r: r["total"], reverse=True)
+
+    col_totals = []
+    for tc in type_codes:
+        col_totals.append(sum(matrix[uid][tc]["count"] for uid in matrix))
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECTION 3 — ACTIVE HOURS / IDLE DETECTION (per-day, Eastern local)
+    # ═══════════════════════════════════════════════════════════════════
+    IDLE_THRESHOLD_SEC = 30 * 60  # matches middleware DEDUP_SECONDS
+    # A day only counts as a "working day" if the dispatcher logged at least
+    # this much active time on it. Anything less is treated as a drive-by
+    # check-in and excluded from the active-hours rollup so it doesn't drag
+    # down comparisons (still visible in Daily Activity Detail).
+    MIN_WORKING_DAY_SEC = 60 * 60  # 1 hour
+
+    events = list(
+        StaffActivity.objects.filter(
+            created_at__gte=range_start,
+            created_at__lt=range_end,
+            user_id__in=dispatcher_uids,
+        )
+        .values("user_id", "created_at")
+        .order_by("user_id", "created_at")
+    )
+
+    # Group events by user → then by local (Eastern) date so a late-evening
+    # session doesn't get split across the UTC boundary.
+    events_by_uid = defaultdict(list)
+    for e in events:
+        events_by_uid[e["user_id"]].append(e["created_at"])
+
+    def _fmt_clock(dt):
+        return dt.strftime("%I:%M %p").lstrip("0")
+
+    def _fmt_gap(secs):
+        m = int(secs // 60)
+        if m < 60:
+            return f"{m}m"
+        h = m // 60
+        rem = m % 60
+        return f"{h}h {rem}m" if rem else f"{h}h"
+
+    # daily_breakdown_by_uid[uid] = list of per-day stat dicts
+    daily_breakdown_by_uid = defaultdict(list)
+    for uid, ts_list in events_by_uid.items():
+        if not ts_list:
+            continue
+        by_day = defaultdict(list)
+        for ts in ts_list:
+            local_ts = ts.astimezone(eastern)
+            by_day[local_ts.date()].append(local_ts)
+        for day in sorted(by_day.keys()):
+            day_ts = sorted(by_day[day])
+            first = day_ts[0]
+            last = day_ts[-1]
+            active_sec = 0
+            idle_sec = 0
+            sessions = 1
+            gaps = []
+            for i in range(1, len(day_ts)):
+                gap = (day_ts[i] - day_ts[i - 1]).total_seconds()
+                if gap <= IDLE_THRESHOLD_SEC:
+                    active_sec += gap
+                else:
+                    idle_sec += gap
+                    sessions += 1
+                    gaps.append({
+                        "start": _fmt_clock(day_ts[i - 1]),
+                        "end": _fmt_clock(day_ts[i]),
+                        "duration": _fmt_gap(gap),
+                        "is_long": gap >= 3600,  # ≥ 1 hour away
+                    })
+            daily_breakdown_by_uid[uid].append({
+                "date": day.isoformat(),
+                "weekday": day.strftime("%a"),
+                "first": _fmt_clock(first),
+                "last": _fmt_clock(last),
+                "active_hrs": round(active_sec / 3600, 1),
+                "idle_hrs": round(idle_sec / 3600, 1),
+                "active_sec": active_sec,
+                "idle_sec": idle_sec,
+                "sessions": sessions,
+                "gaps": gaps,
+                "gap_count": len(gaps),
+                "is_working_day": active_sec >= MIN_WORKING_DAY_SEC,
+            })
+
+    # Roll up per-uid totals using ONLY real working days (≥ 1 active hour).
+    # Drive-by check-ins are intentionally excluded from both numerator and
+    # denominator so they don't dilute comparisons across people who work
+    # different numbers of days per week.
+    active_hours_by_uid = {}
+    for uid in dispatcher_uids:
+        days = daily_breakdown_by_uid.get(uid, [])
+        working_days = [d for d in days if d["is_working_day"]]
+        active_hours_by_uid[uid] = {
+            "active_sec": sum(d["active_sec"] for d in working_days),
+            "idle_sec": sum(d["idle_sec"] for d in working_days),
+            "sessions": sum(d["sessions"] for d in working_days),
+            "active_days": len(working_days),
+            "driveby_days": len(days) - len(working_days),
+        }
+
+    # Pivot per-day breakdowns into a day-first structure for "compare every day"
+    day_to_rows = defaultdict(list)
+    for uid, days in daily_breakdown_by_uid.items():
+        for d in days:
+            day_to_rows[d["date"]].append({
+                "user_id": uid,
+                "name": staff_names.get(uid, f"User #{uid}"),
+                **d,
+            })
+    daily_activity = []
+    from datetime import date as _date
+    for day_iso in sorted(day_to_rows.keys(), reverse=True):
+        rows = sorted(day_to_rows[day_iso], key=lambda x: x["first"])
+        d_obj = _date.fromisoformat(day_iso)
+        daily_activity.append({
+            "date": day_iso,
+            "weekday": d_obj.strftime("%A"),
+            "display": d_obj.strftime("%b %d"),
+            "rows": rows,
+            "total_active_hrs": round(sum(r["active_hrs"] for r in rows), 1),
+            "dispatcher_count": len(rows),
+        })
+
+    active_table = []
+    for uid in dispatcher_uids:
+        stats = active_hours_by_uid.get(uid, {"active_sec": 0, "idle_sec": 0, "sessions": 0, "active_days": 0})
+        active_hrs = stats["active_sec"] / 3600
+        idle_hrs = stats["idle_sec"] / 3600
+        if active_hrs == 0:
+            continue
+        active_pct = round(active_hrs / (active_hrs + idle_hrs) * 100) if (active_hrs + idle_hrs) > 0 else 0
+        avg_per_day = round(active_hrs / stats["active_days"], 1) if stats["active_days"] > 0 else 0
+        active_table.append({
+            "user_id": uid,
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "active_hrs": round(active_hrs, 1),
+            "idle_hrs": round(idle_hrs, 1),
+            "active_pct": active_pct,
+            "avg_per_day": avg_per_day,
+            "working_days": stats["active_days"],
+            "driveby_days": stats["driveby_days"],
+            "sessions": stats["sessions"],
+        })
+    active_table.sort(key=lambda r: r["active_hrs"], reverse=True)
+
+    active_chart_json = json.dumps([
+        {"name": r["name"], "active": r["active_hrs"], "idle": r["idle_hrs"]}
+        for r in sorted(active_table, key=lambda x: x["active_hrs"], reverse=True)
+    ])
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECTION 4 — SIDE-BY-SIDE COMPARISON (radar chart input)
+    # ═══════════════════════════════════════════════════════════════════
+    # Money-first axes: revenue, bookings, deal size are the headline KPIs.
+    # Tasks/day and active hrs/day are kept as supporting context but
+    # vanity proxies (open load, actions/hr, breadth) were intentionally dropped.
+    raw_metrics = {}
+    for uid in dispatcher_uids:
+        active = next((r for r in active_table if r["user_id"] == uid), None)
+        matrix_row = next((r for r in matrix_table if r["user_id"] == uid), None)
+        booking = booking_lookup.get(uid)
+        raw_metrics[uid] = {
+            "name": staff_names.get(uid, f"User #{uid}"),
+            "revenue_per_day": booking["avg_rev_per_day"] if booking else 0,
+            "bookings_per_day": booking["avg_per_day"] if booking else 0,
+            "avg_deal_size": booking["avg_deal_size"] if booking else 0,
+            "tasks_per_day": round((matrix_row["total"] if matrix_row else 0) / days_back, 2),
+            "active_per_day": active["avg_per_day"] if active else 0,
+        }
+
+    axes = ["revenue_per_day", "bookings_per_day", "avg_deal_size", "tasks_per_day", "active_per_day"]
+    axis_max = {a: max([m[a] for m in raw_metrics.values()] + [0]) for a in axes}
+    comparison_payload = []
+    for uid, m in raw_metrics.items():
+        if all(m[a] == 0 for a in axes):
+            continue
+        comparison_payload.append({
+            "user_id": uid,
+            "name": m["name"],
+            "raw": {a: m[a] for a in axes},
+            "norm": {a: round((m[a] / axis_max[a]) * 100, 1) if axis_max[a] else 0 for a in axes},
+        })
+    comparison_payload.sort(key=lambda x: x["name"])
+
+    context = {
+        "range_days": days_back,
+        "range_mode": range_mode,
+        "range_label": range_label,
+        "range_start_date": start_date.isoformat(),
+        "range_end_date": (end_date_excl - timedelta(days=1)).isoformat(),
+        "today_iso": today.isoformat(),
+        # Section 0 — bookings & revenue (headline)
+        "booking_leaderboard": booking_leaderboard,
+        "booking_chart_json": json.dumps(booking_chart_payload),
+        "booking_totals": booking_totals,
+        # Section 1
+        "workload_rows": workload_rows,
+        "total_workload": total_workload,
+        "mean_workload": mean_workload,
+        "unassigned_open": unassigned_open,
+        "workload_chart_json": workload_chart_json,
+        # Section 2
+        "matrix_table": matrix_table,
+        "task_type_choices": task_types,
+        "matrix_col_totals": list(zip(type_codes, col_totals)),
+        # Section 3
+        "active_table": active_table,
+        "active_chart_json": active_chart_json,
+        "daily_activity": daily_activity,
+        # Section 4
+        "comparison_json": json.dumps(comparison_payload),
+        "comparison_axes": axes,
+    }
+    return render(request, "dispatching/staff_kpis.html", context)
 
 
 @login_required(login_url="login")

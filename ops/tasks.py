@@ -247,6 +247,7 @@ def generate_ops_tasks():
     created += _scan_unassigned_legs()
     created += _scan_unpaid_reservations()
     created += _scan_uncontacted_forms()
+    created += _scan_confirmation_texts()
     closed += _auto_close_resolved_tasks()
     reopened += _reopen_snoozed_tasks()
 
@@ -767,6 +768,116 @@ def _scan_unpaid_reservations():
     return created
 
 
+# ── Confirmation texts scanner ──────────────────────────────────────────────
+
+# Earliest local hour at which the daily confirmation-texts task should appear.
+# Confirmations go out the day before — surface the task in the morning so
+# staff can verify all of tomorrow's flights first, then send the batch.
+CONFIRMATION_TEXTS_OPEN_HOUR = 9   # 9 AM local
+
+# Local hour by which the batch should be done (used for due_at + escalate_at).
+CONFIRMATION_TEXTS_DUE_HOUR = 17    # 5 PM local
+CONFIRMATION_TEXTS_ESCALATE_HOUR = 19  # 7 PM local
+
+
+def _scan_confirmation_texts():
+    """
+    Create one batch task per day reminding staff to send tomorrow's
+    confirmation SMS messages. Only one task per target_date is allowed.
+
+    Skipped before CONFIRMATION_TEXTS_OPEN_HOUR (so it doesn't show up at 6 AM
+    when the rest of the day's flight verification is still in progress).
+    Auto-closes when every leg for that date has confirmation_sms_sent_at set
+    (or zero legs need a confirmation).
+    """
+    from reservations.models import Leg
+
+    now = timezone.now()
+    local_now = timezone.localtime(now)
+    if local_now.hour < CONFIRMATION_TEXTS_OPEN_HOUR:
+        return 0
+
+    target_date = local_now.date() + timedelta(days=1)
+
+    # Count legs that still need a confirmation text for tomorrow
+    unsent_qs = (
+        Leg.objects.filter(
+            pickup_date=target_date,
+            confirmation_sms_sent_at__isnull=True,
+        )
+        .exclude(status="cancelled")
+        .exclude(reservation__status="cancelled")
+    )
+    unsent = unsent_qs.count()
+    if unsent == 0:
+        return 0
+
+    # Manual dedup: this task type doesn't link to a leg/reservation, so
+    # create_task() can't dedup it for us. Match on metadata.target_date.
+    existing = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.CONFIRMATION_TEXTS,
+        status__in=list(OperationalTask.OPEN_STATUSES),
+        metadata__target_date=str(target_date),
+    ).first()
+    if existing:
+        # Refresh the unsent count on the existing task so the title stays accurate
+        meta = existing.metadata or {}
+        if meta.get("unsent_count") != unsent:
+            meta["unsent_count"] = unsent
+            existing.metadata = meta
+            existing.title = f"Send {unsent} confirmation text{'s' if unsent != 1 else ''} for {target_date:%b %d}"
+            existing.save(update_fields=["metadata", "title", "updated_at"])
+        return 0
+
+    # Cooldown: don't recreate within 2h of a recent close/cancel for the same date
+    recent_closed = OperationalTask.objects.filter(
+        task_type=OperationalTask.TaskType.CONFIRMATION_TEXTS,
+        status__in=[OperationalTask.Status.COMPLETED, OperationalTask.Status.CANCELLED],
+        metadata__target_date=str(target_date),
+        resolved_at__gte=now - timedelta(hours=2),
+    ).exists()
+    if recent_closed:
+        return 0
+
+    # due/escalate are in local time, then made aware
+    tz_local = timezone.get_current_timezone()
+    due_local = datetime.combine(
+        local_now.date(),
+        datetime.min.time().replace(hour=CONFIRMATION_TEXTS_DUE_HOUR),
+    )
+    escalate_local = datetime.combine(
+        local_now.date(),
+        datetime.min.time().replace(hour=CONFIRMATION_TEXTS_ESCALATE_HOUR),
+    )
+    due_at = timezone.make_aware(due_local, tz_local)
+    escalate_at = timezone.make_aware(escalate_local, tz_local)
+
+    title = f"Send {unsent} confirmation text{'s' if unsent != 1 else ''} for {target_date:%b %d}"
+    description = (
+        f"Step 1: Verify every flight for {target_date:%b %d} is matched and "
+        "the schedule is clean. Resolve any open Flight Verification tasks "
+        f"for that day first.\nStep 2: Send the confirmation SMS batch from "
+        "the Confirmations page."
+    )
+
+    task = create_task(
+        task_type=OperationalTask.TaskType.CONFIRMATION_TEXTS,
+        title=title,
+        due_at=due_at,
+        priority=OperationalTask.Priority.HIGH,
+        description=description,
+        escalate_at=escalate_at,
+        metadata={
+            "target_date": str(target_date),
+            "unsent_count": unsent,
+        },
+    )
+    if task:
+        logger.info(f"Confirmation scan: created task for {target_date} ({unsent} unsent)")
+        return 1
+    return 0
+
+
 def _auto_close_resolved_tasks():
     """
     Close tasks whose triggering condition has resolved.
@@ -976,6 +1087,53 @@ def _auto_close_resolved_tasks():
                 logger.error(f"Error checking payment task #{task.id}: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"Auto-close payment tasks error: {e}", exc_info=True)
+
+    # ── 5b. Confirmation-texts batch tasks: close once everything is sent ───
+    try:
+        from reservations.models import Leg
+
+        ct_tasks = OperationalTask.objects.filter(
+            task_type=OperationalTask.TaskType.CONFIRMATION_TEXTS,
+            status__in=list(OperationalTask.OPEN_STATUSES),
+        )
+        for task in ct_tasks:
+            try:
+                meta = task.metadata or {}
+                target_str = meta.get("target_date")
+                if not target_str:
+                    continue
+                target = datetime.strptime(target_str, "%Y-%m-%d").date()
+
+                # Stale: target date already in the past
+                if target < today:
+                    close_task(task, resolution_notes="Auto-closed: confirmation date has passed")
+                    closed += 1
+                    continue
+
+                unsent = (
+                    Leg.objects.filter(
+                        pickup_date=target,
+                        confirmation_sms_sent_at__isnull=True,
+                    )
+                    .exclude(status="cancelled")
+                    .exclude(reservation__status="cancelled")
+                    .count()
+                )
+                if unsent == 0:
+                    close_task(task, resolution_notes="Auto-closed: all confirmation texts sent")
+                    closed += 1
+                    continue
+
+                # Keep title/metadata accurate while the task is still open
+                if meta.get("unsent_count") != unsent:
+                    meta["unsent_count"] = unsent
+                    task.metadata = meta
+                    task.title = f"Send {unsent} confirmation text{'s' if unsent != 1 else ''} for {target:%b %d}"
+                    task.save(update_fields=["metadata", "title", "updated_at"])
+            except Exception as e:
+                logger.error(f"Error checking confirmation-texts task #{task.id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Auto-close confirmation-texts tasks error: {e}", exc_info=True)
 
     # ── 6. Cancel tasks linked to cancelled reservations ─────────────────────
     try:

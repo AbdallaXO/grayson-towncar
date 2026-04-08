@@ -1273,6 +1273,117 @@ body {
 .da-load-light { background: rgba(59,130,246,.1); color: var(--ops-blue); }
 .da-load-busy { background: var(--ops-amber-dim); color: var(--ops-amber); }
 .da-load-heavy { background: var(--ops-red-dim); color: var(--ops-red); }
+.ct-stats {
+  display: flex; gap: .75rem; margin-bottom: .85rem;
+}
+.ct-stat {
+  flex: 1; padding: .55rem .65rem;
+  background: var(--ops-surface-2); border-radius: 6px;
+  border: 1px solid var(--ops-border);
+  display: flex; flex-direction: column; gap: .15rem;
+}
+.ct-stat-num {
+  font-family: var(--ops-mono); font-size: 1.15rem; font-weight: 800;
+  color: var(--ops-white); line-height: 1;
+}
+.ct-stat-lbl {
+  font-size: .6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--ops-text-muted);
+}
+.ct-stat-good { border-color: var(--ops-green); }
+.ct-stat-good .ct-stat-num { color: var(--ops-green); }
+.ct-stat-warn { border-color: var(--ops-amber); }
+.ct-stat-warn .ct-stat-num { color: var(--ops-amber); }
+.ct-instructions {
+  display: flex; align-items: flex-start; gap: .4rem;
+  padding: .55rem .65rem;
+  background: rgba(59,130,246,.08); border-left: 3px solid var(--ops-blue);
+  border-radius: 4px;
+  font-size: .72rem; color: var(--ops-text);
+}
+.ct-instructions i { color: var(--ops-blue); margin-top: .12rem; }
+.ct-instructions-good {
+  background: var(--ops-green-dim);
+  border-left-color: var(--ops-green);
+}
+.ct-instructions-good i { color: var(--ops-green); }
+.ct-instructions-warn {
+  background: var(--ops-amber-dim);
+  border-left-color: var(--ops-amber);
+}
+.ct-instructions-warn i { color: var(--ops-amber); }
+.ct-instructions-blocked {
+  background: var(--ops-red-dim);
+  border-left-color: var(--ops-red);
+}
+.ct-instructions-blocked i { color: var(--ops-red); }
+
+.ct-step-pill {
+  display: inline-flex; align-items: center; gap: .25rem;
+  padding: .2rem .5rem; border-radius: 4px;
+  font-size: .6rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.ct-step-pill i { font-size: .65rem; }
+.ct-step-ok      { background: var(--ops-green-dim); color: var(--ops-green); }
+.ct-step-ready   { background: rgba(26,188,156,.15); color: #1abc9c; }
+.ct-step-warn    { background: var(--ops-amber-dim); color: var(--ops-amber); }
+.ct-step-blocked { background: var(--ops-red-dim);   color: var(--ops-red); }
+
+.ct-flight-list {
+  margin-top: .55rem;
+  border: 1px solid var(--ops-border); border-radius: 6px; overflow: hidden;
+}
+.ct-flight-row {
+  text-decoration: none; color: inherit;
+  align-items: center;
+}
+.ct-flight-row:hover { background: var(--ops-surface-2); }
+.ct-flight-chev {
+  font-size: .8rem; color: var(--ops-text-muted); margin-left: auto;
+  flex-shrink: 0;
+}
+
+.ct-leg-row {
+  display: flex; gap: .65rem;
+  padding: .5rem .85rem;
+  border-bottom: 1px solid var(--ops-border);
+}
+.ct-leg-row:last-child { border-bottom: none; }
+.ct-leg-row:hover { background: var(--ops-surface-2); }
+.ct-leg-time {
+  font-family: var(--ops-mono); font-size: .68rem; font-weight: 700;
+  color: var(--ops-blue); min-width: 60px; flex-shrink: 0;
+  padding-top: .1rem;
+}
+.ct-leg-body { flex: 1; min-width: 0; }
+.ct-leg-guest {
+  font-size: .76rem; font-weight: 700; color: var(--ops-white);
+}
+.ct-leg-type {
+  font-size: .58rem; font-weight: 600; text-transform: uppercase;
+  color: var(--ops-text-muted); margin-left: .3rem;
+  letter-spacing: .03em;
+}
+.ct-leg-route {
+  font-size: .65rem; color: var(--ops-text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: .1rem;
+}
+.ct-leg-more {
+  justify-content: center;
+  font-size: .65rem; font-weight: 600;
+  color: var(--ops-text-muted); font-style: italic;
+}
+
+.da-day-stats {
+  display: flex; flex-wrap: wrap; gap: .5rem .9rem;
+  margin-top: .35rem;
+  font-family: var(--ops-mono); font-size: .62rem; font-weight: 600;
+  color: var(--ops-text-dim);
+}
+.da-day-stats span { display: inline-flex; align-items: center; gap: .25rem; }
+.da-day-stats i { font-size: .65rem; color: var(--ops-text-muted); }
 .da-mini-sched {
   margin-top: .35rem;
   padding-left: .15rem;
@@ -2214,6 +2325,14 @@ body {
                   </span>
                 </div>
               </div>
+              {% if d.day_legs > 0 %}
+              <div class="da-day-stats">
+                {% if d.started_str %}<span><i class="bi bi-sunrise"></i> Started {{ d.started_str }}</span>{% endif %}
+                {% if d.cleared_str %}<span><i class="bi bi-flag"></i> Clears {{ d.cleared_str }}</span>{% endif %}
+                {% if d.hours_on_duty %}<span><i class="bi bi-stopwatch"></i> {{ d.hours_on_duty }}h on duty</span>{% endif %}
+                {% if d.active_legs %}<span><i class="bi bi-list-check"></i> {{ d.active_legs }} remaining</span>{% endif %}
+              </div>
+              {% endif %}
               {% if d.mini_schedule %}
               <div class="da-mini-sched">
                 {% for ms in d.mini_schedule %}
@@ -2222,6 +2341,9 @@ body {
                   <span class="da-ms-route">{{ ms.route }}</span>
                 </div>
                 {% endfor %}
+                {% if d.more_legs %}
+                <div class="da-ms-row"><span class="da-ms-time">…</span><span class="da-ms-route">+{{ d.more_legs }} more</span></div>
+                {% endif %}
               </div>
               {% endif %}
               {% if d.phone %}
@@ -2262,6 +2384,169 @@ body {
               </a>
               {% endif %}
             </div>
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if is_confirmation_texts %}
+        <!-- ═══ Confirmation Texts Panel ═══ -->
+
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-chat-text-fill" style="color: #1abc9c;"></i>
+            <h6>Confirmation Texts — {{ ct_target_date|date:"D, M j" }}</h6>
+            <span class="head-ct">{{ ct_unsent }} unsent</span>
+          </div>
+          <div class="ops-card-body">
+            <div class="ct-stats">
+              <div class="ct-stat">
+                <span class="ct-stat-num">{{ ct_total }}</span>
+                <span class="ct-stat-lbl">Total legs</span>
+              </div>
+              <div class="ct-stat ct-stat-good">
+                <span class="ct-stat-num">{{ ct_sent }}</span>
+                <span class="ct-stat-lbl">Sent</span>
+              </div>
+              <div class="ct-stat {% if ct_unsent %}ct-stat-warn{% endif %}">
+                <span class="ct-stat-num">{{ ct_unsent }}</span>
+                <span class="ct-stat-lbl">Unsent</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ── Step 1: Verify Flights ── -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-airplane-fill" style="color: var(--ops-blue);"></i>
+            <h6>Step 1 — Verify Flights</h6>
+            {% if ct_flights_clean %}
+            <span class="ct-step-pill ct-step-ok"><i class="bi bi-check-circle-fill"></i> All clear</span>
+            {% else %}
+            <span class="ct-step-pill ct-step-warn"><i class="bi bi-exclamation-triangle-fill"></i> Action needed</span>
+            {% endif %}
+          </div>
+          <div class="ops-card-body">
+            {% if ct_flights_clean %}
+            <div class="ct-instructions ct-instructions-good">
+              <i class="bi bi-check-circle-fill"></i>
+              Every flight for {{ ct_target_date|date:"M j" }} is matched and there
+              are no open verification tasks. You're clear to send the batch.
+            </div>
+            {% else %}
+            <div class="ct-instructions ct-instructions-warn">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <div>
+                Don't send confirmations yet — there
+                {% if ct_open_flight_tasks == 1 %}is{% else %}are{% endif %}
+                <strong>{{ ct_open_flight_tasks }} open Flight Verification task{{ ct_open_flight_tasks|pluralize }}</strong>{% if ct_raw_mismatches %}
+                  and <strong>{{ ct_raw_mismatches }} arrival{{ ct_raw_mismatches|pluralize }}</strong>
+                  with a flight-time mismatch{% endif %}
+                for {{ ct_target_date|date:"M j" }}. Resolve those first so guests
+                get accurate pickup times.
+              </div>
+            </div>
+
+            {% if ct_flight_task_samples %}
+            <div class="ct-flight-list">
+              {% for ft in ct_flight_task_samples %}
+              <a href="{% url 'task_detail' ft.task_id %}" class="ct-leg-row ct-flight-row">
+                <div class="ct-leg-time">{{ ft.pickup_time_str }}</div>
+                <div class="ct-leg-body">
+                  <div class="ct-leg-guest">{{ ft.guest }}</div>
+                  <div class="ct-leg-route">{{ ft.title }}</div>
+                </div>
+                <i class="bi bi-chevron-right ct-flight-chev"></i>
+              </a>
+              {% endfor %}
+              {% if ct_more_flight_tasks %}
+              <div class="ct-leg-row ct-leg-more">+ {{ ct_more_flight_tasks }} more flight task{{ ct_more_flight_tasks|pluralize }}</div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            <a href="{% url 'dashboard' %}?date={{ ct_target_date_str }}" class="conflict-act-btn" style="margin-top:.6rem;" target="_blank">
+              <i class="bi bi-airplane" style="color: var(--ops-blue);"></i>
+              <div class="act-text-col">
+                <span class="act-label">Open Dispatch Board</span>
+                <span class="act-hint">Match all flight times for {{ ct_target_date|date:"M j" }}</span>
+              </div>
+            </a>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- ── Step 2: Send Confirmations ── -->
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-send-fill" style="color: #1abc9c;"></i>
+            <h6>Step 2 — Send Confirmations</h6>
+            {% if ct_unsent == 0 %}
+            <span class="ct-step-pill ct-step-ok"><i class="bi bi-check-circle-fill"></i> Done</span>
+            {% elif ct_flights_clean %}
+            <span class="ct-step-pill ct-step-ready"><i class="bi bi-arrow-right-circle-fill"></i> Ready</span>
+            {% else %}
+            <span class="ct-step-pill ct-step-blocked"><i class="bi bi-lock-fill"></i> Blocked</span>
+            {% endif %}
+          </div>
+          <div class="ops-card-body">
+            {% if ct_unsent == 0 %}
+            <div class="ct-instructions ct-instructions-good">
+              <i class="bi bi-check-circle-fill"></i>
+              All {{ ct_total }} confirmation text{{ ct_total|pluralize }} for
+              {{ ct_target_date|date:"M j" }} have been sent. This task will
+              auto-close on the next scan.
+            </div>
+            {% elif ct_flights_clean %}
+            <div class="ct-instructions">
+              <i class="bi bi-info-circle"></i>
+              {{ ct_unsent }} text{{ ct_unsent|pluralize }} ready to send. Open
+              the Confirmations page to preview and send the batch.
+            </div>
+            {% else %}
+            <div class="ct-instructions ct-instructions-blocked">
+              <i class="bi bi-lock-fill"></i>
+              Finish Step 1 first. Sending confirmations with mismatched flight
+              times risks giving guests the wrong pickup time.
+            </div>
+            {% endif %}
+
+            {% if task.is_open and ct_unsent %}
+            <a href="{% url 'confirmations' %}?date={{ ct_target_date_str }}"
+               class="conflict-act-btn {% if ct_flights_clean %}act-dispatch{% endif %}"
+               style="margin-top:.6rem;" target="_blank">
+              <i class="bi bi-chat-text"></i>
+              <div class="act-text-col">
+                <span class="act-label">Open Confirmations Page</span>
+                <span class="act-hint">Preview &amp; send the batch for {{ ct_target_date|date:"M j" }}</span>
+              </div>
+            </a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if ct_sample_legs %}
+        <div class="ops-card">
+          <div class="ops-card-head">
+            <i class="bi bi-list-ul" style="color: var(--ops-blue);"></i>
+            <h6>Unsent Legs</h6>
+            <span class="head-ct">{{ ct_unsent }}</span>
+          </div>
+          <div>
+            {% for lg in ct_sample_legs %}
+            <div class="ct-leg-row">
+              <div class="ct-leg-time">{{ lg.pickup_time_str }}</div>
+              <div class="ct-leg-body">
+                <div class="ct-leg-guest">{{ lg.guest }}{% if lg.trip_type %} <span class="ct-leg-type">{{ lg.trip_type }}</span>{% endif %}</div>
+                <div class="ct-leg-route">{{ lg.from }} → {{ lg.to }}</div>
+              </div>
+            </div>
+            {% endfor %}
+            {% if ct_more_unsent %}
+            <div class="ct-leg-row ct-leg-more">+ {{ ct_more_unsent }} more on the Confirmations page</div>
+            {% endif %}
           </div>
         </div>
         {% endif %}
