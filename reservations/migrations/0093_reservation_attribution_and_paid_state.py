@@ -13,12 +13,101 @@ from django.db import migrations, models
 
 
 def _backfill_attribution_and_paid(apps, schema_editor):
+    """
+    Bulk backfill — runs in a handful of SQL statements rather than
+    one-UPDATE-per-row. Designed to finish during a release-phase migration
+    on a Postgres table with tens of thousands of reservations.
+
+    Skips entirely on non-Postgres backends (e.g. local sqlite tests),
+    falling back to the row-by-row path that already works there.
+    """
+    vendor = schema_editor.connection.vendor
+
+    if vendor != "postgresql":
+        _backfill_rowbyrow(apps)
+        return
+
+    with schema_editor.connection.cursor() as cur:
+        # 1. booking_source — single UPDATE with a CASE expression that
+        # mirrors reservations.attribution.derive_booking_source().
+        # Order matters: most specific signal wins.
+        cur.execute(
+            """
+            UPDATE reservations_reservation
+               SET booking_source = CASE
+                   WHEN travel_agent_id IS NOT NULL THEN 'travel_agent'
+                   WHEN gclid IS NOT NULL AND gclid <> '' THEN 'google_ads'
+                   WHEN fbclid IS NOT NULL AND fbclid <> '' THEN
+                        CASE WHEN LOWER(COALESCE(utm_medium,'')) IN
+                                  ('cpc','paid','ads','ppc','paidsocial','paid_social')
+                             THEN 'meta_ads' ELSE 'meta_organic' END
+                   WHEN LOWER(COALESCE(utm_source,'')) IN
+                        ('facebook','fb','ig','instagram','meta') THEN
+                        CASE WHEN LOWER(COALESCE(utm_medium,'')) IN
+                                  ('cpc','paid','ads','ppc','paidsocial','paid_social')
+                             THEN 'meta_ads' ELSE 'meta_organic' END
+                   WHEN LOWER(COALESCE(utm_source,'')) LIKE '%google%' THEN
+                        CASE WHEN LOWER(COALESCE(utm_medium,'')) IN
+                                  ('cpc','paid','ads','ppc','paidsocial','paid_social')
+                             THEN 'google_ads' ELSE 'google_organic' END
+                   WHEN LOWER(COALESCE(utm_medium,'')) = 'referral'
+                     OR LOWER(COALESCE(utm_source,'')) = 'referral' THEN 'referral'
+                   ELSE 'direct'
+               END
+            """
+        )
+
+        # 2. is_repeat_booking — flag any reservation whose customer's email
+        # appears on an earlier reservation. Single UPDATE with EXISTS.
+        cur.execute(
+            """
+            UPDATE reservations_reservation r
+               SET is_repeat_booking = TRUE
+              FROM reservations_customer c
+             WHERE r.customer_id = c.id
+               AND c.email <> ''
+               AND EXISTS (
+                   SELECT 1
+                     FROM reservations_reservation r2
+                     JOIN reservations_customer c2 ON c2.id = r2.customer_id
+                    WHERE LOWER(c2.email) = LOWER(c.email)
+                      AND r2.created_at < r.created_at
+               )
+            """
+        )
+
+        # 3. Paid state — aggregate Payments per reservation in a single
+        # statement and update all matching reservations at once.
+        cur.execute(
+            """
+            UPDATE reservations_reservation r
+               SET gross_paid    = agg.gross,
+                   total_refunded = agg.refunded,
+                   paid_amount   = agg.net,
+                   is_paid       = (agg.net > 0),
+                   first_paid_at = agg.first_at
+              FROM (
+                  SELECT reservation_id,
+                         COALESCE(SUM(amount), 0)          AS gross,
+                         COALESCE(SUM(refunded_amount), 0) AS refunded,
+                         COALESCE(SUM(amount), 0)
+                           - COALESCE(SUM(refunded_amount), 0) AS net,
+                         MIN(created_at)                   AS first_at
+                    FROM payment_payment
+                   WHERE status = 'paid'
+                     AND reservation_id IS NOT NULL
+                   GROUP BY reservation_id
+              ) AS agg
+             WHERE r.id = agg.reservation_id
+            """
+        )
+
+
+def _backfill_rowbyrow(apps):
+    """Slow but portable fallback used by sqlite (local dev/tests)."""
     Reservation = apps.get_model("reservations", "Reservation")
     Payment = apps.get_model("payment", "Payment")
 
-    # We can't import reservations.attribution.derive_booking_source here
-    # because it imports the live model. Re-implement the same logic against
-    # the historical model. Keep this in sync with reservations/attribution.py.
     META_TOKENS = {"facebook", "fb", "ig", "instagram", "meta"}
     PAID_MEDIUM = {"cpc", "paid", "ads", "ppc", "paidsocial", "paid_social"}
 
@@ -37,11 +126,7 @@ def _backfill_attribution_and_paid(apps, schema_editor):
             return "referral"
         return "direct"
 
-    # 1. Backfill booking_source
     seen_emails = set()
-    repeat_pks = set()
-    # Build a sorted pass to compute is_repeat_booking deterministically
-    # (a reservation is "repeat" if its customer email appeared earlier).
     for res in (
         Reservation.objects.select_related("customer")
         .order_by("created_at", "id")
@@ -55,17 +140,12 @@ def _backfill_attribution_and_paid(apps, schema_editor):
                 if email in seen_emails:
                     is_repeat = True
                 seen_emails.add(email)
-        if is_repeat:
-            repeat_pks.add(res.pk)
         Reservation.objects.filter(pk=res.pk).update(
             booking_source=new_source,
             is_repeat_booking=is_repeat,
         )
 
-    # 2. Backfill paid state from existing Payments. Aggregate per reservation
-    # to avoid loading every Payment into Python.
     from django.db.models import Sum, Min
-
     paid_agg = (
         Payment.objects.filter(status="paid", reservation__isnull=False)
         .values("reservation_id")
