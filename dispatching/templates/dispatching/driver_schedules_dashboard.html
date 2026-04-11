@@ -333,6 +333,24 @@ body { background: var(--bg) !important; }
   color: var(--text-muted);
   white-space: nowrap;
 }
+.tl-d-meta {
+  display: flex; align-items: center; gap: 4px;
+  flex-wrap: wrap; margin-top: 1px;
+}
+.tl-pref-badge {
+  display: inline-flex; font-size: 8px; font-weight: 700;
+  padding: 1px 4px; border-radius: 3px;
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.tl-pref-badge.pref-arrival { background: rgba(21,101,192,0.2); color: #90caf9; }
+.tl-pref-badge.pref-return  { background: rgba(46,125,50,0.2); color: #a5d6a7; }
+.tl-pref-badge.pref-cruise  { background: rgba(230,81,0,0.2); color: #ffcc80; }
+.tl-vnum-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #0d6efd; color: #fff; font-weight: 700;
+  font-size: 8px; min-width: 16px; height: 13px;
+  border-radius: 2px; padding: 0 3px;
+}
 
 .tl-track {
   flex: 1;
@@ -1098,7 +1116,13 @@ body { background: var(--bg) !important; }
           <div class="tl-driver-border {% if row.color == 'teal' %}bd-teal{% elif row.color == 'gold' %}bd-gold{% else %}bd-off{% endif %}"></div>
           <div class="tl-driver-info">
             <div class="tl-d-name">{{ row.driver }}</div>
-            <div class="tl-d-vehicle">{{ row.driver.get_vehicle_display }}</div>
+            <div class="tl-d-meta">
+              {% if row.vehicle_number %}<span class="tl-vnum-badge">#{{ row.vehicle_number }}</span>{% endif %}
+              {% if row.vehicle_type_label %}<span style="font-size:9px;color:var(--text-muted);">{{ row.vehicle_type_label }}</span>{% endif %}
+              {% if row.pref_short %}
+                <span class="tl-pref-badge {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>
+              {% endif %}
+            </div>
           </div>
         </div>
         <div class="tl-track">

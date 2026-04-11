@@ -604,12 +604,19 @@
               </div>
               <div class="d-flex flex-wrap gap-2" id="vaVehiclePool">
                 {% for vehicle in inhouse_vehicles %}
-                <div class="va-veh-card"
+                <div class="va-veh-card {% if vehicle.notes %}va-has-notes{% endif %}"
                      draggable="true"
                      data-vehicle-id="{{ vehicle.id }}"
                      data-vehicle-num="{{ vehicle.vehicle_number }}"
                      data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}"
-                     data-vehicle-label="#{{ vehicle.vehicle_number }} {{ vehicle.vehicle_type|default:'' }}">
+                     data-vehicle-label="#{{ vehicle.vehicle_number }} {{ vehicle.vehicle_type|default:'' }}"
+                     data-ld-veh-popup
+                     data-veh-num="{{ vehicle.vehicle_number }}"
+                     data-veh-type="{% if vehicle.vehicle_type %}{{ vehicle.vehicle_type }}{% endif %}"
+                     data-veh-year="{{ vehicle.year }}"
+                     data-veh-make="{{ vehicle.make }}"
+                     data-veh-model="{{ vehicle.model }}"
+                     data-veh-notes="{{ vehicle.notes|escapejs }}">
                   <span class="va-veh-num">#{{ vehicle.vehicle_number }}</span>
                   {% if vehicle.vehicle_type %}
                   <span class="va-veh-type va-vtype-{{ vehicle.vehicle_type|lower }}">{{ vehicle.vehicle_type }}</span>
@@ -636,7 +643,26 @@
                   {% elif row.leg_count > 0 %}
                   <span class="va-legs-badge">{{ row.leg_count }} leg{{ row.leg_count|pluralize }}</span>
                   {% endif %}
+                  {% if not row.is_off_today %}
+                  <span class="ld-info-icon" data-ld-drv-popup
+                        data-driver-name="{{ row.driver }}"
+                        data-shift-start="{{ row.shift_start }}"
+                        data-shift-end="{{ row.shift_end }}"
+                        data-flexible="{{ row.flexible }}"
+                        data-preference="{{ row.pref_short }}"
+                        data-driver-phone="{{ row.driver_phone }}"
+                        data-driver-notes="{{ row.driver_notes|escapejs }}"
+                        data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
+                        data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
+                        data-vehicle-notes="{{ row.vehicle_notes|escapejs }}">i</span>
+                  {% endif %}
                 </div>
+                {% if not row.is_off_today %}
+                <div class="va-drv-context">
+                  {% if row.shift_display %}<span class="va-shift">{{ row.shift_display }}{% if not row.flexible %}<i class="bi bi-lock-fill ms-1" title="Hard time limits"></i>{% endif %}</span>{% endif %}
+                  {% if row.pref_short %}<span class="va-pref {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>{% endif %}
+                </div>
+                {% endif %}
                 <div class="va-drv-vehicle" id="va-slot-{{ row.driver.id }}">
                   {% if row.is_off_today %}
                     <span class="va-off-msg">
@@ -3742,6 +3768,50 @@
           color: #0369a1;
           font-weight: 600;
       }
+      .va-veh-card.va-has-notes { border-color: #f59e0b; background: #fffbeb; }
+      .va-drv-context {
+          font-size: 0.62rem; color: #6b7280;
+          display: flex; align-items: center; gap: 4px;
+          flex-wrap: wrap; margin-bottom: 3px;
+      }
+      .va-drv-context .va-shift { font-weight: 600; color: #555; }
+      .va-drv-context .va-shift .bi-lock-fill { color: #d32f2f; font-size: 0.55rem; }
+      .va-drv-context .va-pref {
+          font-size: 0.52rem; font-weight: 700; padding: 1px 4px;
+          border-radius: 3px; white-space: nowrap;
+      }
+      .va-drv-context .va-pref.pref-arrival { background: #e3f2fd; color: #1565c0; }
+      .va-drv-context .va-pref.pref-return  { background: #e8f5e9; color: #2e7d32; }
+      .va-drv-context .va-pref.pref-cruise  { background: #fff3e0; color: #e65100; }
+      .ld-info-icon {
+          width: 14px; height: 14px; border-radius: 50%;
+          background: #e8e5dd; color: #666; font-size: 0.5rem;
+          font-weight: 700; cursor: pointer;
+          display: inline-flex; align-items: center; justify-content: center;
+          flex-shrink: 0; margin-left: auto;
+      }
+      .ld-info-icon:hover { background: #C9A227; color: #fff; }
+      /* Popup */
+      .ld-popup {
+          position: fixed; z-index: 9999;
+          background: #fff; border: 1px solid #ddd;
+          border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+          padding: 0; min-width: 220px; max-width: 280px;
+          pointer-events: none; opacity: 0;
+          transition: opacity 0.12s; font-size: 0.78rem; overflow: hidden;
+      }
+      .ld-popup.visible { opacity: 1; }
+      .ld-popup-header {
+          padding: 6px 10px; font-weight: 700; color: #fff;
+          font-size: 0.72rem; letter-spacing: 0.03em;
+      }
+      .ld-popup-body { padding: 6px 10px; }
+      .ld-popup-row {
+          display: flex; justify-content: space-between; gap: 8px;
+          padding: 2px 0; font-size: 0.72rem;
+      }
+      .ld-popup-row .ld-label { color: #888; white-space: nowrap; }
+      .ld-popup-row .ld-value { text-align: right; font-weight: 500; }
       .va-drop-hint {
           font-size: 0.75rem;
           color: #9ca3af;
@@ -3781,6 +3851,110 @@
       }
       .va-remove-btn:hover { color: #dc2626; }
   </style>
+
+  <!-- Driver/Vehicle info popups for In-House Vehicles section -->
+  <script>
+  (function() {
+      const popup = document.createElement('div');
+      popup.className = 'ld-popup';
+      document.body.appendChild(popup);
+      let _activeEl = null;
+
+      function fmtHour(h) {
+          h = parseInt(h, 10);
+          if (h === 0) return '12:00 AM';
+          if (h < 12) return h + ':00 AM';
+          if (h === 12) return '12:00 PM';
+          return (h - 12) + ':00 PM';
+      }
+
+      function positionPopup(cx, cy) {
+          const margin = 8;
+          const r = popup.getBoundingClientRect();
+          let left = cx + 12, top = cy + 12;
+          if (left + r.width > window.innerWidth - margin) left = cx - r.width - 12;
+          if (top + r.height > window.innerHeight - margin) top = cy - r.height - 12;
+          left = Math.max(margin, Math.min(left, window.innerWidth - r.width - margin));
+          top = Math.max(margin, Math.min(top, window.innerHeight - r.height - margin));
+          popup.style.left = left + 'px';
+          popup.style.top = top + 'px';
+      }
+
+      function buildDriverPopup(el) {
+          const name = el.dataset.driverName || '';
+          const vNum = el.dataset.vehicleNum ? '#' + el.dataset.vehicleNum : '';
+          const vLabel = el.dataset.vehicleLabel || '';
+          let html = '<div class="ld-popup-header" style="background:#1a2332;">' + name + (vNum ? ' — ' + vNum + ' ' + vLabel : '') + '</div>';
+          html += '<div class="ld-popup-body">';
+          html += '<div class="ld-popup-row"><span class="ld-label">Shift</span><span class="ld-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+          const flex = el.dataset.flexible === 'True';
+          html += '<div class="ld-popup-row"><span class="ld-label">Flexibility</span><span class="ld-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? 'Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
+          if (el.dataset.preference) html += '<div class="ld-popup-row"><span class="ld-label">Preference</span><span class="ld-value">' + el.dataset.preference + '</span></div>';
+          if (el.dataset.driverPhone) html += '<div class="ld-popup-row"><span class="ld-label">Phone</span><span class="ld-value">' + el.dataset.driverPhone + '</span></div>';
+          if (el.dataset.driverNotes) {
+              html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+              html += '<div style="font-size:0.65rem;color:#888;font-weight:600;margin-bottom:2px;">Driver Notes</div>';
+              html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.driverNotes + '</div></div>';
+          }
+          if (el.dataset.vehicleNotes) {
+              html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+              html += '<div style="font-size:0.65rem;color:#b45309;font-weight:600;margin-bottom:2px;">Vehicle Notes (' + vNum + ')</div>';
+              html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.vehicleNotes + '</div></div>';
+          }
+          html += '</div>';
+          return html;
+      }
+
+      function buildVehiclePopup(el) {
+          const num = el.dataset.vehNum || '';
+          const type = el.dataset.vehType || '';
+          let html = '<div class="ld-popup-header" style="background:#374151;">#' + num + (type ? ' — ' + type : '') + '</div>';
+          html += '<div class="ld-popup-body">';
+          html += '<div class="ld-popup-row"><span class="ld-label">Vehicle</span><span class="ld-value">' + (el.dataset.vehYear||'') + ' ' + (el.dataset.vehMake||'') + ' ' + (el.dataset.vehModel||'') + '</span></div>';
+          if (type) html += '<div class="ld-popup-row"><span class="ld-label">Type</span><span class="ld-value">' + type + '</span></div>';
+          if (el.dataset.vehNotes) {
+              html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+              html += '<div style="font-size:0.65rem;color:#b45309;font-weight:600;margin-bottom:2px;">Vehicle Notes</div>';
+              html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.vehNotes + '</div></div>';
+          }
+          html += '</div>';
+          return html;
+      }
+
+      function showPopup(el, e, builder) {
+          popup.innerHTML = builder(el);
+          popup.classList.add('visible');
+          popup.style.left = '-9999px';
+          popup.style.top = '-9999px';
+          requestAnimationFrame(function() { positionPopup(e.clientX, e.clientY); });
+      }
+
+      function findTarget(e) {
+          return e.target.closest('[data-ld-drv-popup]') || e.target.closest('[data-ld-veh-popup]');
+      }
+
+      document.addEventListener('mouseover', function(e) {
+          const target = findTarget(e);
+          if (target) {
+              _activeEl = target;
+              const builder = target.hasAttribute('data-ld-drv-popup') ? buildDriverPopup : buildVehiclePopup;
+              showPopup(target, e, builder);
+          } else if (_activeEl) { popup.classList.remove('visible'); _activeEl = null; }
+      });
+      document.addEventListener('mousemove', function(e) {
+          if (!popup.classList.contains('visible')) return;
+          const target = findTarget(e);
+          if (target && target === _activeEl) positionPopup(e.clientX, e.clientY);
+          else if (!target) { popup.classList.remove('visible'); _activeEl = null; }
+      });
+      document.addEventListener('mouseout', function(e) {
+          const target = findTarget(e);
+          if (target && !target.contains(e.relatedTarget)) {
+              popup.classList.remove('visible'); _activeEl = null;
+          }
+      });
+  })();
+  </script>
 
 {% endblock %}
 

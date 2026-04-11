@@ -62,12 +62,12 @@ def _initalize_form(trip_type, rate, price):
     )
     flight1_form = FlightForm(prefix="flight1")
     cruise1_form = CruiseForm(prefix="cruise1")
-    leg1_form = LegForm(prefix="leg1", label_suffix="*")
+    leg1_form = LegForm(prefix="leg1", label_suffix="*", route=rate.route)
     # conditional forms if its a roundtrip
     flight2_form = FlightForm(prefix="flight2") if trip_type == "round_trip" else None
     cruise2_form = CruiseForm(prefix="cruise2") if trip_type == "round_trip" else None
     leg2_form = (
-        LegForm(prefix="leg2", label_suffix="*") if trip_type == "round_trip" else None
+        LegForm(prefix="leg2", label_suffix="*", route=rate.route) if trip_type == "round_trip" else None
     )
 
     return (
@@ -89,7 +89,7 @@ def returns_post_form(request, trip_type, rate):
     reservation_form = ReservationForm(request.POST, rate=rate)
     flight1_form = FlightForm(request.POST, prefix="flight1")
     cruise1_form = CruiseForm(request.POST, prefix="cruise1")
-    leg1_form = LegForm(request.POST, prefix="leg1")
+    leg1_form = LegForm(request.POST, prefix="leg1", route=rate.route)
     flight2_form = (
         FlightForm(request.POST, prefix="flight2")
         if trip_type == "round_trip"
@@ -101,7 +101,7 @@ def returns_post_form(request, trip_type, rate):
         else None
     )
     leg2_form = (
-        LegForm(request.POST, prefix="leg2") if trip_type == "round_trip" else None
+        LegForm(request.POST, prefix="leg2", route=rate.route) if trip_type == "round_trip" else None
     )
     return (
         customer_form,

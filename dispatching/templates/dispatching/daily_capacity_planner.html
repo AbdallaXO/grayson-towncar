@@ -76,8 +76,8 @@
     .driver-timeline-row:last-child { border-bottom: none; }
 
     .driver-name-col {
-        min-width: 130px;
-        max-width: 130px;
+        min-width: 200px;
+        max-width: 200px;
         padding-right: 0.75rem;
     }
     .driver-name-col strong {
@@ -88,6 +88,29 @@
     .driver-name-col small {
         font-size: 0.7rem;
     }
+    .cp-avail-line {
+        font-size: 0.65rem; margin-top: 1px;
+        display: flex; align-items: center; gap: 4px;
+        flex-wrap: wrap;
+    }
+    .cp-shift { color: #555; font-weight: 600; white-space: nowrap; }
+    .cp-shift .bi-lock-fill { color: #d32f2f; font-size: 0.55rem; }
+    .cp-pref-badge {
+        display: inline-flex; font-size: 0.5rem; font-weight: 700;
+        padding: 1px 4px; border-radius: 3px;
+        letter-spacing: 0.02em; white-space: nowrap;
+    }
+    .cp-pref-badge.pref-arrival { background: #e3f2fd; color: #1565c0; }
+    .cp-pref-badge.pref-return  { background: #e8f5e9; color: #2e7d32; }
+    .cp-pref-badge.pref-cruise  { background: #fff3e0; color: #e65100; }
+    .cp-info-icon {
+        width: 14px; height: 14px; border-radius: 50%;
+        background: #e8e5dd; color: #666; font-size: 0.5rem;
+        font-weight: 700; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
+        flex-shrink: 0; margin-left: auto;
+    }
+    .cp-info-icon:hover { background: var(--gold); color: #fff; }
 
     .timeline-bar {
         flex: 1;
@@ -104,7 +127,7 @@
         position: absolute;
         top: 0;
         bottom: 0;
-        left: 130px;
+        left: 200px;
         right: 0;
         pointer-events: none;
         z-index: 2;
@@ -126,17 +149,19 @@
         border-radius: 3px;
         display: flex;
         align-items: center;
-        padding: 0 6px;
+        padding: 0 4px;
         font-size: 0.65rem;
         font-weight: 600;
         color: #fff;
         overflow: hidden;
         white-space: nowrap;
+        text-overflow: ellipsis;
         cursor: pointer;
         transition: opacity 0.15s;
         z-index: 3;
+        min-width: 28px;
     }
-    .timeline-slot:hover { opacity: 0.85; }
+    .timeline-slot:hover { opacity: 0.85; z-index: 10; min-width: fit-content; }
     .timeline-slot.arrival { background: #1565c0; }
     .timeline-slot.return { background: #2e7d32; }
     .timeline-slot.cruise { background: #e65100; }
@@ -144,7 +169,7 @@
 
     .timeline-hour-markers {
         display: flex;
-        padding-left: 130px;
+        padding-left: 200px;
     }
     .timeline-hour-markers span {
         flex: 1;
@@ -405,10 +430,11 @@
     /* ── Responsive ── */
     @media (max-width: 768px) {
         .planner-header h1 { font-size: 1.25rem; }
-        .driver-name-col { min-width: 90px; max-width: 90px; }
+        .driver-name-col { min-width: 120px; max-width: 120px; }
         .timeline-slot { font-size: 0.55rem; padding: 0 3px; }
-        .timeline-hour-markers { padding-left: 90px; }
-        .timeline-grid-lines { left: 90px; }
+        .timeline-hour-markers { padding-left: 120px; }
+        .timeline-grid-lines { left: 120px; }
+        .cp-avail-line { display: none; }
         .stat-card-dark .stat-value { font-size: 1.25rem; }
     }
 
@@ -504,6 +530,7 @@
     .va-vtype-mini_van { background: #7c3aed; color: #fff; }
     .va-vtype-van, .va-vtype-van14 { background: #0d9488; color: #fff; }
     .va-veh-model { font-size: 0.72rem; color: #6b7280; }
+    .va-veh-card.va-has-notes { border-color: #f59e0b; background: #fffbeb; }
     .va-drivers-grid {
         display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem;
     }
@@ -532,6 +559,20 @@
         font-size: 0.6rem; padding: 0.1rem 0.35rem; border-radius: 999px;
         background: #e0f2fe; color: #0369a1; font-weight: 600;
     }
+    .va-drv-context {
+        font-size: 0.62rem; color: #6b7280;
+        display: flex; align-items: center; gap: 4px;
+        flex-wrap: wrap; margin-bottom: 3px;
+    }
+    .va-drv-context .va-shift { font-weight: 600; color: #555; }
+    .va-drv-context .va-shift .bi-lock-fill { color: #d32f2f; font-size: 0.55rem; }
+    .va-drv-context .va-pref {
+        font-size: 0.52rem; font-weight: 700; padding: 1px 4px;
+        border-radius: 3px; white-space: nowrap;
+    }
+    .va-drv-context .va-pref.pref-arrival { background: #e3f2fd; color: #1565c0; }
+    .va-drv-context .va-pref.pref-return  { background: #e8f5e9; color: #2e7d32; }
+    .va-drv-context .va-pref.pref-cruise  { background: #fff3e0; color: #e65100; }
     .va-drop-hint { font-size: 0.75rem; color: #9ca3af; font-style: italic; }
     .va-off-msg { font-size: 0.75rem; color: #9ca3af; display: flex; align-items: center; gap: 0.4rem; }
     .va-override-btn {
@@ -665,11 +706,18 @@
         </div>
         <div class="d-flex flex-wrap gap-2 mb-3" id="pVehiclePool">
             {% for vehicle in inhouse_vehicles %}
-            <div class="va-veh-card"
+            <div class="va-veh-card {% if vehicle.notes %}va-has-notes{% endif %}"
                  draggable="true"
                  data-vehicle-id="{{ vehicle.id }}"
                  data-vehicle-num="{{ vehicle.vehicle_number }}"
-                 data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}">
+                 data-vehicle-type="{{ vehicle.vehicle_type|default_if_none:'' }}"
+                 data-veh-popup
+                 data-veh-num="{{ vehicle.vehicle_number }}"
+                 data-veh-type="{% if vehicle.vehicle_type %}{{ vehicle.vehicle_type }}{% endif %}"
+                 data-veh-year="{{ vehicle.year }}"
+                 data-veh-make="{{ vehicle.make }}"
+                 data-veh-model="{{ vehicle.model }}"
+                 data-veh-notes="{{ vehicle.notes|escapejs }}">
               <span class="va-veh-num">#{{ vehicle.vehicle_number }}</span>
               {% if vehicle.vehicle_type %}
               <span class="va-veh-type va-vtype-{{ vehicle.vehicle_type|lower }}">{{ vehicle.vehicle_type }}</span>
@@ -693,7 +741,27 @@
                 {% elif row.leg_count > 0 %}
                 <span class="va-legs-badge">{{ row.leg_count }} leg{{ row.leg_count|pluralize }}</span>
                 {% endif %}
+                {% if not row.is_off_today %}
+                <span class="cp-info-icon" data-cp-popup
+                      data-driver-name="{{ row.driver }}"
+                      data-shift-start="{{ row.shift_start }}"
+                      data-shift-end="{{ row.shift_end }}"
+                      data-flexible="{{ row.flexible }}"
+                      data-preference="{{ row.pref_short }}"
+                      data-driver-phone="{{ row.driver_phone }}"
+                      data-driver-notes="{{ row.driver_notes|escapejs }}"
+                      data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
+                      data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
+                      data-vehicle-notes="{{ row.vehicle_notes|escapejs }}"
+                      style="margin-left:auto;">i</span>
+                {% endif %}
               </div>
+              {% if not row.is_off_today %}
+              <div class="va-drv-context">
+                {% if row.shift_display %}<span class="va-shift">{{ row.shift_display }}{% if not row.flexible %}<i class="bi bi-lock-fill ms-1" title="Hard time limits"></i>{% endif %}</span>{% endif %}
+                {% if row.pref_short %}<span class="va-pref {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>{% endif %}
+              </div>
+              {% endif %}
               <div class="va-drv-vehicle" id="p-va-slot-{{ row.driver.id }}">
                 {% if row.is_off_today %}
                   <span class="va-off-msg">
@@ -769,12 +837,36 @@
                 {% for data in inhouse_timeline %}
                 <div class="driver-timeline-row">
                     <div class="driver-name-col">
-                        <strong>{{ data.driver }}</strong>
+                        <div class="d-flex align-items-center">
+                            {% if data.vehicle_number %}<span style="display:inline-flex;align-items:center;justify-content:center;background:#0d6efd;color:#fff;font-weight:700;font-size:0.62rem;min-width:20px;height:16px;border-radius:3px;padding:0 4px;margin-right:4px;">#{{ data.vehicle_number }}</span>{% endif %}
+                            <strong>{{ data.driver }}</strong>
+                        </div>
                         <small class="text-muted">
-                            {% if data.vehicle_number %}<span style="color:#0d6efd;font-weight:600;">#{{ data.vehicle_number }}</span>{% if data.vehicle_type_label %} <span style="color:#aaa;">{{ data.vehicle_type_label }}</span>{% endif %} &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}
+                            {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}
                         </small>
+                        <div class="cp-avail-line">
+                            <span class="cp-shift">
+                                {{ data.shift_display }}{% if not data.flexible %}<i class="bi bi-lock-fill ms-1" title="Hard time limits"></i>{% endif %}
+                            </span>
+                            {% if data.pref_short %}
+                                <span class="cp-pref-badge {% if 'arrival' in data.preference %}pref-arrival{% elif 'return' in data.preference %}pref-return{% elif 'cruise' in data.preference %}pref-cruise{% endif %}">
+                                    {{ data.pref_short }}
+                                </span>
+                            {% endif %}
+                            <span class="cp-info-icon" data-cp-popup
+                                  data-driver-name="{{ data.driver }}"
+                                  data-shift-start="{{ data.shift_start }}"
+                                  data-shift-end="{{ data.shift_end }}"
+                                  data-flexible="{{ data.flexible }}"
+                                  data-preference="{{ data.pref_short }}"
+                                  data-driver-phone="{{ data.driver_phone }}"
+                                  data-driver-notes="{{ data.driver_notes|escapejs }}"
+                                  data-vehicle-label="{{ data.vehicle_type_label }}"
+                                  data-vehicle-num="{{ data.vehicle_number }}"
+                                  data-vehicle-notes="{{ data.vehicle_notes|escapejs }}">i</span>
+                        </div>
                         {% if data.prev_night_cleared %}
-                            <div style="color:#ff9100;font-size:0.78rem;font-weight:600;margin-top:2px;" title="Previous day last job cleared"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
+                            <div style="color:#ff9100;font-size:0.68rem;font-weight:600;margin-top:1px;" title="Previous day last job cleared"><i class="bi bi-moon-stars-fill me-1"></i>Cleared {{ data.prev_night_cleared }}{% if data.prev_night_vehicle %} · <span style="color:#0d6efd;">{{ data.prev_night_vehicle }}</span>{% endif %}</div>
                         {% endif %}
                     </div>
                     <div class="timeline-bar">
@@ -3549,10 +3641,31 @@
         const popup = document.createElement('div');
         popup.className = 'tl-popup';
         document.body.appendChild(popup);
+        let _activeEl = null;
 
         const tripLabels = {arrival: 'Arrival', return: 'Return', cruise: 'Cruise', other: 'Other'};
 
-        function showPopup(el, e) {
+        function fmtHour(h) {
+            h = parseInt(h, 10);
+            if (h === 0) return '12:00 AM';
+            if (h < 12) return h + ':00 AM';
+            if (h === 12) return '12:00 PM';
+            return (h - 12) + ':00 PM';
+        }
+
+        function positionPopup(cx, cy) {
+            const margin = 8;
+            const r = popup.getBoundingClientRect();
+            let left = cx + 12, top = cy + 12;
+            if (left + r.width > window.innerWidth - margin) left = cx - r.width - 12;
+            if (top + r.height > window.innerHeight - margin) top = cy - r.height - 12;
+            left = Math.max(margin, Math.min(left, window.innerWidth - r.width - margin));
+            top = Math.max(margin, Math.min(top, window.innerHeight - r.height - margin));
+            popup.style.left = left + 'px';
+            popup.style.top = top + 'px';
+        }
+
+        function buildJobPopup(el) {
             const trip = el.dataset.trip || 'other';
             const label = tripLabels[trip] || 'Trip';
             let html = '<div class="tl-popup-header ' + trip + '">' + label + ' — ' + (el.dataset.time || '') + '</div>';
@@ -3561,23 +3674,16 @@
             html += '<div class="tl-popup-row"><span class="tl-label">Dropoff</span><span class="tl-value">' + (el.dataset.dropoff || '') + '</span></div>';
             if (el.dataset.vehicle) {
                 const vtypeLabels = {towncar: 'Town Car', mini_van: 'Mini Van', suv: 'SUV', van: 'Van', 'Van(14 Pax)': 'Van (14 Pax)'};
-                const vtypeLabel = vtypeLabels[el.dataset.vehicle] || el.dataset.vehicle;
-                html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + vtypeLabel + '</span></div>';
+                html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + (vtypeLabels[el.dataset.vehicle] || el.dataset.vehicle) + '</span></div>';
             }
-            if (el.dataset.customer) {
-                html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">' + el.dataset.customer + '</span></div>';
-            }
-            if (el.dataset.flight) {
-                html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
-            }
+            if (el.dataset.customer) html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">' + el.dataset.customer + '</span></div>';
+            if (el.dataset.flight) html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
             html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
             if (el.dataset.statusLabel) {
                 let statusHtml = '<span style="text-transform:capitalize;">' + el.dataset.statusLabel;
                 if (el.dataset.statusTime) {
                     statusHtml += ' ' + el.dataset.statusTime;
-                    if (el.dataset.statusAgo) {
-                        statusHtml += ' <span style="color:#888;font-size:0.75rem;">(' + el.dataset.statusAgo + ')</span>';
-                    }
+                    if (el.dataset.statusAgo) statusHtml += ' <span style="color:#888;font-size:0.75rem;">(' + el.dataset.statusAgo + ')</span>';
                 }
                 statusHtml += '</span>';
                 html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value">' + statusHtml + '</span></div>';
@@ -3585,49 +3691,87 @@
                 html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="text-transform:capitalize;">' + el.dataset.status + '</span></div>';
             }
             html += '</div>';
-            popup.innerHTML = html;
+            return html;
+        }
 
-            // Position near cursor
-            const px = e.clientX + 12;
-            const py = e.clientY + 12;
-            popup.style.left = px + 'px';
-            popup.style.top = py + 'px';
+        function buildDriverPopup(el) {
+            const name = el.dataset.driverName || '';
+            const vNum = el.dataset.vehicleNum ? '#' + el.dataset.vehicleNum : '';
+            const vLabel = el.dataset.vehicleLabel || '';
+            let html = '<div class="tl-popup-header" style="background:#1a2332;">' + name + (vNum ? ' — ' + vNum + ' ' + vLabel : '') + '</div>';
+            html += '<div class="tl-popup-body">';
+            html += '<div class="tl-popup-row"><span class="tl-label">Shift</span><span class="tl-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+            const flex = el.dataset.flexible === 'True';
+            html += '<div class="tl-popup-row"><span class="tl-label">Flexibility</span><span class="tl-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? 'Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
+            if (el.dataset.preference) html += '<div class="tl-popup-row"><span class="tl-label">Preference</span><span class="tl-value">' + el.dataset.preference + '</span></div>';
+            if (el.dataset.driverPhone) html += '<div class="tl-popup-row"><span class="tl-label">Phone</span><span class="tl-value">' + el.dataset.driverPhone + '</span></div>';
+            if (el.dataset.driverNotes) {
+                html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+                html += '<div style="font-size:0.65rem;color:#888;font-weight:600;margin-bottom:2px;">Driver Notes</div>';
+                html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.driverNotes + '</div></div>';
+            }
+            if (el.dataset.vehicleNotes) {
+                html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+                html += '<div style="font-size:0.65rem;color:#f57c00;font-weight:600;margin-bottom:2px;"><i class="bi bi-exclamation-triangle-fill me-1"></i>Vehicle Notes (' + vNum + ')</div>';
+                html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.vehicleNotes + '</div></div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function buildVehiclePopup(el) {
+            const num = el.dataset.vehNum || '';
+            const type = el.dataset.vehType || '';
+            const year = el.dataset.vehYear || '';
+            const make = el.dataset.vehMake || '';
+            const model = el.dataset.vehModel || '';
+            let html = '<div class="tl-popup-header" style="background:#374151;">#' + num + (type ? ' — ' + type : '') + '</div>';
+            html += '<div class="tl-popup-body">';
+            html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + year + ' ' + make + ' ' + model + '</span></div>';
+            if (type) html += '<div class="tl-popup-row"><span class="tl-label">Type</span><span class="tl-value">' + type + '</span></div>';
+            if (el.dataset.vehNotes) {
+                html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+                html += '<div style="font-size:0.65rem;color:#b45309;font-weight:600;margin-bottom:2px;">Vehicle Notes</div>';
+                html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.vehNotes + '</div></div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function showPopup(el, e, builder) {
+            popup.innerHTML = builder(el);
             popup.classList.add('visible');
+            popup.style.left = '-9999px';
+            popup.style.top = '-9999px';
+            requestAnimationFrame(function() { positionPopup(e.clientX, e.clientY); });
+        }
 
-            // Keep within viewport
-            requestAnimationFrame(function() {
-                const rect = popup.getBoundingClientRect();
-                if (rect.right > window.innerWidth - 8) {
-                    popup.style.left = (e.clientX - rect.width - 12) + 'px';
-                }
-                if (rect.bottom > window.innerHeight - 8) {
-                    popup.style.top = (e.clientY - rect.height - 12) + 'px';
-                }
-            });
+        function findTarget(e) {
+            return e.target.closest('[data-tl-popup]') || e.target.closest('[data-cp-popup]') || e.target.closest('[data-veh-popup]');
+        }
+        function builderFor(el) {
+            if (el.hasAttribute('data-tl-popup')) return buildJobPopup;
+            if (el.hasAttribute('data-cp-popup')) return buildDriverPopup;
+            if (el.hasAttribute('data-veh-popup')) return buildVehiclePopup;
+            return buildJobPopup;
         }
 
         document.addEventListener('mouseover', function(e) {
-            const slot = e.target.closest('[data-tl-popup]');
-            if (slot) showPopup(slot, e);
+            const target = findTarget(e);
+            if (target) { _activeEl = target; showPopup(target, e, builderFor(target)); }
+            else if (_activeEl) { popup.classList.remove('visible'); _activeEl = null; }
         });
         document.addEventListener('mousemove', function(e) {
             if (!popup.classList.contains('visible')) return;
-            const slot = e.target.closest('[data-tl-popup]');
-            if (slot) {
-                popup.style.left = (e.clientX + 12) + 'px';
-                popup.style.top = (e.clientY + 12) + 'px';
-                // Viewport bounds
-                requestAnimationFrame(function() {
-                    const rect = popup.getBoundingClientRect();
-                    if (rect.right > window.innerWidth - 8) popup.style.left = (e.clientX - rect.width - 12) + 'px';
-                    if (rect.bottom > window.innerHeight - 8) popup.style.top = (e.clientY - rect.height - 12) + 'px';
-                });
-            }
+            const target = findTarget(e);
+            if (target && target === _activeEl) positionPopup(e.clientX, e.clientY);
+            else if (!target) { popup.classList.remove('visible'); _activeEl = null; }
         });
         document.addEventListener('mouseout', function(e) {
-            const slot = e.target.closest('[data-tl-popup]');
-            if (slot && !slot.contains(e.relatedTarget)) {
+            const target = findTarget(e);
+            if (target && !target.contains(e.relatedTarget)) {
                 popup.classList.remove('visible');
+                _activeEl = null;
             }
         });
     })();

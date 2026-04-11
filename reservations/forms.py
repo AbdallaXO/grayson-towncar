@@ -187,6 +187,10 @@ class ReservationForm(forms.ModelForm):
 class LegForm(forms.ModelForm):
     """Form for trip leg details"""
 
+    def __init__(self, *args, route=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.route = route  # Route from the selected Rate, used to validate addresses
+
     class Meta:
         model = Leg
         fields = ["pickup_date", "pickup_time", "pickup_location", "dropoff_location"]
@@ -234,11 +238,40 @@ class LegForm(forms.ModelForm):
             raise forms.ValidationError("Please Enter a Valid Pickup Date")
         return date
 
+    # Airports that are sometimes confused with each other.
+    # Each tuple: (keywords that indicate the WRONG airport, route location ID it conflicts with, label)
+    _AIRPORT_CONFLICTS = [
+        (["sanford", "sfb"], "Orlando International Airport", "Sanford International Airport"),
+    ]
+
+    def _check_airport_mismatch(self, text, field_name):
+        """Block addresses that reference a different airport than the booked route."""
+        if not text or not self.route:
+            return
+        text_lower = text.lower()
+        route_locations = [self.route.origin.name, self.route.destination.name]
+        for keywords, route_loc_name, wrong_airport in self._AIRPORT_CONFLICTS:
+            # Only enforce when the route includes the airport that would be confused
+            if route_loc_name not in route_locations:
+                continue
+            if any(kw in text_lower for kw in keywords):
+                self.add_error(
+                    field_name,
+                    f"It looks like you entered {wrong_airport}, but your selected "
+                    f"route is for {route_loc_name}. Sanford Airport is a different "
+                    f"route with different pricing. Please go back and select the "
+                    f"correct route, or call us at 407-212-7190 for assistance."
+                )
+
     def clean(self):
         cleaned_data = super().clean()
         pickup_date = cleaned_data.get("pickup_date")
         pickup_time = cleaned_data.get("pickup_time")
-        
+
+        # Block wrong-airport addresses (e.g. Sanford on an MCO route)
+        self._check_airport_mismatch(cleaned_data.get("pickup_location", ""), "pickup_location")
+        self._check_airport_mismatch(cleaned_data.get("dropoff_location", ""), "dropoff_location")
+
         # Check if the time slot is blocked
         if pickup_date and pickup_time:
             from .models import BlockedTimeSlot

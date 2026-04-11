@@ -232,10 +232,40 @@ def index(request):
         # If driver has a vehicle assigned today, treat them as working regardless of schedule
         if _is_off and _assignment and _assignment.vehicle_id:
             _is_off = False
+        # Driver availability for this date
+        _ld_avail = _driver.get_availability_for_date(selected_date)
+        _ld_is_avail, _ld_sh, _ld_eh, _ld_pref, _ld_flex = _ld_avail
+
+        def _ld_fmt_hour(h):
+            if h == 0: return '12a'
+            if h < 12: return f'{h}a'
+            if h == 12: return '12p'
+            return f'{h - 12}p'
+
+        _LD_PREF_SHORT = {
+            "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
+            "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
+            "heavy_return": "Heavy Returns", "heavy_cruise": "Heavy Cruises",
+            "only_arrival": "Only Arrivals", "only_return": "Only Returns",
+            "only_cruise": "Only Cruises",
+        }
+        _ld_vnotes = ''
+        if _assignment and _assignment.vehicle:
+            _ld_vnotes = _assignment.vehicle.notes or ''
+
         inhouse_driver_rows.append({
             "driver": _driver,
             "assignment": _assignment,
             "is_off_today": _is_off,
+            "shift_display": f"{_ld_fmt_hour(_ld_sh)}-{_ld_fmt_hour(_ld_eh)}" if _ld_is_avail else '',
+            "shift_start": _ld_sh,
+            "shift_end": _ld_eh,
+            "flexible": _ld_flex,
+            "preference": _ld_pref,
+            "pref_short": _LD_PREF_SHORT.get(_ld_pref, ''),
+            "driver_notes": _driver.notes or '',
+            "driver_phone": _driver.phone_number or '',
+            "vehicle_notes": _ld_vnotes,
         })
     def _inhouse_vehicle_sort_key(row):
         # Off-today drivers sink to bottom; within each group: assigned first, then by vehicle#/name
@@ -748,6 +778,7 @@ def schedule_board(request):
     inhouse_drivers = list(
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
+        .prefetch_related("weekly_schedule")
         .order_by("profile__first_name")
     )
     assignments = {
@@ -851,19 +882,53 @@ def schedule_board(request):
             _vt = str(_sbpda.vehicle.vehicle_type) if _sbpda.vehicle.vehicle_type else ''
             _sb_prev_day_vehicle[_sbpda.driver_id] = f"#{_vn} {_vt}".strip() if _vn else _vt
 
+    # Compact preference labels for schedule board badges
+    _PREF_SHORT = {
+        "prefer_arrival": "Pref Arrivals",
+        "prefer_return": "Pref Returns",
+        "prefer_cruise": "Pref Cruises",
+        "heavy_arrival": "Heavy Arrivals",
+        "heavy_return": "Heavy Returns",
+        "heavy_cruise": "Heavy Cruises",
+        "only_arrival": "Only Arrivals",
+        "only_return": "Only Returns",
+        "only_cruise": "Only Cruises",
+    }
+
+    def _fmt_hour(h):
+        """Format hour as compact string: 0→12a, 6→6a, 12→12p, 15→3p, 23→11p"""
+        if h == 0:
+            return '12a'
+        if h < 12:
+            return f'{h}a'
+        if h == 12:
+            return '12p'
+        return f'{h - 12}p'
+
     # Build inhouse timeline
     inhouse_timeline = []
+    _drivers_with_jobs = set()
     for driver in inhouse_drivers:
         sched = _driver_schedules.get(driver.id)
         if not sched or not sched.slots:
             continue
+        _drivers_with_jobs.add(driver.id)
         assignment = assignments.get(driver.id)
         vehicle_number = ''
         vehicle_type_label = ''
+        vehicle_notes = ''
         if assignment and assignment.vehicle:
             vehicle_number = assignment.vehicle.vehicle_number or ''
+            vehicle_notes = assignment.vehicle.notes or ''
             if assignment.vehicle.vehicle_type:
                 vehicle_type_label = str(assignment.vehicle.vehicle_type)
+
+        # Driver availability for selected date
+        _avail = driver.get_availability_for_date(selected_date)
+        _is_avail, _sh, _eh, _pref, _flex = _avail
+        _shift_display = f"{_fmt_hour(_sh)}-{_fmt_hour(_eh)}"
+        _pref_short = _PREF_SHORT.get(_pref, '')
+
         for slot in sched.slots:
             _start_min = (slot.pickup_time.hour - display_start) * 60 + slot.pickup_time.minute
             _end_min = (slot.estimated_end_time.hour - display_start) * 60 + slot.estimated_end_time.minute
@@ -883,6 +948,44 @@ def schedule_board(request):
             'vehicle_type_label': vehicle_type_label,
             'prev_night_cleared': _prev_day_last.get(driver.id, ''),
             'prev_night_vehicle': _sb_prev_day_vehicle.get(driver.id, ''),
+            'shift_display': _shift_display,
+            'shift_start': _sh,
+            'shift_end': _eh,
+            'flexible': _flex,
+            'preference': _pref,
+            'pref_short': _pref_short,
+            'driver_notes': driver.notes or '',
+            'driver_phone': driver.phone_number or '',
+            'vehicle_notes': vehicle_notes,
+        })
+
+    # Build "available but no jobs" list for drivers not in the timeline
+    available_no_jobs = []
+    for driver in inhouse_drivers:
+        if driver.id in _drivers_with_jobs:
+            continue
+        _avail = driver.get_availability_for_date(selected_date)
+        _is_avail, _sh, _eh, _pref, _flex = _avail
+        assignment = assignments.get(driver.id)
+        _vnum = ''
+        _vtype = ''
+        _vnotes = ''
+        if assignment and assignment.vehicle:
+            _vnum = assignment.vehicle.vehicle_number or ''
+            _vnotes = assignment.vehicle.notes or ''
+            if assignment.vehicle.vehicle_type:
+                _vtype = str(assignment.vehicle.vehicle_type)
+        available_no_jobs.append({
+            'driver': driver,
+            'is_available': _is_avail,
+            'shift_display': f"{_fmt_hour(_sh)}-{_fmt_hour(_eh)}" if _is_avail else '',
+            'vehicle_number': _vnum,
+            'vehicle_type_label': _vtype,
+            'vehicle_notes': _vnotes,
+            'preference': _pref,
+            'pref_short': _PREF_SHORT.get(_pref, ''),
+            'driver_notes': driver.notes or '',
+            'driver_phone': driver.phone_number or '',
         })
 
     # Build unassigned timeline slots
@@ -973,6 +1076,7 @@ def schedule_board(request):
         "total_legs": total_legs,
         "assigned_count": assigned_count,
         "unassigned_count": unassigned_count,
+        "available_no_jobs": available_no_jobs,
     }
     return render(request, "dispatching/schedule_board.html", context)
 
@@ -6942,11 +7046,42 @@ def capacity_planner(request):
         _assignment = assignment_map.get(d.id)
         if _is_off and _assignment and _assignment.vehicle_id:
             _is_off = False
+        # Driver availability for this date
+        _va_avail = d.get_availability_for_date(selected_date)
+        _va_is_avail, _va_sh, _va_eh, _va_pref, _va_flex = _va_avail
+
+        def _va_fmt_hour(h):
+            if h == 0: return '12a'
+            if h < 12: return f'{h}a'
+            if h == 12: return '12p'
+            return f'{h - 12}p'
+
+        _VA_PREF_SHORT = {
+            "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
+            "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
+            "heavy_return": "Heavy Returns", "heavy_cruise": "Heavy Cruises",
+            "only_arrival": "Only Arrivals", "only_return": "Only Returns",
+            "only_cruise": "Only Cruises",
+        }
+
+        _va_vnotes = ''
+        if _assignment and _assignment.vehicle:
+            _va_vnotes = _assignment.vehicle.notes or ''
+
         vehicle_assign_rows.append({
             "driver": d,
             "assignment": _assignment,
             "is_off_today": _is_off,
             "leg_count": _planner_leg_counts.get(d.id, 0),
+            "shift_display": f"{_va_fmt_hour(_va_sh)}-{_va_fmt_hour(_va_eh)}" if _va_is_avail else '',
+            "shift_start": _va_sh,
+            "shift_end": _va_eh,
+            "flexible": _va_flex,
+            "preference": _va_pref,
+            "pref_short": _VA_PREF_SHORT.get(_va_pref, ''),
+            "driver_notes": d.notes or '',
+            "driver_phone": d.phone_number or '',
+            "vehicle_notes": _va_vnotes,
         })
 
     # Sort: assigned drivers first (by vehicle number), then unassigned, off last
@@ -7143,10 +7278,31 @@ def capacity_planner(request):
         _cp_assign = assignment_map.get(driver.id)
         _cp_vnum = ''
         _cp_vtype = ''
+        _cp_vnotes = ''
         if _cp_assign and _cp_assign.vehicle:
             _cp_vnum = _cp_assign.vehicle.vehicle_number or ''
+            _cp_vnotes = _cp_assign.vehicle.notes or ''
             if _cp_assign.vehicle.vehicle_type:
                 _cp_vtype = str(_cp_assign.vehicle.vehicle_type)
+
+        # Driver availability for selected date
+        _cp_avail = driver.get_availability_for_date(selected_date)
+        _cp_is_avail, _cp_sh, _cp_eh, _cp_pref, _cp_flex = _cp_avail
+
+        def _cp_fmt_hour(h):
+            if h == 0: return '12a'
+            if h < 12: return f'{h}a'
+            if h == 12: return '12p'
+            return f'{h - 12}p'
+
+        _CP_PREF_SHORT = {
+            "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
+            "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
+            "heavy_return": "Heavy Returns", "heavy_cruise": "Heavy Cruises",
+            "only_arrival": "Only Arrivals", "only_return": "Only Returns",
+            "only_cruise": "Only Cruises",
+        }
+
         inhouse_timeline.append({
             'driver': driver,
             'schedule': sched,
@@ -7157,6 +7313,15 @@ def capacity_planner(request):
             'vehicle_type_label': _cp_vtype,
             'prev_night_cleared': _cp_prev_day_last.get(driver.id, ''),
             'prev_night_vehicle': _cp_prev_day_vehicle.get(driver.id, ''),
+            'shift_display': f"{_cp_fmt_hour(_cp_sh)}-{_cp_fmt_hour(_cp_eh)}",
+            'shift_start': _cp_sh,
+            'shift_end': _cp_eh,
+            'flexible': _cp_flex,
+            'preference': _cp_pref,
+            'pref_short': _CP_PREF_SHORT.get(_cp_pref, ''),
+            'driver_notes': driver.notes or '',
+            'driver_phone': driver.phone_number or '',
+            'vehicle_notes': _cp_vnotes,
         })
 
     # Build per-driver availability for the selected date (for auto-assign modal defaults)
@@ -9152,12 +9317,29 @@ def driver_schedules_dashboard(request):
     # Which view mode
     view_mode = request.GET.get("view", "week")
 
-    inhouse_drivers = (
+    inhouse_drivers = list(
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
         .prefetch_related("weekly_schedule")
         .order_by("profile__first_name", "profile__last_name")
     )
+
+    # Vehicle assignments for the selected date (for showing vehicle info on timeline)
+    from drivers.models import DriverVehicleAssignment
+    _dsd_assignments = {
+        a.driver_id: a
+        for a in DriverVehicleAssignment.objects.filter(
+            driver__in=inhouse_drivers, date=selected_date
+        ).select_related("vehicle", "vehicle__vehicle_type")
+    }
+
+    _DSD_PREF_SHORT = {
+        "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
+        "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
+        "heavy_return": "Heavy Returns", "heavy_cruise": "Heavy Cruises",
+        "only_arrival": "Only Arrivals", "only_return": "Only Returns",
+        "only_cruise": "Only Cruises",
+    }
 
     # Build per-driver, per-day availability matrix
     driver_schedules = []
@@ -9216,6 +9398,15 @@ def driver_schedules_dashboard(request):
             left_pct = 0
             width_pct = 0
             color = "off"
+        _dsd_assign = _dsd_assignments.get(ds["driver"].id)
+        _dsd_vnum = ''
+        _dsd_vtype = ''
+        _dsd_vnotes = ''
+        if _dsd_assign and _dsd_assign.vehicle:
+            _dsd_vnum = _dsd_assign.vehicle.vehicle_number or ''
+            _dsd_vnotes = _dsd_assign.vehicle.notes or ''
+            if _dsd_assign.vehicle.vehicle_type:
+                _dsd_vtype = str(_dsd_assign.vehicle.vehicle_type)
         timeline_rows.append({
             "driver": ds["driver"],
             "is_available": sel["is_available"],
@@ -9223,11 +9414,15 @@ def driver_schedules_dashboard(request):
             "end_hour": sel["end_hour"],
             "hours": sel["hours"],
             "preference": sel["preference"],
+            "pref_short": _DSD_PREF_SHORT.get(sel["preference"], ''),
             "start_label": sel["start_label"],
             "end_label": sel["end_label"],
             "left_pct": left_pct,
             "width_pct": width_pct,
             "color": color,
+            "vehicle_number": _dsd_vnum,
+            "vehicle_type_label": _dsd_vtype,
+            "vehicle_notes": _dsd_vnotes,
         })
 
     # Sort: active drivers first (by start hour), OFF drivers at bottom
