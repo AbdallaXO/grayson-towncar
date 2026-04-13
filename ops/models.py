@@ -95,6 +95,11 @@ class OperationalTask(models.Model):
         on_delete=models.SET_NULL,
         related_name="assigned_ops_tasks",
     )
+    assigned_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the task was last assigned or reassigned",
+    )
     created_by = models.ForeignKey(
         "auth.User",
         null=True,

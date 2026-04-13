@@ -15,9 +15,9 @@ urlpatterns = [
         views.ReservationListView.as_view(),
         name="reservations_list",
     ),
-    path("reservation/<id>", views.reservation_details, name="reservation_details"),
+    path("reservation/<id>/", views.reservation_details, name="reservation_details"),
     path("reservation/<id>/history/", views.reservation_history, name="reservation_history"),
-    path("edit-reservation/<id>", views.modify_reservation, name="modify_reservation"),
+    path("edit-reservation/<id>/", views.modify_reservation, name="modify_reservation"),
     path("legs-list/", views.legs_list, name="legs_list"),
     path("inhouse-schedule/", views.inhouse_schedule, name="inhouse_schedule"),
     path("driver-schedules/", views.driver_schedules_dashboard, name="driver_schedules_dashboard"),
@@ -320,6 +320,9 @@ urlpatterns = [
     path("staff-kpis/", ops_views.staff_kpis_view, name="staff_kpis"),
     path("revenue-kpis/", ops_views.revenue_kpis_view, name="revenue_kpis"),
     path("staff-metrics/<int:user_id>/", ops_views.staff_detail_view, name="staff_detail"),
+    # ── Admin Tasks Hub ──
+    path("admin-tasks/", ops_views.admin_tasks_view, name="admin_tasks"),
+    path("admin-tasks/bulk-action/", ops_views.admin_tasks_bulk_action, name="admin_tasks_bulk"),
     # Duplicate Reservation Cleanup
     path("duplicate-reservations/", views.duplicate_reservations, name="duplicate_reservations"),
     path("cancel-duplicate-reservation/", views.cancel_duplicate_reservation, name="cancel_duplicate_reservation"),

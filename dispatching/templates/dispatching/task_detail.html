@@ -2877,6 +2877,12 @@ body {
                 {% endif %}
               </span>
             </div>
+            {% if task.assigned_at %}
+            <div class="detail-row">
+              <span class="dl">Assigned at</span>
+              <span class="dv">{{ task.assigned_at|date:"M j, Y g:i A" }}</span>
+            </div>
+            {% endif %}
             <div class="detail-row">
               <span class="dl">Attempts</span>
               <span class="dv">{{ task.attempts }} / {{ task.max_attempts }}</span>

@@ -28,8 +28,12 @@ def _is_superuser(user):
     return user.is_superuser
 
 
+def _is_staff(user):
+    return user.is_staff or user.is_superuser
+
+
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 def task_queue_view(request):
     """
     Main staff task queue — shows all open operational tasks sorted by priority.
@@ -117,7 +121,7 @@ def task_queue_view(request):
         })
 
     ops_staff = list(
-        User.objects.filter(is_superuser=True, is_active=True)
+        User.objects.filter(is_staff=True, is_active=True)
         .order_by("first_name", "username")
         .values("id", "first_name", "username")
     )
@@ -141,7 +145,7 @@ def task_queue_view(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def task_claim(request):
     """Claim a task — assign it to the current user and set status to in_progress."""
@@ -157,8 +161,9 @@ def task_claim(request):
         return JsonResponse({"success": False, "error": "Task is not open"})
 
     task.assigned_to = request.user
+    task.assigned_at = timezone.now()
     task.status = OperationalTask.Status.IN_PROGRESS
-    task.save(update_fields=["assigned_to", "status", "updated_at"])
+    task.save(update_fields=["assigned_to", "assigned_at", "status", "updated_at"])
 
     StaffActivity.objects.create(
         user=request.user,
@@ -170,7 +175,7 @@ def task_claim(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def task_complete(request):
     """Mark a task as completed."""
@@ -199,7 +204,7 @@ def task_complete(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def task_snooze(request):
     """Snooze a task for a specified duration."""
@@ -255,7 +260,7 @@ def task_snooze(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def task_assign(request):
     """Assign a task to a staff member."""
@@ -270,18 +275,20 @@ def task_assign(request):
     task = get_object_or_404(OperationalTask, id=task_id)
 
     if user_id:
-        assignee = get_object_or_404(User, id=user_id, is_superuser=True)
+        assignee = get_object_or_404(User, id=user_id, is_active=True)
         task.assigned_to = assignee
+        task.assigned_at = timezone.now()
         label = assignee.first_name or assignee.username
     else:
         task.assigned_to = None
+        task.assigned_at = None
         label = None
 
     if task.status == OperationalTask.Status.PENDING:
         task.status = OperationalTask.Status.IN_PROGRESS
-        task.save(update_fields=["assigned_to", "status", "updated_at"])
+        task.save(update_fields=["assigned_to", "assigned_at", "status", "updated_at"])
     else:
-        task.save(update_fields=["assigned_to", "updated_at"])
+        task.save(update_fields=["assigned_to", "assigned_at", "updated_at"])
 
     StaffActivity.objects.create(
         user=request.user,
@@ -294,7 +301,7 @@ def task_assign(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def task_cancel(request):
     """Cancel a task."""
@@ -316,7 +323,7 @@ def task_cancel(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def contact_form_update_status(request):
     """Update a contact form's status (contacted/closed) and optionally close its task."""
@@ -351,7 +358,7 @@ def contact_form_update_status(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def contact_form_delete(request):
     """Delete a spam contact form and cancel its associated task."""
@@ -377,7 +384,7 @@ def contact_form_delete(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_POST
 def task_log_comm(request):
     """Log a communication attempt on a task."""
@@ -415,7 +422,7 @@ def task_log_comm(request):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 @require_http_methods(["GET", "POST"])
 def task_create_manual(request):
     """Create a manual task via form POST or JSON."""
@@ -463,10 +470,11 @@ def task_create_manual(request):
         assign_to_id = data.get("assigned_to")
         if assign_to_id:
             try:
-                assignee = User.objects.get(id=assign_to_id, is_superuser=True, is_active=True)
+                assignee = User.objects.get(id=assign_to_id, is_active=True)
                 task.assigned_to = assignee
+                task.assigned_at = timezone.now()
                 task.status = OperationalTask.Status.IN_PROGRESS
-                task.save(update_fields=["assigned_to", "status", "updated_at"])
+                task.save(update_fields=["assigned_to", "assigned_at", "status", "updated_at"])
             except User.DoesNotExist:
                 pass
 
@@ -1509,7 +1517,7 @@ def _build_confirmation_texts_context(task):
 
 
 @login_required(login_url="login")
-@user_passes_test(_is_superuser, login_url="login")
+@user_passes_test(_is_staff, login_url="login")
 def task_detail_view(request, task_id):
     """
     Detailed view of a single task with full communication history,
@@ -1541,7 +1549,7 @@ def task_detail_view(request, task_id):
     activities = task.staff_activities.select_related("user").order_by("-created_at")[:20]
 
     ops_staff = (
-        User.objects.filter(is_superuser=True, is_active=True)
+        User.objects.filter(is_staff=True, is_active=True)
         .order_by("first_name", "username")
         .values("id", "first_name", "username")
     )
@@ -3287,3 +3295,322 @@ def staff_detail_view(request, user_id):
         "all_staff": all_staff,
     }
     return render(request, "dispatching/staff_detail.html", context)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Admin Tasks Hub
+# ═══════════════════════════════════════════════════════════════════════════
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+def admin_tasks_view(request):
+    """
+    Management-oriented task oversight page with table view, rich filtering,
+    summary stats, staff workload, and bulk action support.
+    """
+    from django.core.paginator import Paginator
+
+    now = timezone.now()
+    today = timezone.localdate()
+    OPEN = list(OperationalTask.OPEN_STATUSES)
+
+    # ── Summary stats (single conditional-aggregate query) ──
+    stats = OperationalTask.objects.aggregate(
+        total_open=Count("id", filter=Q(status__in=OPEN)),
+        overdue=Count("id", filter=Q(status__in=OPEN, due_at__lt=now)),
+        unassigned=Count("id", filter=Q(status__in=OPEN, assigned_to__isnull=True)),
+        due_today=Count("id", filter=Q(status__in=OPEN, due_at__date=today)),
+        high_critical=Count("id", filter=Q(status__in=OPEN, priority__lte=2)),
+        completed_today=Count(
+            "id", filter=Q(status="completed", resolved_at__date=today)
+        ),
+    )
+
+    # ── Staff workload ──
+    workload_qs = (
+        OperationalTask.objects.filter(status__in=OPEN, assigned_to__isnull=False)
+        .values("assigned_to__id", "assigned_to__first_name", "assigned_to__username")
+        .annotate(
+            open_count=Count("id"),
+            in_progress_count=Count(
+                "id", filter=Q(status=OperationalTask.Status.IN_PROGRESS)
+            ),
+        )
+        .order_by("-open_count")
+    )
+    # Completed-today per staff
+    completed_today_by_staff = dict(
+        OperationalTask.objects.filter(status="completed", resolved_at__date=today)
+        .values_list("resolved_by__id")
+        .annotate(c=Count("id"))
+        .values_list("resolved_by__id", "c")
+    )
+    staff_workload = []
+    for row in workload_qs:
+        uid = row["assigned_to__id"]
+        staff_workload.append({
+            "id": uid,
+            "name": row["assigned_to__first_name"] or row["assigned_to__username"],
+            "open": row["open_count"],
+            "in_progress": row["in_progress_count"],
+            "completed_today": completed_today_by_staff.get(uid, 0),
+        })
+
+    # ── Status & type breakdowns ──
+    status_breakdown = dict(
+        OperationalTask.objects.filter(status__in=OPEN)
+        .values_list("status")
+        .annotate(c=Count("id"))
+        .values_list("status", "c")
+    )
+    type_breakdown = dict(
+        OperationalTask.objects.filter(status__in=OPEN)
+        .values_list("task_type")
+        .annotate(c=Count("id"))
+        .values_list("task_type", "c")
+    )
+
+    # ── Parse filters ──
+    preset = request.GET.get("preset", "open")
+    search = request.GET.get("search", "").strip()
+    f_status = request.GET.get("status", "")
+    f_assignee = request.GET.get("assignee", "")
+    f_type = request.GET.get("task_type", "")
+    f_priority = request.GET.get("priority", "")
+    f_due_from = request.GET.get("due_from", "")
+    f_due_to = request.GET.get("due_to", "")
+    f_overdue = request.GET.get("overdue") == "1"
+    sort_field = request.GET.get("sort", "priority")
+    sort_dir = request.GET.get("dir", "asc")
+
+    # ── Base queryset ──
+    qs = OperationalTask.objects.select_related(
+        "reservation",
+        "reservation__customer",
+        "leg",
+        "leg__reservation",
+        "leg__reservation__customer",
+        "assigned_to",
+        "created_by",
+        "resolved_by",
+        "blocked_by",
+    )
+
+    # ── Apply preset ──
+    if preset == "open":
+        qs = qs.filter(status__in=OPEN)
+    elif preset == "overdue":
+        qs = qs.filter(status__in=OPEN, due_at__lt=now)
+    elif preset == "unassigned":
+        qs = qs.filter(status__in=OPEN, assigned_to__isnull=True)
+    elif preset == "due_today":
+        qs = qs.filter(status__in=OPEN, due_at__date=today)
+    elif preset == "completed":
+        qs = qs.filter(
+            status=OperationalTask.Status.COMPLETED,
+            resolved_at__gte=now - timedelta(days=7),
+        )
+    # preset == "all" → no status filter
+
+    # ── Apply additional filters ──
+    if f_status:
+        qs = qs.filter(status=f_status)
+    if f_assignee == "unassigned":
+        qs = qs.filter(assigned_to__isnull=True)
+    elif f_assignee:
+        try:
+            qs = qs.filter(assigned_to_id=int(f_assignee))
+        except (ValueError, TypeError):
+            pass
+    if f_type:
+        qs = qs.filter(task_type=f_type)
+    if f_priority:
+        try:
+            qs = qs.filter(priority=int(f_priority))
+        except (ValueError, TypeError):
+            pass
+    if f_due_from:
+        qs = qs.filter(due_at__date__gte=f_due_from)
+    if f_due_to:
+        qs = qs.filter(due_at__date__lte=f_due_to)
+    if f_overdue:
+        qs = qs.filter(due_at__lt=now, status__in=OPEN)
+
+    # ── Text search ──
+    if search:
+        qs = qs.filter(
+            Q(title__icontains=search)
+            | Q(description__icontains=search)
+            | Q(reservation__customer__first_name__icontains=search)
+            | Q(reservation__customer__last_name__icontains=search)
+            | Q(leg__reservation__customer__first_name__icontains=search)
+            | Q(leg__reservation__customer__last_name__icontains=search)
+            | Q(reservation__id__icontains=search)
+        )
+
+    # ── Sorting ──
+    SORT_MAP = {
+        "priority": "priority",
+        "due_at": "due_at",
+        "created_at": "created_at",
+        "updated_at": "updated_at",
+        "status": "status",
+        "type": "task_type",
+        "assigned": "assigned_to__first_name",
+    }
+    order_field = SORT_MAP.get(sort_field, "priority")
+    if sort_dir == "desc":
+        order_field = f"-{order_field}"
+    # Secondary sort for stability
+    if sort_field == "priority":
+        qs = qs.order_by(order_field, "due_at")
+    else:
+        qs = qs.order_by(order_field, "priority", "due_at")
+
+    # ── Pagination ──
+    paginator = Paginator(qs, 50)
+    page_obj = paginator.get_page(request.GET.get("page", 1))
+
+    # ── Staff list for assignment dropdowns ──
+    ops_staff = list(
+        User.objects.filter(is_staff=True, is_active=True)
+        .order_by("first_name", "username")
+        .values("id", "first_name", "username")
+    )
+
+    # ── Build query string without 'page' for pagination links ──
+    qs_params = request.GET.copy()
+    qs_params.pop("page", None)
+    filter_query_string = qs_params.urlencode()
+
+    context = {
+        "page_obj": page_obj,
+        "stats": stats,
+        "staff_workload": staff_workload,
+        "status_breakdown": status_breakdown,
+        "type_breakdown": type_breakdown,
+        "now": now,
+        # Current filter values (for form state)
+        "preset": preset,
+        "search": search,
+        "f_status": f_status,
+        "f_assignee": f_assignee,
+        "f_type": f_type,
+        "f_priority": f_priority,
+        "f_due_from": f_due_from,
+        "f_due_to": f_due_to,
+        "f_overdue": f_overdue,
+        "sort_field": sort_field,
+        "sort_dir": sort_dir,
+        "filter_query_string": filter_query_string,
+        # Choices for filter dropdowns
+        "task_types": OperationalTask.TaskType.choices,
+        "statuses": OperationalTask.Status.choices,
+        "priorities": OperationalTask.Priority.choices,
+        "ops_staff": ops_staff,
+        # Display helpers
+        "status_labels": dict(OperationalTask.Status.choices),
+        "type_labels": dict(OperationalTask.TaskType.choices),
+        "type_icons": OperationalTask.TASK_TYPE_ICONS,
+        "type_colors": {
+            OperationalTask.TaskType.PAYMENT_CHASE: "#fbbf24",
+            OperationalTask.TaskType.FLIGHT_VERIFICATION: "#818cf8",
+            OperationalTask.TaskType.DRIVER_CONFLICT: "#fb7185",
+            OperationalTask.TaskType.DRIVER_ASSIGNMENT: "#c084fc",
+            OperationalTask.TaskType.CONFIRMATION_TEXTS: "#34d399",
+            OperationalTask.TaskType.CONTACT_FORM: "#38bdf8",
+            OperationalTask.TaskType.MANUAL: "#6b7089",
+        },
+        "priority_colors": {
+            OperationalTask.Priority.CRITICAL: "#fb7185",
+            OperationalTask.Priority.HIGH: "#fbbf24",
+            OperationalTask.Priority.MEDIUM: "#818cf8",
+            OperationalTask.Priority.LOW: "#6b7089",
+        },
+    }
+    return render(request, "dispatching/admin_tasks.html", context)
+
+
+@login_required(login_url="login")
+@user_passes_test(_is_superuser, login_url="login")
+@require_POST
+def admin_tasks_bulk_action(request):
+    """
+    Bulk action endpoint for the Admin Tasks page.
+    Accepts JSON: {task_ids: [...], action: "assign|complete|cancel|priority", params: {...}}
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    task_ids = data.get("task_ids", [])
+    action = data.get("action", "")
+    params = data.get("params", {})
+
+    if not task_ids or not action:
+        return JsonResponse(
+            {"success": False, "error": "task_ids and action required"}, status=400
+        )
+
+    ALLOWED_ACTIONS = {"assign", "complete", "cancel", "priority"}
+    if action not in ALLOWED_ACTIONS:
+        return JsonResponse(
+            {"success": False, "error": f"Invalid action: {action}"}, status=400
+        )
+
+    tasks = OperationalTask.objects.filter(id__in=task_ids)
+    count = 0
+
+    if action == "assign":
+        user_id = params.get("user_id")
+        if user_id:
+            assignee = get_object_or_404(User, id=user_id, is_active=True)
+            label = assignee.first_name or assignee.username
+        else:
+            assignee = None
+            label = "unassigned"
+
+        for task in tasks:
+            task.assigned_to = assignee
+            task.assigned_at = timezone.now() if assignee else None
+            if assignee and task.status == OperationalTask.Status.PENDING:
+                task.status = OperationalTask.Status.IN_PROGRESS
+                task.save(update_fields=["assigned_to", "assigned_at", "status", "updated_at"])
+            else:
+                task.save(update_fields=["assigned_to", "assigned_at", "updated_at"])
+            StaffActivity.objects.create(
+                user=request.user,
+                action_type=StaffActivity.ActionType.TASK_ASSIGNED,
+                task=task,
+                metadata={"assigned_to": label, "bulk": True},
+            )
+            count += 1
+
+    elif action == "complete":
+        notes = params.get("notes", "Bulk completed from Admin Tasks")
+        for task in tasks:
+            if task.is_open:
+                close_task(task, resolved_by=request.user, resolution_notes=notes)
+                count += 1
+
+    elif action == "cancel":
+        reason = params.get("reason", "Bulk cancelled from Admin Tasks")
+        for task in tasks:
+            if task.is_open:
+                cancel_task(task, reason=reason)
+                count += 1
+
+    elif action == "priority":
+        try:
+            new_priority = int(params.get("priority", 3))
+        except (ValueError, TypeError):
+            return JsonResponse(
+                {"success": False, "error": "Invalid priority value"}, status=400
+            )
+        for task in tasks:
+            task.priority = new_priority
+            task.save(update_fields=["priority", "updated_at"])
+            count += 1
+
+    return JsonResponse({"success": True, "count": count})

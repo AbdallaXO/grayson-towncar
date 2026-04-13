@@ -695,7 +695,28 @@ def send_lead_quote_email(lead, booking_url=None):
 
     try:
         # Get the latest quote for this lead
-        quote = lead.quotes.filter(is_current=True).first()
+        quote = lead.quotes.filter(is_current=True).select_related("vehicle").first()
+
+        # Build a direct booking URL from the quote's route + vehicle
+        if not booking_url and quote and quote.vehicle:
+            try:
+                from rates.models import Rate
+                rate = Rate.objects.filter(
+                    vehicle=quote.vehicle,
+                    route__origin__name__iexact=quote.pickup_location,
+                    route__destination__name__iexact=quote.dropoff_location,
+                ).first()
+                if not rate:
+                    # Try reversed direction
+                    rate = Rate.objects.filter(
+                        vehicle=quote.vehicle,
+                        route__origin__name__iexact=quote.dropoff_location,
+                        route__destination__name__iexact=quote.pickup_location,
+                    ).first()
+                if rate:
+                    booking_url = f"https://graysontowncar.com/book-orlando-transportation/{rate.pk}"
+            except Exception:
+                logger.debug(f"Could not resolve booking rate for lead #{lead.id}")
 
         context = {
             "lead": lead,

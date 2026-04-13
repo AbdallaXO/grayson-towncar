@@ -1,0 +1,738 @@
+{% extends 'main.html' %}
+{% load static %}
+{% load humanize %}
+{% load ops_filters %}
+
+{% block newsletter %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block extra_css %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   GRAYSON OPS CONTROL — Admin Tasks Hub
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:       #0f1117;
+  --surface:  #181a24;
+  --surface-2:#1e2030;
+  --surface-3:#252838;
+  --border:   #2a2d3e;
+  --border-lt:#353849;
+  --text:     #e2e4ea;
+  --text-2:   #a0a4b8;
+  --text-3:   #8b90a5;
+  --accent:   #818cf8;
+  --accent-dim:#2e2b5e;
+  --rose:     #fb7185;
+  --rose-dim: #3d1f2a;
+  --amber:    #fbbf24;
+  --amber-dim:#3d3217;
+  --emerald:  #34d399;
+  --emerald-dim:#1a3329;
+  --sky:      #38bdf8;
+  --sky-dim:  #17303d;
+  --violet:   #c084fc;
+  --violet-dim:#2d1f42;
+  --mono:     'JetBrains Mono', 'SF Mono', monospace;
+  --sans:     'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+body { background: var(--bg) !important; color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+
+/* ── Header ── */
+.at-header {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%);
+  padding: 1.1rem 0 0.85rem;
+}
+.at-header h1 { font-weight: 800; font-size: 1.3rem; color: #fff; margin: 0; }
+.at-header .sub { font-size: 0.75rem; color: rgba(255,255,255,0.65); }
+
+/* ── Stat row ── */
+.at-stats { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
+.at-stat {
+  flex: 1; min-width: 115px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.7rem 0.75rem; text-align: center; text-decoration: none;
+  transition: all 0.15s ease;
+}
+.at-stat:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(129,140,248,0.12); transform: translateY(-1px); }
+.at-stat .v { font-family: var(--mono); font-size: 1.5rem; font-weight: 700; line-height: 1; }
+.at-stat .l { font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); margin-top: 0.2rem; }
+.at-stat.s-danger .v { color: var(--rose); }
+.at-stat.s-warn   .v { color: var(--amber); }
+.at-stat.s-ok     .v { color: var(--emerald); }
+.at-stat.s-info   .v { color: var(--accent); }
+.at-stat.s-purple .v { color: var(--violet); }
+
+/* ── Tabs ── */
+.at-tabs {
+  display: flex; gap: 2px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; padding: 3px; overflow-x: auto;
+}
+.at-tab {
+  padding: 0.38rem 0.85rem; border-radius: 8px; font-size: 0.76rem; font-weight: 600;
+  color: var(--text-2); text-decoration: none; white-space: nowrap; transition: all 0.12s;
+}
+.at-tab:hover { background: var(--surface-3); color: var(--text); }
+.at-tab.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(129,140,248,0.3); }
+.at-tab .ct { font-family: var(--mono); font-size: 0.68rem; margin-left: 0.3rem; opacity: 0.75; }
+
+/* ── Filter bar ── */
+.at-fbar {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.65rem 0.85rem;
+}
+.at-fbar .form-control, .at-fbar .form-select {
+  font-size: 0.78rem; padding: 0.32rem 0.55rem; border-color: var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text);
+}
+.at-fbar .form-control:focus, .at-fbar .form-select:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px rgba(129,140,248,0.15); background: var(--surface-3);
+}
+.at-fbar .form-control::placeholder { color: var(--text-3); }
+.at-fbar label {
+  font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text-3); margin-bottom: 0.15rem; display: block;
+}
+
+/* ── Bulk bar ── */
+.at-bulk {
+  background: var(--accent-dim); border: 1px solid rgba(129,140,248,0.25); border-radius: 10px; padding: 0.55rem 0.85rem;
+  display: none; align-items: center; gap: 0.5rem; color: #c7d2fe; font-size: 0.78rem;
+}
+.at-bulk.show { display: flex; flex-wrap: wrap; }
+.at-bulk .ct { font-family: var(--mono); background: var(--accent); color: #fff; padding: 0.15em 0.6em; border-radius: 6px; font-size: 0.78rem; }
+.at-bulk .form-select {
+  font-size: 0.76rem; padding: 0.28rem 0.5rem; max-width: 170px; border-radius: 7px;
+  background-color: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: #e0e7ff;
+}
+.at-bulk .form-select option { color: #1a1a2e; background: #fff; }
+.at-bulk .btn { font-size: 0.76rem; padding: 0.28rem 0.65rem; border-radius: 7px; }
+
+/* ── Table ── */
+.at-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.at-tbl { margin: 0; font-size: 0.78rem; color: var(--text); }
+.at-tbl thead th {
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  font-weight: 700; font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-3); padding: 0.55rem 0.5rem; white-space: nowrap; vertical-align: middle;
+}
+.at-tbl thead th a { color: inherit; text-decoration: none; }
+.at-tbl thead th a:hover { color: var(--accent); }
+.at-tbl .si { font-size: 0.6rem; margin-left: 2px; }
+.at-tbl tbody td { padding: 0.5rem; vertical-align: middle; border-bottom: 1px solid var(--border); }
+.at-tbl tbody tr { transition: background 0.08s; }
+.at-tbl tbody tr:hover { background: var(--surface-2); }
+.at-tbl tbody tr.row-od { background: var(--rose-dim); }
+.at-tbl tbody tr.row-od:hover { background: #4a2232; }
+
+/* Priority dot */
+.pd { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px rgba(255,255,255,0.08); }
+
+/* Status badges */
+.sb { font-size: 0.65rem; font-weight: 700; padding: 0.2em 0.55em; border-radius: 5px; letter-spacing: 0.02em; white-space: nowrap; }
+.sb-pending    { background: var(--accent-dim); color: var(--accent); }
+.sb-in_progress { background: var(--amber-dim); color: var(--amber); }
+.sb-snoozed    { background: var(--violet-dim); color: var(--violet); }
+.sb-escalated  { background: var(--rose-dim); color: var(--rose); font-weight: 800; }
+.sb-completed  { background: var(--emerald-dim); color: var(--emerald); }
+.sb-cancelled  { background: var(--surface-3); color: var(--text-3); }
+
+/* Type chip */
+.tc { font-size: 0.72rem; font-weight: 500; white-space: nowrap; }
+.tc i { font-size: 0.78rem; margin-right: 3px; }
+
+/* ── Inline assign select ── */
+.assign-cell { position: relative; }
+.assign-sel {
+  font-size: 0.76rem; padding: 0.22rem 0.35rem; border-radius: 6px;
+  border: 1px solid transparent; background: transparent; cursor: pointer;
+  color: var(--text); appearance: none; -webkit-appearance: none;
+  width: 100%; max-width: 135px;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7089' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat; background-position: right 5px center; background-size: 10px;
+  padding-right: 20px; text-overflow: ellipsis;
+  transition: all 0.12s;
+}
+.assign-sel:hover { border-color: var(--border-lt); background-color: var(--surface-2); }
+.assign-sel:focus { border-color: var(--accent); background-color: var(--surface-3); box-shadow: 0 0 0 3px rgba(129,140,248,0.15); outline: none; }
+.assign-sel option { background: var(--surface-2); color: var(--text); }
+.assign-sel.unassigned { color: var(--rose); font-weight: 600; }
+
+/* ── Action btns ── */
+.ab {
+  width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text-3);
+  cursor: pointer; transition: all 0.12s; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem;
+}
+.ab:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.ab.a-ok:hover { border-color: var(--emerald); color: var(--emerald); background: var(--emerald-dim); }
+.ab.a-no:hover { border-color: var(--rose); color: var(--rose); background: var(--rose-dim); }
+
+/* ── Workload cards ── */
+.wl-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+}
+.wl-card .ch {
+  background: var(--surface-2); padding: 0.55rem 0.85rem; font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); border-bottom: 1px solid var(--border);
+}
+.wl-card table { font-size: 0.76rem; margin: 0; color: var(--text); }
+.wl-card td, .wl-card th { padding: 0.45rem 0.7rem; border-color: var(--border) !important; }
+.wl-card th { color: var(--text-3) !important; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.wl-card td { color: var(--text-2); }
+.wl-card .text-mono { color: var(--text); }
+.wl-card a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.wl-card a:hover { text-decoration: underline; color: #a5b4fc; }
+.wl-card thead, .wl-card thead th,
+.wl-card .table-light, .wl-card .table-light th { background: var(--surface-2) !important; color: var(--text-3) !important; }
+.wl-card tbody tr { background: var(--surface) !important; }
+.wl-card tbody tr:hover { background: var(--surface-2) !important; }
+.wl-card tr.row-unassigned { background: var(--rose-dim) !important; }
+.wl-card tr.row-unassigned td { color: var(--rose); }
+.wl-card tr.row-unassigned em { color: var(--rose); }
+.wl-card tr.row-unassigned .fw-bold { color: var(--rose); }
+
+/* ── Breakdown chips ── */
+.bc {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem;
+  border-radius: 7px; font-size: 0.72rem; font-weight: 600;
+  background: var(--surface-3); color: var(--text); margin: 0.15rem;
+}
+.bc .n { font-family: var(--mono); font-weight: 700; color: var(--text); }
+
+/* ── Toast ── */
+.ops-toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; padding: 0.7rem 1.2rem; border-radius: 10px;
+  font-size: 0.8rem; font-weight: 600; color: #fff; z-index: 9999;
+  opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.ops-toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.ops-toast.t-ok  { background: var(--emerald); color: #052e16; }
+.ops-toast.t-err { background: var(--rose); color: #1a0008; }
+
+/* ── Pagination ── */
+.at-pg .page-link { font-size: 0.76rem; padding: 0.3rem 0.6rem; color: var(--text-2); border-color: var(--border); border-radius: 6px; background: var(--surface); }
+.at-pg .page-link:hover { background: var(--surface-2); color: var(--text); }
+.at-pg .page-item.active .page-link { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── Modal ── */
+.at-modal .modal-content { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); box-shadow: 0 24px 48px rgba(0,0,0,0.5); }
+.at-modal .modal-header { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; padding: 0.75rem 1rem; }
+.at-modal .modal-title { font-size: 0.9rem; font-weight: 700; }
+.at-modal .btn-close { filter: invert(1); }
+.at-modal .modal-body { font-size: 0.84rem; color: var(--text); }
+.at-modal .modal-footer { border-color: var(--border); }
+.at-modal .form-control { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+
+/* ── Helpers ── */
+.text-mono { font-family: var(--mono); }
+.fs-xs { font-size: 0.7rem; }
+.td-sub { color: var(--text-2); }
+.td-dim { color: var(--text-3); }
+a.tl { color: var(--text); font-weight: 600; text-decoration: none; }
+a.tl:hover { color: var(--accent); text-decoration: underline; }
+.od-text { color: var(--rose); font-weight: 600; }
+.text-muted { color: var(--text-3) !important; }
+.form-check-input { background-color: var(--surface-2); border-color: var(--border-lt); }
+.form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+.form-check-label { color: var(--text-2); }
+.btn-primary { background: var(--accent); border-color: var(--accent); }
+.btn-primary:hover { background: #6366f1; border-color: #6366f1; }
+.btn-outline-secondary { color: var(--text-2); border-color: var(--border-lt); }
+.btn-outline-secondary:hover { background: var(--surface-3); color: var(--text); border-color: var(--text-3); }
+.btn-outline-light { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.85); }
+.btn-outline-light:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.4); }
+.btn-success { background: var(--emerald); border-color: var(--emerald); color: #052e16; }
+.btn-outline-danger { color: var(--rose); border-color: var(--rose); }
+.btn-outline-danger:hover { background: var(--rose); color: #fff; }
+/* Kill Bootstrap light-theme table overrides */
+.table { --bs-table-bg: transparent; --bs-table-hover-bg: var(--surface-2); --bs-table-border-color: var(--border); color: var(--text); }
+.table-hover > tbody > tr:hover > * { --bs-table-bg-state: var(--surface-2); color: var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+{% block navbar %}{% endblock %}
+{% include 'dispatching/dispatcher_navbar.html' %}
+
+{# ═══ HEADER ═══ #}
+<div class="at-header">
+  <div class="container-fluid px-4">
+    <div class="d-flex align-items-center justify-content-between">
+      <div>
+        <h1><i class="bi bi-clipboard2-check me-2"></i>Admin Tasks</h1>
+        <span class="sub">Task oversight &middot; staff workload &middot; {{ stats.total_open }} open</span>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{% url 'task_queue' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-list-check me-1"></i>Staff Queue</a>
+        <a href="{% url 'staff_metrics' %}" class="btn btn-sm btn-outline-light"><i class="bi bi-activity me-1"></i>Metrics</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid px-4 py-3">
+
+{# ═══ STATS ═══ #}
+<div class="at-stats mb-3">
+  <a href="?preset=open" class="at-stat s-info">
+    <div class="v">{{ stats.total_open }}</div><div class="l">Open</div>
+  </a>
+  <a href="?preset=overdue" class="at-stat s-danger">
+    <div class="v">{{ stats.overdue }}</div><div class="l">Overdue</div>
+  </a>
+  <a href="?preset=unassigned" class="at-stat s-warn">
+    <div class="v">{{ stats.unassigned }}</div><div class="l">Unassigned</div>
+  </a>
+  <a href="?preset=due_today" class="at-stat s-purple">
+    <div class="v">{{ stats.due_today }}</div><div class="l">Due Today</div>
+  </a>
+  <a href="?preset=open&priority=2" class="at-stat s-danger">
+    <div class="v">{{ stats.high_critical }}</div><div class="l">High+</div>
+  </a>
+  <a href="?preset=completed" class="at-stat s-ok">
+    <div class="v">{{ stats.completed_today }}</div><div class="l">Done Today</div>
+  </a>
+</div>
+
+{# ═══ TABS ═══ #}
+<div class="at-tabs mb-2">
+  <a href="?preset=open" class="at-tab {% if preset == 'open' %}active{% endif %}">All Open <span class="ct">{{ stats.total_open }}</span></a>
+  <a href="?preset=overdue" class="at-tab {% if preset == 'overdue' %}active{% endif %}">Overdue <span class="ct">{{ stats.overdue }}</span></a>
+  <a href="?preset=unassigned" class="at-tab {% if preset == 'unassigned' %}active{% endif %}">Unassigned <span class="ct">{{ stats.unassigned }}</span></a>
+  <a href="?preset=due_today" class="at-tab {% if preset == 'due_today' %}active{% endif %}">Due Today <span class="ct">{{ stats.due_today }}</span></a>
+  <a href="?preset=completed" class="at-tab {% if preset == 'completed' %}active{% endif %}">Completed</a>
+  <a href="?preset=all" class="at-tab {% if preset == 'all' %}active{% endif %}">All</a>
+</div>
+
+{# ═══ FILTERS ═══ #}
+<form method="get" class="at-fbar mb-2" id="filterForm">
+  <input type="hidden" name="preset" value="{{ preset }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-lg-2 col-md-3">
+      <label>Search</label>
+      <input type="text" class="form-control" name="search" value="{{ search }}" placeholder="Title, customer, res #...">
+    </div>
+    <div class="col-6 col-lg-1 col-md-2">
+      <label>Status</label>
+      <select class="form-select" name="status">
+        <option value="">All</option>
+        {% for val, label in statuses %}
+        <option value="{{ val }}" {% if f_status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2 col-md-2">
+      <label>Assigned To</label>
+      <select class="form-select" name="assignee">
+        <option value="">Everyone</option>
+        <option value="unassigned" {% if f_assignee == 'unassigned' %}selected{% endif %}>Unassigned</option>
+        {% for s in ops_staff %}
+        <option value="{{ s.id }}" {% if f_assignee == s.id|stringformat:"d" %}selected{% endif %}>{{ s.first_name|default:s.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2 col-md-2">
+      <label>Type</label>
+      <select class="form-select" name="task_type">
+        <option value="">All</option>
+        {% for val, label in task_types %}
+        <option value="{{ val }}" {% if f_type == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-1 col-md-2">
+      <label>Priority</label>
+      <select class="form-select" name="priority">
+        <option value="">All</option>
+        {% for val, label in priorities %}
+        <option value="{{ val }}" {% if f_priority == val|stringformat:"d" %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-1">
+      <label>From</label>
+      <input type="date" class="form-control" name="due_from" value="{{ f_due_from }}">
+    </div>
+    <div class="col-6 col-lg-1">
+      <label>To</label>
+      <input type="date" class="form-control" name="due_to" value="{{ f_due_to }}">
+    </div>
+    <div class="col-auto d-flex align-items-end gap-2 pb-0">
+      <div class="form-check mb-1">
+        <input class="form-check-input" type="checkbox" name="overdue" value="1" id="chkOD" {% if f_overdue %}checked{% endif %}>
+        <label class="form-check-label" for="chkOD" style="font-size:0.72rem;font-weight:600;">Overdue</label>
+      </div>
+      <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-funnel-fill me-1"></i>Filter</button>
+      <a href="?preset={{ preset }}" class="btn btn-sm btn-outline-secondary">Clear</a>
+    </div>
+  </div>
+</form>
+
+{# ═══ BULK BAR ═══ #}
+<div class="at-bulk mb-2" id="bulkBar">
+  <span class="ct" id="bulkCount">0</span> <span>selected</span>
+  <select class="form-select" id="bulkAssign" title="Bulk assign">
+    <option value="">Assign to...</option>
+    <option value="__unassign">Unassign</option>
+    {% for s in ops_staff %}
+    <option value="{{ s.id }}">{{ s.first_name|default:s.username }}</option>
+    {% endfor %}
+  </select>
+  <select class="form-select" id="bulkPriority" title="Bulk priority">
+    <option value="">Priority...</option>
+    {% for val, label in priorities %}
+    <option value="{{ val }}">{{ label }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-success btn-sm" id="bulkOkBtn"><i class="bi bi-check2-all me-1"></i>Complete</button>
+  <button class="btn btn-outline-danger btn-sm" id="bulkNoBtn"><i class="bi bi-x-lg me-1"></i>Cancel</button>
+  <span class="ms-auto"></span>
+  <button class="btn btn-outline-light btn-sm" id="selAll">All</button>
+  <button class="btn btn-outline-light btn-sm" id="selNone">None</button>
+</div>
+
+{# ═══ TABLE ═══ #}
+<div class="at-wrap mb-3">
+  <div class="table-responsive">
+  <table class="table table-hover at-tbl">
+    <thead>
+      <tr>
+        <th style="width:30px"><input type="checkbox" id="chkAll" title="Select all"></th>
+        <th style="width:32px">
+          <a href="?{{ filter_query_string }}&sort=priority&dir={% if sort_field == 'priority' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+            Pri {% if sort_field == 'priority' %}<i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %} si"></i>{% endif %}
+          </a>
+        </th>
+        <th>Title</th>
+        <th>Type</th>
+        <th>
+          <a href="?{{ filter_query_string }}&sort=status&dir={% if sort_field == 'status' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+            Status {% if sort_field == 'status' %}<i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %} si"></i>{% endif %}
+          </a>
+        </th>
+        <th>
+          <a href="?{{ filter_query_string }}&sort=assigned&dir={% if sort_field == 'assigned' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+            Assigned To {% if sort_field == 'assigned' %}<i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %} si"></i>{% endif %}
+          </a>
+        </th>
+        <th>Assigned At</th>
+        <th>Customer</th>
+        <th>Related</th>
+        <th>
+          <a href="?{{ filter_query_string }}&sort=due_at&dir={% if sort_field == 'due_at' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+            Due {% if sort_field == 'due_at' %}<i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %} si"></i>{% endif %}
+          </a>
+        </th>
+        <th>
+          <a href="?{{ filter_query_string }}&sort=created_at&dir={% if sort_field == 'created_at' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+            Created {% if sort_field == 'created_at' %}<i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %} si"></i>{% endif %}
+          </a>
+        </th>
+        <th style="width:70px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in page_obj %}
+      <tr class="{% if task.is_overdue %}row-od{% endif %}" data-id="{{ task.id }}">
+        <td><input type="checkbox" class="tc" value="{{ task.id }}"></td>
+        <td><span class="pd" style="background:{{ priority_colors|get_item:task.priority }}" title="{{ task.get_priority_display }}"></span></td>
+        <td>
+          <a href="{% url 'task_detail' task.id %}" class="tl" title="{{ task.description|truncatewords:20 }}">{{ task.title|truncatewords:10 }}</a>{% if task.is_overdue %} <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:0.65rem"></i>{% endif %}{% if task.blocked_by_id %} <i class="bi bi-lock-fill text-warning" style="font-size:0.65rem" title="Blocked"></i>{% endif %}
+        </td>
+        <td><span class="tc" style="color:{{ type_colors|get_item:task.task_type }}"><i class="bi {{ task.type_icon }}"></i>{{ task.get_task_type_display }}</span></td>
+        <td><span class="sb sb-{{ task.status }}">{{ task.get_status_display }}</span></td>
+        <td class="assign-cell">
+          {% if task.is_open %}
+          <select class="assign-sel{% if not task.assigned_to %} unassigned{% endif %}" data-task-id="{{ task.id }}">
+            <option value="" {% if not task.assigned_to %}selected{% endif %}>Unassigned</option>
+            {% for s in ops_staff %}
+            <option value="{{ s.id }}" {% if task.assigned_to_id == s.id %}selected{% endif %}>{{ s.first_name|default:s.username }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+            {% if task.assigned_to %}
+              <span class="fs-xs">{{ task.assigned_to.first_name|default:task.assigned_to.username }}</span>
+            {% else %}
+              <span class="fs-xs text-muted">--</span>
+            {% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% if task.assigned_at %}<span class="fs-xs td-sub">{{ task.assigned_at|date:"M j, g:i A" }}</span>{% else %}<span class="fs-xs td-dim">--</span>{% endif %}
+        </td>
+        <td>
+          {% with cust=task.customer %}{% if cust %}<span class="fs-xs td-sub">{{ cust.first_name }} {{ cust.last_name }}</span>{% else %}<span class="fs-xs td-dim">--</span>{% endif %}{% endwith %}
+        </td>
+        <td>
+          {% if task.reservation_id %}<a href="{% url 'reservation_details' task.reservation_id %}" class="fs-xs text-mono" style="color:var(--accent)">#{{ task.reservation_id }}</a>{% elif task.leg_id %}<a href="{% url 'reservation_details' task.leg.reservation_id %}" class="fs-xs text-mono" style="color:var(--accent)">Leg #{{ task.leg_id }}</a>{% elif task.contact_form_id %}<span class="fs-xs td-sub">Form #{{ task.contact_form_id }}</span>{% else %}<span class="fs-xs td-dim">--</span>{% endif %}
+        </td>
+        <td>
+          {% if task.due_at %}<span class="fs-xs {% if task.is_overdue %}od-text{% else %}td-sub{% endif %}">{{ task.due_at|date:"M j, g:i A" }}</span>{% else %}<span class="fs-xs td-dim">--</span>{% endif %}
+        </td>
+        <td><span class="fs-xs td-sub">{{ task.created_at|date:"M j" }}</span></td>
+        <td>
+          {% if task.is_open %}
+          <div class="d-flex gap-1">
+            <button class="ab a-ok" data-action="complete" data-id="{{ task.id }}" title="Complete"><i class="bi bi-check-lg"></i></button>
+            <button class="ab a-no" data-action="cancel" data-id="{{ task.id }}" title="Cancel"><i class="bi bi-x-lg"></i></button>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="12" class="text-center py-4 text-muted">
+          <i class="bi bi-inbox" style="font-size:1.8rem;display:block;margin-bottom:0.4rem;opacity:0.3"></i>
+          No tasks match current filters.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{# ═══ PAGINATION ═══ #}
+{% if page_obj.has_other_pages %}
+<nav class="mb-3">
+  <ul class="pagination pagination-sm at-pg justify-content-center">
+    {% if page_obj.has_previous %}
+    <li class="page-item"><a class="page-link" href="?{{ filter_query_string }}&page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if page_obj.number == num %}
+      <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+      {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+      <li class="page-item"><a class="page-link" href="?{{ filter_query_string }}&page={{ num }}">{{ num }}</a></li>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <li class="page-item"><a class="page-link" href="?{{ filter_query_string }}&page={{ page_obj.next_page_number }}">&raquo;</a></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+{# ═══ WORKLOAD & BREAKDOWNS ═══ #}
+<div class="row g-3 mb-4">
+  <div class="col-lg-5">
+    <div class="wl-card">
+      <div class="ch"><i class="bi bi-people me-1"></i> Staff Workload</div>
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Staff</th><th class="text-end">Open</th><th class="text-end">Active</th><th class="text-end">Done Today</th></tr></thead>
+        <tbody>
+          {% for w in staff_workload %}
+          <tr>
+            <td><a href="?preset=open&assignee={{ w.id }}">{{ w.name }}</a></td>
+            <td class="text-end text-mono">{{ w.open }}</td>
+            <td class="text-end text-mono">{{ w.in_progress }}</td>
+            <td class="text-end text-mono">{{ w.completed_today }}</td>
+          </tr>
+          {% endfor %}
+          <tr class="row-unassigned">
+            <td><a href="?preset=unassigned"><em>Unassigned</em></a></td>
+            <td class="text-end text-mono fw-bold">{{ stats.unassigned }}</td>
+            <td class="text-end">--</td>
+            <td class="text-end">--</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-lg-3">
+    <div class="wl-card">
+      <div class="ch"><i class="bi bi-bar-chart me-1"></i> By Status</div>
+      <div class="p-2">
+        {% for val, label in statuses %}{% with cnt=status_breakdown|get_item:val %}{% if cnt %}<div class="bc"><span class="sb sb-{{ val }}">{{ label }}</span> <span class="n">{{ cnt }}</span></div>{% endif %}{% endwith %}{% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="wl-card">
+      <div class="ch"><i class="bi bi-tags me-1"></i> By Type</div>
+      <div class="p-2">
+        {% for val, label in task_types %}{% with cnt=type_breakdown|get_item:val %}{% if cnt %}<div class="bc"><i class="bi {{ type_icons|get_item:val }}" style="color:{{ type_colors|get_item:val }}"></i> {{ label }} <span class="n">{{ cnt }}</span></div>{% endif %}{% endwith %}{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+{# ═══ MODAL ═══ #}
+<div class="modal fade at-modal" id="cfmModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title mb-0" id="cfmTitle">Confirm</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="cfmMsg" class="mb-2"></p>
+        <div id="cfmNotesWrap" style="display:none">
+          <textarea class="form-control form-control-sm" id="cfmNotes" rows="2" placeholder="Notes (optional)"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer py-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Back</button>
+        <button type="button" class="btn btn-sm btn-primary" id="cfmOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ops-toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const CSRF = '{{ csrf_token }}';
+  const URLS = {
+    bulk: '{% url "admin_tasks_bulk" %}',
+    assign: '{% url "task_assign" %}',
+    complete: '{% url "task_complete" %}',
+    cancel: '{% url "task_cancel" %}'
+  };
+
+  /* ── Toast ── */
+  function toast(msg, ok=true) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'ops-toast ' + (ok ? 't-ok' : 't-err') + ' show';
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  /* ── POST helper ── */
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify(body)
+    }).then(r => r.json());
+  }
+
+  /* ── Inline assign (native <select>) ── */
+  document.querySelectorAll('.assign-sel').forEach(sel => {
+    sel.addEventListener('change', function() {
+      const taskId = parseInt(this.dataset.taskId);
+      const userId = this.value ? parseInt(this.value) : null;
+      post(URLS.assign, {task_id: taskId, user_id: userId})
+        .then(d => {
+          if (d.success) {
+            toast(d.assigned_to ? 'Assigned to ' + d.assigned_to : 'Unassigned');
+            // Update visual immediately
+            this.classList.toggle('unassigned', !userId);
+          } else { toast('Error: ' + d.error, false); }
+        })
+        .catch(() => toast('Network error', false));
+    });
+  });
+
+  /* ── Inline complete / cancel ── */
+  document.querySelectorAll('.ab[data-action]').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const id = parseInt(this.dataset.id);
+      const action = this.dataset.action;
+      if (action === 'cancel' && !confirm('Cancel this task?')) return;
+      const url = action === 'complete' ? URLS.complete : URLS.cancel;
+      const body = {task_id: id};
+      if (action === 'complete') body.notes = 'Completed from Admin Tasks';
+      if (action === 'cancel') body.reason = 'Cancelled from Admin Tasks';
+      post(url, body).then(d => {
+        if (d.success) {
+          toast(action === 'complete' ? 'Task completed' : 'Task cancelled');
+          // Fade out row
+          const row = this.closest('tr');
+          row.style.transition = 'opacity 0.3s';
+          row.style.opacity = '0.3';
+          setTimeout(() => location.reload(), 700);
+        } else { toast('Error: ' + (d.error || 'Unknown'), false); }
+      }).catch(() => toast('Network error', false));
+    });
+  });
+
+  /* ── Checkbox / bulk ── */
+  const chkAll = document.getElementById('chkAll');
+  const bulkBar = document.getElementById('bulkBar');
+  const bulkCount = document.getElementById('bulkCount');
+
+  function getChecked() { return [...document.querySelectorAll('.tc:checked')].map(c => +c.value); }
+  function syncBulk() {
+    const n = getChecked().length;
+    bulkCount.textContent = n;
+    bulkBar.classList.toggle('show', n > 0);
+  }
+
+  chkAll.addEventListener('change', function() {
+    document.querySelectorAll('.tc').forEach(c => c.checked = this.checked);
+    syncBulk();
+  });
+  document.querySelectorAll('.tc').forEach(c => c.addEventListener('change', syncBulk));
+  document.getElementById('selAll').addEventListener('click', () => {
+    document.querySelectorAll('.tc').forEach(c => c.checked = true);
+    chkAll.checked = true; syncBulk();
+  });
+  document.getElementById('selNone').addEventListener('click', () => {
+    document.querySelectorAll('.tc').forEach(c => c.checked = false);
+    chkAll.checked = false; syncBulk();
+  });
+
+  function doBulk(action, params) {
+    const ids = getChecked();
+    if (!ids.length) return;
+    post(URLS.bulk, {task_ids: ids, action, params})
+      .then(d => {
+        if (d.success) { toast(action + ': ' + d.count + ' task(s)'); setTimeout(() => location.reload(), 600); }
+        else { toast('Error: ' + d.error, false); }
+      })
+      .catch(() => toast('Network error', false));
+  }
+
+  document.getElementById('bulkAssign').addEventListener('change', function() {
+    if (!this.value) return;
+    doBulk('assign', {user_id: this.value === '__unassign' ? null : +this.value});
+    this.value = '';
+  });
+  document.getElementById('bulkPriority').addEventListener('change', function() {
+    if (!this.value) return;
+    doBulk('priority', {priority: +this.value});
+    this.value = '';
+  });
+
+  /* ── Bulk confirm modal ── */
+  let pendingAction = null;
+  const modal = new bootstrap.Modal(document.getElementById('cfmModal'));
+
+  document.getElementById('bulkOkBtn').addEventListener('click', function() {
+    const n = getChecked().length; if (!n) return;
+    document.getElementById('cfmTitle').textContent = 'Complete ' + n + ' task(s)';
+    document.getElementById('cfmMsg').textContent = 'Mark selected tasks as completed?';
+    document.getElementById('cfmNotesWrap').style.display = 'block';
+    document.getElementById('cfmNotes').value = '';
+    document.getElementById('cfmOk').className = 'btn btn-sm btn-success';
+    pendingAction = 'complete'; modal.show();
+  });
+  document.getElementById('bulkNoBtn').addEventListener('click', function() {
+    const n = getChecked().length; if (!n) return;
+    document.getElementById('cfmTitle').textContent = 'Cancel ' + n + ' task(s)';
+    document.getElementById('cfmMsg').textContent = 'Cancel selected tasks?';
+    document.getElementById('cfmNotesWrap').style.display = 'block';
+    document.getElementById('cfmNotes').value = '';
+    document.getElementById('cfmOk').className = 'btn btn-sm btn-danger';
+    pendingAction = 'cancel'; modal.show();
+  });
+  document.getElementById('cfmOk').addEventListener('click', function() {
+    const notes = document.getElementById('cfmNotes').value;
+    if (pendingAction === 'complete') doBulk('complete', {notes: notes || 'Bulk completed'});
+    else if (pendingAction === 'cancel') doBulk('cancel', {reason: notes || 'Bulk cancelled'});
+    modal.hide();
+  });
+
+})();
+</script>
+{% endblock %}

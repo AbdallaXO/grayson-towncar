@@ -1235,6 +1235,7 @@ body {
               <span class="ops-assignee">
                 <i class="bi bi-person-check-fill"></i>
                 {{ task.assigned_to.first_name|default:task.assigned_to.username }}
+                {% if task.assigned_at %}<small style="opacity:.55;margin-left:4px">{{ task.assigned_at|date:"M j, g:iA"|lower }}</small>{% endif %}
               </span>
               {% else %}
               <span class="ops-assignee unassigned">
