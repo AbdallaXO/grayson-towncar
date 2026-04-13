@@ -870,6 +870,10 @@ class Leg(models.Model):
         if not self.reservation:
             return Decimal("0.00")
 
+        total_price = self.reservation.total_price
+        if not total_price:
+            return Decimal("0.00")
+
         # Get total number of legs in this reservation
         total_legs = self.reservation.legs.count()
 
@@ -877,7 +881,7 @@ class Leg(models.Model):
             return Decimal("0.00")
 
         # Calculate leg's share of revenue (total price divided by number of legs)
-        revenue_share = self.reservation.total_price / Decimal(total_legs)
+        revenue_share = total_price / Decimal(total_legs)
 
         # Round to 2 decimal places
         return revenue_share.quantize(Decimal("0.01"))
@@ -899,8 +903,10 @@ class Leg(models.Model):
         """
         Calculate profit (leg's revenue share minus driver payment)
         """
-        revenue = self.revenue_share or self.calculate_revenue_share()
+        revenue = self.revenue_share if self.revenue_share is not None else self.calculate_revenue_share()
         driver_payment = self.total_driver_pay
+        if revenue is None:
+            return None
 
         return (revenue - driver_payment).quantize(Decimal("0.01"))
 

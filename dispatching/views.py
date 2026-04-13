@@ -112,6 +112,7 @@ def index(request):
     driver_filter = request.GET.get("driver")
     trip_type_filter = request.GET.get("trip_type")
     vehicle_filter = request.GET.get("vehicle")
+    highlight_leg_id = request.GET.get("highlight")
 
     try:
         selected_date = (
@@ -709,6 +710,7 @@ def index(request):
         "inhouse_timeline": inhouse_timeline,
         "timeline_hours": timeline_hours,
         "unassigned_timeline_slots": _unassigned_timeline_slots,
+        "highlight_leg_id": int(highlight_leg_id) if highlight_leg_id and highlight_leg_id.isdigit() else None,
     }
 
     # PERF TEMP START
@@ -9999,28 +10001,42 @@ def execute_swap(request):
     except ValueError:
         return JsonResponse({"success": False, "error": "Invalid date"}, status=400)
 
+    # Validate all moves before starting the transaction
+    valid_moves = []
+    for i, move in enumerate(moves):
+        leg_id = move.get("leg_id")
+        to_driver_id = move.get("to_driver_id")
+        if not leg_id or not to_driver_id:
+            return JsonResponse({
+                "success": False,
+                "error": f"Move {i+1} is missing leg_id or to_driver_id",
+            }, status=400)
+        valid_moves.append((int(leg_id), int(to_driver_id)))
+
+    if not valid_moves:
+        return JsonResponse({"success": False, "error": "No valid moves to apply"}, status=400)
+
     try:
+        applied = 0
         with transaction.atomic():
-            for move in moves:
-                leg_id = move.get("leg_id")
-                to_driver_id = move.get("to_driver_id")
-                if not leg_id or not to_driver_id:
-                    continue
+            for leg_id, to_driver_id in valid_moves:
                 leg = Leg.objects.select_for_update().get(id=leg_id)
                 driver = Driver.objects.get(id=to_driver_id)
                 leg.driver = driver
                 leg.driver_assigned_by = request.user
                 leg.driver_assigned_at = timezone.now()
                 leg.save(update_fields=['driver', 'driver_assigned_by', 'driver_assigned_at'])
+                applied += 1
     except Leg.DoesNotExist:
-        return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
+        return JsonResponse({"success": False, "error": f"Leg {leg_id} not found"}, status=404)
     except Driver.DoesNotExist:
-        return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+        return JsonResponse({"success": False, "error": f"Driver {to_driver_id} not found"}, status=404)
     except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+        logger.exception("execute_swap failed: %s", e)
+        return JsonResponse({"success": False, "error": f"Swap failed: {e}"}, status=500)
 
     cache.delete(f"capacity_planner_{target_date.isoformat()}")
-    return JsonResponse({"success": True, "applied": len(moves)})
+    return JsonResponse({"success": True, "applied": applied})
 
 
 @login_required

@@ -39,6 +39,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = "{{ csrf_token }}";
     let currentLegId = null;
 
+    // ── Geolocation permission manager ──
+    // Avoids repeated browser prompts by checking permission state first.
+    let _geoPermission = null;  // 'granted' | 'denied' | 'prompt'
+
+    async function initGeoPermission() {
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                const status = await navigator.permissions.query({ name: 'geolocation' });
+                _geoPermission = status.state;
+                status.addEventListener('change', () => { _geoPermission = status.state; });
+                return;
+            } catch (e) { /* Safari and some browsers throw for geolocation query */ }
+        }
+        // Fallback: sessionStorage flag set after first successful position
+        _geoPermission = sessionStorage.getItem('geo_granted') === '1' ? 'granted' : 'prompt';
+    }
+
+    function getLocation(onSuccess, options) {
+        if (!navigator.geolocation) return;
+        if (_geoPermission === 'denied') return;
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                _geoPermission = 'granted';
+                sessionStorage.setItem('geo_granted', '1');
+                onSuccess(pos);
+            },
+            (err) => {
+                if (err.code === 1) { // PERMISSION_DENIED
+                    _geoPermission = 'denied';
+                    sessionStorage.setItem('geo_granted', '0');
+                }
+            },
+            options
+        );
+    }
+
+    initGeoPermission();
+
     // ── Toast helper ──
     function showToast(message, type = 'success') {
         const container = document.getElementById('toast-container');
@@ -130,25 +169,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const statusPromise = sendStatusUpdate(legId, newStatus);
 
         // Capture GPS in the background and send separately if available
-        if (GPS_STATUSES.includes(newStatus) && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    fetch("{% url 'driver_report_location' %}", {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                        body: JSON.stringify({
-                            leg_id: legId,
-                            latitude: pos.coords.latitude,
-                            longitude: pos.coords.longitude,
-                            accuracy: pos.coords.accuracy,
-                            heading: pos.coords.heading,
-                            speed: pos.coords.speed,
-                        })
-                    }).catch(() => {}); // best-effort, don't block
-                },
-                () => {}, // GPS failed — that's fine
-                { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
-            );
+        if (GPS_STATUSES.includes(newStatus)) {
+            getLocation((pos) => {
+                fetch("{% url 'driver_report_location' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({
+                        leg_id: legId,
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        accuracy: pos.coords.accuracy,
+                        heading: pos.coords.heading,
+                        speed: pos.coords.speed,
+                    })
+                }).catch(() => {}); // best-effort, don't block
+            }, { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 });
         }
 
         return statusPromise;
@@ -227,25 +262,20 @@ document.addEventListener('DOMContentLoaded', () => {
     let wakeLock = null;
 
     function sendLocationForLeg(legId) {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                fetch("{% url 'driver_report_location' %}", {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                    body: JSON.stringify({
-                        leg_id: legId,
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        accuracy: pos.coords.accuracy,
-                        heading: pos.coords.heading,
-                        speed: pos.coords.speed,
-                    })
-                }).catch(() => {});
-            },
-            () => {},
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-        );
+        getLocation((pos) => {
+            fetch("{% url 'driver_report_location' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({
+                    leg_id: legId,
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    heading: pos.coords.heading,
+                    speed: pos.coords.speed,
+                })
+            }).catch(() => {});
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
     }
 
     function startTracking(legId, sendNow) {

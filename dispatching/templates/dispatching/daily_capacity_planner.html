@@ -166,6 +166,18 @@
     .timeline-slot.return { background: #2e7d32; }
     .timeline-slot.cruise { background: #e65100; }
     .timeline-slot.other { background: #6a1b9a; }
+    .timeline-slot .slot-vtype {
+        display: inline-block;
+        font-size: 0.5rem;
+        font-weight: 700;
+        background: rgba(255,255,255,0.25);
+        padding: 0 3px;
+        border-radius: 2px;
+        margin-left: 3px;
+        letter-spacing: 0.02em;
+        vertical-align: middle;
+        line-height: 1.3;
+    }
 
     .timeline-hour-markers {
         display: flex;
@@ -586,6 +598,47 @@
         font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 0.1rem; margin-left: 0.2rem;
     }
     .va-remove-btn:hover { color: #dc2626; }
+
+    /* ── Timeline Drag-and-Drop (reuses board patterns) ── */
+    .timeline-slot[draggable="true"] { cursor: grab; }
+    .timeline-slot[draggable="true"]:active { cursor: grabbing; }
+    .timeline-slot.dnd-dragging { opacity: 0.35; outline: 2px dashed rgba(255,255,255,0.6); }
+    .driver-timeline-row.dnd-over { background: rgba(201,162,39,0.08); }
+    .driver-timeline-row.dnd-feasible {
+        background: rgba(46,125,50,0.08);
+        border-left: 3px solid #2e7d32;
+    }
+    .driver-timeline-row.dnd-infeasible {
+        background: rgba(198,40,40,0.06);
+        border-left: 3px solid #c62828;
+    }
+    .driver-timeline-row.dnd-warning {
+        background: rgba(230,81,0,0.06);
+        border-left: 3px solid #e65100;
+    }
+    .dnd-undo-toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e293b;
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        z-index: 10001;
+        font-size: 0.85rem;
+    }
+    .dnd-unassigned-row {
+        background: repeating-linear-gradient(
+            -45deg, transparent, transparent 8px,
+            rgba(198,40,40,0.04) 8px, rgba(198,40,40,0.04) 16px
+        );
+        border: 2px dashed #e0e0e0;
+        border-radius: 6px;
+        margin-top: 4px;
+    }
+    .dnd-unassigned-row .driver-name-col strong { color: #c62828; }
 </style>
 {% endblock %}
 
@@ -835,14 +888,17 @@
 
             <div class="timeline-rows">
                 {% for data in inhouse_timeline %}
-                <div class="driver-timeline-row">
+                <div class="driver-timeline-row"
+                     data-driver-id="{{ data.driver.id }}"
+                     data-driver-name="{{ data.driver }}">
                     <div class="driver-name-col">
-                        <div class="d-flex align-items-center">
-                            {% if data.vehicle_number %}<span style="display:inline-flex;align-items:center;justify-content:center;background:#0d6efd;color:#fff;font-weight:700;font-size:0.62rem;min-width:20px;height:16px;border-radius:3px;padding:0 4px;margin-right:4px;">#{{ data.vehicle_number }}</span>{% endif %}
+                        <div class="d-flex align-items-center gap-1">
+                            {% if data.vehicle_number %}<span style="display:inline-flex;align-items:center;justify-content:center;background:#0d6efd;color:#fff;font-weight:700;font-size:0.62rem;min-width:20px;height:16px;border-radius:3px;padding:0 4px;">#{{ data.vehicle_number }}</span>{% endif %}
+                            {% if data.vehicle_type_label %}<span class="va-veh-type va-vtype-{{ data.vehicle_type_label|lower }}" style="font-size:0.55rem;padding:0.05rem 0.3rem;">{{ data.vehicle_type_label }}</span>{% endif %}
                             <strong>{{ data.driver }}</strong>
                         </div>
                         <small class="text-muted">
-                            {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}
+                            {{ data.total_legs }} job{{ data.total_legs|pluralize }} &middot; ${{ data.total_revenue|floatformat:0 }}
                         </small>
                         <div class="cp-avail-line">
                             <span class="cp-shift">
@@ -872,7 +928,10 @@
                     <div class="timeline-bar">
                         {% for slot in data.schedule.slots %}
                         <div class="timeline-slot {{ slot.trip_type }}" data-tl-popup
+                             {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                              style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
+                             data-leg-id="{{ slot.leg_id }}"
+                             data-driver-id="{{ data.driver.id }}"
                              data-trip="{{ slot.trip_type }}"
                              data-time="{{ slot.pickup_time|time:'g:i A' }}"
                              data-cleared="{{ slot.end_time_display }}"
@@ -887,12 +946,23 @@
                              data-revenue="{{ slot.revenue|default:'0' }}"
                              data-vehicle="{{ slot.vehicle_type|default:'' }}"
                              data-res-id="{{ slot.reservation_id }}">
-                            {{ slot.pickup_time|time:"g:i" }}
+                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}
                         </div>
                         {% endfor %}
                     </div>
                 </div>
                 {% endfor %}
+
+                <!-- Unassigned drop target row -->
+                <div class="driver-timeline-row dnd-unassigned-row"
+                     data-driver-id="unassigned"
+                     data-driver-name="Unassigned">
+                    <div class="driver-name-col">
+                        <strong><i class="bi bi-box-arrow-down me-1"></i>Unassigned</strong>
+                        <small class="text-muted">Drop here to unassign</small>
+                    </div>
+                    <div class="timeline-bar" style="background:transparent;"></div>
+                </div>
             </div>
         </div>
 
@@ -902,6 +972,7 @@
             <small><span style="display:inline-block;width:12px;height:12px;background:#2e7d32;border-radius:2px;"></span> Return</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#e65100;border-radius:2px;"></span> Cruise</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
+            <span class="ms-auto" style="font-size:0.72rem;color:#888;"><i class="bi bi-grip-horizontal me-1"></i>Drag jobs between drivers to reassign</span>
         </div>
 
         {% else %}
@@ -944,6 +1015,9 @@
                                     {% elif leg.get_trip_type == 'cruise' %}Cruise
                                     {% else %}Other{% endif %}
                                 </span>
+                                {% if leg.reservation and leg.reservation.vehicle and leg.reservation.vehicle.vehicle_type %}
+                                <span class="va-veh-type va-vtype-{{ leg.reservation.vehicle.vehicle_type|lower }}" style="font-size:0.6rem;padding:0.1rem 0.35rem;">{{ leg.reservation.vehicle.vehicle_type }}</span>
+                                {% endif %}
                                 {% if leg.cleared_time %}
                                 <span style="font-size: 0.7rem; color: #666;">
                                     <i class="bi bi-check2-circle" style="color: #2e7d32; font-size: 0.6rem;"></i>
@@ -1100,6 +1174,7 @@
                         <tr>
                             <th>Time</th>
                             <th>Type</th>
+                            <th>Vehicle</th>
                             <th>Route</th>
                             <th>Customer</th>
                             <th>Driver</th>
@@ -1131,6 +1206,13 @@
                                     {% elif leg.get_trip_type == 'cruise' %}Cruise
                                     {% else %}Other{% endif %}
                                 </span>
+                            </td>
+                            <td>
+                                {% if leg.reservation and leg.reservation.vehicle and leg.reservation.vehicle.vehicle_type %}
+                                <span class="va-veh-type va-vtype-{{ leg.reservation.vehicle.vehicle_type|lower }}" style="font-size:0.62rem;padding:0.1rem 0.35rem;">{{ leg.reservation.vehicle.vehicle_type }}</span>
+                                {% else %}
+                                <span style="font-size:0.7rem;color:#ccc;">—</span>
+                                {% endif %}
                             </td>
                             <td>
                                 <small>{{ leg.pickup_location|truncatechars:30 }} <i class="bi bi-arrow-right" style="font-size:0.6rem;"></i> {{ leg.dropoff_location|truncatechars:30 }}</small>
@@ -1884,10 +1966,39 @@
     </div>
 </div>
 
+{% csrf_token %}
+
+<!-- DnD Conflict Modal (shared with timeline-dnd.js) -->
+<div class="modal fade" id="dndConflictModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:none;border-radius:0.75rem;overflow:hidden;">
+            <div class="modal-header" style="background:var(--dark);color:#fff;border:none;padding:1rem 1.25rem;">
+                <h6 class="modal-title mb-0"><i class="bi bi-exclamation-triangle me-2" style="color:var(--gold);"></i>Assignment Warning</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding:1.25rem;font-size:0.9rem;"></div>
+            <div class="modal-footer" style="border-top:1px solid #eee;padding:0.75rem 1.25rem;">
+                <button type="button" class="btn btn-outline-secondary btn-sm dnd-conflict-cancel" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning btn-sm dnd-conflict-confirm"><i class="bi bi-check-lg me-1"></i>Assign Anyway</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/timeline-dnd.js' %}"></script>
+
 <script>
-    document.getElementById('datePicker').addEventListener('change', function() {
-        window.location.href = '?date=' + this.value;
-    });
+    (function() {
+        var picker = document.getElementById('datePicker');
+        var currentDate = picker.value;
+        function navigateDate() {
+            if (picker.value && picker.value !== currentDate) {
+                window.location.href = '?date=' + picker.value;
+            }
+        }
+        picker.addEventListener('change', navigateDate);
+        picker.addEventListener('input', navigateDate);
+    })();
 
     /* ── Quick Assign from suggestion ── */
     function quickAssign(btn, legId, driverId) {
@@ -4065,13 +4176,17 @@
                 return;
             }
 
+            // Store solutions per-leg so onclick can reference by index
+            if (!window._plannerSwapSolutions) window._plannerSwapSolutions = {};
+            window._plannerSwapSolutions[legId] = data.solutions;
+
             data.solutions.forEach(function(sol, idx) {
                 html += '<div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:6px;padding:0.5rem 0.75rem;margin-bottom:0.4rem;font-size:0.78rem;">';
                 html += '<div class="d-flex justify-content-between align-items-center mb-1">';
                 html += '<span><span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.65rem;">Score: '+sol.score+'</span> ';
-                html += sol.depth+' move'+(sol.depth>1?'s':'')+' → <strong>'+sol.target_driver+'</strong></span>';
+                html += sol.depth+' move'+(sol.depth>1?'s':'')+' → <strong>'+_escapeHtml(sol.target_driver)+'</strong></span>';
                 html += '<button class="btn btn-sm px-2 py-0" style="font-size:0.65rem;background:var(--gold);color:var(--dark);font-weight:600;" ';
-                html += 'onclick=\'applySwapFromPlanner('+legId+','+JSON.stringify(sol.moves)+')\'>';
+                html += 'onclick="applySwapFromPlanner('+legId+','+idx+')">';
                 html += 'Apply</button></div>';
 
                 sol.moves.forEach(function(move) {
@@ -4079,10 +4194,10 @@
                     html += '<div style="padding:0.2rem 0;border-bottom:1px solid #eee;font-size:0.75rem;">';
                     if (move.from_driver) {
                         html += '<i class="bi bi-arrow-right-circle" style="color:var(--gold);font-size:0.65rem;"></i> ';
-                        html += 'Give ' + move.from_driver + '\'s <strong>' + move.pickup_time + '</strong> job to ' + move.to_driver + ' ';
+                        html += 'Give ' + _escapeHtml(move.from_driver) + '\'s <strong>' + _escapeHtml(move.pickup_time) + '</strong> job to ' + _escapeHtml(move.to_driver) + ' ';
                     } else {
                         html += '<i class="bi bi-plus-circle" style="color:#2e7d32;font-size:0.65rem;"></i> ';
-                        html += 'Assign <strong>' + move.pickup_time + '</strong> to ' + move.to_driver + ' ';
+                        html += 'Assign <strong>' + _escapeHtml(move.pickup_time) + '</strong> to ' + _escapeHtml(move.to_driver) + ' ';
                     }
                     html += '<span style="'+bufStyle+'">'+move.buffer_minutes+'min buffer</span>';
                     html += '</div>';
@@ -4093,17 +4208,44 @@
             panel.innerHTML = html;
         }
 
-        window.applySwapFromPlanner = function(legId, moves) {
-            if (!confirm('Apply this swap? Driver assignments will update immediately.')) return;
-            const dateVal = document.getElementById('datePicker').value;
-            const movesPayload = moves.map(function(m) { return {leg_id: m.leg_id, to_driver_id: m.to_driver_id}; });
+        function _escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        window.applySwapFromPlanner = function(legId, solIdx) {
+            var solutions = (window._plannerSwapSolutions || {})[legId];
+            if (!solutions || !solutions[solIdx]) {
+                alert('Swap data not found. Please search again.');
+                return;
+            }
+            var sol = solutions[solIdx];
+            var moves = sol.moves;
+
+            if (!confirm('Apply this swap? Driver assignments will update immediately.\n\n' +
+                moves.map(function(m) {
+                    return (m.from_driver ? 'Move' : 'Assign') + ' Leg #' + m.leg_id +
+                        (m.from_driver ? ' from ' + m.from_driver : '') + ' → ' + m.to_driver;
+                }).join('\n'))) {
+                return;
+            }
+
+            var dateVal = document.getElementById('datePicker').value;
+            var movesPayload = moves.map(function(m) { return {leg_id: m.leg_id, to_driver_id: m.to_driver_id}; });
 
             fetch('{% url "execute_swap" %}', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'X-CSRFToken': _csrfToken},
                 body: JSON.stringify({date: dateVal, moves: movesPayload})
             })
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                if (!r.ok && r.status === 403) {
+                    throw new Error('Session expired or permission denied. Please refresh the page and try again.');
+                }
+                return r.json().catch(function() {
+                    throw new Error('Server returned an unexpected response (status ' + r.status + '). Please refresh and try again.');
+                });
+            })
             .then(function(data) {
                 if (data.success) {
                     window.location.reload();
@@ -4111,7 +4253,7 @@
                     alert('Swap failed: ' + (data.error || 'Unknown error'));
                 }
             })
-            .catch(function(err) { alert('Request failed: ' + err.message); });
+            .catch(function(err) { alert('Swap error: ' + err.message); });
         };
     })();
 </script>

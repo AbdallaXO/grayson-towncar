@@ -1,553 +1,455 @@
 {% load filters %}
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en" style="-webkit-text-size-adjust: none !important;">
-  <head>
-    <title>Grayson Towncar Reservation Confirmation</title>
-    <meta charset="UTF-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <!-- [if !mso]> -->
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <!-- <![endif] -->
-    <meta name="x-apple-disable-message-reformatting" content="" />
-    <meta content="target-densitydpi=device-dpi" name="viewport" />
-    <meta content="true" name="HandheldFriendly" />
-    <meta content="width=device-width" name="viewport" />
-    <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" style="-webkit-text-size-adjust: none !important;">
+<head>
+  <title>Grayson Towncar Reservation Confirmation</title>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" content="" />
+  <meta content="target-densitydpi=device-dpi" name="viewport" />
+  <meta content="true" name="HandheldFriendly" />
+  <meta content="width=device-width" name="viewport" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no, url=no" />
+  <style type="text/css">
+    @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 
-    <!-- [if !mso]> -->
-    <style type="text/css">
-      @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;700&family=Roboto:wght@400;700&display=swap');
-    </style>
-    <!-- <![endif] -->
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    table { border-collapse: collapse !important; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
+    u + #body a { color: inherit; text-decoration: none; font-size: inherit; font-family: inherit; font-weight: inherit; line-height: inherit; }
+    #MessageViewBody a { color: inherit; text-decoration: none; font-size: inherit; font-family: inherit; font-weight: inherit; line-height: inherit; }
 
-    <style type="text/css">
-      /* CLIENT-SPECIFIC STYLES */
-      body,
-      table,
-      td,
-      a {
-        -webkit-text-size-adjust: 100%;
-        -ms-text-size-adjust: 100%;
-      }
-      table,
-      td {
-        mso-table-lspace: 0pt;
-        mso-table-rspace: 0pt;
-      }
-      img {
-        -ms-interpolation-mode: bicubic;
-      }
-      
-      /* RESET STYLES */
-      img {
-        border: 0;
-        height: auto;
-        line-height: 100%;
-        outline: none;
-        text-decoration: none;
-      }
-      table {
-        border-collapse: collapse !important;
-      }
-      body {
-        height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 100% !important;
-      }
-      
-      /* iOS BLUE LINKS */
-      a[x-apple-data-detectors] {
-        color: inherit !important;
-        text-decoration: none !important;
-        font-size: inherit !important;
-        font-family: inherit !important;
-        font-weight: inherit !important;
-        line-height: inherit !important;
-      }
-      
-      /* GMAIL BLUE LINKS */
-      u + #body a {
-        color: inherit;
-        text-decoration: none;
-        font-size: inherit;
-        font-family: inherit;
-        font-weight: inherit;
-        line-height: inherit;
-      }
-      
-      /* SAMSUNG MAIL BLUE LINKS */
-      #MessageViewBody a {
-        color: inherit;
-        text-decoration: none;
-        font-size: inherit;
-        font-family: inherit;
-        font-weight: inherit;
-        line-height: inherit;
-      }
-      
-      /* Universal styles for links and hovers */
-      .primary-link {
-        color: #c89b3c;
-        text-decoration: none;
-      }
-      .primary-link:hover {
-        text-decoration: underline;
-        color: #a67c28;
-      }
-      
-      /* Status styles */
-      .status-paid {
-        color: #28a745;
-        font-weight: bold;
-      }
-      .status-saved {
-        color: #007bff;
-        font-weight: bold;
-      }
-      .status-pending {
-        color: #dc3545;
-        font-weight: bold;
-      }
-      
-      /* Media Queries for Responsiveness */
-      @media screen and (max-width: 600px) {
-        .main-table {
-          width: 100% !important;
-        }
-        .content-cell {
-          padding: 30px 30px 40px 30px !important;
-        }
-        .footer-cell {
-          padding: 30px 30px !important;
-        }
-      }
-    </style>
+    .status-paid   { color: #2e7d32; font-weight: 500; }
+    .status-saved  { color: #1565c0; font-weight: 500; }
+    .status-pending { color: #c62828; font-weight: 500; }
 
-    <!--    [if mso]>
-    <xml>
-        <o:OfficeDocumentSettings>
-            <o:AllowPNG/>
-            <o:PixelsPerInch>96</o:PixelsPerInch>
-        </o:OfficeDocumentSettings>
-    </xml>
-    <![endif]    -->
-  </head>
-  <body style="margin:0; padding:0; background-color:#242424; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
-    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; background-color:#242424;">
-      <tr>
-        <td align="center" style="padding:0;">
-          <!-- Main Content Container -->
-          <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse; background-color:#F8F8F8; margin-top:30px;">
-            <tr>
-              <td class="content-cell" style="padding:50px 50px 60px 50px;">
-                <!-- Header -->
-                <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
-                  <!-- Logo -->
-                  <tr>
-                    <td align="center" style="padding-bottom:20px;">
-                      <!-- Text logo instead of image -->
-                      <h2 style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:28px; color:#333333; font-weight:700;">GRAYSON TOWNCAR</h2>
-                    </td>
-                  </tr>
+    @media screen and (max-width: 620px) {
+      .main-table  { width: 100% !important; }
+      .content-pad { padding: 32px 24px 40px !important; }
+      .header-pad  { padding: 40px 24px 36px !important; }
+      .footer-pad  { padding: 32px 24px !important; }
+    }
+  </style>
+</head>
+<body id="body" style="margin:0;padding:0;background-color:#EFEFED;">
 
-                  <!-- Main Heading -->
-                  <tr>
-                    <td>
-                      <h1 style="margin:0; font-family:Roboto, Arial, sans-serif; font-size:25px; line-height:26px; color:#333333; font-weight:400; text-align:center;">Reservation Confirmed</h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="7"></td>
-                  </tr>
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#EFEFED;">
+  <tr>
+    <td align="center" style="padding:32px 0 48px;">
 
-                  <!-- Welcome Message -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; text-align:center; padding-bottom:22px;">Thank You for Considering Us, {{ reservation.customer.first_name }}.</p>
-                    </td>
-                  </tr>
+      <!-- Single wrapper table — no gaps = no Gmail clip button -->
+      <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse;">
 
-                  <!-- Reservation Details Section -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:22px; line-height:24px; color:#555555; font-weight:700; font-style:italic;">Reservation Details</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="7"></td>
-                  </tr>
+      <!-- HEADER ROW -->
+      <tr><td style="background-color:#0C1B33;border-radius:4px 4px 0 0;padding:0;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+        <tr>
+          <td class="header-pad" style="padding:48px 52px 42px;">
 
-                  <!-- Reservation ID -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Confirmation #: 50{{ reservation.id }}</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
+            <!-- Wordmark row -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td>
+                  <!-- Gold rule -->
+                  <div style="width:36px;height:2px;background-color:#C89B3C;margin-bottom:18px;"></div>
+                  <h1 style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:600;letter-spacing:0.12em;color:#FFFFFF;text-transform:uppercase;">Grayson Towncar</h1>
+                </td>
+                <td align="right" valign="top">
+                  <!-- Confirmation badge -->
+                  <div style="display:inline-block;border:1px solid rgba(200,155,60,0.4);padding:10px 18px;text-align:center;">
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:#C89B3C;">Confirmed</p>
+                    <p style="margin:4px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:500;color:#FFFFFF;">#50{{ reservation.id }}</p>
+                  </div>
+                </td>
+              </tr>
+            </table>
 
-                  <!-- Booking Date -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Booking Date: {{ date|date:'l, F d Y' }}</p>
-                    </td>
-                  </tr>
+            <!-- Divider -->
+            <div style="height:1px;background-color:rgba(255,255,255,0.1);margin:28px 0;"></div>
 
-                  <!-- Passengers -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Number of Passengers: {{ reservation.passenger_count }}</p>
-                    </td>
-                  </tr>
-                   <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Suitcases: {{ reservation.luggage_count }}</p>
-                    </td>
-                  </tr>
+            <!-- Greeting -->
+            <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:400;font-style:italic;color:#E8E4DC;line-height:1.5;">Your reservation is confirmed,<br><span style="color:#C89B3C;">{{ reservation.customer.first_name }}.</span></p>
+            <p style="margin:10px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:300;color:#9AAABB;line-height:1.7;">Booking Date: {{ date|date:'l, F d Y' }}</p>
 
-                  <!-- Child Seats (if needed) -->
-                  {% if reservation.need_carseats %}
+          </td>
+        </tr>
+      </table></td></tr>
+      <!-- END HEADER ROW -->
+
+      <!-- BODY ROW -->
+      <tr><td style="background-color:#FFFFFF;padding:0;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+        <tr>
+          <td class="content-pad" style="padding:44px 52px 52px;">
+
+
+            <!-- ─── GUEST & RESERVATION ─── -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+
+              <!-- Section label -->
+              <tr>
+                <td style="padding-bottom:14px;border-bottom:1px solid #E8E4DC;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Reservation Details</p>
+                </td>
+              </tr>
+              <tr><td height="18"></td></tr>
+
+              <!-- Two-col grid -->
+              <tr>
+                <td>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
                     <tr>
-                      <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Child Seats: {{ reservation.display_carseats | default:"0" }}</p>
+                      <td width="50%" valign="top" style="padding-bottom:14px;padding-right:12px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Guest Name</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">{{ reservation.customer.get_full_name }}</p>
                       </td>
-                    </tr>
-                  {% endif %}
-
-                  <!-- Vehicle Booked -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Vehicle Booked: {{ reservation.vehicle.get_vehicle_type_display }}</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="15"></td>
-                  </tr>
-
-                  <!-- Guest Information Section -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:20px; line-height:21px; color:#555555; font-weight:700; font-style:italic; padding-bottom:2px;">Guest Information</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="7"></td>
-                  </tr>
-
-                  <!-- Name -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; padding-bottom:2px;">Name: {{ reservation.customer.get_full_name }}</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-
-                  <!-- Email -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:20px; color:#555555; padding-bottom:2px;">Email: {{ reservation.customer.email }}</p>
-                    </td>
-                  </tr>
-
-                  <!-- Phone Number -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:20px; color:#555555; padding-bottom:2px;">Phone Number: {{ reservation.customer.phone_number }}</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="19"></td>
-                  </tr>
-
-                  <!-- Trip Itinerary - Looping through each leg -->
-                  {% for leg in reservation.legs.all %}
-                    <tr>
-                      <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:20px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Trip Information - Leg {{ forloop.counter }}</p>
+                      <td width="50%" valign="top" style="padding-bottom:14px;padding-left:12px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Phone</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">{{ reservation.customer.phone_number }}</p>
                       </td>
                     </tr>
                     <tr>
-                      <td height="7"></td>
+                      <td width="50%" valign="top" style="padding-bottom:14px;padding-right:12px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Email</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">{{ reservation.customer.email }}</p>
+                      </td>
+                      <td width="50%" valign="top" style="padding-bottom:14px;padding-left:12px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Vehicle</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">{{ reservation.vehicle.get_vehicle_type_display }}</p>
+                      </td>
                     </tr>
-
-                    <!-- Flight Information (if available) -->
-                    {% if leg.flight_information %}
-                      <tr>
-                        <td>
-                          <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Flight Information: {{ leg.flight_information }}</p>
-                        </td>
-                      </tr>
+                    <tr>
+                      <td width="50%" valign="top" style="padding-right:12px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Passengers</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:18px;font-weight:500;color:#1A1A2E;">{{ reservation.passenger_count }}</p>
+                      </td>
+                      <td width="50%" valign="top" style="padding-left:12px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Suitcases</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:18px;font-weight:500;color:#1A1A2E;">{{ reservation.luggage_count }}</p>
+                      </td>
+                    </tr>
+                    {% if reservation.need_carseats %}
+                    <tr>
+                      <td colspan="2" valign="top" style="padding-top:14px;">
+                        <p style="margin:0 0 3px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Child Seats</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">{{ reservation.display_carseats | default:"0" }}</p>
+                      </td>
+                    </tr>
                     {% endif %}
+                  </table>
+                </td>
+              </tr>
+            </table>
+            <!-- END GUEST & RESERVATION -->
 
-                    <!-- Pickup Date and Time -->
+
+            <div style="height:1px;background-color:#E8E4DC;margin:32px 0;"></div>
+
+
+            <!-- ─── TRIP LEGS ─── -->
+            {% for leg in reservation.legs.all %}
+
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:14px;border-bottom:1px solid #E8E4DC;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">
+                    {% if reservation.legs.all|length > 1 %}Leg {{ forloop.counter }} of {{ reservation.legs.all|length }}{% else %}Trip Information{% endif %}
+                  </p>
+                </td>
+              </tr>
+              <tr><td height="18"></td></tr>
+
+              {% if leg.flight_information %}
+              <tr>
+                <td style="padding-bottom:16px;">
+                  <!-- Flight chip -->
+                  <div style="display:inline-block;background-color:#F5F3EE;border-left:3px solid #C89B3C;padding:10px 16px;">
+                    <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Flight</p>
+                    <p style="margin:3px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">{{ leg.flight_information }}</p>
+                  </div>
+                </td>
+              </tr>
+              {% endif %}
+
+              <!-- Pickup Date/Time callout -->
+              <tr>
+                <td style="padding-bottom:16px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#0C1B33;border-radius:3px;">
                     <tr>
-                      <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Pickup Date And Time: {{ leg.pickup_date|date:'l, F d Y' }} {{ leg.pickup_time|time:'g:i A' }}</p>
+                      <td style="padding:12px 18px;">
+                        <p style="margin:0 0 4px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Pickup Date &amp; Time</p>
+                        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+                          <tr>
+                            <td valign="middle" style="padding-right:16px;">
+                              <p style="margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;font-weight:600;color:#FFFFFF;line-height:1.2;">{{ leg.pickup_date|date:'l, F d Y' }}</p>
+                            </td>
+                            <td valign="middle" align="right" style="white-space:nowrap;">
+                              <div style="background-color:#C89B3C;padding:6px 14px;display:inline-block;">
+                                <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:17px;font-weight:500;color:#0C1B33;letter-spacing:0.03em;">{{ leg.pickup_time|time:'g:i A' }}</p>
+                              </div>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Timeline: pickup → dropoff locations -->
+              <tr>
+                <td>
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+
+                    <!-- Pickup location -->
+                    <tr>
+                      <td valign="top" width="22" style="padding-top:4px;">
+                        <div style="width:10px;height:10px;border-radius:50%;background-color:#C89B3C;margin-top:2px;"></div>
+                      </td>
+                      <td valign="top">
+                        <p style="margin:0 0 2px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Pickup Location</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:18px;font-weight:500;color:#1A1A2E;">{{ leg.pickup_location }}</p>
                       </td>
                     </tr>
 
-                    <!-- Pickup Location -->
+                    <!-- Connecting line -->
                     <tr>
-                      <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Pickup From: {{ leg.pickup_location }}</p>
+                      <td width="22" style="padding:6px 0;">
+                        <div style="width:1px;height:28px;background-color:#D5CBBB;margin-left:5px;"></div>
+                      </td>
+                      <td></td>
+                    </tr>
+
+                    <!-- Drop-off -->
+                    <tr>
+                      <td valign="top" width="22" style="padding-top:4px;">
+                        <div style="width:10px;height:10px;border-radius:50%;background-color:#0C1B33;border:2px solid #C89B3C;margin-top:2px;box-sizing:border-box;"></div>
+                      </td>
+                      <td valign="top">
+                        <p style="margin:0 0 2px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Drop-Off Location</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:18px;font-weight:500;color:#1A1A2E;">{{ leg.dropoff_location }}</p>
                       </td>
                     </tr>
 
-                    <!-- Drop-off Location -->
+                  </table>
+                </td>
+              </tr>
+              <tr><td height="10"></td></tr>
+            </table>
+
+            {% if not forloop.last %}
+            <div style="height:1px;background-color:#E8E4DC;margin:24px 0;"></div>
+            {% endif %}
+
+            {% endfor %}
+            <!-- END LEGS -->
+
+
+            {% if reservation.special_requests %}
+            <div style="height:1px;background-color:#E8E4DC;margin:32px 0;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:10px;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Special Requests</p>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#4B5563;line-height:1.7;">{{ reservation.special_requests }}</p>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
+
+
+            {% if reservation.store_stop %}
+            <div style="height:1px;background-color:#E8E4DC;margin:32px 0;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="background-color:#F9F7F3;padding:16px 20px;border-left:3px solid #C89B3C;">
+                  <p style="margin:0 0 4px;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Grocery Stop Included</p>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#4B5563;line-height:1.7;">Publix · 9930 Universal Blvd. · Up to 20 minutes</p>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
+
+
+            <!-- ─── PRICING & PAYMENT ─── -->
+            <div style="height:1px;background-color:#E8E4DC;margin:32px 0;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background-color:#0C1B33;border-radius:2px;">
+              <tr>
+                <td style="padding:22px 24px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
                     <tr>
                       <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Drop-Off At: {{ leg.dropoff_location }}</p>
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#9AAABB;">Total</p>
+                        <p style="margin:4px 0 0;font-family:'Cormorant Garamond',Georgia,serif;font-size:32px;font-weight:600;color:#FFFFFF;">${{ reservation.total_price }}</p>
+                      </td>
+                      <td align="right" valign="middle">
+                        <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">Payment</p>
+                        <p style="margin:4px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;">
+                          {% if reservation.payments.all.exists %}
+                            {% for payment in reservation.payments.all %}
+                              <span class="{% if payment.status == 'paid' %}status-paid{% elif payment.status == 'save_card' %}status-saved{% else %}status-pending{% endif %}" style="color:{% if payment.status == 'paid' %}#4ade80{% elif payment.status == 'save_card' %}#60a5fa{% else %}#f87171{% endif %};">
+                                {{ payment.status|format_status }}
+                              </span>{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                          {% else %}
+                            <span style="color:#f87171;">Pending</span>
+                          {% endif %}
+                        </p>
                       </td>
                     </tr>
-                    <tr>
-                      <td height="15"></td>
-                    </tr>
-                  {% endfor %}
+                  </table>
+                </td>
+              </tr>
+            </table>
 
-                  <!-- Special Requests (if available) -->
-                  {% if reservation.special_requests %}
-                    <tr>
-                      <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Notes: {{ reservation.special_requests }}</p>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td height="7"></td>
-                    </tr>
-                  {% endif %}
+            {% if not reservation.payments.all.exists %}
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding:14px 0 0;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#6B7280;line-height:1.7;">To confirm your reservation, please call <a href="tel:4072127190" style="color:#C89B3C;text-decoration:none;font-weight:500;">407-212-7190</a> or reply to this email and we'll send a secure payment link.</p>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
 
-                  <!-- Store Stop (if selected) -->
-                  {% if reservation.store_stop %}
-                    <tr>
-                      <td>
-                        <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Grocery Store: 20 Mins stop at Publix @9930 Universal Blvd.</p>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td height="7"></td>
-                    </tr>
-                  {% endif %}
-
-                  <!-- Total Price -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Total: ${{ reservation.total_price }}</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="5"></td>
-                  </tr>
-
-                  <!-- Payment Status -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">
-                        Payment Status:{% if reservation.payments.all.exists %}
-                          {% for payment in reservation.payments.all %}
-                            <span class="{% if payment.status == 'paid' %}
-                                
-                                
-                                
-                                status-paid
+            {% if not reservation.gratuity_percentage or reservation.gratuity_percentage == 0 %}
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding:14px 0 0;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#4B5563;line-height:1.7;"><strong style="color:#1A1A2E;">Driver gratuity is not included.</strong> A 20% tip is kindly recommended and may be given in cash or added upon request.</p>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
 
 
+            <!-- ─── INFO BLOCKS ─── -->
+            <div style="height:1px;background-color:#E8E4DC;margin:36px 0;"></div>
 
-                              {% elif payment.status == 'save_card' %}
-                                
-                                
-                                
-                                status-saved
+            <!-- Airport Pickup -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Airport Pickup</p>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">Our drivers monitor your flight in real time. Once you land, please take your phone off airplane mode right away. Your driver will reach out by text to stay in communication and will head inside baggage claim to meet you with a name sign once contact is made. Please make sure you are reachable as soon as you land.</p>
+                </td>
+              </tr>
+            </table>
+
+            <div style="height:1px;background-color:#F0EDE8;margin:24px 0;"></div>
+
+            <!-- Cancellation Policy -->
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Cancellation Policy</p>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">Full refund for cancellations 48+ hours before pickup. For round-trip bookings canceled within 24 hours: return leg refunded in full; arrival leg receives a 50% credit.</p>
+                </td>
+              </tr>
+            </table>
+
+            {% if reservation.store_stop %}
+            <div style="height:1px;background-color:#F0EDE8;margin:24px 0;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Grocery Stop Policy</p>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">This stop must be added to your reservation in advance — we are unable to accommodate same-day requests. We allow up to 20 minutes at Publix (9930 Universal Blvd). Guests may pre-order via Instacart to save time. In the event of a flight delay, the grocery stop may not be possible. If the stop exceeds 20 minutes, a <strong>$30 charge</strong> will apply. After that, you will be billed <strong>$1 per minute</strong>.</p>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
+
+            {% if has_return_trip %}
+            <div style="height:1px;background-color:#F0EDE8;margin:24px 0;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Departure Grace Period</p>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">Please have your full party and all luggage ready at the scheduled pickup time. Your driver will wait up to <strong style="color:#1A1A2E;">10 minutes</strong>. If no one is present by then, the trip will be marked as a no-show and your fare will not be refunded.<br><br>If extended wait time is needed, a <strong style="color:#1A1A2E;">$30 fee</strong> applies for up to 15 additional minutes, subject to driver availability.</p>
+                </td>
+              </tr>
+            </table>
+            {% endif %}
 
 
+            <div style="height:1px;background-color:#F0EDE8;margin:24px 0;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td style="padding-bottom:8px;">
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:9px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:#C89B3C;">Cleaning Fee Policy</p>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">We take great care of our vehicles. In the event of a significant mess or soiling inside the car (including vomit or similar), a <strong style="color:#1A1A2E;">cleaning fee of $200</strong> will be charged.</p>
+                  <p style="margin:12px 0 0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;color:#6B7280;line-height:1.75;">If a child seat is soiled, a flat <strong style="color:#1A1A2E;">$250 replacement fee</strong> applies. For safety reasons, a soiled car seat cannot be reused and must be replaced entirely.</p>
+                </td>
+              </tr>
+            </table>
 
-                              {% else %}
-                                
-                                
-                                
-                                status-pending
+            <!-- ─── CTA ─── -->
+            <div style="height:1px;background-color:#E8E4DC;margin:36px 0 32px;"></div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+              <tr>
+                <td align="center">
+                  <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:13px;color:#9AAABB;letter-spacing:0.05em;">Need to make a change or book another trip?</p>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:16px;font-weight:500;color:#1A1A2E;">
+                    <a href="tel:4072127190" style="color:#C89B3C;text-decoration:none;">(407) 212-7190</a>
+                    &nbsp;&nbsp;·&nbsp;&nbsp;
+                    <a href="mailto:reservations@graysontowncar.com" style="color:#C89B3C;text-decoration:none;">reservations@graysontowncar.com</a>
+                  </p>
+                </td>
+              </tr>
+            </table>
 
+          </td>
+        </tr>
+      </table></td></tr>
+      <!-- END BODY ROW -->
 
+      <!-- FOOTER ROW -->
+      <tr><td style="background-color:#0C1B33;border-radius:0 0 4px 4px;padding:0;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+        <tr>
+          <td class="footer-pad" style="padding:36px 52px;text-align:center;">
+            <p style="margin:0 0 6px;font-family:'Cormorant Garamond',Georgia,serif;font-size:17px;font-weight:600;letter-spacing:0.1em;color:#FFFFFF;">GRAYSON TOWNCAR</p>
+            <p style="margin:0 0 18px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#C89B3C;">Orlando, Florida</p>
+            <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#6B7280;line-height:1.8;">Cancellations must be made at least 48 hours prior for a refund to be issued on all pick-ups.</p>
+            <p style="margin:0 0 6px;font-family:'DM Sans',Arial,sans-serif;font-size:11px;color:#6B7280;">© 2024 Grayson Towncar. All rights reserved.</p>
+            <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:11px;">
+              <a href="https://www.graysontowncar.com" style="color:#C89B3C;text-decoration:none;font-weight:500;" target="_blank">www.graysontowncar.com</a>
+            </p>
+          </td>
+        </tr>
+      </table></td></tr>
+      <!-- END FOOTER ROW -->
 
-                              {% endif %}">
-                              {{ payment.status|format_status }}
-                            </span>
-                            {% if not forloop.last %},{% endif %}
-                          {% endfor %}
-                        {% else %}
-                          <span class="status-pending">Pending</span> - Please call our office at <a href="tel:4072127190" style="color:#C89B3C; text-decoration:none;">407-212-7190</a> or reply to this email and we can send a payment link to confirm your reservation.
-                        {% endif %}
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="10"></td>
-                  </tr>
+      </table><!-- END WRAPPER -->
 
-                  <!-- Gratuity Note (only show if gratuity was not included during booking) -->
-                  {% if not reservation.gratuity_percentage or reservation.gratuity_percentage == 0 %}
-                  <tr>
-                    <td style="background-color:#f5f5f5; padding:10px; border-left:3px solid #C89B3C;">
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">
-                        <strong>Please note</strong>: <span style="color:#C89B3C;">Driver's</span> Gratuity is not included. We kindly recommend a 20% tip for your driver, which can be given in cash or added by request.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="20"></td>
-                  </tr>
-                  {% endif %}
-
-                  <!-- Airport Pickup Instructions -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Airport Pickup Instructions</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">Our drivers monitor your flight's arrival time to stay updated on delays or early landings. Once your plane lands, your chauffeur will send you a text message to confirm their presence and guide you. They will then meet you inside the baggage claim area holding a sign with your name.</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="20"></td>
-                  </tr>
-
-                  <!-- Cancellation Policy -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Cancellation Policy</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">We offer a full refund for cancellations made 48 hours or more before your pickup time. For round-trip bookings canceled within 24 hours: return trip will be refunded in full; arrival trip will receive a 50% credit.</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="20"></td>
-                  </tr>
-
-                  <!-- Service Policies -->
-                  {% if reservation.store_stop %}
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Grocery Stop Policy</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:26px; color:#555555;">We offer a complimentary 20-minute grocery stop at Publix (9930 Universal Blvd) upon request. For faster service, guests may pre-order through Instacart at no additional cost. In the event of a flight delay, we cannot guarantee the grocery stop due to scheduling adjustments. Any time beyond 20 minutes may incur an additional charge.</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="20"></td>
-                  </tr>
-                  {% endif %}
-
-                  <!-- Return Trip Additional Time Policy -->
-                  {% if has_return_trip %}
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Departure Pickup Grace Period</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:26px; color:#555555;">For departure pickups, our chauffeur will arrive at the scheduled pickup time. A 15-minute grace period is provided. After 15 minutes past the scheduled pickup time, we reserve the right to depart or apply additional waiting time charges.</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="20"></td>
-                  </tr>
-                  {% endif %}
-                  <tr>
-                    <td height="20"></td>
-                  </tr>
-
-                  <!-- Need to make a change -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:17px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Need to make a change or book another trip?</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555;">
-                        Please Call us anytime at <a href="tel:4072127190" style="color:#C89B3C; text-decoration:none;">(407) 212-7190</a> or email <a href="mailto:reservations@graysontowncar.com" style="color:#C89B3C; text-decoration:none;">reservations@graysontowncar.com</a>
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="40"></td>
-                  </tr>
-
-                  <!-- Company Info -->
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">Grayson Towncar Orlando</p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">
-                        Phone: <a href="tel:4072127190" style="color:#555555; text-decoration:none;">407-212-7190</a>
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td height="3"></td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:18px; line-height:21px; color:#555555; font-weight:700; font-style:italic;">
-                        Email: <a href="mailto:reservations@graysontowncar.com" style="color:#555555; text-decoration:none;">reservations@graysontowncar.com</a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-
-          <!-- Footer -->
-          <table role="presentation" cellpadding="0" cellspacing="0" width="600" class="main-table" style="border-collapse:collapse; background-color:#242424;">
-            <tr>
-              <td class="footer-cell" style="padding:48px 50px; text-align:center;">
-                <p style="margin:0 0 10px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:22px; color:#888888; text-align:center;">Cancellation Policy: Cancellations must be made at least 48 hours prior for a refund to be issued on All Pick-Ups.</p>
-                <p style="margin:0 0 10px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:22px; color:#888888; text-align:center;">© 2024 Grayson Towncar. All rights reserved.</p>
-                <p style="margin:0 0 10px 0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:22px; color:#888888; text-align:center;">
-                  Contact Us | <a href="tel:4072127190" style="color:#888888; text-decoration:none;">407-212-7190</a>
-                </p>
-                <p style="margin:0; font-family:'Fira Sans', Arial, sans-serif; font-size:12px; line-height:22px; color:#C89B3C; text-align:center;">
-                  <a href="https://www.graysontowncar.com" style="color:#C89B3C; font-weight:700; text-decoration:none;" target="_blank">www.graysontowncar.com</a>
-                </p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
+    </td>
+  </tr>
+</table>
+</body>
 </html>

@@ -44,6 +44,17 @@
           border-color: #1a2332;
       }
 
+      /* Highlighted leg from board click */
+      @keyframes leg-highlight-fade {
+          0% { background-color: rgba(201, 162, 39, 0.35); }
+          100% { background-color: transparent; }
+      }
+      .leg-highlight {
+          animation: leg-highlight-fade 3s ease-out forwards;
+          outline: 2px solid #C9A227;
+          outline-offset: -2px;
+      }
+
       @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
@@ -798,7 +809,7 @@
             <tbody>
               {% for leg in legs %}
                 {% with mismatch=leg.get_flight_time_mismatch_display %}
-                  <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %}"
+                  <tr class="align-middle {% if mismatch %}table-danger{% elif leg.dispatch_flag_level == 'danger' %}table-danger{% elif leg.dispatch_flag_level == 'warning' %}table-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}"
                       id="leg-row-{{ leg.id }}"
                       data-leg-status="{{ leg.status }}"
                       {% if mismatch %}title="{{ mismatch.label }}"{% endif %}>
@@ -1392,8 +1403,8 @@
           <div class="row g-3 p-2">
             {% for leg in legs %}
               {% with mismatch=leg.get_flight_time_mismatch_display %}
-                <div class="col-12" data-leg-status="{{ leg.status }}">
-                  <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' %}border-warning{% endif %}">
+                <div class="col-12" id="leg-card-{{ leg.id }}" data-leg-status="{{ leg.status }}">
+                  <div class="card shadow-sm {% if mismatch %}border-danger{% elif leg.dispatch_flag_level == 'danger' %}border-danger{% elif leg.dispatch_flag_level == 'warning' %}border-warning{% endif %} {% if highlight_leg_id == leg.id %}leg-highlight{% endif %}">
                     <div class="card-header {% if mismatch %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'danger' %}bg-danger bg-opacity-10 border-danger p-2{% elif leg.dispatch_flag_level == 'warning' %}bg-warning bg-opacity-10 border-warning p-2{% else %}bg-light p-2{% endif %}">
                       <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0 fw-bold">
@@ -1771,6 +1782,14 @@
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
+          // Scroll to highlighted leg from board click
+          var hlEl = document.querySelector('.leg-highlight');
+          if (hlEl) {
+              setTimeout(function() {
+                  hlEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 300);
+          }
+
           // Date Filter functionality
           const datePicker = document.getElementById('dateFilter')
           const submitButton = document.getElementById('submitDateFilter')

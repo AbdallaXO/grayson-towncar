@@ -496,7 +496,10 @@
     // ── Apply swap ─────────────────────────────────────────────
     window.applySwap = function(legId, solutionIdx) {
         const sol = window._swapSolutions[solutionIdx];
-        if (!sol) return;
+        if (!sol) {
+            alert('Swap data not found. Please search again.');
+            return;
+        }
 
         if (!confirm('Apply this swap? Assignments will update immediately.\n\n' +
             sol.moves.map(function(m) {
@@ -515,7 +518,14 @@
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
             body: JSON.stringify({date: dateVal, moves: moves})
         })
-        .then(r => r.json())
+        .then(function(r) {
+            if (!r.ok && r.status === 403) {
+                throw new Error('Session expired or permission denied. Please refresh the page and try again.');
+            }
+            return r.json().catch(function() {
+                throw new Error('Server returned an unexpected response (status ' + r.status + '). Please refresh and try again.');
+            });
+        })
         .then(data => {
             if (data.success) {
                 window.location.reload();
@@ -523,7 +533,7 @@
                 alert('Swap failed: ' + (data.error || 'Unknown error'));
             }
         })
-        .catch(err => alert('Request failed: ' + err.message));
+        .catch(err => alert('Swap error: ' + err.message));
     };
 
     // ── Affiliate takeback panel ────────────────────────────────

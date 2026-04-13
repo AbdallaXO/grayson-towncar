@@ -238,14 +238,17 @@
           </div>
 
           <div class="timeline-rows">
-            <!-- Unassigned row (multi-lane) -->
-            {% if unassigned_timeline_slots %}
+            <!-- Unassigned row (always visible as drop target) -->
               <div class="driver-timeline-row dnd-unassigned-row" data-driver-id="unassigned" data-driver-name="Unassigned">
                 <div class="driver-name-col">
                   <strong style="color:#C9A227;">Unassigned</strong>
+                  {% if unassigned_timeline_slots %}
                   <small class="text-muted">{{ unassigned_timeline_slots|length }} job{{ unassigned_timeline_slots|length|pluralize }}</small>
+                  {% else %}
+                  <small class="text-muted">Drop here to unassign</small>
+                  {% endif %}
                 </div>
-                <div class="timeline-bar" style="height:{{ unassigned_lane_height }}px;">
+                <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
                     <div class="timeline-slot {{ uslot.trip_type }}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
@@ -270,7 +273,6 @@
                   {% endfor %}
                 </div>
               </div>
-            {% endif %}
 
             <!-- Driver rows -->
             {% for data in inhouse_timeline %}
@@ -506,6 +508,20 @@
     // Date picker navigation
     document.getElementById('boardDatePicker').addEventListener('change', function(){
       window.location.href = '?date=' + this.value;
+    });
+
+    // Click to navigate to Legs Dashboard with highlight
+    // Track drag state to avoid navigating after a drag operation
+    var _didDrag = false;
+    document.addEventListener('dragstart', function() { _didDrag = true; });
+    document.addEventListener('click', function(e) {
+      if (_didDrag) { _didDrag = false; return; }
+      const slot = e.target.closest('.timeline-slot');
+      if (!slot) return;
+      const legId = slot.dataset.legId;
+      if (!legId) return;
+      const boardDate = '{{ selected_date|date:"Y-m-d" }}';
+      window.open('{% url "dashboard" %}?date=' + boardDate + '&highlight=' + legId, '_blank');
     });
   </script>
 
