@@ -61,17 +61,54 @@
     border-radius: 7px;
     padding: 0.2rem 0.5rem;
     font-size: 0.72rem;
-    min-width: 44px;
+    min-width: 52px;
     line-height: 1.3;
     border: 1px solid transparent;
   }
-  .day-pill.avail  { background:#ecfdf5; border-color:#6ee7b7; color:#065f46; }
-  .day-pill.avail .pill-label { font-weight: 700; }
-  .day-pill.avail .pill-hours { color: #059669; font-size: 0.65rem; }
-  .day-pill.off    { background:#f3f4f6; border-color:#d1d5db; color:#9ca3af; }
+  .day-pill .pill-label { font-weight: 700; }
+  .day-pill .pill-hours { font-size: 0.63rem; white-space: nowrap; }
+
+  /* Shift-type colors */
+  .day-pill.shift-morning  { background:#fff7ed; border-color:#fdba74; color:#9a3412; }
+  .day-pill.shift-morning .pill-hours { color:#ea580c; }
+  .day-pill.shift-midday   { background:#fefce8; border-color:#fde047; color:#854d0e; }
+  .day-pill.shift-midday .pill-hours { color:#ca8a04; }
+  .day-pill.shift-evening  { background:#f5f3ff; border-color:#c4b5fd; color:#5b21b6; }
+  .day-pill.shift-evening .pill-hours { color:#7c3aed; }
+  .day-pill.shift-night    { background:#1e293b; border-color:#475569; color:#e2e8f0; }
+  .day-pill.shift-night .pill-hours { color:#94a3b8; }
+  .day-pill.shift-split    { background:#eff6ff; border-color:#93c5fd; color:#1e40af; }
+  .day-pill.shift-split .pill-hours { color:#2563eb; }
+  .day-pill.shift-full_day { background:#ecfdf5; border-color:#6ee7b7; color:#065f46; }
+  .day-pill.shift-full_day .pill-hours { color:#059669; }
+  .day-pill.shift-custom   { background:#f0fdf4; border-color:#a7f3d0; color:#166534; }
+  .day-pill.shift-custom .pill-hours { color:#16a34a; }
+  .day-pill.off            { background:#f3f4f6; border-color:#d1d5db; color:#9ca3af; }
   .day-pill.off .pill-label { font-weight: 600; }
-  .day-pill.weekend.avail { border-color: #bfdbfe; background: #eff6ff; }
-  .day-pill.weekend.avail .pill-hours { color: #2563eb; }
+
+  .pill-flex-icon { font-size: 0.55rem; opacity: 0.7; }
+  /* Day-off section */
+  .dayoff-section { border-top: 1px solid #e5e7eb; padding-top: 0.6rem; }
+  .dayoff-list { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.4rem; }
+  .dayoff-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.25rem 0.5rem; background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 6px; font-size: 0.78rem;
+  }
+  .dayoff-date { font-weight: 600; color: #991b1b; }
+  .dayoff-reason { font-size: 0.7rem; color: #b91c1c; background: #fee2e2; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+  .dayoff-notes { font-size: 0.72rem; color: #6b7280; font-style: italic; }
+  .dayoff-remove {
+    margin-left: auto; background: none; border: none; color: #dc2626;
+    font-size: 1rem; font-weight: 700; cursor: pointer; line-height: 1; padding: 0 4px;
+  }
+  .dayoff-remove:hover { color: #991b1b; }
+  .dayoff-empty { font-size: 0.75rem; font-style: italic; }
+
+  .pill-pref-shift {
+    font-size: 0.52rem; font-weight: 600; color: #6366f1;
+    margin-top: -1px; letter-spacing: 0.02em;
+  }
 
   .btn-edit-driver { margin-left: auto; white-space: nowrap; flex-shrink: 0; position: relative; }
   .unsaved-dot {
@@ -106,7 +143,7 @@
   .day-edit-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.45rem;
     padding: 0.3rem 0;
     border-bottom: 1px solid #f0f0f0;
     flex-wrap: wrap;
@@ -114,23 +151,42 @@
   .day-edit-row:last-of-type { border-bottom: none; }
   .day-edit-row.weekend-sep { border-top: 2px solid #e5e7eb; margin-top: 0.25rem; padding-top: 0.55rem; }
 
-  .day-label-col { width: 38px; font-weight: 600; font-size: 0.82rem; color: #374151; flex-shrink: 0; }
+  .day-label-col { width: 34px; font-weight: 600; font-size: 0.82rem; color: #374151; flex-shrink: 0; }
 
-  .avail-switch { min-width: 68px; }
+  .avail-switch { min-width: 58px; }
 
-  .time-selects { display: flex; align-items: center; gap: 0.3rem; }
-  .time-selects select, .pref-col select {
-    font-size: 0.8rem;
-    padding: 0.2rem 0.35rem;
+  .shift-type-col select { width: 110px; }
+
+  .time-selects { display: flex; align-items: center; gap: 0.25rem; }
+  .time-selects select, .pref-col select, .shift-type-col select, .maxhrs-col input {
+    font-size: 0.78rem;
+    padding: 0.18rem 0.3rem;
     border-radius: 5px;
     border: 1px solid #d1d5db;
     background: #fff;
   }
-  .time-selects .sep { color: #9ca3af; font-size: 0.8rem; }
+  .time-selects .sep { color: #9ca3af; font-size: 0.78rem; }
   .time-selects select.invalid { border-color: #dc2626; background: #fef2f2; }
 
+  .flex-switch { min-width: 55px; }
+  .flex-switch .form-check-label { font-size: 0.72rem; }
+
+  .maxhrs-col input { width: 52px; text-align: center; }
+  .maxhrs-col label { font-size: 0.68rem; color: #6b7280; white-space: nowrap; }
+
+  .day-edit-row.day-off .shift-type-col,
   .day-edit-row.day-off .time-selects,
+  .day-edit-row.day-off .flex-switch,
+  .day-edit-row.day-off .maxhrs-col,
   .day-edit-row.day-off .pref-col { opacity: .3; pointer-events: none; }
+
+  /* Disabled selects for non-custom shift types */
+  .time-selects select:disabled,
+  .flex-switch input:disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+  }
 
   .edit-save-bar {
     display: flex;
@@ -146,6 +202,30 @@
     color: #dc2626;
     margin-top: 0.15rem;
   }
+
+  /* Legend */
+  .shift-legend {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.72rem;
+  }
+  .shift-legend .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .legend-swatch {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.15);
+    flex-shrink: 0;
+  }
 </style>
 {% endblock %}
 
@@ -160,7 +240,7 @@
       <div>
         <h1 class="mb-0"><i class="bi bi-pencil-square me-2"></i>In-House Driver Schedules</h1>
         <p class="lead mb-0 mt-1">
-          Weekly availability &mdash; days, hours, and trip preferences.
+          Weekly availability &mdash; shift types, hours, and trip preferences.
           <strong>{{ driver_rows|length }}</strong> driver{{ driver_rows|length|pluralize }}.
         </p>
       </div>
@@ -178,12 +258,29 @@
 
 <div class="container-fluid py-0" style="max-width:1060px;">
 
+  <!-- Shift type legend -->
+  <div class="shift-legend">
+    <span class="fw-semibold text-muted me-1">Shift types:</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#fff7ed;border-color:#fdba74;"></span> Morning</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#fefce8;border-color:#fde047;"></span> Midday</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#f5f3ff;border-color:#c4b5fd;"></span> Evening</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#1e293b;border-color:#475569;"></span> Night</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#eff6ff;border-color:#93c5fd;"></span> Split AM/PM</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#ecfdf5;border-color:#6ee7b7;"></span> Full Day</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#f0fdf4;border-color:#a7f3d0;"></span> Set Hours</span>
+    <span class="ms-2 text-muted"><i class="bi bi-unlock"></i> = flexible &nbsp; <i class="bi bi-lock-fill"></i> = hard limits</span>
+  </div>
+
   <!-- Driver cards -->
   {% for row in driver_rows %}
   <div class="driver-card" id="card-{{ row.driver.id }}"
        data-default-start="{{ row.driver.default_start_hour }}"
        data-default-end="{{ row.driver.default_end_hour }}"
-       data-default-pref="{{ row.driver.default_preference }}">
+       data-default-pref="{{ row.driver.default_preference }}"
+       data-default-shift-type="{{ row.driver.default_shift_type }}"
+       data-default-max-hours="{{ row.driver.default_max_hours|default_if_none:'' }}"
+       data-default-flexible="{{ row.driver.default_flexible|yesno:'true,false' }}"
+       data-default-preferred-shift="{{ row.driver.default_preferred_shift }}">
 
     <!-- Summary (always visible) -->
     <div class="driver-summary">
@@ -191,8 +288,6 @@
         <div class="driver-name">{{ row.driver }}</div>
         <div class="driver-meta">
           <i class="bi bi-truck"></i>{{ row.driver.get_vehicle_display }}
-          &middot;
-          <span class="text-muted">Default: {{ row.driver.default_start_hour }}:00&ndash;{{ row.driver.default_end_hour }}:00</span>
         </div>
         {% if row.driver.phone_number %}
           <div class="driver-meta">
@@ -210,9 +305,13 @@
         {% for day in row.days %}
           {% if day.day_idx == 5 %}<div class="wk-sep"></div>{% endif %}
           {% if day.is_available %}
-            <span class="day-pill avail {% if day.day_idx >= 5 %}weekend{% endif %}">
+            <span class="day-pill shift-{{ day.shift_type }} {% if day.day_idx >= 5 %}weekend{% endif %}">
               <span class="pill-label">{{ day.day_name }}</span>
-              <span class="pill-hours">{{ day.pill_label }}</span>
+              <span class="pill-hours">
+                {{ day.pill_label }}
+                {% if day.flexible %}<i class="bi bi-unlock pill-flex-icon" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill pill-flex-icon" title="Hard limits"></i>{% endif %}
+              </span>
+              {% if day.preferred_shift %}<span class="pill-pref-shift">Pref {{ day.preferred_shift|title }}</span>{% endif %}
             </span>
           {% else %}
             <span class="day-pill off {% if day.day_idx >= 5 %}weekend{% endif %}">
@@ -238,13 +337,25 @@
           <i class="bi bi-calendar3 me-1"></i>Schedule for {{ row.driver }}
         </div>
         <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem;"
-                onclick="copyMondayToWeekdays({{ row.driver.id }})" title="Copy Monday hours to Tue-Fri">
+                onclick="copyMondayToWeekdays({{ row.driver.id }})" title="Copy Monday settings to Tue-Fri">
           <i class="bi bi-clipboard me-1"></i>Copy Mon &rarr; Weekdays
         </button>
         <button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.72rem;"
                 onclick="resetToDefaults({{ row.driver.id }})" title="Reset all days to driver defaults">
           <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Defaults
         </button>
+      </div>
+
+      <!-- Column headers -->
+      <div class="d-flex gap-1 mb-1 px-0" style="font-size:0.65rem;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">
+        <span style="width:34px;"></span>
+        <span style="min-width:58px;"></span>
+        <span style="width:110px;">Shift Type</span>
+        <span style="width:190px;">Hours</span>
+        <span style="min-width:55px;">Flex</span>
+        <span style="width:52px;">Max Hrs</span>
+        <span style="width:105px;">Pref Shift</span>
+        <span>Trip Pref</span>
       </div>
 
       {% for day in row.days %}
@@ -269,8 +380,19 @@
           </div>
         </div>
 
+        <div class="shift-type-col">
+          <select id="shift-{{ row.driver.id }}-{{ day.day_idx }}"
+                  onchange="onShiftTypeChange({{ row.driver.id }}, {{ day.day_idx }})">
+            {% for val, label in shift_type_choices %}
+              <option value="{{ val }}" {% if val == day.shift_type %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
         <div class="time-selects">
-          <select id="start-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})">
+          <select id="start-{{ row.driver.id }}-{{ day.day_idx }}"
+                  onchange="markDirty({{ row.driver.id }})"
+                  {% if day.shift_type != 'custom' %}disabled{% endif %}>
             {% for hc in hour_choices %}
               <option value="{{ hc.value }}"
                       {% if hc.value == day.start_hour %}selected{% endif %}>
@@ -279,12 +401,46 @@
             {% endfor %}
           </select>
           <span class="sep">to</span>
-          <select id="end-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})">
+          <select id="end-{{ row.driver.id }}-{{ day.day_idx }}"
+                  onchange="markDirty({{ row.driver.id }})"
+                  {% if day.shift_type != 'custom' %}disabled{% endif %}>
             {% for hc in hour_choices %}
               <option value="{{ hc.value }}"
                       {% if hc.value == day.end_hour %}selected{% endif %}>
                 {{ hc.label }}
               </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="flex-switch">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input"
+                   type="checkbox"
+                   id="flex-{{ row.driver.id }}-{{ day.day_idx }}"
+                   onchange="markDirty({{ row.driver.id }})"
+                   {% if day.flexible %}checked{% endif %}
+                   {% if day.shift_type != 'custom' %}disabled{% endif %}>
+            <label class="form-check-label small"
+                   for="flex-{{ row.driver.id }}-{{ day.day_idx }}"
+                   style="font-size:0.72rem;">
+              Flex
+            </label>
+          </div>
+        </div>
+
+        <div class="maxhrs-col">
+          <input type="number" id="maxhrs-{{ row.driver.id }}-{{ day.day_idx }}"
+                 min="1" max="18" step="0.5"
+                 placeholder="--"
+                 value="{% if day.max_hours %}{{ day.max_hours }}{% endif %}"
+                 onchange="markDirty({{ row.driver.id }})">
+        </div>
+
+        <div class="pref-col">
+          <select id="prefshift-{{ row.driver.id }}-{{ day.day_idx }}" onchange="markDirty({{ row.driver.id }})" style="width:105px;">
+            {% for val, label in preferred_shift_choices %}
+              <option value="{{ val }}" {% if val == day.preferred_shift %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </div>
@@ -311,6 +467,37 @@
                   rows="2"
                   oninput="markDirty({{ row.driver.id }})"
                   placeholder="e.g. Prefers airport runs, has a backup SUV, contact before 6 AM...">{{ row.driver.notes|default:"" }}</textarea>
+      </div>
+
+      <!-- Day-Off Requests -->
+      <div class="mt-3 dayoff-section">
+        <label class="form-label small fw-semibold text-muted mb-1">
+          <i class="bi bi-calendar-x me-1"></i>Scheduled Days Off
+        </label>
+        <div class="dayoff-list" id="dayoff-list-{{ row.driver.id }}">
+          {% for ov in row.upcoming_overrides %}
+            <div class="dayoff-item" id="dayoff-{{ ov.id }}">
+              <span class="dayoff-date">{{ ov.date_display }}</span>
+              <span class="dayoff-reason">{{ ov.reason_label }}</span>
+              {% if ov.notes %}<span class="dayoff-notes">{{ ov.notes }}</span>{% endif %}
+              <button class="dayoff-remove" onclick="removeDayOff({{ ov.id }}, {{ row.driver.id }})" title="Remove">&times;</button>
+            </div>
+          {% empty %}
+            <div class="dayoff-empty text-muted">No upcoming days off scheduled</div>
+          {% endfor %}
+        </div>
+        <div class="dayoff-add-form mt-1" style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="dayoff-date-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;">
+          <select id="dayoff-reason-{{ row.driver.id }}" class="form-control form-control-sm" style="width:100px;">
+            {% for val, label in day_off_reason_choices %}
+              <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" id="dayoff-notes-{{ row.driver.id }}" class="form-control form-control-sm" style="width:140px;" placeholder="Note (optional)">
+          <button class="btn btn-sm btn-outline-danger" onclick="addDayOff({{ row.driver.id }})">
+            <i class="bi bi-plus me-1"></i>Add Day Off
+          </button>
+        </div>
       </div>
 
       <div class="edit-save-bar">
@@ -347,12 +534,31 @@
   const SAVE_URL = '{% url "save_driver_weekly_schedules" %}';
   const DAYS     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
+  const SHIFT_DEFAULTS = {
+    morning:  { start: 4,  end: 14, flexible: false },
+    midday:   { start: 10, end: 18, flexible: false },
+    evening:  { start: 14, end: 23, flexible: false },
+    night:    { start: 20, end: 23, flexible: false },
+    split:    { start: 4,  end: 23, flexible: true  },
+    full_day: { start: 4,  end: 23, flexible: true  },
+  };
+
+  const SHIFT_PILL_LABELS = {
+    morning: 'AM', midday: 'Mid', evening: 'PM', night: 'Night',
+    split: 'Split', full_day: 'All Day', custom: '',
+  };
+
+  const SHIFT_CSS = {
+    morning: 'shift-morning', midday: 'shift-midday', evening: 'shift-evening',
+    night: 'shift-night', split: 'shift-split', full_day: 'shift-full_day',
+    custom: 'shift-custom',
+  };
+
   function fmtHour(h) {
     h = parseInt(h, 10);
     if (h === 0)  return '12a';
     if (h < 12)   return h + 'a';
     if (h === 12) return '12p';
-    if (h === 23) return '11p';
     return (h - 12) + 'p';
   }
 
@@ -382,19 +588,41 @@
     }
   };
 
+  window.onShiftTypeChange = function(driverId, dayIdx) {
+    const shiftSel = document.getElementById('shift-' + driverId + '-' + dayIdx);
+    const startSel = document.getElementById('start-' + driverId + '-' + dayIdx);
+    const endSel   = document.getElementById('end-'   + driverId + '-' + dayIdx);
+    const flexCb   = document.getElementById('flex-'  + driverId + '-' + dayIdx);
+    const stype    = shiftSel.value;
+
+    if (stype === 'custom') {
+      startSel.disabled = false;
+      endSel.disabled = false;
+      flexCb.disabled = false;
+    } else {
+      const defaults = SHIFT_DEFAULTS[stype];
+      if (defaults) {
+        startSel.value = defaults.start;
+        endSel.value = defaults.end;
+        flexCb.checked = defaults.flexible;
+      }
+      startSel.disabled = true;
+      endSel.disabled = true;
+      flexCb.disabled = true;
+    }
+    markDirty(driverId);
+  };
+
   window.onAvailChange = function (cb) {
     const driverId = cb.dataset.driver;
     const row   = document.getElementById('erow-' + driverId + '-' + cb.dataset.day);
     const label = cb.nextElementSibling;
-    const selects = row.querySelectorAll('select');
     if (cb.checked) {
       row.classList.remove('day-off');
       label.textContent = 'On';
-      selects.forEach(s => s.disabled = false);
     } else {
       row.classList.add('day-off');
       label.textContent = 'Off';
-      selects.forEach(s => s.disabled = true);
     }
     markDirty(driverId);
   };
@@ -402,7 +630,6 @@
   // Validation: end > start when available
   function validate(driverId) {
     let valid = true;
-    // Clear previous errors
     document.querySelectorAll('#edit-' + driverId + ' .invalid').forEach(el => el.classList.remove('invalid'));
     document.querySelectorAll('#edit-' + driverId + ' .validation-error').forEach(el => el.remove());
 
@@ -436,11 +663,16 @@
     for (let d = 0; d < 7; d++) {
       const avail = document.getElementById('avail-' + driverId + '-' + d);
       if (!avail) continue;
+      const mhVal = document.getElementById('maxhrs-' + driverId + '-' + d).value;
       weekly[d] = {
         is_available: avail.checked,
+        shift_type:   document.getElementById('shift-'  + driverId + '-' + d).value,
         start_hour:   parseInt(document.getElementById('start-' + driverId + '-' + d).value, 10),
         end_hour:     parseInt(document.getElementById('end-'   + driverId + '-' + d).value, 10),
-        preference:   document.getElementById('pref-'  + driverId + '-' + d).value,
+        flexible:     document.getElementById('flex-'   + driverId + '-' + d).checked,
+        max_hours:    mhVal ? parseFloat(mhVal) : null,
+        preferred_shift: document.getElementById('prefshift-' + driverId + '-' + d).value,
+        preference:   document.getElementById('pref-'   + driverId + '-' + d).value,
       };
     }
 
@@ -468,21 +700,36 @@
 
   window.copyMondayToWeekdays = function(driverId) {
     const monAvail = document.getElementById('avail-' + driverId + '-0');
+    const monShift = document.getElementById('shift-' + driverId + '-0');
     const monStart = document.getElementById('start-' + driverId + '-0');
     const monEnd   = document.getElementById('end-'   + driverId + '-0');
+    const monFlex  = document.getElementById('flex-'  + driverId + '-0');
+    const monMax   = document.getElementById('maxhrs-'+ driverId + '-0');
+    const monPShift = document.getElementById('prefshift-' + driverId + '-0');
     const monPref  = document.getElementById('pref-'  + driverId + '-0');
     if (!monAvail) return;
 
     for (let d = 1; d <= 4; d++) {
       const avail = document.getElementById('avail-' + driverId + '-' + d);
+      const shift = document.getElementById('shift-' + driverId + '-' + d);
       const start = document.getElementById('start-' + driverId + '-' + d);
       const end   = document.getElementById('end-'   + driverId + '-' + d);
+      const flex  = document.getElementById('flex-'  + driverId + '-' + d);
+      const max   = document.getElementById('maxhrs-'+ driverId + '-' + d);
+      const pshift = document.getElementById('prefshift-' + driverId + '-' + d);
       const pref  = document.getElementById('pref-'  + driverId + '-' + d);
       if (!avail) continue;
 
       avail.checked = monAvail.checked;
+      shift.value = monShift.value;
       start.value = monStart.value;
+      start.disabled = monStart.disabled;
       end.value = monEnd.value;
+      end.disabled = monEnd.disabled;
+      flex.checked = monFlex.checked;
+      flex.disabled = monFlex.disabled;
+      max.value = monMax.value;
+      pshift.value = monPShift.value;
       pref.value = monPref.value;
       onAvailChange(avail);
     }
@@ -494,22 +741,63 @@
     const defStart = parseInt(card.dataset.defaultStart, 10);
     const defEnd   = parseInt(card.dataset.defaultEnd, 10);
     const defPref  = card.dataset.defaultPref || '';
+    const defShift = card.dataset.defaultShiftType || 'full_day';
+    const defMax   = card.dataset.defaultMaxHours || '';
+    const defFlex  = card.dataset.defaultFlexible === 'true';
+    const defPShift = card.dataset.defaultPreferredShift || '';
 
     for (let d = 0; d < 7; d++) {
       const avail = document.getElementById('avail-' + driverId + '-' + d);
+      const shift = document.getElementById('shift-' + driverId + '-' + d);
       const start = document.getElementById('start-' + driverId + '-' + d);
       const end   = document.getElementById('end-'   + driverId + '-' + d);
+      const flex  = document.getElementById('flex-'  + driverId + '-' + d);
+      const max   = document.getElementById('maxhrs-'+ driverId + '-' + d);
+      const pshift = document.getElementById('prefshift-' + driverId + '-' + d);
       const pref  = document.getElementById('pref-'  + driverId + '-' + d);
       if (!avail) continue;
 
       avail.checked = true;
-      start.value = defStart;
-      end.value = defEnd;
+      shift.value = defShift;
+      max.value = defMax;
+      pshift.value = defPShift;
       pref.value = defPref;
+
+      // Apply shift type defaults or driver defaults for custom
+      if (defShift === 'custom') {
+        start.value = defStart;
+        end.value = defEnd;
+        flex.checked = defFlex;
+        start.disabled = false;
+        end.disabled = false;
+        flex.disabled = false;
+      } else {
+        const sd = SHIFT_DEFAULTS[defShift];
+        if (sd) {
+          start.value = sd.start;
+          end.value = sd.end;
+          flex.checked = sd.flexible;
+        }
+        start.disabled = true;
+        end.disabled = true;
+        flex.disabled = true;
+      }
       onAvailChange(avail);
     }
     markDirty(driverId);
   };
+
+  function buildPillLabel(stype, sh, eh, maxHours) {
+    let label;
+    if (stype === 'full_day') {
+      label = 'All Day';
+    } else {
+      const prefix = SHIFT_PILL_LABELS[stype] || '';
+      label = (prefix ? prefix + ' ' : '') + fmtHour(sh) + '-' + fmtHour(eh);
+    }
+    if (maxHours) label += ' (' + Math.round(maxHours) + 'h)';
+    return label;
+  }
 
   function refreshStrip(driverId, weekly, notes) {
     const strip = document.getElementById('strip-' + driverId);
@@ -543,14 +831,84 @@
       if (d === 5) html += '<div class="wk-sep"></div>';
       const wkCls = d >= 5 ? ' weekend' : '';
       if (w.is_available) {
-        const lbl = fmtHour(w.start_hour) + '-' + fmtHour(w.end_hour);
-        html += `<span class="day-pill avail${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">${lbl}</span></span>`;
+        const stype = w.shift_type || 'full_day';
+        const css = SHIFT_CSS[stype] || 'shift-custom';
+        const lbl = buildPillLabel(stype, w.start_hour, w.end_hour, w.max_hours);
+        const flexIcon = w.flexible
+          ? '<i class="bi bi-unlock pill-flex-icon" title="Flexible"></i>'
+          : '<i class="bi bi-lock-fill pill-flex-icon" title="Hard limits"></i>';
+        const PS_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night'};
+        const psHtml = w.preferred_shift && PS_LABELS[w.preferred_shift]
+          ? `<span class="pill-pref-shift">Pref ${PS_LABELS[w.preferred_shift]}</span>` : '';
+        html += `<span class="day-pill ${css}${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">${lbl} ${flexIcon}</span>${psHtml}</span>`;
       } else {
         html += `<span class="day-pill off${wkCls}"><span class="pill-label">${DAYS[d]}</span><span class="pill-hours">Off</span></span>`;
       }
     }
     strip.innerHTML = html;
   }
+  const DAYOFF_URL = '{% url "manage_driver_date_overrides" %}';
+
+  window.addDayOff = function(driverId) {
+    const dateEl = document.getElementById('dayoff-date-' + driverId);
+    const reasonEl = document.getElementById('dayoff-reason-' + driverId);
+    const notesEl = document.getElementById('dayoff-notes-' + driverId);
+    if (!dateEl.value) { dateEl.focus(); return; }
+
+    fetch(DAYOFF_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({
+        action: 'add', driver_id: driverId,
+        date: dateEl.value, reason: reasonEl.value, notes: notesEl.value
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const list = document.getElementById('dayoff-list-' + driverId);
+          // Remove "no days off" message
+          const empty = list.querySelector('.dayoff-empty');
+          if (empty) empty.remove();
+          // Format the date for display
+          const d = new Date(dateEl.value + 'T00:00:00');
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const dateDisp = months[d.getMonth()] + ' ' + String(d.getDate()).padStart(2,'0') + ', ' + d.getFullYear();
+          const REASON_LABELS = {day_off:'Day Off',pto:'PTO',vacation:'Vacation',sick:'Sick',other:'Other'};
+          let html = `<div class="dayoff-item" id="dayoff-${data.id}">`;
+          html += `<span class="dayoff-date">${dateDisp}</span>`;
+          html += `<span class="dayoff-reason">${REASON_LABELS[reasonEl.value] || reasonEl.value}</span>`;
+          if (notesEl.value) html += `<span class="dayoff-notes">${notesEl.value}</span>`;
+          html += `<button class="dayoff-remove" onclick="removeDayOff(${data.id}, ${driverId})" title="Remove">&times;</button>`;
+          html += '</div>';
+          list.insertAdjacentHTML('beforeend', html);
+          dateEl.value = '';
+          notesEl.value = '';
+        } else {
+          alert('Error: ' + (data.error || 'Failed'));
+        }
+      })
+      .catch(() => alert('Network error'));
+  };
+
+  window.removeDayOff = function(overrideId, driverId) {
+    fetch(DAYOFF_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ action: 'delete', id: overrideId }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const el = document.getElementById('dayoff-' + overrideId);
+          if (el) el.remove();
+          const list = document.getElementById('dayoff-list-' + driverId);
+          if (list && !list.querySelector('.dayoff-item')) {
+            list.innerHTML = '<div class="dayoff-empty text-muted">No upcoming days off scheduled</div>';
+          }
+        }
+      });
+  };
 })();
 </script>
 {% endblock %}

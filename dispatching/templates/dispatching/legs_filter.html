@@ -657,12 +657,16 @@
                   {% if not row.is_off_today %}
                   <span class="ld-info-icon" data-ld-drv-popup
                         data-driver-name="{{ row.driver }}"
+                        data-shift-type="{{ row.shift_type }}"
                         data-shift-start="{{ row.shift_start }}"
                         data-shift-end="{{ row.shift_end }}"
                         data-flexible="{{ row.flexible }}"
+                        data-max-hours="{{ row.max_hours|default_if_none:'' }}"
+                        data-preferred-shift="{{ row.preferred_shift }}"
                         data-preference="{{ row.pref_short }}"
                         data-driver-phone="{{ row.driver_phone }}"
                         data-driver-notes="{{ row.driver_notes|escapejs }}"
+                        data-scheduling-notes="{{ row.scheduling_notes|escapejs }}"
                         data-vehicle-label="{% if row.assignment and row.assignment.vehicle and row.assignment.vehicle.vehicle_type %}{{ row.assignment.vehicle.vehicle_type }}{% endif %}"
                         data-vehicle-num="{% if row.assignment and row.assignment.vehicle %}{{ row.assignment.vehicle.vehicle_number }}{% endif %}"
                         data-vehicle-notes="{{ row.vehicle_notes|escapejs }}">i</span>
@@ -670,7 +674,12 @@
                 </div>
                 {% if not row.is_off_today %}
                 <div class="va-drv-context">
-                  {% if row.shift_display %}<span class="va-shift">{{ row.shift_display }}{% if not row.flexible %}<i class="bi bi-lock-fill ms-1" title="Hard time limits"></i>{% endif %}</span>{% endif %}
+                  {% if row.shift_display %}
+                    <span class="va-shift-badge sb-{{ row.shift_type }}">{{ row.shift_display }}</span>
+                    {% if row.flexible %}<i class="bi bi-unlock" style="color:#059669;" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" style="color:#d32f2f;" title="Hard limits"></i>{% endif %}
+                    {% if row.max_hours %}<span class="va-maxhrs-tag">({{ row.max_hours|floatformat:0 }}h max)</span>{% endif %}
+                  {% endif %}
+                  {% if row.preferred_shift %}<span class="va-pref-shift-badge">Pref {{ row.preferred_shift|title }}</span>{% endif %}
                   {% if row.pref_short %}<span class="va-pref {% if 'arrival' in row.preference %}pref-arrival{% elif 'return' in row.preference %}pref-return{% elif 'cruise' in row.preference %}pref-cruise{% endif %}">{{ row.pref_short }}</span>{% endif %}
                 </div>
                 {% endif %}
@@ -3789,15 +3798,35 @@
       }
       .va-veh-card.va-has-notes { border-color: #f59e0b; background: #fffbeb; }
       .va-drv-context {
-          font-size: 0.62rem; color: #6b7280;
-          display: flex; align-items: center; gap: 4px;
+          font-size: 0.72rem; color: #6b7280;
+          display: flex; align-items: center; gap: 5px;
           flex-wrap: wrap; margin-bottom: 3px;
       }
       .va-drv-context .va-shift { font-weight: 600; color: #555; }
-      .va-drv-context .va-shift .bi-lock-fill { color: #d32f2f; font-size: 0.55rem; }
+      .va-drv-context .bi-lock-fill { color: #d32f2f; font-size: 0.62rem; }
+      .va-drv-context .bi-unlock { color: #059669; font-size: 0.62rem; }
+      .va-shift-badge {
+          display: inline-flex; font-size: 0.62rem; font-weight: 700;
+          padding: 2px 6px; border-radius: 4px;
+          letter-spacing: 0.02em; white-space: nowrap;
+      }
+      .va-shift-badge.sb-morning  { background: #fff7ed; color: #9a3412; }
+      .va-shift-badge.sb-midday   { background: #fefce8; color: #854d0e; }
+      .va-shift-badge.sb-evening  { background: #f5f3ff; color: #5b21b6; }
+      .va-shift-badge.sb-night    { background: #1e293b; color: #e2e8f0; }
+      .va-shift-badge.sb-split    { background: #eff6ff; color: #1e40af; }
+      .va-shift-badge.sb-full_day { background: #ecfdf5; color: #065f46; }
+      .va-shift-badge.sb-custom   { background: #f0fdf4; color: #166534; }
+      .va-maxhrs-tag { font-size: 0.6rem; color: #9ca3af; font-weight: 600; white-space: nowrap; }
+      .va-pref-shift-badge {
+          display: inline-flex; font-size: 0.6rem; font-weight: 700;
+          padding: 2px 6px; border-radius: 4px;
+          background: #ede9fe; color: #6366f1;
+          letter-spacing: 0.02em; white-space: nowrap;
+      }
       .va-drv-context .va-pref {
-          font-size: 0.52rem; font-weight: 700; padding: 1px 4px;
-          border-radius: 3px; white-space: nowrap;
+          font-size: 0.6rem; font-weight: 700; padding: 2px 6px;
+          border-radius: 4px; white-space: nowrap;
       }
       .va-drv-context .va-pref.pref-arrival { background: #e3f2fd; color: #1565c0; }
       .va-drv-context .va-pref.pref-return  { background: #e8f5e9; color: #2e7d32; }
@@ -3903,13 +3932,26 @@
           const name = el.dataset.driverName || '';
           const vNum = el.dataset.vehicleNum ? '#' + el.dataset.vehicleNum : '';
           const vLabel = el.dataset.vehicleLabel || '';
+          const SHIFT_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night',split:'Split AM/PM',full_day:'Full Day',custom:'Set Hours'};
+          const stype = el.dataset.shiftType || 'custom';
           let html = '<div class="ld-popup-header" style="background:#1a2332;">' + name + (vNum ? ' — ' + vNum + ' ' + vLabel : '') + '</div>';
           html += '<div class="ld-popup-body">';
-          html += '<div class="ld-popup-row"><span class="ld-label">Shift</span><span class="ld-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+          html += '<div class="ld-popup-row"><span class="ld-label">Shift Type</span><span class="ld-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
+          html += '<div class="ld-popup-row"><span class="ld-label">Hours</span><span class="ld-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
           const flex = el.dataset.flexible === 'True';
-          html += '<div class="ld-popup-row"><span class="ld-label">Flexibility</span><span class="ld-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? 'Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
-          if (el.dataset.preference) html += '<div class="ld-popup-row"><span class="ld-label">Preference</span><span class="ld-value">' + el.dataset.preference + '</span></div>';
+          html += '<div class="ld-popup-row"><span class="ld-label">Flexibility</span><span class="ld-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? '<i class="bi bi-unlock"></i> Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
+          if (el.dataset.maxHours) html += '<div class="ld-popup-row"><span class="ld-label">Max Hours</span><span class="ld-value">' + el.dataset.maxHours + 'h</span></div>';
+          if (el.dataset.preferredShift) {
+              const PS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night'};
+              html += '<div class="ld-popup-row"><span class="ld-label">Prefers</span><span class="ld-value" style="color:#6366f1;">' + (PS[el.dataset.preferredShift]||el.dataset.preferredShift) + '</span></div>';
+          }
+          if (el.dataset.preference) html += '<div class="ld-popup-row"><span class="ld-label">Trip Pref</span><span class="ld-value">' + el.dataset.preference + '</span></div>';
           if (el.dataset.driverPhone) html += '<div class="ld-popup-row"><span class="ld-label">Phone</span><span class="ld-value">' + el.dataset.driverPhone + '</span></div>';
+          if (el.dataset.schedulingNotes) {
+              html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+              html += '<div style="font-size:0.65rem;color:#1565c0;font-weight:600;margin-bottom:2px;"><i class="bi bi-info-circle me-1"></i>Scheduling Notes</div>';
+              html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.schedulingNotes + '</div></div>';
+          }
           if (el.dataset.driverNotes) {
               html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
               html += '<div style="font-size:0.65rem;color:#888;font-weight:600;margin-bottom:2px;">Driver Notes</div>';

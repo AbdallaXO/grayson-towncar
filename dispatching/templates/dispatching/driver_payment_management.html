@@ -363,6 +363,15 @@
               </div>
             </div>
           {% endif %}
+          {% if stale_legs_count %}
+            <div class="col-auto">
+              <div class="alert alert-info d-flex align-items-center py-2 px-3 mb-0">
+                <i class="bi bi-clock-history me-2 fs-5"></i>
+                <strong>{{ stale_legs_count }} leg{{ stale_legs_count|pluralize }} with past pickup dates still not completed</strong>
+                <span class="ms-2 text-muted">- may need status update before payment</span>
+              </div>
+            </div>
+          {% endif %}
           {% if selected_driver and legs %}
             <div class="col-auto ms-auto">
               <button type="button" class="btn btn-sm btn-outline-primary" id="recalcPayBtn"
@@ -970,6 +979,65 @@
           </div>
         </div>
       {% endif %}
+
+      {# ── Payment History ── #}
+      {% if recent_payments %}
+        <div class="row mt-4 mb-4">
+          <div class="col-12">
+            <div class="card border-0 shadow-sm">
+              <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="document.getElementById('paymentHistoryBody').classList.toggle('d-none'); this.querySelector('.chevron-icon').classList.toggle('bi-chevron-down'); this.querySelector('.chevron-icon').classList.toggle('bi-chevron-up');">
+                <h5 class="mb-0">
+                  <i class="bi bi-clock-history me-2"></i>Payment History
+                  <span class="badge bg-secondary ms-1">{{ recent_payments|length }}</span>
+                </h5>
+                <i class="bi bi-chevron-down chevron-icon" style="font-size:0.9rem;"></i>
+              </div>
+              <div class="card-body p-0 d-none" id="paymentHistoryBody">
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0" style="font-size:0.85rem;">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Date</th>
+                        <th class="text-end">Base Pay</th>
+                        <th class="text-end">Gratuity</th>
+                        <th class="text-end">Additional</th>
+                        <th class="text-end">Total</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                        <th>Legs</th>
+                        <th>Processed By</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for pmt in recent_payments %}
+                        <tr>
+                          <td>{{ pmt.payment_date|date:"M j, Y g:i A" }}</td>
+                          <td class="text-end">${{ pmt.base_pay|floatformat:2|default:"-" }}</td>
+                          <td class="text-end">${{ pmt.gratuity|floatformat:2|default:"-" }}</td>
+                          <td class="text-end">${{ pmt.additional|floatformat:2|default:"-" }}</td>
+                          <td class="text-end fw-bold">${{ pmt.amount|floatformat:2 }}</td>
+                          <td><span class="badge bg-light text-dark">{{ pmt.payment_method|title }}</span></td>
+                          <td class="text-muted">{{ pmt.reference_number|default:"-" }}</td>
+                          <td class="text-center">{{ pmt.leg_payments.count }}</td>
+                          <td>{% if pmt.created_by %}{{ pmt.created_by.get_full_name|default:pmt.created_by.username }}{% else %}-{% endif %}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% if selected_driver %}
+                  <div class="px-3 py-2 border-top bg-light">
+                    <a href="{% url 'driver_statement_list' selected_driver.id %}" class="text-decoration-none" style="color:#C9A227; font-size:0.85rem;">
+                      <i class="bi bi-arrow-right me-1"></i>View all statements
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
     {% else %}
       {# ── Overview Dashboard ── #}
 
@@ -1003,8 +1071,18 @@
           <div class="card border-0 shadow-sm h-100">
             <div class="pay-overview-stat">
               <div class="stat-value {% if overdue_count %}text-danger{% else %}text-success{% endif %}">{{ overdue_count }}</div>
-              <div class="stat-label">Overdue (14+ days)</div>
+              <div class="stat-label">Overdue ({{ overdue_days }}+ days)</div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {# Overview search bar #}
+      <div class="row mb-3">
+        <div class="col-12">
+          <div class="input-group" style="width:280px;">
+            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" class="form-control border-start-0" id="overviewDriverSearch" placeholder="Search drivers..." style="font-size:0.9rem;">
           </div>
         </div>
       </div>
@@ -1015,7 +1093,7 @@
           <div class="col-12">
             <div class="overdue-banner">
               <i class="bi bi-exclamation-triangle-fill"></i>
-              {{ overdue_count }} driver{{ overdue_count|pluralize }} {{ overdue_count|pluralize:"has,have" }} unpaid legs older than 14 days
+              {{ overdue_count }} driver{{ overdue_count|pluralize }} {{ overdue_count|pluralize:"has,have" }} unpaid legs older than {{ overdue_days }} days
             </div>
           </div>
         </div>
@@ -1031,21 +1109,21 @@
             </div>
             {% if inhouse_drivers %}
               <div class="table-responsive">
-                <table class="table pay-driver-table mb-0">
+                <table class="table pay-driver-table mb-0 sortable-table" id="inhouseTable">
                   <thead>
                     <tr>
-                      <th style="width:25%;">Driver</th>
-                      <th class="text-center" style="width:10%;">Unpaid</th>
-                      <th class="text-center" style="width:10%;">Ready</th>
-                      <th class="text-end" style="width:15%;">Owed</th>
-                      <th style="width:12%;">Oldest</th>
-                      <th style="width:12%;">Last Paid</th>
+                      <th style="width:25%; cursor:pointer;" data-sort="name" class="sortable-header">Driver <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="text-center sortable-header" style="width:10%; cursor:pointer;" data-sort="unpaid">Unpaid <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="text-center sortable-header" style="width:10%; cursor:pointer;" data-sort="ready">Ready <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="text-end sortable-header" style="width:15%; cursor:pointer;" data-sort="owed">Owed <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="sortable-header" style="width:12%; cursor:pointer;" data-sort="oldest">Oldest <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="sortable-header" style="width:12%; cursor:pointer;" data-sort="last-paid">Last Paid <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
                       <th class="text-end" style="width:16%;"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for d in inhouse_drivers %}
-                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
+                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'" data-name="{% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}" data-unpaid="{{ d.unpaid_count }}" data-ready="{{ d.completed_unpaid_count }}" data-owed="{{ d.total_owed|floatformat:2 }}" data-oldest="{{ d.days_since_oldest|default:'9999' }}" data-last-paid="{{ d.days_since_last_paid|default:'9999' }}">
                         <td class="driver-name-cell">
                           {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.8rem;"></i>{% endif %}
                           {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
@@ -1129,21 +1207,21 @@
             </div>
             {% if affiliate_drivers %}
               <div class="table-responsive">
-                <table class="table pay-driver-table mb-0">
+                <table class="table pay-driver-table mb-0 sortable-table" id="affiliateTable">
                   <thead>
                     <tr>
-                      <th style="width:25%;">Driver</th>
-                      <th class="text-center" style="width:10%;">Unpaid</th>
-                      <th class="text-center" style="width:10%;">Ready</th>
-                      <th class="text-end" style="width:15%;">Owed</th>
-                      <th style="width:12%;">Oldest</th>
-                      <th style="width:12%;">Last Paid</th>
+                      <th style="width:25%; cursor:pointer;" data-sort="name" class="sortable-header">Driver <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="text-center sortable-header" style="width:10%; cursor:pointer;" data-sort="unpaid">Unpaid <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="text-center sortable-header" style="width:10%; cursor:pointer;" data-sort="ready">Ready <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="text-end sortable-header" style="width:15%; cursor:pointer;" data-sort="owed">Owed <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="sortable-header" style="width:12%; cursor:pointer;" data-sort="oldest">Oldest <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
+                      <th class="sortable-header" style="width:12%; cursor:pointer;" data-sort="last-paid">Last Paid <i class="bi bi-chevron-expand" style="font-size:0.6rem; opacity:0.5;"></i></th>
                       <th class="text-end" style="width:16%;"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {% for d in affiliate_drivers %}
-                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'">
+                      <tr class="pay-driver-row {% if d.is_overdue %}overdue{% endif %}" onclick="window.location='?driver={{ d.id }}'" data-name="{% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}" data-unpaid="{{ d.unpaid_count }}" data-ready="{{ d.completed_unpaid_count }}" data-owed="{{ d.total_owed|floatformat:2 }}" data-oldest="{{ d.days_since_oldest|default:'9999' }}" data-last-paid="{{ d.days_since_last_paid|default:'9999' }}">
                         <td class="driver-name-cell">
                           {% if d.is_overdue %}<i class="bi bi-exclamation-triangle-fill text-danger me-1" style="font-size:0.8rem;"></i>{% endif %}
                           {% if d.profile %}{{ d.profile.get_full_name|default:d.profile.username }}{% else %}Driver #{{ d.id }}{% endif %}
@@ -1217,6 +1295,56 @@
         </div>
       </div>
     {% endif %}
+  </div>
+
+  <!-- Recalculate Confirmation Modal -->
+  <div class="modal fade" id="recalcModal" tabindex="-1" aria-labelledby="recalcModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#0d6efd; color:#fff;">
+          <h5 class="modal-title" id="recalcModalLabel">
+            <i class="bi bi-arrow-clockwise me-2"></i>Confirm Recalculation
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="recalcModalMessage">Recalculate pay for these legs?</p>
+          <div class="alert alert-info py-2">
+            <i class="bi bi-info-circle me-1"></i>
+            <span id="recalcModalNote">Manually-entered values will NOT be changed.</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirmRecalc">
+            <i class="bi bi-arrow-clockwise me-1"></i>Recalculate
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Status Change Confirmation Modal -->
+  <div class="modal fade" id="bulkStatusModal" tabindex="-1" aria-labelledby="bulkStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-warning">
+          <h5 class="modal-title" id="bulkStatusModalLabel">
+            <i class="bi bi-arrow-repeat me-2"></i>Confirm Status Change
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p id="bulkStatusMessage">Mark legs as the selected status?</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-warning" id="confirmBulkStatus">
+            <i class="bi bi-check-circle me-1"></i>Confirm
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Process Payment Confirmation Modal -->
@@ -1541,20 +1669,19 @@
                   .then(response => response.json())
                   .then(data => {
                       if (data.success) {
-                          // Show success message
-                          let message = 'Payment processed successfully!\n\n' + data.message;
-                          if (data.email_sent) {
-                              message += '\n\nStatement emailed to driver.';
-                          } else if (data.email_error) {
-                              message += '\n\nEmail not sent: ' + data.email_error;
-                          }
-                          alert(message);
-                          
                           // Close modal
                           processPaymentModal.hide();
-                          
-                          // Reload page to show updated status
-                          window.location.reload();
+
+                          // Show success toast and redirect to overview
+                          let message = data.message;
+                          if (data.email_sent) {
+                              message += ' Statement emailed to driver.';
+                          } else if (data.email_error) {
+                              message += ' Email not sent: ' + data.email_error;
+                          }
+
+                          // Redirect to overview with success message (no unpaid legs remain for this driver)
+                          window.location.href = '{% url "driver_payment_management" %}';
                       } else {
                           alert('Error processing payment: ' + (data.error || 'Unknown error'));
                           this.disabled = false;
@@ -1635,33 +1762,41 @@
                   if (!ids.length || !newStatus) return;
 
                   const label = statusSelect.options[statusSelect.selectedIndex].text;
-                  if (!confirm(`Mark ${ids.length} leg(s) as "${label}"?`)) return;
+                  const bulkStatusModal = new bootstrap.Modal(document.getElementById('bulkStatusModal'));
+                  document.getElementById('bulkStatusMessage').textContent = `Mark ${ids.length} leg(s) as "${label}"?`;
 
-                  applyBtn.disabled = true;
-                  applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+                  const confirmBtn = document.getElementById('confirmBulkStatus');
+                  const newConfirmBtn = confirmBtn.cloneNode(true);
+                  confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
-                  const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-                  fetch('{% url "bulk_update_leg_status" %}', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken.value },
-                      body: JSON.stringify({ leg_ids: ids, status: newStatus })
-                  })
-                  .then(r => r.json())
-                  .then(data => {
-                      if (data.success) {
-                          alert(data.message);
-                          window.location.reload();
-                      } else {
-                          alert('Error: ' + (data.error || 'Unknown'));
+                  newConfirmBtn.addEventListener('click', function() {
+                      bulkStatusModal.hide();
+                      applyBtn.disabled = true;
+                      applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Updating...';
+
+                      const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+                      fetch('{% url "bulk_update_leg_status" %}', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken.value },
+                          body: JSON.stringify({ leg_ids: ids, status: newStatus })
+                      })
+                      .then(r => r.json())
+                      .then(data => {
+                          if (data.success) {
+                              window.location.reload();
+                          } else {
+                              alert('Error: ' + (data.error || 'Unknown'));
+                              applyBtn.disabled = false;
+                              applyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Apply';
+                          }
+                      })
+                      .catch(err => {
+                          alert('Error: ' + err.message);
                           applyBtn.disabled = false;
                           applyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Apply';
-                      }
-                  })
-                  .catch(err => {
-                      alert('Error: ' + err.message);
-                      applyBtn.disabled = false;
-                      applyBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Apply';
+                      });
                   });
+                  bulkStatusModal.show();
               });
           }
           })();
@@ -1697,13 +1832,34 @@
               });
           }
 
+          // ── Recalculate with styled modal ──
+          function showRecalcModal(message, note, onConfirm) {
+              const recalcModalEl = document.getElementById('recalcModal');
+              const recalcModal = new bootstrap.Modal(recalcModalEl);
+              document.getElementById('recalcModalMessage').textContent = message;
+              document.getElementById('recalcModalNote').textContent = note;
+
+              const confirmBtn = document.getElementById('confirmRecalc');
+              const newBtn = confirmBtn.cloneNode(true);
+              confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+              newBtn.addEventListener('click', function() {
+                  recalcModal.hide();
+                  onConfirm();
+              });
+              recalcModal.show();
+          }
+
           // Recalculate all zero-pay legs for driver
           const recalcBtn = document.getElementById('recalcPayBtn');
           if (recalcBtn) {
               recalcBtn.addEventListener('click', function() {
                   const driverId = this.dataset.driverId;
-                  if (!confirm('Recalculate pay for all $0 legs? Manually-entered values will NOT be changed.')) return;
-                  doRecalculate({ driver_id: parseInt(driverId) }, this, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay');
+                  const btn = this;
+                  showRecalcModal(
+                      'Recalculate pay for all $0 legs?',
+                      'Manually-entered values will NOT be changed.',
+                      () => doRecalculate({ driver_id: parseInt(driverId) }, btn, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay')
+                  );
               });
           }
 
@@ -1714,8 +1870,12 @@
                   const checked = document.querySelectorAll('.leg-checkbox:checked');
                   const legIds = Array.from(checked).map(cb => parseInt(cb.value));
                   if (!legIds.length) { alert('No legs selected.'); return; }
-                  if (!confirm('Recalculate pay for ' + legIds.length + ' selected leg(s)? This will overwrite current values with rates from the system.')) return;
-                  doRecalculate({ leg_ids: legIds, force: true }, this, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay');
+                  const btn = this;
+                  showRecalcModal(
+                      'Recalculate pay for ' + legIds.length + ' selected leg(s)?',
+                      'Current values will be overwritten with rates from the system.',
+                      () => doRecalculate({ leg_ids: legIds, force: true }, btn, '<i class="bi bi-arrow-clockwise me-1"></i>Recalculate Pay')
+                  );
               });
           }
 
@@ -1723,10 +1883,85 @@
           document.querySelectorAll('.recalc-leg-btn').forEach(function(btn) {
               btn.addEventListener('click', function() {
                   const legId = parseInt(this.dataset.legId);
-                  if (!confirm('Recalculate pay for this leg? Current values will be overwritten.')) return;
-                  doRecalculate({ leg_ids: [legId], force: true }, this, '<i class="bi bi-arrow-clockwise"></i>');
+                  const rowBtn = this;
+                  showRecalcModal(
+                      'Recalculate pay for this leg?',
+                      'Current values will be overwritten.',
+                      () => doRecalculate({ leg_ids: [legId], force: true }, rowBtn, '<i class="bi bi-arrow-clockwise"></i>')
+                  );
               });
           });
+          // ── Overview: Table Sorting ──
+          document.querySelectorAll('.sortable-table').forEach(function(table) {
+              const headers = table.querySelectorAll('.sortable-header');
+              let currentSort = { key: null, asc: true };
+
+              headers.forEach(function(th) {
+                  th.addEventListener('click', function() {
+                      const key = th.dataset.sort;
+                      if (currentSort.key === key) {
+                          currentSort.asc = !currentSort.asc;
+                      } else {
+                          currentSort.key = key;
+                          currentSort.asc = true;
+                      }
+
+                      // Update icons
+                      headers.forEach(h => {
+                          const icon = h.querySelector('i');
+                          if (icon) {
+                              icon.className = 'bi bi-chevron-expand';
+                              icon.style.opacity = '0.5';
+                          }
+                      });
+                      const activeIcon = th.querySelector('i');
+                      if (activeIcon) {
+                          activeIcon.className = currentSort.asc ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+                          activeIcon.style.opacity = '1';
+                      }
+
+                      const tbody = table.querySelector('tbody');
+                      const rows = Array.from(tbody.querySelectorAll('tr'));
+                      rows.sort(function(a, b) {
+                          let valA, valB;
+                          if (key === 'name') {
+                              valA = (a.dataset.name || '').toLowerCase();
+                              valB = (b.dataset.name || '').toLowerCase();
+                              return currentSort.asc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                          } else {
+                              const attrMap = { unpaid: 'unpaid', ready: 'ready', owed: 'owed', oldest: 'oldest', 'last-paid': 'lastPaid' };
+                              const attr = 'data-' + key;
+                              valA = parseFloat(a.getAttribute(attr) || 0);
+                              valB = parseFloat(b.getAttribute(attr) || 0);
+                              if (key === 'owed') {
+                                  // Highest amount first by default
+                                  return currentSort.asc ? valB - valA : valA - valB;
+                              }
+                              return currentSort.asc ? valA - valB : valB - valA;
+                          }
+                      });
+                      rows.forEach(r => tbody.appendChild(r));
+                  });
+              });
+          });
+
+          // ── Overview: Driver Search ──
+          const searchInput = document.getElementById('overviewDriverSearch');
+          if (searchInput) {
+              searchInput.addEventListener('input', function() {
+                  const query = this.value.toLowerCase().trim();
+                  // Filter both tables and mobile cards
+                  document.querySelectorAll('.pay-driver-row').forEach(function(row) {
+                      const name = (row.dataset.name || '').toLowerCase();
+                      row.style.display = (!query || name.includes(query)) ? '' : 'none';
+                  });
+                  document.querySelectorAll('.mobile-driver-card').forEach(function(card) {
+                      const text = card.textContent.toLowerCase();
+                      card.style.display = (!query || text.includes(query)) ? '' : 'none';
+                  });
+              });
+          }
+
       });
   </script>
 {% endblock %}

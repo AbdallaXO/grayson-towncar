@@ -1,0 +1,1004 @@
+/* =====================================================
+   GUEST QUOTE — Experimental Lead Form
+   Modern, premium, conversion-focused design
+   ===================================================== */
+
+/* ── Page Layout ──────────────────────────────────── */
+.gq-page {
+  background: var(--gtc-cream, #F8F6F0);
+  min-height: 100vh;
+}
+
+/* ── Hero ─────────────────────────────────────────── */
+.gq-hero {
+  background: linear-gradient(170deg, #0d1117 0%, #0A1428 100%);
+  padding: 3.5rem 0 3rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.gq-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 20% 80%, rgba(201,162,39,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(201,162,39,0.05) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.gq-hero-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+  position: relative;
+}
+
+.gq-hero-sub {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 300;
+  font-size: clamp(0.9rem, 1.8vw, 1.1rem);
+  color: rgba(255,255,255,0.7);
+  max-width: 520px;
+  margin: 0 auto 2rem;
+  line-height: 1.6;
+  position: relative;
+}
+
+/* ── Step Indicator ───────────────────────────────── */
+.gq-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.gq-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.gq-step-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: 'Montserrat', sans-serif;
+  transition: all 0.4s cubic-bezier(0.25,0.46,0.45,0.94);
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.4);
+  border: 2px solid rgba(255,255,255,0.15);
+}
+
+.gq-step.active .gq-step-dot {
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  color: #0d1117;
+  border-color: #C9A227;
+  box-shadow: 0 0 20px rgba(201,162,39,0.35);
+}
+
+.gq-step.completed .gq-step-dot {
+  background: rgba(201,162,39,0.2);
+  color: #C9A227;
+  border-color: rgba(201,162,39,0.4);
+}
+
+.gq-step-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.35);
+  margin-top: 0.5rem;
+  text-transform: uppercase;
+  transition: color 0.3s;
+  white-space: nowrap;
+}
+
+.gq-step.active .gq-step-label {
+  color: var(--gtc-champagne, #E8D5B7);
+}
+
+.gq-step.completed .gq-step-label {
+  color: rgba(201,162,39,0.6);
+}
+
+.gq-step-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,0.1);
+  margin: 0 -4px;
+  margin-bottom: 1.5rem;
+  z-index: 0;
+  transition: background 0.4s;
+}
+
+.gq-step-line.completed {
+  background: rgba(201,162,39,0.4);
+}
+
+/* ── Form Container ───────────────────────────────── */
+.gq-form-wrap {
+  max-width: 720px;
+  margin: -1.5rem auto 0;
+  padding: 0 1rem 3rem;
+  position: relative;
+  z-index: 2;
+}
+
+/* ── Section Cards ────────────────────────────────── */
+.gq-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.04);
+  transition: box-shadow 0.3s;
+}
+
+.gq-card:hover {
+  box-shadow: 0 4px 30px rgba(0,0,0,0.09);
+}
+
+.gq-card-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #0d1117;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.gq-card-title i {
+  color: var(--gtc-gold, #C9A227);
+  font-size: 1.1rem;
+}
+
+.gq-card-title .gq-title-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  color: #0d1117;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Form Controls ────────────────────────────────── */
+.gq-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.4rem;
+  display: block;
+  letter-spacing: 0.01em;
+}
+
+.gq-label .text-danger {
+  margin-left: 2px;
+}
+
+.gq-input,
+.gq-select {
+  display: block;
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: #1f2937;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  transition: all 0.25s ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.gq-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23374151' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 14px 10px;
+  padding-right: 2.25rem;
+}
+
+.gq-input:focus,
+.gq-select:focus {
+  outline: none;
+  border-color: var(--gtc-gold, #C9A227);
+  box-shadow: 0 0 0 3px rgba(201,162,39,0.12);
+}
+
+.gq-input.is-invalid,
+.gq-select.is-invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
+}
+
+.gq-input.is-valid,
+.gq-select.is-valid {
+  border-color: #22c55e;
+}
+
+.gq-invalid-feedback {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  color: #ef4444;
+  margin-top: 0.25rem;
+}
+
+.gq-input::placeholder {
+  color: #9ca3af;
+}
+
+/* ── Stepper Control ──────────────────────────────── */
+.gq-label-icon {
+  color: var(--gtc-gold, #C9A227);
+  margin-right: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.gq-stepper {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.gq-stepper:focus-within {
+  border-color: var(--gtc-gold, #C9A227);
+  box-shadow: 0 0 0 3px rgba(201,162,39,0.12);
+}
+
+.gq-stepper-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: none;
+  background: transparent;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  font-size: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.gq-stepper-btn:hover:not(:disabled) {
+  background: rgba(201,162,39,0.1);
+  color: var(--gtc-gold, #C9A227);
+}
+
+.gq-stepper-btn:active:not(:disabled) {
+  background: rgba(201,162,39,0.18);
+  transform: scale(0.92);
+}
+
+.gq-stepper-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.gq-stepper-value {
+  flex: 1;
+  text-align: center;
+  border: none;
+  outline: none;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0d1117;
+  background: transparent;
+  padding: 0;
+  min-width: 0;
+  -moz-appearance: textfield;
+}
+
+.gq-stepper-value::-webkit-inner-spin-button,
+.gq-stepper-value::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Stepper invalid state */
+.gq-stepper.is-invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.1);
+}
+
+/* ── Field Groups ─────────────────────────────────── */
+.gq-field {
+  margin-bottom: 1rem;
+}
+
+.gq-field:last-child {
+  margin-bottom: 0;
+}
+
+.gq-row {
+  display: grid;
+  gap: 1rem;
+}
+
+.gq-row-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.gq-row-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.gq-helper {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin-top: 0.3rem;
+}
+
+/* ── Trip Type Toggle ─────────────────────────────── */
+.gq-trip-toggle {
+  display: flex;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1.5px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.gq-trip-toggle input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gq-trip-toggle label {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  text-align: center;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: none;
+  margin: 0;
+}
+
+.gq-trip-toggle input[type="radio"]:checked + label {
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  color: #0d1117;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(201,162,39,0.25);
+}
+
+/* ── Vehicle Recommendation ───────────────────────── */
+.gq-recommendation {
+  display: none;
+}
+
+.gq-recommendation.visible {
+  display: block;
+  animation: gqFadeSlideIn 0.5s cubic-bezier(0.25,0.46,0.45,0.94) both;
+}
+
+.gq-rec-intro {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.gq-vehicle-cards {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 576px) {
+  .gq-vehicle-cards.has-upsell {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Vehicle card base */
+.gq-vehicle-card {
+  position: relative;
+  border-radius: 14px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25,0.46,0.45,0.94);
+  border: 2px solid #e5e7eb;
+  background: #fff;
+}
+
+.gq-vehicle-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+}
+
+.gq-vehicle-card.selected {
+  border-color: var(--gtc-gold, #C9A227);
+  box-shadow: 0 4px 30px rgba(201,162,39,0.18);
+}
+
+.gq-vehicle-card.best-fit {
+  border-color: var(--gtc-gold, #C9A227);
+  box-shadow: 0 4px 30px rgba(201,162,39,0.18);
+}
+
+.gq-vehicle-card.upsell {
+  border-color: var(--gtc-champagne, #E8D5B7);
+}
+
+/* Badge */
+.gq-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.25rem 0.85rem;
+  border-radius: 20px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.gq-badge-best {
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  color: #0d1117;
+  box-shadow: 0 2px 10px rgba(201,162,39,0.3);
+}
+
+.gq-badge-upgrade {
+  background: var(--gtc-champagne, #E8D5B7);
+  color: #4a3f2f;
+}
+
+/* Vehicle image */
+.gq-vehicle-img {
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  margin-bottom: 0.75rem;
+}
+
+/* Vehicle name */
+.gq-vehicle-name {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #0d1117;
+  text-align: center;
+  margin-bottom: 0.75rem;
+}
+
+/* Vehicle specs */
+.gq-vehicle-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.gq-spec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.8rem;
+}
+
+.gq-spec-label {
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.gq-spec-label i {
+  font-size: 0.85rem;
+  color: var(--gtc-gold, #C9A227);
+  width: 18px;
+  text-align: center;
+}
+
+.gq-spec-value {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Vehicle explanation */
+.gq-vehicle-why {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: center;
+  line-height: 1.5;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* Selected check */
+.gq-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+}
+
+.gq-vehicle-card.selected .gq-check {
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  border-color: #C9A227;
+  color: #0d1117;
+}
+
+.gq-check i {
+  font-size: 0.7rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.gq-vehicle-card.selected .gq-check i {
+  opacity: 1;
+}
+
+/* Choose different toggle */
+.gq-choose-other {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.gq-choose-other-btn {
+  background: none;
+  border: none;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.8rem;
+  color: var(--gtc-gold, #C9A227);
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  transition: color 0.2s;
+  font-weight: 500;
+}
+
+.gq-choose-other-btn:hover {
+  color: #a88520;
+  text-decoration: underline;
+}
+
+.gq-all-vehicles {
+  display: none;
+  margin-top: 1rem;
+}
+
+.gq-all-vehicles.visible {
+  display: block;
+  animation: gqFadeIn 0.3s ease both;
+}
+
+.gq-all-vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.gq-mini-card {
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+  background: #fff;
+}
+
+.gq-mini-card:hover {
+  border-color: var(--gtc-champagne, #E8D5B7);
+  transform: translateY(-1px);
+}
+
+.gq-mini-card.selected {
+  border-color: var(--gtc-gold, #C9A227);
+  background: rgba(201,162,39,0.04);
+}
+
+.gq-mini-card img {
+  width: 100%;
+  max-height: 50px;
+  object-fit: contain;
+  margin-bottom: 0.4rem;
+}
+
+.gq-mini-card .mini-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.gq-mini-card .mini-cap {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.65rem;
+  color: #9ca3af;
+}
+
+/* Overflow warning */
+.gq-overflow-msg {
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.2);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  color: #92400e;
+  margin-top: 1rem;
+}
+
+.gq-overflow-msg a {
+  color: var(--gtc-gold, #C9A227);
+  font-weight: 600;
+}
+
+/* ── Trust Bar ────────────────────────────────────── */
+.gq-trust-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 1.25rem 0;
+}
+
+.gq-trust-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.gq-trust-item i {
+  color: var(--gtc-gold, #C9A227);
+  font-size: 0.95rem;
+}
+
+/* ── CTA Button ───────────────────────────────────── */
+.gq-submit-btn {
+  display: block;
+  width: 100%;
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0d1117;
+  background: linear-gradient(135deg, #C9A227 0%, #E8D5B7 50%, #C9A227 100%);
+  background-size: 200% 200%;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  animation: gqShimmer 3s ease-in-out infinite;
+  box-shadow: 0 4px 20px rgba(201,162,39,0.35);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.gq-submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(201,162,39,0.45);
+}
+
+.gq-submit-btn:active {
+  transform: translateY(0);
+}
+
+.gq-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.gq-submit-btn .btn-shine {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  animation: gqShine 2.5s ease-in-out infinite;
+}
+
+/* ── Results Section ──────────────────────────────── */
+.gq-results {
+  display: none;
+}
+
+.gq-results.visible {
+  display: block;
+  animation: gqFadeSlideIn 0.5s cubic-bezier(0.25,0.46,0.45,0.94) both;
+}
+
+.gq-result-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  border: 1px solid rgba(201,162,39,0.15);
+  text-align: center;
+}
+
+.gq-result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: linear-gradient(135deg, #C9A227, #D4AF37);
+  color: #0d1117;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+
+.gq-result-price {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: #0d1117;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.gq-result-route {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 2rem;
+}
+
+.gq-result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 380px;
+  margin: 0 auto 1.5rem;
+}
+
+@media (min-width: 576px) {
+  .gq-result-actions {
+    flex-direction: row;
+    max-width: 100%;
+    justify-content: center;
+  }
+}
+
+.gq-book-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: 10px;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #C9A227 0%, #E8D5B7 50%, #C9A227 100%);
+  background-size: 200% 200%;
+  color: #0d1117;
+  animation: gqShimmer 3s ease-in-out infinite;
+  box-shadow: 0 4px 15px rgba(201,162,39,0.3);
+}
+
+.gq-book-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(201,162,39,0.4);
+  color: #0d1117;
+}
+
+/* Invalid quote display */
+.gq-invalid-result {
+  display: none;
+}
+
+.gq-invalid-result.visible {
+  display: block;
+  animation: gqFadeSlideIn 0.5s cubic-bezier(0.25,0.46,0.45,0.94) both;
+}
+
+.gq-contact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 576px) {
+  .gq-contact-row {
+    flex-direction: row;
+    justify-content: center;
+  }
+}
+
+/* Social proof in results */
+.gq-social-proof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  justify-content: center;
+}
+
+.gq-proof-box {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  text-align: center;
+  flex: 1;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.gq-stars {
+  color: var(--gtc-gold, #C9A227);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ── Animations ───────────────────────────────────── */
+@keyframes gqFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gqFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes gqShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes gqShine {
+  0% { left: -100%; }
+  50%, 100% { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gq-recommendation.visible,
+  .gq-results.visible,
+  .gq-invalid-result.visible,
+  .gq-all-vehicles.visible {
+    animation: none;
+  }
+  .gq-submit-btn,
+  .gq-book-btn {
+    animation: none;
+  }
+  .gq-submit-btn .btn-shine {
+    animation: none;
+    display: none;
+  }
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 575.98px) {
+  .gq-hero {
+    padding: 2.5rem 0 2rem;
+  }
+
+  .gq-step-label {
+    font-size: 0.6rem;
+  }
+
+  .gq-step-dot {
+    width: 30px;
+    height: 30px;
+    font-size: 0.7rem;
+  }
+
+  .gq-form-wrap {
+    padding: 0 0.75rem 2rem;
+  }
+
+  .gq-card {
+    padding: 1.25rem;
+    border-radius: 14px;
+  }
+
+  .gq-row-2,
+  .gq-row-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .gq-trust-bar {
+    gap: 1rem;
+  }
+
+  .gq-trust-item {
+    font-size: 0.7rem;
+  }
+
+  .gq-vehicle-cards.has-upsell {
+    grid-template-columns: 1fr;
+  }
+
+  .gq-all-vehicles-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .gq-result-price {
+    font-size: 2.25rem;
+  }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .gq-row-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}

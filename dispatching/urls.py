@@ -49,6 +49,7 @@ urlpatterns = [
     path("update-scheduler-settings/", views.update_scheduler_settings, name="update_scheduler_settings"),
     path("driver-weekly-schedules/", views.get_driver_weekly_schedules, name="get_driver_weekly_schedules"),
     path("save-driver-weekly-schedules/", views.save_driver_weekly_schedules, name="save_driver_weekly_schedules"),
+    path("driver-date-overrides/", views.manage_driver_date_overrides, name="manage_driver_date_overrides"),
     path("update-leg-assignment/", views.update_leg_assignment, name="update_leg_assignment"),
     path("check-feasibility/", views.check_driver_feasibility, name="check_driver_feasibility"),
     path(

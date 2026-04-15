@@ -139,6 +139,26 @@
       }
       .driver-shift { color: #555; font-weight: 600; white-space: nowrap; }
       .driver-shift .bi-lock-fill { color: #d32f2f; font-size: 0.55rem; }
+      .driver-shift .bi-unlock { color: #059669; font-size: 0.55rem; }
+      .shift-badge {
+          display: inline-flex; font-size: 0.6rem; font-weight: 700;
+          padding: 2px 5px; border-radius: 4px;
+          letter-spacing: 0.02em; white-space: nowrap;
+      }
+      .shift-badge.sb-morning  { background: #fff7ed; color: #9a3412; }
+      .shift-badge.sb-midday   { background: #fefce8; color: #854d0e; }
+      .shift-badge.sb-evening  { background: #f5f3ff; color: #5b21b6; }
+      .shift-badge.sb-night    { background: #1e293b; color: #e2e8f0; }
+      .shift-badge.sb-split    { background: #eff6ff; color: #1e40af; }
+      .shift-badge.sb-full_day { background: #ecfdf5; color: #065f46; }
+      .shift-badge.sb-custom   { background: #f0fdf4; color: #166534; }
+      .maxhrs-tag { font-size: 0.58rem; color: #9ca3af; font-weight: 600; white-space: nowrap; }
+      .pref-shift-badge {
+          display: inline-flex; font-size: 0.58rem; font-weight: 700;
+          padding: 2px 5px; border-radius: 4px;
+          background: #ede9fe; color: #6366f1;
+          letter-spacing: 0.02em; white-space: nowrap;
+      }
       .pref-badge {
           display: inline-flex; font-size: 0.5rem; font-weight: 700;
           padding: 1px 4px; border-radius: 3px;
@@ -286,9 +306,12 @@
                     {% if data.vehicle_type_label %}<span style="color:#888;">{{ data.vehicle_type_label }}</span> &middot; {% endif %}{{ data.total_legs }} job{{ data.total_legs|pluralize }}
                   </small>
                   <div class="driver-avail-line">
+                    <span class="shift-badge sb-{{ data.shift_type }}">{{ data.shift_display }}</span>
                     <span class="driver-shift">
-                      {{ data.shift_display }}{% if not data.flexible %}<i class="bi bi-lock-fill ms-1" title="Hard time limits"></i>{% endif %}
+                      {% if data.flexible %}<i class="bi bi-unlock" title="Flexible"></i>{% else %}<i class="bi bi-lock-fill" title="Hard limits"></i>{% endif %}
                     </span>
+                    {% if data.max_hours %}<span class="maxhrs-tag">({{ data.max_hours|floatformat:0 }}h max)</span>{% endif %}
+                    {% if data.preferred_shift %}<span class="pref-shift-badge">Pref {{ data.preferred_shift|title }}</span>{% endif %}
                     {% if data.pref_short %}
                       <span class="pref-badge {% if 'arrival' in data.preference %}pref-arrival{% elif 'return' in data.preference %}pref-return{% elif 'cruise' in data.preference %}pref-cruise{% endif %}">
                         {{ data.pref_short }}
@@ -296,12 +319,16 @@
                     {% endif %}
                     <span class="driver-info-icon" data-driver-popup
                           data-driver-name="{{ data.driver }}"
+                          data-shift-type="{{ data.shift_type }}"
                           data-shift-start="{{ data.shift_start }}"
                           data-shift-end="{{ data.shift_end }}"
                           data-flexible="{{ data.flexible }}"
+                          data-max-hours="{{ data.max_hours|default_if_none:'' }}"
+                          data-preferred-shift="{{ data.preferred_shift }}"
                           data-preference="{{ data.pref_short }}"
                           data-driver-phone="{{ data.driver_phone }}"
                           data-driver-notes="{{ data.driver_notes|escapejs }}"
+                          data-scheduling-notes="{{ data.scheduling_notes|escapejs }}"
                           data-vehicle-label="{{ data.vehicle_type_label }}"
                           data-vehicle-num="{{ data.vehicle_number }}"
                           data-vehicle-notes="{{ data.vehicle_notes|escapejs }}">i</span>
@@ -452,16 +479,32 @@
         const vNum = el.dataset.vehicleNum ? '#' + el.dataset.vehicleNum : '';
         const vLabel = el.dataset.vehicleLabel || '';
         const headerText = name + (vNum ? ' — ' + vNum + ' ' + vLabel : '');
+        const SHIFT_LABELS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night',split:'Split AM/PM',full_day:'Full Day',custom:'Set Hours'};
         let html = '<div class="tl-popup-header" style="background:#1a2332;">' + headerText + '</div>';
         html += '<div class="tl-popup-body">';
-        html += '<div class="tl-popup-row"><span class="tl-label">Shift</span><span class="tl-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
+        const stype = el.dataset.shiftType || 'custom';
+        html += '<div class="tl-popup-row"><span class="tl-label">Shift Type</span><span class="tl-value">' + (SHIFT_LABELS[stype] || stype) + '</span></div>';
+        html += '<div class="tl-popup-row"><span class="tl-label">Hours</span><span class="tl-value">' + fmtHour(el.dataset.shiftStart) + ' – ' + fmtHour(el.dataset.shiftEnd) + '</span></div>';
         const flex = el.dataset.flexible === 'True';
-        html += '<div class="tl-popup-row"><span class="tl-label">Flexibility</span><span class="tl-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? 'Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
+        html += '<div class="tl-popup-row"><span class="tl-label">Flexibility</span><span class="tl-value" style="color:' + (flex ? '#059669' : '#d32f2f') + ';">' + (flex ? '<i class="bi bi-unlock"></i> Flexible' : '<i class="bi bi-lock-fill"></i> Hard limits') + '</span></div>';
+        if (el.dataset.maxHours) {
+          html += '<div class="tl-popup-row"><span class="tl-label">Max Hours</span><span class="tl-value">' + el.dataset.maxHours + 'h</span></div>';
+        }
+        if (el.dataset.preferredShift) {
+          const PS = {morning:'Morning',midday:'Midday',evening:'Evening',night:'Night'};
+          html += '<div class="tl-popup-row"><span class="tl-label">Prefers</span><span class="tl-value" style="color:#6366f1;">' + (PS[el.dataset.preferredShift]||el.dataset.preferredShift) + '</span></div>';
+        }
         if (el.dataset.preference) {
           html += '<div class="tl-popup-row"><span class="tl-label">Preference</span><span class="tl-value">' + el.dataset.preference + '</span></div>';
         }
         if (el.dataset.driverPhone) {
           html += '<div class="tl-popup-row"><span class="tl-label">Phone</span><span class="tl-value">' + el.dataset.driverPhone + '</span></div>';
+        }
+        if (el.dataset.schedulingNotes) {
+          html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';
+          html += '<div style="font-size:0.65rem;color:#1565c0;font-weight:600;margin-bottom:2px;"><i class="bi bi-info-circle me-1"></i>Scheduling Notes</div>';
+          html += '<div style="font-size:0.72rem;color:#374151;">' + el.dataset.schedulingNotes + '</div>';
+          html += '</div>';
         }
         if (el.dataset.driverNotes) {
           html += '<div style="border-top:1px solid #eee;margin:4px 0;padding-top:4px;">';

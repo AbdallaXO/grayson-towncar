@@ -382,7 +382,7 @@ class Reservation(models.Model):
         """
         Calculate total amount to be paid to drivers
         """
-        return sum(leg.driver_pay_amount or 0 for leg in self.legs.all())
+        return sum(leg.total_driver_pay for leg in self.legs.all())
 
     def calculate_profit(self):
         """

@@ -1,9 +1,11 @@
 from django.urls import path
 from . import views
+from .views_quote_experiment import guest_quote_page
 
 
 urlpatterns = [
     path("", views.index, name="home"),
+    path("get-a-quote/", guest_quote_page, name="guest_quote"),
     path("orlando-transportation-faqs/", views.faqs, name="faqs"),
     path("about-grayson-towncar-services/", views.about_us, name="about-us"),
     path("book-orlando-transportation/<pk>", views.reservation_form, name="reserve"),

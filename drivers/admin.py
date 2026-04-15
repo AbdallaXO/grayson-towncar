@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Sum, F, Q, Count, Case, When, Value, DecimalField, Subquery, OuterRef
 from django.db.models.functions import Coalesce
 from django.utils.safestring import mark_safe
-from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate
+from .models import Driver, DriverPayment, LegPayment, FleetVehicle, DriverWeeklySchedule, DriverPayRate, DriverDateOverride
 from reservations.models import Leg
 from decimal import Decimal
 from dispatching.admin_mixins import DispatcherAdminMixin
@@ -14,7 +14,14 @@ class DriverWeeklyScheduleInline(admin.TabularInline):
     model = DriverWeeklySchedule
     extra = 0
     max_num = 7
-    fields = ["day_of_week", "is_available", "start_hour", "end_hour", "flexible", "preference"]
+    fields = ["day_of_week", "is_available", "shift_type", "start_hour", "end_hour", "flexible", "max_hours", "preferred_shift", "preference", "scheduling_notes"]
+
+
+class DriverDateOverrideInline(admin.TabularInline):
+    model = DriverDateOverride
+    extra = 1
+    fields = ["date", "is_available", "reason", "notes"]
+    ordering = ["date"]
 
 
 class DriverPayRateInline(admin.TabularInline):
@@ -52,7 +59,7 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
         "vehicle",
     ]
 
-    inlines = [DriverPayRateInline, DriverWeeklyScheduleInline]
+    inlines = [DriverPayRateInline, DriverWeeklyScheduleInline, DriverDateOverrideInline]
 
     fieldsets = (
         (
@@ -74,9 +81,12 @@ class DriverAdmin(DispatcherAdminMixin, admin.ModelAdmin):
             "Auto-Assign Defaults",
             {
                 "fields": (
+                    "default_shift_type",
                     "default_start_hour",
                     "default_end_hour",
                     "default_flexible",
+                    "default_max_hours",
+                    "default_preferred_shift",
                     "default_preference",
                 ),
                 "description": "Default working hours and preferences for auto-assign. "

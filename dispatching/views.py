@@ -43,6 +43,7 @@ from drivers.models import (
     DriverVehicleAssignment,
     FleetVehicle,
     DriverWeeklySchedule,
+    DriverDateOverride,
 )
 from payment.utils import get_or_create_stripe_customer
 from rates.models import Vehicle, Rate, Location
@@ -208,7 +209,7 @@ def index(request):
     # Get all drivers (single query) for assignment dropdown + inhouse vehicle cards
     drivers = list(
         Driver.objects.select_related("profile")
-        .prefetch_related("weekly_schedule")
+        .prefetch_related("weekly_schedule", "date_overrides")
         .all()
     )
     inhouse_drivers = sorted(
@@ -236,6 +237,7 @@ def index(request):
         # Driver availability for this date
         _ld_avail = _driver.get_availability_for_date(selected_date)
         _ld_is_avail, _ld_sh, _ld_eh, _ld_pref, _ld_flex = _ld_avail
+        _ld_full = _driver.get_full_availability(selected_date)
 
         def _ld_fmt_hour(h):
             if h == 0: return '12a'
@@ -243,6 +245,10 @@ def index(request):
             if h == 12: return '12p'
             return f'{h - 12}p'
 
+        _LD_SHIFT_SHORT = {
+            "morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night",
+            "split": "Split", "full_day": "All Day", "custom": "",
+        }
         _LD_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
             "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
@@ -254,19 +260,36 @@ def index(request):
         if _assignment and _assignment.vehicle:
             _ld_vnotes = _assignment.vehicle.notes or ''
 
+        _ld_stype = _ld_full.get("shift_type", "full_day")
+        _ld_mhrs = _ld_full.get("max_hours")
+        if _ld_is_avail:
+            if _ld_stype == "full_day":
+                _ld_shift_disp = "All Day"
+            else:
+                _ld_prefix = _LD_SHIFT_SHORT.get(_ld_stype, "")
+                _ld_shift_disp = f"{_ld_prefix} {_ld_fmt_hour(_ld_sh)}-{_ld_fmt_hour(_ld_eh)}".strip()
+            if _ld_mhrs:
+                _ld_shift_disp += f" ({int(_ld_mhrs)}h)"
+        else:
+            _ld_shift_disp = ''
+
         inhouse_driver_rows.append({
             "driver": _driver,
             "assignment": _assignment,
             "is_off_today": _is_off,
-            "shift_display": f"{_ld_fmt_hour(_ld_sh)}-{_ld_fmt_hour(_ld_eh)}" if _ld_is_avail else '',
+            "shift_display": _ld_shift_disp,
+            "shift_type": _ld_stype,
             "shift_start": _ld_sh,
             "shift_end": _ld_eh,
             "flexible": _ld_flex,
+            "max_hours": float(_ld_mhrs) if _ld_mhrs else None,
             "preference": _ld_pref,
             "pref_short": _LD_PREF_SHORT.get(_ld_pref, ''),
             "driver_notes": _driver.notes or '',
             "driver_phone": _driver.phone_number or '',
             "vehicle_notes": _ld_vnotes,
+            "preferred_shift": _ld_full.get("preferred_shift", ""),
+            "scheduling_notes": _ld_full.get("scheduling_notes", ""),
         })
     def _inhouse_vehicle_sort_key(row):
         # Off-today drivers sink to bottom; within each group: assigned first, then by vehicle#/name
@@ -780,7 +803,7 @@ def schedule_board(request):
     inhouse_drivers = list(
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
-        .prefetch_related("weekly_schedule")
+        .prefetch_related("weekly_schedule", "date_overrides")
         .order_by("profile__first_name")
     )
     assignments = {
@@ -928,7 +951,18 @@ def schedule_board(request):
         # Driver availability for selected date
         _avail = driver.get_availability_for_date(selected_date)
         _is_avail, _sh, _eh, _pref, _flex = _avail
-        _shift_display = f"{_fmt_hour(_sh)}-{_fmt_hour(_eh)}"
+        _full_avail = driver.get_full_availability(selected_date)
+        _stype = _full_avail.get("shift_type", "full_day")
+        _mhrs = _full_avail.get("max_hours")
+        _pshift = _full_avail.get("preferred_shift", "")
+        _snotes = _full_avail.get("scheduling_notes", "")
+        if _stype == "full_day":
+            _shift_display = "All Day"
+        else:
+            _SHIFT_SHORT_MAP = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
+            _shift_display = f"{_SHIFT_SHORT_MAP.get(_stype, '')} {_fmt_hour(_sh)}-{_fmt_hour(_eh)}".strip()
+        if _mhrs:
+            _shift_display += f" ({int(_mhrs)}h)"
         _pref_short = _PREF_SHORT.get(_pref, '')
 
         for slot in sched.slots:
@@ -951,14 +985,18 @@ def schedule_board(request):
             'prev_night_cleared': _prev_day_last.get(driver.id, ''),
             'prev_night_vehicle': _sb_prev_day_vehicle.get(driver.id, ''),
             'shift_display': _shift_display,
+            'shift_type': _stype,
             'shift_start': _sh,
             'shift_end': _eh,
             'flexible': _flex,
+            'max_hours': float(_mhrs) if _mhrs else None,
             'preference': _pref,
             'pref_short': _pref_short,
             'driver_notes': driver.notes or '',
             'driver_phone': driver.phone_number or '',
             'vehicle_notes': vehicle_notes,
+            'preferred_shift': _pshift,
+            'scheduling_notes': _snotes,
         })
 
     # Build "available but no jobs" list for drivers not in the timeline
@@ -968,6 +1006,19 @@ def schedule_board(request):
             continue
         _avail = driver.get_availability_for_date(selected_date)
         _is_avail, _sh, _eh, _pref, _flex = _avail
+        _nj_full = driver.get_full_availability(selected_date)
+        _nj_stype = _nj_full.get("shift_type", "full_day")
+        _nj_mhrs = _nj_full.get("max_hours")
+        _SHIFT_SHORT_MAP2 = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
+        if _is_avail:
+            if _nj_stype == "full_day":
+                _nj_shift_disp = "All Day"
+            else:
+                _nj_shift_disp = f"{_SHIFT_SHORT_MAP2.get(_nj_stype, '')} {_fmt_hour(_sh)}-{_fmt_hour(_eh)}".strip()
+            if _nj_mhrs:
+                _nj_shift_disp += f" ({int(_nj_mhrs)}h)"
+        else:
+            _nj_shift_disp = ''
         assignment = assignments.get(driver.id)
         _vnum = ''
         _vtype = ''
@@ -980,7 +1031,10 @@ def schedule_board(request):
         available_no_jobs.append({
             'driver': driver,
             'is_available': _is_avail,
-            'shift_display': f"{_fmt_hour(_sh)}-{_fmt_hour(_eh)}" if _is_avail else '',
+            'shift_display': _nj_shift_disp,
+            'shift_type': _nj_stype,
+            'flexible': _flex,
+            'max_hours': float(_nj_mhrs) if _nj_mhrs else None,
             'vehicle_number': _vnum,
             'vehicle_type_label': _vtype,
             'vehicle_notes': _vnotes,
@@ -988,6 +1042,8 @@ def schedule_board(request):
             'pref_short': _PREF_SHORT.get(_pref, ''),
             'driver_notes': driver.notes or '',
             'driver_phone': driver.phone_number or '',
+            'preferred_shift': _nj_full.get("preferred_shift", ""),
+            'scheduling_notes': _nj_full.get("scheduling_notes", ""),
         })
 
     # Build unassigned timeline slots
@@ -2247,7 +2303,7 @@ def copy_vehicle_assignments(request):
     prev_assignments = (
         DriverVehicleAssignment.objects.filter(date=prev)
         .select_related("driver", "driver__profile", "vehicle")
-        .prefetch_related("driver__weekly_schedule")
+        .prefetch_related("driver__weekly_schedule", "driver__date_overrides")
     )
 
     # Build driver list with off-day status
@@ -5373,6 +5429,10 @@ def driver_payment_management(request):
     )
 
     # Compute derived fields in Python
+    from dispatching.models import SchedulerSettings
+    settings = SchedulerSettings.get_settings()
+    overdue_days = settings.driver_pay_overdue_days
+
     overdue_count = 0
     for d in drivers_with_unpaid:
         d.total_owed = d.total_owed or 0
@@ -5385,8 +5445,8 @@ def driver_payment_management(request):
             d.days_since_oldest = (today - d.oldest_unpaid_date).days
         else:
             d.days_since_oldest = None
-        # Overdue if oldest unpaid leg is >14 days old
-        if d.days_since_oldest is not None and d.days_since_oldest > 14:
+        # Overdue if oldest unpaid leg exceeds configurable threshold
+        if d.days_since_oldest is not None and d.days_since_oldest > overdue_days:
             d.is_overdue = True
             overdue_count += 1
         else:
@@ -5403,8 +5463,14 @@ def driver_payment_management(request):
         try:
             selected_driver = get_object_or_404(Driver.objects.select_related('profile'), id=selected_driver_id)
 
-            # Last payment info for detail header
-            last_pmt = DriverPayment.objects.filter(driver=selected_driver).order_by('-payment_date').first()
+            # Last payment info for detail header + recent payment history
+            recent_payments = (
+                DriverPayment.objects
+                .filter(driver=selected_driver)
+                .select_related('created_by')
+                .order_by('-payment_date')[:10]
+            )
+            last_pmt = recent_payments[0] if recent_payments else None
             if last_pmt:
                 last_payment_info = {
                     'date': last_pmt.payment_date,
@@ -5458,6 +5524,14 @@ def driver_payment_management(request):
                 if leg.needs_review:
                     review_count += 1
 
+            # Detect stale legs: past pickup date but not completed (likely forgotten status update)
+            stale_cutoff = today - timedelta(days=3)
+            stale_legs_count = sum(
+                1 for leg in legs
+                if leg.status != 'completed' and leg.status != 'cancelled'
+                and leg.pickup_date and leg.pickup_date <= stale_cutoff
+            )
+
         except (ValueError, Driver.DoesNotExist):
             messages.error(request, "Invalid driver selected")
             selected_driver = None
@@ -5469,6 +5543,7 @@ def driver_payment_management(request):
         "total_inhouse_owed": total_inhouse_owed,
         "total_affiliate_owed": total_affiliate_owed,
         "overdue_count": overdue_count,
+        "overdue_days": overdue_days,
         # Legacy "drivers" for dropdown (keep compat) — combined list
         "drivers": drivers_with_unpaid,
         # Detail data
@@ -5484,6 +5559,8 @@ def driver_payment_management(request):
         "completed_leg_count": completed_leg_count,
         "zero_pay_count": zero_pay_count,
         "review_count": review_count,
+        "recent_payments": recent_payments if selected_driver_id and selected_driver else [],
+        "stale_legs_count": stale_legs_count if selected_driver_id and selected_driver else 0,
     }
 
     return render(request, "dispatching/driver_payment_management.html", context)
@@ -5541,7 +5618,13 @@ def update_driver_pay_amount(request):
                 leg.save(update_fields=['driver_base_pay', 'driver_gratuity', 'driver_additional', 'driver_pay_amount', 'profit_estimate'])
 
                 logger.info(f"Updated driver pay for leg {leg_id}: Base=${base_pay}, Gratuity=${gratuity}, Additional=${additional}, Total=${leg.driver_pay_amount}")
-                
+
+                # Update reservation profit calculations
+                try:
+                    leg.reservation.update_profit_calculations()
+                except Exception as e:
+                    logger.warning(f"Could not update reservation profit calculations: {e}")
+
                 return JsonResponse({
                     "success": True,
                     "message": "Driver pay updated successfully",
@@ -5568,21 +5651,21 @@ def update_driver_pay_amount(request):
                 leg.save(update_fields=['driver_pay_amount', 'profit_estimate'])
 
                 logger.info(f"Updated driver pay amount for leg {leg_id} to {amount_decimal}")
-                
+
+                # Update reservation profit calculations
+                try:
+                    leg.reservation.update_profit_calculations()
+                except Exception as e:
+                    logger.warning(f"Could not update reservation profit calculations: {e}")
+
                 return JsonResponse({
                     "success": True,
                     "message": "Driver pay amount updated successfully",
                     "new_amount": float(leg.driver_pay_amount),
                 })
-                
+
         except (ValueError, TypeError) as e:
             return JsonResponse({"success": False, "error": f"Invalid amount format: {str(e)}"}, status=400)
-        
-        # Update reservation profit calculations if needed
-        try:
-            leg.reservation.update_profit_calculations()
-        except Exception as e:
-            logger.warning(f"Could not update reservation profit calculations: {e}")
 
     except json.JSONDecodeError:
         return JsonResponse({"success": False, "error": "Invalid JSON data"}, status=400)
@@ -5799,18 +5882,36 @@ def process_driver_payment(request):
         if leg_ids:
             unpaid_legs = unpaid_legs.filter(id__in=leg_ids)
         
-        # Only process legs that have a driver_pay_amount > 0
-        unpaid_legs = unpaid_legs.filter(driver_pay_amount__gt=0)
-        
+        # Only process legs that have driver pay > 0
+        # Use new fields (driver_base_pay + driver_gratuity + driver_additional)
+        # with fallback to legacy driver_pay_amount for backward compatibility
+        from django.db.models import Case, When, Value, DecimalField as DjDecimalField
+        from django.db.models.functions import Coalesce
+
+        unpaid_legs = unpaid_legs.annotate(
+            _total_pay=Case(
+                When(
+                    driver_base_pay__isnull=False,
+                    then=(
+                        Coalesce('driver_base_pay', Value(0, output_field=DjDecimalField()))
+                        + Coalesce('driver_gratuity', Value(0, output_field=DjDecimalField()))
+                        + Coalesce('driver_additional', Value(0, output_field=DjDecimalField()))
+                    ),
+                ),
+                default=Coalesce('driver_pay_amount', Value(0, output_field=DjDecimalField())),
+                output_field=DjDecimalField(),
+            )
+        ).filter(_total_pay__gt=0)
+
         if not unpaid_legs.exists():
             return JsonResponse({
                 "success": False,
                 "error": "No completed unpaid legs with driver pay amount found for this driver"
             }, status=400)
-        
-        # Calculate total
-        payment_total = sum(leg.driver_pay_amount or 0 for leg in unpaid_legs)
-        
+
+        # Calculate total using the model property (handles field fallback correctly)
+        payment_total = sum(leg.total_driver_pay for leg in unpaid_legs)
+
         # Group legs by reservation for notes
         reservation_legs = {}
         for leg in unpaid_legs:
@@ -5818,7 +5919,7 @@ def process_driver_payment(request):
                 if leg.reservation not in reservation_legs:
                     reservation_legs[leg.reservation] = []
                 reservation_legs[leg.reservation].append(leg)
-        
+
         # Create notes similar to admin action
         from django.utils import timezone
         notes = []
@@ -5827,21 +5928,21 @@ def process_driver_payment(request):
         notes.append(f"Total Legs: {unpaid_legs.count()}")
         notes.append("\nReservation Details:")
         notes.append("-" * 50)
-        
+
         for reservation, legs in reservation_legs.items():
-            leg_total = sum(leg.driver_pay_amount or 0 for leg in legs)
+            leg_total = sum(leg.total_driver_pay for leg in legs)
             notes.append(
                 f"\nReservation #{reservation.id} - {reservation.customer.get_full_name()}"
             )
             for leg in legs:
                 notes.append(
-                    f"  • {leg.pickup_date.strftime('%m/%d/%Y')} | "
-                    f"{leg.pickup_location} → {leg.dropoff_location} | "
-                    f"Payment: ${leg.driver_pay_amount or 0:.2f}"
+                    f"  \u2022 {leg.pickup_date.strftime('%m/%d/%Y')} | "
+                    f"{leg.pickup_location} \u2192 {leg.dropoff_location} | "
+                    f"Payment: ${leg.total_driver_pay:.2f}"
                 )
             if len(legs) > 1:
                 notes.append(f"  Subtotal: ${leg_total:.2f}")
-        
+
         notes.append("\n" + "-" * 50)
         notes.append(f"TOTAL PAYMENT: ${payment_total:.2f}")
         notes.append(f"Payment Method: {driver.payment_method or 'Direct Deposit'}")
@@ -7004,7 +7105,7 @@ def capacity_planner(request):
     inhouse_drivers = (
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
-        .prefetch_related("weekly_schedule")
+        .prefetch_related("weekly_schedule", "date_overrides")
         .order_by("profile__first_name")
     )
     all_drivers = Driver.objects.select_related("profile").all()
@@ -7051,6 +7152,7 @@ def capacity_planner(request):
         # Driver availability for this date
         _va_avail = d.get_availability_for_date(selected_date)
         _va_is_avail, _va_sh, _va_eh, _va_pref, _va_flex = _va_avail
+        _va_full = d.get_full_availability(selected_date)
 
         def _va_fmt_hour(h):
             if h == 0: return '12a'
@@ -7058,6 +7160,7 @@ def capacity_planner(request):
             if h == 12: return '12p'
             return f'{h - 12}p'
 
+        _VA_SHIFT_SHORT = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
         _VA_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
             "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
@@ -7070,20 +7173,36 @@ def capacity_planner(request):
         if _assignment and _assignment.vehicle:
             _va_vnotes = _assignment.vehicle.notes or ''
 
+        _va_stype = _va_full.get("shift_type", "full_day")
+        _va_mhrs = _va_full.get("max_hours")
+        if _va_is_avail:
+            if _va_stype == "full_day":
+                _va_shift_disp = "All Day"
+            else:
+                _va_shift_disp = f"{_VA_SHIFT_SHORT.get(_va_stype, '')} {_va_fmt_hour(_va_sh)}-{_va_fmt_hour(_va_eh)}".strip()
+            if _va_mhrs:
+                _va_shift_disp += f" ({int(_va_mhrs)}h)"
+        else:
+            _va_shift_disp = ''
+
         vehicle_assign_rows.append({
             "driver": d,
             "assignment": _assignment,
             "is_off_today": _is_off,
             "leg_count": _planner_leg_counts.get(d.id, 0),
-            "shift_display": f"{_va_fmt_hour(_va_sh)}-{_va_fmt_hour(_va_eh)}" if _va_is_avail else '',
+            "shift_display": _va_shift_disp,
+            "shift_type": _va_stype,
             "shift_start": _va_sh,
             "shift_end": _va_eh,
             "flexible": _va_flex,
+            "max_hours": float(_va_mhrs) if _va_mhrs else None,
             "preference": _va_pref,
             "pref_short": _VA_PREF_SHORT.get(_va_pref, ''),
             "driver_notes": d.notes or '',
             "driver_phone": d.phone_number or '',
             "vehicle_notes": _va_vnotes,
+            "preferred_shift": _va_full.get("preferred_shift", ""),
+            "scheduling_notes": _va_full.get("scheduling_notes", ""),
         })
 
     # Sort: assigned drivers first (by vehicle number), then unassigned, off last
@@ -7290,6 +7409,7 @@ def capacity_planner(request):
         # Driver availability for selected date
         _cp_avail = driver.get_availability_for_date(selected_date)
         _cp_is_avail, _cp_sh, _cp_eh, _cp_pref, _cp_flex = _cp_avail
+        _cp_full = driver.get_full_availability(selected_date)
 
         def _cp_fmt_hour(h):
             if h == 0: return '12a'
@@ -7297,6 +7417,7 @@ def capacity_planner(request):
             if h == 12: return '12p'
             return f'{h - 12}p'
 
+        _CP_SHIFT_SHORT = {"morning": "AM", "midday": "Mid", "evening": "PM", "night": "Night", "split": "Split", "full_day": "All Day", "custom": ""}
         _CP_PREF_SHORT = {
             "prefer_arrival": "Pref Arrivals", "prefer_return": "Pref Returns",
             "prefer_cruise": "Pref Cruises", "heavy_arrival": "Heavy Arrivals",
@@ -7304,6 +7425,15 @@ def capacity_planner(request):
             "only_arrival": "Only Arrivals", "only_return": "Only Returns",
             "only_cruise": "Only Cruises",
         }
+
+        _cp_stype = _cp_full.get("shift_type", "full_day")
+        _cp_mhrs = _cp_full.get("max_hours")
+        if _cp_stype == "full_day":
+            _cp_shift_disp = "All Day"
+        else:
+            _cp_shift_disp = f"{_CP_SHIFT_SHORT.get(_cp_stype, '')} {_cp_fmt_hour(_cp_sh)}-{_cp_fmt_hour(_cp_eh)}".strip()
+        if _cp_mhrs:
+            _cp_shift_disp += f" ({int(_cp_mhrs)}h)"
 
         inhouse_timeline.append({
             'driver': driver,
@@ -7315,15 +7445,19 @@ def capacity_planner(request):
             'vehicle_type_label': _cp_vtype,
             'prev_night_cleared': _cp_prev_day_last.get(driver.id, ''),
             'prev_night_vehicle': _cp_prev_day_vehicle.get(driver.id, ''),
-            'shift_display': f"{_cp_fmt_hour(_cp_sh)}-{_cp_fmt_hour(_cp_eh)}",
+            'shift_display': _cp_shift_disp,
+            'shift_type': _cp_stype,
             'shift_start': _cp_sh,
             'shift_end': _cp_eh,
             'flexible': _cp_flex,
+            'max_hours': float(_cp_mhrs) if _cp_mhrs else None,
             'preference': _cp_pref,
             'pref_short': _CP_PREF_SHORT.get(_cp_pref, ''),
             'driver_notes': driver.notes or '',
             'driver_phone': driver.phone_number or '',
             'vehicle_notes': _cp_vnotes,
+            'preferred_shift': _cp_full.get("preferred_shift", ""),
+            'scheduling_notes': _cp_full.get("scheduling_notes", ""),
         })
 
     # Build per-driver availability for the selected date (for auto-assign modal defaults)
@@ -7459,6 +7593,7 @@ def auto_assign_drivers(request):
     inhouse_drivers = list(
         Driver.objects.filter(driver_type="inhouse", id__in=eligible_driver_ids)
         .select_related("profile")
+        .prefetch_related("weekly_schedule", "date_overrides")
     )
     schedules = build_driver_schedules(legs, inhouse_drivers, target_date)
 
@@ -7466,6 +7601,7 @@ def auto_assign_drivers(request):
     # Start with driver availability defaults, then apply frontend overrides
     driver_hours = {}
     flexible_drivers = set()
+    driver_max_hours = {}
     for d in inhouse_drivers:
         avail = d.get_availability_for_date(target_date)
         is_avail, sh, eh, pref, flex = avail
@@ -7473,6 +7609,10 @@ def auto_assign_drivers(request):
             driver_hours[d.id] = (sh, eh)
             if flex:
                 flexible_drivers.add(d.id)
+        # Build max hours from full availability
+        full_avail = d.get_full_availability(target_date)
+        if full_avail.get("max_hours"):
+            driver_max_hours[d.id] = float(full_avail["max_hours"])
 
     # Frontend overrides take precedence
     for did_str, hours in raw_driver_hours.items():
@@ -7519,7 +7659,8 @@ def auto_assign_drivers(request):
     suggestions = suggest_assignments_clustered(auto_unassigned, schedules, target_date,
                                                 driver_hours=driver_hours or None,
                                                 driver_preferences=driver_preferences or None,
-                                                flexible_drivers=flexible_drivers or None) if auto_unassigned else []
+                                                flexible_drivers=flexible_drivers or None,
+                                                driver_max_hours=driver_max_hours or None) if auto_unassigned else []
 
     # Merge: auto suggestions + manual overrides
     valid_suggestions = [
@@ -9112,7 +9253,7 @@ def get_driver_weekly_schedules(request):
     if not request.user.is_staff:
         return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
 
-    drivers = Driver.objects.filter(driver_type="inhouse").select_related("profile").prefetch_related("weekly_schedule")
+    drivers = Driver.objects.filter(driver_type="inhouse").select_related("profile").prefetch_related("weekly_schedule", "date_overrides")
     result = []
     for d in drivers:
         entries = {}
@@ -9165,29 +9306,100 @@ def save_driver_weekly_schedules(request):
         driver.default_start_hour = int(d_data.get("default_start_hour", 6))
         driver.default_end_hour = int(d_data.get("default_end_hour", 23))
         driver.default_flexible = d_data.get("default_flexible", True)
+        driver.default_shift_type = d_data.get("default_shift_type", "full_day")
+        driver.default_max_hours = d_data.get("default_max_hours") or None
+        driver.default_preferred_shift = d_data.get("default_preferred_shift", "")
         driver.default_preference = d_data.get("default_preference", "")
         if "notes" in d_data:
             driver.notes = d_data["notes"].strip() or None
-        driver.save(update_fields=["default_start_hour", "default_end_hour", "default_flexible", "default_preference", "notes"])
+        driver.save(update_fields=[
+            "default_start_hour", "default_end_hour", "default_flexible",
+            "default_shift_type", "default_max_hours", "default_preferred_shift",
+            "default_preference", "notes",
+        ])
 
         # Update weekly entries
         weekly = d_data.get("weekly", {})
         for day_str, entry in weekly.items():
             day = int(day_str)
+            mh = entry.get("max_hours")
             DriverWeeklySchedule.objects.update_or_create(
                 driver=driver,
                 day_of_week=day,
                 defaults={
                     "is_available": entry.get("is_available", True),
+                    "shift_type": entry.get("shift_type", "full_day"),
                     "start_hour": int(entry.get("start_hour", 6)),
                     "end_hour": int(entry.get("end_hour", 23)),
                     "flexible": entry.get("flexible", True),
+                    "max_hours": float(mh) if mh else None,
+                    "preferred_shift": entry.get("preferred_shift", ""),
                     "preference": entry.get("preference", ""),
+                    "scheduling_notes": entry.get("scheduling_notes", ""),
                 },
             )
         updated_count += 1
 
     return JsonResponse({"success": True, "message": f"Updated schedules for {updated_count} drivers"})
+
+
+@login_required(login_url="login")
+def manage_driver_date_overrides(request):
+    """Add or delete date-specific availability overrides (day-off requests, PTO, etc.)."""
+    from drivers.models import DriverDateOverride
+
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    if request.method == "GET":
+        driver_id = request.GET.get("driver_id")
+        if not driver_id:
+            return JsonResponse({"success": False, "error": "Missing driver_id"}, status=400)
+        overrides = DriverDateOverride.objects.filter(
+            driver_id=driver_id, date__gte=timezone.localdate()
+        ).order_by("date").values("id", "date", "is_available", "reason", "notes")
+        return JsonResponse({"success": True, "overrides": list(overrides)})
+
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        action = data.get("action")
+
+        if action == "add":
+            driver_id = data.get("driver_id")
+            date_str = data.get("date")
+            reason = data.get("reason", "day_off")
+            notes = data.get("notes", "")
+            if not driver_id or not date_str:
+                return JsonResponse({"success": False, "error": "Missing driver_id or date"}, status=400)
+            try:
+                from datetime import datetime as dt
+                override_date = dt.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return JsonResponse({"success": False, "error": "Invalid date format"}, status=400)
+            try:
+                driver = Driver.objects.get(id=driver_id, driver_type="inhouse")
+            except Driver.DoesNotExist:
+                return JsonResponse({"success": False, "error": "Driver not found"}, status=404)
+            obj, created = DriverDateOverride.objects.update_or_create(
+                driver=driver, date=override_date,
+                defaults={"is_available": False, "reason": reason, "notes": notes.strip()},
+            )
+            return JsonResponse({"success": True, "created": created, "id": obj.id})
+
+        elif action == "delete":
+            override_id = data.get("id")
+            if not override_id:
+                return JsonResponse({"success": False, "error": "Missing id"}, status=400)
+            deleted, _ = DriverDateOverride.objects.filter(id=override_id).delete()
+            return JsonResponse({"success": True, "deleted": deleted > 0})
+
+        return JsonResponse({"success": False, "error": "Unknown action"}, status=400)
+
+    return JsonResponse({"success": False, "error": "Method not allowed"}, status=405)
 
 
 @login_required(login_url="login")
@@ -9217,15 +9429,27 @@ def inhouse_schedule(request):
         if h == 12: return "12 PM"
         return f"{h - 12} PM"
 
+    today = timezone.localdate()
+
     # All 24 hour choices for the time selects
     hour_choices = [{"value": h, "label": _fmt_hour_long(h)} for h in range(24)]
 
     inhouse_drivers = (
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
-        .prefetch_related("weekly_schedule")
+        .prefetch_related("weekly_schedule", "date_overrides")
         .order_by("profile__first_name", "profile__last_name", "profile__username")
     )
+
+    SHIFT_PILL = {
+        "morning":  "AM",
+        "midday":   "Mid",
+        "evening":  "PM",
+        "night":    "Night",
+        "split":    "Split",
+        "full_day": "All Day",
+        "custom":   "",
+    }
 
     driver_rows = []
     for driver in inhouse_drivers:
@@ -9237,22 +9461,57 @@ def inhouse_schedule(request):
             eh = entry.end_hour   if entry else driver.default_end_hour
             avail = entry.is_available if entry else True
             pref  = entry.preference   if entry else driver.default_preference
+            flex  = entry.flexible if entry else driver.default_flexible
+            stype = entry.shift_type if entry else driver.default_shift_type
+            pshift = entry.preferred_shift if entry else driver.default_preferred_shift
+            mhrs  = entry.max_hours if entry else driver.default_max_hours
+            snotes = entry.scheduling_notes if entry else ""
+
+            # Build pill label based on shift type
+            if not avail:
+                pill_label = "Off"
+            elif stype == "full_day":
+                pill_label = "All Day"
+            elif stype in SHIFT_PILL:
+                _prefix = SHIFT_PILL[stype]
+                pill_label = f"{_prefix} {_fmt_hour(sh)}-{_fmt_hour(eh)}".strip()
+            else:
+                pill_label = f"{_fmt_hour(sh)}-{_fmt_hour(eh)}"
+
+            if avail and mhrs:
+                pill_label += f" ({int(mhrs)}h)"
+
             days.append({
                 "day_idx":    day_idx,
                 "day_name":   DAY_NAMES[day_idx],
                 "is_available": avail,
+                "shift_type": stype,
                 "start_hour": sh,
                 "end_hour":   eh,
+                "flexible":   flex,
+                "max_hours":  float(mhrs) if mhrs else None,
+                "preferred_shift": pshift,
                 "preference": pref,
-                "pill_label": f"{_fmt_hour(sh)}-{_fmt_hour(eh)}" if avail else "Off",
+                "scheduling_notes": snotes,
+                "pill_label": pill_label,
             })
-        driver_rows.append({"driver": driver, "days": days})
+        # Upcoming date overrides (PTO, day-off requests)
+        upcoming_overrides = [
+            {"id": o.id, "date": o.date.strftime("%Y-%m-%d"), "date_display": o.date.strftime("%b %d, %Y"),
+             "reason": o.reason, "reason_label": dict(DriverDateOverride.REASON_CHOICES).get(o.reason, o.reason),
+             "notes": o.notes}
+            for o in driver.date_overrides.all()
+            if o.date >= today
+        ]
+        driver_rows.append({"driver": driver, "days": days, "upcoming_overrides": upcoming_overrides})
 
-    today = timezone.localdate()
     context = {
         "driver_rows": driver_rows,
         "hour_choices": hour_choices,
+        "shift_type_choices": DriverWeeklySchedule.SHIFT_TYPE_CHOICES,
+        "preferred_shift_choices": DriverWeeklySchedule.PREFERRED_SHIFT_CHOICES,
         "preference_choices": DriverWeeklySchedule.PREFERENCE_CHOICES,
+        "day_off_reason_choices": DriverDateOverride.REASON_CHOICES,
         "today": today,
         "today_legs_url": f"/dispatching/?date={today.strftime('%Y-%m-%d')}",
     }
@@ -9322,7 +9581,7 @@ def driver_schedules_dashboard(request):
     inhouse_drivers = list(
         Driver.objects.filter(driver_type="inhouse")
         .select_related("profile")
-        .prefetch_related("weekly_schedule")
+        .prefetch_related("weekly_schedule", "date_overrides")
         .order_by("profile__first_name", "profile__last_name")
     )
 

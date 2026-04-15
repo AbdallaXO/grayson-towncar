@@ -900,6 +900,7 @@ def suggest_assignments_clustered(
     driver_preferences: Dict[int, str] = None,
     driver_vtypes: Dict[int, str] = None,
     flexible_drivers: set = None,
+    driver_max_hours: Dict[int, float] = None,
 ) -> List[AssignmentSuggestion]:
     """Cluster-aware assignment wrapper.
 
@@ -922,6 +923,7 @@ def suggest_assignments_clustered(
             unassigned_legs, inhouse_schedules, target_date,
             driver_hours=driver_hours, driver_preferences=driver_preferences,
             driver_vtypes=driver_vtypes, flexible_drivers=flexible_drivers,
+            driver_max_hours=driver_max_hours,
         )
 
     if driver_vtypes is None:
@@ -943,6 +945,7 @@ def suggest_assignments_clustered(
         driver_hours=driver_hours, driver_preferences=driver_preferences,
         driver_vtypes=driver_vtypes, cluster_hints=cluster_hints,
         clusters=clusters, flexible_drivers=flexible_drivers,
+        driver_max_hours=driver_max_hours,
     )
 
 
@@ -956,6 +959,7 @@ def suggest_assignments(
     cluster_hints: Dict[int, List[int]] = None,
     clusters: List[list] = None,
     flexible_drivers: set = None,
+    driver_max_hours: Dict[int, float] = None,
 ) -> List[AssignmentSuggestion]:
     """
     Greedy algorithm: assign unassigned legs to best-fit in-house drivers.
@@ -1165,6 +1169,15 @@ def suggest_assignments(
                 if not (flexible_drivers and did in flexible_drivers):
                     dh_start, dh_end = driver_hours[did]
                     if leg.pickup_time < time(dh_start, 0) or leg.pickup_time > time(dh_end, 59):
+                        continue
+
+            # Max hours enforcement: skip driver if already at or over their limit
+            if driver_max_hours and did in driver_max_hours:
+                if sched.slots:
+                    first_pickup_dt = datetime.combine(target_date, min(s.pickup_time for s in sched.slots))
+                    last_end_dt = max(s.estimated_end_time for s in sched.slots)
+                    span_hours = (last_end_dt - first_pickup_dt).total_seconds() / 3600
+                    if span_hours >= driver_max_hours[did]:
                         continue
 
             # Vehicle compatibility check

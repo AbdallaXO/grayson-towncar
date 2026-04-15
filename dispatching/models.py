@@ -120,6 +120,9 @@ class SchedulerSettings(models.Model):
     swap_revenue_weight = models.IntegerField(default=10, help_text="Score weight for normalized revenue (revenue/divisor, capped)")
     swap_tier_bonus = models.IntegerField(default=20, help_text="Score bonus for exact vehicle tier match in swap")
 
+    # ── Driver Pay Management ─────────────────────────────────────
+    driver_pay_overdue_days = models.IntegerField(default=14, help_text="Days after which unpaid legs are considered overdue")
+
     @classmethod
     def get_settings(cls):
         """Return the singleton settings row, cached in memory.

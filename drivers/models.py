@@ -27,6 +27,18 @@ class Driver(models.Model):
         default=True,
         help_text="Flexible = no hard time limits, planner builds a reasonable shift. Uncheck only if driver has strict start/end constraints."
     )
+    default_shift_type = models.CharField(
+        max_length=20, default="full_day",
+        help_text="Default shift type for days without a weekly override."
+    )
+    default_max_hours = models.DecimalField(
+        max_digits=4, decimal_places=1, null=True, blank=True,
+        help_text="Default max hours per day. NULL = no limit."
+    )
+    default_preferred_shift = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="Default preferred time of day (morning, evening, etc.)."
+    )
     default_preference = models.CharField(
         max_length=30, blank=True, default="",
         help_text="Default trip type preference for auto-assign (e.g., prefer_arrival, only_return)."
@@ -137,28 +149,89 @@ class Driver(models.Model):
         schedule_parts = [part.strip() for part in self.schedule.split(',')]
         return '\n'.join(schedule_parts)
 
+    def _check_date_override(self, target_date):
+        """Check for a date-specific override (PTO, day off, etc.). Returns the override or None."""
+        for override in self.date_overrides.all():
+            if override.date == target_date:
+                return override
+        return None
+
     def get_availability_for_date(self, target_date):
         """
         Return (is_available, start_hour, end_hour, preference, flexible) for a given date.
-        Checks DriverWeeklySchedule first, then falls back to default_* fields.
-        Works efficiently with prefetched weekly_schedule data.
+        Priority: date override > weekly schedule > driver defaults.
 
         flexible=True means the driver has no hard time limits — the planner
         uses start/end as hints for cluster assignment but doesn't filter jobs
         outside the window.
         """
-        day_of_week = target_date.weekday()  # 0=Monday, 6=Sunday
-        # Use prefetched cache if available (iterate in Python to avoid extra DB hit)
+        # Date-specific override wins (PTO, day off request, etc.)
+        override = self._check_date_override(target_date)
+        if override is not None:
+            if not override.is_available:
+                return (False, 0, 0, "", False)
+            # Override says available — fall through to weekly/defaults for hours
+
+        day_of_week = target_date.weekday()
         for entry in self.weekly_schedule.all():
             if entry.day_of_week == day_of_week:
                 return (
-                    entry.is_available,
+                    entry.is_available if override is None else True,
                     entry.start_hour,
                     entry.end_hour,
                     entry.preference,
                     entry.flexible,
                 )
         return (True, self.default_start_hour, self.default_end_hour, self.default_preference, self.default_flexible)
+
+    def get_full_availability(self, target_date):
+        """
+        Return a dict with all availability fields for a given date, including
+        shift_type, max_hours, and scheduling_notes. Use this when you need the
+        new fields; use get_availability_for_date() for the legacy 5-tuple.
+        """
+        # Date-specific override wins
+        override = self._check_date_override(target_date)
+        if override is not None and not override.is_available:
+            reason_label = dict(DriverDateOverride.REASON_CHOICES).get(override.reason, override.reason)
+            return {
+                "is_available": False,
+                "start_hour": 0,
+                "end_hour": 0,
+                "preference": "",
+                "flexible": False,
+                "shift_type": "off",
+                "preferred_shift": "",
+                "max_hours": None,
+                "scheduling_notes": f"{reason_label}: {override.notes}".strip(": ") if override.notes else reason_label,
+                "date_override": override,
+            }
+
+        day_of_week = target_date.weekday()
+        for entry in self.weekly_schedule.all():
+            if entry.day_of_week == day_of_week:
+                return {
+                    "is_available": entry.is_available if override is None else True,
+                    "start_hour": entry.start_hour,
+                    "end_hour": entry.end_hour,
+                    "preference": entry.preference,
+                    "flexible": entry.flexible,
+                    "shift_type": entry.shift_type,
+                    "preferred_shift": entry.preferred_shift,
+                    "max_hours": entry.max_hours,
+                    "scheduling_notes": entry.scheduling_notes,
+                }
+        return {
+            "is_available": True,
+            "start_hour": self.default_start_hour,
+            "end_hour": self.default_end_hour,
+            "preference": self.default_preference,
+            "flexible": self.default_flexible,
+            "shift_type": self.default_shift_type,
+            "preferred_shift": self.default_preferred_shift,
+            "max_hours": self.default_max_hours,
+            "scheduling_notes": "",
+        }
 
     def __str__(self):
         if self.profile.first_name:
@@ -177,6 +250,22 @@ class DriverWeeklySchedule(models.Model):
         (5, "Saturday"),
         (6, "Sunday"),
     ]
+    SHIFT_TYPE_CHOICES = [
+        ("morning",  "Morning"),
+        ("midday",   "Midday"),
+        ("evening",  "Evening"),
+        ("night",    "Night"),
+        ("split",    "Split AM/PM"),
+        ("full_day", "Full Day"),
+        ("custom",   "Custom"),
+    ]
+    PREFERRED_SHIFT_CHOICES = [
+        ("", "No Preference"),
+        ("morning",  "Prefer Morning"),
+        ("midday",   "Prefer Midday"),
+        ("evening",  "Prefer Evening"),
+        ("night",    "Prefer Night"),
+    ]
     PREFERENCE_CHOICES = [
         ("", "Any"),
         ("prefer_arrival", "Prefer Arrivals"),
@@ -193,13 +282,29 @@ class DriverWeeklySchedule(models.Model):
     driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="weekly_schedule")
     day_of_week = models.IntegerField(choices=DAY_CHOICES)
     is_available = models.BooleanField(default=True)
+    shift_type = models.CharField(
+        max_length=20, choices=SHIFT_TYPE_CHOICES, default="full_day",
+        help_text="Shift classification for dispatchers. Named types auto-set hours and flexibility."
+    )
     start_hour = models.IntegerField(default=6)
     end_hour = models.IntegerField(default=23)
     flexible = models.BooleanField(
         default=True,
         help_text="Flexible = no hard time limits, planner builds a reasonable shift. Uncheck only if driver has strict start/end constraints."
     )
+    max_hours = models.DecimalField(
+        max_digits=4, decimal_places=1, null=True, blank=True,
+        help_text="Maximum hours to schedule this driver per day. NULL = no limit."
+    )
+    preferred_shift = models.CharField(
+        max_length=20, blank=True, default="", choices=PREFERRED_SHIFT_CHOICES,
+        help_text="Preferred time of day. Scheduler tries this window first but can assign outside it."
+    )
     preference = models.CharField(max_length=30, blank=True, default="", choices=PREFERENCE_CHOICES)
+    scheduling_notes = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Short note visible to dispatchers on the schedule board."
+    )
 
     class Meta:
         unique_together = ("driver", "day_of_week")
@@ -210,6 +315,38 @@ class DriverWeeklySchedule(models.Model):
         if not self.is_available:
             return f"{self.driver} — {day_name}: OFF"
         return f"{self.driver} — {day_name}: {self.start_hour}:00–{self.end_hour}:00"
+
+
+class DriverDateOverride(models.Model):
+    """Date-specific availability override. Takes priority over weekly schedule.
+    Use for PTO, requested days off, vacations, or special availability on a specific date."""
+    REASON_CHOICES = [
+        ("day_off", "Day Off"),
+        ("pto", "PTO"),
+        ("vacation", "Vacation"),
+        ("sick", "Sick"),
+        ("other", "Other"),
+    ]
+
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="date_overrides")
+    date = models.DateField()
+    is_available = models.BooleanField(
+        default=False,
+        help_text="False = driver is off on this date. True = special availability override."
+    )
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, default="day_off")
+    notes = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("driver", "date")
+        ordering = ["date", "driver"]
+
+    def __str__(self):
+        reason_label = dict(self.REASON_CHOICES).get(self.reason, self.reason)
+        if self.is_available:
+            return f"{self.driver} — {self.date}: Available (override)"
+        return f"{self.driver} — {self.date}: OFF ({reason_label})"
 
 
 class FleetVehicle(models.Model):

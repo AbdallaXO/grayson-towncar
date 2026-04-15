@@ -1,0 +1,354 @@
+{% extends "main.html" %}
+{% load static %}
+
+{% block title %}Get a Quote — Grayson Towncar{% endblock %}
+
+{% block meta_description %}
+<meta name="description" content="Get a personalized Orlando transportation quote. Tell us about your trip and we'll recommend the perfect vehicle for your group.">
+{% endblock %}
+
+{% block extra_css %}
+<link href="{% static 'css/premium-landing.css' %}" rel="stylesheet" />
+<link href="{% static 'css/guest-quote.css' %}" rel="stylesheet" />
+{% endblock %}
+
+{% block content %}
+<div class="gq-page">
+
+  <!-- ─── Hero ──────────────────────────────────── -->
+  <section class="gq-hero">
+    <div class="container">
+      <h1 class="gq-hero-title">Your Orlando Transportation,<br>Tailored to You</h1>
+      <p class="gq-hero-sub">Tell us about your trip and we'll match you with the perfect vehicle. No guesswork — just a comfortable, reliable ride.</p>
+
+      <!-- Step Indicator -->
+      <div class="gq-steps">
+        <div class="gq-step active">
+          <div class="gq-step-dot">1</div>
+          <div class="gq-step-label">Trip Details</div>
+        </div>
+        <div class="gq-step-line"></div>
+        <div class="gq-step">
+          <div class="gq-step-dot">2</div>
+          <div class="gq-step-label">Contact Info</div>
+        </div>
+        <div class="gq-step-line"></div>
+        <div class="gq-step">
+          <div class="gq-step-dot">3</div>
+          <div class="gq-step-label">Your Vehicle</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Form ──────────────────────────────────── -->
+  <div class="gq-form-wrap">
+    <form id="guest-quote-form" novalidate>
+
+      <!-- Section 1: Trip Details -->
+      <div class="gq-card">
+        <div class="gq-card-title">
+          <span class="gq-title-number">1</span>
+          Where Are You Heading?
+        </div>
+
+        <div class="gq-row gq-row-2 gq-field">
+          <div>
+            <label class="gq-label" for="gq-pickup">
+              Pickup Location <span class="text-danger">*</span>
+            </label>
+            <select class="gq-select" id="gq-pickup" required>
+              <option value="">Select pickup...</option>
+              {% for location in locations %}
+              <option value="{{ location.id }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="gq-label" for="gq-dropoff">
+              Dropoff Location <span class="text-danger">*</span>
+            </label>
+            <select class="gq-select" id="gq-dropoff" required>
+              <option value="">Select dropoff...</option>
+              {% for location in locations %}
+              <option value="{{ location.id }}">{{ location.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="gq-field">
+          <label class="gq-label" for="gq-date">
+            Date of Service
+          </label>
+          <input type="date" class="gq-input" id="gq-date" autocomplete="off">
+          <div class="gq-helper">Optional — you can finalize the date later</div>
+        </div>
+
+        <div class="gq-row gq-row-3 gq-field">
+          <div>
+            <label class="gq-label">
+              <i class="bi bi-people-fill gq-label-icon"></i>
+              Passengers <span class="text-danger">*</span>
+            </label>
+            <div class="gq-stepper" role="group" aria-label="Passenger count">
+              <button type="button" class="gq-stepper-btn gq-stepper-minus" data-target="gq-passengers" aria-label="Decrease passengers">
+                <i class="bi bi-dash-lg"></i>
+              </button>
+              <input type="number" class="gq-stepper-value" id="gq-passengers" min="1" max="14" value="1" required readonly>
+              <button type="button" class="gq-stepper-btn gq-stepper-plus" data-target="gq-passengers" aria-label="Increase passengers">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="gq-label">
+              <i class="bi bi-suitcase-lg-fill gq-label-icon"></i>
+              Suitcases
+            </label>
+            <div class="gq-stepper" role="group" aria-label="Suitcase count">
+              <button type="button" class="gq-stepper-btn gq-stepper-minus" data-target="gq-luggage" aria-label="Decrease suitcases">
+                <i class="bi bi-dash-lg"></i>
+              </button>
+              <input type="number" class="gq-stepper-value" id="gq-luggage" min="0" max="20" value="0" readonly>
+              <button type="button" class="gq-stepper-btn gq-stepper-plus" data-target="gq-luggage" aria-label="Increase suitcases">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="gq-label">
+              <i class="bi bi-shield-fill-check gq-label-icon"></i>
+              Child Seats
+            </label>
+            <div class="gq-stepper" role="group" aria-label="Child seat count">
+              <button type="button" class="gq-stepper-btn gq-stepper-minus" data-target="gq-carseats" aria-label="Decrease child seats">
+                <i class="bi bi-dash-lg"></i>
+              </button>
+              <input type="number" class="gq-stepper-value" id="gq-carseats" min="0" max="6" value="0" readonly>
+              <button type="button" class="gq-stepper-btn gq-stepper-plus" data-target="gq-carseats" aria-label="Increase child seats">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <div class="gq-helper">Car seats & boosters</div>
+          </div>
+        </div>
+
+        <div class="gq-field">
+          <label class="gq-label">Trip Type</label>
+          <div class="gq-trip-toggle">
+            <input type="radio" name="gq-trip-type" id="gq-oneway" value="1" checked>
+            <label for="gq-oneway"><i class="bi bi-arrow-right"></i> One Way</label>
+            <input type="radio" name="gq-trip-type" id="gq-roundtrip" value="2">
+            <label for="gq-roundtrip"><i class="bi bi-arrow-repeat"></i> Round Trip</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Contact Info -->
+      <div class="gq-card">
+        <div class="gq-card-title">
+          <span class="gq-title-number">2</span>
+          Your Contact Information
+        </div>
+
+        <div class="gq-row gq-row-2 gq-field">
+          <div>
+            <label class="gq-label" for="gq-first-name">
+              First Name <span class="text-danger">*</span>
+            </label>
+            <input type="text" class="gq-input" id="gq-first-name" autocomplete="given-name" placeholder="First name" required>
+          </div>
+          <div>
+            <label class="gq-label" for="gq-last-name">
+              Last Name <span class="text-danger">*</span>
+            </label>
+            <input type="text" class="gq-input" id="gq-last-name" autocomplete="family-name" placeholder="Last name" required>
+          </div>
+        </div>
+
+        <div class="gq-row gq-row-2 gq-field">
+          <div>
+            <label class="gq-label" for="gq-email">
+              Email <span class="text-danger">*</span>
+            </label>
+            <input type="email" class="gq-input" id="gq-email" autocomplete="email" placeholder="you@example.com" required>
+          </div>
+          <div>
+            <label class="gq-label" for="gq-phone">
+              Phone <span class="text-danger">*</span>
+            </label>
+            <input type="tel" class="gq-input" id="gq-phone" autocomplete="tel" placeholder="(407) 555-1234" required>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Vehicle Recommendation -->
+      <div class="gq-card gq-recommendation" id="gq-recommendation">
+        <div class="gq-card-title">
+          <span class="gq-title-number">3</span>
+          Your Recommended Vehicle
+        </div>
+
+        <p class="gq-rec-intro">Based on your group size and luggage, here's what we recommend:</p>
+
+        <div class="gq-vehicle-cards" id="gq-vehicle-cards">
+          <!-- Populated by JS -->
+        </div>
+
+        <div id="gq-overflow-msg" class="gq-overflow-msg" style="display:none;">
+          For groups larger than 14, please <a href="tel:407-212-7190">call us at 407-212-7190</a> or <a href="sms:407-212-7190">text us</a> for a custom quote.
+        </div>
+
+        <div class="gq-choose-other">
+          <button type="button" class="gq-choose-other-btn" id="gq-choose-other-btn">
+            Choose a different vehicle
+          </button>
+        </div>
+
+        <div class="gq-all-vehicles" id="gq-all-vehicles">
+          <div class="gq-all-vehicles-grid" id="gq-all-vehicles-grid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Trust Bar -->
+      <div class="gq-trust-bar">
+        <div class="gq-trust-item">
+          <i class="bi bi-star-fill"></i>
+          <span>800+ Five-Star Reviews</span>
+        </div>
+        <div class="gq-trust-item">
+          <i class="bi bi-lock-fill"></i>
+          <span>No Credit Card Required</span>
+        </div>
+        <div class="gq-trust-item">
+          <i class="bi bi-lightning-charge-fill"></i>
+          <span>Instant Response</span>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <button type="submit" class="gq-submit-btn" id="gq-submit">
+        <span class="btn-shine"></span>
+        <i class="bi bi-arrow-right-circle-fill me-2"></i>Get My Personalized Quote
+      </button>
+
+    </form>
+
+    <!-- ─── Results (valid quote) ─────────────────── -->
+    <div class="gq-results" id="gq-results">
+      <div class="gq-result-card">
+        <div class="gq-result-badge">
+          <i class="bi bi-check-circle-fill"></i> Instant Quote Ready
+        </div>
+
+        <div class="mb-1">
+          <small class="text-muted" style="font-family:'Montserrat',sans-serif;font-weight:600;font-size:0.8rem;">Your Total Price</small>
+        </div>
+        <div class="gq-result-price" id="gq-result-price"></div>
+        <div class="gq-result-route" id="gq-result-route"></div>
+
+        <div class="mb-3">
+          <div class="d-flex align-items-center justify-content-center gap-2">
+            <i class="bi bi-shield-check-fill text-success"></i>
+            <small class="text-muted" style="font-family:'Montserrat',sans-serif;">Secure booking process &bull; SSL encrypted</small>
+          </div>
+        </div>
+
+        <div class="gq-result-actions" id="gq-result-actions">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Social Proof -->
+        <div class="gq-social-proof">
+          <div class="gq-proof-box">
+            <div class="gq-stars">
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <i class="bi bi-star-fill"></i>
+              <small class="fw-semibold text-dark ms-1">5/5</small>
+            </div>
+            <small class="text-muted d-block mb-1">
+              <i class="bi bi-google me-1"></i>Google Reviews
+            </small>
+            <small class="text-muted d-block mb-2">Based on 800+ reviews</small>
+            <a href="https://share.google/ndwR6reRESueofjPD" target="_blank" rel="noopener noreferrer"
+               class="gq-book-btn" style="font-size:0.75rem;padding:0.4rem 0.8rem;">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Check Reviews
+            </a>
+          </div>
+          <div class="gq-proof-box">
+            <small class="fw-semibold text-dark d-block mb-2" style="font-family:'Montserrat',sans-serif;">Have a Question?</small>
+            <div class="d-flex flex-column gap-2">
+              <a href="tel:407-212-7190" class="gq-book-btn" style="font-size:0.75rem;padding:0.4rem 0.8rem;">
+                <i class="bi bi-telephone-fill me-1"></i>Call 407-212-7190
+              </a>
+              <a href="sms:407-212-7190" class="gq-book-btn" style="font-size:0.75rem;padding:0.4rem 0.8rem;">
+                <i class="bi bi-chat-dots-fill me-1"></i>Text Us
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Results (invalid / custom quote) ──────── -->
+    <div class="gq-invalid-result" id="gq-invalid-result">
+      <div class="gq-result-card">
+        <div class="text-center">
+          <i class="bi bi-telephone-fill" style="font-size:2.5rem;color:#0d1117;"></i>
+          <h4 class="mt-3 mb-2 fw-bold" style="font-family:'Playfair Display',serif;color:#0d1117;">Route Not Set Up Online</h4>
+          <p class="text-muted mb-3" style="font-family:'Montserrat',sans-serif;font-size:0.9rem;">
+            We don't have this route configured online yet, but we definitely service it! We'll reach out to you shortly with a personalized quote.
+          </p>
+
+          <div class="p-3 rounded mb-3" style="background:#f9fafb;border:1px solid #e5e7eb;">
+            <small class="fw-semibold text-dark d-block mb-2" style="font-family:'Montserrat',sans-serif;">Best to call for:</small>
+            <div class="text-start" style="max-width:280px;margin:0 auto;">
+              <small class="d-flex align-items-center mb-1" style="font-family:'Montserrat',sans-serif;">
+                <i class="bi bi-check-circle-fill me-2" style="color:var(--gtc-gold)"></i>Custom routes not listed online
+              </small>
+              <small class="d-flex align-items-center mb-1" style="font-family:'Montserrat',sans-serif;">
+                <i class="bi bi-check-circle-fill me-2" style="color:var(--gtc-gold)"></i>Multi-stop itineraries
+              </small>
+              <small class="d-flex align-items-center" style="font-family:'Montserrat',sans-serif;">
+                <i class="bi bi-check-circle-fill me-2" style="color:var(--gtc-gold)"></i>Group rates & corporate bookings
+              </small>
+            </div>
+          </div>
+
+          <div class="gq-contact-row">
+            <a href="tel:407-212-7190" class="gq-book-btn">
+              <i class="bi bi-telephone-fill"></i> Call Now: 407-212-7190
+            </a>
+            <a href="sms:407-212-7190" class="gq-book-btn">
+              <i class="bi bi-chat-dots-fill"></i> Text Us
+            </a>
+          </div>
+
+          <div class="mt-3">
+            <small class="text-muted" style="font-family:'Montserrat',sans-serif;">
+              <i class="bi bi-clock-fill me-1"></i>Available 24/7 for immediate assistance
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /gq-form-wrap -->
+</div><!-- /gq-page -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  window.GTC_VEHICLES = {{ vehicles_json|safe }};
+  window.GTC_RATES = {{ rates_json|safe }};
+  window.GTC_QUOTE_ENDPOINT = "{{ quote_endpoint_url }}";
+  window.GTC_STATIC_URL = "{% static '' %}";
+</script>
+<script src="{% static 'js/guest-quote.js' %}"></script>
+{% endblock %}
