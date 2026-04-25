@@ -903,8 +903,8 @@
                                   </div>
                                 {% elif leg.flight_information.actual_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
-                                    <span class="text-warning small me-2 fw-bold"><i class="bi bi-airplane-fill me-1"></i>Landed:</span>
-                                    <span class="fw-bold text-warning">{{ leg.flight_information.actual_arrival_local|date:"g:i A" }}</span>
+                                    <span class="small me-2 fw-bold" style="color:#b45309;"><i class="bi bi-airplane-fill me-1"></i>Landed:</span>
+                                    <span class="fw-bold" style="color:#b45309;">{{ leg.flight_information.actual_arrival_local|date:"g:i A" }}</span>
                                   </div>
                                 {% elif leg.flight_information.estimated_gate_arrival_local %}
                                   <div class="d-flex flex-wrap align-items-center">
@@ -2099,7 +2099,8 @@
                   } else if (flightData.actual_arrival_local) {
                       let landedTimeSpan = existingWarning || document.createElement('span');
                       if (!existingWarning) {
-                          landedTimeSpan.className = 'ms-2 fw-bold text-warning';
+                          landedTimeSpan.className = 'ms-2 fw-bold';
+                          landedTimeSpan.style.color = '#b45309';
                           landedTimeSpan.style.fontSize = '0.95rem';
                           landedTimeSpan.style.fontWeight = '700';
                           arrivalTimeContainer.appendChild(landedTimeSpan);

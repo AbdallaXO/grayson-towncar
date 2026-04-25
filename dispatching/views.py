@@ -786,7 +786,8 @@ def schedule_board(request):
             "reservation__vehicle", "vehicle", "flight_information", "cruise_information",
         )
         .prefetch_related(
-            Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp"))
+            Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp")),
+            Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
         )
         .order_by("pickup_time")
     )
@@ -1108,11 +1109,13 @@ def schedule_board(request):
             'status_label': _sinfo['status_label'] if _sinfo else '',
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
-            'is_paid': bool(leg.reservation.is_paid) if leg.reservation else True,
+            'is_paid': (leg.reservation.payment_status == 'paid') if leg.reservation else True,
             'passengers': int(leg.effective_passenger_count or 1),
             'luggage': int(leg.effective_luggage_count or 0),
             'luggage_type': leg.effective_luggage_type or '',
             'carseats_short': _us_carseats,
+            # Only meaningful on arrivals (driver does Publix on the way to dropoff).
+            'store_stop': bool(leg.reservation.store_stop) if (leg.reservation and _trip == 'arrival') else False,
         })
 
     # Sort unassigned slots: bigger vehicles first, then by pickup time
@@ -7351,6 +7354,13 @@ def capacity_planner(request):
                 "status_history",
                 queryset=LegStatus.objects.order_by('-timestamp').select_related('updated_by')
             ),
+            # Prefetched so reservation.payment_status reads live state without N+1.
+            # The denormalized `is_paid` column is unreliable on older rows, so we
+            # walk payments instead.
+            Prefetch(
+                "reservation__payments",
+                queryset=Payment.objects.order_by('-created_at'),
+            ),
         )
         .order_by("pickup_time")
     )
@@ -7840,6 +7850,9 @@ def auto_assign_drivers(request):
         .exclude(status="cancelled")
         .select_related("driver", "driver__profile", "reservation", "reservation__vehicle", "vehicle",
                         "reservation__customer")
+        .prefetch_related(
+            Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+        )
     )
 
     # Get inhouse drivers with vehicle assignments for this date
@@ -7918,7 +7931,7 @@ def auto_assign_drivers(request):
     if exclude_unpaid:
         auto_unassigned = [
             l for l in auto_unassigned
-            if l.reservation and l.reservation.is_paid
+            if l.reservation and l.reservation.payment_status == 'paid'
         ]
 
     # Run suggestion engine on remaining unassigned legs
@@ -8098,7 +8111,7 @@ def auto_assign_drivers(request):
             "vehicle_type": str(vtype),
             "pickup_minutes": leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0,
             "store_stop": has_store_stop,
-            "is_paid": bool(leg.reservation.is_paid) if leg.reservation else True,
+            "is_paid": (leg.reservation.payment_status == 'paid') if leg.reservation else True,
         })
 
     # Driver list for manual assignment dropdown
@@ -8385,6 +8398,9 @@ def smart_schedule_builder(request):
         .exclude(reservation__status="cancelled")
         .exclude(status="cancelled")
         .select_related("driver", "driver__profile", "reservation", "reservation__customer", "reservation__vehicle", "vehicle")
+        .prefetch_related(
+            Prefetch("reservation__payments", queryset=Payment.objects.order_by('-created_at')),
+        )
     )
 
     # Build existing schedule for this driver (already assigned legs)
@@ -8400,7 +8416,7 @@ def smart_schedule_builder(request):
         _pinned_set = set(pinned_leg_ids or [])
         available_legs = [
             l for l in available_legs
-            if (l.reservation and l.reservation.is_paid) or l.id in _pinned_set
+            if (l.reservation and l.reservation.payment_status == 'paid') or l.id in _pinned_set
         ]
 
     # Run the smart scheduler
@@ -8454,7 +8470,7 @@ def smart_schedule_builder(request):
                 if res.ff_carseats: cs_parts.append(f"{res.ff_carseats} ff")
                 if res.booster_seats: cs_parts.append(f"{res.booster_seats} b")
             slot_data['carseats'] = ", ".join(cs_parts)
-            slot_data['is_paid'] = bool(res.is_paid)
+            slot_data['is_paid'] = res.payment_status == 'paid'
             slot_data['reservation_uuid'] = str(res.uuid) if res.uuid else ''
         else:
             slot_data['is_paid'] = True
@@ -8500,7 +8516,7 @@ def smart_schedule_builder(request):
             'carseats': ", ".join(alt_cs),
             'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
             'store_stop': res.store_stop if res else False,
-            'is_paid': bool(res.is_paid) if res else True,
+            'is_paid': (res.payment_status == 'paid') if res else True,
         })
 
     response = {

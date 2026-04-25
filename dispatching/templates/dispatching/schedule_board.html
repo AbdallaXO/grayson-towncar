@@ -95,6 +95,13 @@
           margin-left: 2px; vertical-align: middle;
           background: rgba(255,255,255,0.25); color: #fff;
       }
+      /* Publix-stop marker (arrivals only) — small green dot with cart icon. */
+      .tl-publix-badge {
+          display: inline-flex; align-items: center; justify-content: center;
+          font-size: 0.5rem; line-height: 1; margin-left: 3px;
+          color: #fff; background: #1b5e20; border-radius: 2px;
+          padding: 1px 3px; vertical-align: middle;
+      }
       .timeline-hour-markers {
           position: relative; height: 20px;
           margin-left: 210px; margin-bottom: 2px;
@@ -305,8 +312,9 @@
                          data-pax="{{ uslot.passengers }}"
                          data-luggage="{{ uslot.luggage }}"
                          data-luggage-type="{{ uslot.luggage_type }}"
-                         data-carseats="{{ uslot.carseats_short }}">
-                      <span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-carseats="{{ uslot.carseats_short }}"
+                         data-store-stop="{{ uslot.store_stop|yesno:'1,0' }}">
+                      <span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -379,8 +387,9 @@
                          data-pax="{{ slot.passengers }}"
                          data-luggage="{{ slot.luggage }}"
                          data-luggage-type="{{ slot.luggage_type }}"
-                         data-carseats="{{ slot.carseats_short }}">
-                      <span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-carseats="{{ slot.carseats_short }}"
+                         data-store-stop="{{ slot.store_stop|yesno:'1,0' }}">
+                      <span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="tl-publix-badge" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -405,6 +414,8 @@
           <small class="text-muted" title="V14=Van 14 Pax, VAN=Van, SUV, MV=Mini Van, TC=Town Car">V14 / VAN / SUV / MV / TC</small>
           <small class="text-muted">|</small>
           <small><span class="tl-unpaid-flag" style="font-size:0.5rem;">$</span> Unpaid reservation</small>
+          <small class="text-muted">|</small>
+          <small><span class="tl-publix-badge" style="font-size:0.5rem;"><i class="bi bi-cart3"></i></span> Publix stop (arrivals)</small>
           <small class="text-muted">|</small>
           <small class="text-muted"><i class="bi bi-grip-vertical"></i> Drag jobs between drivers</small>
         </div>
@@ -493,6 +504,9 @@
           html += '<div class="tl-popup-row"><span class="tl-label">Suitcases</span><span class="tl-value">'+el.dataset.luggage+(lt ? ' ('+lt+')' : '')+'</span></div>';
         }
         if (el.dataset.carseats) html += '<div class="tl-popup-row"><span class="tl-label">Car seats</span><span class="tl-value">'+el.dataset.carseats+'</span></div>';
+        if (el.dataset.storeStop === '1') {
+          html += '<div class="tl-popup-row"><span class="tl-label">Stop</span><span class="tl-value" style="color:#1b5e20;font-weight:700;"><i class="bi bi-cart3 me-1"></i>Publix</span></div>';
+        }
         if (el.dataset.flight) html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">'+el.dataset.flight+'</span></div>';
         if (el.dataset.statusLabel) {
           let statusHtml = '<span style="font-weight:600;">'+el.dataset.statusLabel+'</span>';

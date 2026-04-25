@@ -218,6 +218,17 @@
         vertical-align: middle;
         line-height: 1.3;
     }
+    .timeline-slot .slot-publix {
+        display: inline-block;
+        font-size: 0.5rem;
+        background: #1b5e20;
+        color: #fff;
+        padding: 1px 3px;
+        border-radius: 2px;
+        margin-left: 3px;
+        vertical-align: middle;
+        line-height: 1.2;
+    }
     /* Unpaid suggestion-card (unassigned legs panel): amber left border + tag. */
     .suggestion-card.unpaid-card {
         border-left: 4px solid #ffb300;
@@ -1022,8 +1033,9 @@
                              data-pax="{{ slot.passengers }}"
                              data-luggage="{{ slot.luggage }}"
                              data-luggage-type="{{ slot.luggage_type }}"
-                             data-carseats="{{ slot.carseats_short }}">
-                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}
+                             data-carseats="{{ slot.carseats_short }}"
+                             data-store-stop="{{ slot.store_stop|yesno:'1,0' }}">
+                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.store_stop %}<span class="slot-publix" title="Publix stop"><i class="bi bi-cart3"></i></span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -1050,6 +1062,7 @@
             <small><span style="display:inline-block;width:12px;height:12px;background:#e65100;border-radius:2px;"></span> Cruise</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
             <small><span style="display:inline-block;width:14px;height:12px;border:2px dashed #ffb300;border-radius:3px;vertical-align:middle;"></span> Unpaid reservation</small>
+            <small><span class="slot-publix" style="font-size:0.55rem;"><i class="bi bi-cart3"></i></span> Publix stop (arrivals)</small>
             <span class="ms-auto" style="font-size:0.72rem;color:#888;"><i class="bi bi-grip-horizontal me-1"></i>Drag jobs between drivers to reassign</span>
         </div>
 
@@ -1082,7 +1095,7 @@
 
                 {% if unassigned_legs %}
                 {% for leg in unassigned_legs %}
-                <div class="suggestion-card mb-3{% if leg.reservation and not leg.reservation.is_paid %} unpaid-card{% endif %}">
+                <div class="suggestion-card mb-3{% if leg.reservation and leg.reservation.payment_status != 'paid' %} unpaid-card{% endif %}">
                     <div class="row align-items-start">
                         <div class="col-sm-7">
                             <div class="d-flex align-items-center gap-2 mb-1">
@@ -1096,7 +1109,7 @@
                                 {% if leg.effective_vehicle_type %}
                                 <span class="va-veh-type va-vtype-{{ leg.effective_vehicle_type|lower }}" style="font-size:0.6rem;padding:0.1rem 0.35rem;">{{ leg.effective_vehicle_type }}</span>
                                 {% endif %}
-                                {% if leg.reservation and not leg.reservation.is_paid %}
+                                {% if leg.reservation and leg.reservation.payment_status != 'paid' %}
                                 <span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>
                                 {% endif %}
                                 {% if leg.cleared_time %}
@@ -1470,8 +1483,8 @@
                         </div>
                         <div class="sb-jobs-list" id="sbJobsList">
                             {% for leg in unassigned_legs %}
-                            {% with sb_paid=leg.reservation.is_paid %}
-                            <div class="sb-leg-item{% if not sb_paid %} sb-leg-unpaid{% endif %}" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" data-paid="{{ sb_paid|yesno:'1,0' }}" onclick="togglePin(this)">
+                            {% with sb_status=leg.reservation.payment_status %}
+                            <div class="sb-leg-item{% if sb_status != 'paid' %} sb-leg-unpaid{% endif %}" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" data-paid="{% if sb_status == 'paid' %}1{% else %}0{% endif %}" onclick="togglePin(this)">
                                 <i class="bi bi-pin-angle pin-icon"></i>
                                 <div class="flex-grow-1">
                                     <strong>{{ leg.pickup_time|time:"g:i A" }}</strong>
@@ -1479,7 +1492,7 @@
                                         {% if leg.get_trip_type == 'arrival' %}Arrival{% elif leg.get_trip_type == 'return' %}Return{% elif leg.get_trip_type == 'cruise' %}Cruise{% else %}Other{% endif %}
                                     </span>
                                     {% if leg.effective_vehicle_type %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.effective_vehicle_type|upper }}</span>{% endif %}
-                                    {% if not sb_paid %}<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>{% endif %}
+                                    {% if sb_status != 'paid' %}<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>{% endif %}
                                     {% if leg.reservation and leg.reservation.store_stop %}<span class="badge" style="font-size:0.55rem; padding:0.1rem 0.3rem; background:#2e7d32; color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>{% endif %}
                                     <span class="text-muted" style="font-size:0.8rem;">
                                         {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}
@@ -3933,6 +3946,9 @@
                 html += '<div class="tl-popup-row"><span class="tl-label">Suitcases</span><span class="tl-value">' + el.dataset.luggage + (lt ? ' (' + lt + ')' : '') + '</span></div>';
             }
             if (el.dataset.carseats) html += '<div class="tl-popup-row"><span class="tl-label">Car seats</span><span class="tl-value">' + el.dataset.carseats + '</span></div>';
+            if (el.dataset.storeStop === '1') {
+                html += '<div class="tl-popup-row"><span class="tl-label">Stop</span><span class="tl-value" style="color:#1b5e20;font-weight:700;"><i class="bi bi-cart3 me-1"></i>Publix</span></div>';
+            }
             if (el.dataset.flight) html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
             html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
             if (el.dataset.paid === '0') {

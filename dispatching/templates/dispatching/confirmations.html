@@ -107,9 +107,17 @@
                     <td>
                       <div class="fw-semibold">{{ row.guest_name }}</div>
                       {% if row.travel_agent %}
-                        <span class="badge text-dark" style="background:var(--gtc-champagne, #E8D5B7); font-weight:500;">
-                          <i class="bi bi-briefcase me-1"></i>{{ row.travel_agent }}
-                        </span>
+                        <div class="d-flex flex-column gap-1 mt-1" style="font-size:0.78rem;line-height:1.25;">
+                          <span class="d-inline-flex align-items-center" style="color:#5a3e1c;font-weight:600;">
+                            <i class="bi bi-briefcase me-1"></i>{{ row.travel_agent }}
+                          </span>
+                          {% if row.travel_agent_agency %}
+                            <span class="text-muted ms-3" style="font-size:0.72rem;">{{ row.travel_agent_agency }}</span>
+                          {% endif %}
+                          {% if row.travel_agent_number %}
+                            <span class="text-muted ms-3" style="font-size:0.72rem;">TA #{{ row.travel_agent_number }}</span>
+                          {% endif %}
+                        </div>
                       {% endif %}
                     </td>
                     <td><small>{{ row.phone_number }}</small></td>

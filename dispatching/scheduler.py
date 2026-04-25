@@ -280,6 +280,7 @@ class ScheduleSlot:
     luggage: int = 0
     luggage_type: str = ""
     carseats_short: str = ""
+    store_stop: bool = False
     # Set by view for template positioning
     position_pct: float = 0
     width_pct: float = 0
@@ -785,11 +786,12 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             flight_info=flight_info,
             revenue=leg.revenue_share,
             vehicle_type=str(leg_vtype) if leg_vtype else None,
-            is_paid=bool(leg.reservation.is_paid) if leg.reservation else True,
+            is_paid=(leg.reservation.payment_status == 'paid') if leg.reservation else True,
             passengers=int(leg.effective_passenger_count or 1),
             luggage=int(leg.effective_luggage_count or 0),
             luggage_type=leg.effective_luggage_type or "",
             carseats_short=_carseats_short,
+            store_stop=bool(leg.reservation.store_stop) if (leg.reservation and leg.get_trip_type() == 'arrival') else False,
         )
         schedules[leg.driver.id].slots.append(slot)
 
