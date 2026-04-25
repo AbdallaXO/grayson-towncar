@@ -198,6 +198,38 @@
         vertical-align: middle;
         line-height: 1.3;
     }
+    /* Unpaid reservation flag — amber dashed outline so dispatchers can spot
+       bookings that haven't been collected on yet. */
+    .timeline-slot.unpaid {
+        outline: 2px dashed #ffb300;
+        outline-offset: -2px;
+        box-shadow: 0 0 0 1px rgba(255, 179, 0, 0.4);
+    }
+    .timeline-slot .slot-unpaid {
+        display: inline-block;
+        font-size: 0.5rem;
+        font-weight: 800;
+        background: #ffb300;
+        color: #3d2900;
+        padding: 0 3px;
+        border-radius: 2px;
+        margin-left: 3px;
+        letter-spacing: 0.04em;
+        vertical-align: middle;
+        line-height: 1.3;
+    }
+    /* Unpaid suggestion-card (unassigned legs panel): amber left border + tag. */
+    .suggestion-card.unpaid-card {
+        border-left: 4px solid #ffb300;
+        background: #fffbeb;
+    }
+    .unpaid-tag {
+        display: inline-flex; align-items: center; gap: 2px;
+        background: #ffb300; color: #3d2900;
+        font-size: 0.6rem; font-weight: 800;
+        padding: 1px 5px; border-radius: 3px;
+        letter-spacing: 0.04em;
+    }
 
     .timeline-hour-markers {
         display: flex;
@@ -437,6 +469,11 @@
     }
     .sb-leg-item:hover { border-color: var(--gold); background: #fffdf5; }
     .sb-leg-item.pinned { border-color: var(--gold); background: #fffbea; }
+    .sb-leg-item.sb-leg-unpaid { border-left: 3px solid #ffb300; background: #fffbeb; }
+    .sb-leg-item.sb-leg-unpaid.pinned { border-color: var(--gold); border-left-color: #ffb300; background: #fffbea; }
+    /* When the "Skip unpaid" toggle is on, dim non-pinned unpaid items so dispatcher sees
+       the scheduler will ignore them (clicking still pins, which forces inclusion). */
+    .sb-jobs-list.skip-unpaid .sb-leg-item.sb-leg-unpaid:not(.pinned) { opacity: 0.5; }
     .sb-leg-item .pin-icon { color: #ccc; transition: color 0.15s; }
     .sb-leg-item.pinned .pin-icon { color: var(--gold); }
 
@@ -962,7 +999,7 @@
                     </div>
                     <div class="timeline-bar">
                         {% for slot in data.schedule.slots %}
-                        <div class="timeline-slot {{ slot.trip_type }}" data-tl-popup
+                        <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}" data-tl-popup
                              {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                              style="left: {{ slot.position_pct }}%; width: {{ slot.width_pct }}%;"
                              data-leg-id="{{ slot.leg_id }}"
@@ -980,8 +1017,13 @@
                              data-flight="{{ slot.flight_info|default:'' }}"
                              data-revenue="{{ slot.revenue|default:'0' }}"
                              data-vehicle="{{ slot.vehicle_type|default:'' }}"
-                             data-res-id="{{ slot.reservation_id }}">
-                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}
+                             data-res-id="{{ slot.reservation_id }}"
+                             data-paid="{{ slot.is_paid|yesno:'1,0' }}"
+                             data-pax="{{ slot.passengers }}"
+                             data-luggage="{{ slot.luggage }}"
+                             data-luggage-type="{{ slot.luggage_type }}"
+                             data-carseats="{{ slot.carseats_short }}">
+                            {{ slot.pickup_time|time:"g:i" }}{% if slot.vehicle_abbr %}<span class="slot-vtype">{{ slot.vehicle_abbr }}</span>{% endif %}{% if not slot.is_paid %}<span class="slot-unpaid" title="Unpaid">$</span>{% endif %}
                         </div>
                         {% endfor %}
                     </div>
@@ -1007,6 +1049,7 @@
             <small><span style="display:inline-block;width:12px;height:12px;background:#2e7d32;border-radius:2px;"></span> Return</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#e65100;border-radius:2px;"></span> Cruise</small>
             <small><span style="display:inline-block;width:12px;height:12px;background:#6a1b9a;border-radius:2px;"></span> Other</small>
+            <small><span style="display:inline-block;width:14px;height:12px;border:2px dashed #ffb300;border-radius:3px;vertical-align:middle;"></span> Unpaid reservation</small>
             <span class="ms-auto" style="font-size:0.72rem;color:#888;"><i class="bi bi-grip-horizontal me-1"></i>Drag jobs between drivers to reassign</span>
         </div>
 
@@ -1039,7 +1082,7 @@
 
                 {% if unassigned_legs %}
                 {% for leg in unassigned_legs %}
-                <div class="suggestion-card mb-3">
+                <div class="suggestion-card mb-3{% if leg.reservation and not leg.reservation.is_paid %} unpaid-card{% endif %}">
                     <div class="row align-items-start">
                         <div class="col-sm-7">
                             <div class="d-flex align-items-center gap-2 mb-1">
@@ -1050,8 +1093,11 @@
                                     {% elif leg.get_trip_type == 'cruise' %}Cruise
                                     {% else %}Other{% endif %}
                                 </span>
-                                {% if leg.reservation and leg.reservation.vehicle and leg.reservation.vehicle.vehicle_type %}
-                                <span class="va-veh-type va-vtype-{{ leg.reservation.vehicle.vehicle_type|lower }}" style="font-size:0.6rem;padding:0.1rem 0.35rem;">{{ leg.reservation.vehicle.vehicle_type }}</span>
+                                {% if leg.effective_vehicle_type %}
+                                <span class="va-veh-type va-vtype-{{ leg.effective_vehicle_type|lower }}" style="font-size:0.6rem;padding:0.1rem 0.35rem;">{{ leg.effective_vehicle_type }}</span>
+                                {% endif %}
+                                {% if leg.reservation and not leg.reservation.is_paid %}
+                                <span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>
                                 {% endif %}
                                 {% if leg.cleared_time %}
                                 <span style="font-size: 0.7rem; color: #666;">
@@ -1072,14 +1118,27 @@
                                 {{ leg.pickup_location|truncatechars:40 }}<br>
                                 <i class="bi bi-arrow-right" style="font-size:0.65rem;"></i> {{ leg.dropoff_location|truncatechars:40 }}
                             </div>
-                            <div class="mt-1" style="font-size: 0.8rem;">
+                            <div class="mt-1 d-flex flex-wrap align-items-center gap-2" style="font-size: 0.8rem;">
                                 {% if leg.reservation and leg.reservation.customer %}
-                                <a href="{% url 'reservation_details' leg.reservation_id %}" class="text-decoration-none">
+                                <a href="{% url 'reservation_details' leg.reservation.uuid %}" target="_blank" rel="noopener" class="text-decoration-none">
                                     {{ leg.reservation.customer.get_full_name }}
                                 </a>
                                 {% endif %}
                                 {% if leg.revenue_share %}
                                 <span class="text-muted">&middot; ${{ leg.revenue_share|floatformat:0 }}</span>
+                                {% endif %}
+                                <span class="text-muted" title="Passengers"><i class="bi bi-people-fill" style="font-size:0.7rem;"></i> {{ leg.effective_passenger_count }}</span>
+                                {% if leg.effective_luggage_count %}
+                                <span class="text-muted" title="Suitcases"><i class="bi bi-luggage-fill" style="font-size:0.7rem;"></i> {{ leg.effective_luggage_count }}</span>
+                                {% endif %}
+                                {% if leg.effective_need_carseats %}
+                                {% with rf=leg.effective_rf_carseats ff=leg.effective_ff_carseats b=leg.effective_booster_seats %}
+                                {% if rf or ff or b %}
+                                <span class="text-muted" title="Car seats"><i class="bi bi-shield-fill" style="font-size:0.7rem;"></i>
+                                    {% if rf %}{{ rf }} rf{% endif %}{% if ff %}{% if rf %}, {% endif %}{{ ff }} ff{% endif %}{% if b %}{% if rf or ff %}, {% endif %}{{ b }} b{% endif %}
+                                </span>
+                                {% endif %}
+                                {% endwith %}
                                 {% endif %}
                             </div>
                         </div>
@@ -1243,8 +1302,8 @@
                                 </span>
                             </td>
                             <td>
-                                {% if leg.reservation and leg.reservation.vehicle and leg.reservation.vehicle.vehicle_type %}
-                                <span class="va-veh-type va-vtype-{{ leg.reservation.vehicle.vehicle_type|lower }}" style="font-size:0.62rem;padding:0.1rem 0.35rem;">{{ leg.reservation.vehicle.vehicle_type }}</span>
+                                {% if leg.effective_vehicle_type %}
+                                <span class="va-veh-type va-vtype-{{ leg.effective_vehicle_type|lower }}" style="font-size:0.62rem;padding:0.1rem 0.35rem;">{{ leg.effective_vehicle_type }}</span>
                                 {% else %}
                                 <span style="font-size:0.7rem;color:#ccc;">—</span>
                                 {% endif %}
@@ -1254,7 +1313,7 @@
                             </td>
                             <td>
                                 {% if leg.reservation and leg.reservation.customer %}
-                                <a href="{% url 'reservation_details' leg.reservation_id %}" class="text-decoration-none" style="font-size:0.85rem;">
+                                <a href="{% url 'reservation_details' leg.reservation.uuid %}" target="_blank" rel="noopener" class="text-decoration-none" style="font-size:0.85rem;">
                                     {{ leg.reservation.customer.get_full_name }}
                                 </a>
                                 {% endif %}
@@ -1394,6 +1453,16 @@
                         </div>
                     </div>
 
+                    <!-- Skip-unpaid toggle: keep unpaid jobs out of the auto-fit so the
+                         scheduler doesn't reserve drivers for revenue we haven't collected. -->
+                    <div class="mb-2 d-flex align-items-center gap-2" style="font-size:0.85rem;">
+                        <input type="checkbox" class="form-check-input" id="sbExcludeUnpaid" checked style="cursor:pointer;margin:0;">
+                        <label for="sbExcludeUnpaid" style="cursor:pointer;user-select:none;">
+                            Skip unpaid reservations
+                            <span class="text-muted" style="font-size:0.75rem;">(treat them as if they aren't there — pinning still works)</span>
+                        </label>
+                    </div>
+
                     <!-- Pin Jobs -->
                     <div class="mb-3">
                         <div class="sb-label">
@@ -1401,14 +1470,16 @@
                         </div>
                         <div class="sb-jobs-list" id="sbJobsList">
                             {% for leg in unassigned_legs %}
-                            <div class="sb-leg-item" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" onclick="togglePin(this)">
+                            {% with sb_paid=leg.reservation.is_paid %}
+                            <div class="sb-leg-item{% if not sb_paid %} sb-leg-unpaid{% endif %}" data-leg-id="{{ leg.id }}" data-trip-type="{{ leg.get_trip_type }}" data-paid="{{ sb_paid|yesno:'1,0' }}" onclick="togglePin(this)">
                                 <i class="bi bi-pin-angle pin-icon"></i>
                                 <div class="flex-grow-1">
                                     <strong>{{ leg.pickup_time|time:"g:i A" }}</strong>
                                     <span class="badge-trip badge-{{ leg.get_trip_type }}" style="font-size:0.65rem; padding:0.15rem 0.35rem;">
                                         {% if leg.get_trip_type == 'arrival' %}Arrival{% elif leg.get_trip_type == 'return' %}Return{% elif leg.get_trip_type == 'cruise' %}Cruise{% else %}Other{% endif %}
                                     </span>
-                                    {% if leg.reservation and leg.reservation.vehicle %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.reservation.vehicle.vehicle_type|upper }}</span>{% endif %}
+                                    {% if leg.effective_vehicle_type %}<span class="badge bg-secondary" style="font-size:0.6rem; padding:0.12rem 0.3rem; opacity:0.8;">{{ leg.effective_vehicle_type|upper }}</span>{% endif %}
+                                    {% if not sb_paid %}<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>{% endif %}
                                     {% if leg.reservation and leg.reservation.store_stop %}<span class="badge" style="font-size:0.55rem; padding:0.1rem 0.3rem; background:#2e7d32; color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>{% endif %}
                                     <span class="text-muted" style="font-size:0.8rem;">
                                         {{ leg.pickup_location|truncatechars:30 }} &rarr; {{ leg.dropoff_location|truncatechars:30 }}
@@ -1416,6 +1487,7 @@
                                 </div>
                                 {% if leg.revenue_share %}<span class="text-muted" style="font-size:0.8rem;">${{ leg.revenue_share|floatformat:0 }}</span>{% endif %}
                             </div>
+                            {% endwith %}
                             {% endfor %}
                         </div>
                     </div>
@@ -1866,7 +1938,14 @@
 
                 <!-- Step 1: Driver Availability -->
                 <div id="aaStep1">
-                    <p class="text-muted mb-3" style="font-size:0.85rem;">Set each driver's available hours for the day, then build the schedule.</p>
+                    <p class="text-muted mb-2" style="font-size:0.85rem;">Set each driver's available hours for the day, then build the schedule.</p>
+                    <div class="mb-3 d-flex align-items-center gap-2" style="font-size:0.85rem;">
+                        <input type="checkbox" class="form-check-input" id="aaExcludeUnpaid" checked style="cursor:pointer;margin:0;">
+                        <label for="aaExcludeUnpaid" style="cursor:pointer;user-select:none;">
+                            Skip unpaid reservations
+                            <span class="text-muted" style="font-size:0.75rem;">(treat them as if they aren't there for auto-assign)</span>
+                        </label>
+                    </div>
                     <div style="background:#fff;border-radius:8px;border:1px solid #e0e0e0;overflow:hidden;">
                         <table class="table table-sm mb-0" style="font-size:0.85rem;">
                             <thead style="background:var(--dark);color:#fff;">
@@ -2159,6 +2238,7 @@
                     driver_preferences: aaDriverPrefs,
                     excluded_leg_ids: aaExcluded,
                     manual_assignments: aaManual,
+                    exclude_unpaid: !!(document.getElementById('aaExcludeUnpaid') || {}).checked,
                 }),
             })
             .then(r => r.json())
@@ -2414,6 +2494,9 @@
                     if (leg.vehicle_type) {
                         html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;">' + leg.vehicle_type + '</span>';
                     }
+                    if (leg.is_paid === false) {
+                        html += '<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span>';
+                    }
                     if (leg.store_stop) {
                         html += '<span class="badge" style="font-size:0.55rem;padding:0.1rem 0.3rem;background:#2e7d32;color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span>';
                     }
@@ -2482,6 +2565,7 @@
                 driver_preferences: aaDriverPrefs,
                 excluded_leg_ids: aaExcluded,
                 manual_assignments: aaManual,
+                exclude_unpaid: !!(document.getElementById('aaExcludeUnpaid') || {}).checked,
             };
             if (applyDriverIds !== null) payload.apply_driver_ids = applyDriverIds;
 
@@ -2712,6 +2796,7 @@
     function buildPayload(apply) {
         const manualPins = getPinnedLegIds();
         const allPins = [...new Set([...manualPins, ...sbSwapPins])];
+        const skipUnpaidEl = document.getElementById('sbExcludeUnpaid');
         return {
             driver_id: parseInt(document.getElementById('sbDriver').value),
             date: document.getElementById('datePicker').value,
@@ -2720,9 +2805,23 @@
             pinned_leg_ids: allPins,
             preferred_trip_type: document.getElementById('sbTripType').value,
             excluded_leg_ids: sbExcluded,
+            exclude_unpaid: skipUnpaidEl ? skipUnpaidEl.checked : false,
             apply: apply || false,
         };
     }
+
+    // Mirror the "Skip unpaid" checkbox state onto the pin list so dispatcher sees
+    // which jobs the scheduler is ignoring.
+    (function() {
+        const cb = document.getElementById('sbExcludeUnpaid');
+        const list = document.getElementById('sbJobsList');
+        if (!cb || !list) return;
+        function sync() {
+            list.classList.toggle('skip-unpaid', cb.checked);
+        }
+        cb.addEventListener('change', sync);
+        sync();
+    })();
 
     function previewSchedule() {
         const driverId = document.getElementById('sbDriver').value;
@@ -2801,6 +2900,7 @@
                 h += '<strong>' + alt.pickup_time + '</strong> ';
                 h += '<span style="color:' + c + ';font-size:0.7rem;font-weight:600;">' + alt.trip_type.charAt(0).toUpperCase() + alt.trip_type.slice(1) + '</span> ';
                 if (alt.vehicle_type) h += '<span class="badge bg-secondary" style="font-size:0.55rem;padding:0.08rem 0.25rem;opacity:0.85;">' + alt.vehicle_type + '</span> ';
+                if (alt.is_paid === false) h += '<span class="unpaid-tag" style="font-size:0.55rem;padding:0.08rem 0.3rem;" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span> ';
                 if (alt.store_stop) h += '<span class="badge" style="font-size:0.55rem;padding:0.08rem 0.25rem;background:#2e7d32;color:#fff;"><i class="bi bi-cart3" style="font-size:0.5rem;"></i> Publix</span> ';
                 let dets = [];
                 if (alt.passengers) dets.push('<i class="bi bi-people-fill"></i>' + alt.passengers);
@@ -2936,6 +3036,9 @@
             html += '<span style="color:' + color + ';font-size:0.75rem;font-weight:600;">' + slot.trip_type.charAt(0).toUpperCase() + slot.trip_type.slice(1) + '</span> ';
             if (slot.vehicle_type) {
                 html += '<span class="badge bg-secondary" style="font-size:0.6rem;padding:0.1rem 0.3rem;opacity:0.85;">' + slot.vehicle_type + '</span> ';
+            }
+            if (slot.is_paid === false) {
+                html += '<span class="unpaid-tag" title="Reservation not paid"><i class="bi bi-exclamation-circle"></i> Unpaid</span> ';
             }
             html += label;
             if (slot.cleared_time) {
@@ -3823,8 +3926,18 @@
                 html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">' + (vtypeLabels[el.dataset.vehicle] || el.dataset.vehicle) + '</span></div>';
             }
             if (el.dataset.customer) html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">' + el.dataset.customer + '</span></div>';
+            if (el.dataset.pax) html += '<div class="tl-popup-row"><span class="tl-label">Passengers</span><span class="tl-value">' + el.dataset.pax + '</span></div>';
+            if (el.dataset.luggage && el.dataset.luggage !== '0') {
+                const luggageLabels = {carry_on:'carry-on', checked:'checked', mixed:'mixed'};
+                const lt = luggageLabels[el.dataset.luggageType] || '';
+                html += '<div class="tl-popup-row"><span class="tl-label">Suitcases</span><span class="tl-value">' + el.dataset.luggage + (lt ? ' (' + lt + ')' : '') + '</span></div>';
+            }
+            if (el.dataset.carseats) html += '<div class="tl-popup-row"><span class="tl-label">Car seats</span><span class="tl-value">' + el.dataset.carseats + '</span></div>';
             if (el.dataset.flight) html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">' + el.dataset.flight + '</span></div>';
             html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~' + (el.dataset.cleared || '') + '</span></div>';
+            if (el.dataset.paid === '0') {
+                html += '<div class="tl-popup-row"><span class="tl-label">Payment</span><span class="tl-value" style="color:#b76e00;font-weight:700;">Unpaid</span></div>';
+            }
             if (el.dataset.statusLabel) {
                 let statusHtml = '<span style="text-transform:capitalize;">' + el.dataset.statusLabel;
                 if (el.dataset.statusTime) {

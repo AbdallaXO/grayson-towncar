@@ -172,15 +172,15 @@
                     <!-- Details -->
                     <td style="min-width:160px;">
                       <div style="background:var(--gt-dark);color:#fff;border-radius:8px;padding:6px 12px;font-size:0.9rem;font-weight:700;display:inline-block;margin-bottom:8px;">
-                        {{ leg.reservation.vehicle.get_vehicle_type_display }}
+                        {{ leg.effective_vehicle.get_vehicle_type_display }}
                       </div>
                       <div class="d-flex gap-3 align-items-center">
                         <div style="text-align:center;">
-                          <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.reservation.passenger_count }}</div>
+                          <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.effective_passenger_count }}</div>
                           <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#888;">PAX</div>
                         </div>
                         <div style="text-align:center;">
-                          <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.reservation.luggage_count }}</div>
+                          <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.effective_luggage_count }}</div>
                           <div style="font-size:0.6rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#888;">Bags</div>
                           {% if leg.reservation.luggage_type %}<div style="font-size:0.65rem;font-weight:600;color:#666;margin-top:2px;">{{ leg.reservation.get_luggage_type_display }}</div>{% endif %}
                         </div>
@@ -441,15 +441,15 @@
                 <!-- Trip Details -->
                 <div style="display:flex;align-items:stretch;gap:4px;margin-bottom:8px;">
                   <div style="flex:1.2;background:var(--gt-dark);color:#fff;border-radius:6px;padding:8px 6px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
-                    <div style="font-size:1rem;font-weight:800;line-height:1.1;">{{ leg.reservation.vehicle.get_vehicle_type_display }}</div>
+                    <div style="font-size:1rem;font-weight:800;line-height:1.1;">{{ leg.effective_vehicle.get_vehicle_type_display }}</div>
                     <div style="font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:rgba(255,255,255,0.4);margin-top:2px;">Vehicle</div>
                   </div>
                   <div style="flex:0;min-width:48px;background:#f0eeea;border-radius:6px;padding:6px 10px;text-align:center;">
-                    <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.reservation.passenger_count }}</div>
+                    <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.effective_passenger_count }}</div>
                     <div style="font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#999;margin-top:2px;">PAX</div>
                   </div>
                   <div style="flex:0;min-width:48px;background:#f0eeea;border-radius:6px;padding:6px 10px;text-align:center;">
-                    <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.reservation.luggage_count }}</div>
+                    <div style="font-size:1.15rem;font-weight:800;color:var(--gt-dark);line-height:1;">{{ leg.effective_luggage_count }}</div>
                     <div style="font-size:0.5rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:#999;margin-top:2px;">Bags</div>
                   </div>
                   {% if leg.reservation.luggage_type %}

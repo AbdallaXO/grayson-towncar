@@ -32,7 +32,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         # Minimal select_related for better performance with large datasets
         legs_query = Leg.objects.select_related(
             "reservation",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "driver",
         )
     else:
@@ -40,7 +40,7 @@ def get_filtered_legs_queryset(date_filter=None, date_from=None, date_to=None,
         legs_query = Leg.objects.select_related(
             "reservation",
             "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
             "reservation__travel_agent__user",
             "driver",
@@ -112,9 +112,10 @@ def calculate_vehicle_statistics(legs):
     vehicle_stats = {}
     
     for leg in legs:
-        if leg.reservation.vehicle:
-            vehicle_type = leg.reservation.vehicle.vehicle_type
-            vehicle_name = leg.reservation.vehicle.get_vehicle_type_display()
+        _eff_v = leg.effective_vehicle
+        if _eff_v:
+            vehicle_type = _eff_v.vehicle_type
+            vehicle_name = _eff_v.get_vehicle_type_display()
             trip_type = leg.get_trip_type()
             
             if vehicle_type not in vehicle_stats:
@@ -305,11 +306,12 @@ def _compute_all_statistics_single_pass(all_legs):
             status_stats[leg.status] += 1
 
         # -- vehicle --
-        if reservation and reservation.vehicle:
-            vt = reservation.vehicle.vehicle_type
+        _eff_v = leg.effective_vehicle
+        if _eff_v:
+            vt = _eff_v.vehicle_type
             if vt not in vehicle_stats:
                 vehicle_stats[vt] = {
-                    'name': reservation.vehicle.get_vehicle_type_display(),
+                    'name': _eff_v.get_vehicle_type_display(),
                     'vehicle_type': vt,
                     'total': 0, 'arrivals': 0, 'returns': 0, 'other': 0,
                     'completed': 0, 'in_progress': 0, 'picked_up': 0, 'on_location': 0,
@@ -437,8 +439,9 @@ def calculate_daily_leg_statistics(legs, group_by='day', page=1, per_page=50):
         if leg.reservation:
             daily_revenue[date] += leg.reservation.total_price
             
-        if leg.reservation and leg.reservation.vehicle:
-            vehicle_type = leg.reservation.vehicle.get_vehicle_type_display()
+        _eff_v = leg.effective_vehicle
+        if _eff_v:
+            vehicle_type = _eff_v.get_vehicle_type_display()
             daily_vehicle_breakdown[date][vehicle_type] += 1
     
     # Convert to sorted list of daily stats
@@ -631,7 +634,7 @@ def get_optimized_legs_for_calendar(date_from=None, date_to=None, status_filter=
     legs_query = Leg.objects.select_related(
         "reservation",
         "reservation__customer",
-        "reservation__vehicle",
+        "reservation__vehicle", "vehicle",
         "reservation__travel_agent",
         "reservation__travel_agent__user",
         "driver",

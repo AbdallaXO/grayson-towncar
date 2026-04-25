@@ -1,327 +1,508 @@
 {% extends "dispatching/booking/base_booking.html" %}
+{% load flight_filters %}
 
 {% block step_content %}
+  <style>
+      .leg-card {
+          border: 1px solid var(--booking-border, #e2e8f0);
+          border-radius: 12px;
+          background: #fff;
+          margin-bottom: 1.5rem;
+          overflow: hidden;
+      }
+      .leg-card-head {
+          padding: .75rem 1rem;
+          background: linear-gradient(180deg, #f8fafc, #fff);
+          border-bottom: 1px solid #eef2f7;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: .5rem;
+      }
+      .leg-card-head h5 {
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 700;
+          color: #0f172a;
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+      }
+      .leg-card-head .leg-pill {
+          background: #eef2ff;
+          color: #4f46e5;
+          padding: .15rem .55rem;
+          border-radius: 999px;
+          font-size: .72rem;
+          font-weight: 600;
+          letter-spacing: .02em;
+      }
+      .leg-card-head .leg-pill.return { background: #ecfdf5; color: #059669; }
+      .leg-card-body { padding: 1.25rem; }
+
+      .form-section-label {
+          font-size: .72rem;
+          text-transform: uppercase;
+          letter-spacing: .06em;
+          color: #64748b;
+          font-weight: 700;
+          margin-bottom: .35rem;
+      }
+      .form-section-divider {
+          border: 0;
+          border-top: 1px dashed #e2e8f0;
+          margin: 1.25rem 0 1rem;
+      }
+
+      .flight-card {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          padding: 1rem;
+          margin-top: .25rem;
+      }
+      .flight-card .head {
+          font-size: .8rem;
+          font-weight: 700;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: .04em;
+          margin-bottom: .65rem;
+          display: flex;
+          align-items: center;
+          gap: .35rem;
+      }
+      .flight-card .head .opt {
+          font-weight: 500;
+          font-size: .7rem;
+          color: #94a3b8;
+          text-transform: none;
+          letter-spacing: 0;
+      }
+
+      /* Per-leg override panel */
+      .override-toggle {
+          width: 100%;
+          background: #fffdf5;
+          border: 1px solid #e6d6a3;
+          color: #7c5e16;
+          padding: .65rem .9rem;
+          border-radius: 10px;
+          font-weight: 600;
+          font-size: .9rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: .5rem;
+          transition: background .15s ease;
+      }
+      .override-toggle:hover { background: #fef9e7; }
+      .override-toggle .badge-active {
+          background: #f59e0b;
+          color: #fff;
+          padding: .15rem .55rem;
+          border-radius: 999px;
+          font-size: .68rem;
+          font-weight: 700;
+          letter-spacing: .03em;
+      }
+      .override-toggle .chev { transition: transform .2s ease; }
+      .override-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+      .override-panel {
+          margin-top: .5rem;
+          border: 1px solid #e6d6a3;
+          background: #fffdf5;
+          border-radius: 12px;
+          padding: 1.1rem 1.1rem .9rem;
+      }
+      .override-panel .hint {
+          font-size: .82rem;
+          color: #7c5e16;
+          margin-bottom: .9rem;
+          display: flex;
+          align-items: center;
+          gap: .35rem;
+      }
+      .override-panel .ovr-label {
+          font-size: .7rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .06em;
+          color: #7c5e16;
+          margin-bottom: .25rem;
+          display: block;
+      }
+      .override-panel .ovr-default {
+          font-size: .72rem;
+          color: #a18033;
+          margin-top: .2rem;
+      }
+      .override-panel .ovr-divider {
+          border: 0;
+          border-top: 1px solid #efe4c0;
+          margin: 1rem 0 .85rem;
+      }
+
+      .leg-actions {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-top: 2rem;
+      }
+  </style>
+
   <form method="post" class="needs-validation" novalidate>
     {% csrf_token %}
 
-    <!-- Formset Errors Summary -->
+    {# Formset Errors Summary #}
     {% if leg_formset.non_form_errors %}
-      <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <strong>Form Errors:</strong>
-        <ul class="mb-0 mt-2">
-          {% for error in leg_formset.non_form_errors %}
-            <li>{{ error }}</li>
-          {% endfor %}
-        </ul>
+      <div class="booking-flash error mb-3">
+        <span class="icon"><i class="fas fa-exclamation"></i></span>
+        <div class="body">
+          <div class="title">Form errors</div>
+          <ul class="mb-0 mt-1">
+            {% for error in leg_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
+          </ul>
+        </div>
       </div>
     {% endif %}
     {% if flight_formset.non_form_errors %}
-      <div class="alert alert-danger">
-        <i class="fas fa-exclamation-triangle me-2"></i>
-        <strong>Flight Form Errors:</strong>
-        <ul class="mb-0 mt-2">
-          {% for error in flight_formset.non_form_errors %}
-            <li>{{ error }}</li>
-          {% endfor %}
-        </ul>
+      <div class="booking-flash error mb-3">
+        <span class="icon"><i class="fas fa-exclamation"></i></span>
+        <div class="body">
+          <div class="title">Flight form errors</div>
+          <ul class="mb-0 mt-1">
+            {% for error in flight_formset.non_form_errors %}<li>{{ error }}</li>{% endfor %}
+          </ul>
+        </div>
       </div>
     {% endif %}
 
-    <div class="alert alert-info">
-      <i class="fas fa-info-circle me-2"></i>
-      <strong>Trip Legs:</strong> Enter details for each segment of the trip.
-      {% if num_legs == 1 %}
-        This is a one-way trip.
-      {% elif num_legs == 2 %}
-        This is a round trip (2 legs).
-      {% else %}
-        This trip has {{ num_legs }} legs.
-      {% endif %}
+    <div class="booking-flash info mb-4">
+      <span class="icon"><i class="fas fa-info"></i></span>
+      <div class="body">
+        <strong>Trip Legs.</strong>
+        Enter details for each segment of the trip.
+        {% if num_legs == 1 %}This is a one-way trip.
+        {% elif num_legs == 2 %}This is a round trip (2 legs).
+        {% else %}This trip has {{ num_legs }} legs.{% endif %}
+      </div>
     </div>
 
-    <!-- Leg Forms -->
     {{ leg_formset.management_form }}
     {{ flight_formset.management_form }}
 
     <div id="legs-container">
       {% for leg_form in leg_formset %}
         {% with forloop.counter0 as leg_index %}
-          <div class="card mb-4 leg-card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <h5 class="mb-0">
-                <i class="fas fa-route me-2"></i>
-                Leg {{ forloop.counter }}
-                {% if leg_index == 0 and num_legs == 2 %}
-                  <span class="badge bg-primary ms-2">Outbound</span>
-                {% elif leg_index == 1 and num_legs == 2 %}
-                  <span class="badge bg-success ms-2">Return</span>
+          {% with override_data=leg_overrides|index:leg_index %}
+            <div class="leg-card">
+              <div class="leg-card-head">
+                <h5>
+                  <i class="fas fa-route text-primary"></i>
+                  Leg {{ forloop.counter }}
+                  {% if leg_index == 0 and num_legs == 2 %}
+                    <span class="leg-pill">Outbound</span>
+                  {% elif leg_index == 1 and num_legs == 2 %}
+                    <span class="leg-pill return">Return</span>
+                  {% endif %}
+                </h5>
+                {% if num_legs > 2 and forloop.counter > 1 %}
+                  <button type="button"
+                          class="btn btn-sm btn-outline-danger remove-leg"
+                          data-leg-index="{{ leg_index }}">
+                    <i class="fas fa-trash"></i>
+                  </button>
                 {% endif %}
-              </h5>
-              {% if num_legs > 2 and forloop.counter > 1 %}
-                <button type="button"
-                        class="btn btn-sm btn-outline-danger remove-leg"
-                        data-leg-index="{{ leg_index }}">
-                  <i class="fas fa-trash"></i>
-                </button>
-              {% endif %}
-            </div>
-            <div class="card-body">
-              <!-- Hidden fields for formset -->
-              {% for hidden in leg_form.hidden_fields %}{{ hidden }}{% endfor %}
+              </div>
+              <div class="leg-card-body">
+                {% for hidden in leg_form.hidden_fields %}{{ hidden }}{% endfor %}
 
-              <!-- Date and Time -->
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <label for="{{ leg_form.pickup_date.id_for_label }}"
-                           class="form-label fw-bold">
-                      {{ leg_form.pickup_date.label }} <span class="text-danger">*</span>
+                {# When + Where #}
+                <div class="form-section-label">When</div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="{{ leg_form.pickup_date.id_for_label }}" class="form-label fw-semibold">
+                      Pickup Date <span class="text-danger">*</span>
                     </label>
                     {{ leg_form.pickup_date }}
-                    <div class="form-text">{{ leg_form.pickup_date.help_text }}</div>
-                    {% if leg_form.pickup_date.errors %}<div class="invalid-feedback">{{ leg_form.pickup_date.errors.0 }}</div>{% endif %}
+                    {% if leg_form.pickup_date.errors %}
+                      <div class="invalid-feedback d-block">{{ leg_form.pickup_date.errors.0 }}</div>
+                    {% endif %}
                   </div>
-                </div>
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <label for="{{ leg_form.pickup_time.id_for_label }}"
-                           class="form-label fw-bold">
-                      {{ leg_form.pickup_time.label }} <span class="text-danger">*</span>
+                  <div class="col-md-6">
+                    <label for="{{ leg_form.pickup_time.id_for_label }}" class="form-label fw-semibold">
+                      Pickup Time <span class="text-danger">*</span>
                     </label>
                     {{ leg_form.pickup_time }}
-                    <div class="form-text">{{ leg_form.pickup_time.help_text }}</div>
-                    {% if leg_form.pickup_time.errors %}<div class="invalid-feedback">{{ leg_form.pickup_time.errors.0 }}</div>{% endif %}
+                    {% if leg_form.pickup_time.errors %}
+                      <div class="invalid-feedback d-block">{{ leg_form.pickup_time.errors.0 }}</div>
+                    {% endif %}
                   </div>
                 </div>
-              </div>
 
-              <!-- Locations -->
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <label for="{{ leg_form.pickup_location.id_for_label }}"
-                           class="form-label fw-bold">
-                      {{ leg_form.pickup_location.label }} <span class="text-danger">*</span>
+                <hr class="form-section-divider">
+
+                <div class="form-section-label">Where</div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="{{ leg_form.pickup_location.id_for_label }}" class="form-label fw-semibold">
+                      Pickup Address <span class="text-danger">*</span>
                     </label>
                     {{ leg_form.pickup_location }}
-                    <div class="form-text">{{ leg_form.pickup_location.help_text }}</div>
                     {% if leg_form.pickup_location.errors %}
-                      <div class="invalid-feedback">{{ leg_form.pickup_location.errors.0 }}</div>
+                      <div class="invalid-feedback d-block">{{ leg_form.pickup_location.errors.0 }}</div>
                     {% endif %}
                   </div>
-                </div>
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <label for="{{ leg_form.dropoff_location.id_for_label }}"
-                           class="form-label fw-bold">
-                      {{ leg_form.dropoff_location.label }} <span class="text-danger">*</span>
+                  <div class="col-md-6">
+                    <label for="{{ leg_form.dropoff_location.id_for_label }}" class="form-label fw-semibold">
+                      Drop-off Address <span class="text-danger">*</span>
                     </label>
                     {{ leg_form.dropoff_location }}
-                    <div class="form-text">{{ leg_form.dropoff_location.help_text }}</div>
                     {% if leg_form.dropoff_location.errors %}
-                      <div class="invalid-feedback">{{ leg_form.dropoff_location.errors.0 }}</div>
+                      <div class="invalid-feedback d-block">{{ leg_form.dropoff_location.errors.0 }}</div>
                     {% endif %}
                   </div>
                 </div>
-              </div>
 
-              <!-- Flight Information (Optional) -->
-              {% for flight_form in flight_formset.forms %}
-                {% if forloop.counter0 == leg_index %}
-                  <div class="card bg-light">
-                    <div class="card-header">
-                      <h6 class="mb-0">
-                        <i class="fas fa-plane me-2"></i>
-                        Flight Information (Optional)
-                      </h6>
-                    </div>
-                    <div class="card-body">
-                      <!-- Hidden fields for flight formset -->
+                <hr class="form-section-divider">
+
+                {# Flight info #}
+                {% for flight_form in flight_formset.forms %}
+                  {% if forloop.counter0 == leg_index %}
+                    <div class="flight-card">
+                      <div class="head">
+                        <i class="fas fa-plane"></i> Flight Information
+                        <span class="opt">— optional</span>
+                      </div>
                       {% for hidden in flight_form.hidden_fields %}{{ hidden }}{% endfor %}
+                      <div class="row g-3">
+                        <div class="col-md-4">
+                          <label for="{{ flight_form.airline.id_for_label }}" class="form-label small">Airline</label>
+                          {{ flight_form.airline }}
+                          {% if flight_form.airline.errors %}<div class="invalid-feedback d-block">{{ flight_form.airline.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                          <label for="{{ flight_form.flight_number.id_for_label }}" class="form-label small">Flight Number</label>
+                          {{ flight_form.flight_number }}
+                          {% if flight_form.flight_number.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_number.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                          <label for="{{ flight_form.flight_type.id_for_label }}" class="form-label small">Type</label>
+                          {{ flight_form.flight_type }}
+                          {% if flight_form.flight_type.errors %}<div class="invalid-feedback d-block">{{ flight_form.flight_type.errors.0 }}</div>{% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  {% endif %}
+                {% endfor %}
 
-                      <div class="row">
-                        <div class="col-md-4">
-                          <div class="mb-3">
-                            <label for="{{ flight_form.airline.id_for_label }}" class="form-label">{{ flight_form.airline.label }}</label>
-                            {{ flight_form.airline }}
-                            <div class="form-text">{{ flight_form.airline.help_text }}</div>
-                            {% if flight_form.airline.errors %}<div class="invalid-feedback">{{ flight_form.airline.errors.0 }}</div>{% endif %}
+                {# Trip notes — full width #}
+                <div class="row g-3 mt-1">
+                  <div class="col-12">
+                    <label for="{{ leg_form.private_notes.id_for_label }}" class="form-label fw-semibold">Trip Notes</label>
+                    {{ leg_form.private_notes }}
+                    <div class="form-text">Special instructions for the driver.</div>
+                  </div>
+                </div>
+
+                {# Override trip details (optional, collapsed by default) #}
+                <div class="mt-4">
+                  {% with has_override=override_data.has_any %}
+                    <button type="button"
+                            class="override-toggle"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#legOverrides_{{ leg_index }}"
+                            aria-expanded="{% if has_override %}true{% else %}false{% endif %}"
+                            aria-controls="legOverrides_{{ leg_index }}">
+                      <span><i class="fas fa-sliders-h me-2"></i>This leg is different from the rest <span class="text-muted small fw-normal">(optional)</span></span>
+                      <span class="d-flex align-items-center gap-2">
+                        {% if has_override %}<span class="badge-active">Active</span>{% endif %}
+                        <i class="fas fa-chevron-down chev"></i>
+                      </span>
+                    </button>
+
+                    <div class="collapse {% if has_override %}show{% endif %}" id="legOverrides_{{ leg_index }}">
+                      <div class="override-panel">
+                        <div class="hint"><i class="fas fa-info-circle"></i> Use this only if this leg has a different passenger count, needs car seats, or uses a different vehicle than the rest of the trip.</div>
+
+                        {# Vehicle #}
+                        <div class="mb-3">
+                          <label class="ovr-label">Vehicle</label>
+                          <select class="form-select form-select-sm"
+                                  name="legs-{{ leg_index }}-override-vehicle">
+                            <option value="">Use reservation default{% if vehicle %} — {{ vehicle.get_vehicle_type_display }}{% endif %}</option>
+                            {% for v in vehicles %}
+                              <option value="{{ v.id }}" {% if override_data.vehicle == v.id|stringformat:"s" %}selected{% endif %}>
+                                {{ v.get_vehicle_type_display }}
+                              </option>
+                            {% endfor %}
+                          </select>
+                        </div>
+
+                        {# Passengers / Suitcases / Luggage Type #}
+                        <div class="row g-3 mb-2">
+                          <div class="col-sm-4">
+                            <label class="ovr-label">Passengers</label>
+                            <input type="number" min="0"
+                                   class="form-control form-control-sm"
+                                   name="legs-{{ leg_index }}-override-passenger_count"
+                                   value="{{ override_data.passenger_count|default:'' }}"
+                                   placeholder="{{ reservation_data.passenger_count|default:1 }}">
+                            <div class="ovr-default">Default: {{ reservation_data.passenger_count|default:1 }}</div>
+                          </div>
+                          <div class="col-sm-4">
+                            <label class="ovr-label">Suitcases</label>
+                            <input type="number" min="0"
+                                   class="form-control form-control-sm"
+                                   name="legs-{{ leg_index }}-override-luggage_count"
+                                   value="{{ override_data.luggage_count|default:'' }}"
+                                   placeholder="{{ reservation_data.luggage_count|default:1 }}">
+                            <div class="ovr-default">Default: {{ reservation_data.luggage_count|default:1 }}</div>
+                          </div>
+                          <div class="col-sm-4">
+                            <label class="ovr-label">Luggage Type</label>
+                            <select class="form-select form-select-sm"
+                                    name="legs-{{ leg_index }}-override-luggage_type">
+                              <option value="">Use default</option>
+                              <option value="carry_on" {% if override_data.luggage_type == 'carry_on' %}selected{% endif %}>Carry-On</option>
+                              <option value="checked"  {% if override_data.luggage_type == 'checked' %}selected{% endif %}>Checked</option>
+                            </select>
+                            <div class="ovr-default">Default: {{ reservation_data.luggage_type|default:"—" }}</div>
                           </div>
                         </div>
-                        <div class="col-md-4">
-                          <div class="mb-3">
-                            <label for="{{ flight_form.flight_number.id_for_label }}" class="form-label">
-                              {{ flight_form.flight_number.label }}
-                            </label>
-                            {{ flight_form.flight_number }}
-                            <div class="form-text">{{ flight_form.flight_number.help_text }}</div>
-                            {% if flight_form.flight_number.errors %}
-                              <div class="invalid-feedback">{{ flight_form.flight_number.errors.0 }}</div>
-                            {% endif %}
+
+                        <hr class="ovr-divider">
+
+                        {# Car seats #}
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                          <span class="ovr-label mb-0"><i class="fas fa-baby me-1"></i> Car Seats</span>
+                          <div style="min-width:220px;">
+                            <select class="form-select form-select-sm"
+                                    name="legs-{{ leg_index }}-override-need_carseats">
+                              <option value="">Use default ({% if reservation_data.need_carseats == 'True' %}Yes{% else %}No{% endif %})</option>
+                              <option value="true"  {% if override_data.need_carseats == 'true' %}selected{% endif %}>Yes, needed</option>
+                              <option value="false" {% if override_data.need_carseats == 'false' %}selected{% endif %}>Not needed</option>
+                            </select>
                           </div>
                         </div>
-                        <div class="col-md-4">
-                          <div class="mb-3">
-                            <label for="{{ flight_form.flight_type.id_for_label }}" class="form-label">{{ flight_form.flight_type.label }}</label>
-                            {{ flight_form.flight_type }}
-                            <div class="form-text">{{ flight_form.flight_type.help_text }}</div>
-                            {% if flight_form.flight_type.errors %}
-                              <div class="invalid-feedback">{{ flight_form.flight_type.errors.0 }}</div>
-                            {% endif %}
+                        <div class="row g-3">
+                          <div class="col-sm-4">
+                            <label class="form-label small text-muted mb-1">Rear-Facing</label>
+                            <input type="number" min="0"
+                                   class="form-control form-control-sm"
+                                   name="legs-{{ leg_index }}-override-rf_carseats"
+                                   value="{{ override_data.rf_carseats|default:'' }}"
+                                   placeholder="0">
+                          </div>
+                          <div class="col-sm-4">
+                            <label class="form-label small text-muted mb-1">Forward-Facing</label>
+                            <input type="number" min="0"
+                                   class="form-control form-control-sm"
+                                   name="legs-{{ leg_index }}-override-ff_carseats"
+                                   value="{{ override_data.ff_carseats|default:'' }}"
+                                   placeholder="0">
+                          </div>
+                          <div class="col-sm-4">
+                            <label class="form-label small text-muted mb-1">Boosters</label>
+                            <input type="number" min="0"
+                                   class="form-control form-control-sm"
+                                   name="legs-{{ leg_index }}-override-booster_seats"
+                                   value="{{ override_data.booster_seats|default:'' }}"
+                                   placeholder="0">
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                {% endif %}
-              {% endfor %}
-
-              <!-- Trip Notes and Driver Pay -->
-              <div class="row mt-3">
-                <div class="col-md-8">
-                  <div class="mb-3">
-                    <label for="{{ leg_form.private_notes.id_for_label }}" class="form-label">{{ leg_form.private_notes.label }}</label>
-                    {{ leg_form.private_notes }}
-                    <div class="form-text">{{ leg_form.private_notes.help_text }}</div>
-                    {% if leg_form.private_notes.errors %}
-                      <div class="invalid-feedback">{{ leg_form.private_notes.errors.0 }}</div>
-                    {% endif %}
-                  </div>
-                </div>
-                <div class="col-md-4">
-                  <div class="mb-3">
-                    <label for="{{ leg_form.driver_pay_amount.id_for_label }}"
-                           class="form-label">{{ leg_form.driver_pay_amount.label }}</label>
-                    <div class="input-group">
-                      <span class="input-group-text">$</span>
-                      {{ leg_form.driver_pay_amount }}
-                    </div>
-                    <div class="form-text">{{ leg_form.driver_pay_amount.help_text }}</div>
-                    {% if leg_form.driver_pay_amount.errors %}
-                      <div class="invalid-feedback">{{ leg_form.driver_pay_amount.errors.0 }}</div>
-                    {% endif %}
-                  </div>
+                  {% endwith %}
                 </div>
               </div>
             </div>
-          </div>
+          {% endwith %}
         {% endwith %}
       {% endfor %}
     </div>
 
-    <!-- Add Leg Button (for multi-leg trips) -->
     {% if num_legs > 2 %}
       <div class="text-center mb-4">
         <button type="button" class="btn btn-outline-primary" id="add-leg-btn">
-          <i class="fas fa-plus me-2"></i>
-          Add Another Leg
+          <i class="fas fa-plus me-2"></i> Add Another Leg
         </button>
       </div>
     {% endif %}
 
-    <div class="d-flex justify-content-between mt-4">
-      <a href="{% url 'dispatcher_booking_reservation' %}"
-         class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Back
+    <div class="leg-actions">
+      <a href="{% url 'dispatcher_booking_reservation' %}" class="btn btn-booking-secondary">
+        <i class="fas fa-arrow-left me-2"></i> Back
       </a>
-      <button type="submit" class="btn btn-primary">
-        Next: Pricing & Notes
-        <i class="fas fa-arrow-right ms-2"></i>
+      <button type="submit" class="btn btn-booking-primary">
+        Next: Pricing &amp; Notes <i class="fas fa-arrow-right ms-2"></i>
       </button>
     </div>
   </form>
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          // Set minimum date to today
-          const dateInputs = document.querySelectorAll('input[type="date"]');
+          // Min date = today
           const today = new Date().toISOString().split('T')[0];
-          dateInputs.forEach(input => {
-              input.min = today;
-          });
+          document.querySelectorAll('input[type="date"]').forEach(i => i.min = today);
 
-          // Form validation
+          // Inline validation
           const form = document.querySelector('form');
           form.addEventListener('submit', function(e) {
-              const requiredFields = form.querySelectorAll('input[required], select[required]');
-              let isValid = true;
-
-              requiredFields.forEach(field => {
-                  if (!field.value.trim()) {
-                      field.classList.add('is-invalid');
-                      isValid = false;
-                  } else {
-                      field.classList.remove('is-invalid');
-                  }
+              let valid = true;
+              form.querySelectorAll('input[required], select[required]').forEach(field => {
+                  if (!field.value.trim()) { field.classList.add('is-invalid'); valid = false; }
+                  else field.classList.remove('is-invalid');
               });
-
-              if (!isValid) {
+              if (!valid) {
                   e.preventDefault();
-                  // Scroll to first invalid field
-                  const firstInvalid = form.querySelector('.is-invalid');
-                  if (firstInvalid) {
-                      firstInvalid.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'center'
-                      });
-                  }
+                  const first = form.querySelector('.is-invalid');
+                  if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
               }
           });
-
-          // Remove validation classes on input
-          const allInputs = document.querySelectorAll('input, select, textarea');
-          allInputs.forEach(input => {
-              input.addEventListener('input', function() {
-                  this.classList.remove('is-invalid');
-              });
+          form.querySelectorAll('input,select,textarea').forEach(el => {
+              el.addEventListener('input', () => el.classList.remove('is-invalid'));
           });
 
-          // Auto-suggest common locations
-          const locationInputs = document.querySelectorAll('input[name*="pickup_location"], input[name*="dropoff_location"]');
+          // Common locations autocomplete
           const commonLocations = [
-              'Orlando International Airport (MCO)',
-              'Disney\'s Grand Floridian Resort & Spa',
-              'Disney\'s Polynesian Village Resort',
-              'Disney\'s Contemporary Resort',
-              'Disney\'s Wilderness Lodge',
-              'Disney\'s Animal Kingdom Lodge',
-              'Disney\'s Beach Club Resort',
-              'Disney\'s Yacht Club Resort',
-              'Disney\'s BoardWalk Inn',
-              'Disney\'s Port Orleans Resort',
-              'Disney\'s Caribbean Beach Resort',
-              'Disney\'s All-Star Sports Resort',
-              'Disney\'s All-Star Music Resort',
-              'Disney\'s All-Star Movies Resort',
-              'Disney\'s Pop Century Resort',
-              'Disney\'s Art of Animation Resort',
-              'Universal Studios Orlando',
-              'Universal\'s Cabana Bay Beach Resort',
-              'SeaWorld Orlando',
-              'Orange County Convention Center',
-              'International Drive',
-              'Disney Springs',
-              'Universal CityWalk'
+              "Orlando International Airport (MCO)",
+              "Disney's Grand Floridian Resort & Spa",
+              "Disney's Polynesian Village Resort",
+              "Disney's Contemporary Resort",
+              "Disney's Wilderness Lodge",
+              "Disney's Animal Kingdom Lodge",
+              "Disney's Beach Club Resort",
+              "Disney's Yacht Club Resort",
+              "Disney's BoardWalk Inn",
+              "Disney's Port Orleans Resort",
+              "Disney's Caribbean Beach Resort",
+              "Disney's All-Star Sports Resort",
+              "Disney's All-Star Music Resort",
+              "Disney's All-Star Movies Resort",
+              "Disney's Pop Century Resort",
+              "Disney's Art of Animation Resort",
+              "Universal Studios Orlando",
+              "Universal's Cabana Bay Beach Resort",
+              "SeaWorld Orlando",
+              "Orange County Convention Center",
+              "International Drive",
+              "Disney Springs",
+              "Universal CityWalk"
           ];
-
-          locationInputs.forEach(input => {
-              // Create datalist for autocomplete
+          document.querySelectorAll('input[name*="pickup_location"], input[name*="dropoff_location"]').forEach(input => {
               const datalistId = input.id + '_datalist';
-              let datalist = document.getElementById(datalistId);
-
-              if (!datalist) {
-                  datalist = document.createElement('datalist');
-                  datalist.id = datalistId;
-                  commonLocations.forEach(location => {
-                      const option = document.createElement('option');
-                      option.value = location;
-                      datalist.appendChild(option);
+              if (!document.getElementById(datalistId)) {
+                  const dl = document.createElement('datalist');
+                  dl.id = datalistId;
+                  commonLocations.forEach(loc => {
+                      const o = document.createElement('option');
+                      o.value = loc;
+                      dl.appendChild(o);
                   });
-                  document.body.appendChild(datalist);
+                  document.body.appendChild(dl);
               }
-
               input.setAttribute('list', datalistId);
           });
       });

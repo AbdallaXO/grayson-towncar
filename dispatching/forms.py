@@ -265,12 +265,11 @@ class DispatcherLegForm(forms.ModelForm):
     class Meta:
         model = Leg
         fields = [
-            "pickup_date", 
-            "pickup_time", 
-            "pickup_location", 
+            "pickup_date",
+            "pickup_time",
+            "pickup_location",
             "dropoff_location",
             "private_notes",
-            "driver_pay_amount"
         ]
         labels = {
             "pickup_date": "Pickup Date",
@@ -278,19 +277,18 @@ class DispatcherLegForm(forms.ModelForm):
             "pickup_location": "Pickup Address",
             "dropoff_location": "Drop-off Address",
             "private_notes": "Trip Notes",
-            "driver_pay_amount": "Driver Pay ($)",
         }
         widgets = {
             "pickup_date": forms.DateInput(
                 attrs={
-                    "type": "date", 
+                    "type": "date",
                     "class": "form-control form-control-lg",
                     "autocomplete": "off"
                 }
             ),
             "pickup_time": forms.TimeInput(
                 attrs={
-                    "type": "time", 
+                    "type": "time",
                     "class": "form-control form-control-lg",
                     "autocomplete": "off"
                 }
@@ -314,22 +312,13 @@ class DispatcherLegForm(forms.ModelForm):
                     "placeholder": "Special instructions for this leg..."
                 }
             ),
-            "driver_pay_amount": forms.NumberInput(
-                attrs={
-                    "class": "form-control form-control-lg",
-                    "placeholder": "0.00",
-                    "step": "0.01",
-                    "min": "0",
-                }
-            ),
         }
         help_texts = {
             "pickup_date": "Date of pickup",
             "pickup_time": "Time of pickup",
             "pickup_location": "Full pickup address",
-            "dropoff_location": "Full drop-off address", 
+            "dropoff_location": "Full drop-off address",
             "private_notes": "Special instructions for driver",
-            "driver_pay_amount": "Amount to pay driver for this leg",
         }
 
     def clean_pickup_date(self):

@@ -131,7 +131,7 @@ def index(request):
         .select_related(
             "reservation",
             "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
             "reservation__travel_agent__user",
             "driver",
@@ -180,7 +180,7 @@ def index(request):
             except (ValueError, TypeError):
                 pass
     if vehicle_filter:
-        legs = [l for l in legs if l.reservation and l.reservation.vehicle and getattr(l.reservation.vehicle, 'vehicle_type', None) == vehicle_filter]
+        legs = [l for l in legs if l.effective_vehicle_type == vehicle_filter]
     
     # Apply trip type filter if specified (filter in Python since it's a computed property)
     if trip_type_filter:
@@ -197,7 +197,7 @@ def index(request):
         'van': 'Van', 'Van(14 Pax)': 'Van 14',
     }
     for _leg in _all_day_legs:
-        _vt = getattr(_leg.reservation.vehicle, 'vehicle_type', None) if _leg.reservation and _leg.reservation.vehicle else None
+        _vt = _leg.effective_vehicle_type
         if _vt:
             _vtype_counter[_vt] = _vtype_counter.get(_vt, 0) + 1
     vehicle_type_counts = [
@@ -525,7 +525,7 @@ def index(request):
             if _tleg.flight_information:
                 _fi = _tleg.flight_information
                 _flight_str = f"{_fi.airline or ''} {_fi.flight_number or ''}".strip()
-            _pax = _tleg.reservation.passenger_count if _tleg.reservation else ''
+            _pax = _tleg.effective_passenger_count if _tleg.reservation else ''
             _dropoff = _tleg.dropoff_location or ''
             _gap_candidates.append({
                 'leg_id': _tleg.id,
@@ -538,7 +538,7 @@ def index(request):
                 'trip_type': _trip,
                 'source': 'affiliate' if _is_affiliate else 'unassigned',
                 'driver_name': str(_tleg.driver) if _is_affiliate else '',
-                'vehicle_type': getattr(_tleg.reservation.vehicle, 'vehicle_type', '') if _tleg.reservation and _tleg.reservation.vehicle else '',
+                'vehicle_type': _tleg.effective_vehicle_type or '',
                 'flight_info': _flight_str,
                 'passengers': str(_pax) if _pax else '',
                 'status': _tleg.status or '',
@@ -783,7 +783,7 @@ def schedule_board(request):
         .exclude(status="cancelled")
         .select_related(
             "driver", "reservation", "reservation__customer",
-            "reservation__vehicle", "flight_information", "cruise_information",
+            "reservation__vehicle", "vehicle", "flight_information", "cruise_information",
         )
         .prefetch_related(
             Prefetch("status_history", queryset=LegStatus.objects.select_related("updated_by").order_by("-timestamp"))
@@ -931,13 +931,18 @@ def schedule_board(request):
         return f'{h - 12}p'
 
     # Build inhouse timeline
+    # Include any driver who has either (a) a vehicle assignment for the day, or (b) at least one leg.
+    # Drivers with neither still go to the "available — no jobs" section below.
     inhouse_timeline = []
-    _drivers_with_jobs = set()
+    _drivers_in_timeline = set()
     for driver in inhouse_drivers:
         sched = _driver_schedules.get(driver.id)
-        if not sched or not sched.slots:
+        if not sched:
             continue
-        _drivers_with_jobs.add(driver.id)
+        has_vehicle = driver.id in assignments
+        if not sched.slots and not has_vehicle:
+            continue
+        _drivers_in_timeline.add(driver.id)
         assignment = assignments.get(driver.id)
         vehicle_number = ''
         vehicle_type_label = ''
@@ -1002,7 +1007,7 @@ def schedule_board(request):
     # Build "available but no jobs" list for drivers not in the timeline
     available_no_jobs = []
     for driver in inhouse_drivers:
-        if driver.id in _drivers_with_jobs:
+        if driver.id in _drivers_in_timeline:
             continue
         _avail = driver.get_availability_for_date(selected_date)
         _is_avail, _sh, _eh, _pref, _flex = _avail
@@ -1069,9 +1074,23 @@ def schedule_board(request):
         if leg.flight_information:
             _fi = leg.flight_information
             _flight_str = f"{_fi.airline or ''} {_fi.flight_number or ''}".strip()
-        _vtype = getattr(leg.reservation.vehicle, 'vehicle_type', '') if leg.reservation and leg.reservation.vehicle else ''
+        _vtype = leg.effective_vehicle_type or ''
         _vabbr_map = {'towncar': 'TC', 'suv': 'SUV', 'mini_van': 'MV', 'van': 'VAN', 'Van(14 Pax)': 'V14'}
         _vabbr = _vabbr_map.get(str(_vtype), '') if _vtype else ''
+        # Compact car-seat string (e.g. "1 rf, 2 ff, 1 b")
+        _us_carseat_parts = []
+        try:
+            if leg.effective_need_carseats:
+                if leg.effective_rf_carseats:
+                    _us_carseat_parts.append(f"{leg.effective_rf_carseats} rf")
+                if leg.effective_ff_carseats:
+                    _us_carseat_parts.append(f"{leg.effective_ff_carseats} ff")
+                if leg.effective_booster_seats:
+                    _us_carseat_parts.append(f"{leg.effective_booster_seats} b")
+        except Exception:
+            pass
+        _us_carseats = ", ".join(_us_carseat_parts)
+
         unassigned_timeline_slots.append({
             'leg_id': leg.id,
             'trip_type': _trip,
@@ -1089,6 +1108,11 @@ def schedule_board(request):
             'status_label': _sinfo['status_label'] if _sinfo else '',
             'status_time': _sinfo['status_time'] if _sinfo else '',
             'status_ago': _sinfo['status_ago'] if _sinfo else '',
+            'is_paid': bool(leg.reservation.is_paid) if leg.reservation else True,
+            'passengers': int(leg.effective_passenger_count or 1),
+            'luggage': int(leg.effective_luggage_count or 0),
+            'luggage_type': leg.effective_luggage_type or '',
+            'carseats_short': _us_carseats,
         })
 
     # Sort unassigned slots: bigger vehicles first, then by pickup time
@@ -1176,7 +1200,7 @@ def export_legs_dashboard_csv(request):
         legs_query.select_related(
             "reservation",
             "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
             "reservation__travel_agent__user",
             "driver",
@@ -1437,6 +1461,9 @@ def reservation_details(request, id):
     # Get all drivers for assignment dropdown
     drivers = Driver.objects.select_related("profile").all()
 
+    # Vehicles for per-leg override dropdown in the inline edit form
+    vehicles = Vehicle.objects.order_by("capacity")
+
     # Calculate payment details using prefetched data (no extra queries)
     payments = reservation.payments.all()
     latest_payment = payments[0] if payments else None
@@ -1467,6 +1494,7 @@ def reservation_details(request, id):
         "reservation": reservation,
         "total_legs": len(reservation.legs.all()),
         "drivers": drivers,
+        "vehicles": vehicles,
         "payment_status": payment_status,
         "payment_method": payment_method,
         "latest_payment": latest_payment,  # Pass latest payment to template
@@ -1728,10 +1756,15 @@ def legs_list(request):
         driver_filter=driver_filter
     )
 
-    # Apply vehicle filter
+    # Apply vehicle filter (check leg-level override first, fall back to reservation)
     if vehicle_filter:
+        from django.db.models.functions import Coalesce
         legs_query = legs_query.filter(
-            reservation__vehicle__vehicle_type=vehicle_filter
+            **{
+                'pk__in': legs_query.annotate(
+                    _eff_vtype=Coalesce('vehicle__vehicle_type', 'reservation__vehicle__vehicle_type')
+                ).filter(_eff_vtype=vehicle_filter).values('pk')
+            }
         )
 
     # Get today's count in a single query
@@ -2103,7 +2136,7 @@ def check_driver_feasibility(request):
         from drivers.models import Driver
 
         leg = Leg.objects.select_related(
-            "reservation", "reservation__vehicle", "flight_information", "cruise_information"
+            "reservation", "reservation__vehicle", "vehicle", "flight_information", "cruise_information"
         ).get(id=leg_id)
         driver = Driver.objects.get(id=driver_id)
         target_date = leg.pickup_date
@@ -2111,7 +2144,7 @@ def check_driver_feasibility(request):
         # Check vehicle type match
         vehicle_match = True
         vehicle_mismatch_detail = ""
-        required_type = getattr(leg.reservation.vehicle, 'vehicle_type', None) if leg.reservation.vehicle else None
+        required_type = leg.effective_vehicle_type
         if required_type and driver.driver_type == "inhouse":
             from dispatching.scheduler import get_compatible_vehicle_types
             try:
@@ -3685,7 +3718,63 @@ def match_all_leg_times_to_flight(request):
 
 
 @login_required
-@require_http_methods(["GET", "POST"])
+@require_POST
+def save_confirmation_override(request):
+    """
+    Save (or clear) a per-leg confirmation SMS override.
+
+    POST JSON: { "leg_id": <int>, "body": <str>, "reset": <bool optional> }
+    - reset=true clears the override (leg falls back to auto-generated body).
+    - body is stripped; empty string is treated as a reset.
+    Returns: { "success": bool, "has_custom": bool, "preview": <str>, "default": <str> }
+    """
+    if not request.user.is_staff:
+        return JsonResponse({"success": False, "error": "Permission denied"}, status=403)
+
+    from .confirmation_sms import leg_to_row, get_confirmation_message
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    leg_id = data.get("leg_id")
+    body = (data.get("body") or "").strip()
+    reset = bool(data.get("reset"))
+
+    if not leg_id:
+        return JsonResponse({"success": False, "error": "Missing leg_id"}, status=400)
+
+    try:
+        leg = Leg.objects.select_related(
+            "reservation", "reservation__customer", "reservation__vehicle",
+            "flight_information", "cruise_information",
+        ).get(id=int(leg_id))
+    except (Leg.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({"success": False, "error": "Leg not found"}, status=404)
+
+    if reset or not body:
+        leg.confirmation_sms_override = ""
+    else:
+        leg.confirmation_sms_override = body
+    leg.save(update_fields=["confirmation_sms_override"])
+
+    # Recompute preview + default for the client
+    row = leg_to_row(leg)
+    preview = get_confirmation_message(leg, row)
+    saved = leg.confirmation_sms_override
+    leg.confirmation_sms_override = ""
+    default_msg = get_confirmation_message(leg, row)
+    leg.confirmation_sms_override = saved
+
+    return JsonResponse({
+        "success": True,
+        "has_custom": bool(saved.strip()),
+        "preview": preview,
+        "default": default_msg,
+    })
+
+
 def confirmations_view(request):
     """
     Next-day confirmation SMS: preview legs for a date, export CSV, or send texts via Twilio.
@@ -3808,7 +3897,17 @@ def confirmations_view(request):
     rows = []
     for leg in legs:
         row = leg_to_row(leg)
+        # Effective message (honors override) + auto-generated default for "Reset"
         row["message_preview"] = get_confirmation_message(leg, row)
+        custom = (leg.confirmation_sms_override or "").strip()
+        if custom:
+            saved_override = leg.confirmation_sms_override
+            leg.confirmation_sms_override = ""
+            row["default_message"] = get_confirmation_message(leg, row)
+            leg.confirmation_sms_override = saved_override
+        else:
+            row["default_message"] = row["message_preview"]
+        row["has_custom"] = bool(custom)
         row["leg"] = leg
         row["already_sent"] = bool(getattr(leg, "confirmation_sms_sent_at", None))
         row["flight_unverified"] = leg.id in flight_unverified_leg_ids
@@ -4275,6 +4374,81 @@ def refresh_all_flights_status(request, task_id):
     return JsonResponse({"success": True, **data})
 
 
+_LEG_OVERRIDE_INT_FIELDS = (
+    "passenger_count", "luggage_count",
+    "rf_carseats", "ff_carseats", "booster_seats",
+    "extra_carseats", "extra_boosters",
+)
+_LEG_OVERRIDE_FIELDS = _LEG_OVERRIDE_INT_FIELDS + ("vehicle", "luggage_type", "need_carseats")
+
+
+def _apply_leg_override_fields(leg, leg_data):
+    """
+    Apply per-leg trip-detail overrides from a payload dict to a Leg instance
+    (mutates in place). Only inspects keys present in leg_data; missing keys
+    are left untouched.
+
+    Returns (modified_field_names, error_message_or_None).
+    """
+    modified = []
+
+    if "vehicle" in leg_data:
+        value = leg_data["vehicle"]
+        if value == "" or value is None:
+            if leg.vehicle_id is not None:
+                leg.vehicle = None
+                modified.append("vehicle")
+        else:
+            try:
+                new_v = Vehicle.objects.get(id=int(value))
+            except (Vehicle.DoesNotExist, ValueError, TypeError):
+                return modified, "Invalid vehicle selection"
+            if leg.vehicle_id != new_v.id:
+                leg.vehicle = new_v
+                modified.append("vehicle")
+
+    for field in _LEG_OVERRIDE_INT_FIELDS:
+        if field not in leg_data:
+            continue
+        value = leg_data[field]
+        if value == "" or value is None:
+            new_val = None
+        else:
+            try:
+                new_val = int(value)
+                if new_val < 0:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return modified, f"Invalid {field}"
+        if getattr(leg, field) != new_val:
+            setattr(leg, field, new_val)
+            modified.append(field)
+
+    if "luggage_type" in leg_data:
+        value = leg_data["luggage_type"] or ""
+        if value and value not in ("carry_on", "checked"):
+            return modified, "Invalid luggage_type"
+        if (leg.luggage_type or "") != value:
+            leg.luggage_type = value
+            modified.append("luggage_type")
+
+    if "need_carseats" in leg_data:
+        value = leg_data["need_carseats"]
+        if value == "" or value is None:
+            new_val = None
+        elif str(value).lower() in ("true", "1", "yes"):
+            new_val = True
+        elif str(value).lower() in ("false", "0", "no"):
+            new_val = False
+        else:
+            return modified, "Invalid need_carseats"
+        if leg.need_carseats != new_val:
+            leg.need_carseats = new_val
+            modified.append("need_carseats")
+
+    return modified, None
+
+
 @login_required
 @require_POST
 def update_leg_info(request):
@@ -4304,15 +4478,16 @@ def update_leg_info(request):
             id=leg_id
         )
 
-        # Update leg fields
+        # Update leg fields (non-override scalars)
         update_fields = []
         for field, value in leg_data.items():
+            if field in _LEG_OVERRIDE_FIELDS:
+                continue  # handled by _apply_leg_override_fields below
             if hasattr(leg, field) and value is not None:
                 # Handle date and time fields properly
                 if field == 'pickup_date' and value:
                     from datetime import datetime
                     try:
-                        # Convert string to date object
                         date_obj = datetime.strptime(value, '%Y-%m-%d').date()
                         setattr(leg, field, date_obj)
                         update_fields.append(field)
@@ -4321,7 +4496,6 @@ def update_leg_info(request):
                 elif field == 'pickup_time' and value:
                     from datetime import datetime
                     try:
-                        # Convert string to time object
                         time_obj = datetime.strptime(value, '%H:%M').time()
                         setattr(leg, field, time_obj)
                         update_fields.append(field)
@@ -4330,6 +4504,12 @@ def update_leg_info(request):
                 else:
                     setattr(leg, field, value)
                     update_fields.append(field)
+
+        # Apply per-leg trip-detail overrides
+        override_modified, override_error = _apply_leg_override_fields(leg, leg_data)
+        if override_error:
+            return JsonResponse({"success": False, "error": override_error}, status=400)
+        update_fields.extend(override_modified)
 
         # Handle flight information
         if flight_data.get("airline") or flight_data.get("flight_number"):
@@ -4605,32 +4785,75 @@ def dispatcher_booking_legs(request):
     """
     if not request.user.is_staff:
         return redirect("home")
-    
+
     booking_data = request.session.get('dispatcher_booking')
     if not booking_data or not booking_data.get('reservation_data'):
         messages.error(request, "Please complete the reservation details step first.")
         return redirect('dispatcher_booking_reservation')
-    
+
     customer = get_object_or_404(Customer, id=booking_data['customer_id'])
     num_legs = booking_data.get('num_legs', 1)
-    
+    reservation_data = booking_data.get('reservation_data', {})
+
+    # Resolve the reservation-level vehicle (used as override default placeholder)
+    vehicle = None
+    if reservation_data.get('manual_vehicle'):
+        try:
+            vehicle = Vehicle.objects.get(id=reservation_data['manual_vehicle'])
+        except (Vehicle.DoesNotExist, ValueError, TypeError):
+            vehicle = None
+    vehicles = Vehicle.objects.all().order_by('vehicle_type')
+
+    # Field names that can be overridden per-leg
+    _OVR_FIELDS = (
+        'vehicle', 'passenger_count', 'luggage_count', 'luggage_type',
+        'need_carseats', 'rf_carseats', 'ff_carseats', 'booster_seats',
+    )
+
+    def _parse_overrides_from_post(post, leg_index):
+        """Pull legs-N-override-<field> values from POST into a dict.
+        Empty strings and None are dropped so we only persist real overrides."""
+        out = {}
+        for f in _OVR_FIELDS:
+            key = f"legs-{leg_index}-override-{f}"
+            val = post.get(key, '')
+            if val is None:
+                continue
+            val = str(val).strip()
+            if val == '':
+                continue
+            out[f] = val
+        if out:
+            out['has_any'] = True
+            # Add a display name for vehicle for review screen
+            if 'vehicle' in out:
+                try:
+                    v = Vehicle.objects.get(id=int(out['vehicle']))
+                    out['vehicle_display'] = v.get_vehicle_type_display()
+                except (Vehicle.DoesNotExist, ValueError, TypeError):
+                    pass
+        return out
+
     if request.method == "POST":
         leg_formset = DispatcherLegFormSet(request.POST, prefix='legs')
         flight_formset = DispatcherFlightFormSet(request.POST, prefix='flights')
-        
+
         if leg_formset.is_valid() and flight_formset.is_valid():
-            # Validate that at least one leg is provided
             legs_data = []
             flights_data = []
-            
-            for form in leg_formset:
+
+            for idx, form in enumerate(leg_formset):
                 if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     leg_data = {}
                     for field, value in form.cleaned_data.items():
                         if field != 'DELETE':
                             leg_data[field] = str(value) if value is not None else None
+                    # Per-leg override fields (raw POST, not part of the formset)
+                    overrides = _parse_overrides_from_post(request.POST, idx)
+                    if overrides:
+                        leg_data['overrides'] = overrides
                     legs_data.append(leg_data)
-            
+
             for form in flight_formset:
                 if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                     flight_data = {}
@@ -4638,7 +4861,7 @@ def dispatcher_booking_legs(request):
                         if field != 'DELETE':
                             flight_data[field] = str(value) if value is not None else None
                     flights_data.append(flight_data)
-            
+
             if not legs_data:
                 messages.error(request, "At least one trip leg is required. Please add leg details.")
             else:
@@ -4646,7 +4869,7 @@ def dispatcher_booking_legs(request):
                 booking_data['flights_data'] = flights_data
                 booking_data['step'] = 4
                 request.session['dispatcher_booking'] = booking_data
-                
+
                 return redirect('dispatcher_booking_pricing')
         else:
             # Formset validation failed - show specific error messages
@@ -4698,7 +4921,20 @@ def dispatcher_booking_legs(request):
             flights_initial.append({})
         leg_formset = DispatcherLegFormSet(prefix='legs', initial=legs_initial)
         flight_formset = DispatcherFlightFormSet(prefix='flights', initial=flights_initial)
-    
+
+    # Build per-leg override list for template (used to repopulate fields on
+    # back-nav and to keep the override panel expanded when overrides are set).
+    if request.method == "POST":
+        leg_overrides = [_parse_overrides_from_post(request.POST, i) for i in range(num_legs)]
+    else:
+        saved_legs = booking_data.get('legs_data') or []
+        leg_overrides = []
+        for i in range(num_legs):
+            if i < len(saved_legs) and isinstance(saved_legs[i], dict):
+                leg_overrides.append(saved_legs[i].get('overrides') or {})
+            else:
+                leg_overrides.append({})
+
     context = {
         'leg_formset': leg_formset,
         'flight_formset': flight_formset,
@@ -4707,9 +4943,13 @@ def dispatcher_booking_legs(request):
         'step': 4,
         'step_title': 'Trip Details',
         'step_description': f'Enter details for {num_legs} trip leg(s)',
-        'booking_data': booking_data
+        'booking_data': booking_data,
+        'reservation_data': reservation_data,
+        'vehicle': vehicle,
+        'vehicles': vehicles,
+        'leg_overrides': leg_overrides,
     }
-    
+
     return render(request, 'dispatching/booking/step_legs.html', context)
 
 
@@ -5162,15 +5402,6 @@ def create_dispatcher_reservation(booking_data):
                     except ValueError:
                         raise ValueError(f"Leg {i+1}: Invalid pickup time format: {pickup_time_str}")
             
-            # Parse driver pay amount if provided
-            driver_pay_amount = None
-            if leg_data.get('driver_pay_amount'):
-                try:
-                    driver_pay_amount = Decimal(leg_data.get('driver_pay_amount', '0'))
-                except (ValueError, TypeError):
-                    # If invalid, just set to None
-                    driver_pay_amount = None
-            
             # Build private_notes — append gratuity split for multi-leg trips
             private_notes = leg_data.get('private_notes', '')
             if gratuity_per_leg > 0:
@@ -5185,8 +5416,24 @@ def create_dispatcher_reservation(booking_data):
                 pickup_location=leg_data.get('pickup_location', ''),
                 dropoff_location=leg_data.get('dropoff_location', ''),
                 private_notes=private_notes,
-                driver_pay_amount=driver_pay_amount
             )
+
+            # Apply per-leg trip-detail overrides if any were captured in step 4
+            overrides = leg_data.get('overrides') or {}
+            if overrides:
+                ovr_payload = {
+                    k: v for k, v in overrides.items()
+                    if k in ('vehicle', 'passenger_count', 'luggage_count', 'luggage_type',
+                             'need_carseats', 'rf_carseats', 'ff_carseats', 'booster_seats')
+                }
+                if ovr_payload:
+                    modified, ovr_err = _apply_leg_override_fields(leg, ovr_payload)
+                    if ovr_err:
+                        # Don't block creation for override issues — log via raise so the
+                        # outer transaction rolls back and the dispatcher sees the error.
+                        raise ValueError(f"Leg {i+1} override: {ovr_err}")
+                    if modified:
+                        leg.save(update_fields=modified)
 
         # Recalculate revenue_share for all legs now that the full count is known.
         # Legs created earlier in the loop got revenue_share = total_price (count=1);
@@ -5321,7 +5568,15 @@ def add_leg_to_reservation(request):
             private_notes=leg_data.get('private_notes', ''),
             status='in-progress'
         )
-        
+
+        # Apply per-leg trip-detail overrides (vehicle, passenger_count, etc.)
+        override_modified, override_error = _apply_leg_override_fields(leg, leg_data)
+        if override_error:
+            leg.delete()
+            return JsonResponse({"success": False, "error": override_error}, status=400)
+        if override_modified:
+            leg.save(update_fields=override_modified)
+
         # Create flight information if provided
         if flight_data.get('airline') or flight_data.get('flight_number'):
             flight = Flight.objects.create(
@@ -5483,7 +5738,7 @@ def driver_payment_management(request):
                 .select_related(
                     "reservation",
                     "reservation__customer",
-                    "reservation__vehicle",
+                    "reservation__vehicle", "vehicle",
                     "reservation__travel_agent",
                     "reservation__travel_agent__user",
                     "flight_information",
@@ -7085,7 +7340,7 @@ def capacity_planner(request):
         .select_related(
             "reservation",
             "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "driver",
             "driver__profile",
             "flight_information",
@@ -7560,6 +7815,9 @@ def auto_assign_drivers(request):
     raw_manual = data.get("manual_assignments", {})  # {leg_id_str: driver_id} overrides
     raw_preferences = data.get("driver_preferences", {})  # {driver_id_str: "prefer_arrival"}
     apply_driver_ids = data.get("apply_driver_ids", None)  # optional: only apply for these drivers
+    # Treat unpaid reservations as if they don't exist for auto-assign — manual overrides
+    # still apply. Mirrors the schedule builder's "Skip unpaid" toggle.
+    exclude_unpaid = bool(data.get("exclude_unpaid", False))
 
     from datetime import datetime as dt
     from dispatching.scheduler import (
@@ -7580,7 +7838,7 @@ def auto_assign_drivers(request):
         Leg.objects.filter(pickup_date=target_date)
         .exclude(reservation__status="cancelled")
         .exclude(status="cancelled")
-        .select_related("driver", "driver__profile", "reservation", "reservation__vehicle",
+        .select_related("driver", "driver__profile", "reservation", "reservation__vehicle", "vehicle",
                         "reservation__customer")
     )
 
@@ -7654,6 +7912,14 @@ def auto_assign_drivers(request):
     # Separate manually-assigned legs from auto-assign pool
     manual_leg_ids = set(manual_assignments.keys())
     auto_unassigned = [l for l in unassigned if l.id not in manual_leg_ids]
+
+    # Drop unpaid reservations from the auto pool when the dispatcher asked to skip
+    # them. Manual assignments are kept (deliberate override).
+    if exclude_unpaid:
+        auto_unassigned = [
+            l for l in auto_unassigned
+            if l.reservation and l.reservation.is_paid
+        ]
 
     # Run suggestion engine on remaining unassigned legs
     suggestions = suggest_assignments_clustered(auto_unassigned, schedules, target_date,
@@ -7776,8 +8042,8 @@ def auto_assign_drivers(request):
             has_store_stop = False
             leg_obj = legs_by_id.get(slot.leg_id)
             if leg_obj and leg_obj.reservation:
-                if leg_obj.reservation.vehicle:
-                    vtype = str(leg_obj.reservation.vehicle.vehicle_type).upper()
+                if leg_obj.effective_vehicle:
+                    vtype = str(leg_obj.effective_vehicle_type).upper()
                 if slot.trip_type == 'arrival':
                     has_store_stop = bool(getattr(leg_obj.reservation, 'store_stop', False))
             slots_data.append({
@@ -7818,7 +8084,7 @@ def auto_assign_drivers(request):
         customer_name = ""
         if leg.reservation and leg.reservation.customer:
             customer_name = leg.reservation.customer.get_full_name()
-        vtype = getattr(getattr(leg.reservation, 'vehicle', None), 'vehicle_type', '') if leg.reservation else ''
+        vtype = leg.effective_vehicle_type or ''
         trip_type = leg.get_trip_type()
         has_store_stop = bool(getattr(leg.reservation, 'store_stop', False)) if leg.reservation and trip_type == 'arrival' else False
         still_unassigned.append({
@@ -7832,6 +8098,7 @@ def auto_assign_drivers(request):
             "vehicle_type": str(vtype),
             "pickup_minutes": leg.pickup_time.hour * 60 + leg.pickup_time.minute if leg.pickup_time else 0,
             "store_stop": has_store_stop,
+            "is_paid": bool(leg.reservation.is_paid) if leg.reservation else True,
         })
 
     # Driver list for manual assignment dropdown
@@ -8094,6 +8361,10 @@ def smart_schedule_builder(request):
     preferred_trip_type = data.get("preferred_trip_type", "")
     excluded_leg_ids = data.get("excluded_leg_ids", [])
     apply_assignments = data.get("apply", False)
+    # When true, unpaid reservations are treated as if they don't exist for scheduling
+    # purposes (not auto-fitted, not surfaced as alternatives). Pinning them by hand
+    # still works.
+    exclude_unpaid = bool(data.get("exclude_unpaid", False))
 
     if not driver_id or not date_str:
         return JsonResponse({"success": False, "error": "driver_id and date are required"}, status=400)
@@ -8113,7 +8384,7 @@ def smart_schedule_builder(request):
         Leg.objects.filter(pickup_date=target_date)
         .exclude(reservation__status="cancelled")
         .exclude(status="cancelled")
-        .select_related("driver", "driver__profile", "reservation", "reservation__customer", "reservation__vehicle")
+        .select_related("driver", "driver__profile", "reservation", "reservation__customer", "reservation__vehicle", "vehicle")
     )
 
     # Build existing schedule for this driver (already assigned legs)
@@ -8123,6 +8394,14 @@ def smart_schedule_builder(request):
 
     # Get unassigned legs + excluded existing legs (so they can be swapped/replaced)
     available_legs = [l for l in legs if not l.driver or l.id in excluded_leg_ids]
+    # Drop unpaid reservations from auto-fit + alternatives unless they were explicitly
+    # pinned by the user. Pinning is treated as a deliberate override.
+    if exclude_unpaid:
+        _pinned_set = set(pinned_leg_ids or [])
+        available_legs = [
+            l for l in available_legs
+            if (l.reservation and l.reservation.is_paid) or l.id in _pinned_set
+        ]
 
     # Run the smart scheduler
     result = build_smart_schedule(
@@ -8171,10 +8450,15 @@ def smart_schedule_builder(request):
             slot_data['luggage'] = res.luggage_count or 0
             cs_parts = []
             if res.need_carseats:
-                if res.rf_carseats: cs_parts.append(f"{res.rf_carseats} RF")
-                if res.ff_carseats: cs_parts.append(f"{res.ff_carseats} FF")
-                if res.booster_seats: cs_parts.append(f"{res.booster_seats} Bstr")
+                if res.rf_carseats: cs_parts.append(f"{res.rf_carseats} rf")
+                if res.ff_carseats: cs_parts.append(f"{res.ff_carseats} ff")
+                if res.booster_seats: cs_parts.append(f"{res.booster_seats} b")
             slot_data['carseats'] = ", ".join(cs_parts)
+            slot_data['is_paid'] = bool(res.is_paid)
+            slot_data['reservation_uuid'] = str(res.uuid) if res.uuid else ''
+        else:
+            slot_data['is_paid'] = True
+            slot_data['reservation_uuid'] = ''
         # Add timing details for new slots
         if slot.leg_id in timing_details:
             td = timing_details[slot.leg_id]
@@ -8200,9 +8484,9 @@ def smart_schedule_builder(request):
         veh = res.vehicle if res else None
         alt_cs = []
         if res and res.need_carseats:
-            if res.rf_carseats: alt_cs.append(f"{res.rf_carseats} RF")
-            if res.ff_carseats: alt_cs.append(f"{res.ff_carseats} FF")
-            if res.booster_seats: alt_cs.append(f"{res.booster_seats} Bstr")
+            if res.rf_carseats: alt_cs.append(f"{res.rf_carseats} rf")
+            if res.ff_carseats: alt_cs.append(f"{res.ff_carseats} ff")
+            if res.booster_seats: alt_cs.append(f"{res.booster_seats} b")
         alternatives.append({
             'leg_id': leg_alt.id,
             'pickup_time': leg_alt.pickup_time.strftime('%I:%M %p').lstrip('0'),
@@ -8216,6 +8500,7 @@ def smart_schedule_builder(request):
             'carseats': ", ".join(alt_cs),
             'revenue': float(leg_alt.revenue_share) if leg_alt.revenue_share else 0,
             'store_stop': res.store_stop if res else False,
+            'is_paid': bool(res.is_paid) if res else True,
         })
 
     response = {
@@ -8978,8 +9263,8 @@ def driver_performance(request):
                     customer_name = leg.reservation.customer.get_full_name()
 
                 vehicle_name = ''
-                if leg.reservation and leg.reservation.vehicle:
-                    vehicle_name = str(leg.reservation.vehicle)
+                if leg.effective_vehicle:
+                    vehicle_name = str(leg.effective_vehicle)
 
                 pickup_cat = categorize_location(leg.pickup_location)
                 dropoff_cat = categorize_location(leg.dropoff_location)
@@ -10137,7 +10422,7 @@ def find_swap_suggestions(request):
         Leg.objects.filter(id=leg_id)
         .select_related(
             "reservation", "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "driver", "driver__profile", "flight_information",
         )
         .first()
@@ -10166,7 +10451,7 @@ def find_swap_suggestions(request):
         .exclude(status="cancelled")
         .select_related(
             "reservation", "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "driver", "driver__profile", "flight_information",
         )
     )
@@ -10376,7 +10661,7 @@ def swap_tester(request):
         .exclude(status="cancelled")
         .select_related(
             "reservation", "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "driver", "driver__profile", "flight_information",
         )
         .order_by("pickup_time")
@@ -10405,7 +10690,7 @@ def swap_tester(request):
         if s and s.suggested_driver_id:
             continue  # has a suggestion, not no-fit
         trip_type = leg.get_trip_type()
-        vtype = getattr(getattr(getattr(leg, "reservation", None), "vehicle", None), "vehicle_type", None)
+        vtype = leg.effective_vehicle_type
         customer = ""
         if leg.reservation and leg.reservation.customer:
             customer = leg.reservation.customer.get_full_name()
@@ -10426,7 +10711,7 @@ def swap_tester(request):
     affiliate_takeback = []
     for leg in affiliate_legs_list:
         trip_type = leg.get_trip_type()
-        vtype = getattr(getattr(getattr(leg, "reservation", None), "vehicle", None), "vehicle_type", None)
+        vtype = leg.effective_vehicle_type
         vtype_str = str(vtype) if vtype else None
         customer = ""
         if leg.reservation and leg.reservation.customer:

@@ -6,6 +6,16 @@ register = template.Library()
 
 
 @register.filter
+def index(seq, i):
+    """Return seq[i] safely for templates. Returns empty dict on failure
+    so downstream `.attribute|default:''` lookups stay quiet."""
+    try:
+        return seq[int(i)]
+    except (IndexError, KeyError, TypeError, ValueError):
+        return {}
+
+
+@register.filter
 def flight_status_color(status):
     """
     Determine the color class for a flight status badge.

@@ -105,7 +105,7 @@ def get_legs_for_confirmation(target_date):
         .select_related(
             "reservation",
             "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "reservation__travel_agent",
             "flight_information",
             "cruise_information",
@@ -197,7 +197,14 @@ def get_confirmation_message(leg, row):
     - Template 2: Arrival (airport → hotel), with car seats / Publix only when applicable
     - Template 3: Port Canaveral pickup (cruise terminal)
     - Template 4: Other (generic)
+
+    If the leg has a confirmation_sms_override set, that body is returned
+    in place of the auto-generated body (footer is still appended).
     """
+    override_body = (getattr(leg, "confirmation_sms_override", "") or "").strip()
+    if override_body:
+        return override_body + AUTOMATED_FOOTER
+
     first_name = row.get("first_name") or "Guest"
     pickup_time = row.get("pickup_time", "")
     pickup_location = row.get("pickup_location", "")

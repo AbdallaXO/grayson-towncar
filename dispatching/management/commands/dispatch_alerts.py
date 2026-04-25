@@ -105,7 +105,7 @@ class Command(BaseCommand):
                 "driver",
                 "driver__profile",
                 "reservation__customer",
-                "reservation__vehicle",
+                "reservation__vehicle", "vehicle",
                 "flight_information",
             )
         )

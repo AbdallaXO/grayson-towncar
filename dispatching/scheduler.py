@@ -163,7 +163,7 @@ def compute_leg_scarcity(legs, all_driver_vtypes: Dict[int, str], exclude_driver
 
     result = {}
     for leg in legs:
-        leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+        leg_vtype = leg.effective_vehicle_type
         if leg_vtype:
             result[leg.id] = vtype_eligible_counts.get(leg_vtype, len(driver_list))
         else:
@@ -275,6 +275,11 @@ class ScheduleSlot:
     flight_info: Optional[str] = None
     revenue: Optional[Decimal] = None
     vehicle_type: Optional[str] = None
+    is_paid: bool = True
+    passengers: int = 1
+    luggage: int = 0
+    luggage_type: str = ""
+    carseats_short: str = ""
     # Set by view for template positioning
     position_pct: float = 0
     width_pct: float = 0
@@ -748,7 +753,22 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
         except Exception:
             pass
 
-        leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+        leg_vtype = leg.effective_vehicle_type
+
+        # Build a compact car-seat summary (e.g. "1 rf, 2 ff, 1 b") for popups.
+        _carseat_parts = []
+        try:
+            if leg.effective_need_carseats:
+                if leg.effective_rf_carseats:
+                    _carseat_parts.append(f"{leg.effective_rf_carseats} rf")
+                if leg.effective_ff_carseats:
+                    _carseat_parts.append(f"{leg.effective_ff_carseats} ff")
+                if leg.effective_booster_seats:
+                    _carseat_parts.append(f"{leg.effective_booster_seats} b")
+        except Exception:
+            pass
+        _carseats_short = ", ".join(_carseat_parts)
+
         slot = ScheduleSlot(
             leg_id=leg.id,
             pickup_time=leg.pickup_time,
@@ -765,6 +785,11 @@ def build_driver_schedules(legs, drivers, target_date: date) -> Dict[int, Driver
             flight_info=flight_info,
             revenue=leg.revenue_share,
             vehicle_type=str(leg_vtype) if leg_vtype else None,
+            is_paid=bool(leg.reservation.is_paid) if leg.reservation else True,
+            passengers=int(leg.effective_passenger_count or 1),
+            luggage=int(leg.effective_luggage_count or 0),
+            luggage_type=leg.effective_luggage_type or "",
+            carseats_short=_carseats_short,
         )
         schedules[leg.driver.id].slots.append(slot)
 
@@ -842,10 +867,7 @@ def assign_drivers_to_clusters(
             # Count vehicle-compatible legs in this cluster
             match_count = 0
             for leg in clusters[ci]:
-                leg_vtype = getattr(
-                    getattr(getattr(leg, 'reservation', None), 'vehicle', None),
-                    'vehicle_type', None
-                )
+                leg_vtype = leg.effective_vehicle_type
                 if not compatible or not leg_vtype or leg_vtype in compatible:
                     match_count += 1
             if match_count > 0:
@@ -1063,10 +1085,7 @@ def suggest_assignments(
             continue
         count = 0
         for leg_check in sorted_legs:
-            leg_check_vtype = getattr(
-                getattr(getattr(leg_check, 'reservation', None), 'vehicle', None),
-                'vehicle_type', None
-            )
+            leg_check_vtype = leg_check.effective_vehicle_type
             if leg_check_vtype and str(leg_check_vtype) == dvtype:
                 # This job matches the driver's exact vehicle type.
                 # Use exact-type driver count (not general scarcity) to decide
@@ -1124,10 +1143,7 @@ def suggest_assignments(
 
     def _multi_pass_sort_key(leg):
         trip_type = leg.get_trip_type()
-        leg_vtype = getattr(
-            getattr(getattr(leg, 'reservation', None), 'vehicle', None),
-            'vehicle_type', None
-        )
+        leg_vtype = leg.effective_vehicle_type
         pass_priority = 2  # Pass 2 (normal)
         # Check vehicle scarcity (Pass 0)
         if leg_vtype:
@@ -1160,7 +1176,7 @@ def suggest_assignments(
         # Collect all scored candidates for alternatives
         all_candidates = []
         pickup_cat = categorize_location(leg.pickup_location)
-        leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+        leg_vtype = leg.effective_vehicle_type
         eligible_drivers = scarcity_map.get(leg.id, len(working))
 
         for did, sched in working.items():
@@ -1623,7 +1639,7 @@ def build_smart_schedule(
         if leg.id in excluded_leg_ids:
             continue
         # Vehicle compatibility filter
-        leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+        leg_vtype = leg.effective_vehicle_type
         if leg_vtype and compatible_types and leg_vtype not in compatible_types:
             continue
         window_legs.append(leg)
@@ -1721,10 +1737,7 @@ def build_smart_schedule(
     if driver_vtype:
         exact_drivers_for_type = exact_type_driver_counts.get(driver_vtype, len(all_driver_vtypes))
         for leg_check in optional_legs:
-            leg_check_vtype = getattr(
-                getattr(getattr(leg_check, 'reservation', None), 'vehicle', None),
-                'vehicle_type', None
-            )
+            leg_check_vtype = leg_check.effective_vehicle_type
             if leg_check_vtype and str(leg_check_vtype) == driver_vtype:
                 if exact_drivers_for_type <= cfg.reserve_max_scarcity:
                     reserved_count += 1
@@ -1736,7 +1749,7 @@ def build_smart_schedule(
         def _leg_sort_key(leg):
             tt = leg.get_trip_type()
             match = 0 if tt == pref_type else 1
-            vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+            vtype = leg.effective_vehicle_type
             tier = get_vehicle_tier(vtype) if vtype else 0
             return (match, -tier, leg.pickup_time)
         optional_sorted = sorted(optional_legs, key=_leg_sort_key)
@@ -1745,14 +1758,14 @@ def build_smart_schedule(
         def _leg_sort_key(leg):
             tt = leg.get_trip_type()
             match = 0 if tt == pref_type else 1
-            vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+            vtype = leg.effective_vehicle_type
             tier = get_vehicle_tier(vtype) if vtype else 0
             return (-tier, match, leg.pickup_time)
         optional_sorted = sorted(optional_legs, key=_leg_sort_key)
     else:
         # No preference or "only" mode (already filtered): sort by tier
         def _leg_sort_key(leg):
-            vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+            vtype = leg.effective_vehicle_type
             tier = get_vehicle_tier(vtype) if vtype else 0
             return (-tier, leg.pickup_time)
         optional_sorted = sorted(optional_legs, key=_leg_sort_key)
@@ -1963,7 +1976,7 @@ def _score_leg_for_smart_schedule(
 
     # Vehicle tier scoring
     if driver_tier >= 0:
-        leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+        leg_vtype = leg.effective_vehicle_type
         leg_tier = get_vehicle_tier(leg_vtype) if leg_vtype else 0
         tier_diff = driver_tier - leg_tier
 
@@ -2063,7 +2076,7 @@ def _add_leg_to_schedule(schedule: DriverDaySchedule, leg, target_date: date):
     if leg.reservation and leg.reservation.customer:
         customer_name = leg.reservation.customer.get_full_name()
 
-    leg_vtype = getattr(getattr(getattr(leg, 'reservation', None), 'vehicle', None), 'vehicle_type', None)
+    leg_vtype = leg.effective_vehicle_type
     slot = ScheduleSlot(
         leg_id=leg.id,
         pickup_time=leg.pickup_time,

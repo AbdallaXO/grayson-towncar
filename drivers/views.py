@@ -171,7 +171,7 @@ def index(request):
     # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
     legs = (
         Leg.objects.select_related(
-            "reservation", "reservation__customer", "reservation__vehicle",
+            "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
         )
         .prefetch_related("reservation__legs")
@@ -230,7 +230,7 @@ def completed_trips(request):
     # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
     legs = (
         Leg.objects.select_related(
-            "reservation", "reservation__customer", "reservation__vehicle",
+            "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
         )
         .prefetch_related("reservation__legs")
@@ -261,7 +261,7 @@ def schedule(request):
     # Prefetch all legs per reservation to avoid N+1 when checking is_first_leg
     legs_list = list(
         Leg.objects.select_related(
-            "reservation", "reservation__customer", "reservation__vehicle",
+            "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
             "flight_information", "cruise_information"
         )
         .prefetch_related("reservation__legs")

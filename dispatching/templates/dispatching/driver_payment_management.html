@@ -547,9 +547,9 @@
 
                       <!-- Vehicle & Passengers -->
                       <td>
-                        <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
+                        <div class="fw-bold">{{ leg.effective_vehicle }}</div>
                         <div class="border-top my-1"></div>
-                        <div>{{ leg.reservation.passenger_count }} Passengers</div>
+                        <div>{{ leg.effective_passenger_count }} Passengers</div>
                         <div class="text-secondary">
                           {% if leg.reservation.display_carseats %}
                             {{ leg.reservation.display_carseats }}
@@ -820,8 +820,8 @@
                             <div class="d-flex">
                               <i class="bi bi-people text-success me-2"></i>
                               <div class="small">
-                                <div class="fw-bold">{{ leg.reservation.vehicle }}</div>
-                                <div>{{ leg.reservation.passenger_count }} Passengers</div>
+                                <div class="fw-bold">{{ leg.effective_vehicle }}</div>
+                                <div>{{ leg.effective_passenger_count }} Passengers</div>
                                 {% if leg.reservation.display_carseats %}
                                   <div>
                                     <i class="bi bi-car-front me-1"></i>{{ leg.reservation.display_carseats }}

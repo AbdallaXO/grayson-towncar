@@ -98,21 +98,154 @@
 
     /* Swap results */
     .swap-solution {
-        background: #f8f9fa;
+        background: #fff;
         border: 1px solid #e0e0e0;
         border-radius: 8px;
-        padding: 0.75rem 1rem;
-        margin-bottom: 0.5rem;
+        padding: 0;
+        margin-bottom: 0.6rem;
+        overflow: hidden;
+        transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .swap-solution:hover {
+        border-color: var(--gold);
+        box-shadow: 0 3px 10px rgba(201,162,39,0.15);
+    }
+    .swap-solution.is-best {
+        border-color: var(--gold);
+        box-shadow: 0 0 0 2px rgba(201,162,39,0.18);
+    }
+    .swap-solution-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.55rem 0.85rem;
+        background: linear-gradient(90deg, #fafafa, #fff);
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .swap-rank {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #eee;
+        color: #555;
+        font-size: 0.7rem;
+        font-weight: 700;
+        margin-right: 0.4rem;
+    }
+    .swap-solution.is-best .swap-rank {
+        background: var(--gold);
+        color: var(--dark);
+    }
+    .swap-score {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #333;
+    }
+    .swap-target-driver {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #2e7d32;
+    }
+    .swap-depth-pill {
+        display: inline-block;
+        padding: 0.1rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        background: #eef2f7;
+        color: #455a64;
+    }
+    .swap-moves {
+        padding: 0.4rem 0.85rem 0.55rem;
     }
     .swap-move {
-        padding: 0.4rem 0;
-        border-bottom: 1px solid #eee;
-        font-size: 0.82rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.35rem 0;
+        border-bottom: 1px dashed #f1f1f1;
+        font-size: 0.8rem;
     }
     .swap-move:last-child { border-bottom: none; }
-    .buffer-green  { color: #2e7d32; font-weight: 600; }
-    .buffer-orange { color: #e65100; font-weight: 600; }
-    .buffer-red    { color: #c62828; font-weight: 600; }
+    .swap-move-icon {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.7rem;
+        margin-top: 1px;
+    }
+    .swap-move-icon.move-from { background: var(--gold); color: var(--dark); }
+    .swap-move-icon.move-assign { background: #2e7d32; }
+    .swap-move-body { flex: 1; line-height: 1.3; }
+    .swap-move-title { color: #222; }
+    .swap-move-driver-arrow {
+        font-size: 0.73rem;
+        color: #555;
+        margin-top: 1px;
+    }
+    .swap-move-driver-arrow .from-name { color: #c62828; font-weight: 600; }
+    .swap-move-driver-arrow .to-name   { color: #2e7d32; font-weight: 600; }
+    .buffer-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.08rem 0.4rem;
+        border-radius: 10px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .buffer-green  { background: #e8f5e9; color: #2e7d32; }
+    .buffer-orange { background: #fff3e0; color: #e65100; }
+    .buffer-red    { background: #ffebee; color: #c62828; }
+    .swap-apply-btn {
+        font-size: 0.72rem;
+        padding: 0.25rem 0.6rem;
+        background: var(--gold);
+        color: var(--dark);
+        font-weight: 700;
+        border: none;
+        border-radius: 4px;
+        white-space: nowrap;
+        transition: filter 0.15s;
+    }
+    .swap-apply-btn:hover { filter: brightness(1.05); }
+
+    .nofit-card.is-active {
+        border-color: var(--gold);
+        box-shadow: 0 0 0 2px rgba(201,162,39,0.18);
+    }
+    .date-nav-btn {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        color: #fff;
+        padding: 0.25rem 0.55rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 0.12s;
+    }
+    .date-nav-btn:hover { background: rgba(255,255,255,0.18); }
+    .date-nav-today {
+        background: rgba(201,162,39,0.18);
+        border-color: rgba(201,162,39,0.4);
+        color: var(--gold-light);
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+    .date-nav-today:hover { background: rgba(201,162,39,0.3); }
 
     /* Affiliate takeback */
     .affiliate-card {
@@ -162,10 +295,22 @@
                 </a>
             </div>
         </div>
-        <div class="d-flex gap-3 align-items-center">
-            <form class="d-flex gap-2 align-items-center" method="get">
-                <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:160px;" onchange="this.form.submit()">
+        <div class="d-flex gap-3 align-items-center flex-wrap">
+            <form class="d-flex gap-1 align-items-center" method="get" id="dateForm">
+                <button type="button" class="date-nav-btn" onclick="navigateDate(-1)" title="Previous day (←)">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <input type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" class="form-control form-control-sm" style="width:160px;" onchange="this.form.submit()" id="dateInput">
+                <button type="button" class="date-nav-btn" onclick="navigateDate(1)" title="Next day (→)">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <button type="button" class="date-nav-btn date-nav-today" onclick="navigateToday()" title="Jump to today">
+                    Today
+                </button>
             </form>
+            <span class="stat-pill" style="background:rgba(255,255,255,0.1);color:#fff;">
+                <i class="bi bi-calendar3 me-1"></i>{{ selected_date|date:"D, M j" }}
+            </span>
             <span class="stat-pill" style="background:rgba(255,255,255,0.1);color:#fff;">{{ total_legs }} legs</span>
             <span class="stat-pill" style="background:rgba(46,125,50,0.2);color:#81c784;">{{ inhouse_count }} in-house</span>
             {% if nofit_count > 0 %}
@@ -437,29 +582,45 @@
 
         let html = '';
         data.solutions.forEach(function(sol, idx) {
-            html += '<div class="swap-solution" onmouseenter="highlightSolution('+idx+')" onmouseleave="clearHighlights()">';
-            html += '<div class="d-flex justify-content-between align-items-center mb-1">';
-            html += '<div>';
-            html += '<span class="badge" style="background:var(--gold);color:var(--dark);font-size:0.7rem;">Score: '+sol.score+'</span> ';
-            html += '<span style="font-size:0.75rem;color:#555;">'+sol.depth+' move'+(sol.depth>1?'s':'')+' → '+sol.target_driver+'</span>';
+            const isBest = idx === 0;
+            html += '<div class="swap-solution'+(isBest?' is-best':'')+'" onmouseenter="highlightSolution('+idx+')" onmouseleave="clearHighlights()">';
+            html += '<div class="swap-solution-head">';
+            html += '<div class="d-flex align-items-center" style="min-width:0;">';
+            html += '<span class="swap-rank" title="Rank">'+(idx+1)+'</span>';
+            html += '<div style="min-width:0;">';
+            html += '<div class="swap-target-driver"><i class="bi bi-person-check"></i> '+sol.target_driver+'</div>';
+            html += '<div class="d-flex align-items-center gap-2 mt-1" style="font-size:0.7rem;color:#777;">';
+            html += '<span class="swap-depth-pill"><i class="bi bi-arrow-left-right me-1"></i>'+sol.depth+' move'+(sol.depth>1?'s':'')+'</span>';
+            html += '<span class="swap-score"><i class="bi bi-star-fill me-1" style="color:var(--gold);"></i>'+sol.score+'</span>';
             html += '</div>';
-            html += '<button class="btn btn-sm px-2 py-0" style="font-size:0.7rem;background:var(--gold);color:var(--dark);font-weight:600;" ';
-            html += 'onclick="applySwap('+legId+','+idx+')">Apply Swap</button>';
+            html += '</div>';
+            html += '</div>';
+            html += '<button class="swap-apply-btn" onclick="event.stopPropagation();applySwap('+legId+','+idx+')">';
+            html += '<i class="bi bi-check2 me-1"></i>Apply</button>';
             html += '</div>';
 
-            sol.moves.forEach(function(move) {
+            html += '<div class="swap-moves">';
+            sol.moves.forEach(function(move, mi) {
                 const bc = bufferClass(move.buffer_minutes);
                 html += '<div class="swap-move">';
+                html += '<span class="swap-move-num" style="flex:0 0 18px;font-size:0.65rem;color:#aaa;font-weight:700;text-align:center;line-height:18px;">'+(mi+1)+'</span>';
                 if (move.from_driver) {
-                    html += '<i class="bi bi-arrow-right-circle me-1" style="color:var(--gold);"></i>';
-                    html += 'Give '+move.from_driver+'\'s <strong>'+move.pickup_time+'</strong> job to '+move.to_driver+' ';
+                    html += '<span class="swap-move-icon move-from" title="Reassign existing job"><i class="bi bi-arrow-left-right"></i></span>';
+                    html += '<div class="swap-move-body">';
+                    html += '<div class="swap-move-title"><strong>'+move.pickup_time+'</strong> job</div>';
+                    html += '<div class="swap-move-driver-arrow"><span class="from-name">'+move.from_driver+'</span> <i class="bi bi-arrow-right mx-1" style="color:#888;"></i> <span class="to-name">'+move.to_driver+'</span></div>';
+                    html += '</div>';
                 } else {
-                    html += '<i class="bi bi-plus-circle me-1" style="color:#2e7d32;"></i>';
-                    html += 'Assign <strong>'+move.pickup_time+'</strong> to '+move.to_driver+' ';
+                    html += '<span class="swap-move-icon move-assign" title="New assignment"><i class="bi bi-plus"></i></span>';
+                    html += '<div class="swap-move-body">';
+                    html += '<div class="swap-move-title">Assign <strong>'+move.pickup_time+'</strong></div>';
+                    html += '<div class="swap-move-driver-arrow"><i class="bi bi-arrow-right mx-1" style="color:#888;"></i> <span class="to-name">'+move.to_driver+'</span></div>';
+                    html += '</div>';
                 }
-                html += '<span class="'+bc+'">('+move.buffer_minutes+'min buffer)</span>';
+                html += '<span class="buffer-pill '+bc+'" title="Time gap to neighboring job"><i class="bi bi-stopwatch"></i>'+move.buffer_minutes+'m</span>';
                 html += '</div>';
             });
+            html += '</div>';
             html += '</div>';
         });
 
@@ -630,6 +791,42 @@
             alert('Request failed: ' + err.message);
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-down-left me-1"></i>Take Back'; }
         });
+    };
+
+    // ── Date navigation ────────────────────────────────────────
+    window.navigateDate = function(dayDelta) {
+        const input = document.getElementById('dateInput');
+        if (!input || !input.value) return;
+        const parts = input.value.split('-').map(Number);
+        const d = new Date(parts[0], parts[1]-1, parts[2]);
+        d.setDate(d.getDate() + dayDelta);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        window.location.href = '?date='+yyyy+'-'+mm+'-'+dd;
+    };
+    window.navigateToday = function() {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2,'0');
+        window.location.href = '?date='+yyyy+'-'+mm+'-'+dd;
+    };
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.altKey || e.ctrlKey || e.metaKey) return;
+        if (e.key === 'ArrowLeft')  { navigateDate(-1); }
+        else if (e.key === 'ArrowRight') { navigateDate(1); }
+        else if (e.key === 't' || e.key === 'T') { navigateToday(); }
+    });
+
+    // Mark the no-fit card whose swap solutions are currently shown.
+    const origFindSwaps = window.findSwaps;
+    window.findSwaps = function(legId) {
+        document.querySelectorAll('.nofit-card.is-active').forEach(function(c) { c.classList.remove('is-active'); });
+        const card = document.getElementById('nofit-card-'+legId);
+        if (card) card.classList.add('is-active');
+        origFindSwaps(legId);
     };
 
     // ── Init ───────────────────────────────────────────────────

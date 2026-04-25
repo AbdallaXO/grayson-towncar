@@ -1,261 +1,302 @@
 {% extends "dispatching/booking/base_booking.html" %}
 
 {% block step_content %}
-  <div class="alert alert-success">
-    <i class="fas fa-check-circle me-2"></i>
-    <strong>Almost Done!</strong> Please review all the details below and confirm to create the reservation.
+  <style>
+      .review-card {
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          background: #fff;
+          margin-bottom: 1.25rem;
+          overflow: hidden;
+      }
+      .review-card .head {
+          padding: .75rem 1rem;
+          background: linear-gradient(180deg, #f8fafc, #fff);
+          border-bottom: 1px solid #eef2f7;
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+      }
+      .review-card .head h5 {
+          margin: 0;
+          font-size: .95rem;
+          font-weight: 700;
+          color: #0f172a;
+      }
+      .review-card .body { padding: 1rem 1.15rem; }
+
+      .kv-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: .35rem 1rem;
+      }
+      @media (max-width: 575px) { .kv-grid { grid-template-columns: 1fr; } }
+      .kv {
+          display: flex; align-items: baseline; gap: .5rem;
+          font-size: .9rem;
+          padding: .25rem 0;
+      }
+      .kv .k { color: #64748b; font-weight: 500; min-width: 110px; }
+      .kv .v { color: #0f172a; font-weight: 600; }
+
+      .leg-block {
+          padding: .85rem 0;
+          border-bottom: 1px dashed #e2e8f0;
+      }
+      .leg-block:last-child { border-bottom: 0; }
+      .leg-block .leg-header {
+          display: flex; align-items: center; gap: .5rem;
+          margin-bottom: .5rem;
+      }
+      .leg-block .leg-header .num {
+          background: #eef2ff; color: #4f46e5;
+          width: 26px; height: 26px;
+          border-radius: 50%;
+          display: inline-flex; align-items: center; justify-content: center;
+          font-weight: 700; font-size: .8rem;
+      }
+      .leg-block .leg-title {
+          font-weight: 700; color: #0f172a; font-size: .95rem;
+      }
+      .override-chip {
+          background: #fef3c7;
+          color: #92400e;
+          padding: .15rem .45rem;
+          border-radius: 999px;
+          font-size: .68rem;
+          font-weight: 700;
+          letter-spacing: .03em;
+      }
+
+      .total-banner {
+          display: flex; justify-content: space-between; align-items: center;
+          background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+          border: 1px solid #bbf7d0;
+          border-radius: 12px;
+          padding: 1rem 1.25rem;
+          margin: .25rem 0 1.25rem;
+      }
+      .total-banner .lbl {
+          color: #065f46; font-weight: 600; font-size: .95rem;
+          text-transform: uppercase; letter-spacing: .04em;
+      }
+      .total-banner .val {
+          color: #065f46; font-weight: 800; font-size: 1.55rem;
+      }
+
+      .confirm-actions {
+          display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+          margin-top: 1.5rem;
+      }
+
+      .quick-after {
+          background: #f8fafc;
+          border: 1px dashed #cbd5e1;
+          border-radius: 12px;
+          padding: 1rem 1.15rem;
+      }
+      .quick-after h6 {
+          font-size: .8rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .05em;
+          color: #475569;
+          margin-bottom: .35rem;
+      }
+      .quick-after ul { margin: 0; padding-left: 1.1rem; color: #64748b; font-size: .85rem; }
+  </style>
+
+  <div class="booking-flash success is-persistent mb-3">
+    <span class="icon"><i class="fas fa-check"></i></span>
+    <div class="body"><strong>Almost done.</strong> Review the details below and confirm to create the reservation.</div>
   </div>
 
-  <!-- Customer Information -->
-  <div class="card mb-4">
-    <div class="card-header">
-      <h5 class="mb-0">
-        <i class="fas fa-user me-2"></i>
-        Customer Information
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6">
-          <p>
-            <strong>Name:</strong> {{ customer.get_full_name }}
-          </p>
-          <p>
-            <strong>Email:</strong> {{ customer.email }}
-          </p>
-        </div>
-        <div class="col-md-6">
-          <p>
-            <strong>Phone:</strong> {{ customer.phone_number }}
-          </p>
-          <p>
-            <strong>Zip Code:</strong> {{ customer.zipcode|default:"Not provided" }}
-          </p>
-        </div>
+  {# Total banner up top so it's the focal point #}
+  <div class="total-banner">
+    <div class="lbl">Total Price</div>
+    <div class="val">${{ pricing_data.total_price|default:"0.00" }}</div>
+  </div>
+
+  {# Customer #}
+  <div class="review-card">
+    <div class="head"><i class="fas fa-user text-primary"></i><h5>Customer</h5></div>
+    <div class="body">
+      <div class="kv-grid">
+        <div class="kv"><span class="k">Name</span><span class="v">{{ customer.get_full_name }}</span></div>
+        <div class="kv"><span class="k">Phone</span><span class="v">{{ customer.phone_number }}</span></div>
+        <div class="kv"><span class="k">Email</span><span class="v">{{ customer.email|default:"—" }}</span></div>
+        <div class="kv"><span class="k">Zip</span><span class="v">{{ customer.zipcode|default:"—" }}</span></div>
       </div>
     </div>
   </div>
 
-  <!-- Reservation Details -->
-  <div class="card mb-4">
-    <div class="card-header">
-      <h5 class="mb-0">
-        <i class="fas fa-car me-2"></i>
-        Reservation Details
-      </h5>
-    </div>
-    <div class="card-body">
-      <div class="row">
-        <div class="col-md-6">
-          <p>
-            <strong>Vehicle Type:</strong> {{ vehicle.vehicle_type|title }}
-          </p>
-          <p>
-            <strong>Passengers:</strong> {{ reservation_data.passenger_count }}
-          </p>
-          <p>
-            <strong>Luggage:</strong> {{ reservation_data.luggage_count }}
-          </p>
-          <p>
-            <strong>Car Seats:</strong>
+  {# Reservation #}
+  <div class="review-card">
+    <div class="head"><i class="fas fa-car text-primary"></i><h5>Reservation Details</h5></div>
+    <div class="body">
+      <div class="kv-grid">
+        <div class="kv"><span class="k">Vehicle</span><span class="v">{{ vehicle.vehicle_type|title }}</span></div>
+        <div class="kv"><span class="k">Passengers</span><span class="v">{{ reservation_data.passenger_count }}</span></div>
+        <div class="kv"><span class="k">Luggage</span><span class="v">{{ reservation_data.luggage_count }}</span></div>
+        <div class="kv">
+          <span class="k">Car Seats</span>
+          <span class="v">
             {% if reservation_data.need_carseats == 'True' %}
               {% with rf=reservation_data.rf_carseats|default:'0' ff=reservation_data.ff_carseats|default:'0' booster=reservation_data.booster_seats|default:'0' %}
                 {% if rf != '0' or ff != '0' or booster != '0' %}
-                  <br>
-                  {% if rf != '0' %}<span class="badge bg-info me-1">{{ rf }} Rear-Facing</span>{% endif %}
-                  {% if ff != '0' %}<span class="badge bg-info me-1">{{ ff }} Forward-Facing</span>{% endif %}
+                  {% if rf != '0' %}<span class="badge bg-info me-1">{{ rf }} RF</span>{% endif %}
+                  {% if ff != '0' %}<span class="badge bg-info me-1">{{ ff }} FF</span>{% endif %}
                   {% if booster != '0' %}<span class="badge bg-info me-1">{{ booster }} Booster{{ booster|pluralize }}</span>{% endif %}
-                {% else %}
-                  <span class="text-muted">None</span>
-                {% endif %}
+                {% else %}<span class="text-muted">None</span>{% endif %}
               {% endwith %}
-            {% else %}
-              <span class="text-muted">None</span>
-            {% endif %}
-          </p>
+            {% else %}<span class="text-muted">None</span>{% endif %}
+          </span>
         </div>
-        <div class="col-md-6">
-          <p>
-            <strong>Base Price:</strong> ${{ pricing_data.manual_base_price }}
-          </p>
-          {% if pricing_data.additional_charges != '0' %}
-            <p>
-              <strong>Additional Charges:</strong> ${{ pricing_data.additional_charges }}
-            </p>
-          {% endif %}
-          {% if pricing_data.gratuity_amount and pricing_data.gratuity_amount != '0' %}
-            <p>
-              <strong>Gratuity:</strong> ${{ pricing_data.gratuity_amount }}
-              {% if pricing_data.gratuity_option == '20' %}
-                <span class="badge bg-warning text-dark">20%</span>
-              {% else %}
-                <span class="badge bg-secondary">Custom</span>
-              {% endif %}
-            </p>
-          {% endif %}
-          <p class="fs-5">
-            <strong>Total Price:</strong>
-            <span class="text-success fw-bold">${{ pricing_data.total_price }}</span>
-          </p>
-          {% if reservation_data.store_stop == 'True' %}
-            <p>
-              <strong>Grocery Stop:</strong> <span class="badge bg-info">Yes</span>
-            </p>
-          {% endif %}
-        </div>
+        <div class="kv"><span class="k">Base Price</span><span class="v">${{ pricing_data.manual_base_price }}</span></div>
+        {% if pricing_data.additional_charges and pricing_data.additional_charges != '0' and pricing_data.additional_charges != '0.00' %}
+          <div class="kv"><span class="k">Additional</span><span class="v">${{ pricing_data.additional_charges }}</span></div>
+        {% endif %}
+        {% if pricing_data.gratuity_amount and pricing_data.gratuity_amount != '0' and pricing_data.gratuity_amount != '0.00' %}
+          <div class="kv">
+            <span class="k">Gratuity</span>
+            <span class="v">${{ pricing_data.gratuity_amount }}
+              {% if pricing_data.gratuity_option == '20' %}<span class="badge bg-warning text-dark ms-1">20%</span>
+              {% else %}<span class="badge bg-secondary ms-1">Custom</span>{% endif %}
+            </span>
+          </div>
+        {% endif %}
+        {% if reservation_data.store_stop == 'True' %}
+          <div class="kv"><span class="k">Grocery Stop</span><span class="v"><span class="badge bg-info">Yes</span></span></div>
+        {% endif %}
       </div>
 
       {% if reservation_data.special_requests %}
-        <hr>
-        <p>
-          <strong>Special Requests:</strong>
-        </p>
-        <div class="bg-light p-3 rounded">{{ reservation_data.special_requests|linebreaks }}</div>
+        <hr class="my-3">
+        <div class="kv" style="display:block;">
+          <div class="k mb-1">Special Requests</div>
+          <div class="v" style="font-weight:500;background:#f8fafc;border:1px solid #e2e8f0;padding:.6rem .8rem;border-radius:8px;">
+            {{ reservation_data.special_requests|linebreaks }}
+          </div>
+        </div>
       {% endif %}
 
       {% if pricing_data.private_notes %}
-        <hr>
-        <p>
-          <strong>Private Notes:</strong>
-        </p>
-        <div class="bg-warning bg-opacity-10 p-3 rounded border-start border-warning border-4">
-          {{ pricing_data.private_notes|linebreaks }}
+        <hr class="my-3">
+        <div class="kv" style="display:block;">
+          <div class="k mb-1">Private Notes</div>
+          <div class="v" style="font-weight:500;background:#fffbeb;border:1px solid #fde68a;padding:.6rem .8rem;border-radius:8px;border-left:3px solid #f59e0b;">
+            {{ pricing_data.private_notes|linebreaks }}
+          </div>
         </div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Trip Legs -->
-  <div class="card mb-4">
-    <div class="card-header">
-      <h5 class="mb-0">
-        <i class="fas fa-route me-2"></i>
-        Trip Details ({{ legs_data|length }} leg{{ legs_data|length|pluralize }})
-      </h5>
-    </div>
-    <div class="card-body">
+  {# Trip Legs #}
+  <div class="review-card">
+    <div class="head"><i class="fas fa-route text-primary"></i><h5>Trip Details ({{ legs_data|length }} leg{{ legs_data|length|pluralize }})</h5></div>
+    <div class="body">
       {% for leg_data in legs_data %}
-        <div class="{% if not forloop.last %}border-bottom pb-3 mb-3{% endif %}">
-
-
-          <div class="row">
-            <div class="col-md-6">
-              <p>
-                <strong>Date:</strong> {{ leg_data.pickup_date|date:"l F d, Y" }}
-              </p>
-              <p>
-                <strong>Time:</strong> {{ leg_data.pickup_time|time:"g:i A" }}
-              </p>
-              <p>
-                <strong>Pickup:</strong> {{ leg_data.pickup_location }}
-              </p>
-              <p>
-                <strong>Drop-off:</strong> {{ leg_data.dropoff_location }}
-              </p>
-            </div>
-            <div class="col-md-6">
-              {% if leg_data.flight_info and leg_data.flight_info.airline %}
-                <p>
-                  <strong>Flight Info:</strong>
-                </p>
-                <div class="bg-light p-2 rounded">
-                  <small>
-                    <i class="fas fa-plane me-1"></i>
-                    {% if leg_data.flight_info.airline_display_name %}
-                      {{ leg_data.flight_info.airline_display_name }}
-                    {% else %}
-                      {{ leg_data.flight_info.airline }}
-                    {% endif %}
-                    {% if leg_data.flight_info.flight_number %}
-                      {{ leg_data.flight_info.flight_number }}
-                    {% endif %}
-                    {% if leg_data.flight_info.flight_type %}
-                      <br>
-                      <span class="text-muted">{{ leg_data.flight_info.flight_type|title }}</span>
-                    {% endif %}
-                  </small>
-                </div>
-              {% endif %}
-
-              {% if leg_data.driver_pay_amount and leg_data.driver_pay_amount != '0' %}
-                <p>
-                  <strong>Driver Pay:</strong> ${{ leg_data.driver_pay_amount }}
-                </p>
+        {% with overrides=leg_data.overrides %}
+          <div class="leg-block">
+            <div class="leg-header">
+              <span class="num">{{ forloop.counter }}</span>
+              <span class="leg-title">Leg {{ forloop.counter }}</span>
+              {% if overrides and overrides.has_any %}
+                <span class="override-chip"><i class="fas fa-sliders-h me-1"></i>Overrides Active</span>
               {% endif %}
             </div>
+            <div class="kv-grid">
+              <div class="kv"><span class="k">Date</span><span class="v">{{ leg_data.pickup_date|date:"l F d, Y" }}</span></div>
+              <div class="kv"><span class="k">Time</span><span class="v">{{ leg_data.pickup_time|time:"g:i A" }}</span></div>
+              <div class="kv"><span class="k">Pickup</span><span class="v">{{ leg_data.pickup_location }}</span></div>
+              <div class="kv"><span class="k">Drop-off</span><span class="v">{{ leg_data.dropoff_location }}</span></div>
+            </div>
+
+            {% if leg_data.flight_info and leg_data.flight_info.airline %}
+              <div class="mt-2 small" style="background:#f0f9ff;border:1px solid #bae6fd;padding:.5rem .7rem;border-radius:8px;">
+                <i class="fas fa-plane me-1 text-info"></i>
+                <strong>{{ leg_data.flight_info.airline_display_name|default:leg_data.flight_info.airline }}</strong>
+                {% if leg_data.flight_info.flight_number %} {{ leg_data.flight_info.flight_number }}{% endif %}
+                {% if leg_data.flight_info.flight_type %}
+                  <span class="text-muted">— {{ leg_data.flight_info.flight_type|title }}</span>
+                {% endif %}
+              </div>
+            {% endif %}
+
+            {% if overrides and overrides.has_any %}
+              <div class="mt-2 small" style="background:#fffdf5;border:1px solid #e6d6a3;padding:.5rem .7rem;border-radius:8px;">
+                <strong style="color:#7c5e16;"><i class="fas fa-sliders-h me-1"></i>Per-leg overrides:</strong>
+                {% if overrides.vehicle_display %}<span class="ms-2">Vehicle: <strong>{{ overrides.vehicle_display }}</strong></span>{% endif %}
+                {% if overrides.passenger_count %}<span class="ms-2">Passengers: <strong>{{ overrides.passenger_count }}</strong></span>{% endif %}
+                {% if overrides.luggage_count %}<span class="ms-2">Suitcases: <strong>{{ overrides.luggage_count }}</strong></span>{% endif %}
+                {% if overrides.luggage_type %}<span class="ms-2">Luggage: <strong>{{ overrides.luggage_type|title }}</strong></span>{% endif %}
+                {% if overrides.need_carseats %}<span class="ms-2">Car seats: <strong>{{ overrides.need_carseats|title }}</strong></span>{% endif %}
+                {% if overrides.rf_carseats %}<span class="ms-2">RF: <strong>{{ overrides.rf_carseats }}</strong></span>{% endif %}
+                {% if overrides.ff_carseats %}<span class="ms-2">FF: <strong>{{ overrides.ff_carseats }}</strong></span>{% endif %}
+                {% if overrides.booster_seats %}<span class="ms-2">Boosters: <strong>{{ overrides.booster_seats }}</strong></span>{% endif %}
+              </div>
+            {% endif %}
+
+            {% if leg_data.private_notes %}
+              <div class="mt-2 small text-muted" style="background:#f8fafc;padding:.5rem .7rem;border-radius:8px;">
+                <strong>Trip Notes:</strong> {{ leg_data.private_notes|linebreaks }}
+              </div>
+            {% endif %}
           </div>
-
-          {% if leg_data.private_notes %}
-            <p>
-              <strong>Trip Notes:</strong>
-            </p>
-            <div class="bg-light p-2 rounded small">{{ leg_data.private_notes|linebreaks }}</div>
-          {% endif %}
-        </div>
+        {% endwith %}
       {% endfor %}
     </div>
   </div>
 
-  <!-- Confirmation Form -->
-  <form method="post">
+  {# Confirmation form #}
+  <form method="post" id="confirmReservationForm">
     {% csrf_token %}
 
-    <div class="alert alert-warning">
-      <i class="fas fa-exclamation-triangle me-2"></i>
-      <strong>Important:</strong> Once confirmed, this reservation will be created in the system and the customer will be notified. Please ensure all details are correct.
+    <div class="booking-flash warning is-persistent mb-3">
+      <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+      <div class="body">
+        <strong>Heads up.</strong>
+        The customer will <strong>not</strong> receive an email confirmation until payment is finalized.
+        Please review all the details carefully before finalizing.
+      </div>
     </div>
 
-    <div class="d-flex justify-content-between mt-4">
-      <button type="submit" name="back" class="btn btn-secondary">
-        <i class="fas fa-arrow-left me-2"></i>
-        Back to Pricing
+    <div class="confirm-actions">
+      <button type="submit" name="back" class="btn btn-booking-secondary">
+        <i class="fas fa-arrow-left me-2"></i> Back to Pricing
       </button>
-      <button type="submit" name="confirm" class="btn btn-success btn-lg">
-        <i class="fas fa-check me-2"></i>
-        Create Reservation
+      <button type="submit" name="confirm" id="confirmCreateBtn" class="btn btn-booking-primary" style="background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 14px rgba(16,185,129,.3);">
+        <i class="fas fa-check me-2"></i> Create Reservation
       </button>
     </div>
   </form>
 
-  <!-- Quick Actions -->
-  <div class="card mt-4 bg-light">
-    <div class="card-body">
-      <h6 class="card-title">
-        <i class="fas fa-lightning-bolt me-2"></i>
-        Quick Actions After Creation
-      </h6>
-      <p class="card-text small text-muted">After creating the reservation, you'll be able to:</p>
-      <ul class="small text-muted">
-        <li>Assign drivers to specific legs</li>
-        <li>Process payment or save customer's card</li>
-        <li>Send confirmation email to customer</li>
-        <li>Update trip details if needed</li>
-        <li>Add private dispatcher notes</li>
-      </ul>
-    </div>
+  <div class="quick-after mt-4">
+    <h6><i class="fas fa-bolt me-1"></i> Quick actions after creation</h6>
+    <ul>
+      <li>If the trip is coming up soon and the schedule is already made, make sure to assign a driver.</li>
+      <li>Update the trip details if you spot any errors while reviewing.</li>
+      <li>Finalize the payment — the customer will get an email confirmation once payment goes through.</li>
+    </ul>
   </div>
 
   <script>
       document.addEventListener('DOMContentLoaded', function() {
-          // Confirm before creating reservation
-          const confirmBtn = document.querySelector('button[name="confirm"]');
+          const confirmBtn = document.getElementById('confirmCreateBtn');
+          const customerName = '{{ customer.get_full_name|escapejs }}';
+          const totalPriceStr = '{{ pricing_data.total_price|default:"0.00" }}';
+          const legsCount = {{ legs_data|length }};
+
           confirmBtn.addEventListener('click', function(e) {
-              const customerName = '{{ customer.get_full_name }}';
-              const basePrice = parseFloat('{{ reservation_data.manual_base_price }}') || 0;
-              const additionalCharges = parseFloat('{{ reservation_data.additional_charges }}') || 0;
-              const totalPrice = '$' + (basePrice + additionalCharges).toFixed(2);
-
-              const confirmed = confirm(
-                  `Are you sure you want to create this reservation?\n\n` +
-                  `Customer: ${customerName}\n` +
-                  `Total Price: ${totalPrice}\n` +
-                  `Legs: {{ legs_data|length }}\n\n` +
-                  `This action cannot be undone.`
+              const ok = confirm(
+                  'Are you sure you want to create this reservation?\n\n' +
+                  'Customer: ' + customerName + '\n' +
+                  'Total Price: $' + totalPriceStr + '\n' +
+                  'Legs: ' + legsCount + '\n\n' +
+                  'This action cannot be undone.'
               );
-
-              if (!confirmed) {
-                  e.preventDefault();
-              }
+              if (!ok) e.preventDefault();
           });
       });
   </script>

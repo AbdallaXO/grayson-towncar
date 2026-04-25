@@ -198,6 +198,18 @@
                 </td>
               </tr>
 
+              {# ── Per-leg overrides — labeled block, only when this leg differs from the reservation default ── #}
+              {% if leg.has_overrides %}
+              <tr>
+                <td style="padding-bottom:16px;">
+                  <p style="margin:0 0 4px;font-family:'DM Sans',Arial,sans-serif;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#9AAABB;">For This Leg</p>
+                  <p style="margin:0;font-family:'DM Sans',Arial,sans-serif;font-size:15px;font-weight:500;color:#1A1A2E;line-height:1.55;">
+                    {% if leg.vehicle_id %}{{ leg.effective_vehicle.get_vehicle_type_display }}{% endif %}{% if leg.passenger_count is not None %}{% if leg.vehicle_id %} · {% endif %}{{ leg.effective_passenger_count }} passenger{{ leg.effective_passenger_count|pluralize }}{% endif %}{% if leg.luggage_count is not None %}{% if leg.vehicle_id or leg.passenger_count is not None %} · {% endif %}{{ leg.effective_luggage_count }} bag{{ leg.effective_luggage_count|pluralize }}{% endif %}{% if leg.luggage_type and leg.luggage_count is None %}{% if leg.vehicle_id or leg.passenger_count is not None %} · {% endif %}{{ leg.effective_luggage_type|title }}{% endif %}{% if leg.need_carseats is not None or leg.rf_carseats is not None or leg.ff_carseats is not None or leg.booster_seats is not None %}{% if leg.vehicle_id or leg.passenger_count is not None or leg.luggage_count is not None or leg.luggage_type %} · {% endif %}{% if leg.effective_need_carseats %}{% if leg.effective_rf_carseats %}{{ leg.effective_rf_carseats }} RF{% endif %}{% if leg.effective_ff_carseats %}{% if leg.effective_rf_carseats %}/{% endif %}{{ leg.effective_ff_carseats }} FF{% endif %}{% if leg.effective_booster_seats %}{% if leg.effective_rf_carseats or leg.effective_ff_carseats %}/{% endif %}{{ leg.effective_booster_seats }} booster{% endif %} car seat{% if leg.effective_rf_carseats|add:leg.effective_ff_carseats|add:leg.effective_booster_seats != 1 %}s{% endif %}{% else %}no car seats{% endif %}{% endif %}
+                  </p>
+                </td>
+              </tr>
+              {% endif %}
+
               <!-- Timeline: pickup → dropoff locations -->
               <tr>
                 <td>
@@ -236,6 +248,7 @@
                   </table>
                 </td>
               </tr>
+
               <tr><td height="10"></td></tr>
             </table>
 

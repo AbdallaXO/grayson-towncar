@@ -466,6 +466,98 @@
                 </div>
               </div>
 
+              <!-- Per-leg Trip Detail Overrides (optional, collapsed by default) -->
+              <div class="col-12">
+                <button class="btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-between"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#newLegOverrides"
+                        aria-expanded="false"
+                        aria-controls="newLegOverrides">
+                  <span><i class="bi bi-sliders me-2"></i>Override trip details for this leg (optional)</span>
+                  <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="collapse mt-2" id="newLegOverrides">
+                  <div class="card" style="border-color:#e6d6a3; background:#fffdf5;">
+                    <div class="card-body p-3">
+                      <div class="small text-muted mb-3 d-flex align-items-center">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Leave any field blank to inherit the reservation's value.
+                      </div>
+
+                      <!-- Vehicle -->
+                      <div class="mb-3">
+                        <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Vehicle</label>
+                        <select class="form-select form-select-sm" name="vehicle">
+                          <option value="">Use reservation default — {{ reservation.vehicle.get_vehicle_type_display|default:"—" }}</option>
+                          {% for v in vehicles %}
+                            <option value="{{ v.id }}">{{ v.get_vehicle_type_display }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+
+                      <!-- Passengers & Luggage -->
+                      <div class="row g-3 mb-3">
+                        <div class="col-sm-4">
+                          <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Passengers</label>
+                          <input type="number" min="0" class="form-control form-control-sm"
+                                 name="passenger_count" placeholder="{{ reservation.passenger_count }}">
+                          <div class="form-text small">Default: {{ reservation.passenger_count }}</div>
+                        </div>
+                        <div class="col-sm-4">
+                          <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Suitcases</label>
+                          <input type="number" min="0" class="form-control form-control-sm"
+                                 name="luggage_count" placeholder="{{ reservation.luggage_count }}">
+                          <div class="form-text small">Default: {{ reservation.luggage_count }}</div>
+                        </div>
+                        <div class="col-sm-4">
+                          <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Luggage Type</label>
+                          <select class="form-select form-select-sm" name="luggage_type">
+                            <option value="" selected>Use default</option>
+                            <option value="carry_on">Carry-On</option>
+                            <option value="checked">Checked</option>
+                          </select>
+                          <div class="form-text small">Default: {{ reservation.get_luggage_type_display }}</div>
+                        </div>
+                      </div>
+
+                      <!-- Car Seats -->
+                      <div class="pt-3" style="border-top:1px solid #efe4c0;">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                          <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.06em;">
+                            <i class="bi bi-person-arms-up me-1"></i>Car Seats
+                          </span>
+                          <div style="min-width:220px;">
+                            <select class="form-select form-select-sm" name="need_carseats">
+                              <option value="" selected>Use default ({% if reservation.need_carseats %}Yes{% else %}No{% endif %})</option>
+                              <option value="true">Yes, needed</option>
+                              <option value="false">Not needed</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="row g-2">
+                          <div class="col-sm-4">
+                            <label class="form-label small text-muted mb-1">Rear-Facing</label>
+                            <input type="number" min="0" class="form-control form-control-sm"
+                                   name="rf_carseats" placeholder="{{ reservation.rf_carseats|default:0 }}">
+                          </div>
+                          <div class="col-sm-4">
+                            <label class="form-label small text-muted mb-1">Forward-Facing</label>
+                            <input type="number" min="0" class="form-control form-control-sm"
+                                   name="ff_carseats" placeholder="{{ reservation.ff_carseats|default:0 }}">
+                          </div>
+                          <div class="col-sm-4">
+                            <label class="form-label small text-muted mb-1">Boosters</label>
+                            <input type="number" min="0" class="form-control form-control-sm"
+                                   name="booster_seats" placeholder="{{ reservation.booster_seats|default:0 }}">
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="col-12">
                 <div class="btn-group" role="group">
                   <button type="submit" class="btn btn-success">
@@ -591,7 +683,10 @@
 
                 <dt class="col-sm-4">Passengers</dt>
                 <dd class="col-sm-8 fw-semibold">
-                  {{ reservation.passenger_count }} Passengers
+                  {{ leg.effective_passenger_count }} Passengers
+                  {% if leg.passenger_count is not None %}
+                    <span class="badge bg-warning text-dark ms-1">Override</span>
+                  {% endif %}
                   {% if reservation.display_carseats %}
                     <br>
                     {{ reservation.display_carseats }}
@@ -600,10 +695,17 @@
 
                 <dt class="col-sm-4">Luggage</dt>
                 <dd class="col-sm-8 fw-semibold">
-                  {{ reservation.luggage_count }} Suitcases
-                  <span class="badge {% if reservation.luggage_type == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2">
-                    {{ reservation.get_luggage_type_display }}
-                  </span>
+                  {{ leg.effective_luggage_count }} Suitcases
+                  {% if leg.luggage_count is not None %}
+                    <span class="badge bg-warning text-dark ms-1">Override</span>
+                  {% endif %}
+                  {% with lt=leg.effective_luggage_type %}
+                    {% if lt %}
+                      <span class="badge {% if lt == 'carry_on' %}bg-info{% else %}bg-warning text-dark{% endif %} ms-2">
+                        {% if lt == 'carry_on' %}Carry-On{% else %}Checked{% endif %}
+                      </span>
+                    {% endif %}
+                  {% endwith %}
                 </dd>
 
                 <!-- Store Stop Information - Only show on first leg -->
@@ -625,7 +727,10 @@
 
                 <dt class="col-sm-4">Vehicle</dt>
                 <dd class="col-sm-8 fw-semibold">
-                  {{ reservation.vehicle.vehicle_type|title }}
+                  {{ leg.effective_vehicle_type|title|default:"—" }}
+                  {% if leg.vehicle_id %}
+                    <span class="badge bg-warning text-dark ms-1" title="This leg uses a vehicle different from the reservation default ({{ reservation.vehicle.vehicle_type|title }}).">Override</span>
+                  {% endif %}
                 </dd>
 
                 {% if leg.flight_information %}
@@ -802,6 +907,111 @@
                                      name="ship_name"
                                      value="{{ leg.cruise_information.ship_name|default:'' }}"
                                      placeholder="e.g., Disney Wish">
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Per-leg Trip Detail Overrides -->
+                    <div class="col-12">
+                      <button class="btn btn-sm btn-outline-secondary w-100 d-flex align-items-center justify-content-between"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target="#overridesEdit_{{ leg.id }}"
+                              aria-expanded="{% if leg.has_overrides %}true{% else %}false{% endif %}"
+                              aria-controls="overridesEdit_{{ leg.id }}">
+                        <span><i class="bi bi-sliders me-2"></i>Override trip details for this leg</span>
+                        <span class="d-flex align-items-center gap-2">
+                          {% if leg.has_overrides %}<span class="badge bg-warning text-dark">Active</span>{% endif %}
+                          <i class="bi bi-chevron-down"></i>
+                        </span>
+                      </button>
+                      <div class="collapse {% if leg.has_overrides %}show{% endif %} mt-2" id="overridesEdit_{{ leg.id }}">
+                        <div class="card" style="border-color:#e6d6a3; background:#fffdf5;">
+                          <div class="card-body p-3">
+                            <div class="small text-muted mb-3 d-flex align-items-center">
+                              <i class="bi bi-info-circle me-1"></i>
+                              Leave any field blank to inherit the reservation's value.
+                            </div>
+
+                            <!-- Vehicle -->
+                            <div class="mb-3">
+                              <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Vehicle</label>
+                              <select class="form-select form-select-sm" name="vehicle">
+                                <option value="">Use reservation default — {{ reservation.vehicle.get_vehicle_type_display|default:"—" }}</option>
+                                {% for v in vehicles %}
+                                  <option value="{{ v.id }}" {% if leg.vehicle_id == v.id %}selected{% endif %}>{{ v.get_vehicle_type_display }}</option>
+                                {% endfor %}
+                              </select>
+                            </div>
+
+                            <!-- Passengers & Luggage -->
+                            <div class="row g-3 mb-3">
+                              <div class="col-sm-4">
+                                <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Passengers</label>
+                                <input type="number" min="0" class="form-control form-control-sm"
+                                       name="passenger_count"
+                                       value="{% if leg.passenger_count is not None %}{{ leg.passenger_count }}{% endif %}"
+                                       placeholder="{{ reservation.passenger_count }}">
+                                <div class="form-text small">Default: {{ reservation.passenger_count }}</div>
+                              </div>
+                              <div class="col-sm-4">
+                                <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Suitcases</label>
+                                <input type="number" min="0" class="form-control form-control-sm"
+                                       name="luggage_count"
+                                       value="{% if leg.luggage_count is not None %}{{ leg.luggage_count }}{% endif %}"
+                                       placeholder="{{ reservation.luggage_count }}">
+                                <div class="form-text small">Default: {{ reservation.luggage_count }}</div>
+                              </div>
+                              <div class="col-sm-4">
+                                <label class="form-label fw-semibold small text-uppercase text-muted mb-1" style="letter-spacing:.06em;">Luggage Type</label>
+                                <select class="form-select form-select-sm" name="luggage_type">
+                                  <option value="" {% if not leg.luggage_type %}selected{% endif %}>Use default</option>
+                                  <option value="carry_on" {% if leg.luggage_type == 'carry_on' %}selected{% endif %}>Carry-On</option>
+                                  <option value="checked" {% if leg.luggage_type == 'checked' %}selected{% endif %}>Checked</option>
+                                </select>
+                                <div class="form-text small">Default: {{ reservation.get_luggage_type_display }}</div>
+                              </div>
+                            </div>
+
+                            <!-- Car Seats -->
+                            <div class="pt-3" style="border-top:1px solid #efe4c0;">
+                              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <span class="fw-semibold small text-uppercase text-muted" style="letter-spacing:.06em;">
+                                  <i class="bi bi-person-arms-up me-1"></i>Car Seats
+                                </span>
+                                <div style="min-width:220px;">
+                                  <select class="form-select form-select-sm" name="need_carseats">
+                                    <option value="" {% if leg.need_carseats is None %}selected{% endif %}>Use default ({% if reservation.need_carseats %}Yes{% else %}No{% endif %})</option>
+                                    <option value="true" {% if leg.need_carseats is True %}selected{% endif %}>Yes, needed</option>
+                                    <option value="false" {% if leg.need_carseats is False %}selected{% endif %}>Not needed</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div class="row g-2">
+                                <div class="col-sm-4">
+                                  <label class="form-label small text-muted mb-1">Rear-Facing</label>
+                                  <input type="number" min="0" class="form-control form-control-sm"
+                                         name="rf_carseats"
+                                         value="{% if leg.rf_carseats is not None %}{{ leg.rf_carseats }}{% endif %}"
+                                         placeholder="{{ reservation.rf_carseats|default:0 }}">
+                                </div>
+                                <div class="col-sm-4">
+                                  <label class="form-label small text-muted mb-1">Forward-Facing</label>
+                                  <input type="number" min="0" class="form-control form-control-sm"
+                                         name="ff_carseats"
+                                         value="{% if leg.ff_carseats is not None %}{{ leg.ff_carseats }}{% endif %}"
+                                         placeholder="{{ reservation.ff_carseats|default:0 }}">
+                                </div>
+                                <div class="col-sm-4">
+                                  <label class="form-label small text-muted mb-1">Boosters</label>
+                                  <input type="number" min="0" class="form-control form-control-sm"
+                                         name="booster_seats"
+                                         value="{% if leg.booster_seats is not None %}{{ leg.booster_seats }}{% endif %}"
+                                         placeholder="{{ reservation.booster_seats|default:0 }}">
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>

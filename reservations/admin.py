@@ -90,11 +90,8 @@ class LegResource(resources.ModelResource):
         return obj.reservation.id if obj.reservation else ""
 
     def dehydrate_vehicle(self, obj):
-        return (
-            str(obj.reservation.vehicle)
-            if obj.reservation and obj.reservation.vehicle
-            else ""
-        )
+        v = obj.effective_vehicle
+        return str(v) if v else ""
 
     class Meta:
         model = Leg
@@ -158,6 +155,21 @@ class LegInline(admin.StackedInline):
         (
             "Notes",
             {"fields": ("private_notes", "driver_notes"), "classes": ("collapse",)},
+        ),
+        (
+            "Trip Detail Overrides (leave blank to use reservation defaults)",
+            {
+                "classes": ("collapse",),
+                "fields": (
+                    "vehicle",
+                    "passenger_count",
+                    "luggage_count",
+                    "need_carseats",
+                    "rf_carseats",
+                    "ff_carseats",
+                    "booster_seats",
+                ),
+            },
         ),
     )
     classes = ("wide",)
@@ -1334,7 +1346,7 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
     list_editable = ("driver", "driver_base_pay", "driver_gratuity", "driver_additional", "driver_pay_amount", "payment_status")
     list_per_page = 50
     list_select_related = (
-        "reservation", "reservation__customer", "reservation__vehicle",
+        "reservation", "reservation__customer", "reservation__vehicle", "vehicle",
         "driver", "driver__profile",
         "flight_information", "cruise_information",
     )
@@ -1360,7 +1372,7 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
         return qs.select_related(
             "reservation",
             "reservation__customer",
-            "reservation__vehicle",
+            "reservation__vehicle", "vehicle",
             "driver",
             "driver__profile",
             "flight_information",
@@ -1444,8 +1456,12 @@ class LegAdmin(SimpleHistoryAdmin, ImportExportModelAdmin):
 
     @admin.display(description="Vehicle")
     def vehicle_display(self, obj):
-        if obj.reservation and obj.reservation.vehicle:
-            return obj.reservation.vehicle.get_vehicle_type_display()
+        v = obj.effective_vehicle
+        if v:
+            label = v.get_vehicle_type_display()
+            if obj.vehicle_id:
+                return format_html('<span title="Leg-level override">{} *</span>', label)
+            return label
         return "-"
 
     @admin.display(description="Driver")

@@ -179,6 +179,20 @@
       .timeline-slot[draggable="true"] { cursor: grab; }
       .timeline-slot[draggable="true"]:active { cursor: grabbing; }
       .timeline-slot.dnd-dragging { opacity: 0.35; outline: 2px dashed #C9A227; outline-offset: -2px; }
+      /* Unpaid reservation: amber dashed outline + "$" pill so dispatchers spot bookings
+         that haven't been collected on yet (we usually don't assign drivers to those). */
+      .timeline-slot.unpaid {
+          outline: 2px dashed #ffb300;
+          outline-offset: -2px;
+          box-shadow: 0 0 0 1px rgba(255, 179, 0, 0.4), 0 1px 3px rgba(0,0,0,0.2);
+      }
+      .tl-unpaid-flag {
+          display: inline-flex; align-items: center; justify-content: center;
+          background: #ffb300; color: #3d2900; font-weight: 800;
+          font-size: 0.5rem; line-height: 1; padding: 2px 4px;
+          border-radius: 3px; margin-left: 4px; letter-spacing: 0.04em;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+      }
       .driver-timeline-row.dnd-over { background: rgba(201,162,39,0.08); }
       .driver-timeline-row.dnd-feasible { box-shadow: inset 4px 0 0 #2e7d32; background: rgba(46,125,50,0.06); }
       .driver-timeline-row.dnd-infeasible { box-shadow: inset 4px 0 0 #dc3545; background: rgba(220,53,69,0.06); }
@@ -270,11 +284,11 @@
                 </div>
                 <div class="timeline-bar" style="height:{% if unassigned_timeline_slots %}{{ unassigned_lane_height }}{% else %}36{% endif %}px;">
                   {% for uslot in unassigned_timeline_slots %}
-                    <div class="timeline-slot {{ uslot.trip_type }}" data-tl-popup
+                    <div class="timeline-slot {{ uslot.trip_type }}{% if not uslot.is_paid %} unpaid{% endif %}" data-tl-popup
                          {% if uslot.status != 'completed' and uslot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ uslot.leg_id }}"
                          data-driver-id="unassigned"
-                         style="left:{{ uslot.position_pct }}%; width:{{ uslot.width_pct }}%; top:{{ uslot.lane_top }}px; border:1px dashed rgba(255,255,255,0.35);"
+                         style="left:{{ uslot.position_pct }}%; width:{{ uslot.width_pct }}%; top:{{ uslot.lane_top }}px;{% if uslot.is_paid %} border:1px dashed rgba(255,255,255,0.35);{% endif %}"
                          data-trip="{{ uslot.trip_type }}"
                          data-time="{{ uslot.pickup_display }}"
                          data-cleared="{{ uslot.end_time_display }}"
@@ -286,8 +300,13 @@
                          data-status-time="{{ uslot.status_time }}"
                          data-status-ago="{{ uslot.status_ago }}"
                          data-flight="{{ uslot.flight_info|default:'' }}"
-                         data-vehicle="{{ uslot.vehicle_type|default:'' }}">
-                      <span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-vehicle="{{ uslot.vehicle_type|default:'' }}"
+                         data-paid="{{ uslot.is_paid|yesno:'1,0' }}"
+                         data-pax="{{ uslot.passengers }}"
+                         data-luggage="{{ uslot.luggage }}"
+                         data-luggage-type="{{ uslot.luggage_type }}"
+                         data-carseats="{{ uslot.carseats_short }}">
+                      <span class="tl-time-text">{{ uslot.pickup_display }}</span>{% if uslot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ uslot.vehicle_abbr }}</span>{% endif %}{% if not uslot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if uslot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif uslot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif uslot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif uslot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif uslot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif uslot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ uslot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -339,7 +358,7 @@
                 </div>
                 <div class="timeline-bar">
                   {% for slot in data.schedule.slots %}
-                    <div class="timeline-slot {{ slot.trip_type }}" data-tl-popup
+                    <div class="timeline-slot {{ slot.trip_type }}{% if not slot.is_paid %} unpaid{% endif %}" data-tl-popup
                          {% if slot.status != 'completed' and slot.status != 'cancelled' %}draggable="true"{% endif %}
                          data-leg-id="{{ slot.leg_id }}"
                          data-driver-id="{{ data.driver.id }}"
@@ -355,8 +374,13 @@
                          data-status-time="{{ slot.status_time }}"
                          data-status-ago="{{ slot.status_ago }}"
                          data-flight="{{ slot.flight_info|default:'' }}"
-                         data-vehicle="{{ slot.vehicle_type|default:'' }}">
-                      <span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
+                         data-vehicle="{{ slot.vehicle_type|default:'' }}"
+                         data-paid="{{ slot.is_paid|yesno:'1,0' }}"
+                         data-pax="{{ slot.passengers }}"
+                         data-luggage="{{ slot.luggage }}"
+                         data-luggage-type="{{ slot.luggage_type }}"
+                         data-carseats="{{ slot.carseats_short }}">
+                      <span class="tl-time-text">{{ slot.pickup_time|time:"g:i" }}</span>{% if slot.vehicle_abbr %}<span class="tl-vehicle-badge">{{ slot.vehicle_abbr }}</span>{% endif %}{% if not slot.is_paid %}<span class="tl-unpaid-flag" title="Unpaid">$</span>{% endif %}{% if slot.status == 'picked-up' %}<span class="tl-status-badge stb-picked-up">PU</span>{% elif slot.status == 'on-location' %}<span class="tl-status-badge stb-on-location">OL</span>{% elif slot.status == 'on-the-way' %}<span class="tl-status-badge stb-on-the-way">OTW</span>{% elif slot.status == 'confirmed' %}<span class="tl-status-badge stb-confirmed">C</span>{% elif slot.status == 'completed' %}<span class="tl-status-badge stb-completed">&#10003;</span>{% elif slot.status == 'cancelled' %}<span class="tl-status-badge stb-cancelled">X</span>{% endif %}
                       <span class="tl-status-strip st-{{ slot.status }}"></span>
                     </div>
                   {% endfor %}
@@ -379,6 +403,8 @@
           <small><span style="display:inline-block;width:10px;height:5px;background:#40c4ff;border-radius:1px;vertical-align:middle;"></span> <span class="tl-status-badge stb-confirmed" style="font-size:0.5rem;">C</span> Confirmed</small>
           <small class="text-muted">|</small>
           <small class="text-muted" title="V14=Van 14 Pax, VAN=Van, SUV, MV=Mini Van, TC=Town Car">V14 / VAN / SUV / MV / TC</small>
+          <small class="text-muted">|</small>
+          <small><span class="tl-unpaid-flag" style="font-size:0.5rem;">$</span> Unpaid reservation</small>
           <small class="text-muted">|</small>
           <small class="text-muted"><i class="bi bi-grip-vertical"></i> Drag jobs between drivers</small>
         </div>
@@ -460,6 +486,13 @@
           html += '<div class="tl-popup-row"><span class="tl-label">Vehicle</span><span class="tl-value">'+(vl[el.dataset.vehicle]||el.dataset.vehicle)+'</span></div>';
         }
         if (el.dataset.customer) html += '<div class="tl-popup-row"><span class="tl-label">Guest</span><span class="tl-value">'+el.dataset.customer+'</span></div>';
+        if (el.dataset.pax) html += '<div class="tl-popup-row"><span class="tl-label">Passengers</span><span class="tl-value">'+el.dataset.pax+'</span></div>';
+        if (el.dataset.luggage && el.dataset.luggage !== '0') {
+          const luggageLabels = {carry_on:'carry-on', checked:'checked', mixed:'mixed'};
+          const lt = luggageLabels[el.dataset.luggageType] || '';
+          html += '<div class="tl-popup-row"><span class="tl-label">Suitcases</span><span class="tl-value">'+el.dataset.luggage+(lt ? ' ('+lt+')' : '')+'</span></div>';
+        }
+        if (el.dataset.carseats) html += '<div class="tl-popup-row"><span class="tl-label">Car seats</span><span class="tl-value">'+el.dataset.carseats+'</span></div>';
         if (el.dataset.flight) html += '<div class="tl-popup-row"><span class="tl-label">Flight</span><span class="tl-value">'+el.dataset.flight+'</span></div>';
         if (el.dataset.statusLabel) {
           let statusHtml = '<span style="font-weight:600;">'+el.dataset.statusLabel+'</span>';
@@ -470,6 +503,9 @@
           html += '<div class="tl-popup-row"><span class="tl-label">Status</span><span class="tl-value" style="color:'+sc+';">'+statusHtml+'</span></div>';
         }
         html += '<div class="tl-popup-row"><span class="tl-label">Clearing</span><span class="tl-value">~'+(el.dataset.cleared||'')+'</span></div>';
+        if (el.dataset.paid === '0') {
+          html += '<div class="tl-popup-row"><span class="tl-label">Payment</span><span class="tl-value" style="color:#b76e00;font-weight:700;">Unpaid</span></div>';
+        }
         html += '</div>';
         return html;
       }

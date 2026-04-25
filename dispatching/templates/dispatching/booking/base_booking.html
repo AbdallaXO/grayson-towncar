@@ -6,259 +6,455 @@
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <style>
-      .booking-header {
-          background: #2c3e50;
-          color: white;
-          padding: 2rem 0;
-          margin-bottom: 2rem;
+      :root {
+          --booking-primary: #2563eb;
+          --booking-primary-dark: #1d4ed8;
+          --booking-accent: #1d4ed8;
+          --booking-success: #10b981;
+          --booking-text: #0f172a;
+          --booking-muted: #64748b;
+          --booking-border: #e2e8f0;
+          --booking-bg: #f8fafc;
+          --booking-card-shadow: 0 1px 3px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.04);
       }
 
-      .step-indicator {
-          display: flex;
-          justify-content: center;
-          margin-bottom: 2rem;
+      .booking-shell {
+          background: var(--booking-bg);
+          padding: 1.75rem 0 4rem;
+          min-height: calc(100vh - 80px);
       }
 
-      .step {
+      .booking-page-title {
+          font-size: 1.05rem;
+          font-weight: 600;
+          color: var(--booking-muted);
+          letter-spacing: .04em;
+          text-transform: uppercase;
+          margin-bottom: .25rem;
+      }
+      .booking-page-title h1 {
+          font-size: 1.75rem;
+          color: var(--booking-text);
+          font-weight: 700;
+          letter-spacing: -.01em;
+          margin: 0;
+          text-transform: none;
+      }
+
+      /* Step indicator — clean numbered nodes */
+      .step-rail {
           display: flex;
           align-items: center;
-          margin: 0 1rem;
+          justify-content: space-between;
+          gap: .25rem;
+          margin: 1.25rem 0 .75rem;
+          flex-wrap: nowrap;
+          overflow-x: auto;
       }
-
-      .step-number {
-          width: 40px;
-          height: 40px;
+      .step-node {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          flex: 0 0 auto;
+          min-width: 0;
+          gap: .35rem;
+      }
+      .step-node .step-num {
+          width: 34px; height: 34px;
           border-radius: 50%;
-          display: flex;
+          display: inline-flex;
           align-items: center;
           justify-content: center;
-          font-weight: bold;
-          margin-right: 0.5rem;
+          font-weight: 600;
+          font-size: .9rem;
+          background: #fff;
+          color: var(--booking-muted);
+          border: 2px solid var(--booking-border);
+          transition: all .15s ease;
       }
-
-      .step.active .step-number {
-          background-color: #28a745;
-          color: white;
+      .step-node .step-label {
+          font-size: .72rem;
+          color: var(--booking-muted);
+          font-weight: 500;
+          letter-spacing: .02em;
+          white-space: nowrap;
       }
-
-      .step.completed .step-number {
-          background-color: #6c757d;
-          color: white;
+      .step-node.is-active .step-num {
+          background: var(--booking-primary);
+          border-color: var(--booking-primary);
+          color: #fff;
+          box-shadow: 0 0 0 4px rgba(37,99,235,.15);
       }
-
-      .step.inactive .step-number {
-          background-color: #e9ecef;
-          color: #6c757d;
+      .step-node.is-active .step-label {
+          color: var(--booking-primary);
+          font-weight: 600;
       }
-
-      .step-connector {
-          width: 50px;
+      .step-node.is-done .step-num {
+          background: var(--booking-success);
+          border-color: var(--booking-success);
+          color: #fff;
+      }
+      .step-node.is-done .step-num::before {
+          content: "\f00c";
+          font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", FontAwesome;
+          font-weight: 900;
+      }
+      .step-node.is-done .step-num span { display: none; }
+      .step-node.is-done .step-label { color: var(--booking-text); }
+      .step-bar {
+          flex: 1 1 auto;
           height: 2px;
-          background-color: #e9ecef;
-          margin: 0 0.5rem;
+          background: var(--booking-border);
+          margin: 0 .25rem;
+          align-self: flex-start;
+          margin-top: 17px;
+          min-width: 12px;
+      }
+      .step-bar.is-done { background: var(--booking-success); }
+
+      /* Progress bar (gradient) */
+      .booking-progress {
+          height: 6px;
+          background: #eef2f7;
+          border-radius: 999px;
+          overflow: hidden;
+      }
+      .booking-progress > .bar {
+          height: 100%;
+          background: linear-gradient(90deg, var(--booking-primary), var(--booking-accent));
+          border-radius: 999px;
+          transition: width .35s ease;
       }
 
-      .step.completed+.step .step-connector {
-          background-color: #6c757d;
-      }
-
+      /* Card container */
       .booking-card {
-          background: white;
-          border-radius: 10px;
-          box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-          padding: 2rem;
-          margin-bottom: 2rem;
-      }
-
-      .form-control-lg {
-          padding: 0.75rem 1rem;
-          font-size: 1.1rem;
-      }
-
-      .btn-primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border: none;
-          padding: 0.75rem 2rem;
-          font-size: 1.1rem;
-          border-radius: 25px;
-      }
-
-      .btn-secondary {
-          padding: 0.75rem 2rem;
-          font-size: 1.1rem;
-          border-radius: 25px;
-      }
-
-      .alert {
-          border-radius: 10px;
+          background: #fff;
+          border-radius: 14px;
+          box-shadow: var(--booking-card-shadow);
+          padding: 1.75rem;
           margin-bottom: 1.5rem;
+          border: 1px solid var(--booking-border);
+      }
+      .booking-card .step-heading h2 {
+          font-size: 1.4rem;
+          font-weight: 700;
+          color: var(--booking-text);
+          margin-bottom: .15rem;
+      }
+      .booking-card .step-heading p {
+          color: var(--booking-muted);
+          font-size: .9rem;
+          margin-bottom: 0;
       }
 
+      /* Sidebar */
       .booking-summary {
-          background-color: #f8f9fa;
-          border-radius: 10px;
-          padding: 1.5rem;
-          margin-bottom: 1.5rem;
+          background: #fff;
+          border: 1px solid var(--booking-border);
+          border-radius: 14px;
+          padding: 1.25rem;
+          box-shadow: var(--booking-card-shadow);
+          position: sticky;
+          top: 1rem;
+      }
+      .booking-summary h5 {
+          font-size: .92rem;
+          font-weight: 700;
+          color: var(--booking-text);
+          margin-bottom: .85rem;
+          text-transform: uppercase;
+          letter-spacing: .04em;
+      }
+      .booking-summary .summary-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          font-size: .9rem;
+          padding: .35rem 0;
+          border-bottom: 1px dashed #eef2f7;
+          gap: .75rem;
+      }
+      .booking-summary .summary-row:last-child { border-bottom: 0; }
+      .booking-summary .summary-row .lbl {
+          color: var(--booking-muted);
+          font-weight: 500;
+          flex: 0 0 auto;
+      }
+      .booking-summary .summary-row .val {
+          color: var(--booking-text);
+          font-weight: 600;
+          text-align: right;
+          word-break: break-word;
+      }
+      .booking-summary .summary-row.total {
+          margin-top: .35rem;
+          padding-top: .65rem;
+          border-top: 1px solid var(--booking-border);
+          border-bottom: 0;
+      }
+      .booking-summary .summary-row.total .val {
+          color: var(--booking-success);
+          font-size: 1.05rem;
       }
 
-      .progress-bar {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      /* Flash messages — compact toast inside the page flow */
+      .booking-flash-stack {
+          display: flex;
+          flex-direction: column;
+          gap: .5rem;
+          margin-bottom: 1rem;
+      }
+      .booking-flash {
+          display: flex;
+          align-items: flex-start;
+          gap: .75rem;
+          padding: .75rem 1rem;
+          border-radius: 10px;
+          border: 1px solid transparent;
+          background: #fff;
+          font-size: .92rem;
+          box-shadow: 0 4px 12px rgba(15,23,42,.06);
+          position: relative;
+      }
+      .booking-flash .icon {
+          width: 28px; height: 28px;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex: 0 0 auto;
+          font-size: .85rem;
+      }
+      .booking-flash .body { flex: 1 1 auto; line-height: 1.4; color: var(--booking-text); }
+      .booking-flash .title { font-weight: 600; }
+      .booking-flash .close {
+          background: none; border: 0; color: var(--booking-muted);
+          font-size: 1rem; padding: 0 .25rem; cursor: pointer; line-height: 1;
+      }
+      .booking-flash.success { border-color: #bbf7d0; background: #f0fdf4; }
+      .booking-flash.success .icon { background: #10b981; color: #fff; }
+      .booking-flash.error   { border-color: #fecaca; background: #fef2f2; }
+      .booking-flash.error .icon { background: #ef4444; color: #fff; }
+      .booking-flash.warning { border-color: #fde68a; background: #fffbeb; }
+      .booking-flash.warning .icon { background: #f59e0b; color: #fff; }
+      .booking-flash.info    { border-color: #bae6fd; background: #f0f9ff; }
+      .booking-flash.info .icon { background: #0ea5e9; color: #fff; }
+
+      .booking-flash {
+          animation: flashIn .25s ease;
+      }
+      .booking-flash.is-fading { transition: opacity .35s ease, transform .35s ease; opacity: 0; transform: translateY(-4px); }
+      @keyframes flashIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+      }
+
+      /* Buttons */
+      .btn-booking-primary {
+          background: var(--booking-primary);
+          color: #fff;
+          border: 0;
+          padding: .65rem 1.5rem;
+          border-radius: 10px;
+          font-weight: 600;
+          font-size: .95rem;
+          box-shadow: 0 4px 14px rgba(37,99,235,.25);
+          transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease, background-color .12s ease;
+      }
+      .btn-booking-primary:hover {
+          background: var(--booking-primary-dark);
+          transform: translateY(-1px);
+          box-shadow: 0 6px 18px rgba(37,99,235,.32);
+          color: #fff;
+      }
+      .btn-booking-secondary {
+          background: #fff;
+          color: var(--booking-text);
+          border: 1px solid var(--booking-border);
+          padding: .65rem 1.25rem;
+          border-radius: 10px;
+          font-weight: 500;
+      }
+      .btn-booking-secondary:hover { background: #f8fafc; }
+
+      /* Step indicator — small screens */
+      @media (max-width: 575px) {
+          .step-node .step-label { display: none; }
+          .step-bar { margin-top: 16px; }
       }
   </style>
 {% endblock %}
 
 {% block content %}
-  <div class="booking-header">
+  <div class="booking-shell">
     <div class="container">
-      <div class="row">
-        <div class="col-12 text-center">
-          <h1 class="mb-0">
-            <i class="fas fa-calendar-plus me-2"></i>
-            Dispatcher Booking System
-          </h1>
+
+      {# ---------------- Header & step rail ---------------- #}
+      <div class="d-flex flex-wrap align-items-end justify-content-between mb-3 gap-3">
+        <div>
+          <div class="booking-page-title">Dispatcher Booking</div>
+          <h1>{{ step_title|default:"New Reservation" }}</h1>
+        </div>
+        {% if step > 1 %}
+          <a href="{% url 'dispatcher_booking_cancel' %}" class="btn btn-outline-danger btn-sm">
+            <i class="fas fa-times me-1"></i> Cancel Booking
+          </a>
+        {% endif %}
+      </div>
+
+      {# step indicator: 6 nodes — Trip Type, Customer, Details, Trips, Pricing, Review #}
+      {% with current=step|default:1 %}
+      <div class="step-rail">
+        {% for label in "Trip Type,Customer,Details,Trips,Pricing,Review"|cut:" "|slice:":0" %}{% endfor %}
+        <div class="step-node {% if current == 1 %}is-active{% elif current > 1 %}is-done{% endif %}">
+          <div class="step-num"><span>1</span></div><div class="step-label">Trip Type</div>
+        </div>
+        <div class="step-bar {% if current > 1 %}is-done{% endif %}"></div>
+        <div class="step-node {% if current == 2 %}is-active{% elif current > 2 %}is-done{% endif %}">
+          <div class="step-num"><span>2</span></div><div class="step-label">Customer</div>
+        </div>
+        <div class="step-bar {% if current > 2 %}is-done{% endif %}"></div>
+        <div class="step-node {% if current == 3 %}is-active{% elif current > 3 %}is-done{% endif %}">
+          <div class="step-num"><span>3</span></div><div class="step-label">Details</div>
+        </div>
+        <div class="step-bar {% if current > 3 %}is-done{% endif %}"></div>
+        <div class="step-node {% if current == 4 %}is-active{% elif current > 4 %}is-done{% endif %}">
+          <div class="step-num"><span>4</span></div><div class="step-label">Trips</div>
+        </div>
+        <div class="step-bar {% if current > 4 %}is-done{% endif %}"></div>
+        <div class="step-node {% if current == 5 %}is-active{% elif current > 5 %}is-done{% endif %}">
+          <div class="step-num"><span>5</span></div><div class="step-label">Pricing</div>
+        </div>
+        <div class="step-bar {% if current > 5 %}is-done{% endif %}"></div>
+        <div class="step-node {% if current == 6 %}is-active{% elif current > 6 %}is-done{% endif %}">
+          <div class="step-num"><span>6</span></div><div class="step-label">Review</div>
         </div>
       </div>
-    </div>
-  </div>
+      {% endwith %}
 
-  <div class="container">
-    <!-- Step Indicator -->
-    <div class="step-indicator">
-      <div class="step {% if step == 1 %}active{% elif step > 1 %}completed{% else %}inactive{% endif %}">
-        <div class="step-number">1</div>
-        <span>Trip Type</span>
+      {# Progress bar #}
+      <div class="booking-progress mb-4">
+        {% if step == 1 %}<div class="bar" style="width: 8%"></div>
+        {% elif step == 2 %}<div class="bar" style="width: 25%"></div>
+        {% elif step == 3 %}<div class="bar" style="width: 42%"></div>
+        {% elif step == 4 %}<div class="bar" style="width: 60%"></div>
+        {% elif step == 5 %}<div class="bar" style="width: 78%"></div>
+        {% else %}<div class="bar" style="width: 100%"></div>{% endif %}
       </div>
-      <div class="step-connector"></div>
-      <div class="step {% if step == 2 %}active{% elif step > 2 %}completed{% else %}inactive{% endif %}">
-        <div class="step-number">2</div>
-        <span>Customer</span>
-      </div>
-      <div class="step-connector"></div>
-      <div class="step {% if step == 3 %}active{% elif step > 3 %}completed{% else %}inactive{% endif %}">
-        <div class="step-number">3</div>
-        <span>Details</span>
-      </div>
-      <div class="step-connector"></div>
-      <div class="step {% if step == 4 %}active{% elif step > 4 %}completed{% else %}inactive{% endif %}">
-        <div class="step-number">4</div>
-        <span>Trips</span>
-      </div>
-      <div class="step-connector"></div>
-      <div class="step {% if step == 5 %}active{% elif step > 5 %}completed{% else %}inactive{% endif %}">
-        <div class="step-number">5</div>
-        <span>Review</span>
-      </div>
-    </div>
 
-    <!-- Progress Bar -->
-    <div class="progress mb-4" style="height: 8px;">
-      {% if step == 1 %}
-        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
-      {% elif step == 2 %}
-        <div class="progress-bar" role="progressbar" style="width: 25%"></div>
-      {% elif step == 3 %}
-        <div class="progress-bar" role="progressbar" style="width: 50%"></div>
-      {% elif step == 4 %}
-        <div class="progress-bar" role="progressbar" style="width: 60%"></div>
-      {% elif step == 5 %}
-        <div class="progress-bar" role="progressbar" style="width: 80%"></div>
-      {% else %}
-        <div class="progress-bar" role="progressbar" style="width: 100%"></div>
+      {# ---------------- Flash messages (clean toast style) ---------------- #}
+      {% if messages %}
+        <div class="booking-flash-stack">
+          {% for message in messages %}
+            {% with kind=message.tags %}
+              <div class="booking-flash {% if kind == 'error' %}error{% elif kind == 'warning' %}warning{% elif kind == 'success' %}success{% else %}info{% endif %}" role="alert">
+                <span class="icon">
+                  {% if kind == 'error' %}<i class="fas fa-exclamation"></i>
+                  {% elif kind == 'warning' %}<i class="fas fa-exclamation-triangle"></i>
+                  {% elif kind == 'success' %}<i class="fas fa-check"></i>
+                  {% else %}<i class="fas fa-info"></i>{% endif %}
+                </span>
+                <div class="body">
+                  {% if kind == 'error' %}{{ message|safe }}
+                  {% else %}{{ message }}{% endif %}
+                </div>
+                <button type="button" class="close" aria-label="Close"
+                        onclick="this.closest('.booking-flash').classList.add('is-fading'); setTimeout(()=>this.closest('.booking-flash')?.remove(), 350);">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            {% endwith %}
+          {% endfor %}
+        </div>
       {% endif %}
-    </div>
 
-    <!-- Messages -->
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show"
-             role="alert">
-          <i class="fas fa-{% if message.tags == 'error' %}exclamation-circle{% elif message.tags == 'success' %}check-circle{% elif message.tags == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
-          <strong>{% if message.tags == 'error' %}Error:{% elif message.tags == 'success' %}Success:{% elif message.tags == 'warning' %}Warning:{% else %}Info:{% endif %}</strong>
-          {% if message.tags == 'error' %}
-            <div class="mt-2">{{ message|safe }}</div>
-          {% else %}
-            {{ message }}
-          {% endif %}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    {% endif %}
-
-    <!-- Step Content -->
-    <div class="row justify-content-center">
-      <div class="col-lg-8">
-        <div class="booking-card">
-          <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-              <h2 class="mb-1">{{ step_title }}</h2>
-              <p class="text-muted mb-0">{{ step_description }}</p>
+      {# ---------------- Step content + sidebar ---------------- #}
+      <div class="row g-4">
+        <div class="{% if booking_data %}col-lg-8{% else %}col-12{% endif %}">
+          <div class="booking-card">
+            <div class="step-heading mb-4">
+              <h2>{{ step_title }}</h2>
+              {% if step_description %}<p>{{ step_description }}</p>{% endif %}
             </div>
-            {% if step > 1 %}
-              <a href="{% url 'dispatcher_booking_cancel' %}"
-                 class="btn btn-outline-danger btn-sm">
-                <i class="fas fa-times me-1"></i>
-                Cancel Booking
-              </a>
-            {% endif %}
+
+            {% block step_content %}{% endblock %}
           </div>
-
-          {% block step_content %}<!-- Step-specific content goes here -->{% endblock %}
         </div>
-      </div>
 
-      <!-- Booking Summary Sidebar -->
-      {% if booking_data %}
-        <div class="col-lg-4">
-          <div class="booking-summary">
-            <h5 class="mb-3">
-              <i class="fas fa-clipboard-list me-2"></i>
-              Booking Summary
-            </h5>
+        {% if booking_data %}
+          <div class="col-lg-4">
+            <div class="booking-summary">
+              <h5><i class="fas fa-clipboard-list me-2 text-primary"></i> Booking Summary</h5>
 
-            {% if booking_data.trip_type %}
-              <div class="mb-2">
-                <strong>Trip Type:</strong>
-                {% if booking_data.trip_type == 'one_way' %}
-                  One Way
-                {% elif booking_data.trip_type == 'round_trip' %}
-                  Round Trip
-                {% else %}
-                  Multiple Legs
+              {% if booking_data.trip_type %}
+                <div class="summary-row">
+                  <span class="lbl">Trip Type</span>
+                  <span class="val">
+                    {% if booking_data.trip_type == 'one_way' %}One Way
+                    {% elif booking_data.trip_type == 'round_trip' %}Round Trip
+                    {% else %}Multi-Leg{% endif %}
+                  </span>
+                </div>
+              {% endif %}
+
+              {% if booking_data.num_legs %}
+                <div class="summary-row">
+                  <span class="lbl">Legs</span>
+                  <span class="val">{{ booking_data.num_legs }}</span>
+                </div>
+              {% endif %}
+
+              {% if customer %}
+                <div class="summary-row">
+                  <span class="lbl">Customer</span>
+                  <span class="val">{{ customer.get_full_name }}</span>
+                </div>
+                <div class="summary-row">
+                  <span class="lbl">Phone</span>
+                  <span class="val">{{ customer.phone_number }}</span>
+                </div>
+                {% if customer.email %}
+                  <div class="summary-row">
+                    <span class="lbl">Email</span>
+                    <span class="val" style="font-size:.82rem;">{{ customer.email }}</span>
+                  </div>
                 {% endif %}
-              </div>
-            {% endif %}
+              {% endif %}
 
-            {% if booking_data.num_legs %}
-              <div class="mb-2">
-                <strong>Number of Legs:</strong> {{ booking_data.num_legs }}
-              </div>
-            {% endif %}
+              {% if reservation_data and vehicle %}
+                <div class="summary-row">
+                  <span class="lbl">Vehicle</span>
+                  <span class="val">{{ vehicle.vehicle_type|title }}</span>
+                </div>
+                <div class="summary-row">
+                  <span class="lbl">Passengers</span>
+                  <span class="val">{{ reservation_data.passenger_count }}</span>
+                </div>
+              {% endif %}
 
-            {% if customer %}
-              <div class="mb-2">
-                <strong>Customer:</strong> {{ customer.get_full_name }}
-              </div>
-              <div class="mb-2">
-                <strong>Phone:</strong> {{ customer.phone_number }}
-              </div>
-              <div class="mb-2">
-                <strong>Email:</strong> {{ customer.email }}
-              </div>
-            {% endif %}
-
-            {% if reservation_data %}
-              <hr>
-              <div class="mb-2">
-                <strong>Vehicle:</strong> {{ vehicle.vehicle_type|title }}
-              </div>
-              <div class="mb-2">
-                <strong>Passengers:</strong> {{ reservation_data.passenger_count }}
-              </div>
-              <div class="mb-3">
-                <strong>Base Price:</strong> ${{ pricing_data.manual_base_price }}
-                {% if reservation_data.additional_charges != '0' %}
-                  <div class="mb-2">
-                    <strong>Additional:</strong> ${{ pricing_data.additional_charges }}
+              {% if pricing_data %}
+                {% if pricing_data.manual_base_price %}
+                  <div class="summary-row">
+                    <span class="lbl">Base Price</span>
+                    <span class="val">${{ pricing_data.manual_base_price }}</span>
+                  </div>
+                {% endif %}
+                {% if pricing_data.additional_charges and pricing_data.additional_charges != '0' and pricing_data.additional_charges != '0.00' %}
+                  <div class="summary-row">
+                    <span class="lbl">Additional</span>
+                    <span class="val">${{ pricing_data.additional_charges }}</span>
+                  </div>
+                {% endif %}
+                {% if pricing_data.gratuity_amount and pricing_data.gratuity_amount != '0' and pricing_data.gratuity_amount != '0.00' %}
+                  <div class="summary-row">
+                    <span class="lbl">Gratuity</span>
+                    <span class="val">${{ pricing_data.gratuity_amount }}</span>
+                  </div>
+                {% endif %}
+                {% if pricing_data.total_price %}
+                  <div class="summary-row total">
+                    <span class="lbl">Total</span>
+                    <span class="val">${{ pricing_data.total_price }}</span>
                   </div>
                 {% endif %}
               {% endif %}
@@ -266,46 +462,100 @@
           </div>
         {% endif %}
       </div>
+
     </div>
+  </div>
 
-    {% block extra_js %}
-      <script>
-          // Auto-hide alerts after 5 seconds
-          setTimeout(function() {
-              $('.alert').fadeOut();
-          }, 5000);
+  {% block extra_js %}
+    <script>
+        // Auto-fade only success and info flashes. Warnings & errors stay until dismissed.
+        setTimeout(function() {
+            document.querySelectorAll('.booking-flash.success, .booking-flash.info').forEach(function(el) {
+                if (el.classList.contains('is-persistent')) return;
+                el.classList.add('is-fading');
+                setTimeout(function(){ el.remove(); }, 350);
+            });
+        }, 6000);
 
-          // Form validation enhancement
-          $(document).ready(function() {
-              // Add Bootstrap validation classes
-              $('form').on('submit', function(e) {
-                  var isValid = true;
-                  $(this).find('input[required], select[required], textarea[required]').each(function() {
-                      if (!$(this).val()) {
-                          $(this).addClass('is-invalid');
-                          isValid = false;
-                      } else {
-                          $(this).removeClass('is-invalid').addClass('is-valid');
-                      }
-                  });
+        // Friendly label lookup for required fields that fail client-side validation.
+        function _labelForField(field) {
+            if (field.id) {
+                const lbl = document.querySelector('label[for="' + field.id + '"]');
+                if (lbl) return lbl.textContent.replace(/\*+/g,'').trim();
+            }
+            return (field.getAttribute('name') || 'this field').replace(/_/g,' ');
+        }
 
-                  if (!isValid) {
-                      e.preventDefault();
-                      $('html, body').animate({
-                          scrollTop: $('.is-invalid').first().offset().top - 100
-                      }, 500);
-                  }
-              });
+        function showFormValidationBanner(form, missing) {
+            // Reuse banner if already present so we don't stack duplicates.
+            let banner = form.querySelector('.client-validation-banner');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.className = 'booking-flash error client-validation-banner mb-3';
+                banner.setAttribute('role', 'alert');
+                banner.innerHTML =
+                    '<span class="icon"><i class="fas fa-exclamation"></i></span>' +
+                    '<div class="body"><div class="title">Please fill in the required fields below.</div>' +
+                    '<ul class="mb-0 mt-1 small" style="padding-left:1.1rem"></ul></div>' +
+                    '<button type="button" class="close" aria-label="Close" ' +
+                    'onclick="this.closest(\'.booking-flash\').remove();">' +
+                    '<i class="fas fa-times"></i></button>';
+                form.insertBefore(banner, form.firstChild);
+            }
+            const ul = banner.querySelector('ul');
+            ul.innerHTML = '';
+            missing.forEach(function(name) {
+                const li = document.createElement('li');
+                li.textContent = name;
+                ul.appendChild(li);
+            });
+        }
 
-              // Remove validation classes on input
-              $('input, select, textarea').on('input change', function() {
-                  $(this).removeClass('is-invalid is-valid');
-              });
-          });
-      </script>
-    {% endblock %}
+        function clearFormValidationBanner(form) {
+            const banner = form.querySelector('.client-validation-banner');
+            if (banner) banner.remove();
+        }
+
+        // Field-level validation polish
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('form').forEach(function(form) {
+                form.addEventListener('submit', function(e) {
+                    let valid = true;
+                    const missing = [];
+                    form.querySelectorAll('input[required], select[required], textarea[required]').forEach(function(field) {
+                        const v = field.value;
+                        const empty = v === null || v === undefined || !String(v).trim();
+                        if (empty) {
+                            field.classList.add('is-invalid');
+                            field.setAttribute('aria-invalid', 'true');
+                            missing.push(_labelForField(field));
+                            valid = false;
+                        } else {
+                            field.classList.remove('is-invalid');
+                            field.removeAttribute('aria-invalid');
+                        }
+                    });
+                    if (!valid) {
+                        e.preventDefault();
+                        showFormValidationBanner(form, missing);
+                        const first = form.querySelector('.is-invalid');
+                        if (first) {
+                            first.scrollIntoView({behavior:'smooth', block:'center'});
+                            try { first.focus({preventScroll:true}); } catch(_) {}
+                        }
+                    } else {
+                        clearFormValidationBanner(form);
+                    }
+                });
+            });
+            document.querySelectorAll('input, select, textarea').forEach(function(el) {
+                el.addEventListener('input',  function() { this.classList.remove('is-invalid'); this.removeAttribute('aria-invalid'); });
+                el.addEventListener('change', function() { this.classList.remove('is-invalid'); this.removeAttribute('aria-invalid'); });
+            });
+        });
+    </script>
   {% endblock %}
-  {% block footer %}
-  {% endblock footer %}
-  {% block newsletter %}
-  {% endblock newsletter %}
+{% endblock content %}
+
+{% block footer %}{% endblock footer %}
+{% block newsletter %}{% endblock newsletter %}

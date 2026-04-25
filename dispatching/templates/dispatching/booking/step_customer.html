@@ -233,22 +233,24 @@
               searchResults.style.display = 'none';
               searchInput.value = '';
 
-              // Show success message
-              const successAlert = document.createElement('div');
-              successAlert.className = 'alert alert-success mt-3';
-              successAlert.innerHTML = `
-            <i class="fas fa-check-circle me-2"></i>
-            <strong>Customer information loaded!</strong> 
-            ${customer.full_name} (${customer.is_returning ? 'Returning customer' : 'New customer'})
-        `;
-
-              // Insert after search card
-              document.querySelector('.card.bg-light').insertAdjacentElement('afterend', successAlert);
-
-              // Remove success message after 5 seconds
-              setTimeout(() => {
-                  successAlert.remove();
-              }, 5000);
+              // Reuse a single banner so repeated selections don't stack alerts.
+              let banner = document.getElementById('customer-loaded-banner');
+              if (!banner) {
+                  banner = document.createElement('div');
+                  banner.id = 'customer-loaded-banner';
+                  banner.className = 'booking-flash success is-persistent mt-3';
+                  banner.setAttribute('role', 'status');
+                  banner.innerHTML =
+                      '<span class="icon"><i class="fas fa-check"></i></span>' +
+                      '<div class="body"><strong>Customer loaded.</strong> <span class="cust-name"></span></div>' +
+                      '<button type="button" class="close" aria-label="Close" ' +
+                      'onclick="this.closest(\'.booking-flash\').remove();">' +
+                      '<i class="fas fa-times"></i></button>';
+                  document.querySelector('.card.bg-light').insertAdjacentElement('afterend', banner);
+              }
+              banner.querySelector('.cust-name').textContent =
+                  customer.full_name + ' (' + (customer.is_returning ? 'Returning customer' : 'New customer') + ')';
+              // No auto-removal — banner stays until the user dismisses it or navigates away.
           }
 
           searchBtn.addEventListener('click', searchCustomers);

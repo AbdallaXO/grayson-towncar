@@ -486,12 +486,16 @@ def extra_charges(reservation):
                 f"Added ${total_extra} on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"
             )
 
-    # Extra car seat / booster fees
+    # Extra car seat / booster fees (per-leg, using effective vehicle for each leg)
     extra_seat_fee = Decimal(0)
-    vehicle = reservation.vehicle
-    if vehicle and (reservation.extra_carseats or reservation.extra_boosters):
-        extra_seat_fee += Decimal(reservation.extra_carseats or 0) * vehicle.extra_carseat_fee
-        extra_seat_fee += Decimal(reservation.extra_boosters or 0) * vehicle.extra_booster_fee
+    for leg in reservation.legs.all():
+        leg_vehicle = leg.effective_vehicle
+        leg_extra_cs = leg.effective_extra_carseats or 0
+        leg_extra_bs = leg.effective_extra_boosters or 0
+        if leg_vehicle and (leg_extra_cs or leg_extra_bs):
+            extra_seat_fee += Decimal(leg_extra_cs) * leg_vehicle.extra_carseat_fee
+            extra_seat_fee += Decimal(leg_extra_bs) * leg_vehicle.extra_booster_fee
+    if extra_seat_fee:
         total_extra += extra_seat_fee
         logger.info(
             f"Added ${extra_seat_fee} extra seat fee on Reservation #{reservation.id} for {reservation.customer.get_full_name()}"

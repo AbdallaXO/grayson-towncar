@@ -408,19 +408,44 @@ class Reservation(models.Model):
         """
         Recalculate revenue_share and profit_estimate for all legs in this reservation.
         Call this whenever legs are added or removed so the split stays correct.
-        Uses bulk update for revenue_share (same for all legs) then per-leg update
-        for profit_estimate (varies by driver pay).
+
+        When legs have per-leg base prices (leg_base_price), revenue is split
+        proportionally by base price. Otherwise, equal split (current behavior).
         """
-        total_legs = self.legs.count()
-        if total_legs == 0 or not self.total_price:
+        legs = list(self.legs.all())
+        if not legs or not self.total_price:
             return
-        share = (self.total_price / Decimal(total_legs)).quantize(Decimal("0.01"))
-        # Bulk-set revenue_share — avoids triggering save() signals on every leg
-        self.legs.update(revenue_share=share)
-        # Update profit_estimate per leg (driver pay differs per leg)
-        for leg in self.legs.all():
-            profit = leg.calculate_profit()
-            Leg.objects.filter(pk=leg.pk).update(profit_estimate=profit)
+
+        has_per_leg_pricing = any(l.leg_base_price is not None for l in legs)
+
+        if has_per_leg_pricing:
+            # Weighted split: legs with leg_base_price get proportional share;
+            # legs without it get an equal portion of the remainder.
+            num_legs = len(legs)
+            default_share = self.base_price / Decimal(num_legs) if self.base_price else Decimal("0.00")
+            total_base = sum(
+                l.leg_base_price if l.leg_base_price is not None else default_share
+                for l in legs
+            )
+            for leg in legs:
+                leg_base = leg.leg_base_price if leg.leg_base_price is not None else default_share
+                if total_base > 0:
+                    weight = leg_base / total_base
+                    share = (self.total_price * weight).quantize(Decimal("0.01"))
+                else:
+                    share = (self.total_price / Decimal(num_legs)).quantize(Decimal("0.01"))
+                Leg.objects.filter(pk=leg.pk).update(revenue_share=share)
+                leg.revenue_share = share  # keep in-memory copy current
+                profit = leg.calculate_profit()
+                Leg.objects.filter(pk=leg.pk).update(profit_estimate=profit)
+        else:
+            # Equal split (original behavior)
+            share = (self.total_price / Decimal(len(legs))).quantize(Decimal("0.01"))
+            self.legs.update(revenue_share=share)
+            for leg in legs:
+                leg.revenue_share = share
+                profit = leg.calculate_profit()
+                Leg.objects.filter(pk=leg.pk).update(profit_estimate=profit)
 
     @cached_property
     def all_payments(self):
@@ -745,6 +770,85 @@ class Leg(models.Model):
         related_name="legs",
         help_text="Matched route for this leg (auto-filled when possible)",
     )
+
+    # ── Per-leg trip detail overrides ──
+    # NULL = inherit from reservation (backward-compatible default).
+    # Set a value to override for this specific leg.
+    vehicle = models.ForeignKey(
+        "rates.Vehicle",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="legs",
+        help_text="Override vehicle for this leg. NULL = use reservation vehicle.",
+    )
+    leg_rate = models.ForeignKey(
+        "rates.Rate",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="legs",
+        help_text="Rate for this leg's vehicle+route. NULL = use reservation rate.",
+    )
+    leg_base_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Base price for this leg. NULL = equal split of reservation base_price.",
+    )
+    passenger_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Override passenger count. NULL = use reservation value.",
+    )
+    luggage_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Override luggage count. NULL = use reservation value.",
+    )
+    luggage_type = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text="Override luggage type. Empty = use reservation value.",
+    )
+    need_carseats = models.BooleanField(
+        null=True,
+        blank=True,
+        help_text="Override car seat requirement. NULL = use reservation value.",
+    )
+    rf_carseats = models.PositiveIntegerField(
+        "RF-Seat",
+        null=True,
+        blank=True,
+        help_text="Override rear-facing car seats. NULL = use reservation value.",
+    )
+    ff_carseats = models.PositiveIntegerField(
+        "FF-Seat",
+        null=True,
+        blank=True,
+        help_text="Override forward-facing car seats. NULL = use reservation value.",
+    )
+    booster_seats = models.PositiveIntegerField(
+        "Booster",
+        null=True,
+        blank=True,
+        help_text="Override booster seats. NULL = use reservation value.",
+    )
+    extra_carseats = models.PositiveIntegerField(
+        "Extra Car Seats",
+        null=True,
+        blank=True,
+        help_text="Override extra car seats. NULL = use reservation value.",
+    )
+    extra_boosters = models.PositiveIntegerField(
+        "Extra Boosters",
+        null=True,
+        blank=True,
+        help_text="Override extra boosters. NULL = use reservation value.",
+    )
+
     flight_information = models.OneToOneField(
         "Flight", on_delete=models.CASCADE, null=True, blank=True
     )
@@ -858,10 +962,129 @@ class Leg(models.Model):
         blank=True,
         help_text="When next-day confirmation SMS was sent (Twilio)",
     )
+    confirmation_sms_override = models.TextField(
+        blank=True,
+        default="",
+        help_text="Custom confirmation SMS body for this leg. When set, it replaces the auto-generated message body. The standard footer is still appended.",
+    )
     exclude_from_analytics = models.BooleanField(
         default=False,
         help_text="Exclude this leg from route timing analytics (bad data)",
     )
+
+    # ── Effective-value resolution properties ──
+    # These check leg-level overrides first, then fall back to reservation.
+    # Use these everywhere instead of accessing reservation fields directly.
+
+    @property
+    def effective_vehicle(self):
+        """Return this leg's vehicle override, or fall back to reservation vehicle."""
+        return self.vehicle if self.vehicle_id else (
+            self.reservation.vehicle if self.reservation_id else None
+        )
+
+    @property
+    def effective_vehicle_type(self):
+        """Return vehicle_type string for scheduler/template use."""
+        v = self.effective_vehicle
+        return v.vehicle_type if v else None
+
+    @property
+    def effective_rate(self):
+        """Return this leg's rate override, or fall back to reservation rate."""
+        return self.leg_rate if self.leg_rate_id else (
+            self.reservation.rate if self.reservation_id else None
+        )
+
+    @property
+    def effective_passenger_count(self):
+        if self.passenger_count is not None:
+            return self.passenger_count
+        return self.reservation.passenger_count if self.reservation_id else 1
+
+    @property
+    def effective_luggage_count(self):
+        if self.luggage_count is not None:
+            return self.luggage_count
+        return self.reservation.luggage_count if self.reservation_id else 1
+
+    @property
+    def effective_luggage_type(self):
+        if self.luggage_type:
+            return self.luggage_type
+        return self.reservation.luggage_type if self.reservation_id else ""
+
+    @property
+    def effective_need_carseats(self):
+        if self.need_carseats is not None:
+            return self.need_carseats
+        return self.reservation.need_carseats if self.reservation_id else False
+
+    @property
+    def effective_rf_carseats(self):
+        if self.rf_carseats is not None:
+            return self.rf_carseats
+        return self.reservation.rf_carseats if self.reservation_id else 0
+
+    @property
+    def effective_ff_carseats(self):
+        if self.ff_carseats is not None:
+            return self.ff_carseats
+        return self.reservation.ff_carseats if self.reservation_id else 0
+
+    @property
+    def effective_booster_seats(self):
+        if self.booster_seats is not None:
+            return self.booster_seats
+        return self.reservation.booster_seats if self.reservation_id else 0
+
+    @property
+    def effective_extra_carseats(self):
+        if self.extra_carseats is not None:
+            return self.extra_carseats
+        return self.reservation.extra_carseats if self.reservation_id else 0
+
+    @property
+    def effective_extra_boosters(self):
+        if self.extra_boosters is not None:
+            return self.extra_boosters
+        return self.reservation.extra_boosters if self.reservation_id else 0
+
+    @property
+    def has_overrides(self):
+        """Return True if this leg has any trip-detail overrides."""
+        return (
+            self.vehicle_id is not None
+            or self.passenger_count is not None
+            or self.luggage_count is not None
+            or bool(self.luggage_type)
+            or self.need_carseats is not None
+            or self.rf_carseats is not None
+            or self.ff_carseats is not None
+            or self.booster_seats is not None
+            or self.extra_carseats is not None
+            or self.extra_boosters is not None
+        )
+
+    def auto_set_rate(self):
+        """
+        Look up the Rate for this leg's vehicle+route combination and set
+        leg_rate and leg_base_price. Called when a leg-level vehicle override
+        is set. Returns True if a rate was found, False otherwise.
+        """
+        from rates.models import Rate
+
+        if not self.vehicle_id or not self.route_id:
+            return False
+
+        rate = Rate.objects.filter(
+            vehicle=self.vehicle, route=self.route
+        ).first()
+        if rate:
+            self.leg_rate = rate
+            self.leg_base_price = rate.oneway_price
+            return True
+        return False
 
     def calculate_revenue_share(self):
         """
